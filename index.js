@@ -3,7 +3,7 @@
  *
  *          Yuneta UI Library - Reusable GUI components.
  *
- *          VENDORED copy of @yuneta/lib-yui, owned by wattyzer for
+ *          VENDORED copy of @yuneta/gobj-ui, owned by wattyzer for
  *          fast in-place development.  Edit these files directly.
  *          When the work stabilizes, fold the changes back into
  *          yunetas/kernel/js/lib-yui and restore the package dep.

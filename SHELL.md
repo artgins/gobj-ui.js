@@ -582,7 +582,7 @@ The pair *requested ↔ changed* is the canonical Yuneta way to
 audit a gobj's behaviour: every intent is recorded regardless of
 outcome, and every successful state transition has its own event.
 
-Public helpers (import from `@yuneta/lib-yui`):
+Public helpers (import from `@yuneta/gobj-ui`):
 - `yui_shell_set_connection_state(shell, connected)` — paint every
   `type:"connection"` toolbar dot connected/disconnected. Call from
   the app's transport handlers (`EV_ON_OPEN` → `true`, close/errors →
@@ -613,7 +613,7 @@ import {
     yui_shell_show_info, yui_shell_show_warning, yui_shell_show_error,
     yui_shell_show_modal,
     yui_shell_confirm_ok, yui_shell_confirm_yesno, yui_shell_confirm_yesnocancel,
-} from "@yuneta/lib-yui";
+} from "@yuneta/gobj-ui";
 
 /*  Toasts (Bulma .notification, auto-dismiss after 5 s). */
 yui_shell_show_info(shell,    "Hello");
@@ -820,8 +820,8 @@ mobile; no transitions).
 import {
     register_c_yui_shell,
     register_c_yui_nav,
-} from "@yuneta/lib-yui";
-import "@yuneta/lib-yui/src/c_yui_shell.css";
+} from "@yuneta/gobj-ui";
+import "@yuneta/gobj-ui/src/c_yui_shell.css";
 import "bulma/css/bulma.css";
 import app_config from "./app_config.json";
 
@@ -1040,7 +1040,7 @@ which path closed the drawer.
 ### Public API (for custom overlays)
 
 ```js
-import { yui_shell_push_escape, yui_shell_pop_escape } from "@yuneta/lib-yui";
+import { yui_shell_push_escape, yui_shell_pop_escape } from "@yuneta/gobj-ui";
 
 let close_modal = () => my_modal.close();
 yui_shell_push_escape(shell, "modal", close_modal);

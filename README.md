@@ -4,7 +4,7 @@ Reusable GUI components for Yuneta GClass front-ends: a declarative shell
 (`C_YUI_SHELL`/`NAV`/`PAGER`/`WIZARD`), the legacy GClass GUI stack
 (`C_YUI_MAIN`/`WINDOW`/`TABS`/`ROUTING`), TreeDB editors, charts and maps.
 
-Published as `@yuneta/lib-yui`. Built on top of [`@yuneta/gobj-js`](https://github.com/artgins/gobj-js.js).
+Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://github.com/artgins/gobj-js.js).
 
 ## Two maintained lines
 
@@ -21,7 +21,7 @@ consumers. They are independent snapshots (no shared git ancestry):
   `gui/src/lib-yui` and consumed as plain source via relative imports.
 - **v1 / `v1`** is the frozen legacy-only stack (the declarative shell is not on
   this line). It is embedded as a git submodule in **yunetas** at
-  `kernel/js/lib-yui`; estadodelaire and hidraulia resolve `@yuneta/lib-yui`
+  `kernel/js/lib-yui`; estadodelaire and hidraulia resolve `@yuneta/gobj-ui`
   there through an npm `file:` dependency. Land only maintenance fixes here.
 
 All new feature work lands on `main`/v2.
@@ -47,7 +47,7 @@ npm run build      # vite -> dist/ (ES/CJS/UMD/IIFE, min + non-min)
 npm test           # vitest (v2/main only; v1 has no test target)
 ```
 
-`dist/` is gitignored. Consumers that import the package root (`@yuneta/lib-yui`)
+`dist/` is gitignored. Consumers that import the package root (`@yuneta/gobj-ui`)
 resolve to `dist/lib-yui.es.js` via the exports map, so rebuild `dist/` after
 updating the v1 submodule.
 

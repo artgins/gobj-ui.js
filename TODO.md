@@ -4,7 +4,7 @@ Living TODO for the declarative shell.  Everything originally on
 this list (the new shell + nav, escape stack, modal/notification
 API, generalised secondary-nav loop, validator, Playwright e2e on
 three browsers) is **done**, shipped in `7.3.1` (2026-04-30) and
-published as `@yuneta/lib-yui@7.3.1` and `@yuneta/gobj-js@7.3.1`
+published as `@yuneta/gobj-ui@7.3.1` and `@yuneta/gobj-js@7.3.1`
 on npmjs.com.
 
 `CHANGELOG.md` carries the full feature list under `## v7.3.1`.
@@ -96,7 +96,7 @@ Gated on 1.1, 1.2, 1.3.  All four greps above must return empty.
 - Delete `src/c_yui_main.js`, `src/c_yui_main.css`,
   `src/c_yui_routing.js`, `src/c_yui_routing.css`.
 - Remove their exports from `index.js`.
-- Drop `import "@yuneta/lib-yui/src/c_yui_main.css"` /
+- Drop `import "@yuneta/gobj-ui/src/c_yui_main.css"` /
   `c_yui_routing.css` from any remaining `main.js`.
 - Update `SHELL.md` §11 to remove the "Do not import `c_yui_main.css`
   and `c_yui_shell.css` together" item (and renumber).

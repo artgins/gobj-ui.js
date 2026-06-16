@@ -295,7 +295,7 @@ Default recomendado: `keep_alive`.
 Eventos publicados:
 - `EV_ROUTE_CHANGED` — `{ route, item, parent_item, stage }`.
 
-Helpers públicos (import desde `@yuneta/lib-yui`):
+Helpers públicos (import desde `@yuneta/gobj-ui`):
 - `yui_shell_navigate(shell, route)` — navegación programática.
 - `yui_shell_open_drawer(shell, menu_id?)`,
   `yui_shell_close_drawer(shell, menu_id?)`,
@@ -324,8 +324,8 @@ Atributos de interés: `menu_items`, `zone`, `layout`, `icon_pos`,
 import {
     register_c_yui_shell,
     register_c_yui_nav,
-} from "@yuneta/lib-yui";
-import "@yuneta/lib-yui/src/c_yui_shell.css";
+} from "@yuneta/gobj-ui";
+import "@yuneta/gobj-ui/src/c_yui_shell.css";
 import "bulma/css/bulma.css";
 import app_config from "./app_config.json";
 
