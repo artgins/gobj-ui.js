@@ -14,10 +14,11 @@
         "./*": "./*"
     },
     "files": [
-        "dist/",
+        "dist/gobj-ui.es.js",
+        "dist/gobj-ui.cjs.js",
         "index.js",
-        "*.js",
-        "*.css",
+        "/*.js",
+        "/*.css",
         "vite-plugin-yuneta-html.js"
     ],
     "description": "Yuneta UI Library — v2 (active development) declarative shell (C_YUI_SHELL+NAV+PAGER+WIZARD) + legacy GClass GUI stack (C_YUI_MAIN/WINDOW/TABS/ROUTING + TreeDB editors + charts/maps).  Consumed by wattyzer.  The frozen legacy-only line lives on the v1 branch (consumed by estadodelaire and hidraulia).",
