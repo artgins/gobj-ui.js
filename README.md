@@ -1,28 +1,28 @@
 # lib-yui — Yuneta UI Library
 
+> **This is the `v1` (frozen) branch.** Active development is on `main` (v2).
+> See the branch table in the `main` README.
+
 Reusable GUI components for building Yuneta-based web applications. Every
 component is a GClass (from [`@yuneta/gobj-js`](https://www.npmjs.com/package/@yuneta/gobj-js))
 that plugs into the GObject tree and communicates via events.
 
 ## What this package ships
 
-`lib-yui` is the **Yuneta UI library** — both the legacy `C_YUI_MAIN`
-GClass stack and the newer declarative shell. Two parallel stacks
-coexist because consumers are at different points in the migration:
+`lib-yui` is the **Yuneta UI library**. This `v1` line is the **frozen legacy
+GClass GUI stack only** — `C_YUI_MAIN`, `C_YUI_WINDOW`, `C_YUI_TABS`,
+`C_YUI_FORM`, `C_YUI_ROUTING`, TreeDB editors, charts and maps. It is consumed
+by **estadodelaire** and **hidraulia**, which resolve `@yuneta/lib-yui` to this
+checkout through an npm `file:` dependency.
 
-- **Legacy stack** (`C_YUI_MAIN`, `C_YUI_WINDOW`, `C_YUI_TABS`,
-  `C_YUI_FORM`, `C_YUI_ROUTING`, …). Consumed by `estadodelaire`.
-- **Declarative shell stack** (`C_YUI_SHELL`, `C_YUI_NAV`,
-  `C_YUI_PAGER`, `C_YUI_WIZARD`). Shipped in lib-yui **8.0**.
-  Consumed by `wattyzer`.
+The **declarative shell** (`C_YUI_SHELL`, `C_YUI_NAV`, `C_YUI_PAGER`,
+`C_YUI_WIZARD`) is **not** on this line — it lives on the **v2 / `main`** line,
+consumed by **wattyzer**.
 
-> **Where development happens.** `wattyzer/gui/src/lib-yui/` is a
-> flat vendored copy of this package used for hot iteration on the
-> declarative shell — `wattyzer` edits its own copy without
-> churning the published npm package; the work gets folded back to
-> this canonical copy on release boundaries. The lib-yui *in
-> yunetas* is the source of truth and is what `@yuneta/lib-yui`
-> on npm tracks. See memory `wattyzer-lib-yui-vendored`.
+> **Where development happens.** This repo (`github.com/artgins/lib-yui.js`) is
+> the single source of truth, embedded as a git submodule in both yunetas
+> (`kernel/js/lib-yui`, tracking `v1`) and wattyzer (`gui/src/lib-yui`, tracking
+> `main`/v2). All new feature work lands on `main`/v2; `v1` is maintenance-only.
 
 ## Components
 
