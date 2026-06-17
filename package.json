@@ -1,6 +1,6 @@
 {
     "name": "@yuneta/gobj-ui",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "type": "module",
     "main": "dist/gobj-ui.cjs.js",
     "module": "dist/gobj-ui.es.js",
