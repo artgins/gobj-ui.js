@@ -72,6 +72,7 @@ export { EditControl, MarkerControl } from "./src/lib_maplibre.js";
 export { themes } from "./src/themes.js";
 export { YTable, createYTable } from "./src/ytable.js";
 export { yui_toolbar } from "./src/yui_toolbar.js";
+export { attach_clear } from "./src/yui_inputs.js";
 export { info_traffic, setup_dev, build_dev_panel, apply_dev_traces, dev_window_was_open } from "./src/yui_dev.js";
 
 /*

@@ -1,0 +1,29 @@
+/***********************************************************************
+ *          yui_inputs.css
+ *
+ *      Styling for the editable-input helpers in yui_inputs.js.
+ *
+ *      The clear button itself is Bulma's `.delete`; here we only
+ *      position it over the input's right padding and show it only
+ *      while the field has content.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+.control.has-clear {
+    position: relative;
+}
+.control.has-clear input.input {
+    padding-right: 2.25em;
+}
+.yui-input-clear {
+    position: absolute;
+    top: 50%;
+    right: 0.5em;
+    transform: translateY(-50%);
+    display: none;
+    z-index: 4;
+}
+.yui-input-clear.is-visible {
+    display: inline-block;
+}
