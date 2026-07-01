@@ -30,6 +30,7 @@ import {
     gobj_create, gobj_destroy,
     gobj_start, gobj_stop,
     gobj_publish_event,
+    gobj_send_event,
     gobj_subscribe_event,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     createElement2, empty_string, is_object, is_array, is_string,
@@ -2085,6 +2086,151 @@ function ac_drawer_close_requested(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *  Close 'x' on a closable tab (from a C_YUI_NAV child).  The
+ *  shell does not own the item set — re-publish so the app (which
+ *  owns the underlying data, e.g. the selected-nodes list) removes
+ *  the item and calls yui_shell_set_submenu() with the new list.
+ ************************************************************/
+function ac_nav_item_close(gobj, event, kw, src)
+{
+    gobj_publish_event(gobj, "EV_NAV_ITEM_CLOSE", {
+        item_id: (kw && kw.item_id) || "",
+        route:   (kw && kw.route) || "",
+        menu_id: (kw && kw.menu_id) || "",
+        zone:    (kw && kw.zone) || ""
+    });
+    return 0;
+}
+
+/************************************************************
+ *  Runtime nav API (Yuneta philosophy: the app_config path is the
+ *  first, startup caller of the very same machinery — build_item_index
+ *  + instantiate + set items; this is its dynamic counterpart).
+ *
+ *  yui_shell_set_submenu(shell, parent_item_id, items) replaces the
+ *  items of a primary item's submenu (its secondary nav) at runtime
+ *  and re-registers their routes so navigation resolves.  Item
+ *  descriptors may carry { id, name, icon, route, class, closable,
+ *  target:{stage,gclass,kw,lifecycle} }.  Routes present before but
+ *  absent now are pruned (index entry removed, mounted view destroyed).
+ ************************************************************/
+function find_secondary_nav(priv, parent_item_id)
+{
+    let suffix = "." + parent_item_id;
+    for(let nav of priv.navs) {
+        let menu_id = gobj_read_attr(nav, "menu_id") || "";
+        if(menu_id.startsWith("secondary.") && menu_id.endsWith(suffix)) {
+            return nav;
+        }
+    }
+    return null;
+}
+
+function find_primary_item(shell_gobj, menu_id, item_id)
+{
+    let config = gobj_read_attr(shell_gobj, "config") || {};
+    let menu = (config.menu && config.menu[menu_id]) || null;
+    if(menu && is_array(menu.items)) {
+        for(let it of menu.items) {
+            if(it && it.id === item_id) {
+                return it;
+            }
+        }
+    }
+    return null;
+}
+
+/*  Drop a route from the index and destroy any mounted view for it. */
+function prune_route(shell_gobj, route)
+{
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    delete priv.item_index[route];
+    for(let stage_name in priv.stages) {
+        let stage = priv.stages[stage_name];
+        let view = stage.items && stage.items[route];
+        if(!view) {
+            continue;
+        }
+        let $c = gobj_read_attr(view, "$container");
+        if($c) {
+            $c.classList.add("is-hidden");
+        }
+        try {
+            gobj_stop(view);
+            gobj_destroy(view);
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: prune_route destroy '${route}' failed: ${e}`);
+        }
+        delete stage.items[route];
+        if(stage.active_route === route) {
+            stage.active_route = "";
+        }
+    }
+}
+
+function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
+{
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    if(!priv) {
+        return -1;
+    }
+    let nav = find_secondary_nav(priv, parent_item_id);
+    if(!nav) {
+        log_warning(
+            `C_YUI_SHELL: yui_shell_set_submenu — no secondary nav for '${parent_item_id}'`
+        );
+        return -1;
+    }
+    items = is_array(items) ? items : [];
+
+    /*  Resolve owning menu_id + primary item from the nav's synthesized
+     *  id "secondary.<menu_id>.<parent_item_id>", so registered routes
+     *  highlight correctly and keep this secondary nav visible. */
+    let nav_menu_id = gobj_read_attr(nav, "menu_id") || "";
+    let m = /^secondary\.(.+)\.([^.]+)$/.exec(nav_menu_id);
+    let owning_menu_id = m ? m[1] : "";
+    let parent_item = find_primary_item(shell_gobj, owning_menu_id, parent_item_id);
+
+    /*  Track the routes THIS submenu owns dynamically, so we only prune
+     *  our own previous routes — never the static config routes (e.g. a
+     *  base "/console/agent" landing declared in app_config).  */
+    priv.dynamic_routes = priv.dynamic_routes || {};
+    let prev_routes = priv.dynamic_routes[parent_item_id] || [];
+    let new_routes = [];
+    let new_set = {};
+    for(let it of items) {
+        if(it && it.route) {
+            new_routes.push(it.route);
+            new_set[it.route] = true;
+        }
+    }
+    for(let route of prev_routes) {
+        if(!new_set[route]) {
+            prune_route(shell_gobj, route);
+        }
+    }
+
+    /*  Register / refresh routes for the new items. */
+    for(let it of items) {
+        if(!it || !it.route) {
+            continue;
+        }
+        priv.item_index[it.route] = {
+            item: it,
+            parent_item: parent_item,
+            stage: (it.target && it.target.stage) || null,
+            target: it.target || null,
+            menu_id: owning_menu_id
+        };
+    }
+    priv.dynamic_routes[parent_item_id] = new_routes;
+
+    /*  Push the new items into the nav (rebuilds its DOM in place). */
+    gobj_send_event(nav, "EV_SET_ITEMS", {items: items}, shell_gobj);
+    return 0;
+}
+
 /***************************************************************
  *              FSM
  ***************************************************************/
@@ -2113,13 +2259,19 @@ function create_gclass(gclass_name)
             ["EV_NAV_CLICKED",            ac_nav_clicked,            null],
             /*  Drawer backdrop close (from a C_YUI_NAV child whose
              *  layout is "drawer"). */
-            ["EV_DRAWER_CLOSE_REQUESTED", ac_drawer_close_requested, null]
+            ["EV_DRAWER_CLOSE_REQUESTED", ac_drawer_close_requested, null],
+            /*  Close 'x' on a closable tab (from a child C_YUI_NAV);
+             *  re-published for the app. */
+            ["EV_NAV_ITEM_CLOSE",         ac_nav_item_close,         null]
         ]]
     ];
 
     const event_types = [
         ["EV_NAV_CLICKED",            0],
         ["EV_DRAWER_CLOSE_REQUESTED", 0],
+        ["EV_NAV_ITEM_CLOSE",         event_flag_t.EVF_OUTPUT_EVENT
+                                     |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS],
         /*  Audit witness: every navigation attempt publishes this BEFORE
          *  any work is done, so the FSM trace records intent regardless
          *  of whether the route resolves successfully.  Pairs with
@@ -2317,5 +2469,6 @@ export {
     yui_shell_set_translator,
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,
-    yui_shell_close_dropdown
+    yui_shell_close_dropdown,
+    yui_shell_set_submenu
 };

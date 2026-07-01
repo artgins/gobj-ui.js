@@ -15,6 +15,15 @@
  *
  *      Each item supports:
  *          id, name, icon (CSS class or svg id), route, badge, disabled
+ *          class    — extra CSS class(es) on the item (tabs layout), e.g.
+ *                     a per-item state colour like "yui-nav-disconnected"
+ *          closable — render a trailing ✕ that emits EV_NAV_ITEM_CLOSE
+ *                     instead of navigating (tabs layout)
+ *
+ *      Items can be replaced at runtime by sending EV_SET_ITEMS
+ *      {items:[...]} to the nav; the DOM is rebuilt in place and the
+ *      active highlight restored.  The app_config path is simply the
+ *      first, startup caller of the same mechanism.
  *
  *      In addition to navigable items, secondary navs accept two
  *      decorative item kinds for in-place visual grouping:
@@ -213,6 +222,62 @@ function build_ui(gobj)
 }
 
 /************************************************************
+ *  Rebuild the nav DOM in place from the current menu_items.
+ *  Used by EV_SET_ITEMS so a nav's tabs can be changed at runtime
+ *  (the app_config path is just the first, startup caller).
+ ************************************************************/
+function rebuild(gobj)
+{
+    let $old = gobj_read_attr(gobj, "$container");
+    let priv = gobj_read_attr(gobj, "priv") || {};
+    let parent = $old ? $old.parentNode : null;
+    let next = $old ? $old.nextSibling : null;
+    let was_hidden = !!($old && $old.classList.contains("is-hidden"));
+
+    /*  Drop the old delegated click listener before discarding the node. */
+    if($old && priv.click_handler) {
+        $old.removeEventListener("click", priv.click_handler);
+    }
+
+    build_ui(gobj);   /*  writes a fresh $container + wires new clicks  */
+
+    let $new = gobj_read_attr(gobj, "$container");
+    if($new && was_hidden) {
+        $new.classList.add("is-hidden");
+    }
+    if(parent && $new) {
+        parent.insertBefore($new, next);
+    }
+    if($old && $old.parentNode) {
+        $old.parentNode.removeChild($old);
+    }
+
+    apply_active_route(gobj);
+}
+
+/************************************************************
+ *  Re-apply the active-route highlight after a rebuild (the
+ *  shell only pushes EV_ROUTE_CHANGED on navigation, not on a
+ *  self-triggered items change).
+ ************************************************************/
+function apply_active_route(gobj)
+{
+    let $c = gobj_read_attr(gobj, "$container");
+    let route = gobj_read_attr(gobj, "active_route") || "";
+    if(!$c || empty_string(route)) {
+        return;
+    }
+    let $a = $c.querySelector(`a[data-route="${css_escape(route)}"]`);
+    if($a) {
+        let $li = $a.closest("li");
+        if($li) {
+            $li.classList.add("is-active");
+        }
+        $a.classList.add("is-active");
+    }
+}
+
+/************************************************************
  *  Layouts
  *
  *  IMPORTANT 1: createElement2 destructures node descriptors as
@@ -283,6 +348,15 @@ function render_tabs(gobj, items)
         if(show_label && !empty_string(it.name)) {
             children.push(["span", {i18n: it.name}, it.name]);
         }
+        /*  Optional close affordance: a trailing ✕ that emits
+         *  EV_NAV_ITEM_CLOSE instead of navigating (caught first in
+         *  wire_clicks by its data-close-item marker). */
+        if(it.closable) {
+            children.push(["span", {class: "icon is-small yui-nav-close ml-2",
+                    "data-close-item": it.id, role: "button",
+                    "aria-label": "close", title: "close"},
+                ["i", {class: "yi-xmark", "aria-hidden":"true"}]]);
+        }
         let a_attrs = {
             href: it.route ? "#" + it.route : "#",
             "data-item-id": it.id,
@@ -293,8 +367,11 @@ function render_tabs(gobj, items)
             a_attrs.title = tip;
             a_attrs["data-i18n-title"] = tip;
         }
+        /*  Per-item state class (e.g. a "disconnected" colour) rides on
+         *  the <li>, alongside Bulma's own is-active. */
+        let li_class = empty_string(it.class) ? "" : String(it.class);
         lis.push(
-            ["li", {class: "", "data-item-id": it.id, "data-route": it.route || ""},
+            ["li", {class: li_class, "data-item-id": it.id, "data-route": it.route || ""},
                 ["a", a_attrs, children]
             ]
         );
@@ -567,6 +644,22 @@ function wire_clicks(gobj, $container)
             return;
         }
 
+        /*  Close affordance (✕ on a closable tab): emit the intent and
+         *  let the shell/app remove the item; never navigate. */
+        let $close = target.closest("[data-close-item]");
+        if($close) {
+            let $routed = $close.closest("[data-route]");
+            gobj_publish_event(gobj, "EV_NAV_ITEM_CLOSE", {
+                item_id: $close.getAttribute("data-close-item") || "",
+                route:   ($routed && $routed.getAttribute("data-route")) || "",
+                menu_id: gobj_read_attr(gobj, "menu_id") || "",
+                zone:    gobj_read_attr(gobj, "zone") || ""
+            });
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+        }
+
         /*  Drawer backdrop close.  Don't mutate the DOM directly —
          *  the shell owns the drawer state (focus-trap, escape
          *  stack) and must run its full close path.  Publish the
@@ -635,6 +728,18 @@ function wire_clicks(gobj, $container)
 
 
 
+
+/************************************************************
+ *  EV_SET_ITEMS — replace this nav's items and re-render in place.
+ *  This is the runtime counterpart of the startup config path:
+ *  the shell (or app, via the shell) drives dynamic navs through it.
+ ************************************************************/
+function ac_set_items(gobj, event, kw, src)
+{
+    gobj_write_attr(gobj, "menu_items", is_array(kw.items) ? kw.items : []);
+    rebuild(gobj);
+    return 0;
+}
 
 /************************************************************
  *  EV_ROUTE_CHANGED from the shell — refresh active highlight
@@ -739,13 +844,16 @@ function create_gclass(gclass_name)
 
     const states = [
         ["ST_IDLE", [
-            ["EV_ROUTE_CHANGED", ac_route_changed, null]
+            ["EV_ROUTE_CHANGED", ac_route_changed, null],
+            ["EV_SET_ITEMS",     ac_set_items,     null]
         ]]
     ];
 
     const event_types = [
         ["EV_ROUTE_CHANGED",          0],
+        ["EV_SET_ITEMS",              0],
         ["EV_NAV_CLICKED",            event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_NAV_ITEM_CLOSE",         event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_DRAWER_CLOSE_REQUESTED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
     ];
 

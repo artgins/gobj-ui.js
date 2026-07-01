@@ -174,6 +174,21 @@
 /*--- tabs (Bulma .tabs) ---*/
 .yui-nav-tabs .tabs ul { flex-wrap: wrap; }
 
+/*--- closable tab: trailing ✕ affordance (item.closable) ---*/
+.yui-nav-close {
+    opacity: 0.55;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.yui-nav-close:hover {
+    opacity: 1;
+    background: var(--bulma-danger, #f14668);
+    color: #fff;
+}
+
+/*--- per-item state class (item.class) — generic disconnected tint ---*/
+.yui-nav-tabs .tabs li.yui-nav-disconnected a { color: var(--bulma-danger, #f14668); }
+
 /*--- stacked item (icon above label) ---*/
 .yui-nav-stacked {
     display: inline-flex;
