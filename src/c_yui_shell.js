@@ -495,8 +495,8 @@ function build_ui(gobj)
     let shell_cfg = config.shell || {};
 
     /*  Root */
-    let $root = createElement2(
-        ["div", {class: "yui-shell"}]
+    let $container = createElement2(
+        ["div", {class: "C_YUI_SHELL yui-shell"}]
     );
 
     /*  Build layers */
@@ -504,7 +504,7 @@ function build_ui(gobj)
         let $layer = createElement2(
             ["div", {class: `yui-layer yui-layer-${id}`, style: `z-index:${z};`}]
         );
-        $root.appendChild($layer);
+        $container.appendChild($layer);
         priv.layers[id] = $layer;
     }
 
@@ -561,9 +561,9 @@ function build_ui(gobj)
 
     /*  Mount */
     let $mount = gobj_read_attr(gobj, "mount_element") || document.body;
-    $mount.appendChild($root);
+    $mount.appendChild($container);
 
-    gobj_write_attr(gobj, "$container", $root);
+    gobj_write_attr(gobj, "$container", $container);
 }
 
 /************************************************************
@@ -2269,11 +2269,11 @@ function yui_shell_set_connection_state(shell_gobj, connected)
  ************************************************************/
 function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)
 {
-    let $root = gobj_read_attr(shell_gobj, "$container");
-    if(!$root || empty_string(item_id) || empty_string(icon_class)) {
+    let $container = gobj_read_attr(shell_gobj, "$container");
+    if(!$container || empty_string(item_id) || empty_string(icon_class)) {
         return;
     }
-    let $i = $root.querySelector(
+    let $i = $container.querySelector(
         `[data-toolbar-item-id="${item_id}"] .icon i`
     );
     if($i) {

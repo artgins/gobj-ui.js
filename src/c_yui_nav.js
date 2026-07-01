@@ -182,34 +182,34 @@ function build_ui(gobj)
     let items = gobj_read_attr(gobj, "menu_items") || [];
     let zone = gobj_read_attr(gobj, "zone") || "";
     let menu_id = gobj_read_attr(gobj, "menu_id") || "nav";
-    let $root;
+    let $container;
 
     switch(layout) {
-        case "vertical":   $root = render_vertical(gobj, items); break;
-        case "icon-bar":   $root = render_icon_bar(gobj, items); break;
-        case "tabs":       $root = render_tabs(gobj, items);     break;
-        case "drawer":     $root = render_drawer(gobj, items);   break;
-        case "submenu":    $root = render_submenu(gobj, items);  break;
-        case "accordion":  $root = render_accordion(gobj, items); break;
-        default:           $root = render_vertical(gobj, items);
+        case "vertical":   $container = render_vertical(gobj, items); break;
+        case "icon-bar":   $container = render_icon_bar(gobj, items); break;
+        case "tabs":       $container = render_tabs(gobj, items);     break;
+        case "drawer":     $container = render_drawer(gobj, items);   break;
+        case "submenu":    $container = render_submenu(gobj, items);  break;
+        case "accordion":  $container = render_accordion(gobj, items); break;
+        default:           $container = render_vertical(gobj, items);
     }
-    $root.setAttribute("data-nav-zone", zone);
-    $root.setAttribute("data-nav-layout", layout);
-    $root.classList.add("yui-nav", `yui-nav-${layout}`);
+    $container.setAttribute("data-nav-zone", zone);
+    $container.setAttribute("data-nav-layout", layout);
+    $container.classList.add("C_YUI_NAV", "yui-nav", `yui-nav-${layout}`);
 
     /*  Accessibility: every nav root is a landmark.  For the drawer we
      *  tag the wrapper as role=dialog and the panel as role=navigation. */
     if(layout !== "drawer") {
-        $root.setAttribute("role", "navigation");
-        if(!$root.hasAttribute("aria-label")) {
+        $container.setAttribute("role", "navigation");
+        if(!$container.hasAttribute("aria-label")) {
             let label = gobj_read_attr(gobj, "nav_label") || menu_id;
-            $root.setAttribute("aria-label", label);
+            $container.setAttribute("aria-label", label);
         }
     }
 
-    wire_clicks(gobj, $root);
+    wire_clicks(gobj, $container);
 
-    gobj_write_attr(gobj, "$container", $root);
+    gobj_write_attr(gobj, "$container", $container);
 }
 
 /************************************************************
@@ -369,7 +369,7 @@ function render_accordion(gobj, items)
     let show_label = gobj_read_attr(gobj, "show_label");
     let icon_pos = gobj_read_attr(gobj, "icon_pos");
 
-    let $root = createElement2(["aside", {class: "menu yui-nav-accordion p-2"}]);
+    let $container = createElement2(["aside", {class: "menu yui-nav-accordion p-2"}]);
     for(let it of items) {
         if(is_decorative(it)) {
             continue;   /*  primary-level decorations don't apply to accordion sections  */
@@ -392,7 +392,7 @@ function render_accordion(gobj, items)
             head_attrs.i18n = head_text;
         }
         let $hdr = createElement2(["button", head_attrs, head_text]);
-        $root.appendChild($hdr);
+        $container.appendChild($hdr);
 
         let $ul = createElement2(
             ["ul", {id: body_id,
@@ -407,9 +407,9 @@ function render_accordion(gobj, items)
                 ));
             }
         }
-        $root.appendChild($ul);
+        $container.appendChild($ul);
     }
-    return $root;
+    return $container;
 }
 
 /************************************************************
@@ -557,7 +557,7 @@ function item_iconbar(gobj, it, opts)
     ];
 }
 
-function wire_clicks(gobj, $root)
+function wire_clicks(gobj, $container)
 {
     let priv = gobj_read_attr(gobj, "priv") || {};
 
@@ -584,7 +584,7 @@ function wire_clicks(gobj, $root)
         /*  Accordion head toggle takes precedence over navigation: the
          *  head is a container for its sub-items, not a destination. */
         let $head = target.closest(".yui-accordion-head");
-        if($head && $root.contains($head)) {
+        if($head && $container.contains($head)) {
             let $next = $head.nextElementSibling;
             if($next && $next.classList.contains("yui-accordion-body")) {
                 let open = $next.classList.contains("is-hidden");
@@ -622,7 +622,7 @@ function wire_clicks(gobj, $root)
         });
     };
 
-    $root.addEventListener("click", handler);
+    $container.addEventListener("click", handler);
     priv.click_handler = handler;
 }
 

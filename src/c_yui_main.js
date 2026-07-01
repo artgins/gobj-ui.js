@@ -167,8 +167,8 @@ function build_ui(gobj)
     /*----------------------------------------------*
      *  Layout Schema
      *----------------------------------------------*/
-    const $layout = createElement2(
-        ['div', {id: 'root', class: 'root'}, [
+    const $container = createElement2(
+        ['div', {id: 'root', class: 'C_YUI_MAIN root'}, [
             ['div', {id: 'top-layer', class: 'top-layer'}],
             ['div', {id: 'content-layer', class: 'content-layer is-hidden'}],
             ['div', {id: 'bottom-layer', class: 'bottom-layer'}],
@@ -178,7 +178,7 @@ function build_ui(gobj)
                 `<iframe id="iframe-publi-page" src="./${gobj_read_attr(gobj, "publi_page")}/index.html" width="100%" height="100%"></iframe>`]
         ]]
     );
-    document.body.appendChild($layout);
+    document.body.appendChild($container);
 
     const iframe = document.getElementById('iframe-publi-page');
     if(iframe) {

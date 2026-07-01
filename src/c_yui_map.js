@@ -111,8 +111,13 @@ function mt_create(gobj)
 
     let map_settings = json_deep_copy(gobj_read_attr(gobj, "map_settings"));
 
+    let $map = gobj_read_attr(gobj, "$map");
+    if($map) {
+        /*  Tag the external mount so this gclass is identifiable in the Inspector */
+        $map.classList.add(GCLASS_NAME);
+    }
     Object.assign(map_settings, {
-        container: gobj_read_attr(gobj, "$map"),
+        container: $map,
     });
 
     /*-----------------------------*

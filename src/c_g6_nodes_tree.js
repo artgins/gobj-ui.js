@@ -575,7 +575,12 @@ function get_default_ne_xy(gobj)
  ************************************************************/
 function build_ui(gobj)
 {
-    // Nothing to do, $container set externally
+    // $container set externally; tag it so the gclass owning this
+    // G6 canvas is identifiable in the browser Inspector.
+    let $container = gobj_read_attr(gobj, "$container");
+    if($container) {
+        $container.classList.add(GCLASS_NAME);
+    }
 }
 
 /************************************************************
