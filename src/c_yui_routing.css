@@ -1,7 +1,7 @@
 /*********************************************************
  *      Layout ui_route
  *********************************************************/
-.container-grid-2col {
+.C_YUI_ROUTING {
     display: grid;
     grid-template-columns: max-content 1fr;
     height: 100%;

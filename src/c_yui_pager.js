@@ -145,7 +145,7 @@ function mt_destroy(gobj)
 function build_ui(gobj)
 {
     let $container = createElement2(
-        ['div', {class: 'yui-pager', style: 'height:100%; display:flex; flex-direction:column;'}, [
+        ['div', {class: 'C_YUI_PAGER', style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'yui-pager-header is-flex is-align-items-center is-flex-grow-0',
                      style: 'gap:.25rem; padding:.25rem .25rem;'}, [
                 ['button', {class: 'yui-pager-back button is-white is-hidden', 'aria-label': 'back'}, [

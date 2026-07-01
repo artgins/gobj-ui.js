@@ -183,7 +183,7 @@ function build_ui(gobj)
     let tabs_style = gobj_read_attr(gobj, "tabs_style");
     let $container = createElement2(
         // Don't use is-flex, don't work well with is-hidden
-        ['div', {class: `yui_tabs`, style: 'height:100%; display:flex; flex-direction:column;'}, [
+        ['div', {class: `C_YUI_TABS`, style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'is-flex-grow-0'}, [
                 ['div', {class: `tabs ${tabs_style}`, style: ''}, [
                     ['ul', {}]

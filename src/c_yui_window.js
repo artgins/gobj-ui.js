@@ -245,7 +245,7 @@ function build_ui(gobj)
 
     let $container = createElement2(
         ['div', {
-            class: 'yui-window strong-shadow is-flex is-flex-direction-column',
+            class: 'C_YUI_WINDOW strong-shadow is-flex is-flex-direction-column',
             style: window_style}, [
 
             /*----------------------------*

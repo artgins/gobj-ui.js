@@ -155,7 +155,7 @@ function mt_destroy(gobj)
 function build_ui(gobj)
 {
     let $container = createElement2(
-        ['div', {class: 'yui-wizard', style: 'height:100%; display:flex; flex-direction:column;'}, [
+        ['div', {class: 'C_YUI_WIZARD', style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'yui-wizard-header is-flex is-align-items-center is-flex-grow-0',
                      style: 'gap:.5rem; padding:.25rem .5rem;'}, [
                 ['span', {class: 'yui-wizard-title is-flex-grow-1', style: 'font-weight:600;'}, ''],

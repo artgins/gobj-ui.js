@@ -145,7 +145,7 @@ function build_ui(gobj)
         $container = createElement2(
             ['div',
                 {
-                    class: '',
+                    class: 'C_YUI_UPLOT',
                     style: 'overflow:auto;'
                 }
             ]

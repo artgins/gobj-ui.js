@@ -385,7 +385,7 @@ function build_ui(gobj)
     let $toolbar = make_toolbar(gobj);
 
     let $container = createElement2(
-        ['div', {class: 'gobj-tree', style: 'height:100%; display:flex; flex-direction:column; position:relative;'}, [
+        ['div', {class: 'C_YUI_GOBJ_TREE_JS', style: 'height:100%; display:flex; flex-direction:column; position:relative;'}, [
             ['div', {class: 'is-flex-grow-0 is-flex toolbar_yui_gobj_tree'}, $toolbar],
             ['div', {class: 'is-flex-grow-1', style: 'height:100%; min-height:0; overflow:hidden;'}, [
                 ['div', {id: priv.canvas_id, class: 'gobj-tree-container', style: 'height:100%; min-height:0; border: 1px solid var(--bulma-border-weak); border-radius:0.2rem;'}, [

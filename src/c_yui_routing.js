@@ -301,7 +301,7 @@ function build_layout(gobj)
      *  Layout Schema
      *----------------------------------------------*/
     const $container = createElement2(
-        ['div', {class: 'container-grid-2col', style: ''}, [
+        ['div', {class: 'C_YUI_ROUTING', style: ''}, [
             ['div', {class: 'container-grid-2col-left'},
                 ['aside', {class: 'menu'}, [
                     ['ul', {class: 'menu-list'}, []]

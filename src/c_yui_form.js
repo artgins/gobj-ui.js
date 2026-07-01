@@ -284,7 +284,7 @@ function build_ui(gobj)
      *
      *----------------------------------------------*/
     let $container = createElement2(
-        ['div', {class: 'yui-form-container is-flex is-flex-direction-row overscroll-contain', style:'height:100%; width:100%; box-sizing:border-box;'}, [
+        ['div', {class: 'C_YUI_FORM is-flex is-flex-direction-row overscroll-contain', style:'height:100%; width:100%; box-sizing:border-box;'}, [
 
             /*----------------------------*
              *      Form

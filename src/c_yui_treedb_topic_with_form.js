@@ -506,7 +506,7 @@ function build_ui(gobj)
      *----------------------------------------------*/
     let table_id = gobj_read_str_attr(gobj, "table_id");
     let $container = createElement2(
-        ['div', {class: 'container-treedb-topic-with-form', style: 'height:100%;'}, [
+        ['div', {class: 'C_YUI_TREEDB_TOPIC_WITH_FORM', style: 'height:100%;'}, [
             ['div', {class: 'toolbar_tabulator_table m-1', style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;'}],
             ['div',
                 {
