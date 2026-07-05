@@ -155,7 +155,7 @@ function dev_view()
 
 function dev_hide_periodic()
 {
-    return dev_num("dev_hide_periodic", 1) ? true : false;
+    return dev_num("dev_hide_periodic", 0) ? true : false;
 }
 
 function dev_muted()
@@ -979,7 +979,7 @@ function build_control_bar()
     }, '⊘ Periodic', {
         click: (ev) => {
             ev.stopPropagation();
-            toggle_pref('dev_hide_periodic', 1);
+            toggle_pref('dev_hide_periodic', 0);
         }
     }];
 
