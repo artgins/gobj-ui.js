@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.8
+
+- **fix(window): minimize now actually hides the window.** `minimize_entry`
+  set `element.style.display = 'none'` (inline, no `!important`), but the window
+  container carries Bulma's `is-flex` helper (`display: flex !important`), which
+  won the cascade — so clicking minimize did nothing (the `EV_MINIMIZE_WINDOW`
+  event reached the manager and ran, but the window stayed visible). Hide with
+  `setProperty('display','none','important')` and restore with
+  `removeProperty('display')`. (Close/maximize were unaffected — they never
+  touch `display`.) Diagnosed from a live FSM trace.
+
 ## 2.1.7
 
 - **fix(window): self-healing dock.** `C_YUI_WINDOW_MANAGER` now re-attaches

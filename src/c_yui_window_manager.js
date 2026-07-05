@@ -271,7 +271,9 @@ function focus_entry(gobj, entry)
     let $win = gobj_read_attr(entry.gobj, "$container");
     if($win) {
         if(entry.minimized) {
-            $win.style.display = '';
+            /*  Clear the inline display so the window falls back to its
+             *  Bulma `is-flex` layout (see minimize_entry). */
+            $win.style.removeProperty('display');
             entry.minimized = false;
             if(entry.$chip) {
                 entry.$chip.classList.remove('is-min');
@@ -290,7 +292,10 @@ function minimize_entry(gobj, entry)
 {
     let $win = gobj_read_attr(entry.gobj, "$container");
     if($win) {
-        $win.style.display = 'none';
+        /*  The window container carries Bulma's `is-flex`
+         *  (display:flex !important), so a plain inline display:none
+         *  is overridden — hide with `!important` to win. */
+        $win.style.setProperty('display', 'none', 'important');
     }
     entry.minimized = true;
     if(entry.$chip) {
