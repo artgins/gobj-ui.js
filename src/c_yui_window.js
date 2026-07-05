@@ -49,6 +49,19 @@ import {get_yesnocancel} from "./c_yui_main.js";
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_WINDOW";
 
+/*  Window-control glyphs as inline SVG (currentColor → theme-aware,
+ *  pixel-consistent). There is no minimize/restore glyph in the
+ *  yui_icons.css mask set, and chrome affordances read better as
+ *  crisp SVG than as content icons. */
+const WC_MIN = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="11" width="10" height="1.6" rx="0.8" fill="currentColor"/></svg>';
+const WC_MAX = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.3" y="3.3" width="9.4" height="9.4" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+const WC_RESTORE = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.2" y="3" width="7.8" height="7.8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="3" y="5.2" width="7.8" height="7.8" rx="1.3" fill="var(--bulma-scheme-main)" stroke="currentColor" stroke-width="1.4"/></svg>';
+const WC_CLOSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4 L12 12 M12 4 L4 12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+
+/*  Bulma mobile breakpoint: at or below this a window becomes a
+ *  full-screen sheet (no float / drag / resize). */
+const MOBILE_MAX = 768;
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -70,6 +83,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "resizable",    0,  true,   "Allow resizing"),
 SDATA(data_type_t.DTP_BOOLEAN,  "showFooter",   0,  true,   "Show footer"),
 SDATA(data_type_t.DTP_BOOLEAN,  "openMaximized",0,  false,  "Open the window maximized"),
 SDATA(data_type_t.DTP_BOOLEAN,  "showMax",      0,  true,   "Show maximize button"),
+SDATA(data_type_t.DTP_BOOLEAN,  "showMin",      0,  true,   "Show minimize (roll-up / shade) button"),
 SDATA(data_type_t.DTP_BOOLEAN,  "maximized",    0,  false,  "Flag to indicate if maximized"),
 SDATA(data_type_t.DTP_JSON,     "window_style", 0,  "{}",   "Override window style"),
 SDATA(data_type_t.DTP_POINTER,  "on_close",     0,  null,   "Callback on destroy"),
@@ -85,6 +99,7 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     prevSize: 0,
+    preShadeHeight: 0,
 };
 
 let __gclass__ = null;
@@ -178,10 +193,90 @@ function mt_destroy(gobj)
 
 
 /************************************************************
+ *   Inject the window-chrome stylesheet once. Theme-aware via
+ *   Bulma scheme vars (flips on <html data-theme>); replaces the
+ *   old saturated `has-background-info` bar + forced black text.
+ ************************************************************/
+function ensure_window_style()
+{
+    if(document.getElementById('yui-window-style')) {
+        return;
+    }
+    let css = `
+.yui-window-header {
+    background: var(--bulma-scheme-main-bis);
+    color: var(--bulma-text-strong);
+    -webkit-user-select: none; user-select: none;
+}
+.yui-window-titlebar-controls { display: flex; align-items: center; gap: 2px; padding-left: 6px; }
+.yui-wc {
+    width: 30px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; border: 0; background: transparent; color: var(--bulma-text); cursor: pointer;
+    border-radius: 5px; -webkit-tap-highlight-color: transparent;
+}
+.yui-wc:hover { background: var(--bulma-scheme-main-ter); color: var(--bulma-text-strong); }
+.yui-wc.wc-close:hover { background: #e0364a; color: #fff; }
+.yui-wc svg { width: 15px; height: 15px; display: block; }
+.C_YUI_WINDOW.is-shaded .yui-window-body,
+.C_YUI_WINDOW.is-shaded .yui-window-footer { display: none !important; }
+.C_YUI_WINDOW.is-shaded { height: auto !important; }
+.yui-window-resize { color: var(--bulma-text-weak); opacity: 0.55; }
+.yui-window-resize:hover { opacity: 1; color: var(--bulma-text); }
+@media (max-width: ${MOBILE_MAX}px) {
+    .C_YUI_WINDOW.is-mobile-sheet { border-radius: 0 !important; box-shadow: none !important; }
+    .C_YUI_WINDOW.is-mobile-sheet .yui-window-resize { display: none !important; }
+    .yui-wc { width: 42px; height: 38px; }
+    .yui-wc.wc-max { display: none !important; }
+    .yui-wc svg { width: 18px; height: 18px; }
+}
+`;
+    let $style = document.createElement('style');
+    $style.id = 'yui-window-style';
+    $style.textContent = css;
+    document.head.appendChild($style);
+}
+
+/************************************************************
+ *   Below the mobile breakpoint the window is a full-screen
+ *   sheet (no float / drag / resize).
+ ************************************************************/
+function is_mobile()
+{
+    let w = window.innerWidth || document.documentElement.offsetWidth;
+    return w <= MOBILE_MAX;
+}
+
+/************************************************************
+ *   Minimize as "shade": roll the window up to its title bar
+ *   in place (self-contained; no window manager needed). Toggles.
+ ************************************************************/
+function toggle_shade(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    if($container.classList.contains("is-shaded")) {
+        $container.classList.remove("is-shaded");
+        if(priv.preShadeHeight) {
+            $container.style.height = parseInt(priv.preShadeHeight) + 'px';
+        }
+    } else {
+        priv.preShadeHeight = $container.getBoundingClientRect().height;
+        $container.classList.add("is-shaded");
+        $container.style.height = "auto";
+    }
+}
+
+/************************************************************
  *   Build UI
  ************************************************************/
 function build_ui(gobj)
 {
+    ensure_window_style();
+    let mobile = is_mobile();
+
     let header = gobj_read_attr(gobj, "header");
     if(is_gobj(header)) {
         header = gobj_read_attr(header, "$container");
@@ -224,6 +319,16 @@ function build_ui(gobj)
         rect = do_center(gobj, rect.x, rect.y, rect.width, rect.height);
     }
 
+    /*  On mobile the window is a full-screen sheet: ignore the saved
+     *  rect / centering and fill the viewport. */
+    if(mobile) {
+        rect = {
+            x: 0, y: 0,
+            width: window.innerWidth || document.documentElement.offsetWidth,
+            height: window.innerHeight || document.documentElement.offsetHeight,
+        };
+    }
+
     let window_style = {
         position: "fixed",
         "z-index": 3,
@@ -245,14 +350,14 @@ function build_ui(gobj)
 
     let $container = createElement2(
         ['div', {
-            class: 'C_YUI_WINDOW strong-shadow is-flex is-flex-direction-column',
+            class: 'C_YUI_WINDOW strong-shadow is-flex is-flex-direction-column' + (mobile ? ' is-mobile-sheet' : ''),
             style: window_style}, [
 
             /*----------------------------*
              *          Header
              *----------------------------*/
             ['div', {
-                class: 'yui-window-header p-1 is-flex-shrink-0 is-flex is-flex-nowrap is-justify-content-space-between is-align-items-flex-start has-text-black has-background-info', style: 'border-bottom:1px solid var(--bulma-border); cursor:move; box-sizing: border-box;'
+                class: 'yui-window-header p-1 is-flex-shrink-0 is-flex is-flex-nowrap is-justify-content-space-between is-align-items-center', style: 'border-bottom:1px solid var(--bulma-border); cursor:move; box-sizing: border-box;'
                 }, [
                 /*  Custom header content: a single-row, horizontally
                  *  scrollable strip.  It takes the remaining width and
@@ -272,33 +377,40 @@ function build_ui(gobj)
                      *  width and kept wrapping. */
                     ['div', {class: '', style: 'width:max-content; display:flex; flex-wrap:nowrap; align-items:center;'}, header]
                 ]],
-                /*  Max/close: pinned top-right, never shrink, never
-                 *  wrap, always on top so the click always lands. */
-                ['div', {class: 'is-flex-shrink-0 is-flex is-flex-nowrap is-align-items-flex-start', style: 'position:relative; z-index:1; cursor:default;'}, [
+                /*  Window controls: pinned top-right, never shrink,
+                 *  never wrap, always on top so the click always lands.
+                 *  Minimize (shade) · maximize/restore · close. */
+                ['div', {class: 'yui-window-titlebar-controls is-flex-shrink-0', style: 'position:relative; z-index:1; cursor:default;'}, [
                     /*----------------------------*
-                     *      Max/min button
+                     *      Minimize (shade)
                      *----------------------------*/
                     ['button', {
-                        class: 'without-border pr-4',
-                        style: {
-                            color: 'var(--bulma-text)',
-                            "font-size": "1.4em",
-                            "cursor": "pointer",
-                            "display": gobj_read_bool_attr(gobj, "showMax")?'inline-block':'none',
+                        class: 'yui-wc wc-min', type: 'button', 'aria-label': 'minimize',
+                        style: gobj_read_bool_attr(gobj, "showMin") ? '' : 'display:none;',
+                    }, WC_MIN, {
+                        click: (evt) => {
+                            evt.stopPropagation();
+                            toggle_shade(gobj);
                         }
-                    }, '<i class="yi-square"></i>', {
+                    }],
+                    /*----------------------------*
+                     *      Maximize / restore
+                     *----------------------------*/
+                    ['button', {
+                        class: 'yui-wc wc-max', type: 'button', 'aria-label': 'maximize',
+                        style: gobj_read_bool_attr(gobj, "showMax") ? '' : 'display:none;',
+                    }, WC_MAX, {
                         click: (evt) => {
                             evt.stopPropagation();
                             toggle(gobj);
                         }
                     }],
                     /*----------------------------*
-                     *      Close button
+                     *      Close
                      *----------------------------*/
                     ['button', {
-                        class: 'without-border pr-2',
-                        style: 'color:var(--bulma-text);font-size:1.6em;cursor:pointer;',
-                    }, '<i class="yi-xmark"></i>', {
+                        class: 'yui-wc wc-close', type: 'button', 'aria-label': 'close',
+                    }, WC_CLOSE, {
                         click: (evt) => {
                             evt.stopPropagation();
                             close_window(gobj);
@@ -409,7 +521,7 @@ function build_ui(gobj)
      *----------------------------*/
     if(gobj_read_bool_attr(gobj, "resizable") && !gobj_read_bool_attr(gobj, "showFooter")) {
         let $resizable_btn = createElement2(['div', {
-            class: 'without-border',
+            class: 'without-border yui-window-resize',
             style: {
                 cursor: "nwse-resize",
                 display: "flex",
@@ -447,7 +559,7 @@ function build_ui(gobj)
 
     if (gobj_read_bool_attr(gobj, "openMaximized")) {
         max(gobj);
-    } else {
+    } else if(!mobile) {
         if(gobj_read_bool_attr(gobj, "content_size")) {
             $container.style.height = "auto";
         }
@@ -538,8 +650,25 @@ function max(gobj)
     $container.style.height = parseInt(rect.height) +'px';
 
     gobj_write_bool_attr(gobj, "maximized", true);
+    set_max_icon(gobj, true);
 
     return rect;
+}
+
+/************************************************************
+ *   Swap the maximize/restore glyph to match the state.
+ ************************************************************/
+function set_max_icon(gobj, maximized)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    let $btn = $container.querySelector('.wc-max');
+    if($btn) {
+        $btn.innerHTML = maximized ? WC_RESTORE : WC_MAX;
+        $btn.setAttribute('aria-label', maximized ? 'restore' : 'maximize');
+    }
 }
 
 /************************************************************
@@ -562,6 +691,7 @@ function min(gobj)
     $container.style.height = parseInt(rect.height) +'px';
 
     gobj_write_bool_attr(gobj, "maximized", false);
+    set_max_icon(gobj, false);
 
     return rect;
 }
@@ -571,6 +701,11 @@ function min(gobj)
  ************************************************************/
 function mvStart(gobj, evt)
 {
+    /*  No window-dragging on a mobile full-screen sheet. */
+    if(is_mobile()) {
+        return;
+    }
+
     let $container = gobj_read_attr(gobj, "$container");
 
     let window_rect = $container.getBoundingClientRect();
@@ -775,6 +910,19 @@ function handleResize(gobj)
     if(!$container) {
         return;
     }
+
+    /*  Mobile: full-screen sheet, refit to the viewport and stop. */
+    if(is_mobile()) {
+        $container.classList.add("is-mobile-sheet");
+        let vw = window.innerWidth || document.documentElement.offsetWidth;
+        let vh = window.innerHeight || document.documentElement.offsetHeight;
+        $container.style.left = '0px';
+        $container.style.top = '0px';
+        $container.style.width = vw + 'px';
+        $container.style.height = vh + 'px';
+        return;
+    }
+    $container.classList.remove("is-mobile-sheet");
 
     /*  Maximized: just refit to the (new) viewport. */
     if(gobj_read_bool_attr(gobj, "maximized") === true) {

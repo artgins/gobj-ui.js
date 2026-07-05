@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.3
+
+- **feat(window): redesigned C_YUI_WINDOW chrome + mobile sheet.** The window
+  title bar dropped the saturated Bulma `has-background-info` blue with forced
+  black text for a neutral, **theme-aware** bar (`--bulma-scheme-main-bis` /
+  `--bulma-text-strong`, injected once via `ensure_window_style`). The
+  max/close pair became a proper window-control cluster in crisp inline SVG
+  (`currentColor`): **minimize** (rolls the window up to its title bar — a
+  self-contained "shade", `showMin` attr), **maximize/restore** (glyph swaps
+  with state), **close** (red on hover). Below the Bulma mobile breakpoint
+  (≤ 768 px) a window is now a **full-screen sheet**: fills the viewport, no
+  border-radius/shadow, drag and resize disabled, larger tap targets, maximize
+  hidden. Only consumer today is the Developer monitor, so blast radius is that
+  window. C_YUI_WINDOW and C_YUI_PAGER stay orthogonal (floating chrome vs
+  page-stack) and compose; a window-manager/dock is a possible next step.
+
 ## 2.1.2
 
 - **feat(dev): Developer window is now a yuno monitor.** `yui_dev.js` was
