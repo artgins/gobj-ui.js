@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.4
+
+- **feat(window): C_YUI_WINDOW_MANAGER — dock / taskbar.** New light gclass
+  (`register_c_yui_window_manager`, exported from `index.js`) that registers
+  open windows and renders a theme-aware dock strip (one chip per window,
+  green dot = visible, grey = minimized, blue = active/raised). C_YUI_WINDOW
+  opts in via a new `manager` attr (a gobj or a service name) plus a `title`
+  attr for the chip: on create it REGISTERs, on destroy UNREGISTERs, its
+  **minimize** button sends the window to the dock (instead of shading in
+  place), and any pointer press FOCUSes it (raise z-order + highlight chip).
+  Clicking a chip is a taskbar toggle (restore+focus / minimize). The manager
+  never owns window lifecycle — it only toggles `$container` display/z-index;
+  closing stays the window's own ✕. Orthogonal to C_YUI_PAGER (they compose:
+  a window may host a pager). Wired into gui_agent: a `__window_manager__`
+  service is created at startup and the Developer monitor opts in. Without a
+  manager, C_YUI_WINDOW minimize falls back to the self-contained shade.
+
 ## 2.1.3
 
 - **feat(window): redesigned C_YUI_WINDOW chrome + mobile sheet.** The window

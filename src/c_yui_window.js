@@ -19,6 +19,7 @@ import {
     gobj_write_attr,
     gobj_short_name,
     clean_name,
+    gobj_send_event,
     gobj_find_service,
     createElement2,
     is_gobj,
@@ -87,6 +88,8 @@ SDATA(data_type_t.DTP_BOOLEAN,  "showMin",      0,  true,   "Show minimize (roll
 SDATA(data_type_t.DTP_BOOLEAN,  "maximized",    0,  false,  "Flag to indicate if maximized"),
 SDATA(data_type_t.DTP_JSON,     "window_style", 0,  "{}",   "Override window style"),
 SDATA(data_type_t.DTP_POINTER,  "on_close",     0,  null,   "Callback on destroy"),
+SDATA(data_type_t.DTP_POINTER,  "manager",      0,  null,   "Optional C_YUI_WINDOW_MANAGER (gobj or service name) for dock/taskbar"),
+SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, shown on the dock chip"),
 // TODO pendiente focus modal keyboard
 SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "Brings focus to the element, can be a number or selector"),
 SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "Enable modal mode"),
@@ -131,6 +134,26 @@ function mt_create(gobj)
     gobj_write_attr(gobj, "window_id", window_id);
     build_ui(gobj);
 
+    /*  Optional window manager (dock/taskbar): register, and raise/
+     *  highlight on any pointer press. Absent → the window is a plain
+     *  floating window and minimize falls back to shade in place. */
+    let manager = resolve_manager(gobj);
+    if(manager) {
+        let $c = gobj_read_attr(gobj, "$container");
+        if($c) {
+            $c.addEventListener("pointerdown", function() {
+                let m = gobj_read_pointer_attr(gobj, "manager");
+                if(m) {
+                    gobj_send_event(m, "EV_FOCUS_WINDOW", {window: gobj}, gobj);
+                }
+            }, true);
+        }
+        gobj_send_event(manager, "EV_REGISTER_WINDOW", {
+            window: gobj,
+            title: gobj_read_attr(gobj, "title") || gobj_short_name(gobj),
+        }, gobj);
+    }
+
     /*  Keep the window inside the viewport on a breakpoint change.
      *  Wired in mt_create (NOT mt_start) on purpose: windows are
      *  often created via gobj_create_service WITHOUT being started
@@ -174,6 +197,11 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    let manager = gobj_read_pointer_attr(gobj, "manager");
+    if(manager) {
+        gobj_send_event(manager, "EV_UNREGISTER_WINDOW", {window: gobj}, gobj);
+    }
+
     let on_win_resize = gobj_read_attr(gobj, "win_resize_handler");
     if(on_win_resize) {
         window.removeEventListener("resize", on_win_resize);
@@ -244,6 +272,37 @@ function is_mobile()
 {
     let w = window.innerWidth || document.documentElement.offsetWidth;
     return w <= MOBILE_MAX;
+}
+
+/************************************************************
+ *   Resolve the optional `manager` attr (a gobj or a service
+ *   name) to a gobj, caching the resolution back into the attr.
+ ************************************************************/
+function resolve_manager(gobj)
+{
+    let m = gobj_read_pointer_attr(gobj, "manager");
+    if(!m) {
+        return null;
+    }
+    if(typeof m === "string") {
+        m = gobj_find_service(m, false);
+        gobj_write_attr(gobj, "manager", m);
+    }
+    return m;
+}
+
+/************************************************************
+ *   Minimize: with a manager, send the window to the dock;
+ *   otherwise "shade" it in place. Called by the minimize button.
+ ************************************************************/
+function do_minimize(gobj)
+{
+    let manager = gobj_read_pointer_attr(gobj, "manager");
+    if(manager) {
+        gobj_send_event(manager, "EV_MINIMIZE_WINDOW", {window: gobj}, gobj);
+    } else {
+        toggle_shade(gobj);
+    }
 }
 
 /************************************************************
@@ -390,7 +449,7 @@ function build_ui(gobj)
                     }, WC_MIN, {
                         click: (evt) => {
                             evt.stopPropagation();
-                            toggle_shade(gobj);
+                            do_minimize(gobj);
                         }
                     }],
                     /*----------------------------*
