@@ -28,6 +28,7 @@ import {
     log_error,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
+    gobj_send_event,
     createElement2,
     gobj_write_attr,
     gobj_read_attr,
@@ -43,6 +44,9 @@ const GCLASS_NAME = "C_YUI_WINDOW_MANAGER";
 /*  Dock sits above every window: windows raise to an incrementing
  *  counter that starts well below this. */
 const DOCK_Z = 1000000;
+
+/*  Chip close glyph (currentColor → theme-aware). */
+const WC_X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5 L11.5 11.5 M11.5 4.5 L4.5 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
 
 /***************************************************************
@@ -121,10 +125,10 @@ function ensure_dock_style()
     }
     let css = `
 .yui-dock {
-    position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px;
+    position: fixed; left: 12px; bottom: 12px;
     z-index: ${DOCK_Z};
     display: flex; gap: 6px; align-items: center; padding: 5px 8px;
-    max-width: 96vw; overflow-x: auto;
+    max-width: calc(100vw - 24px); overflow-x: auto;
     background: var(--bulma-scheme-main-bis); color: var(--bulma-text);
     border: 1px solid var(--bulma-border); border-radius: 10px;
     box-shadow: 0 6px 22px rgba(0,0,0,0.25);
@@ -133,7 +137,7 @@ function ensure_dock_style()
 .yui-dock.is-empty { display: none; }
 .yui-dock-chip {
     display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 12px;
-    padding: 5px 11px; border: 1px solid var(--bulma-border); border-radius: 7px;
+    padding: 4px 5px 4px 11px; border: 1px solid var(--bulma-border); border-radius: 7px;
     background: var(--bulma-scheme-main); color: var(--bulma-text); cursor: pointer; white-space: nowrap;
 }
 .yui-dock-chip:hover { border-color: var(--bulma-text-weak); }
@@ -141,6 +145,14 @@ function ensure_dock_style()
 .yui-dock-chip.is-min { opacity: 0.65; }
 .yui-dock-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex: 0 0 auto; }
 .yui-dock-chip.is-min .yui-dock-dot { background: var(--bulma-text-weak); }
+.yui-dock-label { flex: 0 0 auto; }
+.yui-dock-close {
+    width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; margin-left: 1px; border: 0; border-radius: 4px;
+    background: transparent; color: var(--bulma-text-weak); cursor: pointer; flex: 0 0 auto;
+}
+.yui-dock-close:hover { background: #e0364a; color: #fff; }
+.yui-dock-close svg { width: 11px; height: 11px; display: block; }
 :root[data-theme="dark"] .yui-dock-chip.is-active { border-color: #60a5fa; color: #93c5fd; background: rgba(96,165,250,0.16); }
 `;
     let $style = document.createElement('style');
@@ -291,10 +303,20 @@ function ac_register_window(gobj, event, kw, src)
     let title = kw.title || gobj_name(win) || "window";
 
     let entry = {gobj: win, $chip: null, minimized: false};
+    /*  A div (not a button) so it can hold the close button — a
+     *  button inside a button is invalid. The chip toggles; the ✕
+     *  closes the window (EV_CLOSE_WINDOW → the window's own teardown
+     *  → EV_UNREGISTER_WINDOW removes this chip). */
     let $chip = createElement2(
-        ['button', {class: 'yui-dock-chip', type: 'button', title: title}, [
+        ['div', {class: 'yui-dock-chip', role: 'button', tabindex: '0', title: title}, [
             ['span', {class: 'yui-dock-dot'}, ''],
             ['span', {class: 'yui-dock-label'}, title],
+            ['button', {class: 'yui-dock-close', type: 'button', 'aria-label': 'close'}, WC_X, {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(entry.gobj, "EV_CLOSE_WINDOW", {}, gobj);
+                }
+            }],
         ], {
             click: (evt) => {
                 evt.stopPropagation();

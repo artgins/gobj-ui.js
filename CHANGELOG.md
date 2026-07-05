@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.5
+
+- **feat(window): dock bottom-left + per-chip close.** The window-manager dock
+  now anchors bottom-left (was bottom-centred). Each dock chip gained a **✕**
+  that closes its window from the taskbar: the chip sends the window a new
+  `EV_CLOSE_WINDOW` event, running the same teardown as the title-bar close
+  (publish `EV_WINDOW_TO_CLOSE`, `on_close`, stop/destroy) → `EV_UNREGISTER_WINDOW`
+  removes the chip. The chip became a `div` (role=button) hosting the label +
+  close button; the label area still toggles minimize/restore.
+
 ## 2.1.4
 
 - **feat(window): C_YUI_WINDOW_MANAGER — dock / taskbar.** New light gclass

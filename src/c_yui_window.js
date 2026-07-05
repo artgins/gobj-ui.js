@@ -1060,6 +1060,16 @@ function ac_hide(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *   EV_CLOSE_WINDOW — close from outside (e.g. the dock chip ✕),
+ *   the same teardown as the title-bar close button.
+ ************************************************************/
+function ac_close(gobj, event, kw, src)
+{
+    close_window(gobj);
+    return 0;
+}
+
 
 
 
@@ -1098,7 +1108,8 @@ function create_gclass(gclass_name)
             ["EV_RESIZE",       ac_resize,      null],
             ["EV_REFRESH",      ac_refresh,     null],
             ["EV_SHOW",         ac_show,        null],
-            ["EV_HIDE",         ac_hide,        null]
+            ["EV_HIDE",         ac_hide,        null],
+            ["EV_CLOSE_WINDOW", ac_close,       null]
         ]]
     ];
 
@@ -1112,7 +1123,8 @@ function create_gclass(gclass_name)
         ["EV_RESIZE",           0],
         ["EV_REFRESH",          0],
         ["EV_SHOW",             0],
-        ["EV_HIDE",             0]
+        ["EV_HIDE",             0],
+        ["EV_CLOSE_WINDOW",     0]
     ];
 
     __gclass__ = gclass_create(
