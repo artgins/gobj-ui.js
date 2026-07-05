@@ -20,18 +20,251 @@ import {
 
 import i18next from 'i18next';
 
-import { JSONEditor } from 'vanilla-jsoneditor';
-import "vanilla-jsoneditor/themes/jse-theme-dark.css";
+/************************************************************
+ *  Field names whose numeric value is a Unix timestamp
+ *  (seconds since epoch) — annotate them with an ISO date.
+ ************************************************************/
+const TRAFFIC_TS_FIELDS = {
+    "__t__": 1, "__tm__": 1, "tm": 1, "t": 1,
+    "from_t": 1, "to_t": 1, "from_tm": 1, "to_tm": 1, "time": 1,
+};
 
 /************************************************************
+ *  hh:mm:ss.SSS wall-clock of the moment a message arrives.
+ ************************************************************/
+function traffic_now()
+{
+    let now = new Date();
+    let pad = (num, len) => ('000' + num).slice(len * -1);
+    let hours = pad(now.getHours(), 2);
+    let minutes = pad(now.getMinutes(), 2);
+    let seconds = pad(now.getSeconds(), 2);
+    let ms = pad(now.getMilliseconds(), 3);
+    return `${hours}:${minutes}:${seconds}.${ms}`;
+}
+
+/************************************************************
+ *  Human byte size (B / KB / MB) for the entry header.
+ ************************************************************/
+function traffic_size(n)
+{
+    n = Number(n) || 0;
+    if(n < 1024) {
+        return n + " B";
+    }
+    if(n < 1024 * 1024) {
+        return (n / 1024).toFixed(1) + " KB";
+    }
+    return (n / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+/************************************************************
+ *  Seconds-since-epoch → ISO string, or null if not a plausible
+ *  timestamp (guards against 0 / NaN / out-of-range values).
+ ************************************************************/
+function traffic_iso(value)
+{
+    let n = Number(value);
+    if(!isFinite(n) || n <= 0) {
+        return null;
+    }
+    try {
+        return new Date(n * 1000).toISOString();
+    } catch(e) {
+        return null;
+    }
+}
+
+/************************************************************
+ *  Inject the traffic-log stylesheet once. Bullet log, not a
+ *  JSON editor: theme-aware via <html data-theme>, coloured by
+ *  direction (out / in / error) on a left accent bar.
+ ************************************************************/
+function ensure_traffic_style()
+{
+    if(document.getElementById('yui-dev-traffic-style')) {
+        return;
+    }
+    let css = `
+.TRAFFIC_ENTRY {
+    margin: 6px 0;
+    padding: 4px 8px;
+    border-left: 3px solid #94a3b8;
+    border-radius: 3px;
+    font-family: "DejaVu Sans Mono", monospace, consolas, monaco;
+    font-size: 13px;
+    line-height: 1.55;
+    background: rgba(0,0,0,0.02);
+}
+.TRAFFIC_ENTRY.dir-out { border-left-color: #2563eb; }
+.TRAFFIC_ENTRY.dir-in  { border-left-color: #059669; }
+.TRAFFIC_ENTRY.dir-err { border-left-color: #dc2626; }
+.TRAFFIC_HEADER {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.TRAFFIC_ARROW { font-weight: 700; }
+.TRAFFIC_EVENT { font-weight: 700; }
+.dir-out .TRAFFIC_ARROW, .dir-out .TRAFFIC_EVENT { color: #2563eb; }
+.dir-in  .TRAFFIC_ARROW, .dir-in  .TRAFFIC_EVENT { color: #059669; }
+.dir-err .TRAFFIC_ARROW, .dir-err .TRAFFIC_EVENT { color: #dc2626; }
+.TRAFFIC_META {
+    margin-left: auto;
+    opacity: 0.6;
+    font-size: 11px;
+    white-space: nowrap;
+}
+.TRAFFIC_KW { margin: 2px 0 0 16px; }
+.TRAFFIC_ROW { display: flex; gap: 6px; align-items: baseline; }
+.TRAFFIC_BULLET { opacity: 0.45; flex: 0 0 auto; }
+.TRAFFIC_KEY { opacity: 0.85; flex: 0 0 auto; }
+.TRAFFIC_VAL { word-break: break-word; }
+.TRAFFIC_VAL.t-num  { color: #0891b2; }
+.TRAFFIC_VAL.t-bool { color: #9333ea; }
+.TRAFFIC_VAL.t-null { color: #9333ea; font-style: italic; }
+.TRAFFIC_VAL.t-empty { opacity: 0.5; }
+.TRAFFIC_TS { opacity: 0.6; margin-left: 8px; }
+details.TRAFFIC_NEST > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+}
+details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
+.TRAFFIC_NEST_KEY { opacity: 0.85; }
+.TRAFFIC_NEST_HINT { opacity: 0.5; margin-left: 4px; }
+:root[data-theme="dark"] .TRAFFIC_ENTRY { background: rgba(255,255,255,0.03); }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-out { border-left-color: #60a5fa; }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-in  { border-left-color: #34d399; }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-err { border-left-color: #f87171; }
+:root[data-theme="dark"] .dir-out .TRAFFIC_ARROW,
+:root[data-theme="dark"] .dir-out .TRAFFIC_EVENT { color: #60a5fa; }
+:root[data-theme="dark"] .dir-in .TRAFFIC_ARROW,
+:root[data-theme="dark"] .dir-in .TRAFFIC_EVENT { color: #34d399; }
+:root[data-theme="dark"] .dir-err .TRAFFIC_ARROW,
+:root[data-theme="dark"] .dir-err .TRAFFIC_EVENT { color: #f87171; }
+:root[data-theme="dark"] .TRAFFIC_VAL.t-num  { color: #22d3ee; }
+:root[data-theme="dark"] .TRAFFIC_VAL.t-bool,
+:root[data-theme="dark"] .TRAFFIC_VAL.t-null { color: #c084fc; }
+`;
+    let $style = document.createElement('style');
+    $style.id = 'yui-dev-traffic-style';
+    $style.textContent = css;
+    document.head.appendChild($style);
+}
+
+/************************************************************
+ *  One scalar field as a bullet row: `• key: value`.
+ *  Value is type-coloured; long strings are clipped (full text
+ *  on hover); timestamp fields get an ISO annotation.
+ ************************************************************/
+function traffic_scalar_row(key, value)
+{
+    let cls;
+    let text;
+    if(value === null) {
+        cls = "t-null";
+        text = "null";
+    } else if(typeof value === "boolean") {
+        cls = "t-bool";
+        text = value ? "true" : "false";
+    } else if(typeof value === "number") {
+        cls = "t-num";
+        text = String(value);
+    } else {
+        cls = "t-str";
+        text = String(value);
+    }
+
+    let full = text;
+    if(text.length > 200) {
+        text = text.slice(0, 200) + "…";
+    }
+
+    let val_children = [
+        ['span', {class: 'TRAFFIC_VAL ' + cls, title: full}, text],
+    ];
+    if((key in TRAFFIC_TS_FIELDS) && typeof value === "number") {
+        let iso = traffic_iso(value);
+        if(iso) {
+            val_children.push(['span', {class: 'TRAFFIC_TS'}, iso]);
+        }
+    }
+
+    return ['div', {class: 'TRAFFIC_ROW'}, [
+        ['span', {class: 'TRAFFIC_BULLET'}, '•'],
+        ['span', {class: 'TRAFFIC_KEY'}, key + ':'],
+        ['span', {}, val_children],
+    ]];
+}
+
+/************************************************************
+ *  One field of any type. Scalars → a bullet row; objects and
+ *  arrays → a collapsed <details> (metadata / nested payloads
+ *  stay folded so the log reads at a glance). Empty containers
+ *  render inline instead of an empty collapsible.
+ ************************************************************/
+function traffic_value_node(key, value)
+{
+    if(value === null || typeof value !== "object") {
+        return traffic_scalar_row(key, value);
+    }
+
+    let is_arr = Array.isArray(value);
+    let count = is_arr ? value.length : Object.keys(value).length;
+    if(count === 0) {
+        return ['div', {class: 'TRAFFIC_ROW'}, [
+            ['span', {class: 'TRAFFIC_BULLET'}, '•'],
+            ['span', {class: 'TRAFFIC_KEY'}, key + ':'],
+            ['span', {class: 'TRAFFIC_VAL t-empty'}, is_arr ? '[ ]' : '{ }'],
+        ]];
+    }
+
+    let hint = is_arr ? `[${count}]` : `{${count}}`;
+    return ['details', {class: 'TRAFFIC_NEST'}, [
+        ['summary', {}, [
+            ['span', {class: 'TRAFFIC_BULLET'}, '▸'],
+            ['span', {class: 'TRAFFIC_NEST_KEY'}, key],
+            ['span', {class: 'TRAFFIC_NEST_HINT'}, hint],
+        ]],
+        ['div', {class: 'TRAFFIC_KW'}, traffic_bullets(value)],
+    ]];
+}
+
+/************************************************************
+ *  A whole object/array → an array of bullet nodes (one per
+ *  field, array index as the key). Recurses via traffic_value_node.
+ ************************************************************/
+function traffic_bullets(obj)
+{
+    let out = [];
+    if(Array.isArray(obj)) {
+        for(let i = 0; i < obj.length; i++) {
+            out.push(traffic_value_node(String(i), obj[i]));
+        }
+    } else {
+        for(let k of Object.keys(obj)) {
+            out.push(traffic_value_node(k, obj[k]));
+        }
+    }
+    return out;
+}
+
+/************************************************************
+ *  Append one inter-event message to the traffic logger as a
+ *  bullet entry (event headline + kw as a folding bullet list),
+ *  replacing the per-message vanilla-jsoneditor. Shared by the
+ *  legacy C_YUI_WINDOW (setup_dev) and the modal (build_dev_panel).
  *
+ *  direction: 1 outgoing (⇢), 2 incoming (⇠), 3 error (⚠).
+ *  When no logger is mounted, fall back to a console dump.
  ************************************************************/
 function info_traffic(title, msg, direction, size)
 {
-    // Render into the traffic logger if it is present (old shell:
-    // inside C_YUI_WINDOW; new shell: inside the build_dev_panel()
-    // modal). Otherwise just dump to the console.
-    if(!document.getElementById('developer-traffic-logger')) {
+    let logger = document.getElementById('developer-traffic-logger');
+    if(!logger) {
         trace_json(msg);
         return;
     }
@@ -47,88 +280,37 @@ function info_traffic(title, msg, direction, size)
         } else {
             jn_msg = JSON.parse(JSON.stringify(msg));
         }
-    } catch (e) {
+    } catch(e) {
         return;
     }
 
-    let content = {
-        text: undefined,
-        json: jn_msg
-    };
+    ensure_traffic_style();
 
-    function formatCurrentTime() {
-        let now = new Date();
+    let dir_cls = (direction === 2) ? "dir-in" : (direction === 3) ? "dir-err" : "dir-out";
+    let arrow = (direction === 2) ? "⇠" : (direction === 3) ? "⚠" : "⇢";
+    let event_name = (jn_msg && jn_msg.event) ? String(jn_msg.event) : "(no event)";
+    let kw = (jn_msg && jn_msg.kw && typeof jn_msg.kw === "object") ? jn_msg.kw : null;
 
-        // Pad single digit numbers with a leading zero
-        let pad = (num, size) => ('000' + num).slice(size * -1);
+    let children = [
+        ['div', {class: 'TRAFFIC_HEADER'}, [
+            ['span', {class: 'TRAFFIC_ARROW'}, arrow],
+            ['span', {class: 'TRAFFIC_EVENT'}, event_name],
+            ['span', {class: 'TRAFFIC_META'}, `${traffic_size(size)} · ${traffic_now()}`],
+        ]],
+    ];
 
-        let hours = pad(now.getHours(), 2);
-        let minutes = pad(now.getMinutes(), 2);
-        let seconds = pad(now.getSeconds(), 2);
-        let milliseconds = pad(now.getMilliseconds(), 4);
-
-        // Format to hh:mm:ss .SSSS
-        return `${hours}:${minutes}:${seconds} .${milliseconds}`;
+    if(kw && Object.keys(kw).length > 0) {
+        children.push(['div', {class: 'TRAFFIC_KW'}, traffic_bullets(kw)]);
+    } else if(!kw) {
+        // No kw envelope: fold the whole raw message so nothing is lost.
+        children.push(['div', {class: 'TRAFFIC_KW'}, traffic_bullets(jn_msg)]);
     }
 
-    let element = document.getElementById('developer-traffic-logger');
-    if(element) {
-        let style = "background-color:#3883FA;";
-        if(direction === 2) {
-            style += "color:yellow;";
-        } else if(direction === 3) {
-            style += "color:red;";
-        } else {
-            style += "color:white;";
-        }
-
-        let $item = createElement2(
-            ['div', {class: 'mt-4'}, [
-                ['div', {class: 'is-flex with-border is-justify-content-space-between', style: style}, [
-                    ['div', {class: 'p-1'}, title],
-                    ['div', {class: 'p-1'}, `(${size} bytes)`],
-                    ['div', {class: 'p-1'}, formatCurrentTime()]
-                ]],
-                ['div', {class: 'x-jsoneditor jse-theme-dark'}, []],
-            ]]
-        );
-        let $target = $item.querySelector('.x-jsoneditor');
-        let font_family = "DejaVu Sans Mono, monospace, consolas, monaco";
-        let sz = 15;
-        $target.style.setProperty('--jse-font-size-mono', sz + 'px');
-        $target.style.setProperty('--jse-font-family-mono', font_family);
-
-        document.getElementById("developer-traffic-logger").appendChild($item);
-
-        let editor = new JSONEditor({
-            target: $target,
-            props: {
-                content: content,
-                readOnly: true,
-                timestampTag: function ({field, value, path}) {
-                    if (field === '__t__' || field === '__tm__' || field === 'tm' ||
-                        field === 'from_t' || field === 'to_t' || field === 't' ||
-                        field === 'from_tm' || field === 'to_tm' || field === 'time'
-                    ) {
-                        return true;
-                    }
-                    return false;
-                },
-                timestampFormat: function ({field, value, path}) {
-                    if (field === '__t__' || field === '__tm__' || field === 'tm' ||
-                        field === 'from_t' || field === 'to_t' || field === 't' ||
-                        field === 'from_tm' || field === 'to_tm' || field === 'time'
-                    ) {
-                        return new Date(value * 1000).toISOString();
-                    }
-                    return null;
-                },
-            }
-        });
-        editor.expand(path => path.length < 2);
-
-        element.scrollIntoView({block: "end"});
-    }
+    let $item = createElement2(
+        ['div', {class: 'TRAFFIC_ENTRY ' + dir_cls, title: title || ''}, children]
+    );
+    logger.appendChild($item);
+    $item.scrollIntoView({block: "end"});
 }
 
 /************************************************************

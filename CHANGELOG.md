@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.1
+
+- **feat(dev): bullet traffic log.** The Developer window's traffic view
+  (`yui_dev.js` `info_traffic`) no longer instantiates one `vanilla-jsoneditor`
+  per inter-event message — a heavy tree editor that forced a dark theme and
+  read poorly as a log. Each message now renders as a compact bullet entry:
+  a one-line header (direction arrow ⇢/⇠/⚠, bold event name, size, time) over a
+  direction-coloured accent bar, with the `kw` as a folding bullet list —
+  scalars inline and type-coloured, objects/arrays collapsed (`<details>`) so
+  metadata and nested payloads stay folded until clicked. Timestamp fields get
+  an ISO annotation; long strings are clipped (full text on hover). Theme-aware
+  via `<html data-theme>`. Shared by both the legacy `C_YUI_WINDOW` (`setup_dev`)
+  and the modal (`build_dev_panel`); `vanilla-jsoneditor` is dropped from this
+  file (still used by the treedb/form gclasses).
+
 ## 2.1.0
 
 - **feat(shell): runtime nav API.** `C_YUI_SHELL` can now mutate its navigation
