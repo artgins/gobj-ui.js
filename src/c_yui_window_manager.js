@@ -180,6 +180,21 @@ function build_dock(gobj)
 }
 
 /************************************************************
+ *   Re-attach the dock to the DOM if it got detached (e.g. a
+ *   shell that replaced document.body's children after the dock
+ *   was first mounted). Called whenever a window registers, so
+ *   the dock is guaranteed live before the first chip.
+ ************************************************************/
+function ensure_dock_mounted(gobj)
+{
+    let $dock = gobj_read_attr(gobj, "$container");
+    if($dock && !$dock.isConnected) {
+        let $parent = gobj_read_attr(gobj, "$parent") || document.body;
+        $parent.appendChild($dock);
+    }
+}
+
+/************************************************************
  *   Destroy the dock element.
  ************************************************************/
 function destroy_dock(gobj)
@@ -318,6 +333,8 @@ function ac_register_window(gobj, event, kw, src)
     if(!win || find_entry(priv, win)) {
         return 0;
     }
+
+    ensure_dock_mounted(gobj);
 
     let title = kw.title || gobj_name(win) || "window";
 

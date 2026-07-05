@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.7
+
+- **fix(window): self-healing dock.** `C_YUI_WINDOW_MANAGER` now re-attaches
+  its dock element to `document.body` whenever a window registers, if the dock
+  got detached (e.g. a shell that replaced `document.body`'s children after the
+  dock was first mounted at startup). Without this, minimizing a window sent it
+  to a dock that was no longer in the DOM — the window vanished with no visible
+  chip to restore it. (Minimize routing itself is verified end-to-end.)
+
 ## 2.1.6
 
 - **feat(window): per-type icon on the dock chip.** C_YUI_WINDOW gained an
