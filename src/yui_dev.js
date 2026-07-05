@@ -1,14 +1,13 @@
 /***********************************************************************
  *          ui_dev.js
  *
- *          Development Tools
+ *          Development Tools — yuno monitor / audit console
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
     gobj_yuno,
-    log_error,
     is_string,
     createElement2,
     kw_get_local_storage_value,
@@ -20,14 +19,43 @@ import {
 
 import i18next from 'i18next';
 
-/************************************************************
- *  Field names whose numeric value is a Unix timestamp
- *  (seconds since epoch) — annotate them with an ISO date.
- ************************************************************/
+/***********************************************************************
+ *          Traffic model (bounded ring buffer)
+ *
+ *  Every inter-event message is kept as a lightweight record so view
+ *  and filter changes re-render instantly from memory instead of
+ *  losing history. Reopening the window repaints the buffer.
+ ***********************************************************************/
+const TRAFFIC_MAX = 600;            // capped history
+const PERIODIC_THRESHOLD = 5;       // a signature seen >= N times reads as recurring
+const PERIODIC_RE = /PERIODIC|TIMEOUT|HEARTBEAT|PING/i;
+
+let TRAFFIC_LOG = [];               // [{title,event,command,sig,dir,size,ts,kw,jn,hay,$node}]
+let TRAFFIC_COUNTS = new Map();     // signature -> occurrences (for periodic detection)
+let SEARCH_TEXT = "";               // session-only free-text filter (not persisted)
+
+/*  Field names whose numeric value is a Unix timestamp (seconds). */
 const TRAFFIC_TS_FIELDS = {
     "__t__": 1, "__tm__": 1, "tm": 1, "t": 1,
     "from_t": 1, "to_t": 1, "from_tm": 1, "to_tm": 1, "time": 1,
 };
+
+/*  Trace toggles: [localStorage key, display label, handler]. */
+const TRACE_DEFS = [
+    ["trace_automata",      "Automata",      trace_automata],
+    ["trace_creation",      "Creation",      trace_creation],
+    ["trace_start_stop",    "Start/Stop",    trace_start_stop],
+    ["trace_subscriptions", "Subscriptions", trace_subscriptions],
+    ["trace_i18n",          "I18n",          trace_i18n],
+    ["trace_traffic",       "Traffic",       trace_traffic],
+    ["no_poll",             "No Poll",       set_no_poll],
+];
+
+
+                    /******************************
+                     *      Small helpers
+                     ******************************/
+
 
 /************************************************************
  *  hh:mm:ss.SSS wall-clock of the moment a message arrives.
@@ -44,7 +72,7 @@ function traffic_now()
 }
 
 /************************************************************
- *  Human byte size (B / KB / MB) for the entry header.
+ *  Human byte size (B / KB / MB).
  ************************************************************/
 function traffic_size(n)
 {
@@ -76,45 +104,274 @@ function traffic_iso(value)
 }
 
 /************************************************************
- *  Inject the traffic-log stylesheet once. Bullet log, not a
- *  JSON editor: theme-aware via <html data-theme>, coloured by
- *  direction (out / in / error) on a left accent bar.
+ *  Clip a string for inline display (full text kept elsewhere).
  ************************************************************/
-function ensure_traffic_style()
+function traffic_clip(s, n)
 {
-    if(document.getElementById('yui-dev-traffic-style')) {
+    s = String(s);
+    return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+/************************************************************
+ *  A scalar rendered as a short inline token (for summaries).
+ ************************************************************/
+function traffic_scalar_text(v)
+{
+    if(v === null) {
+        return "null";
+    }
+    if(typeof v === "string") {
+        return traffic_clip(v, 40);
+    }
+    return String(v);
+}
+
+function dir_class(dir)
+{
+    return (dir === 2) ? "dir-in" : (dir === 3) ? "dir-err" : "dir-out";
+}
+
+function dir_arrow(dir)
+{
+    return (dir === 2) ? "⇠" : (dir === 3) ? "⚠" : "⇢";
+}
+
+
+                    /******************************
+                     *      Preferences
+                     ******************************/
+
+
+function dev_num(key, def)
+{
+    return Number(kw_get_local_storage_value(key, (def === undefined ? 0 : def), false));
+}
+
+function dev_view()
+{
+    let v = kw_get_local_storage_value("dev_view_mode", "detailed", false);
+    return (v === "compact" || v === "name") ? v : "detailed";
+}
+
+function dev_hide_periodic()
+{
+    return dev_num("dev_hide_periodic", 1) ? true : false;
+}
+
+function dev_muted()
+{
+    let a = kw_get_local_storage_value("dev_muted_events", [], false);
+    if(!Array.isArray(a)) {
+        a = [];
+    }
+    return new Set(a);
+}
+
+function dev_set_muted(set)
+{
+    kw_set_local_storage_value("dev_muted_events", Array.from(set));
+}
+
+function set_view(v)
+{
+    kw_set_local_storage_value("dev_view_mode", v);
+    rerender_all();
+    refresh_dev_chrome();
+}
+
+function toggle_pref(key, def)
+{
+    let v = dev_num(key, def) ? 0 : 1;
+    kw_set_local_storage_value(key, v);
+    rerender_all();
+    refresh_dev_chrome();
+}
+
+function mute_signature(sig)
+{
+    let set = dev_muted();
+    set.add(sig);
+    dev_set_muted(set);
+    rerender_all();
+    refresh_dev_chrome();
+}
+
+function unmute_signature(sig)
+{
+    let set = dev_muted();
+    set.delete(sig);
+    dev_set_muted(set);
+    rerender_all();
+    refresh_dev_chrome();
+}
+
+
+                    /******************************
+                     *      Filtering
+                     ******************************/
+
+
+/*  Signature identifies a "kind" of message. Command answers share
+ *  the generic EV_MT_COMMAND event, so fold the command in to tell
+ *  a get-stats poll apart from a user action. */
+function traffic_signature(event, command)
+{
+    return command ? (event + " · " + command) : event;
+}
+
+function traffic_is_periodic(sig)
+{
+    if(PERIODIC_RE.test(sig)) {
+        return true;
+    }
+    return (TRAFFIC_COUNTS.get(sig) || 0) >= PERIODIC_THRESHOLD;
+}
+
+function build_filter_ctx()
+{
+    return {
+        out:            dev_num("dev_filter_out", 1),
+        inc:            dev_num("dev_filter_in", 1),
+        err:            dev_num("dev_filter_err", 1),
+        muted:          dev_muted(),
+        hide_periodic:  dev_hide_periodic(),
+        search:         SEARCH_TEXT,
+    };
+}
+
+function entry_hidden(e, ctx)
+{
+    if(e.dir === 1 && !ctx.out) {
+        return true;
+    }
+    if(e.dir === 2 && !ctx.inc) {
+        return true;
+    }
+    if(e.dir === 3 && !ctx.err) {
+        return true;
+    }
+    if(ctx.muted.has(e.sig)) {
+        return true;
+    }
+    if(ctx.hide_periodic && traffic_is_periodic(e.sig)) {
+        return true;
+    }
+    if(ctx.search && e.hay.indexOf(ctx.search) < 0) {
+        return true;
+    }
+    return false;
+}
+
+
+                    /******************************
+                     *      Style
+                     ******************************/
+
+
+/************************************************************
+ *  Inject the monitor stylesheet once. Theme-aware via
+ *  <html data-theme>; direction-coloured (out / in / error).
+ ************************************************************/
+function ensure_dev_style()
+{
+    if(document.getElementById('yui-dev-style')) {
         return;
     }
     let css = `
-.TRAFFIC_ENTRY {
-    margin: 6px 0;
-    padding: 4px 8px;
-    border-left: 3px solid #94a3b8;
-    border-radius: 3px;
-    font-family: "DejaVu Sans Mono", monospace, consolas, monaco;
-    font-size: 13px;
-    line-height: 1.55;
+/* -------- layout -------- */
+.YDEV_BODY {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.YDEV_LOG { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 6px 10px; }
+.YDEV_MUTED {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    padding: 4px 10px; border-bottom: 1px solid rgba(0,0,0,0.08); font-size: 12px;
+}
+.YDEV_MUTED:empty { display: none; }
+.YDEV_STATS {
+    flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 14px;
+    padding: 6px 10px; border-top: 1px solid rgba(0,0,0,0.1);
+    background: rgba(0,0,0,0.03);
+    font-family: "DejaVu Sans Mono", monospace; font-size: 11px;
+    opacity: 0.9; font-variant-numeric: tabular-nums;
+}
+/* -------- control bar -------- */
+.YDEV_BAR {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,0.1);
+    background: rgba(0,0,0,0.03);
+}
+.YDEV_GROUP { display: inline-flex; align-items: center; gap: 5px; }
+.YDEV_LABEL {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    opacity: 0.5; align-self: center;
+}
+.YDEV_SEP { width: 1px; align-self: stretch; background: rgba(0,0,0,0.12); }
+.YDEV_CHIP {
+    font: inherit; font-size: 12px; line-height: 1.4; padding: 3px 9px;
+    border: 1px solid rgba(0,0,0,0.18); border-radius: 999px;
+    background: transparent; color: inherit; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+}
+.YDEV_CHIP:hover { border-color: currentColor; }
+.YDEV_CHIP.is-active { background: rgba(37,99,235,0.14); border-color: #2563eb; color: #2563eb; font-weight: 600; }
+.YDEV_CHIP.s-out.is-active { background: rgba(37,99,235,0.16); border-color: #2563eb; color: #2563eb; }
+.YDEV_CHIP.s-in.is-active  { background: rgba(5,150,105,0.16); border-color: #059669; color: #059669; }
+.YDEV_CHIP.s-err.is-active { background: rgba(220,38,38,0.16); border-color: #dc2626; color: #dc2626; }
+.YDEV_CHIP[data-dir]:not(.is-active) { opacity: 0.4; text-decoration: line-through; }
+.YDEV_CHIP[data-toggle="periodic"].is-active { background: rgba(217,119,6,0.16); border-color: #d97706; color: #b45309; font-weight: 600; }
+.YDEV_SEG { display: inline-flex; border: 1px solid rgba(0,0,0,0.18); border-radius: 7px; overflow: hidden; }
+.YDEV_SEG_BTN {
+    font: inherit; font-size: 12px; padding: 4px 10px; border: 0;
+    border-right: 1px solid rgba(0,0,0,0.12);
+    background: transparent; color: inherit; cursor: pointer;
+}
+.YDEV_SEG_BTN:last-child { border-right: 0; }
+.YDEV_SEG_BTN.is-active { background: #2563eb; color: #fff; font-weight: 600; }
+.YDEV_SEARCH {
+    font: inherit; font-size: 12px; padding: 4px 9px; min-width: 170px;
+    border: 1px solid rgba(0,0,0,0.18); border-radius: 7px;
+    background: transparent; color: inherit;
+}
+.YDEV_MUTED_CHIP {
+    font: inherit; font-family: "DejaVu Sans Mono", monospace; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px;
+    border: 1px solid rgba(217,119,6,0.5); border-radius: 999px;
+    background: rgba(217,119,6,0.12); color: #b45309; cursor: pointer;
+}
+.YDEV_STAT.s-out { color: #2563eb; } .YDEV_STAT.s-in { color: #059669; } .YDEV_STAT.s-err { color: #dc2626; }
+.YDEV_TITLE { display: flex; align-items: baseline; gap: 8px; }
+.YDEV_TITLE_MAIN { font-weight: 700; }
+.YDEV_TITLE_SUB { opacity: 0.7; font-size: 12px; }
+/* -------- entries (shared) -------- */
+.TRAFFIC_ENTRY, .TRAFFIC_LINE, .TRAFFIC_NAME {
+    border-left: 3px solid #94a3b8; border-radius: 3px;
+    font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 13px;
     background: rgba(0,0,0,0.02);
 }
-.TRAFFIC_ENTRY.dir-out { border-left-color: #2563eb; }
-.TRAFFIC_ENTRY.dir-in  { border-left-color: #059669; }
-.TRAFFIC_ENTRY.dir-err { border-left-color: #dc2626; }
-.TRAFFIC_HEADER {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-}
+.TRAFFIC_ENTRY { margin: 6px 0; padding: 4px 8px; line-height: 1.55; }
+.TRAFFIC_LINE  { margin: 2px 0; padding: 2px 8px; display: flex; align-items: baseline; gap: 8px; }
+.TRAFFIC_NAME  { margin: 1px 0; padding: 1px 8px; display: flex; align-items: baseline; gap: 8px; background: transparent; }
+.TRAFFIC_ENTRY.dir-out, .TRAFFIC_LINE.dir-out, .TRAFFIC_NAME.dir-out { border-left-color: #2563eb; }
+.TRAFFIC_ENTRY.dir-in,  .TRAFFIC_LINE.dir-in,  .TRAFFIC_NAME.dir-in  { border-left-color: #059669; }
+.TRAFFIC_ENTRY.dir-err, .TRAFFIC_LINE.dir-err, .TRAFFIC_NAME.dir-err { border-left-color: #dc2626; }
+.TRAFFIC_HEADER { display: flex; align-items: baseline; gap: 8px; }
 .TRAFFIC_ARROW { font-weight: 700; }
 .TRAFFIC_EVENT { font-weight: 700; }
+.TRAFFIC_CMD { opacity: 0.75; font-weight: 600; }
 .dir-out .TRAFFIC_ARROW, .dir-out .TRAFFIC_EVENT { color: #2563eb; }
 .dir-in  .TRAFFIC_ARROW, .dir-in  .TRAFFIC_EVENT { color: #059669; }
 .dir-err .TRAFFIC_ARROW, .dir-err .TRAFFIC_EVENT { color: #dc2626; }
-.TRAFFIC_META {
-    margin-left: auto;
-    opacity: 0.6;
-    font-size: 11px;
-    white-space: nowrap;
-}
+.TRAFFIC_SUMMARY { opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
+.TRAFFIC_META { margin-left: auto; opacity: 0.6; font-size: 11px; white-space: nowrap; }
+.TRAFFIC_MUTE { border: 0; background: transparent; color: inherit; cursor: pointer; opacity: 0; font-size: 12px; padding: 0 2px; flex: 0 0 auto; }
+.TRAFFIC_ENTRY:hover .TRAFFIC_MUTE, .TRAFFIC_LINE:hover .TRAFFIC_MUTE, .TRAFFIC_NAME:hover .TRAFFIC_MUTE { opacity: 0.5; }
+.TRAFFIC_MUTE:hover { opacity: 1 !important; color: #d97706; }
 .TRAFFIC_KW { margin: 2px 0 0 16px; }
 .TRAFFIC_ROW { display: flex; gap: 6px; align-items: baseline; }
 .TRAFFIC_BULLET { opacity: 0.45; flex: 0 0 auto; }
@@ -125,40 +382,46 @@ function ensure_traffic_style()
 .TRAFFIC_VAL.t-null { color: #9333ea; font-style: italic; }
 .TRAFFIC_VAL.t-empty { opacity: 0.5; }
 .TRAFFIC_TS { opacity: 0.6; margin-left: 8px; }
-details.TRAFFIC_NEST > summary {
-    cursor: pointer;
-    list-style: none;
-    display: flex;
-    gap: 6px;
-    align-items: baseline;
-}
+details.TRAFFIC_NEST > summary { cursor: pointer; list-style: none; display: flex; gap: 6px; align-items: baseline; }
 details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 .TRAFFIC_NEST_KEY { opacity: 0.85; }
 .TRAFFIC_NEST_HINT { opacity: 0.5; margin-left: 4px; }
-:root[data-theme="dark"] .TRAFFIC_ENTRY { background: rgba(255,255,255,0.03); }
-:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-out { border-left-color: #60a5fa; }
-:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-in  { border-left-color: #34d399; }
-:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-err { border-left-color: #f87171; }
-:root[data-theme="dark"] .dir-out .TRAFFIC_ARROW,
-:root[data-theme="dark"] .dir-out .TRAFFIC_EVENT { color: #60a5fa; }
-:root[data-theme="dark"] .dir-in .TRAFFIC_ARROW,
-:root[data-theme="dark"] .dir-in .TRAFFIC_EVENT { color: #34d399; }
-:root[data-theme="dark"] .dir-err .TRAFFIC_ARROW,
-:root[data-theme="dark"] .dir-err .TRAFFIC_EVENT { color: #f87171; }
-:root[data-theme="dark"] .TRAFFIC_VAL.t-num  { color: #22d3ee; }
-:root[data-theme="dark"] .TRAFFIC_VAL.t-bool,
-:root[data-theme="dark"] .TRAFFIC_VAL.t-null { color: #c084fc; }
+.YDEV_EMPTY { opacity: 0.5; font-size: 12px; padding: 18px 10px; text-align: center; }
+/* -------- dark theme -------- */
+:root[data-theme="dark"] .YDEV_BAR, :root[data-theme="dark"] .YDEV_STATS { background: rgba(255,255,255,0.04); }
+:root[data-theme="dark"] .YDEV_SEP { background: rgba(255,255,255,0.14); }
+:root[data-theme="dark"] .YDEV_CHIP, :root[data-theme="dark"] .YDEV_SEG, :root[data-theme="dark"] .YDEV_SEARCH { border-color: rgba(255,255,255,0.2); }
+:root[data-theme="dark"] .TRAFFIC_ENTRY, :root[data-theme="dark"] .TRAFFIC_LINE { background: rgba(255,255,255,0.03); }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-out, :root[data-theme="dark"] .TRAFFIC_LINE.dir-out, :root[data-theme="dark"] .TRAFFIC_NAME.dir-out { border-left-color: #60a5fa; }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-in,  :root[data-theme="dark"] .TRAFFIC_LINE.dir-in,  :root[data-theme="dark"] .TRAFFIC_NAME.dir-in  { border-left-color: #34d399; }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-err, :root[data-theme="dark"] .TRAFFIC_LINE.dir-err, :root[data-theme="dark"] .TRAFFIC_NAME.dir-err { border-left-color: #f87171; }
+:root[data-theme="dark"] .dir-out .TRAFFIC_ARROW, :root[data-theme="dark"] .dir-out .TRAFFIC_EVENT { color: #60a5fa; }
+:root[data-theme="dark"] .dir-in .TRAFFIC_ARROW,  :root[data-theme="dark"] .dir-in .TRAFFIC_EVENT { color: #34d399; }
+:root[data-theme="dark"] .dir-err .TRAFFIC_ARROW, :root[data-theme="dark"] .dir-err .TRAFFIC_EVENT { color: #f87171; }
+:root[data-theme="dark"] .YDEV_STAT.s-out { color: #60a5fa; } :root[data-theme="dark"] .YDEV_STAT.s-in { color: #34d399; } :root[data-theme="dark"] .YDEV_STAT.s-err { color: #f87171; }
+:root[data-theme="dark"] .TRAFFIC_VAL.t-num { color: #22d3ee; }
+:root[data-theme="dark"] .TRAFFIC_VAL.t-bool, :root[data-theme="dark"] .TRAFFIC_VAL.t-null { color: #c084fc; }
+:root[data-theme="dark"] .YDEV_CHIP.is-active { background: rgba(96,165,250,0.2); border-color: #60a5fa; color: #93c5fd; }
+:root[data-theme="dark"] .YDEV_SEG_BTN.is-active { background: #2563eb; color: #fff; }
+:root[data-theme="dark"] .YDEV_CHIP[data-toggle="periodic"].is-active { background: rgba(217,119,6,0.24); border-color: #f59e0b; color: #fbbf24; }
+:root[data-theme="dark"] .YDEV_MUTED_CHIP { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.16); color: #fbbf24; }
 `;
     let $style = document.createElement('style');
-    $style.id = 'yui-dev-traffic-style';
+    $style.id = 'yui-dev-style';
     $style.textContent = css;
     document.head.appendChild($style);
 }
 
+
+                    /******************************
+                     *      kw bullet rendering
+                     ******************************/
+
+
 /************************************************************
  *  One scalar field as a bullet row: `• key: value`.
- *  Value is type-coloured; long strings are clipped (full text
- *  on hover); timestamp fields get an ISO annotation.
+ *  Type-coloured; long strings clipped (full text on hover);
+ *  timestamp fields get an ISO annotation.
  ************************************************************/
 function traffic_scalar_row(key, value)
 {
@@ -202,9 +465,8 @@ function traffic_scalar_row(key, value)
 
 /************************************************************
  *  One field of any type. Scalars → a bullet row; objects and
- *  arrays → a collapsed <details> (metadata / nested payloads
- *  stay folded so the log reads at a glance). Empty containers
- *  render inline instead of an empty collapsible.
+ *  arrays → a collapsed <details> so metadata / nested payloads
+ *  stay folded. Empty containers render inline.
  ************************************************************/
 function traffic_value_node(key, value)
 {
@@ -234,8 +496,7 @@ function traffic_value_node(key, value)
 }
 
 /************************************************************
- *  A whole object/array → an array of bullet nodes (one per
- *  field, array index as the key). Recurses via traffic_value_node.
+ *  A whole object/array → an array of bullet nodes.
  ************************************************************/
 function traffic_bullets(obj)
 {
@@ -252,14 +513,209 @@ function traffic_bullets(obj)
     return out;
 }
 
+
+                    /******************************
+                     *      Entry rendering (per view)
+                     ******************************/
+
+
+/*  A small mute affordance that silences this signature (persistent). */
+function mute_button(sig)
+{
+    return ['button', {class: 'TRAFFIC_MUTE', type: 'button', title: 'Mute ' + sig}, '⊘', {
+        click: (ev) => {
+            ev.stopPropagation();
+            ev.preventDefault();
+            mute_signature(sig);
+        }
+    }];
+}
+
+function event_spans(e)
+{
+    let spans = [['span', {class: 'TRAFFIC_ARROW'}, dir_arrow(e.dir)],
+                 ['span', {class: 'TRAFFIC_EVENT'}, e.event]];
+    if(e.command) {
+        spans.push(['span', {class: 'TRAFFIC_CMD'}, e.command]);
+    }
+    return spans;
+}
+
+/*  One-line summary of the kw for the compact view. */
+function compact_summary(kw)
+{
+    if(!kw) {
+        return "";
+    }
+    let parts = [];
+    if("result" in kw) {
+        parts.push("result=" + traffic_scalar_text(kw.result));
+    }
+    if(typeof kw.comment === "string" && kw.comment) {
+        parts.push(traffic_clip(kw.comment, 80));
+    }
+    if(!parts.length) {
+        let n = 0;
+        for(let k of Object.keys(kw)) {
+            if(k === "command") {
+                continue;
+            }
+            let v = kw[k];
+            if(v === null || typeof v !== "object") {
+                parts.push(k + "=" + traffic_scalar_text(v));
+                if(++n >= 3) {
+                    break;
+                }
+            }
+        }
+    }
+    return traffic_clip(parts.join("  ·  "), 140);
+}
+
+function render_detailed(e)
+{
+    let head = event_spans(e);
+    head.push(mute_button(e.sig));
+    head.push(['span', {class: 'TRAFFIC_META'}, `${traffic_size(e.size)} · ${e.ts}`]);
+
+    let children = [['div', {class: 'TRAFFIC_HEADER'}, head]];
+    let kw = e.kw;
+    if(kw && Object.keys(kw).length > 0) {
+        children.push(['div', {class: 'TRAFFIC_KW'}, traffic_bullets(kw)]);
+    } else if(!kw) {
+        children.push(['div', {class: 'TRAFFIC_KW'}, traffic_bullets(e.jn)]);
+    }
+    return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir), title: e.title}, children]);
+}
+
+function render_compact(e)
+{
+    let kids = event_spans(e);
+    kids.push(['span', {class: 'TRAFFIC_SUMMARY'}, compact_summary(e.kw)]);
+    kids.push(mute_button(e.sig));
+    kids.push(['span', {class: 'TRAFFIC_META'}, `${traffic_size(e.size)} · ${e.ts}`]);
+    return createElement2(['div', {class: 'TRAFFIC_LINE ' + dir_class(e.dir), title: e.title}, kids]);
+}
+
+function render_name(e)
+{
+    let kids = event_spans(e);
+    kids.push(mute_button(e.sig));
+    kids.push(['span', {class: 'TRAFFIC_META'}, e.ts]);
+    return createElement2(['div', {class: 'TRAFFIC_NAME ' + dir_class(e.dir), title: e.title}, kids]);
+}
+
+function render_entry(e)
+{
+    let view = dev_view();
+    if(view === "compact") {
+        return render_compact(e);
+    }
+    if(view === "name") {
+        return render_name(e);
+    }
+    return render_detailed(e);
+}
+
+
+                    /******************************
+                     *      Log painting
+                     ******************************/
+
+
+function clear_traffic()
+{
+    TRAFFIC_LOG.length = 0;
+    TRAFFIC_COUNTS.clear();
+    let logger = document.getElementById('developer-traffic-logger');
+    if(logger) {
+        logger.replaceChildren();
+    }
+    update_stats();
+}
+
+/*  Full repaint from the buffer (view / filter changes, reopen). */
+function rerender_all()
+{
+    let logger = document.getElementById('developer-traffic-logger');
+    if(!logger) {
+        return;
+    }
+    ensure_dev_style();
+    let ctx = build_filter_ctx();
+    let frag = document.createDocumentFragment();
+    let shown = 0;
+    for(let e of TRAFFIC_LOG) {
+        e.$node = null;
+        if(!entry_hidden(e, ctx)) {
+            let node = render_entry(e);
+            e.$node = node;
+            frag.appendChild(node);
+            shown++;
+        }
+    }
+    logger.replaceChildren(frag);
+    if(shown === 0) {
+        let $empty = document.createElement('div');
+        $empty.className = 'YDEV_EMPTY';
+        $empty.textContent = TRAFFIC_LOG.length
+            ? "No messages match the current filters."
+            : "No traffic captured yet — enable Traffic to start.";
+        logger.appendChild($empty);
+    }
+    logger.scrollTop = logger.scrollHeight;
+    update_stats();
+}
+
+/*  Live counters in the status strip. */
+function update_stats()
+{
+    let $s = document.getElementById('ydev-stats');
+    if(!$s) {
+        return;
+    }
+    let ctx = build_filter_ctx();
+    let total = TRAFFIC_LOG.length;
+    let shown = 0, out = 0, inc = 0, err = 0, hidden = 0, bytes = 0;
+    for(let e of TRAFFIC_LOG) {
+        bytes += e.size || 0;
+        if(e.dir === 1) {
+            out++;
+        } else if(e.dir === 2) {
+            inc++;
+        } else if(e.dir === 3) {
+            err++;
+        }
+        if(entry_hidden(e, ctx)) {
+            hidden++;
+        } else {
+            shown++;
+        }
+    }
+    $s.replaceChildren();
+    let cells = [
+        [`${shown}/${total} shown`, ''],
+        [`⇢ ${out}`, 's-out'],
+        [`⇠ ${inc}`, 's-in'],
+        [`⚠ ${err}`, 's-err'],
+        [`⊘ ${hidden} hidden`, ''],
+        [`${traffic_size(bytes)}`, ''],
+    ];
+    cells.forEach(([text, cls]) => {
+        let d = document.createElement('span');
+        d.className = 'YDEV_STAT' + (cls ? ' ' + cls : '');
+        d.textContent = text;
+        $s.appendChild(d);
+    });
+}
+
 /************************************************************
- *  Append one inter-event message to the traffic logger as a
- *  bullet entry (event headline + kw as a folding bullet list),
- *  replacing the per-message vanilla-jsoneditor. Shared by the
- *  legacy C_YUI_WINDOW (setup_dev) and the modal (build_dev_panel).
+ *  Append one inter-event message. Kept in a bounded buffer so
+ *  view/filter switches repaint from memory. Shared by the legacy
+ *  C_YUI_WINDOW (setup_dev) and the modal (build_dev_panel).
  *
  *  direction: 1 outgoing (⇢), 2 incoming (⇠), 3 error (⚠).
- *  When no logger is mounted, fall back to a console dump.
+ *  With no logger mounted, fall back to a console dump.
  ************************************************************/
 function info_traffic(title, msg, direction, size)
 {
@@ -273,53 +729,79 @@ function info_traffic(title, msg, direction, size)
         size = 0;
     }
 
-    let jn_msg;
+    let jn;
     try {
-        if(is_string(msg)) {
-            jn_msg = JSON.parse(msg);
-        } else {
-            jn_msg = JSON.parse(JSON.stringify(msg));
-        }
+        jn = is_string(msg) ? JSON.parse(msg) : JSON.parse(JSON.stringify(msg));
     } catch(e) {
         return;
     }
 
-    ensure_traffic_style();
+    ensure_dev_style();
 
-    let dir_cls = (direction === 2) ? "dir-in" : (direction === 3) ? "dir-err" : "dir-out";
-    let arrow = (direction === 2) ? "⇠" : (direction === 3) ? "⚠" : "⇢";
-    let event_name = (jn_msg && jn_msg.event) ? String(jn_msg.event) : "(no event)";
-    let kw = (jn_msg && jn_msg.kw && typeof jn_msg.kw === "object") ? jn_msg.kw : null;
+    let event = (jn && jn.event) ? String(jn.event) : "(no event)";
+    let kw = (jn && jn.kw && typeof jn.kw === "object") ? jn.kw : null;
+    let command = (kw && typeof kw.command === "string") ? kw.command : "";
+    let sig = traffic_signature(event, command);
 
-    let children = [
-        ['div', {class: 'TRAFFIC_HEADER'}, [
-            ['span', {class: 'TRAFFIC_ARROW'}, arrow],
-            ['span', {class: 'TRAFFIC_EVENT'}, event_name],
-            ['span', {class: 'TRAFFIC_META'}, `${traffic_size(size)} · ${traffic_now()}`],
-        ]],
-    ];
-
-    if(kw && Object.keys(kw).length > 0) {
-        children.push(['div', {class: 'TRAFFIC_KW'}, traffic_bullets(kw)]);
-    } else if(!kw) {
-        // No kw envelope: fold the whole raw message so nothing is lost.
-        children.push(['div', {class: 'TRAFFIC_KW'}, traffic_bullets(jn_msg)]);
+    let hay = "";
+    try {
+        hay = (event + " " + command + " " + (kw ? JSON.stringify(kw) : "")).toLowerCase();
+    } catch(e) {
+        hay = (event + " " + command).toLowerCase();
     }
 
-    let $item = createElement2(
-        ['div', {class: 'TRAFFIC_ENTRY ' + dir_cls, title: title || ''}, children]
-    );
-    logger.appendChild($item);
-    $item.scrollIntoView({block: "end"});
+    let entry = {
+        title: title || "", event: event, command: command, sig: sig,
+        dir: direction, size: size, ts: traffic_now(),
+        kw: kw, jn: jn, hay: hay, $node: null,
+    };
+
+    TRAFFIC_LOG.push(entry);
+    TRAFFIC_COUNTS.set(sig, (TRAFFIC_COUNTS.get(sig) || 0) + 1);
+
+    /*  When a signature just crosses the "recurring" threshold and
+     *  the periodic filter is on, its earlier entries must disappear
+     *  too — a full repaint is the correct, simple answer. */
+    let crossed = dev_hide_periodic() && (TRAFFIC_COUNTS.get(sig) === PERIODIC_THRESHOLD);
+
+    if(TRAFFIC_LOG.length > TRAFFIC_MAX) {
+        let old = TRAFFIC_LOG.shift();
+        let c = (TRAFFIC_COUNTS.get(old.sig) || 0) - 1;
+        if(c <= 0) {
+            TRAFFIC_COUNTS.delete(old.sig);
+        } else {
+            TRAFFIC_COUNTS.set(old.sig, c);
+        }
+        if(old.$node && old.$node.parentNode) {
+            old.$node.parentNode.removeChild(old.$node);
+        }
+    }
+
+    if(crossed) {
+        rerender_all();
+    } else if(!entry_hidden(entry, build_filter_ctx())) {
+        let node = render_entry(entry);
+        entry.$node = node;
+        /*  Drop the "no traffic yet" placeholder before the first row. */
+        let ph = logger.querySelector('.YDEV_EMPTY');
+        if(ph) {
+            ph.remove();
+        }
+        logger.appendChild(node);
+        node.scrollIntoView({block: "end"});
+    }
+    update_stats();
 }
 
-/************************************************************
- *
- ************************************************************/
+
+                    /******************************
+                     *      Trace toggles
+                     ******************************/
+
+
 function trace_traffic()
 {
-    let v = kw_get_local_storage_value("trace_traffic");
-    v = Number(v);
+    let v = Number(kw_get_local_storage_value("trace_traffic"));
     if(v) {
         gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
         v = 0;
@@ -329,146 +811,230 @@ function trace_traffic()
         v = 1;
     }
     kw_set_local_storage_value("trace_traffic", v);
-    info_user();
+    refresh_dev_chrome();
 }
 
-/************************************************************
- *
- ************************************************************/
 function trace_automata()
 {
-    let v = kw_get_local_storage_value("trace_automata");
-    v = Number(v);
-    if(v===0) {
+    let v = Number(kw_get_local_storage_value("trace_automata"));
+    if(v === 0) {
         v = 1;
-    } else if(v===1) {
+    } else if(v === 1) {
         v = 2;
     } else {
         v = 0;
     }
     gobj_write_attr(gobj_yuno(), "tracing", v);
     kw_set_local_storage_value("trace_automata", v);
-    info_user();
+    refresh_dev_chrome();
 }
 
-/************************************************************
- *
- ************************************************************/
 function trace_creation()
 {
-    let v = kw_get_local_storage_value("trace_creation");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else {
-        v = 0;
-    }
+    let v = Number(kw_get_local_storage_value("trace_creation"));
+    v = v === 0 ? 1 : 0;
     gobj_write_attr(gobj_yuno(), "trace_creation", v);
     kw_set_local_storage_value("trace_creation", v);
-    info_user();
+    refresh_dev_chrome();
 }
 
-/************************************************************
- *
- ************************************************************/
 function trace_start_stop()
 {
-    let v = kw_get_local_storage_value("trace_start_stop");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else {
-        v = 0;
-    }
+    let v = Number(kw_get_local_storage_value("trace_start_stop"));
+    v = v === 0 ? 1 : 0;
     gobj_write_attr(gobj_yuno(), "trace_start_stop", v);
     kw_set_local_storage_value("trace_start_stop", v);
-    info_user();
+    refresh_dev_chrome();
 }
 
-/************************************************************
- *
- ************************************************************/
 function trace_subscriptions()
 {
-    let v = kw_get_local_storage_value("trace_subscriptions");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else {
-        v = 0;
-    }
+    let v = Number(kw_get_local_storage_value("trace_subscriptions"));
+    v = v === 0 ? 1 : 0;
     gobj_write_attr(gobj_yuno(), "trace_subscriptions", v);
     kw_set_local_storage_value("trace_subscriptions", v);
-    info_user();
+    refresh_dev_chrome();
 }
 
-/************************************************************
- *
- ************************************************************/
 function trace_i18n()
 {
-    let v = kw_get_local_storage_value("trace_i18n");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else {
-        v = 0;
-    }
-    i18next.options.debug = v?true:false;
+    let v = Number(kw_get_local_storage_value("trace_i18n"));
+    v = v === 0 ? 1 : 0;
+    i18next.options.debug = v ? true : false;
     kw_set_local_storage_value("trace_i18n", v);
-    info_user();
+    refresh_dev_chrome();
 }
 
-/************************************************************
- *
- ************************************************************/
 function set_no_poll()
 {
-    let v = kw_get_local_storage_value("no_poll");
-    v = Number(v);
-    if(v) {
-        v = 0;
-    } else {
-        v = 1;
-    }
+    let v = Number(kw_get_local_storage_value("no_poll"));
+    v = v ? 0 : 1;
     gobj_write_attr(gobj_yuno(), "no_poll", v);
     kw_set_local_storage_value("no_poll", v);
-    info_user();
+    refresh_dev_chrome();
 }
 
-/************************************************************
- *
- ************************************************************/
-function info_user()
+
+                    /******************************
+                     *      Chrome (controls)
+                     ******************************/
+
+
+/*  Sync every control's visual state from persisted prefs, plus the
+ *  muted-events row and the stats strip. Idempotent; null-guarded so
+ *  it is safe to call whether or not the window is mounted. */
+function refresh_dev_chrome()
 {
-    let $info = document.getElementById("developer-window-info");
-
-    let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
-    let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
-    let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
-    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
-    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
-
-    let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
-    let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
-
-    // Code repeated
-    // Build with DOM instead of innerHTML to prevent any XSS via localStorage values
-    $info.replaceChildren();
-    [
-        `Automata: ${trace}`,
-        `Creation: ${creation}`,
-        `Start/Stop: ${start_stop}`,
-        `Subscriptions: ${subscriptions}`,
-        `I18n: ${i18n}`,
-        `Traffic: ${traffic}`,
-        `No poll: ${no_poll}`,
-    ].forEach(text => {
-        const div = document.createElement('div');
-        div.textContent = text;
-        $info.appendChild(div);
+    document.querySelectorAll('.YDEV_CHIP[data-trace]').forEach(($b) => {
+        let key = $b.getAttribute('data-trace');
+        let label = $b.getAttribute('data-label') || '';
+        let v = dev_num(key, 0);
+        $b.textContent = (key === "trace_automata" && v > 0) ? (label + " " + v) : label;
+        $b.classList.toggle('is-active', v > 0);
     });
+
+    let view = dev_view();
+    document.querySelectorAll('.YDEV_SEG_BTN[data-view]').forEach(($b) => {
+        $b.classList.toggle('is-active', $b.getAttribute('data-view') === view);
+    });
+
+    document.querySelectorAll('.YDEV_CHIP[data-dir]').forEach(($b) => {
+        $b.classList.toggle('is-active', !!dev_num($b.getAttribute('data-dir'), 1));
+    });
+
+    document.querySelectorAll('.YDEV_CHIP[data-toggle="periodic"]').forEach(($b) => {
+        $b.classList.toggle('is-active', dev_hide_periodic());
+    });
+
+    let $m = document.getElementById('ydev-muted');
+    if($m) {
+        $m.replaceChildren();
+        let set = dev_muted();
+        if(set.size) {
+            let $lbl = document.createElement('span');
+            $lbl.className = 'YDEV_LABEL';
+            $lbl.textContent = 'Muted';
+            $m.appendChild($lbl);
+            set.forEach((sig) => {
+                $m.appendChild(createElement2(
+                    ['button', {class: 'YDEV_MUTED_CHIP', type: 'button', title: 'Unmute'},
+                        '⊘ ' + sig + '  ✕', {
+                        click: (ev) => {
+                            ev.stopPropagation();
+                            unmute_signature(sig);
+                        }
+                    }]
+                ));
+            });
+        }
+    }
+
+    update_stats();
 }
+
+/*  The control bar: trace toggles, view selector, direction /
+ *  periodic filters, free-text search, clear. Returns an element. */
+function build_control_bar()
+{
+    let trace_chips = TRACE_DEFS.map(([key, label, fn]) => ['button', {
+        class: 'YDEV_CHIP', 'data-trace': key, 'data-label': label, type: 'button',
+    }, label, {
+        click: (ev) => {
+            ev.stopPropagation();
+            fn();
+        }
+    }]);
+
+    let mk_view = (v, label) => ['button', {class: 'YDEV_SEG_BTN', 'data-view': v, type: 'button'}, label, {
+        click: (ev) => {
+            ev.stopPropagation();
+            set_view(v);
+        }
+    }];
+
+    let view_seg = ['div', {class: 'YDEV_SEG', id: 'ydev-seg'}, [
+        mk_view('detailed', 'Detailed'),
+        mk_view('compact', 'Compact'),
+        mk_view('name', 'Name only'),
+    ]];
+
+    let mk_dir = (dir, glyph, key, title) => ['button', {
+        class: 'YDEV_CHIP s-' + dir, 'data-dir': key, type: 'button', title: title,
+    }, glyph, {
+        click: (ev) => {
+            ev.stopPropagation();
+            toggle_pref(key, 1);
+        }
+    }];
+
+    let dir_chips = [
+        mk_dir('out', '⇢', 'dev_filter_out', 'Outgoing'),
+        mk_dir('in', '⇠', 'dev_filter_in', 'Incoming'),
+        mk_dir('err', '⚠', 'dev_filter_err', 'Errors'),
+    ];
+
+    let periodic_chip = ['button', {
+        class: 'YDEV_CHIP', 'data-toggle': 'periodic', type: 'button',
+        title: 'Hide recurring / periodic events (polls, heartbeats)',
+    }, '⊘ Periodic', {
+        click: (ev) => {
+            ev.stopPropagation();
+            toggle_pref('dev_hide_periodic', 1);
+        }
+    }];
+
+    let search = ['input', {
+        class: 'YDEV_SEARCH', type: 'search', placeholder: 'filter events / payload…', 'data-role': 'search',
+    }, '', {
+        input: (ev) => {
+            SEARCH_TEXT = String(ev.target.value || '').toLowerCase().trim();
+            rerender_all();
+        }
+    }];
+
+    let clear = ['button', {class: 'YDEV_CHIP', type: 'button', title: 'Clear captured traffic'}, 'Clear', {
+        click: (ev) => {
+            ev.stopPropagation();
+            clear_traffic();
+        }
+    }];
+
+    let grp = (label, items) => ['div', {class: 'YDEV_GROUP'}, [['span', {class: 'YDEV_LABEL'}, label], ...items]];
+    let sep = () => ['span', {class: 'YDEV_SEP'}, ''];
+
+    return createElement2(['div', {class: 'YDEV_BAR'}, [
+        grp('Traces', trace_chips), sep(),
+        grp('View', [view_seg]), sep(),
+        grp('Show', [...dir_chips, periodic_chip]), sep(),
+        grp('Find', [search, clear]),
+    ]]);
+}
+
+/*  The window title strip (draggable header of C_YUI_WINDOW). */
+function build_title_header()
+{
+    return createElement2(['div', {class: 'YDEV_TITLE'}, [
+        ['span', {class: 'YDEV_TITLE_MAIN'}, 'Developer'],
+        ['span', {class: 'YDEV_TITLE_SUB'}, 'yuno monitor · traffic & traces'],
+    ]]);
+}
+
+/*  The monitor body: control bar + muted row + log + stats strip. */
+function build_dev_body()
+{
+    return createElement2(['div', {class: 'YDEV_BODY'}, [
+        build_control_bar(),
+        ['div', {class: 'YDEV_MUTED', id: 'ydev-muted'}, []],
+        ['div', {class: 'YDEV_LOG', id: 'developer-traffic-logger'}, []],
+        ['div', {class: 'YDEV_STATS', id: 'ydev-stats'}, []],
+    ]]);
+}
+
+
+                    /******************************
+                     *      Public API
+                     ******************************/
+
 
 /************************************************************
  *  Was the developer window open last session?  setup_dev()
@@ -486,9 +1052,6 @@ function dev_window_was_open()
  *  Apply ALL persisted developer-trace flags to the running
  *  yuno.  Independent of the dev window — call it once at app
  *  startup so a refresh keeps logging whatever was enabled.
- *  Single source of truth for "localStorage flag → effect";
- *  setup_dev() and build_dev_panel() reuse it instead of each
- *  re-applying a partial subset.
  ************************************************************/
 function apply_dev_traces()
 {
@@ -515,118 +1078,18 @@ function apply_dev_traces()
 }
 
 /************************************************************
- *  Open the developer panel inside a non-modal C_YUI_WINDOW
+ *  Open the developer monitor inside a non-modal C_YUI_WINDOW
  *  (title bar + maximize + close + resize).
  *
  *  Shell-agnostic: the legacy C_YUI_MAIN shell has a
  *  '#top-layer' stacking element; the new C_YUI_SHELL does not.
- *  We pass that element when present, otherwise null — and
- *  C_YUI_WINDOW falls back to document.body by contract.  So the
- *  new shell gets the same windowed dev panel instead of the
- *  floating build_dev_panel() box.  Legacy behaviour is
- *  unchanged (when '#top-layer' exists it is still used).
+ *  We pass that element when present, otherwise null — C_YUI_WINDOW
+ *  falls back to document.body by contract.
  ************************************************************/
 function setup_dev(self, show)
 {
-    let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
-    let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
-    let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
-    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
-    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
-    let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
-    let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
-
     if(show) {
-        const $dev_toolbar = createElement2(
-            ['div', {class: 'buttons'}, [
-                ['button', {
-                    class: 'button',
-                }, 'Automata', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        trace_automata();
-                    }
-                }],
-                ['button', {
-                    class: 'button',
-                }, 'Creation', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        trace_creation();
-                    }
-                }],
-                ['button', {
-                    class: 'button',
-                }, 'Star/Stop', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        trace_start_stop();
-                    }
-                }],
-                ['button', {
-                    class: 'button',
-                }, 'Subscriptions', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        trace_subscriptions();
-                    }
-                }],
-                ['button', {
-                    class: 'button',
-                }, 'I18n', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        trace_i18n();
-                    }
-                }],
-                ['button', {
-                    class: 'button',
-                }, 'Traffic', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        trace_traffic();
-                    }
-                }],
-                ['button', {
-                    class: 'button',
-                }, 'No Poll', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        set_no_poll();
-                    }
-                }],
-                ['button', {
-                    class: 'button',
-                }, 'Clear Traffic', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        document.getElementById("developer-traffic-logger").innerHTML = "";
-                    }
-                }],
-            ]]
-        );
-
-        // TODO repon la position
-        // onViewResize: function() {
-        //     var record = filter_dict(this.config, self.config.traffic_window_position);
-        //     gobj_update_writable_attrs({traffic_window_position: record});
-        //     gobj_save_persistent_attrs();
-        // },
-        // onViewMoveEnd: function() {
-        //     var record = filter_dict(this.config, self.config.traffic_window_position);
-        //     gobj_update_writable_attrs({traffic_window_position: record});
-        //     gobj_save_persistent_attrs();
-        // }
-
-        // Code repeated
-        let estados = `
-        <div>Automata: ${trace}</div>
-        <div>Creation: ${creation}</div>
-        <div>Start/Stop: ${start_stop}</div>
-        <div>Subscriptions: ${subscriptions}</div>
-        <div>I18n: ${i18n}</div>
-        <div>Traffic: ${traffic}</div>
-        <div>No poll: ${no_poll}</div>`;
+        ensure_dev_style();
 
         gobj_create_service(
             "Developer-Window",
@@ -636,12 +1099,11 @@ function setup_dev(self, show)
                 subscriber: null,
                 showMax: true,
                 modal: false,
-                header: $dev_toolbar,
+                header: build_title_header(),
+                body: build_dev_body(),
+                showFooter: false,
                 auto_save_size_and_position: true,
                 center: false,
-                // resizable: false,
-                body: '<div style="overflow:scroll;height:100%;"><div id="developer-traffic-logger" style="margin-left:10px;margin-right:10px;"/></div>',
-                footer: `<div id="developer-window-info" class="is-flex is-justify-content-space-between" style="gap:1.25rem;white-space:nowrap;">${estados}</div>`,
                 on_close: function() {
                     kw_set_local_storage_value("open_developer_window", 0);
                 }
@@ -651,53 +1113,31 @@ function setup_dev(self, show)
 
         kw_set_local_storage_value("open_developer_window", 1);
 
+        /*  Mounted synchronously above; paint state + buffered history
+         *  on the next tick to be safe against mount ordering. */
+        setTimeout(() => {
+            refresh_dev_chrome();
+            rerender_all();
+        }, 0);
     }
 
     apply_dev_traces();
 }
 
 /************************************************************
- *  Build the developer panel as a self-contained DOM subtree,
+ *  Build the developer monitor as a self-contained DOM subtree,
  *  to be mounted by the new declarative shell via
  *  yui_shell_show_modal (no C_YUI_WINDOW, no 'top-layer').
  *
  *  Returns { $el, dispose }:
- *    - $el:     the panel element (header tabs + traffic logger
- *               body + footer counters).
+ *    - $el:     the panel element (control bar + log + stats).
  *    - dispose: stops the inter-event traffic trace; call it from
  *               the modal's on_close.
- *
- *  Backwards compatible: setup_dev() (old shell, C_YUI_WINDOW) is
- *  untouched; the trace_* helpers and info_traffic are shared.
  ************************************************************/
 function build_dev_panel()
 {
-    let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
-    let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
-    let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
-    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
-    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
-    let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
-    let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
+    ensure_dev_style();
 
-    let mk_btn = (label, fn) => ['button', {
-        class: 'button is-small',
-    }, label, {
-        click: (evt) => {
-            evt.stopPropagation();
-            fn();
-        }
-    }];
-
-    let counters = [
-        `Automata: ${trace}`, `Creation: ${creation}`,
-        `Start/Stop: ${start_stop}`, `Subscriptions: ${subscriptions}`,
-        `I18n: ${i18n}`, `Traffic: ${traffic}`, `No poll: ${no_poll}`,
-    ].map(txt => ['div', {style: 'padding:0 8px;'}, txt]);
-
-    // The shell modal drops content into a transparent, unsized
-    // Bulma .modal-content; the panel must be its own opaque,
-    // sized window box. Theme-aware (read <html data-theme>).
     let dark = (typeof document !== "undefined") &&
         document.documentElement.getAttribute("data-theme") === "dark";
     let surface = dark ? "#1f2733" : "#ffffff";
@@ -712,50 +1152,18 @@ function build_dev_panel()
                 'width:100%;height:min(72vh,720px);max-height:82vh;' +
                 'background:' + surface + ';color:' + fg + ';' +
                 'border:1px solid ' + bd + ';border-radius:10px;' +
-                'box-shadow:0 10px 30px rgba(0,0,0,0.35);' +
-                'padding:14px;overflow:hidden;' +
-                'font-family:-apple-system,BlinkMacSystemFont,' +
-                "'Segoe UI',Roboto,Helvetica,Arial,sans-serif;",
-        }, [
-            ['div', {
-                class: 'buttons',
-                style: 'flex:0 0 auto;display:flex;flex-wrap:wrap;' +
-                    'gap:6px;margin:0 0 8px 0;',
-            }, [
-                mk_btn('Automata', trace_automata),
-                mk_btn('Creation', trace_creation),
-                mk_btn('Star/Stop', trace_start_stop),
-                mk_btn('Subscriptions', trace_subscriptions),
-                mk_btn('I18n', trace_i18n),
-                mk_btn('Traffic', trace_traffic),
-                mk_btn('No Poll', set_no_poll),
-                mk_btn('Clear Traffic', () => {
-                    let l = document.getElementById("developer-traffic-logger");
-                    if(l) {
-                        l.innerHTML = "";
-                    }
-                }),
-            ]],
-            ['div', {
-                style: 'flex:1 1 auto;min-height:0;overflow:auto;',
-            }, [
-                ['div', {id: 'developer-traffic-logger',
-                    style: 'margin:0 4px;'}, []],
-            ]],
-            ['div', {
-                id: 'developer-window-info',
-                class: 'is-flex is-justify-content-space-between',
-                style: 'flex:0 0 auto;border-top:1px solid ' + bd +
-                    ';padding-top:6px;margin-top:6px;font-size:12px;' +
-                    'opacity:0.85;flex-wrap:nowrap;gap:1.25rem;white-space:nowrap;',
-            }, counters],
-        ]]
+                'box-shadow:0 10px 30px rgba(0,0,0,0.35);overflow:hidden;',
+        }, [build_dev_body()]]
     );
 
     apply_dev_traces();
 
+    setTimeout(() => {
+        refresh_dev_chrome();
+        rerender_all();
+    }, 0);
+
     let dispose = function() {
-        // Stop feeding traffic into a detached DOM.
         gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
     };
 

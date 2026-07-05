@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.2
+
+- **feat(dev): Developer window is now a yuno monitor.** `yui_dev.js` was
+  reworked from a raw traffic dumper into a control/monitoring/audit console
+  around a bounded in-memory buffer (last 600 messages), so view and filter
+  changes repaint instantly from memory and reopening the window restores
+  history:
+  - **View selector (persistent):** `Detailed` (folding bullet payload),
+    `Compact` (one line + inline summary), `Name only` (event name + time).
+    The last choice is saved (`dev_view_mode`).
+  - **Filters:** per-direction chips (outgoing / incoming / errors), a
+    free-text search over event + command + payload, and a **Hide periodic**
+    toggle that folds away recurring chatter — events matching
+    `PERIODIC|TIMEOUT|HEARTBEAT|PING` or any signature seen ≥ 5 times (polls,
+    heartbeats) — so the async detail is not drowned out. All persistent
+    (`dev_hide_periodic`, `dev_filter_*`).
+  - **Per-event mute (persistent):** hover ⊘ on any entry to silence that
+    event/command signature; muted signatures show as removable chips
+    (`dev_muted_events`).
+  - **Stateful trace toggles + live stats strip:** trace chips light up when
+    active (Automata shows its level); a footer strip shows shown/total,
+    per-direction counts, hidden count and total bytes.
+  - Theme-aware chrome; the whole console moved into the window **body** (the
+    C_YUI_WINDOW header/footer are single-row) with a title in the header.
+
 ## 2.1.1
 
 - **feat(dev): bullet traffic log.** The Developer window's traffic view
