@@ -14,6 +14,7 @@ import {
     kw_set_local_storage_value,
     gobj_write_attr,
     gobj_create_service,
+    gobj_find_service,
     trace_json,
 } from "@yuneta/gobj-js";
 
@@ -1104,6 +1105,10 @@ function setup_dev(self, show)
                 showFooter: false,
                 auto_save_size_and_position: true,
                 center: false,
+                title: "Developer",
+                icon: "yi-terminal",
+                /*  Opt into the dock/taskbar if the app provides one. */
+                manager: gobj_find_service("__window_manager__", false),
                 on_close: function() {
                     kw_set_local_storage_value("open_developer_window", 0);
                 }

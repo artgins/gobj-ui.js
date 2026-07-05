@@ -145,6 +145,9 @@ function ensure_dock_style()
 .yui-dock-chip.is-min { opacity: 0.65; }
 .yui-dock-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex: 0 0 auto; }
 .yui-dock-chip.is-min .yui-dock-dot { background: var(--bulma-text-weak); }
+.yui-dock-icon { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; font-size: 14px; flex: 0 0 auto; }
+.yui-dock-icon svg { width: 14px; height: 14px; display: block; }
+.yui-dock-icon i { line-height: 1; }
 .yui-dock-label { flex: 0 0 auto; }
 .yui-dock-close {
     width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
@@ -188,6 +191,22 @@ function destroy_dock(gobj)
         }
         gobj_write_attr(gobj, "$container", null);
     }
+}
+
+/************************************************************
+ *   The chip's leading mark: a per-type icon if the window
+ *   provides one (a `yi-*` class name, or inline SVG/HTML), else
+ *   the status dot. Returns a createElement2() spec.
+ ************************************************************/
+function chip_lead(icon)
+{
+    if(!icon) {
+        return ['span', {class: 'yui-dock-dot'}, ''];
+    }
+    if(icon.charAt(0) === '<') {
+        return ['span', {class: 'yui-dock-icon'}, icon];
+    }
+    return ['span', {class: 'yui-dock-icon'}, [['i', {class: icon}]]];
 }
 
 /************************************************************
@@ -309,7 +328,7 @@ function ac_register_window(gobj, event, kw, src)
      *  → EV_UNREGISTER_WINDOW removes this chip). */
     let $chip = createElement2(
         ['div', {class: 'yui-dock-chip', role: 'button', tabindex: '0', title: title}, [
-            ['span', {class: 'yui-dock-dot'}, ''],
+            chip_lead(kw.icon),
             ['span', {class: 'yui-dock-label'}, title],
             ['button', {class: 'yui-dock-close', type: 'button', 'aria-label': 'close'}, WC_X, {
                 click: (evt) => {

@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.6
+
+- **feat(window): per-type icon on the dock chip.** C_YUI_WINDOW gained an
+  `icon` attr (a `yi-*` class name or inline SVG) that travels in
+  `EV_REGISTER_WINDOW`; the dock chip renders it in place of the status dot
+  (minimized state is still conveyed by the dimmed chip). The Developer monitor
+  registers with `yi-terminal`. Windows without an icon keep the green/grey dot.
+
 ## 2.1.5
 
 - **feat(window): dock bottom-left + per-chip close.** The window-manager dock

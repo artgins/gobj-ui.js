@@ -90,6 +90,7 @@ SDATA(data_type_t.DTP_JSON,     "window_style", 0,  "{}",   "Override window sty
 SDATA(data_type_t.DTP_POINTER,  "on_close",     0,  null,   "Callback on destroy"),
 SDATA(data_type_t.DTP_POINTER,  "manager",      0,  null,   "Optional C_YUI_WINDOW_MANAGER (gobj or service name) for dock/taskbar"),
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, shown on the dock chip"),
+SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Dock-chip icon: a yi-* class name or inline SVG (by window type)"),
 // TODO pendiente focus modal keyboard
 SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "Brings focus to the element, can be a number or selector"),
 SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "Enable modal mode"),
@@ -151,6 +152,7 @@ function mt_create(gobj)
         gobj_send_event(manager, "EV_REGISTER_WINDOW", {
             window: gobj,
             title: gobj_read_attr(gobj, "title") || gobj_short_name(gobj),
+            icon: gobj_read_attr(gobj, "icon") || "",
         }, gobj);
     }
 
