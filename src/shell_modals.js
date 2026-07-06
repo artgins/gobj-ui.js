@@ -176,27 +176,55 @@ export function yui_shell_show_modal(shell, content, opts)
         ? ["div", {class: "box"}, [["p", {i18n: content}, content]]]
         : null;
 
+    /*  Adaptive DIALOG mode (`opts.dialog: true`): the standardized
+     *  "single window / popup" chrome — a centered card with the close X
+     *  at the top-right on desktop, and a full-screen sheet with a back
+     *  arrow at the top-left on mobile. A header bar carries `opts.title`
+     *  and BOTH dismiss controls; CSS shows the right one per breakpoint.
+     *  Both call close() — the app's on_close decides navigation (usually
+     *  history.back()), so gobj-ui stays routing-agnostic. */
+    let dialog = !!(opts && opts.dialog);
+    let title = (opts && opts.title) || "";
+
     /*  The external Bulma `.modal-close is-large` sits at the
      *  top-right of the viewport, outside the content box.  Callers
      *  whose content provides its own in-box close (e.g. a
      *  C_YUI_PAGER header) pass `with_close_button: false` to omit
      *  it; Escape and the backdrop still close the modal. */
     let with_close = !(opts && opts.with_close_button === false);
-    let modal_children = [
-        ["div", {class: "modal-background"}],
-        ["div", {class: "modal-content"},
-            inner ? [inner] : []
-        ]
-    ];
-    if(with_close) {
-        modal_children.push(
-            ["button", {class: "modal-close is-large",
-                        "aria-label": "close"}]
-        );
+    let modal_children;
+    if(dialog) {
+        let header = ["div", {class: "yui-dialog-header"}, [
+            ["button", {class: "yui-dialog-back", type: "button", "aria-label": "back"},
+                [["i", {class: "yi-arrow-left"}]]],
+            ["span", {class: "yui-dialog-title", i18n: title}, title],
+            ["button", {class: "yui-dialog-x", type: "button", "aria-label": "close"},
+                [["i", {class: "yi-xmark"}]]],
+        ]];
+        let body = ["div", {class: "yui-dialog-body"}, inner ? [inner] : []];
+        modal_children = [
+            ["div", {class: "modal-background"}],
+            ["div", {class: "modal-content yui-dialog-content"}, [header, body]]
+        ];
+        /*  The header X replaces the external Bulma close button. */
+        with_close = false;
+    } else {
+        modal_children = [
+            ["div", {class: "modal-background"}],
+            ["div", {class: "modal-content"},
+                inner ? [inner] : []
+            ]
+        ];
+        if(with_close) {
+            modal_children.push(
+                ["button", {class: "modal-close is-large",
+                            "aria-label": "close"}]
+            );
+        }
     }
 
     let $modal = createElement2(
-        ["div", {class: "modal yui-modal is-active",
+        ["div", {class: "modal yui-modal" + (dialog ? " yui-dialog" : "") + " is-active",
                  role: "dialog", "aria-modal": "true"},
             modal_children
         ]
@@ -204,7 +232,9 @@ export function yui_shell_show_modal(shell, content, opts)
     $layer.appendChild($modal);
 
     if(!inner && content && typeof content.appendChild !== "undefined") {
-        let $content = $modal.querySelector(".modal-content");
+        let $content = dialog
+            ? $modal.querySelector(".yui-dialog-body")
+            : $modal.querySelector(".modal-content");
         $content.appendChild(content);
     }
 
@@ -254,6 +284,16 @@ export function yui_shell_show_modal(shell, content, opts)
     let $close_btn = $modal.querySelector(".modal-close");
     if($close_btn) {
         $close_btn.addEventListener("click", close);
+    }
+    if(dialog) {
+        let $back = $modal.querySelector(".yui-dialog-back");
+        if($back) {
+            $back.addEventListener("click", close);
+        }
+        let $x = $modal.querySelector(".yui-dialog-x");
+        if($x) {
+            $x.addEventListener("click", close);
+        }
     }
 
     return { close };

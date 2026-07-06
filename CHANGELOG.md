@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.12
+
+- **feat(shell): standardized adaptive dialog for single "window / popup" views.**
+  `yui_shell_show_modal` gained an opt-in `dialog: true` (+ `title`, `t`) mode: a
+  centered card with the close **X at the top-right** on desktop, and a
+  **full-screen sheet with a back arrow at the top-left** on mobile (≤768px, the
+  shell-wide breakpoint). A header bar carries the title and both dismiss
+  controls; CSS shows the right one per breakpoint and both call `close()`, so the
+  app's `on_close` still owns navigation (typically `history.back()`) — gobj-ui
+  stays routing-agnostic. Styles live in `c_yui_shell.css` (`.yui-dialog*`).
+  Consumers: gui_agent About, wattyzer About + Connection.
+
 ## 2.1.11
 
 - **fix(dev): "attr undefined: manager" when opening the Developer window without
