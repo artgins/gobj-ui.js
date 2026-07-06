@@ -151,7 +151,7 @@ function dev_num(key, def)
 function dev_view()
 {
     let v = kw_get_local_storage_value("dev_view_mode", "detailed", false);
-    return (v === "compact" || v === "name") ? v : "detailed";
+    return (v === "compact" || v === "name" || v === "full") ? v : "detailed";
 }
 
 function dev_hide_periodic()
@@ -374,6 +374,7 @@ function ensure_dev_style()
 .TRAFFIC_ENTRY:hover .TRAFFIC_MUTE, .TRAFFIC_LINE:hover .TRAFFIC_MUTE, .TRAFFIC_NAME:hover .TRAFFIC_MUTE { opacity: 0.5; }
 .TRAFFIC_MUTE:hover { opacity: 1 !important; color: #d97706; }
 .TRAFFIC_KW { margin: 2px 0 0 16px; }
+.TRAFFIC_FULL { margin: 4px 0 0 16px; padding: 6px 8px; font-family: monospace; font-size: 11px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
 .TRAFFIC_ROW { display: flex; gap: 6px; align-items: baseline; }
 .TRAFFIC_BULLET { opacity: 0.45; flex: 0 0 auto; }
 .TRAFFIC_KEY { opacity: 0.85; flex: 0 0 auto; }
@@ -389,6 +390,7 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 .TRAFFIC_NEST_HINT { opacity: 0.5; margin-left: 4px; }
 .YDEV_EMPTY { opacity: 0.5; font-size: 12px; padding: 18px 10px; text-align: center; }
 /* -------- dark theme -------- */
+:root[data-theme="dark"] .TRAFFIC_FULL { background: rgba(255,255,255,0.05); }
 :root[data-theme="dark"] .YDEV_BAR, :root[data-theme="dark"] .YDEV_STATS { background: rgba(255,255,255,0.04); }
 :root[data-theme="dark"] .YDEV_SEP { background: rgba(255,255,255,0.14); }
 :root[data-theme="dark"] .YDEV_CHIP, :root[data-theme="dark"] .YDEV_SEG, :root[data-theme="dark"] .YDEV_SEARCH { border-color: rgba(255,255,255,0.2); }
@@ -589,6 +591,67 @@ function render_detailed(e)
     return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir), title: e.title}, children]);
 }
 
+/*  Whether an Expanded-view section is shown (persisted toggles). schema
+ *  defaults OFF (rarely wanted); data + metadata default as noted. */
+function full_show(key)
+{
+    let def = (key === "dev_full_data") ? 1 : 0;
+    return !!dev_num(key, def);
+}
+
+/*  Filter a payload's top-level keys for the Expanded view: the `schema`
+ *  and `data` keys and the `__…__` metadata markers are each shown only
+ *  when their toggle is on; everything else is always kept. */
+function full_sections(payload)
+{
+    if(!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        return payload;
+    }
+    let show_schema = full_show("dev_full_schema");
+    let show_data = full_show("dev_full_data");
+    let show_meta = full_show("dev_full_meta");
+    let out = {};
+    for(let k of Object.keys(payload)) {
+        if(k === "schema") {
+            if(show_schema) { out[k] = payload[k]; }
+            continue;
+        }
+        if(k === "data") {
+            if(show_data) { out[k] = payload[k]; }
+            continue;
+        }
+        if(/^__.*__$/.test(k)) {
+            if(show_meta) { out[k] = payload[k]; }
+            continue;
+        }
+        out[k] = payload[k];
+    }
+    return out;
+}
+
+/*  Full view: the message payload pretty-printed and fully expanded
+ *  (nothing folded) — for reading / copying a whole payload. The
+ *  schema / data / metadata sections are toggled by the Expand chips. */
+function render_full(e)
+{
+    let head = event_spans(e);
+    head.push(mute_button(e.sig));
+    head.push(['span', {class: 'TRAFFIC_META'}, `${traffic_size(e.size)} · ${e.ts}`]);
+
+    let payload = full_sections(e.kw ? e.kw : e.jn);
+    let text;
+    try {
+        text = JSON.stringify(payload, null, 2);
+    } catch(err) {
+        text = String(payload);
+    }
+    let children = [
+        ['div', {class: 'TRAFFIC_HEADER'}, head],
+        ['pre', {class: 'TRAFFIC_FULL'}, text],
+    ];
+    return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir), title: e.title}, children]);
+}
+
 function render_compact(e)
 {
     let kids = event_spans(e);
@@ -609,6 +672,9 @@ function render_name(e)
 function render_entry(e)
 {
     let view = dev_view();
+    if(view === "full") {
+        return render_full(e);
+    }
     if(view === "compact") {
         return render_compact(e);
     }
@@ -899,6 +965,16 @@ function refresh_dev_chrome()
         $b.classList.toggle('is-active', $b.getAttribute('data-view') === view);
     });
 
+    /*  The Expand section toggles only apply to the Expanded view — show
+     *  the group only there, and reflect each toggle's persisted state. */
+    let $eg = document.getElementById('ydev-expand-grp');
+    if($eg) {
+        $eg.style.display = (view === 'full') ? '' : 'none';
+    }
+    document.querySelectorAll('.YDEV_CHIP[data-expand]').forEach(($b) => {
+        $b.classList.toggle('is-active', full_show($b.getAttribute('data-expand')));
+    });
+
     document.querySelectorAll('.YDEV_CHIP[data-dir]').forEach(($b) => {
         $b.classList.toggle('is-active', !!dev_num($b.getAttribute('data-dir'), 1));
     });
@@ -933,8 +1009,63 @@ function refresh_dev_chrome()
     update_stats();
 }
 
+/*  Serialize the currently-visible (filtered) traffic to plain text:
+ *  one header line per entry (time · direction · title · event/command)
+ *  followed by its pretty-printed payload. Honours the active filters and
+ *  search so the copy matches exactly what is on screen. */
+function traffic_to_text()
+{
+    let ctx = build_filter_ctx();
+    let out = [];
+    for(let e of TRAFFIC_LOG) {
+        if(entry_hidden(e, ctx)) {
+            continue;
+        }
+        let head = `${e.ts} ${dir_arrow(e.dir)} ` +
+            `${e.title ? "[" + e.title + "] " : ""}${e.event}` +
+            `${e.command ? " " + e.command : ""}`;
+        out.push(head);
+        let payload = e.kw ? e.kw : e.jn;
+        try {
+            out.push(JSON.stringify(payload, null, 2));
+        } catch(err) {
+            out.push(String(payload));
+        }
+        out.push("");
+    }
+    return out.join("\n");
+}
+
+/*  Copy text to the clipboard, with a fallback for insecure contexts. */
+function dev_copy_text(text)
+{
+    if(navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).catch(() => {
+            dev_fallback_copy(text);
+        });
+    }
+    dev_fallback_copy(text);
+    return Promise.resolve();
+}
+
+function dev_fallback_copy(text)
+{
+    let ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand("copy");
+    } catch(e) {
+        /*  nothing else to try  */
+    }
+    document.body.removeChild(ta);
+}
+
 /*  The control bar: trace toggles, view selector, direction /
- *  periodic filters, free-text search, clear. Returns an element. */
+ *  periodic filters, free-text search, copy, clear. Returns an element. */
 function build_control_bar()
 {
     let trace_chips = TRACE_DEFS.map(([key, label, fn]) => ['button', {
@@ -955,8 +1086,27 @@ function build_control_bar()
 
     let view_seg = ['div', {class: 'YDEV_SEG', id: 'ydev-seg'}, [
         mk_view('detailed', 'Detailed'),
+        mk_view('full', 'Expanded'),
         mk_view('compact', 'Compact'),
         mk_view('name', 'Name only'),
+    ]];
+
+    /*  Expanded-view section toggles (only meaningful in the 'full' view;
+     *  the group is shown/hidden by refresh_dev_chrome). */
+    let mk_expand = (key, label) => ['button', {
+        class: 'YDEV_CHIP', 'data-expand': key, type: 'button',
+        title: 'Show ' + label + ' in the Expanded view',
+    }, label, {
+        click: (ev) => {
+            ev.stopPropagation();
+            toggle_pref(key, (key === 'dev_full_data') ? 1 : 0);
+        }
+    }];
+    let expand_grp = ['div', {class: 'YDEV_GROUP', id: 'ydev-expand-grp'}, [
+        ['span', {class: 'YDEV_LABEL'}, 'Expand'],
+        mk_expand('dev_full_schema', 'Schema'),
+        mk_expand('dev_full_data', 'Data'),
+        mk_expand('dev_full_meta', 'Metadata'),
     ]];
 
     let mk_dir = (dir, glyph, key, title) => ['button', {
@@ -993,6 +1143,18 @@ function build_control_bar()
         }
     }];
 
+    let copy = ['button', {class: 'YDEV_CHIP', type: 'button', title: 'Copy visible traffic to clipboard'}, 'Copy', {
+        click: (ev) => {
+            ev.stopPropagation();
+            let btn = ev.currentTarget;
+            dev_copy_text(traffic_to_text()).then(() => {
+                let prev = btn.textContent;
+                btn.textContent = 'Copied';
+                setTimeout(() => { btn.textContent = prev; }, 1000);
+            });
+        }
+    }];
+
     let clear = ['button', {class: 'YDEV_CHIP', type: 'button', title: 'Clear captured traffic'}, 'Clear', {
         click: (ev) => {
             ev.stopPropagation();
@@ -1005,9 +1167,10 @@ function build_control_bar()
 
     return createElement2(['div', {class: 'YDEV_BAR'}, [
         grp('Traces', trace_chips), sep(),
-        grp('View', [view_seg]), sep(),
+        grp('View', [view_seg]), expand_grp, sep(),
         grp('Show', [...dir_chips, periodic_chip]), sep(),
-        grp('Find', [search, clear]),
+        grp('Find', [search]), sep(),
+        grp('Log', [copy, clear]),
     ]]);
 }
 

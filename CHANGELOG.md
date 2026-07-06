@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.10
+
+- **feat(dev): Copy button.** The Developer monitor's control bar gained a **Copy**
+  action (new **Log** group, beside **Clear**) that copies the currently-visible
+  traffic to the clipboard — it honours the active filters/search, so you get
+  exactly what's on screen. Each entry is a header line (time · direction · title ·
+  event/command) followed by its pretty-printed payload. Insecure-context fallback
+  included; the button flashes "Copied".
+- **feat(dev): Expanded view + section toggles.** New **Expanded** option in the
+  **View** selector renders each message's payload as fully-expanded pretty JSON in
+  a `<pre>` (nothing folded, unlike Detailed's collapsible tree). When Expanded is
+  active, an **Expand** group appears with **Schema / Data / Metadata** toggles that
+  filter the payload's top-level sections (`schema`, `data`, and the `__…__`
+  metadata markers) — schema off by default (rarely wanted), data on, metadata off.
+  Choices persist like the other view prefs.
+
 ## 2.1.9
 
 - **feat(window): configurable dock placement.** `C_YUI_WINDOW_MANAGER` gained a
