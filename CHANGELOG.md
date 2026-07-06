@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.11
+
+- **fix(dev): "attr undefined: manager" when opening the Developer window without
+  a window manager.** `setup_dev` created the `C_YUI_WINDOW` with
+  `manager: gobj_find_service("__window_manager__", false)`, which is `undefined`
+  in apps that don't register a manager (e.g. wattyzer) — and an `undefined` attr
+  value logs `attr undefined: manager` in gobj-js. Coerce to `null` (`|| null`) so
+  it reads as "no dock". Harmless before (the window still worked), just noisy;
+  gui_agent was unaffected because it registers `__window_manager__`.
+
 ## 2.1.10
 
 - **feat(dev): Copy button.** The Developer monitor's control bar gained a **Copy**

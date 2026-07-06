@@ -1270,8 +1270,11 @@ function setup_dev(self, show)
                 center: false,
                 title: "Developer",
                 icon: "yi-terminal",
-                /*  Opt into the dock/taskbar if the app provides one. */
-                manager: gobj_find_service("__window_manager__", false),
+                /*  Opt into the dock/taskbar if the app provides one. `|| null`
+                 *  because gobj_find_service returns undefined when absent, and
+                 *  an undefined attr value logs "attr undefined: manager" (apps
+                 *  without a window manager, e.g. wattyzer). null = no dock. */
+                manager: gobj_find_service("__window_manager__", false) || null,
                 on_close: function() {
                     kw_set_local_storage_value("open_developer_window", 0);
                 }
