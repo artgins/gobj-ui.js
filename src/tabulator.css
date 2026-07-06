@@ -1,0 +1,53 @@
+/***********************************************************************
+ *          tabulator.css
+ *
+ *          Cross-app Tabulator theme fixes and reusable helpers.
+ *
+ *          Tabulator is a first-class element across the yunos, so its
+ *          styling belongs to the library — not duplicated per app.
+ *          Import this once (after `tabulator.min.css` +
+ *          `tabulator_bulma.css`) so every consumer gets the same
+ *          theme-aware behaviour.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+/* ====================================================================
+ *  Active / selected row highlight.
+ *  Green wash + left accent, theme-aware, with enough specificity
+ *  (three classes) to beat the striped-row !important backgrounds.
+ *  Add `yui-row-active` to a `.tabulator-row` element to mark it.
+ * ==================================================================== */
+.tabulator-row.yui-row-active,
+.tabulator-row.yui-row-active.tabulator-row-odd,
+.tabulator-row.yui-row-active.tabulator-row-even {
+    background-color: #E8F6EE !important;
+    box-shadow: inset 4px 0 0 #2BB673;
+}
+
+[data-theme=dark] .tabulator-row.yui-row-active,
+[data-theme=dark] .tabulator-row.yui-row-active.tabulator-row-odd,
+[data-theme=dark] .tabulator-row.yui-row-active.tabulator-row-even {
+    background-color: rgba(43, 182, 115, 0.22) !important;
+    box-shadow: inset 4px 0 0 #2BB673;
+}
+
+/* ====================================================================
+ *  Tree expand/collapse control (the +/- box) in dark theme.
+ *  Tabulator hardcodes the box border and the +/- strokes to #333 on
+ *  a near-black wash — a dark glyph in a dark box on a dark background,
+ *  effectively invisible. Repaint border, wash and strokes light.
+ * ==================================================================== */
+[data-theme=dark] .tabulator-data-tree-control {
+    background: rgba(255, 255, 255, 0.14) !important;
+    border-color: rgba(255, 255, 255, 0.85) !important;
+}
+[data-theme=dark] .tabulator-data-tree-control:hover {
+    background: rgba(255, 255, 255, 0.28) !important;
+}
+[data-theme=dark] .tabulator-data-tree-control .tabulator-data-tree-control-expand,
+[data-theme=dark] .tabulator-data-tree-control .tabulator-data-tree-control-expand:after,
+[data-theme=dark] .tabulator-data-tree-control .tabulator-data-tree-control-collapse:after {
+    background: #ffffff !important;
+}

@@ -17,6 +17,15 @@
  *  Orthogonal to C_YUI_PAGER (page-stack): a window may host a pager
  *  in its body; the manager only arranges the windows themselves.
  *
+ *  The dock placement is configurable via `dock_mode`:
+ *    - "floating"   (default) a detached bar pinned to a corner
+ *                   (`dock_corner`), hovering over the content.
+ *    - "inline"     a full-width taskbar row mounted inside a layout
+ *                   container (`inline_selector`, e.g. a shell zone).
+ *    - "responsive" floating on wide viewports, inline on narrow ones
+ *                   (`responsive_query`) — so on mobile it lives above
+ *                   the bottom menu instead of covering it.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -53,15 +62,21 @@ const WC_X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5 L11.
  *              Data
  ***************************************************************/
 const attrs_table = [
-SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
-SDATA(data_type_t.DTP_POINTER,  "$parent",      0,  null,   "Where the dock mounts (default document.body)"),
-SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Internal: the dock element"),
+SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,           "Subscriber of output events"),
+SDATA(data_type_t.DTP_STRING,   "dock_mode",        0,  "floating",     "floating | inline | responsive (floating on wide screens, inline on narrow)"),
+SDATA(data_type_t.DTP_STRING,   "dock_corner",      0,  "bottom-left",  "Floating placement: top-left | top-right | bottom-left | bottom-right"),
+SDATA(data_type_t.DTP_STRING,   "inline_selector",  0,  "",             "CSS selector of the container the dock mounts into when inline (e.g. a shell zone)"),
+SDATA(data_type_t.DTP_STRING,   "responsive_query", 0,  "(max-width: 768px)", "Media query that selects inline placement when dock_mode is 'responsive'"),
+SDATA(data_type_t.DTP_POINTER,  "$parent",          0,  null,           "Where the floating dock mounts (default document.body)"),
+SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,           "Internal: the dock element"),
 SDATA_END()
 ];
 
 let PRIVATE_DATA = {
     windows: null,      /*  [{gobj, $chip, minimized}]  */
     z: 0,               /*  z-order counter handed to focused windows  */
+    mql: null,          /*  MediaQueryList when dock_mode is 'responsive'  */
+    mql_handler: null,  /*  its change listener (kept for teardown)  */
 };
 
 let __gclass__ = null;
@@ -86,6 +101,19 @@ function mt_create(gobj)
     priv.windows = [];
     priv.z = 10;
 
+    /*  In 'responsive' mode the placement follows a media query: watch it
+     *  so the dock re-homes (floating <-> inline) when the viewport crosses
+     *  the breakpoint. Set up BEFORE build_dock so the first placement is
+     *  already correct. */
+    if((gobj_read_attr(gobj, "dock_mode") || "floating") === "responsive") {
+        let q = gobj_read_attr(gobj, "responsive_query") || "(max-width: 768px)";
+        priv.mql = window.matchMedia(q);
+        priv.mql_handler = () => {
+            apply_placement(gobj);
+        };
+        priv.mql.addEventListener("change", priv.mql_handler);
+    }
+
     build_dock(gobj);
 
     /*
@@ -102,6 +130,14 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    let priv = gobj.priv;
+
+    if(priv.mql && priv.mql_handler) {
+        priv.mql.removeEventListener("change", priv.mql_handler);
+        priv.mql = null;
+        priv.mql_handler = null;
+    }
+
     destroy_dock(gobj);
 }
 
@@ -125,16 +161,36 @@ function ensure_dock_style()
     }
     let css = `
 .yui-dock {
-    position: fixed; left: 12px; bottom: 12px;
     z-index: ${DOCK_Z};
     display: flex; gap: 6px; align-items: center; padding: 5px 8px;
-    max-width: calc(100vw - 24px); overflow-x: auto;
+    overflow-x: auto;
     background: var(--bulma-scheme-main-bis); color: var(--bulma-text);
-    border: 1px solid var(--bulma-border); border-radius: 10px;
-    box-shadow: 0 6px 22px rgba(0,0,0,0.25);
+    border: 1px solid var(--bulma-border);
     font-family: var(--bulma-family-primary, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
 .yui-dock.is-empty { display: none; }
+
+/*  Floating: a detached bar hovering over the content, pinned to a corner.  */
+.yui-dock--floating {
+    position: fixed;
+    max-width: calc(100vw - 24px);
+    border-radius: 10px;
+    box-shadow: 0 6px 22px rgba(0,0,0,0.25);
+}
+.yui-dock--bottom-left  { bottom: 12px; left: 12px; }
+.yui-dock--bottom-right { bottom: 12px; right: 12px; }
+.yui-dock--top-left     { top: 12px;    left: 12px; }
+.yui-dock--top-right    { top: 12px;    right: 12px; }
+
+/*  Inline: flows inside a layout zone as a full-width taskbar row (the zone
+ *  already provides the separating border, so the bar itself stays flat).  */
+.yui-dock--inline {
+    position: relative;
+    width: 100%; max-width: 100%;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
 .yui-dock-chip {
     display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 12px;
     padding: 4px 5px 4px 11px; border: 1px solid var(--bulma-border); border-radius: 7px;
@@ -175,22 +231,66 @@ function build_dock(gobj)
     let $dock = createElement2(['div', {class: 'yui-dock is-empty'}, []]);
     gobj_write_attr(gobj, "$container", $dock);
 
-    let $parent = gobj_read_attr(gobj, "$parent") || document.body;
-    $parent.appendChild($dock);
+    apply_placement(gobj);
 }
 
 /************************************************************
- *   Re-attach the dock to the DOM if it got detached (e.g. a
- *   shell that replaced document.body's children after the dock
- *   was first mounted). Called whenever a window registers, so
- *   the dock is guaranteed live before the first chip.
+ *   Whether the dock should render inline (in a layout zone)
+ *   rather than floating, given the mode and — for
+ *   'responsive' — the current viewport.
  ************************************************************/
-function ensure_dock_mounted(gobj)
+function want_inline_placement(gobj)
+{
+    let mode = gobj_read_attr(gobj, "dock_mode") || "floating";
+    if(mode === "inline") {
+        return true;
+    }
+    if(mode === "responsive") {
+        let priv = gobj.priv;
+        return !!(priv.mql && priv.mql.matches);
+    }
+    return false;
+}
+
+/************************************************************
+ *   Place (or re-place) the dock: pick floating vs inline,
+ *   set the modifier classes, and mount it in the right
+ *   container. Also re-attaches the dock if it got detached
+ *   (e.g. a shell that replaced its parent's children after
+ *   the dock was first mounted, or the responsive breakpoint
+ *   flipped). Idempotent — safe to call on every register and
+ *   on every media-query change.
+ ************************************************************/
+function apply_placement(gobj)
 {
     let $dock = gobj_read_attr(gobj, "$container");
-    if($dock && !$dock.isConnected) {
-        let $parent = gobj_read_attr(gobj, "$parent") || document.body;
-        $parent.appendChild($dock);
+    if(!$dock) {
+        return;
+    }
+
+    /*  Inline needs a host in the DOM. The shell is often built lazily, so
+     *  its zone may not exist yet — fall back to floating until it does, so
+     *  the dock never vanishes. */
+    let $inline = null;
+    if(want_inline_placement(gobj)) {
+        let sel = gobj_read_attr(gobj, "inline_selector");
+        if(sel) {
+            $inline = document.querySelector(sel);
+        }
+    }
+    let inline = !!$inline;
+
+    $dock.classList.toggle("yui-dock--inline", inline);
+    $dock.classList.toggle("yui-dock--floating", !inline);
+
+    let corner = gobj_read_attr(gobj, "dock_corner") || "bottom-left";
+    for(let c of ["top-left", "top-right", "bottom-left", "bottom-right"]) {
+        $dock.classList.toggle(`yui-dock--${c}`, !inline && c === corner);
+    }
+
+    let target = inline ? $inline : (gobj_read_attr(gobj, "$parent") || document.body);
+    if($dock.parentNode !== target) {
+        target.appendChild($dock);
     }
 }
 
@@ -339,7 +439,7 @@ function ac_register_window(gobj, event, kw, src)
         return 0;
     }
 
-    ensure_dock_mounted(gobj);
+    apply_placement(gobj);
 
     let title = kw.title || gobj_name(win) || "window";
 

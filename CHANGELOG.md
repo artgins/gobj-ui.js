@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.9
+
+- **feat(window): configurable dock placement.** `C_YUI_WINDOW_MANAGER` gained a
+  `dock_mode` attr — `floating` (default, the legacy detached bar pinned to a
+  corner via `dock_corner`), `inline` (a full-width taskbar row mounted inside a
+  layout container named by `inline_selector`), or `responsive` (floating on wide
+  viewports, inline on narrow ones per `responsive_query`, default
+  `max-width: 768px`). Responsive watches a `matchMedia` and re-homes the dock
+  when the breakpoint flips (listener torn down in `mt_destroy`). The inline host
+  resolves lazily at placement time, so a shell built after the manager starts is
+  handled gracefully — the dock falls back to floating-hidden until its zone
+  exists, then re-homes on the first window register / breakpoint change. Motive:
+  on mobile the floating bar covered the app's bottom menu; inline mode lets it
+  live above the menu instead. CSS split into a shared base + `.yui-dock--floating`
+  (+ corner classes) + `.yui-dock--inline` (flat, full-width, no shadow).
+- **feat(table): global Tabulator theme fixes.** New `src/tabulator.css` collects
+  the cross-app Tabulator styling — the dark-theme tree-control repaint (Tabulator
+  hardcodes the +/- box to `#333`, invisible on a dark wash) and a reusable
+  active-row highlight `.tabulator-row.yui-row-active` (green wash + left accent,
+  theme-aware). Tabulator is a first-class element across the yunos, so these live
+  in the library rather than duplicated per app. Import after `tabulator_bulma.css`.
+
 ## 2.1.8
 
 - **fix(window): minimize now actually hides the window.** `minimize_entry`
