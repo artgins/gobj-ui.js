@@ -484,6 +484,11 @@
  *      One dismiss control shows per breakpoint; both call close().
  *      768px is the shell-wide mobile breakpoint (matches the dock).
  *============================================================*/
+/*  Lighter backdrop than Bulma's default (0.86): a popup should dim the
+ *  page, not black it out. */
+.yui-dialog .modal-background {
+    background-color: rgba(10, 10, 10, 0.4);
+}
 .yui-dialog .yui-dialog-content {
     display: flex;
     flex-direction: column;

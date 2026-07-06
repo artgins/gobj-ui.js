@@ -5,6 +5,12 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.13
+
+- **fix(shell): lighter dialog backdrop.** The adaptive dialog's `.modal-background`
+  used Bulma's default 0.86 scrim, which blacked out the page behind a popup.
+  Drop it to `rgba(10,10,10,0.4)` — dims for focus without hiding the context.
+
 ## 2.1.12
 
 - **feat(shell): standardized adaptive dialog for single "window / popup" views.**
