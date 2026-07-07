@@ -787,7 +787,21 @@ function create_tabulator(gobj)
             "color:#6b7280;padding:0 0.6rem;'></span>",
     });
 
-    let tabulator = new Tabulator(`#${table_id}`, tabulator_settings);
+    /*
+     *  Attach by ELEMENT, resolved inside OUR $container — a bare `#id`
+     *  selector needs the element to be in the document already (a view
+     *  built before being mounted crashes Tabulator: "no element found",
+     *  then .on() dies on externalEvents null) and is shadowed by any
+     *  stale duplicate id elsewhere in the page.
+     */
+    let $view_container = gobj_read_attr(gobj, "$container");
+    let $table_el = $view_container ?
+        $view_container.querySelector(`#${table_id}`) : null;
+    if(!$table_el) {
+        log_error(`${gobj_short_name(gobj)}: table element '#${table_id}' not found in $container`);
+        return;
+    }
+    let tabulator = new Tabulator($table_el, tabulator_settings);
 
     /*  Keep the footer in sync with the visible (active) row count. */
     function update_rowcount() {

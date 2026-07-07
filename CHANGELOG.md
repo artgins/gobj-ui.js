@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.2.5
+
+- **fix(treedb): topic tables attach Tabulator by ELEMENT, not `#id`
+  selector.** `c_yui_treedb_topic_with_form` created its Tabulator with
+  `new Tabulator("#<table_id>", …)`, which requires the element to be in
+  the DOCUMENT already — a view whose container wasn't mounted yet crashed
+  ("Tabulator Creation Error - no element found" followed by an uncaught
+  `externalEvents is null` in the `.on()` wiring), and a stale duplicate id
+  elsewhere in the page could shadow the right element. The element is now
+  resolved inside the view's own `$container` (matching `c_yui_form`'s
+  existing element-attach) and its absence is a logged error, not a crash.
+
 ## 2.2.4
 
 - **fix(window): `resolve_manager` writes `null` (not `undefined`) when the
