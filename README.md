@@ -4,7 +4,7 @@ Reusable GUI components for Yuneta GClass front-ends: a declarative shell
 (`C_YUI_SHELL`/`NAV`/`PAGER`/`WIZARD`), the legacy GClass GUI stack
 (`C_YUI_MAIN`/`WINDOW`/`TABS`/`ROUTING`), TreeDB editors, charts and maps.
 
-Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://github.com/artgins/gobj-js.js).
+Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://github.com/artgins/gobj-js).
 
 ## Two maintained lines
 
