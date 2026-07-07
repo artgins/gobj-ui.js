@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.16
+
+- **"Simple mach" — compact automata view in the Developer monitor.** A new
+  Traces chip toggles the FSM trace between the verbose
+  `mach(gclass^name), st:…, ev:…, ac:…, from(…)` (+ return line) and a compact
+  one-liner `🔄 EVENT dst STATE from src` (no return line) — mirroring the C
+  kernel's `trace_machine_format`, via gobj-js `gobj_set_trace_machine_format`.
+  Persisted (`dev_automata_simple`), applied in `apply_dev_traces`. Nesting stays
+  tab-indented (`pre-wrap` preserves the framework's `tab()`), so it reads like
+  the C console.
+
 ## 2.1.15
 
 - **Developer monitor shows the automata + the console, not just traffic.** The

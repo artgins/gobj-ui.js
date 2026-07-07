@@ -16,6 +16,7 @@ import {
     gobj_create_service,
     gobj_find_service,
     set_log_callback,
+    gobj_set_trace_machine_format,
     trace_json,
 } from "@yuneta/gobj-js";
 
@@ -1074,6 +1075,10 @@ function refresh_dev_chrome()
         $b.classList.toggle('is-active', dev_hide_periodic());
     });
 
+    document.querySelectorAll('.YDEV_CHIP[data-toggle="automata-simple"]').forEach(($b) => {
+        $b.classList.toggle('is-active', !!dev_num('dev_automata_simple', 0));
+    });
+
     let $m = document.getElementById('ydev-muted');
     if($m) {
         $m.replaceChildren();
@@ -1168,6 +1173,22 @@ function build_control_bar()
         }
     }]);
 
+    /*  Compact automata format (like the C kernel's trace_machine_format==1):
+     *  one short line per transition, no return line. Applies to the FSM trace
+     *  emitted while Automata is on. */
+    let simple_mach = ['button', {
+        class: 'YDEV_CHIP', 'data-toggle': 'automata-simple', type: 'button',
+        title: 'Compact automata format (one line per transition, like C)',
+    }, 'Simple mach', {
+        click: (ev) => {
+            ev.stopPropagation();
+            let v = dev_num('dev_automata_simple', 0) ? 0 : 1;
+            kw_set_local_storage_value('dev_automata_simple', v);
+            gobj_set_trace_machine_format(v);
+            refresh_dev_chrome();
+        }
+    }];
+
     let mk_view = (v, label) => ['button', {class: 'YDEV_SEG_BTN', 'data-view': v, type: 'button'}, label, {
         click: (ev) => {
             ev.stopPropagation();
@@ -1257,7 +1278,7 @@ function build_control_bar()
     let sep = () => ['span', {class: 'YDEV_SEP'}, ''];
 
     return createElement2(['div', {class: 'YDEV_BAR'}, [
-        grp('Traces', trace_chips), sep(),
+        grp('Traces', [...trace_chips, simple_mach]), sep(),
         grp('View', [view_seg]), expand_grp, sep(),
         grp('Show', [...dir_chips, periodic_chip]), sep(),
         grp('Find', [search]), sep(),
@@ -1330,6 +1351,10 @@ function apply_dev_traces()
     gobj_write_attr(gobj_yuno(), "trace_subscriptions", subscriptions);
     gobj_write_attr(gobj_yuno(), "no_poll", no_poll);
     i18next.options.debug = i18n ? true : false;
+
+    /*  Compact vs verbose automata trace format (persisted). */
+    gobj_set_trace_machine_format(
+        Number(kw_get_local_storage_value("dev_automata_simple", 0, false)) ? 1 : 0);
 
     /*  Mirror the browser console (log_error/warning/info/debug/msg — the
      *  automata FSM trace arrives as debug) into the monitor. info_log no-ops
