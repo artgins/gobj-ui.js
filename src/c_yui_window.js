@@ -38,6 +38,7 @@ import {
     gobj_stop,
     gobj_stop_children,
     gobj_is_running,
+    gobj_is_destroying,
     refresh_language,
 } from "@yuneta/gobj-js";
 
@@ -287,7 +288,7 @@ function resolve_manager(gobj)
         return null;
     }
     if(typeof m === "string") {
-        m = gobj_find_service(m, false);
+        m = gobj_find_service(m, false) || null;
         gobj_write_attr(gobj, "manager", m);
     }
     return m;
@@ -656,12 +657,15 @@ function close_window(gobj)
         abort_close: false
     };
     gobj_publish_event(gobj, "EV_WINDOW_TO_CLOSE", kw_close);
+
+    /*  on_close only fires when the close actually proceeds:
+     *  a subscriber may abort it and keep the window open. */
     let on_close = gobj_read_attr(gobj, "on_close");
-    if(on_close) {
-        on_close();
-    }
 
     if(!kw_close.abort_close) {
+        if(on_close) {
+            on_close();
+        }
         if(gobj_is_running(gobj)) {
             gobj_stop(gobj);
         }
@@ -670,6 +674,9 @@ function close_window(gobj)
     } else if(kw_close.warning) {
         get_yesnocancel(kw_close.warning, function(resp) {
             if(resp === "yes") {
+                if(on_close) {
+                    on_close();
+                }
                 gobj_stop(gobj);
                 gobj_stop_children(gobj);
                 gobj_destroy(gobj);
@@ -794,6 +801,14 @@ function mvStart(gobj, evt)
 
     function mvStop(evt)
     {
+        document.removeEventListener('pointermove', mvMove);
+        document.removeEventListener('pointerup', mvStop);
+
+        /*  The window can be destroyed mid-drag (e.g. dock ✕). */
+        if(gobj_is_destroying(gobj)) {
+            return;
+        }
+
         div_x      = (evt.screenX - x);
         div_y      = (evt.screenY - y);
         let xx = pos_x + div_x;
@@ -803,9 +818,6 @@ function mvStart(gobj, evt)
         $container.style.top = yy + 'px';
         $container.style.transition = 'none';
         $container.style.transform = 'translate3d(0px, 0px, 0px)';
-
-        document.removeEventListener('pointermove', mvMove);
-        document.removeEventListener('pointerup', mvStop);
 
         // trigger event
         let rect = $container.getBoundingClientRect();
@@ -859,14 +871,19 @@ function rsStart(gobj, evt)
 
     function rsStop(evt)
     {
+        document.removeEventListener('pointermove', rsMove);
+        document.removeEventListener('pointerup', rsStop);
+
+        /*  The window can be destroyed mid-resize (e.g. dock ✕). */
+        if(gobj_is_destroying(gobj)) {
+            return;
+        }
+
         rel_w = evt.pageX - pageX;
         rel_h = evt.pageY - pageY;
 
         $container.style.width = (width + rel_w) +'px';
         $container.style.height = (height + rel_h) +'px';
-
-        document.removeEventListener('pointermove', rsMove);
-        document.removeEventListener('pointerup', rsStop);
 
         // trigger event
         let rect = $container.getBoundingClientRect();

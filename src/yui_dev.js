@@ -809,6 +809,22 @@ function update_stats()
 }
 
 /************************************************************
+ *  Append a row and follow the tail — but only when the user is
+ *  already at (or near) the bottom; a reader scrolled up into the
+ *  backlog must not be yanked down. Container-local on purpose:
+ *  scrollIntoView also scrolls the host page's ancestors.
+ ************************************************************/
+function append_and_follow(logger, node)
+{
+    let at_bottom =
+        logger.scrollHeight - logger.scrollTop - logger.clientHeight < 40;
+    logger.appendChild(node);
+    if(at_bottom) {
+        logger.scrollTop = logger.scrollHeight;
+    }
+}
+
+/************************************************************
  *  Append one inter-event message. Kept in a bounded buffer so
  *  view/filter switches repaint from memory. Shared by the legacy
  *  C_YUI_WINDOW (setup_dev) and the modal (build_dev_panel).
@@ -886,8 +902,7 @@ function info_traffic(title, msg, direction, size)
         if(ph) {
             ph.remove();
         }
-        logger.appendChild(node);
-        node.scrollIntoView({block: "end"});
+        append_and_follow(logger, node);
     }
     update_stats();
 }
@@ -956,8 +971,7 @@ function info_log(level, msg, hora)
             if(ph) {
                 ph.remove();
             }
-            logger.appendChild(node);
-            node.scrollIntoView({block: "end"});
+            append_and_follow(logger, node);
         }
         update_stats();
     } finally {

@@ -228,7 +228,7 @@ function build_dock(gobj)
 {
     ensure_dock_style();
 
-    let $dock = createElement2(['div', {class: 'yui-dock is-empty'}, []]);
+    let $dock = createElement2(['div', {class: 'C_YUI_WINDOW_MANAGER yui-dock is-empty'}, []]);
     gobj_write_attr(gobj, "$container", $dock);
 
     apply_placement(gobj);
@@ -462,6 +462,20 @@ function ac_register_window(gobj, event, kw, src)
             click: (evt) => {
                 evt.stopPropagation();
                 on_chip_click(gobj, entry);
+            },
+            keydown: (evt) => {
+                /*  Only the chip itself — Enter on the inner ✕ button
+                 *  already fires its own click. */
+                if(evt.target !== evt.currentTarget) {
+                    return;
+                }
+                if(evt.key === "Enter" || evt.key === " ") {
+                    if(evt.key === " ") {
+                        evt.preventDefault();
+                    }
+                    evt.stopPropagation();
+                    on_chip_click(gobj, entry);
+                }
             }
         }]
     );

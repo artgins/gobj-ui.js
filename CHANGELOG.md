@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.2.4
+
+- **fix(window): `resolve_manager` writes `null` (not `undefined`) when the
+  `manager` service name doesn't resolve** — no more "attr undefined: manager"
+  error noise from `gobj_write_attr`.
+- **fix(window): `on_close` no longer fires on an aborted close.** It was
+  invoked before the `abort_close` check, so a host's close side effect ran
+  even when a subscriber (e.g. a form with invalid fields) kept the window
+  open. It now runs only when the close actually proceeds (including the
+  warning-confirmed path).
+- **fix(window): drag/resize `pointerup` guards against a window destroyed
+  mid-gesture** (e.g. dock ✕ → `EV_CLOSE_WINDOW`): listeners are removed
+  first, then the handler bails on `gobj_is_destroying` before writing attrs
+  on a dead gobj.
+- **fix(wm): dock root carries the `C_YUI_WINDOW_MANAGER` gclass tag class**,
+  matching the Inspector-tagging convention of every other gclass root.
+- **fix(wm): dock chips respond to the keyboard.** The chip advertised
+  `role="button" tabindex="0"` but had no keydown handler; Enter/Space now
+  trigger the same restore/minimize action as a click (Space prevents page
+  scroll).
+- **fix(dev): log/automata auto-scroll is container-local and respects
+  scrollback.** `scrollIntoView` scrolled every scrollable ancestor (moving
+  the host page) and yanked the view to the bottom while reading history;
+  appends now set `scrollTop` on the logger itself, and only when the user
+  was already at/near the bottom.
+
 ## 2.2.3
 
 - **fix(packaging): `@yuneta/gobj-js` peer/dev range bumped `^7.3.4` →
