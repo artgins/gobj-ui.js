@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.17
+
+- **Developer monitor shows event payloads (kw) too.** With the verbose automata
+  trace at level 2, the FSM dumps the event `kw` via `trace_json`; that now flows
+  into the monitor (gobj-js routes `trace_json` through the log sink) as a
+  purple-tagged `JSON` row, pretty-printed (capped) next to the transition that
+  dumped it — instead of console-only. `info_log` pretty-prints the raw payload;
+  json rows respect the search box like the other log rows.
+
 ## 2.1.16
 
 - **"Simple mach" — compact automata view in the Developer monitor.** A new

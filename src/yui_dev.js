@@ -405,6 +405,7 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 .YDEV_LOG_info    { border-left-color: #2563eb; } .YDEV_LOG_info    .YDEV_LOG_LVL { color: #2563eb; }
 .YDEV_LOG_msg     { border-left-color: #0891b2; } .YDEV_LOG_msg     .YDEV_LOG_LVL { color: #0891b2; }
 .YDEV_LOG_debug   { border-left-color: #94a3b8; } .YDEV_LOG_debug   .YDEV_LOG_LVL { color: #94a3b8; } .YDEV_LOG_debug .YDEV_LOG_TXT { opacity: 0.72; }
+.YDEV_LOG_json    { border-left-color: #9333ea; align-items: flex-start; } .YDEV_LOG_json .YDEV_LOG_LVL { color: #9333ea; } .YDEV_LOG_json .YDEV_LOG_TXT { font-size: 11px; line-height: 1.35; opacity: 0.8; }
 /* -------- dark theme -------- */
 :root[data-theme="dark"] .TRAFFIC_FULL { background: rgba(255,255,255,0.05); }
 :root[data-theme="dark"] .YDEV_BAR, :root[data-theme="dark"] .YDEV_STATS { background: rgba(255,255,255,0.04); }
@@ -915,7 +916,19 @@ function info_log(level, msg, hora)
     try {
         ensure_dev_style();
         let lvl = level || "debug";
-        let text = is_string(msg) ? msg : String(msg);
+        let text;
+        if(lvl === "json") {
+            try {
+                text = JSON.stringify(msg, null, 2);
+            } catch(e) {
+                text = String(msg);
+            }
+            if(text.length > 4000) {
+                text = text.slice(0, 4000) + "\n…(truncated)";
+            }
+        } else {
+            text = is_string(msg) ? msg : String(msg);
+        }
         let entry = {
             kind: "log", level: lvl, text: text,
             dir: 0, size: 0, ts: traffic_now(),
