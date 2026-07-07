@@ -1130,6 +1130,12 @@ function traffic_to_text()
         if(entry_hidden(e, ctx)) {
             continue;
         }
+        if(e.kind === "log") {
+            /*  Mirrored log/automata line: no event/kw — serialize as shown. */
+            out.push(`${e.ts} ${e.level}: ${e.text}`);
+            out.push("");
+            continue;
+        }
         let head = `${e.ts} ${dir_arrow(e.dir)} ` +
             `${e.title ? "[" + e.title + "] " : ""}${e.event}` +
             `${e.command ? " " + e.command : ""}`;

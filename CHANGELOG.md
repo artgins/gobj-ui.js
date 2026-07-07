@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.2.1
+
+- **fix(dev): Copy export no longer prints `undefined` for log rows.** The dev
+  monitor's *Copy* button serializes the visible timeline (`traffic_to_text`),
+  but mirrored log/automata entries (`kind: "log"`) have no `event`/`kw`, so
+  every one of them exported as `⇢ undefined` with an empty payload. They now
+  serialize as `<ts> <level>: <text>`, matching what the panel shows.
+
 ## 2.2.0
 
 Requires gobj-js **7.7.0** (`set_log_callback`, `gobj_set_trace_machine_format`,
