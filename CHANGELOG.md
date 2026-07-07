@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.15
+
+- **Developer monitor shows the automata + the console, not just traffic.** The
+  dev window (`yui_dev.js`) mirrored only inter-event traffic. It now also
+  captures every framework log line via gobj-js `set_log_callback` — `log_error`
+  / `log_warning` / `log_info` / `log_debug` (and, since the FSM trace runs
+  through `log_debug`, the **automata** `mach(...)` transitions when the Automata
+  trace is on) — rendered inline in the same timeline, colour-coded by level
+  (error red, warning amber, info blue, debug grey). Capture is armed with the
+  window (`apply_dev_traces`) and no-ops while it is closed; log rows respect the
+  search box (not the in/out/err traffic filters). Requires gobj-js with
+  `set_log_callback`.
+
 ## 2.1.14
 
 - **fix(treedb): inline error instead of a blocking modal when the schema

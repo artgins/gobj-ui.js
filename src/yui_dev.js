@@ -15,6 +15,7 @@ import {
     gobj_write_attr,
     gobj_create_service,
     gobj_find_service,
+    set_log_callback,
     trace_json,
 } from "@yuneta/gobj-js";
 
@@ -242,6 +243,11 @@ function build_filter_ctx()
 
 function entry_hidden(e, ctx)
 {
+    if(e.kind === "log") {
+        /*  Mirrored console logs respect the search box only — not the
+         *  in/out/err/periodic traffic filters. */
+        return !!(ctx.search && e.hay.indexOf(ctx.search) < 0);
+    }
     if(e.dir === 1 && !ctx.out) {
         return true;
     }
@@ -389,6 +395,15 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 .TRAFFIC_NEST_KEY { opacity: 0.85; }
 .TRAFFIC_NEST_HINT { opacity: 0.5; margin-left: 4px; }
 .YDEV_EMPTY { opacity: 0.5; font-size: 12px; padding: 18px 10px; text-align: center; }
+/* -------- mirrored console logs (error/warning/info/debug/msg; the automata trace shows as debug) -------- */
+.YDEV_LOGROW { display: flex; align-items: baseline; gap: 8px; margin: 1px 0; padding: 2px 8px; border-left: 3px solid #94a3b8; border-radius: 3px; font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 12px; background: rgba(0,0,0,0.015); }
+.YDEV_LOG_LVL { flex: 0 0 auto; text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.8; min-width: 48px; }
+.YDEV_LOG_TXT { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; word-break: break-word; opacity: 0.9; }
+.YDEV_LOG_error   { border-left-color: #dc2626; } .YDEV_LOG_error   .YDEV_LOG_LVL { color: #dc2626; }
+.YDEV_LOG_warning { border-left-color: #d97706; } .YDEV_LOG_warning .YDEV_LOG_LVL { color: #d97706; }
+.YDEV_LOG_info    { border-left-color: #2563eb; } .YDEV_LOG_info    .YDEV_LOG_LVL { color: #2563eb; }
+.YDEV_LOG_msg     { border-left-color: #0891b2; } .YDEV_LOG_msg     .YDEV_LOG_LVL { color: #0891b2; }
+.YDEV_LOG_debug   { border-left-color: #94a3b8; } .YDEV_LOG_debug   .YDEV_LOG_LVL { color: #94a3b8; } .YDEV_LOG_debug .YDEV_LOG_TXT { opacity: 0.72; }
 /* -------- dark theme -------- */
 :root[data-theme="dark"] .TRAFFIC_FULL { background: rgba(255,255,255,0.05); }
 :root[data-theme="dark"] .YDEV_BAR, :root[data-theme="dark"] .YDEV_STATS { background: rgba(255,255,255,0.04); }
@@ -669,8 +684,23 @@ function render_name(e)
     return createElement2(['div', {class: 'TRAFFIC_NAME ' + dir_class(e.dir), title: e.title}, kids]);
 }
 
+/*  A mirrored framework log line (error/warning/info/debug/msg). */
+function render_log(e)
+{
+    return createElement2(
+        ['div', {class: 'YDEV_LOGROW YDEV_LOG_' + e.level, title: e.level}, [
+            ['span', {class: 'YDEV_LOG_LVL'}, e.level],
+            ['span', {class: 'YDEV_LOG_TXT'}, e.text],
+            ['span', {class: 'TRAFFIC_META'}, e.ts],
+        ]]
+    );
+}
+
 function render_entry(e)
 {
+    if(e.kind === "log") {
+        return render_log(e);
+    }
     let view = dev_view();
     if(view === "full") {
         return render_full(e);
@@ -727,7 +757,7 @@ function rerender_all()
         $empty.className = 'YDEV_EMPTY';
         $empty.textContent = TRAFFIC_LOG.length
             ? "No messages match the current filters."
-            : "No traffic captured yet — enable Traffic to start.";
+            : "Waiting for activity — console logs and errors show automatically; enable Traffic or Automata for more.";
         logger.appendChild($empty);
     }
     logger.scrollTop = logger.scrollHeight;
@@ -858,6 +888,67 @@ function info_traffic(title, msg, direction, size)
         node.scrollIntoView({block: "end"});
     }
     update_stats();
+}
+
+
+/*  Re-entrancy guard: rendering a captured log line must not itself capture
+ *  the logs it emits (that would recurse). */
+let __in_info_log__ = false;
+
+/************************************************************
+ *  Mirror one framework log line into the monitor, alongside the
+ *  inter-event traffic. level ∈ error|warning|info|debug|msg — the automata
+ *  (FSM) trace arrives here too, as `debug`. No-op while the window is closed
+ *  (the line already went to the browser console).
+ ************************************************************/
+function info_log(level, msg, hora)
+{
+    if(__in_info_log__) {
+        return;
+    }
+    let logger = document.getElementById('developer-traffic-logger');
+    if(!logger) {
+        return;
+    }
+    __in_info_log__ = true;
+    try {
+        ensure_dev_style();
+        let lvl = level || "debug";
+        let text = is_string(msg) ? msg : String(msg);
+        let entry = {
+            kind: "log", level: lvl, text: text,
+            dir: 0, size: 0, ts: traffic_now(),
+            sig: "log:" + lvl, hay: (lvl + " " + text).toLowerCase(), $node: null,
+        };
+        TRAFFIC_LOG.push(entry);
+        if(TRAFFIC_LOG.length > TRAFFIC_MAX) {
+            let old = TRAFFIC_LOG.shift();
+            if(old.kind !== "log") {
+                let c = (TRAFFIC_COUNTS.get(old.sig) || 0) - 1;
+                if(c <= 0) {
+                    TRAFFIC_COUNTS.delete(old.sig);
+                } else {
+                    TRAFFIC_COUNTS.set(old.sig, c);
+                }
+            }
+            if(old.$node && old.$node.parentNode) {
+                old.$node.parentNode.removeChild(old.$node);
+            }
+        }
+        if(!entry_hidden(entry, build_filter_ctx())) {
+            let node = render_entry(entry);
+            entry.$node = node;
+            let ph = logger.querySelector('.YDEV_EMPTY');
+            if(ph) {
+                ph.remove();
+            }
+            logger.appendChild(node);
+            node.scrollIntoView({block: "end"});
+        }
+        update_stats();
+    } finally {
+        __in_info_log__ = false;
+    }
 }
 
 
@@ -1239,6 +1330,11 @@ function apply_dev_traces()
     gobj_write_attr(gobj_yuno(), "trace_subscriptions", subscriptions);
     gobj_write_attr(gobj_yuno(), "no_poll", no_poll);
     i18next.options.debug = i18n ? true : false;
+
+    /*  Mirror the browser console (log_error/warning/info/debug/msg — the
+     *  automata FSM trace arrives as debug) into the monitor. info_log no-ops
+     *  while the window is closed, so this is safe to leave armed. */
+    set_log_callback(info_log);
 }
 
 /************************************************************
