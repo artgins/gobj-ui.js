@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.2.2
+
+- **fix(shell): remove the previous view's `$container` on `lazy_destroy`.**
+  The shell appends a view's `$container` to the stage on mount
+  (`build_view_gobj`), but the `lazy_destroy` exit path only
+  stopped/destroyed the gobj — a view that doesn't remove its own container
+  in `mt_destroy` leaked a hidden copy in the stage on every revisit, and
+  any fixed DOM id inside it shadowed the fresh instance's (e.g. a
+  Tabulator attached by `#id` selector built its table inside the stale
+  hidden container, so the visible view showed no table). The shell now
+  removes the container symmetrically after `gobj_destroy`; views that
+  already self-remove are unaffected.
+
 ## 2.2.1
 
 - **fix(dev): Copy export no longer prints `undefined` for log rows.** The dev

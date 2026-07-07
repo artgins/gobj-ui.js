@@ -1050,10 +1050,11 @@ function navigate_to(gobj, route)
     let prev_route = stage.active_route;
     if(prev_route && prev_route !== matched_route) {
         let prev_gobj = stage.items[prev_route];
+        let $prev = null;
         if(prev_gobj) {
-            let $c = gobj_read_attr(prev_gobj, "$container");
-            if($c) {
-                $c.classList.add("is-hidden");
+            $prev = gobj_read_attr(prev_gobj, "$container");
+            if($prev) {
+                $prev.classList.add("is-hidden");
             }
         }
         /*  lazy_destroy: drop previous on exit */
@@ -1064,6 +1065,14 @@ function navigate_to(gobj, route)
                 gobj_destroy(prev_gobj);
             } catch(e) {
                 log_warning(`C_YUI_SHELL: lazy_destroy of '${prev_route}' failed: ${e}`);
+            }
+            /*  The shell appended $container on mount (build_view_gobj), so
+             *  remove it symmetrically here: a view that doesn't remove its
+             *  own container in mt_destroy would otherwise leak a hidden
+             *  copy in the stage on every revisit — and any fixed DOM id
+             *  inside it then shadows the fresh instance's.  */
+            if($prev && $prev.parentNode) {
+                $prev.parentNode.removeChild($prev);
             }
             delete stage.items[prev_route];
         }
