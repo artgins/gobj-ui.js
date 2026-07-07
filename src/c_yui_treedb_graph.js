@@ -334,6 +334,28 @@ function build_ui(gobj)
 }
 
 /************************************************************
+ *   Show a non-blocking inline error banner at the top of the view
+ *   (used when the treedb schema `descs` cannot load). Reuses a single
+ *   banner so retries don't stack.
+ ************************************************************/
+function show_load_error(gobj, message)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    let $err = $container.querySelector(".treedb-load-error");
+    if(!$err) {
+        $err = createElement2(
+            ["div", {class: "notification is-danger is-light m-3 treedb-load-error"}, []]
+        );
+        $container.insertBefore($err, $container.firstChild);
+    }
+    let treedb = gobj_read_attr(gobj, "treedb_name") || "";
+    $err.textContent = (treedb ? `${treedb}: ` : "") + (message || "cannot load treedb");
+}
+
+/************************************************************
  *   Destroy UI
  ************************************************************/
 function destroy_ui(gobj)
@@ -908,17 +930,21 @@ function ac_mt_command_answer(gobj, event, kw, src)
         log_error(e);
         return;
     }
-    if(result < 0) {
-        display_error_message(
-            "Error",
-            t(comment)
-        );
-        // HACK don't return, pass errors when need it.
-    }
-
     let __command__ = msg_iev_get_stack(gobj, kw, "command_stack", true);
     let command = kw_get_str(gobj, __command__, "command", "", kw_flag_t.KW_REQUIRED);
     let kw_command = kw_get_dict(gobj, __command__, "kw", {}, kw_flag_t.KW_REQUIRED);
+
+    if(result < 0) {
+        if(command === "descs") {
+            /*  The schema couldn't load (not a treedb, no authz for it, backend
+             *  down…). Show an inline banner in the view rather than a blocking
+             *  app-modal that wedges the whole SPA behind an empty tab. */
+            show_load_error(gobj, t(comment));
+        } else {
+            display_error_message("Error", t(comment));
+        }
+        // HACK don't return for non-descs, pass errors when need it.
+    }
 
     switch(command) {
         case "descs":

@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.1.14
+
+- **fix(treedb): inline error instead of a blocking modal when the schema
+  (`descs`) fails to load.** `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` popped
+  the app-wide `display_error_message` modal on any command `result < 0`,
+  including a `descs` failure (the target is not a treedb, the user has no authz
+  for it, or the backend is down) — wedging the whole SPA behind an empty tab. A
+  `descs` failure now shows a non-blocking `.notification.is-danger` banner
+  inside the view (`show_load_error`, reused so retries don't stack); every other
+  command (nodes / create / update / delete — user-initiated) keeps the modal.
+  Matters for the multi-backend TreeDB browser (gui_treedb), where a
+  mis-configured / unauthorized treedb is a normal, recoverable case rather than
+  a fatal app error.
+
 ## 2.1.13
 
 - **fix(shell): lighter dialog backdrop.** The adaptive dialog's `.modal-background`
