@@ -5,52 +5,43 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## 2.1.17
+## 2.2.0
 
-- **Developer monitor shows event payloads (kw) too.** With the verbose automata
-  trace at level 2, the FSM dumps the event `kw` via `trace_json`; that now flows
-  into the monitor (gobj-js routes `trace_json` through the log sink) as a
-  purple-tagged `JSON` row, pretty-printed (capped) next to the transition that
-  dumped it — instead of console-only. `info_log` pretty-prints the raw payload;
-  json rows respect the search box like the other log rows.
+Requires gobj-js **7.7.0** (`set_log_callback`, `gobj_set_trace_machine_format`,
+`trace_json` routed to the log sink).
 
-## 2.1.16
-
-- **"Simple mach" — compact automata view in the Developer monitor.** A new
-  Traces chip toggles the FSM trace between the verbose
-  `mach(gclass^name), st:…, ev:…, ac:…, from(…)` (+ return line) and a compact
-  one-liner `🔄 EVENT dst STATE from src` (no return line) — mirroring the C
-  kernel's `trace_machine_format`, via gobj-js `gobj_set_trace_machine_format`.
-  Persisted (`dev_automata_simple`), applied in `apply_dev_traces`. Nesting stays
-  tab-indented (`pre-wrap` preserves the framework's `tab()`), so it reads like
-  the C console.
-
-## 2.1.15
-
-- **Developer monitor shows the automata + the console, not just traffic.** The
-  dev window (`yui_dev.js`) mirrored only inter-event traffic. It now also
-  captures every framework log line via gobj-js `set_log_callback` — `log_error`
-  / `log_warning` / `log_info` / `log_debug` (and, since the FSM trace runs
-  through `log_debug`, the **automata** `mach(...)` transitions when the Automata
-  trace is on) — rendered inline in the same timeline, colour-coded by level
-  (error red, warning amber, info blue, debug grey). Capture is armed with the
-  window (`apply_dev_traces`) and no-ops while it is closed; log rows respect the
-  search box (not the in/out/err traffic filters). Requires gobj-js with
-  `set_log_callback`.
-
-## 2.1.14
-
-- **fix(treedb): inline error instead of a blocking modal when the schema
-  (`descs`) fails to load.** `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` popped
-  the app-wide `display_error_message` modal on any command `result < 0`,
-  including a `descs` failure (the target is not a treedb, the user has no authz
-  for it, or the backend is down) — wedging the whole SPA behind an empty tab. A
-  `descs` failure now shows a non-blocking `.notification.is-danger` banner
-  inside the view (`show_load_error`, reused so retries don't stack); every other
-  command (nodes / create / update / delete — user-initiated) keeps the modal.
-  Matters for the multi-backend TreeDB browser (gui_treedb), where a
-  mis-configured / unauthorized treedb is a normal, recoverable case rather than
-  a fatal app error.
+- **Developer monitor: full console + automata, not just traffic.** The dev
+  window (`yui_dev.js`) now captures every framework log line via gobj-js
+  `set_log_callback` — `log_error` / `log_warning` / `log_info` / `log_debug`
+  (and, since the FSM trace runs through `log_debug`, the **automata** `mach(...)`
+  transitions when the Automata trace is on) — rendered inline in the same
+  timeline, colour-coded by level (error red, warning amber, info blue, debug
+  grey). Capture is armed with the window (`apply_dev_traces`) and no-ops while
+  closed; a re-entrancy guard prevents recursive capture; log rows respect the
+  search box (not the in/out/err traffic filters).
+- **"Simple mach" — compact automata view.** A Traces chip toggles the FSM trace
+  between verbose (`mach(gclass^name), st:…, ev:…, ac:…, from(…)` + return line)
+  and a compact one-liner `🔄 EVENT dst STATE from src` (no return line),
+  mirroring the C kernel's `trace_machine_format` via
+  `gobj_set_trace_machine_format`. Persisted (`dev_automata_simple`). Nesting
+  stays tab-indented (`pre-wrap` preserves the framework's `tab()`), so it reads
+  like the C console.
+- **Event payloads (kw) in the monitor.** At Automata level 2 the FSM dumps the
+  event `kw` via `trace_json`, now routed through the log sink and rendered as a
+  purple-tagged `JSON` row, pretty-printed (capped at 4k) next to the transition
+  that dumped it — instead of console-only. Traffic entries already showed their
+  kw as folding bullets; this brings the same visibility to the automata.
+- **fix(treedb): inline error instead of a blocking modal on a `descs` failure.**
+  `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` popped the app-wide
+  `display_error_message` modal on any command `result < 0`, including a `descs`
+  failure (the target is not a treedb, the user has no authz for it, or the
+  backend is down) — wedging the whole SPA behind an empty tab. A `descs` failure
+  now shows a non-blocking `.notification.is-danger` banner inside the view
+  (`show_load_error`, reused so retries don't stack); every other command
+  (nodes / create / update / delete — user-initiated) keeps the modal. Matters
+  for the multi-backend TreeDB browser (gui_treedb), where a mis-configured /
+  unauthorized treedb is a normal, recoverable case rather than a fatal app
+  error.
 
 ## 2.1.13
 
