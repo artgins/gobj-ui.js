@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.2.3
+
+- **fix(packaging): `@yuneta/gobj-js` peer/dev range bumped `^7.3.4` →
+  `^7.7.0`.** Since 2.1.15 `yui_dev.js` imports `set_log_callback` and
+  `gobj_set_trace_machine_format`, which only exist in gobj-js ≥ 7.7.0; a
+  consumer resolving gobj-js 7.4–7.6 satisfied the declared range but failed
+  at import time (missing named export). No code changes.
+
 ## 2.2.2
 
 - **fix(shell): remove the previous view's `$container` on `lazy_destroy`.**
