@@ -167,8 +167,8 @@
 }
 .yui-nav-iconbar .yui-nav-item.is-active,
 .yui-nav-iconbar li.is-active > .yui-nav-item {
-    color: var(--bulma-link, #485fc7);
-    background-color: var(--bulma-link-light, rgba(72,95,199,0.1));
+    background-color: var(--bulma-link, #485fc7);
+    color: var(--bulma-link-invert, #fff);
 }
 
 /*--- tabs (Bulma .tabs) ---*/

@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.2.6
+
+- **fix(shell): mobile nav active item now matches the desktop rail.** The
+  bottom icon-bar (`.yui-nav-iconbar`, shown `<desktop`) painted the active
+  item as blue *text* on a faint `--bulma-link-light` tint — a low-contrast
+  "blue on blue" that diverged from the desktop vertical rail, which uses a
+  solid `--bulma-link` background with `--bulma-link-invert` (white) text. The
+  icon-bar active/selected rule now uses the same solid-blue background +
+  white text, so the primary menu looks identical across breakpoints.
+
 ## 2.2.5
 
 - **fix(treedb): topic tables attach Tabulator by ELEMENT, not `#id`
