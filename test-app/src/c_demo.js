@@ -20,12 +20,17 @@ import {
     gobj_create_pure_child,
     gobj_subscribe_event,
     gobj_start_tree,
+    refresh_language,
 } from "@yuneta/gobj-js";
 
 import {
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
+    yui_shell_set_translator,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
+
+import {t} from "i18next";
+import {toggle_locale} from "./locales.js";
 
 
 /***************************************************************
@@ -79,11 +84,16 @@ function mt_create(gobj)
 
     /*  Opt in to the toolbar-published events we act on (not
      *  subscriber=ALL, so we never receive events we don't declare). */
-    gobj_subscribe_event(shell, "EV_TOGGLE_THEME", {}, gobj);
+    gobj_subscribe_event(shell, "EV_TOGGLE_THEME",    {}, gobj);
+    gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
 
     /*  The shell never reads a user model; it asks this provider for
      *  the avatar text. A static badge is enough for the demo. */
     yui_shell_set_avatar_provider(shell, () => "UI");
+
+    /*  Register the translator so the shell translates its static tree
+     *  and any DOM it builds lazily (dropdown panel, synthesized navs). */
+    yui_shell_set_translator(shell, t);
 }
 
 /***************************************************************
@@ -96,6 +106,10 @@ function mt_start(gobj)
     apply_theme(current_theme());
     gobj_start_tree(priv.shell);
     yui_shell_refresh_avatars(priv.shell);
+
+    /*  Translate the freshly-built shell tree + initial view to the
+     *  current language (English on first load; keys map to themselves). */
+    refresh_language(document.body, t);
 }
 
 /***************************************************************
@@ -157,6 +171,18 @@ function ac_toggle_theme(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  Toolbar language button (action:event EV_TOGGLE_LANGUAGE).
+ *  Flip es<->en and repaint every [data-i18n] node in the page
+ *  (shell chrome + views) with the new language.
+ ***************************************************************/
+function ac_toggle_language(gobj, event, kw, src)
+{
+    toggle_locale();
+    refresh_language(document.body, t);
+    return 0;
+}
+
 
 
 
@@ -188,7 +214,8 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
-            ["EV_TOGGLE_THEME",  ac_toggle_theme,  null]
+            ["EV_TOGGLE_THEME",     ac_toggle_theme,     null],
+            ["EV_TOGGLE_LANGUAGE",  ac_toggle_language,  null]
         ]]
     ];
 
@@ -196,7 +223,8 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_TOGGLE_THEME",  0]
+        ["EV_TOGGLE_THEME",     0],
+        ["EV_TOGGLE_LANGUAGE",  0]
     ];
 
     __gclass__ = gclass_create(

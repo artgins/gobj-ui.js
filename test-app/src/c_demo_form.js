@@ -22,7 +22,10 @@ import {
     gobj_create_pure_child, gobj_start,
     gobj_name,
     createElement2,
+    refresh_language,
 } from "@yuneta/gobj-js";
+
+import {t} from "i18next";
 
 
 /***************************************************************
@@ -167,10 +170,10 @@ function build_ui(gobj)
     let $form = gobj_read_attr(form, "$container");
 
     let head = [
-        ["h1", {class: "DEMO_TITLE title is-3 mb-2"}, title]
+        ["h1", {class: "DEMO_TITLE title is-3 mb-2", i18n: title}, title]
     ];
     if(lead) {
-        head.push(["p", {class: "DEMO_LEAD content", style: "max-width:60ch;"}, lead]);
+        head.push(["p", {class: "DEMO_LEAD content", i18n: lead, style: "max-width:60ch;"}, lead]);
     }
 
     let $c = createElement2(
@@ -179,7 +182,8 @@ function build_ui(gobj)
             ["div", {class: "DEMO_FORM_HOST box p-2",
                      style: "height:340px; max-width:640px;"}, []],
             ["div", {class: "DEMO_FORM_RESULT", style: "max-width:640px;"}, [
-                ["p", {class: "is-size-7 has-text-grey mb-1"}, "Last saved record:"],
+                ["p", {class: "is-size-7 has-text-grey mb-1",
+                       i18n: "Last saved record:"}, "Last saved record:"],
                 ["pre", {class: "DEMO_FORM_JSON is-size-7",
                          style: "max-width:640px; overflow:auto;"},
                     "(press Save)"]
@@ -195,6 +199,10 @@ function build_ui(gobj)
     }
 
     gobj_write_attr(gobj, "$container", $c);
+
+    /*  Translate this view's own DOM to the current language (the hosted
+     *  C_YUI_FORM translates its own fields/buttons through the same t). */
+    refresh_language($c, t);
 }
 
 

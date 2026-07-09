@@ -895,8 +895,9 @@ NAVIGATION TREE  (app_config.json)                ROUTE INDEX  (runtime, flat)
 toolbar (zone:top)                                path            target / effect
   burger ─── drawer toggle menu_id:quick          ──────────────  ────────────────────────────
   brand ──── navigate /tabs                       /tabs           ∅  → redirect to /tabs/a
-  theme ──── event EV_TOGGLE_THEME   (*)          /tabs/a         C_TEST_VIEW @main keep_alive
-  user ───── dropdown { navigate, event }         /tabs/b         C_TEST_VIEW @main keep_alive
+  lang ───── event EV_TOGGLE_LANGUAGE (*)         /tabs/a         C_TEST_VIEW @main keep_alive
+  theme ──── event EV_TOGGLE_THEME    (*)         /tabs/b         C_TEST_VIEW @main keep_alive
+  user ───── dropdown { navigate, event }
                                                   /tabs/c         C_TEST_VIEW @main lazy_destroy
 menu.primary (left:vertical / bottom:icon-bar)    /submenu        ∅  → redirect to /submenu/profile
   "tabs"      /tabs      (container)               /submenu/profile  C_TEST_VIEW @main keep_alive
@@ -932,6 +933,13 @@ What this example demonstrates that the generic §2 picture only states:
   only how navs render. `main.js` initialises the shared i18next
   instance (deduped in `vite.config.js`) so `C_YUI_FORM`'s module-level
   `t()` doesn't render blank labels.
+- **Localisation (es/en)**: the toolbar `ES/EN` button publishes
+  `EV_TOGGLE_LANGUAGE`; `C_DEMO` flips i18next and repaints every
+  `[data-i18n]` node via `refresh_language(document.body, t)`. English
+  is the source (keys = English strings), `es` translates them
+  (`locales.js`), and the views translate their own DOM on build — so
+  the shell chrome, view titles/leads and the hosted `C_YUI_FORM` all
+  switch language together.
 - **Container redirect**: `/tabs` and `/submenu` have no own target, so
   the bare route redirects to the first navigable child; `/cards` opts
   out with `submenu.index` and becomes a resting cards landing.

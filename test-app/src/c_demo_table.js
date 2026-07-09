@@ -22,7 +22,10 @@ import {
     gobj_subscribe_event,
     gobj_name,
     createElement2,
+    refresh_language,
 } from "@yuneta/gobj-js";
+
+import {t} from "i18next";
 
 import {TabulatorFull as Tabulator} from "tabulator-tables";
 import "tabulator-tables/dist/css/tabulator.min.css";
@@ -181,10 +184,10 @@ function build_ui(gobj)
     let lead  = gobj_read_attr(gobj, "lead")  || "";
 
     let head = [
-        ["h1", {class: "DEMO_TITLE title is-3 mb-2"}, title]
+        ["h1", {class: "DEMO_TITLE title is-3 mb-2", i18n: title}, title]
     ];
     if(lead) {
-        head.push(["p", {class: "DEMO_LEAD content", style: "max-width:60ch;"}, lead]);
+        head.push(["p", {class: "DEMO_LEAD content", i18n: lead, style: "max-width:60ch;"}, lead]);
     }
 
     let $c = createElement2(
@@ -196,6 +199,10 @@ function build_ui(gobj)
         ]]
     );
     gobj_write_attr(gobj, "$container", $c);
+
+    /*  Translate title/lead to the current language. The Tabulator column
+     *  headers are technical terms kept in English. */
+    refresh_language($c, t);
 }
 
 

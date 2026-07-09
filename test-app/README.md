@@ -70,6 +70,15 @@ Plus, without being a "layout":
   `avatar` item.
 - **Light / dark** — the toolbar moon toggles Bulma's `data-theme` on
   `<html>` (handled by the root `C_DEMO` service).
+- **Localisation (es / en)** — the toolbar `ES/EN` button publishes
+  `EV_TOGGLE_LANGUAGE`; `C_DEMO` flips i18next and calls
+  `refresh_language(document.body, t)` to repaint every `[data-i18n]`
+  node (nav labels, toolbar, view titles/leads, the hosted `C_YUI_FORM`
+  fields/buttons). English is the source (keys = English strings), the
+  `es` bundle in `locales.js` translates them, and views translate
+  themselves on build so navigating while in Spanish stays Spanish.
+  Technical tokens (badges, table column headers, the `gobj:` line) stay
+  English on purpose.
 
 ## Why accordion is embedded rather than a chapter's submenu
 
@@ -91,6 +100,7 @@ the view routes them by setting the hash — exactly what the shell does.
 | `src/c_test_view.js` | the layout-showcase view most leaves mount; self-describes the active layout |
 | `src/c_demo_form.js` | the **Form** chapter — hosts `C_YUI_FORM` + echoes the saved record |
 | `src/c_demo_table.js` | the **Table** chapter — a Tabulator data table |
+| `src/locales.js` | i18next setup + the `es` translation bundle (en/es toggle) |
 | `src/demo.css` | app-owned styling for the view cards + table dark theme (never shell chrome) |
 | `vite.config.js` | resolves `@yuneta/gobj-js` and `@yuneta/gobj-ui` to local source |
 

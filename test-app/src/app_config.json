@@ -39,6 +39,15 @@
                 "action": { "type": "navigate", "route": "/tabs" }
             },
             {
+                "id": "lang",
+                "icon": "yi-language",
+                "name": "ES/EN",
+                "align": "end",
+                "aria_label": "Toggle language",
+                "tooltip": "Switch language (English / Spanish)",
+                "action": { "type": "event", "event": "EV_TOGGLE_LANGUAGE" }
+            },
+            {
                 "id": "theme",
                 "icon": "yi-moon",
                 "align": "end",

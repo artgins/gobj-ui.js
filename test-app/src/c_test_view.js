@@ -30,7 +30,10 @@ import {
     gobj_create_pure_child, gobj_start,
     gobj_name,
     createElement2,
+    refresh_language,
 } from "@yuneta/gobj-js";
+
+import {t} from "i18next";
 
 
 /***************************************************************
@@ -135,11 +138,11 @@ function build_ui(gobj)
     let id     = gobj_read_attr(gobj, "instance_id");
 
     let header = [
-        ["h1", {class: "DEMO_TITLE title is-3 mb-2"}, title]
+        ["h1", {class: "DEMO_TITLE title is-3 mb-2", i18n: title}, title]
     ];
     if(lead) {
         header.push(
-            ["p", {class: "DEMO_LEAD content", style: "max-width:60ch;"}, lead]
+            ["p", {class: "DEMO_LEAD content", i18n: lead, style: "max-width:60ch;"}, lead]
         );
     }
     if(Array.isArray(badges) && badges.length > 0) {
@@ -199,6 +202,11 @@ function build_ui(gobj)
             log_error(`${GCLASS_NAME}: embedded accordion nav has no $container`);
         }
     }
+
+    /*  Translate this view's own DOM (title/lead + embedded nav labels)
+     *  to the current language — the shell only translates chrome, so a
+     *  view built while in Spanish must translate itself. */
+    refresh_language($c, t);
 }
 
 

@@ -24,7 +24,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   and an app-owned dark theme). `main.js` initialises the shared i18next
   instance and `vite.config.js` dedupes the full shared-lib set, so the form's
   module-level `t()` renders labels instead of blank (the canonical gobj-ui
-  dedupe footgun). `SHELL.md` §9 was updated to describe the shipped app. Run:
+  dedupe footgun). An `ES/EN` toolbar toggle publishes `EV_TOGGLE_LANGUAGE`;
+  `C_DEMO` flips i18next and `refresh_language(document.body, t)` repaints
+  every `[data-i18n]` node — nav labels, toolbar, view titles/leads and the
+  hosted `C_YUI_FORM` fields/buttons all switch en/es together (English is the
+  source; `locales.js` holds the `es` bundle; views translate their own DOM on
+  build). `SHELL.md` §9 was updated to describe the shipped app. Run:
   `cd test-app && npm install && npm run dev`.
 
 - **feat(shell/nav): section-index landing (`submenu.index`) + "cards" nav
