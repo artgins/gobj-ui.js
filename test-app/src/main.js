@@ -35,6 +35,7 @@ import {register_c_yui_json_graph}   from "@yuneta/gobj-ui/src/c_yui_json_graph.
 import {register_c_yui_wizard}       from "@yuneta/gobj-ui/src/c_yui_wizard.js";
 import {register_c_yui_pager}        from "@yuneta/gobj-ui/src/c_yui_pager.js";
 import {register_c_yui_map}          from "@yuneta/gobj-ui/src/c_yui_map.js";
+import {register_c_yui_window}       from "@yuneta/gobj-ui/src/c_yui_window.js";
 
 import {register_c_demo}        from "./c_demo.js";
 import {register_c_demo_main}   from "./c_demo_main.js";
@@ -50,6 +51,13 @@ import {register_c_demo_map}    from "./c_demo_map.js";
 
 import {setup_locale} from "./locales.js";
 
+/*  maplibre-gl: the vite.config alias routes "maplibre-gl" to the CSP build,
+ *  whose worker is a separate real file (not an inline-blob string the bundler
+ *  would re-serialise and break in Firefox). Point the singleton at the
+ *  emitted worker asset once, before any C_YUI_MAP is created. */
+import maplibregl from "maplibre-gl";
+import maplibre_worker_url from "maplibre-gl/dist/maplibre-gl-csp-worker.js?url";
+
 import "bulma/css/bulma.css";
 import "@yuneta/gobj-ui/src/c_yui_shell.css";
 import "@yuneta/gobj-ui/src/yui_icons.css";
@@ -63,6 +71,9 @@ import app_config from "./app_config.json";
  ***************************************************************/
 function main()
 {
+    /*  CSP build needs its worker URL before the first map is created */
+    maplibregl.setWorkerUrl(maplibre_worker_url);
+
     /*  Register gclasses  */
     register_c_yuno();
     register_c_timer();
@@ -76,6 +87,7 @@ function main()
     register_c_yui_wizard();
     register_c_yui_pager();
     register_c_yui_map();
+    register_c_yui_window();     // host for the developer window (account menu)
 
     register_c_demo();
     register_c_demo_main();

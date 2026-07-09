@@ -54,6 +54,22 @@ export default defineConfig({
                 find: /^@yuneta\/gobj-ui($|\/)/,
                 replacement: path.resolve(__dirname, "..") + "/",
             },
+            /*
+             *  maplibre-gl ships its worker as a giant inline-blob STRING
+             *  inside the default build. When rolldown (Vite 8) re-serialises
+             *  that literal the worker breaks in Firefox ("PL is not defined")
+             *  — dev is fine, only the production bundle fails. The CSP build
+             *  keeps the worker as a separate real file loaded via
+             *  setWorkerUrl() (wired in src/main.js), so the bundler never
+             *  touches worker code. Exact match only: keep the /dist/*.css and
+             *  /dist/*-worker?url specifiers resolving to the same package.
+             */
+            {
+                find: /^maplibre-gl$/,
+                replacement: path.resolve(
+                    __dirname, "../node_modules/maplibre-gl/dist/maplibre-gl-csp.js"
+                ),
+            },
         ],
     },
     server: {
