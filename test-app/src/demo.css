@@ -34,3 +34,30 @@
     padding-top: 0.35rem;
     padding-bottom: 0.35rem;
 }
+
+/*  Dark theme for the demo table. Tabulator's bulma stylesheet hardcodes
+ *  light colours (it does not read Bulma's CSS variables), and gobj-ui's
+ *  tabulator.css only themes active rows / tree glyphs — so recolour the
+ *  table here, in app-owned view styling, using Bulma's own dark scheme
+ *  variables (with hex fallbacks). */
+[data-theme="dark"] .C_DEMO_TABLE .tabulator {
+    background: transparent;
+    border-color: var(--bulma-border, #363a41);
+}
+[data-theme="dark"] .C_DEMO_TABLE .tabulator .tabulator-header,
+[data-theme="dark"] .C_DEMO_TABLE .tabulator .tabulator-header .tabulator-col {
+    background-color: var(--bulma-scheme-main-bis, #23272e);
+    color: var(--bulma-text, #e6e6e6);
+    border-color: var(--bulma-border, #363a41);
+}
+[data-theme="dark"] .C_DEMO_TABLE .tabulator-row,
+[data-theme="dark"] .C_DEMO_TABLE .tabulator-row.tabulator-row-even {
+    background-color: var(--bulma-scheme-main, #1b1e24);
+    color: var(--bulma-text, #e6e6e6);
+}
+[data-theme="dark"] .C_DEMO_TABLE .tabulator-row:hover {
+    background-color: var(--bulma-scheme-main-ter, #2a2f37) !important;
+}
+[data-theme="dark"] .C_DEMO_TABLE .tabulator-row .tabulator-cell {
+    border-color: var(--bulma-border, #363a41);
+}

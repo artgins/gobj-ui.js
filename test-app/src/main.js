@@ -27,9 +27,14 @@ import {
 
 import {register_c_yui_shell} from "@yuneta/gobj-ui/src/c_yui_shell.js";
 import {register_c_yui_nav}   from "@yuneta/gobj-ui/src/c_yui_nav.js";
+import {register_c_yui_form}  from "@yuneta/gobj-ui/src/c_yui_form.js";
 
-import {register_c_demo}      from "./c_demo.js";
-import {register_c_test_view} from "./c_test_view.js";
+import {register_c_demo}       from "./c_demo.js";
+import {register_c_test_view}  from "./c_test_view.js";
+import {register_c_demo_form}  from "./c_demo_form.js";
+import {register_c_demo_table} from "./c_demo_table.js";
+
+import i18next from "i18next";
 
 import "bulma/css/bulma.css";
 import "@yuneta/gobj-ui/src/c_yui_shell.css";
@@ -50,9 +55,18 @@ function main()
 
     register_c_yui_shell();
     register_c_yui_nav();
+    register_c_yui_form();
 
     register_c_demo();
     register_c_test_view();
+    register_c_demo_form();
+    register_c_demo_table();
+
+    /*  C_YUI_FORM (and the shell) translate their DOM through i18next's
+     *  module-level t(). Initialise the shared instance (deduped in
+     *  vite.config.js) so t() returns keys verbatim instead of throwing;
+     *  no resources are shipped — the demo's labels are already English. */
+    i18next.init({lng: "en", resources: {en: {translation: {}}}});
 
     /*  Start yuneta (no persistence backend: this demo keeps no state) */
     gobj_start_up(

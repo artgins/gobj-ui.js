@@ -57,7 +57,7 @@
                         {
                             "id": "d-tabs",
                             "name": "Go to Tabs",
-                            "icon": "yi-table",
+                            "icon": "yi-square-check",
                             "action": { "type": "navigate", "route": "/tabs" }
                         },
                         {
@@ -90,7 +90,7 @@
                 {
                     "id": "tabs",
                     "name": "Tabs",
-                    "icon": "yi-table",
+                    "icon": "yi-square-check",
                     "tooltip": "Secondary nav as a horizontal tab strip (top-sub)",
                     "route": "/tabs",
                     "submenu": {
@@ -193,7 +193,7 @@
                             "lead": "Accordion is a PRIMARY-zone layout: its first-level entries are collapsible sections and their bodies are the second-level items. Because those bodies are the routable 2nd level, accordion can't be a 3rd-level submenu — so this chapter embeds a live accordion nav below. Click a section head to expand; click a leaf to navigate for real.",
                             "badges": ["left: vertical", "embedded: accordion"],
                             "nav_items": [
-                                { "id": "acc-tabs", "name": "Tabs", "icon": "yi-table", "route": "/tabs",
+                                { "id": "acc-tabs", "name": "Tabs", "icon": "yi-square-check", "route": "/tabs",
                                   "submenu": { "items": [
                                       { "id": "acc-a", "name": "Tab A", "route": "/tabs/a" },
                                       { "id": "acc-b", "name": "Tab B", "route": "/tabs/b" },
@@ -213,6 +213,38 @@
                             ]
                         }
                     }
+                },
+                {
+                    "id": "form",
+                    "name": "Form",
+                    "icon": "yi-pen",
+                    "tooltip": "A real C_YUI_FORM component: editable fields + save/undo toolbar",
+                    "route": "/form",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_DEMO_FORM",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Form",
+                            "lead": "This is the gobj-ui form component C_YUI_FORM, hosted as a child. Fields come from a declarative template; edit any value and press Save (floppy icon) — the component publishes EV_SAVE_RECORD and the submitted JSON appears below."
+                        }
+                    }
+                },
+                {
+                    "id": "table",
+                    "name": "Table",
+                    "icon": "yi-table",
+                    "tooltip": "A real Tabulator data table with sortable columns",
+                    "route": "/table",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_DEMO_TABLE",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Table",
+                            "lead": "A Tabulator data table with static rows, built directly in the view (the pattern the yunos use, e.g. gui_agent's node list). Click a header to sort, click a row to select; the Status column uses a coloured-tag formatter."
+                        }
+                    }
                 }
             ]
         },
@@ -221,10 +253,12 @@
             "_comment": "A menu rendered with layout:\"drawer\": an off-canvas panel on the overlay layer (its inner list reuses the vertical renderer). Opened by the toolbar burger. Items carry only a route and no target, so they resolve to the same route-index entries as the primary menu — no duplicate view gobjs.",
             "render": { "overlay": "drawer" },
             "items": [
-                { "id": "q-tabs",      "name": "Tabs",         "icon": "yi-table",       "route": "/tabs" },
+                { "id": "q-tabs",      "name": "Tabs",         "icon": "yi-square-check", "route": "/tabs" },
                 { "id": "q-submenu",   "name": "Side submenu", "icon": "yi-arrow-right", "route": "/submenu" },
                 { "id": "q-cards",     "name": "Cards",        "icon": "yi-square",      "route": "/cards" },
-                { "id": "q-accordion", "name": "Accordion",    "icon": "yi-copy",        "route": "/accordion" }
+                { "id": "q-accordion", "name": "Accordion",    "icon": "yi-copy",        "route": "/accordion" },
+                { "id": "q-form",      "name": "Form",         "icon": "yi-pen",         "route": "/form" },
+                { "id": "q-table",     "name": "Table",        "icon": "yi-table",       "route": "/table" }
             ]
         }
     }

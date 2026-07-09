@@ -906,13 +906,15 @@ menu.primary (left:vertical / bottom:icon-bar)    /submenu        ∅  → redir
   "submenu"   /submenu   (container)               /cards/alpha …  C_TEST_VIEW @main keep_alive
    └─ submenu render {right: submenu}             /accordion      C_TEST_VIEW @main keep_alive
       header/divider + profile/sessions/tokens                     (embeds a live accordion nav)
-  "cards"     /cards     (index landing)
-   └─ submenu {render:{top-sub:tabs}, index:true}  (*) toolbar action:"event" → publishes the
-      └─ alpha/beta/gamma/delta                        event (theme toggle), NO route, NO index
-  "accordion" /accordion ─── target inline
+  "cards"     /cards     (index landing)          /form           C_DEMO_FORM @main keep_alive
+   └─ submenu {render:{top-sub:tabs}, index:true}  /table          C_DEMO_TABLE @main keep_alive
+      └─ alpha/beta/gamma/delta
+  "accordion" /accordion ─── target inline        (*) toolbar action:"event" → publishes the
+  "form"      /form      ─── target C_DEMO_FORM        event (theme toggle), NO route, NO index
+  "table"     /table     ─── target C_DEMO_TABLE
                                                   menu.quick (drawer overlay, burger)
-                                                   q-tabs/q-submenu/q-cards/q-accordion → reuse
-                                                   the primary-menu route entries (no own target)
+                                                   q-* → reuse the primary-menu route entries
+                                                   (no own target)
 ```
 
 What this example demonstrates that the generic §2 picture only states:
@@ -923,6 +925,13 @@ What this example demonstrates that the generic §2 picture only states:
   `menu.quick`), and `accordion` (embedded in the `/accordion` view,
   since accordion is a primary-zone layout — its bodies are the routable
   2nd level, so it can't be a 3rd-level submenu).
+- **Content views, not just layouts**: `/form` mounts the real
+  `C_YUI_FORM` component (declarative field template + save/undo toolbar,
+  echoing `EV_SAVE_RECORD`), and `/table` mounts a Tabulator data table
+  built directly in the view — showing what goes *inside* a stage, not
+  only how navs render. `main.js` initialises the shared i18next
+  instance (deduped in `vite.config.js`) so `C_YUI_FORM`'s module-level
+  `t()` doesn't render blank labels.
 - **Container redirect**: `/tabs` and `/submenu` have no own target, so
   the bare route redirects to the first navigable child; `/cards` opts
   out with `submenu.index` and becomes a resting cards landing.

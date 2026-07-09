@@ -16,9 +16,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   `header`/`divider` grouping, the `keep_alive`/`lazy_destroy` lifecycle
   contrast, all four toolbar action types, and a light/dark toggle. All
   navigation is declared in `test-app/src/app_config.json`; each leaf mounts
-  `C_TEST_VIEW`, which names the active layout(s) on screen. `SHELL.md` §9 was
-  updated to describe the shipped app. Run: `cd test-app && npm install &&
-  npm run dev`.
+  `C_TEST_VIEW`, which names the active layout(s) on screen. Two extra
+  chapters mount real content components — a **Form** (`C_YUI_FORM` with a
+  declarative field template incl. an enum select, an editable record and the
+  component's save/undo toolbar, echoing `EV_SAVE_RECORD` as JSON) and a
+  **Table** (a Tabulator data table built in the view, with column formatters
+  and an app-owned dark theme). `main.js` initialises the shared i18next
+  instance and `vite.config.js` dedupes the full shared-lib set, so the form's
+  module-level `t()` renders labels instead of blank (the canonical gobj-ui
+  dedupe footgun). `SHELL.md` §9 was updated to describe the shipped app. Run:
+  `cd test-app && npm install && npm run dev`.
 
 - **feat(shell/nav): section-index landing (`submenu.index`) + "cards" nav
   layout.** A primary menu item may declare `submenu.index: true` (or
