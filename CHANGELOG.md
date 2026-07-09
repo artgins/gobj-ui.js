@@ -7,6 +7,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **docs(test-app): runnable nav-layouts demo under `test-app/`.** The
+  `test-app/` promised by `SHELL.md` §9 now exists: a backend-less Vite app
+  that showcases every `C_YUI_NAV` layout on one screen — `vertical`,
+  `icon-bar`, `tabs`, `submenu`, `cards` (section-index) + `backbar`,
+  `drawer` and `accordion` — plus the per-zone responsive model (same primary
+  menu as a left rail on desktop and a bottom icon-bar on mobile), decorative
+  `header`/`divider` grouping, the `keep_alive`/`lazy_destroy` lifecycle
+  contrast, all four toolbar action types, and a light/dark toggle. All
+  navigation is declared in `test-app/src/app_config.json`; each leaf mounts
+  `C_TEST_VIEW`, which names the active layout(s) on screen. `SHELL.md` §9 was
+  updated to describe the shipped app. Run: `cd test-app && npm install &&
+  npm run dev`.
+
 - **feat(shell/nav): section-index landing (`submenu.index`) + "cards" nav
   layout.** A primary menu item may declare `submenu.index: true` (or
   `{stage: "<stage>"}`): its own route then becomes a real resting,

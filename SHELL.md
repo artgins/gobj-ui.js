@@ -863,69 +863,77 @@ managing its visibility.
 
 ## 9. Test app
 
-See `test-app/README.md`. Quick start:
+A runnable, backend-less **layout catalog** lives in `test-app/`. It is
+the practical companion to this document: every `C_YUI_NAV` layout on
+one screen, driven entirely by `test-app/src/app_config.json`. See
+[`test-app/README.md`](test-app/README.md). Quick start:
 
 ```
 cd kernel/js/gobj-ui/test-app
 npm install
-npm run dev
+npm run dev        # http://localhost:5173
 ```
 
-Exercises every path: breakpoints, click and hash navigation, and the
-`keep_alive` vs `lazy_destroy` contrast (visible in the `instance #`
-counter painted by `C_TEST_VIEW`).
+Every leaf mounts one small view (`C_TEST_VIEW`) that names on screen
+which layout(s) are visible and where, and prints an `instance #`
+counter so `keep_alive` vs `lazy_destroy` is observable.
 
 ### The test-app navigation tree, flattened
 
 A concrete instance of the §2 model on the shipping
-`test-app/src/app_config.json` — pure 2-level menu, inline `target`s,
-toolbar actions of type `navigate` / `event` / `drawer` (no
-`shell.routes`, no `target.kind` — those are not part of this engine;
-see the wattyzer routing-contract doc for the extended variant).
+`test-app/src/app_config.json` — a pure 2-level menu with inline
+`target`s and toolbar actions of type `navigate` / `event` / `drawer` /
+`dropdown` (no `shell.routes`, no `target.kind` — those are not part of
+this engine; see the wattyzer routing-contract doc for the extended
+variant). One primary menu renders **vertical** in `left` (desktop) and
+**icon-bar** in `bottom` (mobile); each chapter demonstrates one
+secondary layout.
 
 ```
-NAVIGATION TREE  (app_config.json)                 ROUTE INDEX  (runtime, flat)
-──────────────────────────────────                 ──────────────────────────────────────
-toolbar (zone:top)                                  path           target / effect
-  burger ── drawer toggle menu_id:quick             ─────────────  ───────────────────────────
-  home ──── navigate /dash/ov ──────────┐           /dash          ∅  → redirect to /dash/ov
-  help ──── navigate /help ───────────┐ │           /dash/ov       C_TEST_VIEW @main keep_alive
-  say-hello event EV_SHOW_HELLO  (*)   │ │           /dash/devices  C_TEST_VIEW @main keep_alive
-  ask-question event EV_ASK_QUESTION(*)│ │           /dash/alerts   C_TEST_VIEW @main lazy_destroy
-  lang ──── event EV_TOGGLE_LANGUAGE(*)│ │           /reports       ∅  → redirect to /reports/daily
-                                       │ │           /reports/daily   C_TEST_VIEW @main keep_alive†
-menu.primary (left / bottom)           │ │           /reports/monthly C_TEST_VIEW @main keep_alive†
-  "dash"    /dash  (container)         │ │           /settings      C_TEST_VIEW @main keep_alive†
-   └─ submenu (top-sub:tabs, right:submenu)          /help          C_TEST_VIEW @main eager
-      ├─ "ov"      /dash/ov ◄──────────┘ │                          (created at startup)
-      ├─ "devices" /dash/devices         │
-      └─ "alerts"  /dash/alerts          │           (*) toolbar action:"event" → publishes
-  "reports" /reports (container)         │               the event, NO route, NO index entry
-   └─ submenu (top-sub:tabs, right:submenu)           (†) no explicit lifecycle → engine
-      ├─ "daily"   /reports/daily        │               default keep_alive
-      └─ "monthly" /reports/monthly      │
-  "settings" /settings ─── target inline │           menu.quick (drawer overlay)
-  "help"     /help ◄───────────────────────────────── q-ov→/dash/ov  q-alerts→/dash/alerts
-             target.lifecycle:"eager"                  q-settings→/settings
-                                                       (no own targets: same keys → reuse
-                                                        the primary-menu instances)
+NAVIGATION TREE  (app_config.json)                ROUTE INDEX  (runtime, flat)
+─────────────────────────────────────            ──────────────────────────────────────────
+toolbar (zone:top)                                path            target / effect
+  burger ─── drawer toggle menu_id:quick          ──────────────  ────────────────────────────
+  brand ──── navigate /tabs                       /tabs           ∅  → redirect to /tabs/a
+  theme ──── event EV_TOGGLE_THEME   (*)          /tabs/a         C_TEST_VIEW @main keep_alive
+  user ───── dropdown { navigate, event }         /tabs/b         C_TEST_VIEW @main keep_alive
+                                                  /tabs/c         C_TEST_VIEW @main lazy_destroy
+menu.primary (left:vertical / bottom:icon-bar)    /submenu        ∅  → redirect to /submenu/profile
+  "tabs"      /tabs      (container)               /submenu/profile  C_TEST_VIEW @main keep_alive
+   └─ submenu render {top-sub: tabs}               /submenu/sessions C_TEST_VIEW @main keep_alive
+      ├─ "a"  /tabs/a    ├─ "b" /tabs/b            /submenu/tokens   C_TEST_VIEW @main keep_alive
+      └─ "c"  /tabs/c                              /cards          C_YUI_NAV @main (cards landing)
+  "submenu"   /submenu   (container)               /cards/alpha …  C_TEST_VIEW @main keep_alive
+   └─ submenu render {right: submenu}             /accordion      C_TEST_VIEW @main keep_alive
+      header/divider + profile/sessions/tokens                     (embeds a live accordion nav)
+  "cards"     /cards     (index landing)
+   └─ submenu {render:{top-sub:tabs}, index:true}  (*) toolbar action:"event" → publishes the
+      └─ alpha/beta/gamma/delta                        event (theme toggle), NO route, NO index
+  "accordion" /accordion ─── target inline
+                                                  menu.quick (drawer overlay, burger)
+                                                   q-tabs/q-submenu/q-cards/q-accordion → reuse
+                                                   the primary-menu route entries (no own target)
 ```
 
 What this example demonstrates that the generic §2 picture only states:
 
-- **Two `∅`-target containers** (`/dash`, `/reports`): clicking the
-  parent redirects to the first navigable child (no `submenu.default`
-  here, so it is the first child).
-- **All four lifecycle paths**: explicit `keep_alive`, explicit
-  `lazy_destroy`, explicit `eager` (`/help` is built at startup, not on
-  first visit), and *omitted* → engine default `keep_alive` (§4).
-- **Toolbar `action:"event"`** (`say-hello`, `ask-question`, `lang`):
-  these are **not** routes — they publish an app event and never enter
-  the route index. Only `action:"navigate"` items (`home`) and
-  `action:"drawer"` (`burger`) touch navigation. (This is the engine's
-  built-in action vocabulary; the wattyzer doc's `kind:"action"` is a
-  *different*, vendored extension that turns a *route* into transient
-  event wiring — do not conflate them.)
+- **Every layout in one app**: `vertical` + `icon-bar` (primary, two
+  zones), `tabs` (`/tabs`), `submenu` (`/submenu`), `cards` +
+  `backbar` (`/cards`, via `submenu.index`), `drawer` (burger →
+  `menu.quick`), and `accordion` (embedded in the `/accordion` view,
+  since accordion is a primary-zone layout — its bodies are the routable
+  2nd level, so it can't be a 3rd-level submenu).
+- **Container redirect**: `/tabs` and `/submenu` have no own target, so
+  the bare route redirects to the first navigable child; `/cards` opts
+  out with `submenu.index` and becomes a resting cards landing.
+- **Lifecycle contrast**: `/tabs/a` and `/tabs/b` are `keep_alive`
+  (their `instance #` survives a revisit); `/tabs/c` is `lazy_destroy`
+  (a fresh instance each time).
+- **Toolbar action vocabulary**: `navigate` (brand), `event`
+  (theme — no route, no index entry), `drawer` (burger) and `dropdown`
+  (avatar). (This is the engine's built-in set; the wattyzer doc's
+  `kind:"action"` is a *different*, vendored extension that turns a
+  *route* into transient event wiring — do not conflate them.)
 - **`menu.quick` route reuse**: the drawer items carry only a `route`
   and no `target`; they resolve to the same index entries as the
   primary menu, so the existing instance is reused — no duplicate gobj.

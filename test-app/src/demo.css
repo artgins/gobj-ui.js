@@ -1,0 +1,36 @@
+/***********************************************************************
+ *          demo.css
+ *
+ *      App-owned styling for the demo VIEW content only. All shell
+ *      chrome (zones, toolbar, navs, drawer) is styled by gobj-ui's
+ *      c_yui_shell.css — the app never targets shell selectors.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+/*  The stage hands the view a box to fill; lay the card out inside it. */
+.DEMO_CARD.view-card {
+    box-sizing: border-box;
+    height: 100%;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    overflow: auto;
+}
+
+.DEMO_LEAD {
+    line-height: 1.5;
+}
+
+.DEMO_META {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/*  The embedded accordion illustration sits in its own bordered box;
+ *  keep its list tight. */
+.DEMO_ACCORDION_HOLDER .menu-list a {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+}

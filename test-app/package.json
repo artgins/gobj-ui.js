@@ -1,0 +1,28 @@
+{
+    "name": "gobj-ui-test-app",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "description": "Declarative-shell demo for @yuneta/gobj-ui (v2). Showcases every C_YUI_NAV menu layout — vertical, icon-bar, tabs, side submenu, cards (section-index) + backbar, drawer and accordion — plus the per-zone responsive model (same primary menu in the left rail on desktop and the bottom icon-bar on mobile). No backend: pure gobj tree + hash routing.",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "@yuneta/gobj-js": "file:../../gobj-js",
+        "@yuneta/gobj-ui": "file:..",
+        "bulma": "^1.0.4",
+        "i18next": "^26.3.4",
+        "luxon": "^3.7.2",
+        "tom-select": "^2.6.0",
+        "tabulator-tables": "^6.5.2"
+    },
+    "devDependencies": {
+        "@rollup/plugin-terser": "^1.0.0",
+        "@vitest/coverage-v8": "^4.1.10",
+        "playwright": "^1.61.1",
+        "vite": "^8.1.4",
+        "vitest": "^4.1.10"
+    }
+}
