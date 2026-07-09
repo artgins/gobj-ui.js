@@ -29,8 +29,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   every `[data-i18n]` node — nav labels, toolbar, view titles/leads and the
   hosted `C_YUI_FORM` fields/buttons all switch en/es together (English is the
   source; `locales.js` holds the `es` bundle; views translate their own DOM on
-  build). `SHELL.md` §9 was updated to describe the shipped app. Run:
-  `cd test-app && npm install && npm run dev`.
+  build). Additional chapters mount the rest of the demoable gobj-ui
+  components inside a stage, each behind a tiny `C_DEMO_*` wrapper:
+  **Chart** (`C_YUI_UPLOT`), **Gobj tree** (`C_YUI_GOBJ_TREE_JS` — the yuno's
+  own live gobj tree), **JSON graph** (`C_YUI_JSON_GRAPH`), **Wizard**
+  (`C_YUI_WIZARD`), **Pager** (`C_YUI_PAGER`) and **Map** (`C_YUI_MAP`,
+  MapLibre — the only one needing network, for basemap tiles). A minimal
+  `__yui_main__` service (`C_DEMO_MAIN`) supplies the `EV_RESIZE` the map's
+  legacy lineage looks up. TreeDB component views are omitted (they need a
+  live treedb backend). `SHELL.md` §9 was updated to describe the shipped app.
+  Run: `cd test-app && npm install && npm run dev`.
 
 - **feat(shell/nav): section-index landing (`submenu.index`) + "cards" nav
   layout.** A primary menu item may declare `submenu.index: true` (or

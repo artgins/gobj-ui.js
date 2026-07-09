@@ -36,15 +36,34 @@ hash routing.
 | **drawer** | off-canvas panel from the toolbar burger | `menu.quick.render = {"overlay":"drawer"}` |
 | **accordion** | live embedded nav in the **Accordion** chapter | a `C_YUI_NAV` with `layout:"accordion"` built inside `C_TEST_VIEW` |
 
-### Content views (form & table)
+### Component views
 
-Two chapters mount real data components instead of the placeholder view,
-so the demo also shows what goes *inside* a stage:
+Beyond the nav-layout chapters, several chapters mount real gobj-ui
+components inside a stage, so the demo also shows what goes *inside* a
+view. Each is wrapped by a tiny `C_DEMO_*` gclass that builds a card,
+creates the component as a pure child, feeds it data and (where the
+component publishes events) declares them.
 
 | Chapter | Component | What it shows |
 |---|---|---|
-| **Form** (`/form`) | `C_YUI_FORM` (gobj-ui) | A declarative field template (text / number / **enum select** / checkbox), pre-filled with a record and editable via the component's own save/undo/clear toolbar. It publishes `EV_SAVE_RECORD` on save; the wrapper (`C_DEMO_FORM`) echoes the submitted values as JSON below the form. |
-| **Table** (`/table`) | Tabulator | A data table built directly in the view (`C_DEMO_TABLE`) — the pattern the yunos use (e.g. gui_agent's node list). Sortable columns, a `%` formatter and a coloured-tag Status formatter; dark theme is handled in `demo.css`. |
+| **Form** (`/form`) | `C_YUI_FORM` | A declarative field template (text / number / **enum select** / checkbox), pre-filled and editable via the component's own save/undo/clear toolbar. Publishes `EV_SAVE_RECORD`; the wrapper echoes the submitted JSON. |
+| **Table** (`/table`) | Tabulator | A data table built directly in the view — the pattern the yunos use (e.g. gui_agent's node list). Sortable columns, a `%` formatter and a coloured-tag Status formatter; dark theme handled in `demo.css`. |
+| **Chart** (`/chart`) | `C_YUI_UPLOT` | A uPlot time-series (two series, unix-epoch-seconds x-axis). Series added with `EV_ADD_SERIE`, rows with `EV_LOAD_DATA`. Offline. |
+| **Gobj tree** (`/tree`) | `C_YUI_GOBJ_TREE_JS` | The **live gobj tree of this very yuno** drawn with G6 — self-referential (yuno → shell → navs/views → the tree component itself). No data, no backend. |
+| **JSON graph** (`/json`) | `C_YUI_JSON_GRAPH` | An arbitrary JSON value as a hierarchical G6 graph (objects/arrays as group nodes, scalars as typed rows). Publishes `EV_JSON_ITEM_CLICKED`. Offline. |
+| **Wizard** (`/wizard`) | `C_YUI_WIZARD` | A multi-step wizard (title + "N / M" + Back/Next→Confirm). Steps via `EV_SET_STEPS`; publishes `EV_STEP_SHOWN` / `EV_WIZARD_DONE` / `EV_WIZARD_CANCEL`. Offline. |
+| **Pager** (`/pager`) | `C_YUI_PAGER` | A drill-down page stack ("← title" header). Push pages with the button, pop with "←"; publishes `EV_PAGE_SHOWN` / `EV_PAGE_DISCARD` / `EV_PAGER_EXIT`. Offline. |
+| **Map** (`/map`) | `C_YUI_MAP` (MapLibre) | A basemap with Spanish-city markers. Differs from the others: it renders into an external pre-sized `$map` (no `$container`). **Needs network** for the basemap tiles (`tiles.openfreemap.org`); offline it degrades to a blank map with controls. |
+
+`C_YUI_MAP` (and other legacy components) look up a `__yui_main__`
+service to subscribe to its `EV_RESIZE`. The declarative shell doesn't
+provide one, so `c_demo_main.js` registers a minimal `__yui_main__`
+(`C_DEMO_MAIN`) that publishes `EV_RESIZE` on window resize — this both
+gives the map real reflow and silences the "service not found" log.
+
+Not demoed (need a live backend/treedb, out of scope here):
+`C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` /
+`C_YUI_TREEDB_TOPIC_WITH_FORM` / `C_G6_NODES_TREE`.
 
 Because `C_YUI_FORM` (and the shell) translate their DOM through
 i18next's module-level `t()`, `main.js` initialises the shared i18next
@@ -100,6 +119,13 @@ the view routes them by setting the hash — exactly what the shell does.
 | `src/c_test_view.js` | the layout-showcase view most leaves mount; self-describes the active layout |
 | `src/c_demo_form.js` | the **Form** chapter — hosts `C_YUI_FORM` + echoes the saved record |
 | `src/c_demo_table.js` | the **Table** chapter — a Tabulator data table |
+| `src/c_demo_chart.js` | the **Chart** chapter — hosts `C_YUI_UPLOT` |
+| `src/c_demo_tree.js` | the **Gobj tree** chapter — hosts `C_YUI_GOBJ_TREE_JS` |
+| `src/c_demo_json.js` | the **JSON graph** chapter — hosts `C_YUI_JSON_GRAPH` |
+| `src/c_demo_wizard.js` | the **Wizard** chapter — hosts `C_YUI_WIZARD` |
+| `src/c_demo_pager.js` | the **Pager** chapter — hosts `C_YUI_PAGER` |
+| `src/c_demo_map.js` | the **Map** chapter — hosts `C_YUI_MAP` (MapLibre) |
+| `src/c_demo_main.js` | minimal `__yui_main__` service (EV_RESIZE) for the map |
 | `src/locales.js` | i18next setup + the `es` translation bundle (en/es toggle) |
 | `src/demo.css` | app-owned styling for the view cards + table dark theme (never shell chrome) |
 | `vite.config.js` | resolves `@yuneta/gobj-js` and `@yuneta/gobj-ui` to local source |

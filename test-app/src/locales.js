@@ -56,6 +56,24 @@ const es_translation = {
     "Beta": "Beta",
     "Gamma": "Gamma",
     "Delta": "Delta",
+    "Chart": "Gráfica",
+    "Gobj tree": "Árbol de gobjs",
+    "JSON graph": "Grafo JSON",
+    "Wizard": "Asistente",
+    "Pager": "Paginador",
+    "Map": "Mapa",
+    "The gobj-ui uPlot component C_YUI_UPLOT. Series are added with EV_ADD_SERIE and rows fed with EV_LOAD_DATA (a unix-epoch-seconds x-axis). Hover to read values; drag to zoom. Fully offline.":
+        "El componente uPlot de gobj-ui, C_YUI_UPLOT. Las series se añaden con EV_ADD_SERIE y las filas se alimentan con EV_LOAD_DATA (eje X en segundos epoch unix). Pasa el ratón para ver valores; arrastra para hacer zoom. Totalmente offline.",
+    "C_YUI_GOBJ_TREE_JS introspects the running yuno and draws its live gobj tree with G6 — self-referential: you see the yuno, this view and the tree component itself. Use the toolbar to zoom, center, and expand/collapse. No data, no backend.":
+        "C_YUI_GOBJ_TREE_JS introspecciona el yuno en marcha y dibuja su árbol de gobjs vivo con G6 — autorreferencial: ves el yuno, esta vista y el propio componente del árbol. Usa la barra para hacer zoom, centrar y plegar/desplegar. Sin datos, sin backend.",
+    "C_YUI_JSON_GRAPH renders an arbitrary JSON value as a hierarchical graph (objects/arrays as group nodes, scalars as rows). Click a node to emit EV_JSON_ITEM_CLICKED. Fully offline.":
+        "C_YUI_JSON_GRAPH pinta un valor JSON arbitrario como un grafo jerárquico (objetos/arrays como nodos de grupo, escalares como filas). Pulsa un nodo para emitir EV_JSON_ITEM_CLICKED. Totalmente offline.",
+    "C_YUI_WIZARD walks ordered steps with a title + \"N / M\" counter + Back/Next, turning into Confirm on the last step. Steps are fed with EV_SET_STEPS; Confirm publishes EV_WIZARD_DONE (echoed below the wizard). Fully offline.":
+        "C_YUI_WIZARD recorre pasos ordenados con un título + contador \"N / M\" + Atrás/Siguiente, que pasa a Confirmar en el último paso. Los pasos se alimentan con EV_SET_STEPS; Confirmar publica EV_WIZARD_DONE (mostrado bajo el asistente). Totalmente offline.",
+    "C_YUI_PAGER stacks panels with a \"← title\" header (drill-down, no confirm chrome). Push a page with the button, pop back with the header \"←\". Pages here are plain content; a real one would push a C_YUI_FORM. Fully offline.":
+        "C_YUI_PAGER apila paneles con una cabecera \"← título\" (navegación en profundidad, sin chrome de confirmación). Empuja una página con el botón, vuelve con el \"←\" de la cabecera. Aquí las páginas son contenido simple; una real empujaría un C_YUI_FORM. Totalmente offline.",
+    "C_YUI_MAP (MapLibre) rendered into an external sized element, with a few Spanish cities as markers. NOTE: the basemap tiles come from tiles.openfreemap.org, so this chapter needs network; offline it shows a blank map with controls.":
+        "C_YUI_MAP (MapLibre) renderizado en un elemento externo dimensionado, con varias ciudades españolas como marcadores. NOTA: los tiles del mapa base vienen de tiles.openfreemap.org, así que este capítulo necesita red; offline muestra un mapa en blanco con controles.",
     "Tabs — Tab A": "Pestañas — Pestaña A",
     "Tabs — Tab B": "Pestañas — Pestaña B",
     "Tabs — Tab C": "Pestañas — Pestaña C",

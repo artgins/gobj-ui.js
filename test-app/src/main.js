@@ -19,20 +19,34 @@ import {
     gobj_start_up,
     gobj_create_yuno,
     gobj_create_default_service,
+    gobj_create_service,
     gobj_start,
     gobj_play,
     register_c_yuno,
     register_c_timer,
 } from "@yuneta/gobj-js";
 
-import {register_c_yui_shell} from "@yuneta/gobj-ui/src/c_yui_shell.js";
-import {register_c_yui_nav}   from "@yuneta/gobj-ui/src/c_yui_nav.js";
-import {register_c_yui_form}  from "@yuneta/gobj-ui/src/c_yui_form.js";
+import {register_c_yui_shell}        from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {register_c_yui_nav}          from "@yuneta/gobj-ui/src/c_yui_nav.js";
+import {register_c_yui_form}         from "@yuneta/gobj-ui/src/c_yui_form.js";
+import {register_c_yui_uplot}        from "@yuneta/gobj-ui/src/c_yui_uplot.js";
+import {register_c_yui_gobj_tree_js} from "@yuneta/gobj-ui/src/c_yui_gobj_tree_js.js";
+import {register_c_yui_json_graph}   from "@yuneta/gobj-ui/src/c_yui_json_graph.js";
+import {register_c_yui_wizard}       from "@yuneta/gobj-ui/src/c_yui_wizard.js";
+import {register_c_yui_pager}        from "@yuneta/gobj-ui/src/c_yui_pager.js";
+import {register_c_yui_map}          from "@yuneta/gobj-ui/src/c_yui_map.js";
 
-import {register_c_demo}       from "./c_demo.js";
-import {register_c_test_view}  from "./c_test_view.js";
-import {register_c_demo_form}  from "./c_demo_form.js";
-import {register_c_demo_table} from "./c_demo_table.js";
+import {register_c_demo}        from "./c_demo.js";
+import {register_c_demo_main}   from "./c_demo_main.js";
+import {register_c_test_view}   from "./c_test_view.js";
+import {register_c_demo_form}   from "./c_demo_form.js";
+import {register_c_demo_table}  from "./c_demo_table.js";
+import {register_c_demo_chart}  from "./c_demo_chart.js";
+import {register_c_demo_tree}   from "./c_demo_tree.js";
+import {register_c_demo_json}   from "./c_demo_json.js";
+import {register_c_demo_wizard} from "./c_demo_wizard.js";
+import {register_c_demo_pager}  from "./c_demo_pager.js";
+import {register_c_demo_map}    from "./c_demo_map.js";
 
 import {setup_locale} from "./locales.js";
 
@@ -56,11 +70,24 @@ function main()
     register_c_yui_shell();
     register_c_yui_nav();
     register_c_yui_form();
+    register_c_yui_uplot();
+    register_c_yui_gobj_tree_js();
+    register_c_yui_json_graph();
+    register_c_yui_wizard();
+    register_c_yui_pager();
+    register_c_yui_map();
 
     register_c_demo();
+    register_c_demo_main();
     register_c_test_view();
     register_c_demo_form();
     register_c_demo_table();
+    register_c_demo_chart();
+    register_c_demo_tree();
+    register_c_demo_json();
+    register_c_demo_wizard();
+    register_c_demo_pager();
+    register_c_demo_map();
 
     /*  i18n (en/es). C_YUI_FORM, the shell and the views translate their
      *  DOM through i18next's module-level t(); this inits the shared
@@ -99,6 +126,11 @@ function main()
         },
         yuno
     );
+
+    /*  Minimal "__yui_main__" service: legacy components (C_YUI_MAP) look
+     *  it up to subscribe to EV_RESIZE. A registered service satisfies the
+     *  lookup (no "service not found" log) and gives the map real reflow. */
+    gobj_create_service("__yui_main__", "C_DEMO_MAIN", {}, yuno);
 
     gobj_start(yuno);
     gobj_play(yuno);

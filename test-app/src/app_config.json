@@ -254,6 +254,90 @@
                             "lead": "A Tabulator data table with static rows, built directly in the view (the pattern the yunos use, e.g. gui_agent's node list). Click a header to sort, click a row to select; the Status column uses a coloured-tag formatter."
                         }
                     }
+                },
+                {
+                    "id": "chart",
+                    "name": "Chart",
+                    "icon": "yi-eye",
+                    "tooltip": "A uPlot time-series chart",
+                    "route": "/chart",
+                    "target": {
+                        "stage": "main", "gclass": "C_DEMO_CHART", "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Chart",
+                            "lead": "The gobj-ui uPlot component C_YUI_UPLOT. Series are added with EV_ADD_SERIE and rows fed with EV_LOAD_DATA (a unix-epoch-seconds x-axis). Hover to read values; drag to zoom. Fully offline."
+                        }
+                    }
+                },
+                {
+                    "id": "tree",
+                    "name": "Gobj tree",
+                    "icon": "yi-hexagon-nodes",
+                    "tooltip": "The live gobj tree of this very yuno (G6)",
+                    "route": "/tree",
+                    "target": {
+                        "stage": "main", "gclass": "C_DEMO_TREE", "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Gobj tree",
+                            "lead": "C_YUI_GOBJ_TREE_JS introspects the running yuno and draws its live gobj tree with G6 — self-referential: you see the yuno, this view and the tree component itself. Use the toolbar to zoom, center, and expand/collapse. No data, no backend."
+                        }
+                    }
+                },
+                {
+                    "id": "json",
+                    "name": "JSON graph",
+                    "icon": "yi-square-js",
+                    "tooltip": "Any JSON value as a hierarchical G6 graph",
+                    "route": "/json",
+                    "target": {
+                        "stage": "main", "gclass": "C_DEMO_JSON", "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "JSON graph",
+                            "lead": "C_YUI_JSON_GRAPH renders an arbitrary JSON value as a hierarchical graph (objects/arrays as group nodes, scalars as rows). Click a node to emit EV_JSON_ITEM_CLICKED. Fully offline."
+                        }
+                    }
+                },
+                {
+                    "id": "wizard",
+                    "name": "Wizard",
+                    "icon": "yi-cog",
+                    "tooltip": "A multi-step wizard (Back / Next / Confirm)",
+                    "route": "/wizard",
+                    "target": {
+                        "stage": "main", "gclass": "C_DEMO_WIZARD", "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Wizard",
+                            "lead": "C_YUI_WIZARD walks ordered steps with a title + \"N / M\" counter + Back/Next, turning into Confirm on the last step. Steps are fed with EV_SET_STEPS; Confirm publishes EV_WIZARD_DONE (echoed below the wizard). Fully offline."
+                        }
+                    }
+                },
+                {
+                    "id": "pager",
+                    "name": "Pager",
+                    "icon": "yi-bars",
+                    "tooltip": "A drill-down page stack (← back)",
+                    "route": "/pager",
+                    "target": {
+                        "stage": "main", "gclass": "C_DEMO_PAGER", "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Pager",
+                            "lead": "C_YUI_PAGER stacks panels with a \"← title\" header (drill-down, no confirm chrome). Push a page with the button, pop back with the header \"←\". Pages here are plain content; a real one would push a C_YUI_FORM. Fully offline."
+                        }
+                    }
+                },
+                {
+                    "id": "map",
+                    "name": "Map",
+                    "icon": "yi-location-dot",
+                    "tooltip": "A MapLibre map with markers (needs network)",
+                    "route": "/map",
+                    "target": {
+                        "stage": "main", "gclass": "C_DEMO_MAP", "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Map",
+                            "lead": "C_YUI_MAP (MapLibre) rendered into an external sized element, with a few Spanish cities as markers. NOTE: the basemap tiles come from tiles.openfreemap.org, so this chapter needs network; offline it shows a blank map with controls."
+                        }
+                    }
                 }
             ]
         },
@@ -267,7 +351,13 @@
                 { "id": "q-cards",     "name": "Cards",        "icon": "yi-square",      "route": "/cards" },
                 { "id": "q-accordion", "name": "Accordion",    "icon": "yi-copy",        "route": "/accordion" },
                 { "id": "q-form",      "name": "Form",         "icon": "yi-pen",         "route": "/form" },
-                { "id": "q-table",     "name": "Table",        "icon": "yi-table",       "route": "/table" }
+                { "id": "q-table",     "name": "Table",        "icon": "yi-table",       "route": "/table" },
+                { "id": "q-chart",     "name": "Chart",        "icon": "yi-eye",           "route": "/chart" },
+                { "id": "q-tree",      "name": "Gobj tree",    "icon": "yi-hexagon-nodes", "route": "/tree" },
+                { "id": "q-json",      "name": "JSON graph",   "icon": "yi-square-js",     "route": "/json" },
+                { "id": "q-wizard",    "name": "Wizard",       "icon": "yi-cog",           "route": "/wizard" },
+                { "id": "q-pager",     "name": "Pager",        "icon": "yi-bars",          "route": "/pager" },
+                { "id": "q-map",       "name": "Map",          "icon": "yi-location-dot",  "route": "/map" }
             ]
         }
     }

@@ -926,13 +926,19 @@ What this example demonstrates that the generic §2 picture only states:
   `menu.quick`), and `accordion` (embedded in the `/accordion` view,
   since accordion is a primary-zone layout — its bodies are the routable
   2nd level, so it can't be a 3rd-level submenu).
-- **Content views, not just layouts**: `/form` mounts the real
-  `C_YUI_FORM` component (declarative field template + save/undo toolbar,
-  echoing `EV_SAVE_RECORD`), and `/table` mounts a Tabulator data table
-  built directly in the view — showing what goes *inside* a stage, not
-  only how navs render. `main.js` initialises the shared i18next
-  instance (deduped in `vite.config.js`) so `C_YUI_FORM`'s module-level
-  `t()` doesn't render blank labels.
+- **Component views, not just layouts**: several chapters mount real
+  gobj-ui components inside a stage — `C_YUI_FORM` (`/form`), a Tabulator
+  table (`/table`), `C_YUI_UPLOT` (`/chart`), `C_YUI_GOBJ_TREE_JS`
+  (`/tree`, the yuno's own live gobj tree), `C_YUI_JSON_GRAPH` (`/json`),
+  `C_YUI_WIZARD` (`/wizard`), `C_YUI_PAGER` (`/pager`) and `C_YUI_MAP`
+  (`/map`, MapLibre — the only chapter needing network, for basemap
+  tiles) — showing what goes *inside* a stage, not only how navs render.
+  Each is wrapped by a tiny `C_DEMO_*` gclass. `main.js` initialises the
+  shared i18next instance (deduped in `vite.config.js`) so `C_YUI_FORM`'s
+  module-level `t()` doesn't render blank; a minimal `__yui_main__`
+  service (`c_demo_main.js`) supplies the `EV_RESIZE` the map's legacy
+  lineage expects. (TreeDB component views are not demoed — they need a
+  live treedb backend.)
 - **Localisation (es/en)**: the toolbar `ES/EN` button publishes
   `EV_TOGGLE_LANGUAGE`; `C_DEMO` flips i18next and repaints every
   `[data-i18n]` node via `refresh_language(document.body, t)`. English
