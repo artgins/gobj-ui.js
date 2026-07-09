@@ -20,6 +20,10 @@ import {
     gobj_create_pure_child,
     gobj_subscribe_event,
     gobj_start_tree,
+    gobj_find_service,
+    gobj_is_running,
+    gobj_stop_tree,
+    gobj_destroy,
     refresh_language,
 } from "@yuneta/gobj-js";
 
@@ -28,6 +32,8 @@ import {
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
+
+import {setup_dev, dev_window_was_open} from "@yuneta/gobj-ui/src/yui_dev.js";
 
 import {t} from "i18next";
 import {toggle_locale} from "./locales.js";
@@ -86,6 +92,7 @@ function mt_create(gobj)
      *  subscriber=ALL, so we never receive events we don't declare). */
     gobj_subscribe_event(shell, "EV_TOGGLE_THEME",    {}, gobj);
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
+    gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
 
     /*  The shell never reads a user model; it asks this provider for
      *  the avatar text. A static badge is enough for the demo. */
@@ -110,6 +117,12 @@ function mt_start(gobj)
     /*  Translate the freshly-built shell tree + initial view to the
      *  current language (English on first load; keys map to themselves). */
     refresh_language(document.body, t);
+
+    /*  Reopen the developer window if it was open last session (setup_dev
+     *  persists the flag), so it survives a refresh — handy on mobile. */
+    if(dev_window_was_open() && !gobj_find_service("Developer-Window", false)) {
+        setup_dev(gobj, true);
+    }
 }
 
 /***************************************************************
@@ -183,6 +196,26 @@ function ac_toggle_language(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  Account-menu "Developer window" entry (action:event
+ *  EV_OPEN_DEVTOOLS). Toggles the dev window (a C_YUI_WINDOW built
+ *  by setup_dev: inter-event traffic + trace toggles). If it is up,
+ *  tear it down; otherwise open it.
+ ***************************************************************/
+function ac_open_devtools(gobj, event, kw, src)
+{
+    let win = gobj_find_service("Developer-Window", false);
+    if(win) {
+        if(gobj_is_running(win)) {
+            gobj_stop_tree(win);
+        }
+        gobj_destroy(win);
+        return 0;
+    }
+    setup_dev(gobj, true);
+    return 0;
+}
+
 
 
 
@@ -215,7 +248,8 @@ function create_gclass(gclass_name)
     const states = [
         ["ST_IDLE", [
             ["EV_TOGGLE_THEME",     ac_toggle_theme,     null],
-            ["EV_TOGGLE_LANGUAGE",  ac_toggle_language,  null]
+            ["EV_TOGGLE_LANGUAGE",  ac_toggle_language,  null],
+            ["EV_OPEN_DEVTOOLS",    ac_open_devtools,    null]
         ]]
     ];
 
@@ -224,7 +258,8 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const event_types = [
         ["EV_TOGGLE_THEME",     0],
-        ["EV_TOGGLE_LANGUAGE",  0]
+        ["EV_TOGGLE_LANGUAGE",  0],
+        ["EV_OPEN_DEVTOOLS",    0]
     ];
 
     __gclass__ = gclass_create(
