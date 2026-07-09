@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **feat(shell/nav): section-index landing (`submenu.index`) + "cards" nav
+  layout.** A primary menu item may declare `submenu.index: true` (or
+  `{stage: "<stage>"}`): its own route then becomes a real resting,
+  deep-linkable route that mounts the submenu as a grid of tappable cards
+  (`C_YUI_NAV` layout `"cards"`) in the stage, instead of redirecting to the
+  default child. List → detail pattern: tap a card to open the view, browser
+  back (or re-tapping the primary item) returns to the index — no
+  breakpoint-conditional logic, the landing is universal. Opt-in per submenu:
+  sections that don't declare `index` keep the redirect-to-default behaviour
+  unchanged; an explicit inline `target` on the item wins over `index`, and
+  `submenu.default` becomes inert for sections that opt in.
+  `yui_shell_set_submenu()` keeps a mounted index view and the synthesized
+  target in sync with the new items. New pure helpers with colocated tests:
+  `nav_cards_helpers.js` (card/grid descriptors), `shell_section_index.js`
+  (target synthesis).
+
 ## 2.2.6
 
 - **fix(shell): mobile nav active item now matches the desktop rail.** The

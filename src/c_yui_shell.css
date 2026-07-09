@@ -197,6 +197,47 @@
 /*--- per-item state class (item.class) — generic disconnected tint ---*/
 .yui-nav-tabs .tabs li.yui-nav-disconnected a { color: var(--bulma-danger, #f14668); }
 
+/*--- cards (section-index landing grid, mounted as a stage view) ---*/
+.yui-nav-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.75rem;
+    padding: 1rem;
+    width: 100%;
+    align-content: start;
+}
+.yui-nav-cards .yui-nav-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.25rem 0.75rem;
+    border: 1px solid var(--bulma-border-weak, #dbdbdb);
+    border-radius: 0.5rem;
+    background: var(--bulma-scheme-main, #fff);
+    color: var(--bulma-text, inherit);
+    text-decoration: none;
+    text-align: center;
+    line-height: 1.2;
+    word-break: break-word;
+}
+/*  yui_icons are 1em CSS masks: font-size scales them. */
+.yui-nav-cards .yui-nav-card .icon {
+    font-size: 1.5rem;
+}
+.yui-nav-cards .yui-nav-card:hover,
+.yui-nav-cards .yui-nav-card:focus-visible {
+    border-color: var(--bulma-link, #485fc7);
+    color: var(--bulma-link, #485fc7);
+}
+.yui-nav-cards .yui-nav-card.is-active {
+    border-color: var(--bulma-link, #485fc7);
+}
+.yui-nav-cards .yui-nav-card[data-disabled="1"] {
+    opacity: 0.5;
+}
+
 /*--- stacked item (icon above label) ---*/
 .yui-nav-stacked {
     display: inline-flex;

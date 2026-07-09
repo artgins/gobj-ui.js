@@ -16,6 +16,11 @@
  *      $container in its stage, hide the previous one. Lifecycle per item
  *      decides when the gobj is created/destroyed.
  *
+ *      A primary item with `submenu.index` gets a section-index landing:
+ *      its own route mounts the submenu as a "cards" C_YUI_NAV in the
+ *      stage instead of redirecting to the default child (see
+ *      shell_section_index.js for the contract).
+ *
  *      Hash-based 2-level routing (#/primary/secondary). No dependency on
  *      C_YUI_ROUTING.
  *
@@ -53,6 +58,7 @@ import {
 } from "./shell_toolbar_helpers.js";
 
 import { resolve_route } from "./route_resolver.js";
+import { section_index_target } from "./shell_section_index.js";
 
 /***************************************************************
  *              Constants
@@ -621,18 +627,28 @@ function build_item_index(gobj, config)
         let items = (menu && menu.items) || [];
         for(let item of items) {
             if(item.route) {
+                /*  Section-index landing (submenu.index): the section
+                 *  route gets a synthesized target — the submenu itself
+                 *  rendered as a "cards" C_YUI_NAV in the stage — so it
+                 *  becomes a real resting, deep-linkable route instead
+                 *  of redirecting to the default child (navigate_to()
+                 *  only redirects while the entry has NO target).
+                 *  Explicit inline targets keep precedence (the helper
+                 *  returns null then). */
+                let target = item.target || section_index_target(menu_id, item);
+
                 /*  A later menu must NOT clobber an earlier entry that
                  *  has a valid target with one that has none.  This is
                  *  the common case where a `quick` drawer just reuses
                  *  routes declared (with target) in `primary.submenu`.
                  *  Rule: prefer the first entry with a target. */
                 let prev = priv.item_index[item.route];
-                if(!prev || (!prev.target && item.target)) {
+                if(!prev || (!prev.target && target)) {
                     priv.item_index[item.route] = {
                         item: item,
                         parent_item: null,
-                        stage: item.target && item.target.stage || null,
-                        target: item.target || null,
+                        stage: target && target.stage || null,
+                        target: target,
                         menu_id: menu_id
                     };
                 }
@@ -1174,6 +1190,16 @@ function build_view_gobj(gobj, entry, route, stage)
     }
     stage.el.appendChild($view);
     gobj_start(view);
+
+    /*  App view gclasses translate their own DOM; a section-index view
+     *  (synthesized "cards" C_YUI_NAV) is SHELL-owned DOM built after
+     *  the host's one-shot refresh_language — apply the registered
+     *  translator, same policy as lazily-built dropdown panels. */
+    let priv = gobj_read_attr(gobj, "priv");
+    if(priv && typeof priv.translator === "function" &&
+            target.gclass === "C_YUI_NAV") {
+        refresh_language($view, priv.translator);
+    }
     return view;
 }
 
@@ -2237,6 +2263,32 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
 
     /*  Push the new items into the nav (rebuilds its DOM in place). */
     gobj_send_event(nav, "EV_SET_ITEMS", {items: items}, shell_gobj);
+
+    /*  Section-index landing (submenu.index): keep the synthesized
+     *  target and any mounted index view (a "cards" C_YUI_NAV in the
+     *  stage) in sync with the new items — otherwise a later mount,
+     *  or the already mounted view, would render the stale set. */
+    if(parent_item && parent_item.route &&
+            parent_item.submenu && parent_item.submenu.index) {
+        let entry = priv.item_index[parent_item.route];
+        if(entry && entry.target &&
+                entry.target.gclass === "C_YUI_NAV" && entry.target.kw) {
+            entry.target.kw.menu_items = items;
+        }
+        for(let stage_name in priv.stages) {
+            let stage = priv.stages[stage_name];
+            let view = stage.items && stage.items[parent_item.route];
+            if(view) {
+                gobj_send_event(view, "EV_SET_ITEMS", {items: items}, shell_gobj);
+                /*  EV_SET_ITEMS rebuilt the DOM: re-apply the translator
+                 *  (shell-owned DOM, same policy as build_view_gobj). */
+                let $view = gobj_read_attr(view, "$container");
+                if($view && typeof priv.translator === "function") {
+                    refresh_language($view, priv.translator);
+                }
+            }
+        }
+    }
     return 0;
 }
 

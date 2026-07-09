@@ -12,6 +12,9 @@
  *          "drawer"     — off-canvas vertical (toggled by hamburger)
  *          "submenu"    — Bulma .menu nested under a heading
  *          "accordion"  — Bulma .menu list with collapsible group
+ *          "cards"      — grid of tappable cards (section-index landing;
+ *                         mounted as a stage view by C_YUI_SHELL when a
+ *                         primary item declares submenu.index)
  *
  *      Each item supports:
  *          id, name, icon (CSS class or svg id), route, badge, disabled
@@ -51,13 +54,15 @@ import {
     createElement2, empty_string, is_array, is_object, is_string,
 } from "@yuneta/gobj-js";
 
+import { cards_grid_descriptor } from "./nav_cards_helpers.js";
+
 /***************************************************************
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_NAV";
 
 const SUPPORTED_LAYOUTS = [
-    "vertical", "icon-bar", "tabs", "drawer", "submenu", "accordion"
+    "vertical", "icon-bar", "tabs", "drawer", "submenu", "accordion", "cards"
 ];
 
 /*  Decorative items have no `route` and never participate in
@@ -200,6 +205,7 @@ function build_ui(gobj)
         case "drawer":     $container = render_drawer(gobj, items);   break;
         case "submenu":    $container = render_submenu(gobj, items);  break;
         case "accordion":  $container = render_accordion(gobj, items); break;
+        case "cards":      $container = render_cards(gobj, items);    break;
         default:           $container = render_vertical(gobj, items);
     }
     $container.setAttribute("data-nav-zone", zone);
@@ -381,6 +387,12 @@ function render_tabs(gobj, items)
             ["ul", {}, lis]
         ]
     );
+}
+
+function render_cards(gobj, items)
+{
+    let show_label = gobj_read_attr(gobj, "show_label");
+    return createElement2(cards_grid_descriptor(items, show_label));
 }
 
 function render_drawer(gobj, items)
