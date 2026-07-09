@@ -13,8 +13,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   deep-linkable route that mounts the submenu as a grid of tappable cards
   (`C_YUI_NAV` layout `"cards"`) in the stage, instead of redirecting to the
   default child. List → detail pattern: tap a card to open the view, browser
-  back (or re-tapping the primary item) returns to the index — no
-  breakpoint-conditional logic, the landing is universal. Opt-in per submenu:
+  back (or re-tapping the primary item) returns to the index — the landing is
+  universal (all breakpoints). Opt-in per submenu:
   sections that don't declare `index` keep the redirect-to-default behaviour
   unchanged; an explicit inline `target` on the item wins over `index`, and
   `submenu.default` becomes inert for sections that opt in.
@@ -22,6 +22,20 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   target in sync with the new items. New pure helpers with colocated tests:
   `nav_cards_helpers.js` (card/grid descriptors), `shell_section_index.js`
   (target synthesis).
+
+- **feat(shell/nav): tabs and cards never coexist (index sections) + mobile
+  "backbar".** DRY of navigation for `submenu.index` sections: while the
+  index is on stage the whole secondary zone collapses (cards ARE the
+  navigation — showing the tab strip too duplicated it, on every
+  breakpoint); inside a child view the tab strip renders only `>=tablet`,
+  and on mobile a new `C_YUI_NAV` layout `"backbar"` — a single
+  `← <section>` link back to the index — takes its place. Defaults derive
+  from `submenu.index` alone (no consumer config change); override with an
+  explicit `show_on` on the submenu render, `index: {backbar: false}`, or
+  `index: {backbar: {show_on}}`. Sections without `index` keep their tabs
+  on every breakpoint, unchanged. New nav attrs: `show_on` (breakpoint
+  visibility classes, re-applied on rebuild) and `back_route`. Plan logic
+  in `secondary_nav_renders()` (`shell_section_index.js`, unit-tested).
 
 ## 2.2.6
 

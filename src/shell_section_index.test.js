@@ -4,7 +4,10 @@
  *      Unit tests for the section-index target synthesis.
  ***********************************************************************/
 import { test, expect } from "vitest";
-import { section_index_target } from "./shell_section_index.js";
+import {
+    section_index_target,
+    secondary_nav_renders,
+} from "./shell_section_index.js";
 
 
 const SUB_ITEMS = [
@@ -89,4 +92,60 @@ test("nav_label falls back to the item id", () => {
     delete item.name;
     let t = section_index_target("primary", item);
     expect(t.kw.nav_label).toBe("reports");
+});
+
+
+/***************************************************************
+ *  secondary_nav_renders
+ ***************************************************************/
+test("no index → the declared render, unchanged, alone", () => {
+    let renders = secondary_nav_renders(reports_item(), {layout: "tabs"});
+    expect(renders).toEqual([{layout: "tabs"}]);
+});
+
+test("index → tabs constrained to >=tablet + mobile backbar", () => {
+    let renders = secondary_nav_renders(
+        reports_item({index: true}), {layout: "tabs"}
+    );
+    expect(renders.length).toBe(2);
+    expect(renders[0]).toEqual({layout: "tabs", show_on: ">=tablet"});
+    expect(renders[1]).toEqual({
+        layout: "backbar",
+        show_on: "<tablet",
+        back_route: "/reports"
+    });
+});
+
+test("explicit show_on on the declared render wins", () => {
+    let renders = secondary_nav_renders(
+        reports_item({index: true}), {layout: "tabs", show_on: ">=desktop"}
+    );
+    expect(renders[0].show_on).toBe(">=desktop");
+});
+
+test("index {backbar:false} suppresses the backbar", () => {
+    let renders = secondary_nav_renders(
+        reports_item({index: {backbar: false}}), {layout: "tabs"}
+    );
+    expect(renders.length).toBe(1);
+    expect(renders[0].show_on).toBe(">=tablet");
+});
+
+test("index {backbar:{show_on}} tunes the backbar breakpoints", () => {
+    let renders = secondary_nav_renders(
+        reports_item({index: {backbar: {show_on: "<desktop"}}}),
+        {layout: "tabs"}
+    );
+    expect(renders[1].show_on).toBe("<desktop");
+});
+
+test("string layout shorthand is normalized", () => {
+    let renders = secondary_nav_renders(reports_item(), "tabs");
+    expect(renders).toEqual([{layout: "tabs"}]);
+});
+
+test("input render object is not mutated", () => {
+    let declared = {layout: "tabs"};
+    secondary_nav_renders(reports_item({index: true}), declared);
+    expect(declared).toEqual({layout: "tabs"});
 });

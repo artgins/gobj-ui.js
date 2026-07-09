@@ -15,6 +15,14 @@
  *          "cards"      — grid of tappable cards (section-index landing;
  *                         mounted as a stage view by C_YUI_SHELL when a
  *                         primary item declares submenu.index)
+ *          "backbar"    — single "← <section>" link back to the section
+ *                         index; the mobile replacement of the tab strip
+ *                         for submenu.index sections (the shell collapses
+ *                         the secondary zone while the index is on stage)
+ *
+ *      The `show_on` attr (same expressions as the shell's zone
+ *      `show_on`) applies breakpoint visibility classes to the nav
+ *      container; build_ui re-applies them on every rebuild.
  *
  *      Each item supports:
  *          id, name, icon (CSS class or svg id), route, badge, disabled
@@ -55,6 +63,11 @@ import {
 } from "@yuneta/gobj-js";
 
 import { cards_grid_descriptor } from "./nav_cards_helpers.js";
+import {
+    BULMA_BP_ORDER,
+    breakpoints_from_expr,
+    bulma_hidden_class,
+} from "./shell_show_on.js";
 
 /***************************************************************
  *              Constants
@@ -62,7 +75,8 @@ import { cards_grid_descriptor } from "./nav_cards_helpers.js";
 const GCLASS_NAME = "C_YUI_NAV";
 
 const SUPPORTED_LAYOUTS = [
-    "vertical", "icon-bar", "tabs", "drawer", "submenu", "accordion", "cards"
+    "vertical", "icon-bar", "tabs", "drawer", "submenu", "accordion", "cards",
+    "backbar"
 ];
 
 /*  Decorative items have no `route` and never participate in
@@ -87,6 +101,8 @@ SDATA(data_type_t.DTP_STRING,   "layout",        0,  "vertical",   "vertical|ico
 SDATA(data_type_t.DTP_STRING,   "icon_pos",      0,  "left",       "left|right|top|bottom"),
 SDATA(data_type_t.DTP_BOOLEAN,  "show_label",    0,  true,         "Show item label next to/under the icon"),
 SDATA(data_type_t.DTP_STRING,   "level",         0,  "primary",    "primary|secondary"),
+SDATA(data_type_t.DTP_STRING,   "show_on",       0,  "",           "Breakpoint visibility expr (shell show_on syntax); empty = always"),
+SDATA(data_type_t.DTP_STRING,   "back_route",    0,  "",           "backbar layout: route of the section index the ← returns to"),
 
 SDATA(data_type_t.DTP_POINTER,  "shell",         0,  null,         "C_YUI_SHELL gobj (for navigation calls)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",    0,  null,         "Root HTMLElement of this nav"),
@@ -206,11 +222,27 @@ function build_ui(gobj)
         case "submenu":    $container = render_submenu(gobj, items);  break;
         case "accordion":  $container = render_accordion(gobj, items); break;
         case "cards":      $container = render_cards(gobj, items);    break;
+        case "backbar":    $container = render_backbar(gobj);         break;
         default:           $container = render_vertical(gobj, items);
     }
     $container.setAttribute("data-nav-zone", zone);
     $container.setAttribute("data-nav-layout", layout);
     $container.classList.add("C_YUI_NAV", "yui-nav", `yui-nav-${layout}`);
+
+    /*  Breakpoint visibility (same expressions as the shell's zone
+     *  show_on).  Applied here, attr-driven, so a rebuild via
+     *  EV_SET_ITEMS re-applies it — the shell sets it only once at
+     *  creation time. */
+    let show_on = gobj_read_attr(gobj, "show_on") || "";
+    if(!empty_string(show_on) && show_on !== "*") {
+        let visible = breakpoints_from_expr(show_on);
+        for(let bp of BULMA_BP_ORDER) {
+            if(!visible[bp]) {
+                $container.classList.add(bulma_hidden_class(bp));
+            }
+        }
+        $container.setAttribute("data-show-on", show_on);
+    }
 
     /*  Accessibility: every nav root is a landmark.  For the drawer we
      *  tag the wrapper as role=dialog and the panel as role=navigation. */
@@ -393,6 +425,44 @@ function render_cards(gobj, items)
 {
     let show_label = gobj_read_attr(gobj, "show_label");
     return createElement2(cards_grid_descriptor(items, show_label));
+}
+
+/************************************************************
+ *  "backbar": a single "← <section>" link back to the section
+ *  index route.  Static DOM — the active child view names itself
+ *  in its own content, so the bar only carries the way back plus
+ *  section context.  While the index itself is on stage the shell
+ *  collapses the whole secondary zone (tabs and cards never
+ *  coexist), so the bar needs no self-hiding logic.
+ ************************************************************/
+function render_backbar(gobj)
+{
+    let back_route = gobj_read_attr(gobj, "back_route") || "";
+    let label = gobj_read_attr(gobj, "nav_label") || "";
+
+    let label_attrs = {class: "yui-nav-label"};
+    if(label) {
+        label_attrs.i18n = label;
+    }
+    let a_attrs = {
+        class: "yui-nav-item yui-nav-back",
+        href: back_route ? "#" + back_route : "#",
+        "data-item-id": "__index__",
+        "data-route": back_route,
+        "aria-label": label || "back"
+    };
+    if(label) {
+        a_attrs["data-i18n-aria-label"] = label;
+    }
+    return createElement2(
+        ["div", {},
+            ["a", a_attrs, [
+                ["span", {class: "icon is-small"},
+                    ["i", {class: "yi-arrow-left", "aria-hidden": "true"}]],
+                ["span", label_attrs, label]
+            ]]
+        ]
+    );
 }
 
 function render_drawer(gobj, items)
@@ -766,6 +836,13 @@ function ac_route_changed(gobj, event, kw, src)
     gobj_write_attr(gobj, "active_route", route);
     let $c = gobj_read_attr(gobj, "$container");
     if(!$c) {
+        return 0;
+    }
+
+    /*  backbar: no per-item highlight.  Its visibility while the index
+     *  itself is on stage is the shell's job (the whole secondary zone
+     *  collapses at the index route — tabs and cards never coexist). */
+    if(gobj_read_attr(gobj, "layout") === "backbar") {
         return 0;
     }
 

@@ -58,7 +58,10 @@ import {
 } from "./shell_toolbar_helpers.js";
 
 import { resolve_route } from "./route_resolver.js";
-import { section_index_target } from "./shell_section_index.js";
+import {
+    section_index_target,
+    secondary_nav_renders,
+} from "./shell_section_index.js";
 
 /***************************************************************
  *              Constants
@@ -777,19 +780,27 @@ function instantiate_menus(gobj, config)
                     );
                     continue;
                 }
-                let submenu_def = {
-                    items: sub.items,
-                    render: { [zone_id]: render_to_obj(layout) }
-                };
+                /*  Index sections (submenu.index) get a render PLAN:
+                 *  the declared nav constrained to ">=tablet" plus a
+                 *  mobile "backbar" (← <section>) — tabs and cards
+                 *  never coexist, and a child view on mobile offers
+                 *  the way back instead of a duplicated tab strip. */
+                let renders = secondary_nav_renders(item, render_to_obj(layout));
                 let sub_menu_id = `secondary.${menu_id}.${item.id}`;
-                let nav = instantiate_nav_in_zone(
-                    gobj, submenu_def, sub_menu_id, zone_id, "secondary",
-                    item.name || ""
-                );
-                /*  Hidden until owning primary is active. */
-                let $c = gobj_read_attr(nav, "$container");
-                if($c) {
-                    $c.classList.add("is-hidden");
+                for(let render_cfg of renders) {
+                    let submenu_def = {
+                        items: sub.items,
+                        render: { [zone_id]: render_cfg }
+                    };
+                    let nav = instantiate_nav_in_zone(
+                        gobj, submenu_def, sub_menu_id, zone_id, "secondary",
+                        item.name || ""
+                    );
+                    /*  Hidden until owning primary is active. */
+                    let $c = gobj_read_attr(nav, "$container");
+                    if($c) {
+                        $c.classList.add("is-hidden");
+                    }
                 }
             }
         }
@@ -817,8 +828,11 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level, nav_label)
         render_cfg = { layout: render_cfg };
     }
 
-    let nav_name = `nav_${menu_id.replace(/\./g, "_")}_${zone_id}`;
     let layout = render_cfg.layout || "vertical";
+    /*  A backbar shares menu_id and zone with the nav it complements —
+     *  suffix the gobj name to avoid a sibling-name collision. */
+    let nav_name = `nav_${menu_id.replace(/\./g, "_")}_${zone_id}` +
+                   (layout === "backbar" ? "_backbar" : "");
     let nav = gobj_create(
         nav_name,
         "C_YUI_NAV",
@@ -831,6 +845,8 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level, nav_label)
             icon_pos:    render_cfg.icon_pos || default_icon_pos(zone_id),
             show_label:  render_cfg.show_label !== false,
             level:       level,
+            show_on:     render_cfg.show_on || "",
+            back_route:  render_cfg.back_route || "",
             shell:       gobj
         },
         gobj
@@ -2028,7 +2044,19 @@ function update_secondary_nav_visibility(gobj, entry)
      *  secondary navs and a nav-derived check would never collapse
      *  the zone (empty white strip under the toolbar). */
     let active_primary = entry.parent_item || entry.item || null;
-    let has_secondary = !!(
+
+    /*  At the section-index route itself (a level-1 item with
+     *  submenu.index) the cards ARE the navigation: showing the tab
+     *  strip too would duplicate it (confusing — either tabs or
+     *  cards, never both).  Collapse the secondary zone there. */
+    let at_section_index = !!(
+        !entry.parent_item &&
+        active_primary &&
+        active_primary.submenu &&
+        active_primary.submenu.index
+    );
+
+    let has_secondary = !at_section_index && !!(
         active_primary &&
         active_primary.submenu &&
         Array.isArray(active_primary.submenu.items) &&
@@ -2063,7 +2091,7 @@ function update_secondary_nav_visibility(gobj, entry)
         if(!$c) {
             continue;
         }
-        if(nav_menu_id === target_secondary_id) {
+        if(nav_menu_id === target_secondary_id && has_secondary) {
             $c.classList.remove("is-hidden");
         } else {
             $c.classList.add("is-hidden");
@@ -2156,6 +2184,11 @@ function find_secondary_nav(priv, parent_item_id)
     for(let nav of priv.navs) {
         let menu_id = gobj_read_attr(nav, "menu_id") || "";
         if(menu_id.startsWith("secondary.") && menu_id.endsWith(suffix)) {
+            /*  A backbar shares the menu_id but renders no items —
+             *  EV_SET_ITEMS must reach the item-based nav. */
+            if(gobj_read_attr(nav, "layout") === "backbar") {
+                continue;
+            }
             return nav;
         }
     }
