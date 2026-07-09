@@ -56,4 +56,26 @@ npm test           # vitest (v2/main only; v1 has no test target)
 tarball; v2 (wattyzer) imports source files by specifier. Rebuild `dist/` to
 validate and before publishing a v1 release.
 
+## Conventions
+
+### Logical class names on important DOM blocks
+
+When a gclass builds DOM, tag its elements so the tree is self-describing in
+the browser Inspector:
+
+- **Root of the view:** the `GCLASS_NAME` class **plus** a logical card name,
+  e.g. `class="C_AGENT_CONSOLE CONSOLE_CARD view-card"`.
+- **Every meaningful child** (status line, response panel, input row, input,
+  button, list…) gets a logical class **prefixed by the view/feature name**:
+  `CONSOLE_STATUS`, `CONSOLE_COMMENT`, `CONSOLE_RESPONSE`, `CONSOLE_INPUT_ROW`,
+  `CONSOLE_INPUT`, `CONSOLE_EXEC`, …
+
+**Casing: `UPPER_SNAKE`, exactly like the gclass names** — `CONSOLE_COMMENT`,
+never `console-comment`. Keep the existing Bulma/utility classes and
+**prepend** the logical name(s).
+
+**Why:** a bare `<pre class="is-size-7 mb-2">` is unidentifiable in devtools —
+you can't tell it's "the comment line". These are primarily debug aids, but
+they **may** double as real CSS hooks; styling them is fine when useful.
+
 Copyright (c) 2024-2026, ArtGins. All Rights Reserved.
