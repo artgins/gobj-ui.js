@@ -24,6 +24,17 @@
     line-height: 1.5;
 }
 
+/*  On mobile the explanatory lead wraps to many lines; in a flex-column
+ *  card it then steals the vertical space a hosted component (e.g. the Form)
+ *  needs, shrinking it to a couple of rows. Cap the lead and let it scroll
+ *  so the component below keeps its height. */
+@media screen and (max-width: 768px) {
+    .DEMO_LEAD {
+        max-height: 6.5rem;
+        overflow-y: auto;
+    }
+}
+
 .DEMO_META {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
