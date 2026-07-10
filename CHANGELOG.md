@@ -7,6 +7,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(form): `C_YUI_FORM` action toolbar moved to a horizontal bottom
+  bar.** The vertical right-hand toolbar (90px column) is replaced by a
+  bottom row — save/undo/clear on the left, copy/paste on the right — the
+  first step of the single-form consolidation (C_YUI_FORM becomes the only
+  form engine; the modal form inside `C_YUI_TREEDB_TOPIC_WITH_FORM` will be
+  replaced by a hosted C_YUI_FORM next). The container switches to a column
+  flex (form grows and scrolls, toolbar pinned below); buttons keep the
+  icon-always/label-`is-hidden-mobile` convention and now carry
+  `title`/`aria-label`. On mobile the bar costs ~42px of height instead of
+  90px of width; it wraps (`flex-wrap`) if the host is narrower than the
+  button set. DOM contract unchanged (`.yui-toolbar-form`, `.button-save`,
+  `.button-undo`).
+
 - **docs(test-app): runnable nav-layouts demo under `test-app/`.** The
   `test-app/` promised by `SHELL.md` §9 now exists: a backend-less Vite app
   that showcases every `C_YUI_NAV` layout on one screen — `vertical`,

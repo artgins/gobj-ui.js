@@ -26,18 +26,14 @@
 
 /*  Layout model: ONE vertical scroll for the whole view (the .view-card),
  *  with every part at its natural height — no nested scrollbars. The lead
- *  keeps its full height, and each hosted component takes its content height
- *  (at least its own minimum, e.g. the form's vertical toolbar). */
+ *  keeps its full height, and each hosted component takes its content height. */
 
 /*  C_YUI_FORM defaults to height:100% with an internal scroll (for
  *  fixed-pane hosts). In this demo we let it grow to its content so every
- *  field shows and the single card scroll reveals them all. align-items keeps
- *  the vertical toolbar at its natural height (never taller than its buttons)
- *  so the row height is driven by the fields, and the toolbar stays fully
- *  visible at the top. */
+ *  field shows and the single card scroll reveals them all; the bottom
+ *  toolbar simply follows the fields at its natural height. */
 .DEMO_FORM_HOST .C_YUI_FORM {
     height: auto !important;       /* overrides the component's inline height:100% */
-    align-items: flex-start;
 }
 .DEMO_FORM_HOST .C_YUI_FORM .yui-form,
 .DEMO_FORM_HOST .C_YUI_FORM .yui-toolbar-form {

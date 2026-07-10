@@ -284,31 +284,31 @@ function build_ui(gobj)
      *
      *----------------------------------------------*/
     let $container = createElement2(
-        ['div', {class: 'C_YUI_FORM is-flex is-flex-direction-row overscroll-contain', style:'height:100%; width:100%; box-sizing:border-box;'}, [
+        ['div', {class: 'C_YUI_FORM is-flex is-flex-direction-column overscroll-contain', style:'height:100%; width:100%; box-sizing:border-box;'}, [
 
             /*----------------------------*
              *      Form
              *----------------------------*/
             ['div', {
                 class: 'yui-form is-flex-grow-1 p-2',
-                style: 'overflow-y:auto; height:100%;min-height:0;'
+                style: 'overflow-y:auto; min-height:0;'
             }, build_form(gobj)],
 
             /*----------------------------*
-             *      Right toolbar
+             *      Bottom toolbar
              *----------------------------*/
-            ['div', {class: 'yui-toolbar-form ml-2 is-flex-shrink-0 is-flex is-flex-direction-column is-justify-content-space-between', style: 'overflow-y:auto; height:100%; max-width:90px;'}, [
+            ['div', {class: 'yui-toolbar-form is-flex-shrink-0 is-flex is-flex-direction-row is-justify-content-space-between is-align-items-center', style: 'width:100%; flex-wrap:wrap; row-gap:6px;'}, [
 
                 /*----------------------------*
-                 *      Top buttons
+                 *      Left buttons
                  *----------------------------*/
-                ['div', {class: 'p-1 is-flex is-flex-direction-column is-align-items-center', style:'width:100%; row-gap:6px;'}, [
+                ['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'}, [
                     /*----------------------------*
                      *      Save
                      *----------------------------*/
-                    ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center button-save', style:'width:100%;', disabled: true}, [
+                    ['button', {class: 'button p-1 button-save', title: 'save', 'aria-label': 'save', disabled: true}, [
                         ['span', {class: 'icon m-0'}, '<i class="yi-floppy-disk"></i>'],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'save'}, 'save']
+                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'save'}, 'save']
                     ], {
                         click: function(evt) {
                             evt.stopPropagation();
@@ -319,9 +319,9 @@ function build_ui(gobj)
                     /*----------------------------*
                      *      Undo
                      *----------------------------*/
-                    ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center button-undo', style:'width:100%;', disabled: true}, [
+                    ['button', {class: 'button p-1 button-undo', title: 'undo', 'aria-label': 'undo', disabled: true}, [
                         ['span', {class: 'icon m-0'}, '<i class="yi-arrow-rotate-left"></i>'],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'undo'}, 'undo']
+                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'undo'}, 'undo']
                     ], {
                         click: function(evt) {
                             evt.stopPropagation();
@@ -332,9 +332,9 @@ function build_ui(gobj)
                     /*----------------------------*
                      *      Clear
                      *----------------------------*/
-                    ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center', style:'width:100%;'}, [
+                    ['button', {class: 'button p-1', title: 'clear', 'aria-label': 'clear'}, [
                         ['span', {class: 'icon m-0'}, '<i class="yi-broom-wide"></i>'],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'clear'}, 'clear']
+                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'clear'}, 'clear']
                     ], {
                         click: function(evt) {
                             evt.stopPropagation();
@@ -344,15 +344,15 @@ function build_ui(gobj)
                 ]],
 
                 /*----------------------------*
-                 *      Bottom buttons
+                 *      Right buttons
                  *----------------------------*/
-                ['div', {class: 'p-1 is-flex is-flex-direction-column is-align-items-center', style:'width:100%; row-gap:6px;'}, [
+                ['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'}, [
                     /*----------------------------*
                      *      Copy
                      *----------------------------*/
-                    ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center', style:'width:100%;'}, [
+                    ['button', {class: 'button p-1', title: 'copy', 'aria-label': 'copy'}, [
                         ['span', {class: 'icon m-0'}, '<i class="yi-copy"></i>'],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'copy'}, 'copy']
+                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'copy'}, 'copy']
                     ], {click: function(evt) {
                             evt.stopPropagation();
                             gobj_send_event(gobj, "EV_COPY_RECORD", {}, gobj);
@@ -362,9 +362,9 @@ function build_ui(gobj)
                     /*----------------------------*
                      *      Paste
                      *----------------------------*/
-                    ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center', style:'width:100%;'}, [
+                    ['button', {class: 'button p-1', title: 'paste', 'aria-label': 'paste'}, [
                         ['span', {class: 'icon m-0'}, '<i class="yi-paste"></i>'],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'paste'}, 'paste']
+                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'paste'}, 'paste']
                     ], {click: async function(evt) {
                             evt.stopPropagation();
                             await readClipboard(gobj);
