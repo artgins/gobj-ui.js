@@ -6,3 +6,6 @@ dist/
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Session-local Playwright verification scratch scripts (test-app/_shot.mjs, ...)
+test-app/_*.mjs
