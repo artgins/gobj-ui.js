@@ -35,6 +35,17 @@
     }
 }
 
+/*  Saving grows the JSON echo below the form; in the flex-column card that
+ *  would collapse the form host (flex-shrink) and clip its vertical toolbar.
+ *  Give the host a floor so its toolbar is always fully visible, and cap the
+ *  echo so it scrolls instead of pushing the form out. */
+.DEMO_FORM_HOST {
+    min-height: 16rem;
+}
+.DEMO_FORM_JSON {
+    max-height: 30vh;
+}
+
 .DEMO_META {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
