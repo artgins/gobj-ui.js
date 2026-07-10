@@ -580,6 +580,29 @@ function col_label(col, topic_name)
 }
 
 /******************************************************************
+ *   Column-title formatter: render the header as a span carrying
+ *   `data-i18n` (the shared col id) so a live language switch —
+ *   which calls refresh_language(document.body) — retranslates the
+ *   Tabulator headers in place, without rebuilding the table. Only
+ *   tag translatable columns; otherwise keep the schema header
+ *   (refresh_language would otherwise overwrite it with the raw id).
+ *   Tabulator re-runs this on redraw, so the full cascade re-applies.
+ ******************************************************************/
+function col_title_formatter(gobj, col)
+{
+    let topic_name = gobj_read_str_attr(gobj, "topic_name");
+    return function(cell, formatterParams, onRendered) {
+        let text = col_label(col, topic_name);
+        let attrs = {};
+        const NO_I18N = "\x00";
+        if(t(col.id, {defaultValue: NO_I18N}) !== NO_I18N) {
+            attrs.i18n = col.id;
+        }
+        return createElement2(['span', attrs, text]);
+    };
+}
+
+/******************************************************************
  *   Build table with Tabulator
  *   This fn is called on start and when desc attribute is set.
  *   desc contains the description (columns) of table to create
@@ -717,6 +740,7 @@ function create_tabulator(gobj)
 
         let colDef = {
             title: col_label(col, gobj_read_str_attr(gobj, "topic_name")),
+            titleFormatter: col_title_formatter(gobj, col),
             field: col.id,
             sorter: sorter,
             hozAlign: hozAlign,

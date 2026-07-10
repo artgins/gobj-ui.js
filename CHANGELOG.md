@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(treedb): table headers retranslate on a live language switch.**
+  `C_YUI_TREEDB_TOPIC_WITH_FORM` now renders each column title through a
+  `titleFormatter` that emits a `<span data-i18n="<col>">` (only for
+  translatable columns), so the `refresh_language(document.body)` a host
+  runs on a language toggle retranslates the Tabulator headers in place —
+  no table rebuild, no per-view event wiring. Untranslated columns keep
+  their schema header (same header fallback as the form cascade).
+
 - **feat(form): `C_YUI_FORM` labels use the table-header i18n cascade.**
   New `topic_name` attr: field labels now resolve `'<topic>.<col>' ->
   '<col>' -> header (the same `col_label` cascade the treedb table uses),
