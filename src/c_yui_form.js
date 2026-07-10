@@ -46,6 +46,7 @@ import {
     gobj_publish_event,
     refresh_language,
     treedb_decoder_fkey,
+    gclass_find_by_name,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
@@ -2862,6 +2863,13 @@ function create_gclass(gclass_name)
  ***************************************************************/
 function register_c_yui_form()
 {
+    /*  Idempotent: C_YUI_TREEDB_TOPIC_WITH_FORM auto-registers this
+     *  gclass for its hosted edit dialog, so an app that also registers
+     *  it explicitly (order-independent) must not trip
+     *  "GClass ALREADY created".  */
+    if(gclass_find_by_name(GCLASS_NAME, false)) {
+        return 0;
+    }
     return create_gclass(GCLASS_NAME);
 }
 

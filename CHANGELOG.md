@@ -7,6 +7,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(form): `register_c_yui_form()` is idempotent.** Since the treedb
+  host auto-registers `C_YUI_FORM`, an app that ALSO registers it
+  explicitly (wattyzer does) logged a red `GClass ALREADY created:
+  C_YUI_FORM` on load; the register now returns early if the gclass
+  already exists (order-independent).
+
 - **feat(treedb): `C_YUI_TREEDB_TOPIC_WITH_FORM`'s edit/create dialog is
   now a hosted `C_YUI_FORM`** — final step of the single-form
   consolidation: the ~1000-line embedded modal form (its own field
