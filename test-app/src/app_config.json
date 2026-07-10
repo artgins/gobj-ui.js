@@ -241,7 +241,7 @@
                         "lifecycle": "keep_alive",
                         "kw": {
                             "title": "Form",
-                            "lead": "This is the gobj-ui form component C_YUI_FORM, hosted as a child. Fields come from a declarative template; edit any value and press Save (floppy icon) — the component publishes EV_SAVE_RECORD and the submitted JSON appears below."
+                            "lead": "This is the gobj-ui form component C_YUI_FORM, hosted as a child. The template here is a catalogue of every field type the component can render — text, email, url, tel, password, integer, real, percent, currency, color, datetime, coordinates, checkbox, a native enum select and a multi-select (TomSelect). Edit any value and press Save (floppy icon) — the component publishes EV_SAVE_RECORD and the submitted JSON appears below."
                         }
                     }
                 },

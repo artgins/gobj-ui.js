@@ -33,27 +33,75 @@ import {t} from "i18next";
  ***************************************************************/
 const GCLASS_NAME = "C_DEMO_FORM";
 
-/*  Field template: each value is a dot-token spec consumed by
- *  template_get_field_desc() (real_type . field_type . attributes).
- *  "writable" makes the field editable; the enum uses the object form
- *  so it can carry its option list. */
+/*  Field template — one field per widget C_YUI_FORM can render, so the
+ *  chapter is a catalogue of every supported field type. Each value is
+ *  either a dot-token spec consumed by template_get_field_desc()
+ *  (real_type . field_type . attributes) or the object form (needed to
+ *  carry an enum option list). "writable" makes the field editable.
+ *
+ *  type -> widget produced by C_YUI_FORM:
+ *    string/email/url/tel/password/percent/currency -> <input> (type varies)
+ *    integer/real                                    -> numeric <input>
+ *    color                                           -> <input type=color>
+ *    time                                            -> <input type=datetime-local>
+ *    coordinates                                     -> lng,lat input + geolocate
+ *    boolean                                         -> checkbox
+ *    enum (real_type string)                         -> native <select>
+ *    enum (real_type array)                          -> TomSelect multi-select
+ *  (textarea is not reachable from a field template, and date/uuid/gbuffer
+ *  have no renderer, so they are intentionally omitted.) */
 const FORM_TEMPLATE = {
-    name:   "string.writable",
-    email:  "string.writable",
-    age:    "integer.writable",
+    /*  text-like inputs  */
+    name:       "string.writable",
+    email:      "email.writable",
+    website:    "url.writable",
+    phone:      "tel.writable",
+    password:   "password.writable",
+
+    /*  numeric inputs  */
+    age:        "integer.writable",
+    rating:     "real.writable",
+    progress:   "percent.writable",
+    salary:     "currency.writable",
+
+    /*  special-purpose inputs  */
+    color:      "color.writable",
+    appointment:"time.writable",
+    location:   "coordinates.writable",
+
+    /*  boolean  */
+    active:     "boolean.writable",
+
+    /*  enum, single choice -> native select  */
     role:   {id: "role", header: "role", type: "string",
              flag: ["enum", "writable"], enum: ["admin", "operator", "viewer"]},
-    active: "boolean.writable",
-    notes:  "string.writable",
+
+    /*  enum, multiple choice -> TomSelect (select2)  */
+    skills: {id: "skills", header: "skills", type: "array",
+             flag: ["enum", "writable"],
+             enum: ["c", "javascript", "python", "rust", "go"]},
+
+    /*  free text (plain input; multiline textarea is not template-reachable)  */
+    notes:      "string.writable",
 };
 
 const FORM_RECORD = {
-    name:   "Ada Lovelace",
-    email:  "ada@yuneta.io",
-    age:    36,
-    role:   "operator",
-    active: false,
-    notes:  "Edit a field and press Save — the JSON below updates.",
+    name:        "Ada Lovelace",
+    email:       "ada@yuneta.io",
+    website:     "https://yuneta.io",
+    phone:       "+34 600 123 456",
+    password:    "s3cr3t",
+    age:         36,
+    rating:      4.5,
+    progress:    80,
+    salary:      52000,
+    color:       "#3b82f6",
+    appointment: 1783675800,          // epoch seconds (~2026-07-10T09:30 UTC)
+    location:    [-3.7038, 40.4168],  // GeoJSON order [lng, lat] — Madrid
+    active:      false,
+    role:        "operator",
+    skills:      ["javascript", "python"],
+    notes:       "Edit a field and press Save — the JSON below updates.",
 };
 
 
@@ -180,7 +228,7 @@ function build_ui(gobj)
         ["div", {class: "C_DEMO_FORM DEMO_CARD view-card"}, [
             ["div", {class: "DEMO_HEAD"}, head],
             ["div", {class: "DEMO_FORM_HOST box p-2",
-                     style: "height:340px; max-width:640px;"}, []],
+                     style: "height:70vh; overflow:auto; max-width:640px;"}, []],
             ["div", {class: "DEMO_FORM_RESULT", style: "max-width:640px;"}, [
                 ["p", {class: "is-size-7 has-text-grey mb-1",
                        i18n: "Last saved record:"}, "Last saved record:"],
