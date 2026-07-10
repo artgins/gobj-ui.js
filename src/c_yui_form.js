@@ -45,6 +45,7 @@ import {
     gobj_read_str_attr,
     gobj_publish_event,
     refresh_language,
+    treedb_decoder_fkey,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
@@ -74,6 +75,9 @@ SDATA(data_type_t.DTP_POINTER,  "$parent",          0,  null,   "$container will
 SDATA(data_type_t.DTP_POINTER,  "template",         0,  "<div>You must supply a template for form</div>", "Template for form, object -> TEMPLATE, array -> DESC"),
 SDATA(data_type_t.DTP_JSON,     "record",           0,  "{}",   "Data to form"),
 SDATA(data_type_t.DTP_JSON,     "placeholders",     0,  "{}",   "Placeholder values for form fields"),
+SDATA(data_type_t.DTP_JSON,     "fkey_options",     0,  "{}",   "Options for fkey fields: {topic_name: [ids or {id} records]}, read at build time"),
+SDATA(data_type_t.DTP_STRING,   "form_mode",        0,  "",     "'create' (pkey editable+required) or 'update' (pkey readonly); empty = no pkey handling"),
+SDATA(data_type_t.DTP_STRING,   "pkey",             0,  "id",   "Primary key field name, used by form_mode"),
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",         0,  false,  "Default is editable, set false to readonly"),
 SDATA(data_type_t.DTP_BOOLEAN,  "selectable",       0,  true,   "Rows selectable with 'click' (BAD with editable=true)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows"),
@@ -376,6 +380,7 @@ function build_ui(gobj)
     );
 
     gobj_write_attr(gobj, "$container", $container);
+    apply_form_mode(gobj, $container.querySelector('form'));
     refresh_language($container, t);
 
     let $parent = gobj_read_attr(gobj, "$parent");
@@ -546,7 +551,8 @@ function build_form_field_conf(gobj, field_desc)
             break;
 
         case "fkey":
-            // build later
+            field_conf.tag = "select2";
+            field_conf.options = get_fkey_select_options(gobj, field_desc);
             break;
 
         case "image":
@@ -658,6 +664,149 @@ function build_form_field_conf(gobj, field_desc)
     }
 
     return field_conf;
+}
+
+/************************************************************
+ *  Options for a fkey field: the ids of the parent topic's
+ *  rows, taken from the `fkey_options` attr
+ *  ({topic_name: [ids or {id} records]}, supplied by the host —
+ *  the form never queries the backend or its parent itself).
+ *  Read at build time.
+ ************************************************************/
+function get_fkey_select_options(gobj, field_desc)
+{
+    let fkey_desc = field_desc.fkey;
+    if(!is_object(fkey_desc) || Object.keys(fkey_desc).length === 0) {
+        log_error(sprintf("%s: fkey field '%s' without fkey mapping",
+            gobj_short_name(gobj), field_desc.name
+        ));
+        return [];
+    }
+
+    // HACK we work only with one fkey (same as the treedb stack)
+    let topic_name = Object.keys(fkey_desc)[0];
+
+    let fkey_options = gobj_read_attr(gobj, "fkey_options");
+    let list = is_object(fkey_options)? fkey_options[topic_name] : null;
+    if(!is_array(list)) {
+        log_warning(sprintf("%s: no fkey_options for topic '%s' (field '%s')",
+            gobj_short_name(gobj), topic_name, field_desc.name
+        ));
+        return [];
+    }
+
+    let options = [];
+    for(let item of list) {
+        let id = is_object(item)? item.id : item;
+        if(is_string(id) && !empty_string(id)) {
+            options.push(id);
+        }
+    }
+    return options;
+}
+
+/************************************************************
+ *  Encode the select2 value (array of ids) into fkey ref(s)
+ *  "topic_name^id^hook_name", shaped by the column real type:
+ *      string      -> single ref (or null if no selection)
+ *      object/dict -> {ref: true, ...}
+ *      array/list  -> [ref, ...]
+ ************************************************************/
+function build_fkey_ref(gobj, field_desc, value)
+{
+    let fkey_desc = field_desc.fkey;
+    if(!is_object(fkey_desc) || Object.keys(fkey_desc).length === 0) {
+        log_error(sprintf("%s: fkey field '%s' without fkey mapping",
+            gobj_short_name(gobj), field_desc.name
+        ));
+        return null;
+    }
+
+    // HACK we work only with one fkey (same as the treedb stack)
+    let topic_name = Object.keys(fkey_desc)[0];
+    let hook_name = fkey_desc[topic_name];
+
+    let refs;
+    switch(field_desc.real_type) {
+        case "string":
+            refs = null;
+            break;
+        case "object":
+        case "dict":
+            refs = {};
+            break;
+        case "array":
+        case "list":
+            refs = [];
+            break;
+        default:
+            log_error(sprintf("%s: fkey field '%s' with bad real_type '%s'",
+                gobj_short_name(gobj), field_desc.name, field_desc.real_type
+            ));
+            return null;
+    }
+
+    if(!is_array(value)) {
+        value = value? [value] : [];
+    }
+
+    for(let v of value) {
+        let id = is_object(v)? v.id : v;
+        if(!is_string(id) || empty_string(id)) {
+            log_error(sprintf("%s: fkey field '%s' with bad value: %s",
+                gobj_short_name(gobj), field_desc.name, JSON.stringify(v)
+            ));
+            continue;
+        }
+        let ref = topic_name + "^" + id + "^" + hook_name;
+        switch(field_desc.real_type) {
+            case "string":
+                return ref;     // single-valued: first id wins
+            case "object":
+            case "dict":
+                refs[ref] = true;
+                break;
+            case "array":
+            case "list":
+                refs.push(ref);
+                break;
+        }
+    }
+
+    return refs;
+}
+
+/************************************************************
+ *  Apply the form mode to the pkey field:
+ *      "update" -> pkey readonly, not required
+ *      "create" -> pkey writable and required (readonly if rowid)
+ *  Empty form_mode keeps the template-declared behaviour
+ *  (backward compatible).
+ ************************************************************/
+function apply_form_mode(gobj, $form)
+{
+    let mode = gobj_read_str_attr(gobj, "form_mode");
+    if(empty_string(mode)) {
+        return;
+    }
+
+    let pkey = gobj_read_str_attr(gobj, "pkey");
+    let $input = $form.querySelector(`[name="${pkey}"]`);
+    if(!$input) {
+        log_error(sprintf("%s: form_mode '%s' but form has no pkey field '%s'",
+            gobj_short_name(gobj), mode, pkey
+        ));
+        return;
+    }
+
+    let is_rowid = $input.field_desc && $input.field_desc.type === "rowid";
+    if(mode === "create" && !is_rowid) {
+        $input.removeAttribute("readonly");
+        $input.setAttribute("required", "");
+    } else {
+        $input.setAttribute("readonly", "readonly");
+        $input.removeAttribute("required");
+    }
 }
 
 /******************************************************************
@@ -895,7 +1044,7 @@ function create_form_field(
         case 'input':
         {
             let attrs = {
-                class: `input ${name==='id'?'with-focus':''}`,
+                class: `input ${name===gobj_read_str_attr(gobj, "pkey")?'with-focus':''}`,
                 name: name,
                 type: inputType,
                 placeholder: placeholder
@@ -968,11 +1117,19 @@ function create_form_field(
                     },
                     options.map(option =>
                         ['option', {value:option, i18n:option}, option]
-                    )
+                    ),
+                    {
+                        'change': function (evt) {
+                            gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+                        }
+                    }
                 ]
             ];
-            $extend = createElement2(extend);
-            $control.appendChild($extend);
+            let $wrapper = createElement2(extend);
+            $control.appendChild($wrapper);
+            /*  the data-input marker must land on the SELECT, not on the
+             *  bulma .select wrapper — get/set read/write $input.value */
+            $extend = $wrapper.querySelector('select');
             break;
         }
 
@@ -996,6 +1153,9 @@ function create_form_field(
             $extend.tom_select = new TomSelect($extend, {
                 allowEmptyOption: true,
                 placeholder: placeholder,
+                /*  single-valued fkey (real_type string): one selection only */
+                maxItems: (field_desc.type === "fkey" &&
+                    field_desc.real_type === "string")? 1 : null,
                 plugins: {
                     'clear_button': {
                         'title': t('Remove all selected options'),
@@ -1014,10 +1174,17 @@ function create_form_field(
         case 'checkbox':
         {
             let extend = ['label', {class: 'checkbox'},
-                ['input', {type: 'checkbox', name:name}]
+                ['input', {type: 'checkbox', name:name}, '', {
+                    'change': function (evt) {
+                        gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+                    }
+                }]
             ];
-            $extend = createElement2(extend);
-            $control.appendChild($extend);
+            let $wrapper = createElement2(extend);
+            $control.appendChild($wrapper);
+            /*  the data-input marker must land on the checkbox INPUT,
+             *  not on the label — get/set read/write $input.checked */
+            $extend = $wrapper.querySelector('input');
             break;
         }
 
@@ -1828,8 +1995,9 @@ function get_form_values(gobj, $form)
  ************************************************************/
 function clear_data(gobj, $form)
 {
+    let pkey = gobj_read_str_attr(gobj, "pkey");
     $form.querySelectorAll('input, select, textarea, .jsoneditor').forEach($input => {
-        if($input.name !== 'id') { // TODO review
+        if($input.name !== pkey) {
             if($input.classList.contains("jsoneditor")) {
                 let jsoneditor = $input.jsoneditor;
                 if(jsoneditor) {
@@ -1923,7 +2091,7 @@ function set_form_values(gobj, template, $form, record)
 
     clear_data(gobj, $form);
 
-    if(!record || record.length === 0) {
+    if(!record || Object.keys(record).length === 0) {
         record = create_template_record(template);
     }
 
@@ -1948,6 +2116,11 @@ function set_form_values(gobj, template, $form, record)
             modified = true;
         }
         value = treedb_value_2_form_value(gobj, field_desc, value);
+        if(value === undefined) {
+            /*  DOM 'value' setters stringify undefined as "undefined";
+             *  null is safe (LegacyNullToEmptyString). */
+            value = null;
+        }
 
         switch(tag) {
             case "input":
@@ -1999,7 +2172,7 @@ function set_form_values(gobj, template, $form, record)
             case "jsoneditor":
                 let jsoneditor = $input.jsoneditor;
                 if(jsoneditor) {
-                    jsoneditor.set(value);
+                    jsoneditor.set(value ? value : {text: ''});
                 }
                 break;
 
@@ -2011,7 +2184,7 @@ function set_form_values(gobj, template, $form, record)
                 break;
 
             case "table":
-                load_tabulator_data(gobj, $input, value);
+                load_tabulator_data(gobj, $input, value ? value : []);
                 break;
 
             case "coordinates":
@@ -2091,7 +2264,35 @@ function treedb_value_2_form_value(gobj, field_desc, value)
     let real_type = field_desc.real_type;
 
     switch(type) {
-        case "fkey":
+        case "fkey": {
+            /*  Decode ref(s) ("topic^id^hook", bare "$id", dict keys or
+             *  {topic_name,id,hook_name}) into a plain array of ids for
+             *  the select2 widget. */
+            let new_value = [];
+            if(is_string(value) && !empty_string(value)) {
+                let fkey = treedb_decoder_fkey(field_desc, value);
+                if(fkey) {
+                    new_value.push(fkey.id);
+                }
+            } else if(is_array(value)) {
+                for(let v of value) {
+                    let fkey = treedb_decoder_fkey(field_desc, v);
+                    if(fkey) {
+                        new_value.push(fkey.id);
+                    }
+                }
+            } else if(is_object(value)) {
+                // dict-type fkeys store refs as keys {"topic^id^hook": true}
+                for(let v of Object.keys(value)) {
+                    let fkey = treedb_decoder_fkey(field_desc, v);
+                    if(fkey) {
+                        new_value.push(fkey.id);
+                    }
+                }
+            }
+            value = new_value;
+            break;
+        }
         case "hook":
         case "enum":
         case "uuid":
@@ -2185,6 +2386,7 @@ function form_value_2_treedb_value(gobj, field_desc, value)
 
     switch(type) {
         case "fkey":
+            value = build_fkey_ref(gobj, field_desc, value);
             break;
         case "hook":
             value = null;
@@ -2346,6 +2548,7 @@ function ac_load_record(gobj, event, kw, src)
 
     gobj_write_bool_attr(gobj, "initialized", false);
     let modified = set_form_values(gobj, gobj_read_attr(gobj, "template"), $form, kw);
+    apply_form_mode(gobj, $form);
     set_changed_stated(gobj, modified);
     gobj_write_bool_attr(gobj, "initialized", true);
 

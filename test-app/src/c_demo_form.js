@@ -20,7 +20,9 @@ import {
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
     gobj_create_pure_child, gobj_start,
+    gobj_send_event,
     gobj_name,
+    json_deep_copy,
     createElement2,
     refresh_language,
 } from "@yuneta/gobj-js";
@@ -48,9 +50,21 @@ const GCLASS_NAME = "C_DEMO_FORM";
  *    boolean                                         -> checkbox
  *    enum (real_type string)                         -> native <select>
  *    enum (real_type array)                          -> TomSelect multi-select
+ *    fkey (real_type string)                         -> TomSelect, single pick
+ *    fkey (real_type list)                           -> TomSelect multi-select
  *  (textarea is not reachable from a field template, and date/uuid/gbuffer
- *  have no renderer, so they are intentionally omitted.) */
+ *  have no renderer, so they are intentionally omitted.)
+ *
+ *  fkey options come from the form's `fkey_options` attr (the host supplies
+ *  them — see FKEY_OPTIONS below); the record stores canonical refs
+ *  "topic^id^hook" and the form decodes/encodes them on load/save. The `id`
+ *  field is the pkey: the update/create toggle above the form drives the
+ *  component's `form_mode` (update = pkey readonly, create = pkey editable
+ *  and required, blank record). */
 const FORM_TEMPLATE = {
+    /*  pkey (form_mode makes it readonly in update, editable in create)  */
+    id:         "string.writable",
+
     /*  text-like inputs  */
     name:       "string.writable",
     email:      "email.writable",
@@ -81,11 +95,29 @@ const FORM_TEMPLATE = {
              flag: ["enum", "writable"],
              enum: ["c", "javascript", "python", "rust", "go"]},
 
+    /*  fkey, single parent (real_type string) -> TomSelect, one pick  */
+    department: {id: "department", header: "department", type: "string",
+                 flag: ["fkey", "writable"],
+                 fkey: {"departments": "users"}},
+
+    /*  fkey, multiple parents (real_type list) -> TomSelect multi  */
+    teams:  {id: "teams", header: "teams", type: "list",
+             flag: ["fkey", "writable"],
+             fkey: {"teams": "members"}},
+
     /*  free text (plain input; multiline textarea is not template-reachable)  */
     notes:      "string.writable",
 };
 
+/*  What the host would fetch from the treedb: the linkable parent rows per
+ *  topic. Both shapes are accepted: plain ids and {id} records. */
+const FKEY_OPTIONS = {
+    departments: ["engineering", "sales", "operations"],
+    teams:       [{id: "core"}, {id: "ui"}, {id: "field"}],
+};
+
 const FORM_RECORD = {
+    id:          "ada",
     name:        "Ada Lovelace",
     email:       "ada@yuneta.io",
     website:     "https://yuneta.io",
@@ -101,6 +133,8 @@ const FORM_RECORD = {
     active:      false,
     role:        "operator",
     skills:      ["javascript", "python"],
+    department:  "departments^engineering^users",           // canonical ref
+    teams:       ["teams^core^members", "teams^ui^members"], // canonical refs
     notes:       "Edit a field and press Save — the JSON below updates.",
 };
 
@@ -208,9 +242,12 @@ function build_ui(gobj)
         "demo_form_widget",
         "C_YUI_FORM",
         {
-            template: FORM_TEMPLATE,
-            record:   FORM_RECORD,
-            editable: true
+            template:     FORM_TEMPLATE,
+            record:       FORM_RECORD,
+            fkey_options: FKEY_OPTIONS,
+            form_mode:    "update",
+            pkey:         "id",
+            editable:     true
         },
         gobj
     );
@@ -227,6 +264,28 @@ function build_ui(gobj)
     let $c = createElement2(
         ["div", {class: "C_DEMO_FORM DEMO_CARD view-card"}, [
             ["div", {class: "DEMO_HEAD"}, head],
+            ["div", {class: "DEMO_FORM_MODE buttons has-addons mb-2"}, [
+                ["button", {class: "button is-small DEMO_MODE_UPDATE is-primary",
+                            type: "button", title: "update mode",
+                            "aria-label": "update mode"}, [
+                    ["span", {i18n: "update"}, "update"]
+                ], {
+                    click: function(evt) {
+                        evt.stopPropagation();
+                        set_form_mode(gobj, "update");
+                    }
+                }],
+                ["button", {class: "button is-small DEMO_MODE_CREATE",
+                            type: "button", title: "create mode",
+                            "aria-label": "create mode"}, [
+                    ["span", {i18n: "create"}, "create"]
+                ], {
+                    click: function(evt) {
+                        evt.stopPropagation();
+                        set_form_mode(gobj, "create");
+                    }
+                }]
+            ]],
             ["div", {class: "DEMO_FORM_HOST box p-2",
                      style: "max-width:640px;"}, []],
             ["div", {class: "DEMO_FORM_RESULT", style: "max-width:640px;"}, [
@@ -251,6 +310,31 @@ function build_ui(gobj)
     /*  Translate this view's own DOM to the current language (the hosted
      *  C_YUI_FORM translates its own fields/buttons through the same t). */
     refresh_language($c, t);
+}
+
+/***************************************************************
+ *  Drive the hosted form's `form_mode`: update reloads the demo
+ *  record (pkey readonly); create loads a blank record (pkey
+ *  editable + required) — the same flow a treedb host uses.
+ ***************************************************************/
+function set_form_mode(gobj, mode)
+{
+    let priv = gobj.priv;
+    if(!priv.form) {
+        return;
+    }
+
+    gobj_write_attr(priv.form, "form_mode", mode);
+    let record = (mode === "create") ? {} : json_deep_copy(FORM_RECORD);
+    gobj_send_event(priv.form, "EV_LOAD_RECORD", record, gobj);
+
+    let $c = gobj_read_attr(gobj, "$container");
+    if($c) {
+        $c.querySelector(".DEMO_MODE_UPDATE")
+            .classList.toggle("is-primary", mode === "update");
+        $c.querySelector(".DEMO_MODE_CREATE")
+            .classList.toggle("is-primary", mode === "create");
+    }
 }
 
 

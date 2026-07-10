@@ -7,6 +7,34 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(form): `C_YUI_FORM` renders fkey fields and gains create/update
+  form modes** — second step of the single-form consolidation (the treedb
+  stack's modal form duplicated both features; they now live in the one
+  form engine). New attrs:
+  - `fkey_options` ({topic_name: [ids or {id} records]}): the host supplies
+    the linkable parent rows — the form never queries the backend or its
+    parent gobj. fkey cols render as a TomSelect (single pick when the col
+    real_type is string, multi for dict/list); values decode from and
+    encode to canonical refs "topic^id^hook" (`build_fkey_ref`), riding the
+    fkey mapping now carried by gobj-js `field_desc` (needs gobj-js >
+    7.7.2). Options are read at build time.
+  - `form_mode` ("" | "update" | "create") + `pkey` (default "id"):
+    update = pkey readonly; create = pkey editable + required (rowid pkeys
+    stay readonly). Applied at build and on every `EV_LOAD_RECORD`; empty
+    mode keeps the template-declared behaviour (backward compatible). The
+    hardcoded `id` special-cases (clear_data, with-focus) now honour
+    `pkey`. Hosts route EV_SAVE_RECORD reading `form_mode` from the src
+    gobj.
+  Robustness fixes uncovered by the blank create flow: `set_form_values`
+  detects an empty record with `Object.keys` (the old `record.length`
+  never matched an object) and coalesces `undefined` to `null` so DOM
+  value setters never print "undefined"; the native `select` and
+  `checkbox` widgets now tag the real control (not their wrapper) as the
+  data input — a `role`-style native select was rendering/saving blank —
+  and both emit `EV_RECORD_CHANGED` for dirty tracking. The test-app Form
+  chapter grows `department`/`teams` fkey fields, an `id` pkey and an
+  update/create toggle exercising the whole flow.
+
 - **feat(form): `C_YUI_FORM` action toolbar moved to a horizontal bottom
   bar.** The vertical right-hand toolbar (90px column) is replaced by a
   bottom row — save/undo/clear on the left, copy/paste on the right — the
