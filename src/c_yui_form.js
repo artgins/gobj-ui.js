@@ -1953,7 +1953,18 @@ function set_form_values(gobj, template, $form, record)
             case "input":
                 switch(input_type) {
                     case "datetime-local":
-                        // TODO $input.value = epochToDateTimeLocal(value);
+                        /*  value is a Date (see treedb_value_2_form_value);
+                         *  a datetime-local input wants local
+                         *  "YYYY-MM-DDTHH:mm" (no seconds). */
+                        if(value instanceof Date && !isNaN(value.getTime())) {
+                            let pad = (n) => String(n).padStart(2, "0");
+                            $input.value =
+                                `${value.getFullYear()}-${pad(value.getMonth() + 1)}` +
+                                `-${pad(value.getDate())}T` +
+                                `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+                        } else {
+                            $input.value = "";
+                        }
                         break;
                     case "color":
                         $input.value = convertColor(value);
@@ -2091,8 +2102,9 @@ function treedb_value_2_form_value(gobj, field_desc, value)
             break;
         case "now":
         case "time":
-            value = parseInt(value) || 0;
-            value = new Date(value);
+            /*  Stored epoch is in SECONDS (Yuneta/timeranger convention),
+             *  matching get_form_values() which saves getTime()/1000. */
+            value = new Date((parseInt(value) || 0) * 1000);
             break;
         case "date":
         case "color":
