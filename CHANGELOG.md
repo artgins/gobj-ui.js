@@ -5,7 +5,7 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 2.3.0
 
 - **feat(treedb): table headers retranslate on a live language switch.**
   `C_YUI_TREEDB_TOPIC_WITH_FORM` now renders each column title through a
