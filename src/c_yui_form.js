@@ -460,15 +460,21 @@ function build_html_form(gobj, $form, prefix, template)
          *  Label i18n: mirror the table-header cascade (col_label) so a
          *  column translates the same in the form and the table. The
          *  visible text resolves '<topic>.<col>' -> '<col>' -> header at
-         *  build; `label_i18n` (the shared col id) is the stable key
-         *  refresh_language re-resolves on a language switch.
+         *  build. Only set `label_i18n` (the retranslation key) when a
+         *  translation actually exists, so refresh_language never
+         *  clobbers an untranslated label with the raw col id — it keeps
+         *  the header, exactly like col_label's `defaultValue`.
          */
         let topic_name = gobj_read_str_attr(gobj, "topic_name");
         let label_keys = topic_name
             ? [topic_name + "." + field_desc.name, field_desc.name]
             : [field_desc.name];
+        const NO_I18N = "\x00";
         html_field_conf.label = t(label_keys, {defaultValue: field_desc.header});
-        html_field_conf.label_i18n = field_desc.name;
+        html_field_conf.label_i18n =
+            (t(field_desc.name, {defaultValue: NO_I18N}) !== NO_I18N)
+                ? field_desc.name
+                : null;
         html_field_conf.placeholder = field_desc.placeholder?t(field_desc.placeholder):'';
 
         let placeholders = gobj_read_attr(gobj, "placeholders");
