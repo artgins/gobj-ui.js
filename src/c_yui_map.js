@@ -559,10 +559,13 @@ function onClick(gobj, e)
     const coordinates = e.features[0].geometry.coordinates.slice();
     const properties = e.features[0].properties;
 
-    const gobj_service = gobj_find_service(
-        properties.gobj_service_name,
-        true
-    );
+    /*  A marker may or may not be backed by a gobj service. Only look it up
+     *  when the feature carries a name (verbose=false: a marker without a
+     *  service is a normal case handled by the popup branch below, not an
+     *  error). gobj_find_service() would otherwise crash on undefined. */
+    const gobj_service = properties.gobj_service_name
+        ? gobj_find_service(properties.gobj_service_name, false)
+        : null;
     if(gobj_service) {
         let name = clean_name(gobj_name(gobj_service));
         let window_service_name = `window-map-${name}`;
