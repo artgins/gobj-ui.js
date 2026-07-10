@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.3.1
+
+- **chore(deps): upgrade `vanilla-jsoneditor` 0.23.8 → 3.12.0.** The
+  developer window no longer uses the JSON editor, so the only consumer
+  left is `C_YUI_FORM` (dict/blob/list fields in the treedb dialog). The
+  upgrade needs a single code change — the constructor moved from
+  `new JSONEditor(...)` to the `createJSONEditor(...)` factory (v1.0.0);
+  every prop/method we use (`readOnly`, `onChange`, `timestampTag`,
+  `.get()`, `.set()`, the `{json}`/`{text}` content shape, the dark-theme
+  CSS path) is unchanged. Svelte 5 is bundled (no consumer peer dep); no
+  `--jse-*` overrides in the tree. Consumers must bump their own
+  `vanilla-jsoneditor` range to `^3.12.0` in lockstep (the constructor is
+  gone from 0.23.x). test-app gains an **About** dialog (avatar menu)
+  showing the gobj-ui / app / bundled-JSON-editor versions.
+
 ## 2.3.0
 
 - **feat(treedb): table headers retranslate on a live language switch.**

@@ -20,10 +20,27 @@
 import { defineConfig } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import { readFileSync } from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/*  Versions shown in the "About" dialog, read from package.json at build. */
+const read_version = (rel) => {
+    try {
+        return JSON.parse(readFileSync(path.resolve(__dirname, rel), "utf8")).version;
+    } catch(e) {
+        return "?";
+    }
+};
+
 export default defineConfig({
+    define: {
+        __APP_VERSION__:        JSON.stringify(read_version("package.json")),
+        __GOBJ_UI_VERSION__:    JSON.stringify(read_version("../package.json")),
+        __JSONEDITOR_VERSION__: JSON.stringify(
+            read_version("../node_modules/vanilla-jsoneditor/package.json")
+        ),
+    },
     resolve: {
         preserveSymlinks: true,
         /*

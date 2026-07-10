@@ -1,23 +1,39 @@
 {
     "_comment": "gobj-ui declarative-shell demo. One primary menu (menu.primary) rendered as a VERTICAL rail on desktop (left) and an ICON-BAR on mobile (bottom) — that single pair already shows the per-zone responsive model. Each primary item is a chapter that demonstrates one SECONDARY layout in the content column: TABS (top-sub), SIDE SUBMENU (right), CARDS section-index + mobile BACKBAR, and a right-zone VERTICAL submenu. The toolbar burger opens a DRAWER (off-canvas vertical). The Accordion chapter has a direct target whose view embeds a live accordion nav (accordion is a primary-zone layout: its section bodies are the routable 2nd-level items, so it can't be a 3rd-level submenu). Every leaf mounts C_TEST_VIEW, which names on screen exactly which layout(s) are visible and where.",
-
     "shell": {
         "breakpoints": "bulma",
-
         "zones": {
-            "top":     { "host": "toolbar",        "show_on": "*" },
-            "left":    { "host": "menu.primary",   "show_on": ">=desktop" },
-            "bottom":  { "host": "menu.primary",   "show_on": "<desktop"  },
-            "top-sub": { "host": "menu.secondary", "show_on": "*" },
-            "right":   { "host": "menu.secondary", "show_on": ">=desktop" },
-            "center":  { "host": "stage.main" }
+            "top": {
+                "host": "toolbar",
+                "show_on": "*"
+            },
+            "left": {
+                "host": "menu.primary",
+                "show_on": ">=desktop"
+            },
+            "bottom": {
+                "host": "menu.primary",
+                "show_on": "<desktop"
+            },
+            "top-sub": {
+                "host": "menu.secondary",
+                "show_on": "*"
+            },
+            "right": {
+                "host": "menu.secondary",
+                "show_on": ">=desktop"
+            },
+            "center": {
+                "host": "stage.main"
+            }
         },
-
         "stages": {
-            "main": { "zone": "center", "default_route": "/tabs" }
+            "main": {
+                "zone": "center",
+                "default_route": "/tabs"
+            }
         }
     },
-
     "toolbar": {
         "zone": "top",
         "aria_label": "Demo toolbar",
@@ -27,7 +43,11 @@
                 "icon": "yi-bars",
                 "aria_label": "Open drawer",
                 "tooltip": "Open the off-canvas drawer (a menu rendered with layout:\"drawer\")",
-                "action": { "type": "drawer", "op": "toggle", "menu_id": "quick" }
+                "action": {
+                    "type": "drawer",
+                    "op": "toggle",
+                    "menu_id": "quick"
+                }
             },
             {
                 "id": "brand",
@@ -36,7 +56,10 @@
                 "wordmark": "gobj-ui · nav layouts",
                 "alt": "gobj-ui nav layouts demo",
                 "aria_label": "Home",
-                "action": { "type": "navigate", "route": "/tabs" }
+                "action": {
+                    "type": "navigate",
+                    "route": "/tabs"
+                }
             },
             {
                 "id": "lang",
@@ -45,7 +68,10 @@
                 "align": "end",
                 "aria_label": "Toggle language",
                 "tooltip": "Switch language (English / Spanish)",
-                "action": { "type": "event", "event": "EV_TOGGLE_LANGUAGE" }
+                "action": {
+                    "type": "event",
+                    "event": "EV_TOGGLE_LANGUAGE"
+                }
             },
             {
                 "id": "theme",
@@ -53,7 +79,10 @@
                 "align": "end",
                 "aria_label": "Toggle dark theme",
                 "tooltip": "Toggle light / dark (Bulma data-theme)",
-                "action": { "type": "event", "event": "EV_TOGGLE_THEME" }
+                "action": {
+                    "type": "event",
+                    "event": "EV_TOGGLE_THEME"
+                }
             },
             {
                 "id": "user",
@@ -67,39 +96,72 @@
                             "id": "d-tabs",
                             "name": "Go to Tabs",
                             "icon": "yi-square-check",
-                            "action": { "type": "navigate", "route": "/tabs" }
+                            "action": {
+                                "type": "navigate",
+                                "route": "/tabs"
+                            }
                         },
                         {
                             "id": "d-cards",
                             "name": "Go to Cards",
                             "icon": "yi-square",
-                            "action": { "type": "navigate", "route": "/cards" }
+                            "action": {
+                                "type": "navigate",
+                                "route": "/cards"
+                            }
                         },
-                        { "type": "divider" },
+                        {
+                            "type": "divider"
+                        },
                         {
                             "id": "d-dev",
                             "name": "Developer window",
                             "icon": "yi-terminal",
-                            "action": { "type": "event", "event": "EV_OPEN_DEVTOOLS" }
+                            "action": {
+                                "type": "event",
+                                "event": "EV_OPEN_DEVTOOLS"
+                            }
                         },
                         {
                             "id": "d-theme",
                             "name": "Toggle theme",
                             "icon": "yi-moon",
-                            "action": { "type": "event", "event": "EV_TOGGLE_THEME" }
+                            "action": {
+                                "type": "event",
+                                "event": "EV_TOGGLE_THEME"
+                            }
+                        },
+                        {
+                            "type": "divider"
+                        },
+                        {
+                            "id": "d-about",
+                            "name": "About",
+                            "icon": "yi-question",
+                            "action": {
+                                "type": "event",
+                                "event": "EV_ABOUT"
+                            }
                         }
                     ]
                 }
             }
         ]
     },
-
     "menu": {
         "primary": {
             "_comment": "Rendered VERTICAL in the left rail (desktop) and as an ICON-BAR in the bottom bar (mobile) — same items, two zones, no duplication. This is layouts #1 (vertical) and #2 (icon-bar).",
             "render": {
-                "left":   { "layout": "vertical", "icon_pos": "left", "show_label": true },
-                "bottom": { "layout": "icon-bar", "icon_pos": "top",  "show_label": true }
+                "left": {
+                    "layout": "vertical",
+                    "icon_pos": "left",
+                    "show_label": true
+                },
+                "bottom": {
+                    "layout": "icon-bar",
+                    "icon_pos": "top",
+                    "show_label": true
+                }
             },
             "items": [
                 {
@@ -109,22 +171,67 @@
                     "tooltip": "Secondary nav as a horizontal tab strip (top-sub)",
                     "route": "/tabs",
                     "submenu": {
-                        "render": { "top-sub": "tabs" },
+                        "render": {
+                            "top-sub": "tabs"
+                        },
                         "items": [
                             {
-                                "id": "a", "name": "Tab A", "icon": "yi-eye", "route": "/tabs/a",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Tabs — Tab A", "lead": "The secondary nav above is layout \"tabs\": a Bulma .tabs strip in the top-sub zone. Tab strips have no room for section headers, so decorative header/divider items are silently dropped here.", "badges": ["left: vertical", "top-sub: tabs"] } }
+                                "id": "a",
+                                "name": "Tab A",
+                                "icon": "yi-eye",
+                                "route": "/tabs/a",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Tabs — Tab A",
+                                        "lead": "The secondary nav above is layout \"tabs\": a Bulma .tabs strip in the top-sub zone. Tab strips have no room for section headers, so decorative header/divider items are silently dropped here.",
+                                        "badges": [
+                                            "left: vertical",
+                                            "top-sub: tabs"
+                                        ]
+                                    }
+                                }
                             },
                             {
-                                "id": "b", "name": "Tab B", "icon": "yi-cog", "route": "/tabs/b",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Tabs — Tab B", "lead": "Same tab strip; a different leaf mounted in the main stage. keep_alive: switch tabs and come back — the instance number below does not change.", "badges": ["left: vertical", "top-sub: tabs"] } }
+                                "id": "b",
+                                "name": "Tab B",
+                                "icon": "yi-cog",
+                                "route": "/tabs/b",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Tabs — Tab B",
+                                        "lead": "Same tab strip; a different leaf mounted in the main stage. keep_alive: switch tabs and come back — the instance number below does not change.",
+                                        "badges": [
+                                            "left: vertical",
+                                            "top-sub: tabs"
+                                        ]
+                                    }
+                                }
                             },
                             {
-                                "id": "c", "name": "Tab C", "icon": "yi-user", "route": "/tabs/c",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "lazy_destroy",
-                                    "kw": { "title": "Tabs — Tab C", "lead": "This leaf is lazy_destroy: leave it and it is destroyed; return and the instance number below has incremented (a fresh gobj was built).", "badges": ["left: vertical", "top-sub: tabs", "lifecycle: lazy_destroy"] } }
+                                "id": "c",
+                                "name": "Tab C",
+                                "icon": "yi-user",
+                                "route": "/tabs/c",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "lazy_destroy",
+                                    "kw": {
+                                        "title": "Tabs — Tab C",
+                                        "lead": "This leaf is lazy_destroy: leave it and it is destroyed; return and the instance number below has incremented (a fresh gobj was built).",
+                                        "badges": [
+                                            "left: vertical",
+                                            "top-sub: tabs",
+                                            "lifecycle: lazy_destroy"
+                                        ]
+                                    }
+                                }
                             }
                         ]
                     }
@@ -136,25 +243,77 @@
                     "tooltip": "Secondary nav as a titled vertical list on the right",
                     "route": "/submenu",
                     "submenu": {
-                        "render": { "right": "submenu" },
+                        "render": {
+                            "right": "submenu"
+                        },
                         "items": [
-                            { "type": "header", "name": "Account" },
                             {
-                                "id": "profile", "name": "Profile", "icon": "yi-user", "route": "/submenu/profile",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Side submenu — Profile", "lead": "The right-hand list is layout \"submenu\": a Bulma .menu with a heading. Unlike tabs, it renders decorative type:\"header\" and type:\"divider\" items — see the \"Account\" / \"Security\" group labels.", "badges": ["left: vertical", "right: submenu"] } }
+                                "type": "header",
+                                "name": "Account"
                             },
                             {
-                                "id": "sessions", "name": "Sessions", "icon": "yi-eye", "route": "/submenu/sessions",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Side submenu — Sessions", "lead": "Grouping without a third nav level: header + divider items chunk the list visually while the route tree stays two levels deep.", "badges": ["left: vertical", "right: submenu"] } }
+                                "id": "profile",
+                                "name": "Profile",
+                                "icon": "yi-user",
+                                "route": "/submenu/profile",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Side submenu — Profile",
+                                        "lead": "The right-hand list is layout \"submenu\": a Bulma .menu with a heading. Unlike tabs, it renders decorative type:\"header\" and type:\"divider\" items — see the \"Account\" / \"Security\" group labels.",
+                                        "badges": [
+                                            "left: vertical",
+                                            "right: submenu"
+                                        ]
+                                    }
+                                }
                             },
-                            { "type": "divider" },
-                            { "type": "header", "name": "Security" },
                             {
-                                "id": "tokens", "name": "Tokens", "icon": "yi-lock", "route": "/submenu/tokens",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Side submenu — Tokens", "lead": "On mobile the right zone is hidden (show_on \">=desktop\") — resize the window narrow and this secondary nav collapses; the primary icon-bar at the bottom takes over.", "badges": ["left: vertical", "right: submenu"] } }
+                                "id": "sessions",
+                                "name": "Sessions",
+                                "icon": "yi-eye",
+                                "route": "/submenu/sessions",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Side submenu — Sessions",
+                                        "lead": "Grouping without a third nav level: header + divider items chunk the list visually while the route tree stays two levels deep.",
+                                        "badges": [
+                                            "left: vertical",
+                                            "right: submenu"
+                                        ]
+                                    }
+                                }
+                            },
+                            {
+                                "type": "divider"
+                            },
+                            {
+                                "type": "header",
+                                "name": "Security"
+                            },
+                            {
+                                "id": "tokens",
+                                "name": "Tokens",
+                                "icon": "yi-lock",
+                                "route": "/submenu/tokens",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Side submenu — Tokens",
+                                        "lead": "On mobile the right zone is hidden (show_on \">=desktop\") — resize the window narrow and this secondary nav collapses; the primary icon-bar at the bottom takes over.",
+                                        "badges": [
+                                            "left: vertical",
+                                            "right: submenu"
+                                        ]
+                                    }
+                                }
                             }
                         ]
                     }
@@ -167,28 +326,90 @@
                     "route": "/cards",
                     "submenu": {
                         "_comment": "index:true turns /cards into a real, deep-linkable landing rendered as a CARDS grid (a synthesized C_YUI_NAV, layout:\"cards\"). Tabs and cards never coexist: the tab strip defaults to >=tablet, and on mobile a BACKBAR (< Cards) replaces it inside each child view.",
-                        "render": { "top-sub": "tabs" },
+                        "render": {
+                            "top-sub": "tabs"
+                        },
                         "index": true,
                         "items": [
                             {
-                                "id": "alpha", "name": "Alpha", "icon": "yi-eye", "route": "/cards/alpha",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Cards — Alpha", "lead": "You reached this from the CARDS landing at /cards (layout \"cards\": a grid of tappable cards, one per item). On desktop a tab strip is available on top; on mobile a \"< Cards\" backbar replaces it.", "badges": ["left: vertical", "landing: cards", "top-sub: tabs (>=tablet)", "backbar (<tablet)"] } }
+                                "id": "alpha",
+                                "name": "Alpha",
+                                "icon": "yi-eye",
+                                "route": "/cards/alpha",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Cards — Alpha",
+                                        "lead": "You reached this from the CARDS landing at /cards (layout \"cards\": a grid of tappable cards, one per item). On desktop a tab strip is available on top; on mobile a \"< Cards\" backbar replaces it.",
+                                        "badges": [
+                                            "left: vertical",
+                                            "landing: cards",
+                                            "top-sub: tabs (>=tablet)",
+                                            "backbar (<tablet)"
+                                        ]
+                                    }
+                                }
                             },
                             {
-                                "id": "beta", "name": "Beta", "icon": "yi-cog", "route": "/cards/beta",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Cards — Beta", "lead": "Navigate back to /cards (brand → then the Cards item, or the backbar on mobile) to see the card grid landing itself.", "badges": ["left: vertical", "landing: cards", "top-sub: tabs (>=tablet)", "backbar (<tablet)"] } }
+                                "id": "beta",
+                                "name": "Beta",
+                                "icon": "yi-cog",
+                                "route": "/cards/beta",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Cards — Beta",
+                                        "lead": "Navigate back to /cards (brand → then the Cards item, or the backbar on mobile) to see the card grid landing itself.",
+                                        "badges": [
+                                            "left: vertical",
+                                            "landing: cards",
+                                            "top-sub: tabs (>=tablet)",
+                                            "backbar (<tablet)"
+                                        ]
+                                    }
+                                }
                             },
                             {
-                                "id": "gamma", "name": "Gamma", "icon": "yi-user", "route": "/cards/gamma",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Cards — Gamma", "lead": "The cards landing is a resting, deep-linkable route (unlike Tabs/Submenu, whose bare parent route redirects to the first child).", "badges": ["left: vertical", "landing: cards"] } }
+                                "id": "gamma",
+                                "name": "Gamma",
+                                "icon": "yi-user",
+                                "route": "/cards/gamma",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Cards — Gamma",
+                                        "lead": "The cards landing is a resting, deep-linkable route (unlike Tabs/Submenu, whose bare parent route redirects to the first child).",
+                                        "badges": [
+                                            "left: vertical",
+                                            "landing: cards"
+                                        ]
+                                    }
+                                }
                             },
                             {
-                                "id": "delta", "name": "Delta", "icon": "yi-lock", "route": "/cards/delta",
-                                "target": { "stage": "main", "gclass": "C_TEST_VIEW", "lifecycle": "keep_alive",
-                                    "kw": { "title": "Cards — Delta", "lead": "Four cards, four leaves. Add a fifth item to submenu.items and the grid grows automatically.", "badges": ["left: vertical", "landing: cards"] } }
+                                "id": "delta",
+                                "name": "Delta",
+                                "icon": "yi-lock",
+                                "route": "/cards/delta",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "lifecycle": "keep_alive",
+                                    "kw": {
+                                        "title": "Cards — Delta",
+                                        "lead": "Four cards, four leaves. Add a fifth item to submenu.items and the grid grows automatically.",
+                                        "badges": [
+                                            "left: vertical",
+                                            "landing: cards"
+                                        ]
+                                    }
+                                }
                             }
                         ]
                     }
@@ -206,25 +427,81 @@
                         "kw": {
                             "title": "Accordion",
                             "lead": "Accordion is a PRIMARY-zone layout: its first-level entries are collapsible sections and their bodies are the second-level items. Because those bodies are the routable 2nd level, accordion can't be a 3rd-level submenu — so this chapter embeds a live accordion nav below. Click a section head to expand; click a leaf to navigate for real.",
-                            "badges": ["left: vertical", "embedded: accordion"],
+                            "badges": [
+                                "left: vertical",
+                                "embedded: accordion"
+                            ],
                             "nav_items": [
-                                { "id": "acc-tabs", "name": "Tabs", "icon": "yi-square-check", "route": "/tabs",
-                                  "submenu": { "items": [
-                                      { "id": "acc-a", "name": "Tab A", "route": "/tabs/a" },
-                                      { "id": "acc-b", "name": "Tab B", "route": "/tabs/b" },
-                                      { "id": "acc-c", "name": "Tab C", "route": "/tabs/c" }
-                                  ] } },
-                                { "id": "acc-submenu", "name": "Side submenu", "icon": "yi-arrow-right", "route": "/submenu",
-                                  "submenu": { "items": [
-                                      { "id": "acc-profile", "name": "Profile", "route": "/submenu/profile" },
-                                      { "id": "acc-sessions", "name": "Sessions", "route": "/submenu/sessions" },
-                                      { "id": "acc-tokens", "name": "Tokens", "route": "/submenu/tokens" }
-                                  ] } },
-                                { "id": "acc-cards", "name": "Cards", "icon": "yi-square", "route": "/cards",
-                                  "submenu": { "items": [
-                                      { "id": "acc-alpha", "name": "Alpha", "route": "/cards/alpha" },
-                                      { "id": "acc-beta", "name": "Beta", "route": "/cards/beta" }
-                                  ] } }
+                                {
+                                    "id": "acc-tabs",
+                                    "name": "Tabs",
+                                    "icon": "yi-square-check",
+                                    "route": "/tabs",
+                                    "submenu": {
+                                        "items": [
+                                            {
+                                                "id": "acc-a",
+                                                "name": "Tab A",
+                                                "route": "/tabs/a"
+                                            },
+                                            {
+                                                "id": "acc-b",
+                                                "name": "Tab B",
+                                                "route": "/tabs/b"
+                                            },
+                                            {
+                                                "id": "acc-c",
+                                                "name": "Tab C",
+                                                "route": "/tabs/c"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "id": "acc-submenu",
+                                    "name": "Side submenu",
+                                    "icon": "yi-arrow-right",
+                                    "route": "/submenu",
+                                    "submenu": {
+                                        "items": [
+                                            {
+                                                "id": "acc-profile",
+                                                "name": "Profile",
+                                                "route": "/submenu/profile"
+                                            },
+                                            {
+                                                "id": "acc-sessions",
+                                                "name": "Sessions",
+                                                "route": "/submenu/sessions"
+                                            },
+                                            {
+                                                "id": "acc-tokens",
+                                                "name": "Tokens",
+                                                "route": "/submenu/tokens"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "id": "acc-cards",
+                                    "name": "Cards",
+                                    "icon": "yi-square",
+                                    "route": "/cards",
+                                    "submenu": {
+                                        "items": [
+                                            {
+                                                "id": "acc-alpha",
+                                                "name": "Alpha",
+                                                "route": "/cards/alpha"
+                                            },
+                                            {
+                                                "id": "acc-beta",
+                                                "name": "Beta",
+                                                "route": "/cards/beta"
+                                            }
+                                        ]
+                                    }
+                                }
                             ]
                         }
                     }
@@ -284,7 +561,9 @@
                     "tooltip": "A uPlot time-series chart",
                     "route": "/chart",
                     "target": {
-                        "stage": "main", "gclass": "C_DEMO_CHART", "lifecycle": "keep_alive",
+                        "stage": "main",
+                        "gclass": "C_DEMO_CHART",
+                        "lifecycle": "keep_alive",
                         "kw": {
                             "title": "Chart",
                             "lead": "The gobj-ui uPlot component C_YUI_UPLOT. Series are added with EV_ADD_SERIE and rows fed with EV_LOAD_DATA (a unix-epoch-seconds x-axis). Hover to read values; drag to zoom. Fully offline."
@@ -298,7 +577,9 @@
                     "tooltip": "The live gobj tree of this very yuno (G6)",
                     "route": "/tree",
                     "target": {
-                        "stage": "main", "gclass": "C_DEMO_TREE", "lifecycle": "keep_alive",
+                        "stage": "main",
+                        "gclass": "C_DEMO_TREE",
+                        "lifecycle": "keep_alive",
                         "kw": {
                             "title": "Gobj tree",
                             "lead": "C_YUI_GOBJ_TREE_JS introspects the running yuno and draws its live gobj tree with G6 — self-referential: you see the yuno, this view and the tree component itself. Use the toolbar to zoom, center, and expand/collapse. No data, no backend."
@@ -312,7 +593,9 @@
                     "tooltip": "Any JSON value as a hierarchical G6 graph",
                     "route": "/json",
                     "target": {
-                        "stage": "main", "gclass": "C_DEMO_JSON", "lifecycle": "keep_alive",
+                        "stage": "main",
+                        "gclass": "C_DEMO_JSON",
+                        "lifecycle": "keep_alive",
                         "kw": {
                             "title": "JSON graph",
                             "lead": "C_YUI_JSON_GRAPH renders an arbitrary JSON value as a hierarchical graph (objects/arrays as group nodes, scalars as rows). Click a node to emit EV_JSON_ITEM_CLICKED. Fully offline."
@@ -326,7 +609,9 @@
                     "tooltip": "A multi-step wizard (Back / Next / Confirm)",
                     "route": "/wizard",
                     "target": {
-                        "stage": "main", "gclass": "C_DEMO_WIZARD", "lifecycle": "keep_alive",
+                        "stage": "main",
+                        "gclass": "C_DEMO_WIZARD",
+                        "lifecycle": "keep_alive",
                         "kw": {
                             "title": "Wizard",
                             "lead": "C_YUI_WIZARD walks ordered steps with a title + \"N / M\" counter + Back/Next, turning into Confirm on the last step. Steps are fed with EV_SET_STEPS; Confirm publishes EV_WIZARD_DONE (echoed below the wizard). Fully offline."
@@ -340,7 +625,9 @@
                     "tooltip": "A drill-down page stack (← back)",
                     "route": "/pager",
                     "target": {
-                        "stage": "main", "gclass": "C_DEMO_PAGER", "lifecycle": "keep_alive",
+                        "stage": "main",
+                        "gclass": "C_DEMO_PAGER",
+                        "lifecycle": "keep_alive",
                         "kw": {
                             "title": "Pager",
                             "lead": "C_YUI_PAGER stacks panels with a \"← title\" header (drill-down, no confirm chrome). Push a page with the button, pop back with the header \"←\". Pages here are plain content; a real one would push a C_YUI_FORM. Fully offline."
@@ -354,7 +641,9 @@
                     "tooltip": "A MapLibre map with markers (needs network)",
                     "route": "/map",
                     "target": {
-                        "stage": "main", "gclass": "C_DEMO_MAP", "lifecycle": "keep_alive",
+                        "stage": "main",
+                        "gclass": "C_DEMO_MAP",
+                        "lifecycle": "keep_alive",
                         "kw": {
                             "title": "Map",
                             "lead": "C_YUI_MAP (MapLibre) rendered into an external sized element, with a few Spanish cities as markers. NOTE: the basemap tiles come from tiles.openfreemap.org, so this chapter needs network; offline it shows a blank map with controls."
@@ -363,24 +652,90 @@
                 }
             ]
         },
-
         "quick": {
             "_comment": "A menu rendered with layout:\"drawer\": an off-canvas panel on the overlay layer (its inner list reuses the vertical renderer). Opened by the toolbar burger. Items carry only a route and no target, so they resolve to the same route-index entries as the primary menu — no duplicate view gobjs.",
-            "render": { "overlay": "drawer" },
+            "render": {
+                "overlay": "drawer"
+            },
             "items": [
-                { "id": "q-tabs",      "name": "Tabs",         "icon": "yi-square-check", "route": "/tabs" },
-                { "id": "q-submenu",   "name": "Side submenu", "icon": "yi-arrow-right", "route": "/submenu" },
-                { "id": "q-cards",     "name": "Cards",        "icon": "yi-square",      "route": "/cards" },
-                { "id": "q-accordion", "name": "Accordion",    "icon": "yi-copy",        "route": "/accordion" },
-                { "id": "q-form",      "name": "Form",         "icon": "yi-pen",         "route": "/form" },
-                { "id": "q-table",     "name": "Table",        "icon": "yi-table",       "route": "/table" },
-                { "id": "q-treedb",    "name": "TreeDB",       "icon": "yi-hexagon-nodes", "route": "/treedb" },
-                { "id": "q-chart",     "name": "Chart",        "icon": "yi-eye",           "route": "/chart" },
-                { "id": "q-tree",      "name": "Gobj tree",    "icon": "yi-hexagon-nodes", "route": "/tree" },
-                { "id": "q-json",      "name": "JSON graph",   "icon": "yi-square-js",     "route": "/json" },
-                { "id": "q-wizard",    "name": "Wizard",       "icon": "yi-cog",           "route": "/wizard" },
-                { "id": "q-pager",     "name": "Pager",        "icon": "yi-bars",          "route": "/pager" },
-                { "id": "q-map",       "name": "Map",          "icon": "yi-location-dot",  "route": "/map" }
+                {
+                    "id": "q-tabs",
+                    "name": "Tabs",
+                    "icon": "yi-square-check",
+                    "route": "/tabs"
+                },
+                {
+                    "id": "q-submenu",
+                    "name": "Side submenu",
+                    "icon": "yi-arrow-right",
+                    "route": "/submenu"
+                },
+                {
+                    "id": "q-cards",
+                    "name": "Cards",
+                    "icon": "yi-square",
+                    "route": "/cards"
+                },
+                {
+                    "id": "q-accordion",
+                    "name": "Accordion",
+                    "icon": "yi-copy",
+                    "route": "/accordion"
+                },
+                {
+                    "id": "q-form",
+                    "name": "Form",
+                    "icon": "yi-pen",
+                    "route": "/form"
+                },
+                {
+                    "id": "q-table",
+                    "name": "Table",
+                    "icon": "yi-table",
+                    "route": "/table"
+                },
+                {
+                    "id": "q-treedb",
+                    "name": "TreeDB",
+                    "icon": "yi-hexagon-nodes",
+                    "route": "/treedb"
+                },
+                {
+                    "id": "q-chart",
+                    "name": "Chart",
+                    "icon": "yi-eye",
+                    "route": "/chart"
+                },
+                {
+                    "id": "q-tree",
+                    "name": "Gobj tree",
+                    "icon": "yi-hexagon-nodes",
+                    "route": "/tree"
+                },
+                {
+                    "id": "q-json",
+                    "name": "JSON graph",
+                    "icon": "yi-square-js",
+                    "route": "/json"
+                },
+                {
+                    "id": "q-wizard",
+                    "name": "Wizard",
+                    "icon": "yi-cog",
+                    "route": "/wizard"
+                },
+                {
+                    "id": "q-pager",
+                    "name": "Pager",
+                    "icon": "yi-bars",
+                    "route": "/pager"
+                },
+                {
+                    "id": "q-map",
+                    "name": "Map",
+                    "icon": "yi-location-dot",
+                    "route": "/map"
+                }
             ]
         }
     }

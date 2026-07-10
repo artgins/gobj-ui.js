@@ -24,6 +24,7 @@ import {
     gobj_is_running,
     gobj_stop_tree,
     gobj_destroy,
+    createElement2,
     refresh_language,
 } from "@yuneta/gobj-js";
 
@@ -32,6 +33,8 @@ import {
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
+
+import {yui_shell_show_modal} from "@yuneta/gobj-ui/index.js";
 
 import {setup_dev, dev_window_was_open} from "@yuneta/gobj-ui/src/yui_dev.js";
 
@@ -93,6 +96,7 @@ function mt_create(gobj)
     gobj_subscribe_event(shell, "EV_TOGGLE_THEME",    {}, gobj);
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
+    gobj_subscribe_event(shell, "EV_ABOUT",           {}, gobj);
 
     /*  The shell never reads a user model; it asks this provider for
      *  the avatar text. A static badge is enough for the demo. */
@@ -216,6 +220,40 @@ function ac_open_devtools(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  Account-menu "About" entry (action:event EV_ABOUT). Shows a
+ *  modal with the demo / gobj-ui / bundled-JSON-editor versions
+ *  (injected by vite `define` from the respective package.json).
+ ***************************************************************/
+function ac_about(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    let row = (label, value) => ["tr", {}, [
+        ["td", {class: "has-text-grey pr-4", i18n: label, style: "white-space:nowrap;"}, label],
+        ["td", {class: "has-text-weight-medium"},
+            [["code", {}, value]]]
+    ]];
+
+    let $content = createElement2(
+        ["div", {class: "DEMO_ABOUT content", style: "min-width:16rem;"}, [
+            ["p", {class: "is-size-6 mb-3 has-text-grey", i18n: "gobj-ui demo"},
+                "gobj-ui demo"],
+            ["table", {class: "table is-narrow"}, [
+                ["tbody", {}, [
+                    row("gobj-ui", __GOBJ_UI_VERSION__),
+                    row("App", __APP_VERSION__),
+                    row("JSON editor", "vanilla-jsoneditor " + __JSONEDITOR_VERSION__)
+                ]]
+            ]]
+        ]]
+    );
+
+    yui_shell_show_modal(priv.shell, $content, {dialog: true, title: "About"});
+    refresh_language($content, t);
+    return 0;
+}
+
 
 
 
@@ -249,7 +287,8 @@ function create_gclass(gclass_name)
         ["ST_IDLE", [
             ["EV_TOGGLE_THEME",     ac_toggle_theme,     null],
             ["EV_TOGGLE_LANGUAGE",  ac_toggle_language,  null],
-            ["EV_OPEN_DEVTOOLS",    ac_open_devtools,    null]
+            ["EV_OPEN_DEVTOOLS",    ac_open_devtools,    null],
+            ["EV_ABOUT",            ac_about,            null]
         ]]
     ];
 
@@ -259,7 +298,8 @@ function create_gclass(gclass_name)
     const event_types = [
         ["EV_TOGGLE_THEME",     0],
         ["EV_TOGGLE_LANGUAGE",  0],
-        ["EV_OPEN_DEVTOOLS",    0]
+        ["EV_OPEN_DEVTOOLS",    0],
+        ["EV_ABOUT",            0]
     ];
 
     __gclass__ = gclass_create(

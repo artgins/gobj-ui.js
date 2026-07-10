@@ -53,7 +53,7 @@ import {t} from "i18next";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 import TomSelect from "tom-select"; // Import Tom-Select JS
 
-import { JSONEditor } from 'vanilla-jsoneditor';
+import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
@@ -1250,7 +1250,7 @@ function create_form_field(
             let extend = ['div', attrs];
             $extend = createElement2(extend);
             $control.appendChild($extend);
-            $extend.jsoneditor = new JSONEditor({
+            $extend.jsoneditor = createJSONEditor({
                 target: $extend,
                 props: {
                     readOnly: !!readonly,
