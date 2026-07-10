@@ -262,6 +262,22 @@
                     }
                 },
                 {
+                    "id": "treedb",
+                    "name": "TreeDB",
+                    "icon": "yi-hexagon-nodes",
+                    "tooltip": "A treedb topic table whose edit dialog hosts C_YUI_FORM",
+                    "route": "/treedb",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_DEMO_TREEDB",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "TreeDB",
+                            "lead": "The real C_YUI_TREEDB_TOPIC_WITH_FORM against an in-memory backend (this view answers get_topic_data and echoes the published record events). Press EDIT, then a row's pen icon — the dialog is a hosted C_YUI_FORM: readonly pkey on update, fkey TomSelects fed with sibling-topic rows, a raw-JSON editor for the dict col, and the form's own bottom toolbar as dialog footer. NEW opens the same form in create mode."
+                        }
+                    }
+                },
+                {
                     "id": "chart",
                     "name": "Chart",
                     "icon": "yi-eye",
@@ -358,6 +374,7 @@
                 { "id": "q-accordion", "name": "Accordion",    "icon": "yi-copy",        "route": "/accordion" },
                 { "id": "q-form",      "name": "Form",         "icon": "yi-pen",         "route": "/form" },
                 { "id": "q-table",     "name": "Table",        "icon": "yi-table",       "route": "/table" },
+                { "id": "q-treedb",    "name": "TreeDB",       "icon": "yi-hexagon-nodes", "route": "/treedb" },
                 { "id": "q-chart",     "name": "Chart",        "icon": "yi-eye",           "route": "/chart" },
                 { "id": "q-tree",      "name": "Gobj tree",    "icon": "yi-hexagon-nodes", "route": "/tree" },
                 { "id": "q-json",      "name": "JSON graph",   "icon": "yi-square-js",     "route": "/json" },

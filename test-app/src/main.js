@@ -36,12 +36,15 @@ import {register_c_yui_wizard}       from "@yuneta/gobj-ui/src/c_yui_wizard.js";
 import {register_c_yui_pager}        from "@yuneta/gobj-ui/src/c_yui_pager.js";
 import {register_c_yui_map}          from "@yuneta/gobj-ui/src/c_yui_map.js";
 import {register_c_yui_window}       from "@yuneta/gobj-ui/src/c_yui_window.js";
+import {register_c_yui_treedb_topic_with_form}
+    from "@yuneta/gobj-ui/src/c_yui_treedb_topic_with_form.js";
 
 import {register_c_demo}        from "./c_demo.js";
 import {register_c_demo_main}   from "./c_demo_main.js";
 import {register_c_test_view}   from "./c_test_view.js";
 import {register_c_demo_form}   from "./c_demo_form.js";
 import {register_c_demo_table}  from "./c_demo_table.js";
+import {register_c_demo_treedb} from "./c_demo_treedb.js";
 import {register_c_demo_chart}  from "./c_demo_chart.js";
 import {register_c_demo_tree}   from "./c_demo_tree.js";
 import {register_c_demo_json}   from "./c_demo_json.js";
@@ -81,6 +84,7 @@ function main()
     register_c_yui_shell();
     register_c_yui_nav();
     register_c_yui_form();
+    register_c_yui_treedb_topic_with_form();
     register_c_yui_uplot();
     register_c_yui_gobj_tree_js();
     register_c_yui_json_graph();
@@ -94,6 +98,7 @@ function main()
     register_c_test_view();
     register_c_demo_form();
     register_c_demo_table();
+    register_c_demo_treedb();
     register_c_demo_chart();
     register_c_demo_tree();
     register_c_demo_json();

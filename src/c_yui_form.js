@@ -52,6 +52,9 @@ import {t} from "i18next";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 import TomSelect from "tom-select"; // Import Tom-Select JS
 
+import { JSONEditor } from 'vanilla-jsoneditor';
+import "vanilla-jsoneditor/themes/jse-theme-dark.css";
+
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
@@ -507,12 +510,13 @@ function build_form_field_conf(gobj, field_desc)
     switch(field_desc.type) {
         case "object":
         case "dict":
-            field_conf.tag = "fieldset";
+            /*  free-form dict (no subschema mechanism) edits as raw
+             *  JSON; structured dicts use the "template" flag  */
+            field_conf.tag = "jsoneditor";
             break;
 
         case "template":
             field_conf.tag = "fieldset";
-            // TODO si es para editar, tiene que ser field_conf.tag = "jsoneditor";
             field_conf.options = field_desc.enum_list;
             break;
 
@@ -527,7 +531,9 @@ function build_form_field_conf(gobj, field_desc)
 
         case "array":
         case "list":
-            field_conf.tag = "table";
+            /*  free-form list (no subschema) edits as raw JSON;
+             *  structured lists use the "table" flag  */
+            field_conf.tag = "jsoneditor";
             break;
 
         case "enum":
@@ -1210,6 +1216,7 @@ function create_form_field(
         {
             let attrs = {
                 class: 'jsoneditor jse-theme-dark',
+                name: name,
                 style: ''
             };
             Object.assign(attrs, extras);
@@ -1222,6 +1229,22 @@ function create_form_field(
             let extend = ['div', attrs];
             $extend = createElement2(extend);
             $control.appendChild($extend);
+            $extend.jsoneditor = new JSONEditor({
+                target: $extend,
+                props: {
+                    readOnly: !!readonly,
+                    onChange: function() {
+                        gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+                    },
+                    timestampTag: function({field, value, path}) {
+                        return field === '__t__' || field === '__tm__' ||
+                            field === 'tm' || field === 't' || field === 'time' ||
+                            field === 'from_t' || field === 'to_t' ||
+                            field === 't_input' || field === 't_output' ||
+                            field === 'from_tm' || field === 'to_tm';
+                    },
+                }
+            });
             break;
         }
 
@@ -2323,17 +2346,22 @@ function treedb_value_2_form_value(gobj, field_desc, value)
 
         case "string":
         case "integer":
-        case "object":
-        case "dict":
-        case "array":
-        case "list":
         case "real":
         case "boolean":
             break;
+        case "object":
+        case "dict":
+            /*  jsoneditor Content shape  */
+            value = {json: is_object(value)? value : {}};
+            break;
         case "blob":
-            // Return as it is, manage by jsoneditor
-            // TODO si es para editar, tiene que ser
-            // value = {json: value};
+            /*  jsoneditor Content shape (a blob may hold any json)  */
+            value = {json: (is_object(value) || is_array(value))? value : {}};
+            break;
+        case "array":
+        case "list":
+            /*  jsoneditor Content shape  */
+            value = {json: is_array(value)? value : []};
             break;
         case "number":
             break;

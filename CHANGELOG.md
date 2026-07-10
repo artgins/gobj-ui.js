@@ -7,6 +7,39 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(treedb): `C_YUI_TREEDB_TOPIC_WITH_FORM`'s edit/create dialog is
+  now a hosted `C_YUI_FORM`** — final step of the single-form
+  consolidation: the ~1000-line embedded modal form (its own field
+  builder, get/set/clear/validate, form modes, fkey select2, jsoneditor
+  wiring) is deleted; the dialog builds a fresh `C_YUI_FORM` child per
+  open (schema pruned to editable cols + pkey, fkey options collected
+  from the parent's `get_topic_data` — so new parent rows always appear,
+  fixing the stale-options bug of the built-once modal) and destroys it
+  on close. The form's bottom toolbar acts as the dialog footer; the
+  dialog X honours unsaved changes via the `EV_WINDOW_TO_CLOSE` contract
+  (confirm before discarding — an old TODO). `EV_SAVE_RECORD` from the
+  child arrives already in treedb shape and is routed by its `form_mode`
+  to the published `EV_CREATE_RECORD`/`EV_UPDATE_RECORD` (rowid pkeys
+  keep the append-on-edit semantics); the close is deferred out of the
+  publish stack (never destroy the publisher synchronously). External
+  contract unchanged (same input/output events, same `get_topic_data`
+  dependency); `register_c_yui_treedb_topic_with_form()` auto-registers
+  `C_YUI_FORM` if the app didn't. Row copy/paste keeps its own
+  table-level transforms.
+  To make the hosted form reach parity, `C_YUI_FORM`'s `jsoneditor` tag
+  is now real: it instantiates vanilla-jsoneditor (dark theme,
+  timestamp tags, `onChange` → dirty tracking) — before, the div was
+  created but no editor ever attached — and free-form `dict`/`object`
+  and `array`/`list` cols route to it (values wrapped/unwrapped as
+  editor Content), replacing the previous dead ends (an always-empty
+  fieldset / a zero-column tabulator); structured `template` and
+  `table` flags keep their fieldset/tabulator widgets.
+  The test-app gains a **TreeDB chapter**: the real topic gclass against
+  an in-memory backend (the view answers `get_topic_data` and echoes
+  the published record events back as the backend broadcast), covering
+  table render, edit/create dialogs, fkey selects, raw-JSON dict
+  editing, unsaved-changes guard and delete.
+
 - **feat(form): `C_YUI_FORM` renders fkey fields and gains create/update
   form modes** — second step of the single-form consolidation (the treedb
   stack's modal form duplicated both features; they now live in the one

@@ -27,7 +27,6 @@ import {
     is_string,
     is_object,
     str_in_list,
-    createOneHtml,
     getPositionRelativeToBody,
     treedb_get_field_desc,
     treedb_decoder_fkey,
@@ -37,11 +36,15 @@ import {
     treedb_hook_data_size,
     parseBoolean,
     json_size,
-    list2options,
     trace_msg,
     log_warning,
-    kw_get_local_storage_value,
     kwid_get_ids,
+    gobj_create_pure_child,
+    gobj_start,
+    gobj_stop,
+    gobj_destroy,
+    gobj_is_running,
+    gclass_find_by_name,
     gobj_write_attr,
     gobj_read_bool_attr,
     gobj_read_str_attr,
@@ -58,13 +61,9 @@ import {
     get_ok,
 } from "./c_yui_main.js";
 
+import {register_c_yui_form} from "./c_yui_form.js";
+
 import {t} from "i18next";
-
-import { JSONEditor } from 'vanilla-jsoneditor';
-import "vanilla-jsoneditor/themes/jse-theme-dark.css";
-
-import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
-import TomSelect from "tom-select"; // Import Tom-Select JS
 
 import "./c_yui_treedb_topic_with_form.css";
 
@@ -121,7 +120,6 @@ SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "HTML contai
 SDATA(data_type_t.DTP_POINTER,  "tabulator",            0,  null,   "Tabulator instance"),
 SDATA(data_type_t.DTP_STRING,   "table_id",             0,  null,   "Table div ID"),
 SDATA(data_type_t.DTP_STRING,   "toolbar_id",           0,  null,   "Toolbar ID"),
-SDATA(data_type_t.DTP_STRING,   "form_id",              0,  null,   "Edit form ID"),
 SDATA(data_type_t.DTP_STRING,   "popup_id",             0,  null,   "Edit form popup ID"),
 
 SDATA_END()
@@ -132,6 +130,8 @@ let PRIVATE_DATA = {
     treedb_name:        "",
     topic_name:         "",
     tabulator:          null,
+    form:               null,   // hosted C_YUI_FORM child (while dialog open)
+    $popup:             null,   // dialog DOM element
 };
 
 let __gclass__ = null;
@@ -163,7 +163,6 @@ function mt_create(gobj)
     let name = clean_name(gobj_name(gobj));
     gobj_write_attr(gobj, "table_id", "table" + name);
     gobj_write_attr(gobj, "toolbar_id", "toolbar" + name);
-    gobj_write_attr(gobj, "form_id", "form" + name);
     gobj_write_attr(gobj, "popup_id", "popup" + name);
 
     build_ui(gobj);
@@ -191,6 +190,7 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    close_form_dialog(gobj);
     table__destroy(gobj);
 }
 
@@ -1001,844 +1001,210 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
     return value;
 }
 
-/******************************************************************
- *   Build the topic form with bulma and select2
- ******************************************************************/
-function build_topic_form(gobj)
+/************************************************************
+ *  Build the form template from desc.cols: only user-editable
+ *  fields reach the form — writable cols, fkeys (linkable) and
+ *  the pkey (the hosted C_YUI_FORM's form_mode drives the
+ *  pkey's readonly/required state).
+ ************************************************************/
+function build_form_template(gobj)
 {
     let desc = gobj_read_attr(gobj, "desc");
-    let form_id = gobj_read_str_attr(gobj, "form_id");
-    let $form = createElement2(['form', {id: form_id, class: 'box p-3', novalidate: ''}]);
-
-    for (let i = 0; i < desc.cols.length; i++) {
-        let col = desc.cols[i];
-        if(col.id.charAt(0)==='_') {
+    let template = [];
+    for(let col of desc.cols) {
+        if(!col.id || col.id.charAt(0) === '_') {
             continue;
         }
-        let [tag, form_input_type, options, extras] =
-            transform__treedb_type_2_form_type(gobj, col);
-
-        if(!tag) {
+        const field_desc = treedb_get_field_desc(col);
+        if(field_desc.is_hidden) {
             continue;
         }
-        let id = col.id;
-        let flag = col.flag;
-
-        let is_writable = str_in_list(flag, "writable");
-        let is_notnull = str_in_list(flag, "notnull");
-        let is_rowid = str_in_list(flag, "rowid");
-        let is_required = str_in_list(flag, "required");
-        let is_hidden = str_in_list(flag, "hidden");
-        let is_persistent = str_in_list(flag, "persistent");
-        let is_hook = str_in_list(flag, "hook");
-        let is_fkey = str_in_list(flag, "fkey");
-
-        if(1) {
-            /*
-             *  update mode by default
-             */
-            if(id === desc.pkey) {
-                is_writable = false;
-            }
+        if(field_desc.type === "hook") {
+            continue;   // hooks don't appear in forms
         }
-
-        // TODO chequea en backend que los writable no son actualizados desde fuera de programa
-        // if(is_persistent) {
-        //     is_writable = true;
-        // }
-
-        if(is_fkey) {
-            // TODO no debería estar definido con writable?
-            // TODO pueden haber enlaces que solo se puedan hacer por programa
-            is_writable = true;
-        }
-
-        if(!is_writable) {
-            if(id !== desc.pkey) {
-                // Show only fields writable (except pkey)
-                continue;
-            }
-        }
-        if(is_hidden) {
+        if(!field_desc.is_writable &&
+                field_desc.type !== "fkey" && col.id !== desc.pkey) {
             continue;
         }
-
-        if(is_rowid) {
-            is_writable = false;
-            is_required = false;
-            is_notnull = false;
-        }
-
-        let field_conf = {
-            tag: tag,
-            inputType: form_input_type,
-            name: col.id,
-            label: col_label(col, gobj_read_str_attr(gobj, "topic_name")),
-            placeholder: "",
-            options: options,   // select,select2,radio options
-            extras: extras,     // extra html input/textarea attributes
-            readonly: !is_writable,
-            required: is_required,
-            hidden: is_hidden,
-            not_null: is_notnull,
-            is_pkey: (id === desc.pkey),
-            is_rowid: is_rowid
-        };
-
-        let $field = create_html_field(field_conf);
-        $field.field_conf = field_conf;
-
-        $form.appendChild($field);
+        template.push(col);
     }
-    return $form;
+    return template;
 }
 
 /************************************************************
- *  Convert a col type from backend to frontend
- *  Return data to build the HTMLElement
- *
- *  Options format for select/select2:
- *      <option value="reading">Reading</option>
+ *  Collect the linkable parent rows for every fkey col:
+ *  {topic_name: rows}, asked to the topics manager (parent)
+ *  with the same command the old embedded form used. Collected
+ *  fresh on every dialog open, so new parent rows are always
+ *  offered.
  ************************************************************/
-function transform__treedb_type_2_form_type(gobj, col)
+function build_fkey_options(gobj)
 {
-    const field_desc = treedb_get_field_desc(col);
-
-    let tag = null;
-    let inputType = '';
-    let options = [];
-    let extras = {};    // extra html input/textarea attributes
-
-    switch(field_desc.type) {
-        case "image":
-        case "string":
-            tag = 'input';
-            inputType = 'text';
-            break;
-        case "integer":
-            tag = 'input';
-            extras.inputmode = "numeric";
-            break;
-        case "real":
-            tag = 'input';
-            extras.inputmode = "decimal";
-            break;
-
-        case "rowid":
-            tag = 'input';
-            inputType = 'text';
-            break;
-
-        case "boolean":
-            tag = 'checkbox';
-            break;
-
-        case "now":
-        case "time":
-            tag = 'input';
-            inputType = 'datetime-local';
-            switch(field_desc.real_type) {
-                case "string":
-                    break;
-                case "integer":
-                    break;
-            }
-            break;
-        case "color":
-            tag = 'input';
-            inputType = 'color';
-            switch(field_desc.real_type) {
-                case "string":
-                    break;
-                case "integer":
-                    break;
-            }
-            break;
-        case "email":
-            tag = 'input';
-            inputType = 'email';
-            extras.inputmode = "email";
-            break;
-        case "password":
-            tag = 'input';
-            inputType = 'password';
-            break;
-        case "url":
-            tag = 'input';
-            inputType = 'url';
-            extras.inputmode = "url";
-            break;
-        case "tel":
-            tag = 'input';
-            inputType = 'tel';
-            extras.inputmode = "tel";
-            break;
-
-        case "object":
-        case "dict":
-        case "template":
-        case "array":
-        case "list":
-        case "coordinates":
-        case "blob":
-            tag = 'jsoneditor';
-            break;
-
-        case "enum":
-            tag = 'select2';
-            switch(field_desc.real_type) {
-                case "string": // TODO review types
-                case "object":
-                case "dict":
-                case "array":
-                case "list":
-                    options =  list2options(field_desc.enum_list, "id", "id");
-                    break;
-            }
-            break;
-
-        case "hook":
-            // hooks don't appear in form
-            break;
-
-        case "fkey":
-            tag = 'select2';
-            switch(field_desc.real_type) {
-                case "string": // TODO review types
-                case "object":
-                case "dict":
-                case "array":
-                case "list":
-                    options = get_fkey_options(gobj, col);
-                    break;
-            }
-            break;
+    let desc = gobj_read_attr(gobj, "desc");
+    let fkey_options = {};
+    for(let col of desc.cols) {
+        const field_desc = treedb_get_field_desc(col);
+        if(field_desc.type !== "fkey" || !is_object(col.fkey)) {
+            continue;
+        }
+        // HACK we work only with one fkey (same as the whole stack)
+        let topic_name = Object.keys(col.fkey)[0];
+        if(!topic_name || fkey_options[topic_name] !== undefined) {
+            continue;
+        }
+        let webix = gobj_command(
+            gobj_parent(gobj),
+            "get_topic_data",
+            {topic_name: topic_name},
+            gobj
+        );
+        fkey_options[topic_name] = (webix && is_array(webix.data))? webix.data : [];
     }
-
-    return [tag, inputType, options, extras];
+    return fkey_options;
 }
 
-/******************************************************************
- *  Helper function to create different form elements
- *  Available types:
- *      - input
- *      - textarea
- *      - select
- *      - select2
- *      - checkbox
- *      - radio
- *      - jsoneditor
- *
- *  {
- *      tag: field tag,
- *      inputType: input type,
- *      name: id
- *      label: ""
- *      placeholder: "",
- *      options: [{id:"", value:""}]]
- *      extras: {}
- *      readonly: bool
- *      required: bool
- *      hidden: bool
- *      not_null: bool
- *      _col: col
- *  }
- ******************************************************************/
-function create_html_field(
-    {
-        tag,
-        inputType,
-        name,
-        label,
-        placeholder,
-        options,
-        extras, // extra html input/textarea attributes
-        readonly,
-        required,
-        hidden,
-        not_null
-    }
-)
+/************************************************************
+ *  Open the edit/create dialog hosting a C_YUI_FORM child.
+ *  The child is created fresh on every open (schema and fkey
+ *  options are read at its build time) and destroyed on close.
+ *  Its EV_SAVE_RECORD (CHILD model) arrives already in treedb
+ *  shape — see ac_form_save_record().
+ ************************************************************/
+function open_form_dialog(gobj, mode, record)
 {
-    let base;
-    switch (tag) {
-        case 'input':
-        case 'textarea':
-        case 'select':
-        case 'select2':
-        case 'checkbox':
-        case 'radio':
-        case 'jsoneditor':
-            base = [
-                'div', {class: 'xfield field is-horizontal'}, [
-                    ['div', {class: 'field-label is-normal' }, [
-                        ['label', {class:'label ', i18n:label, for:name}, label]
-                    ]],
+    close_form_dialog(gobj);    // only one dialog at a time
 
-                    ['div', {class: 'field-body'}, [
-                        ['div', {class: 'field'}, [
-                            ['div', {class: 'control' }, []]
-                        ]]
-                    ]]
-                ]
-            ];
-            break;
-
-        default:
-            base = ['div', {class: 'control'}, 'Unsupported element type'];
-    }
-
-    let $element = createElement2(base);
-    let $control = $element.querySelector('.control');
-
-    switch (tag) {
-        case 'input':
-        {
-            let attrs = {
-                class: `input ${name==='id'?'with-focus':''}`,
-                name: name,
-                type: inputType,
-                placeholder: placeholder
-            };
-            Object.assign(attrs, extras);
-
-            if(readonly) {
-                attrs.readonly = '';
-            }
-            let extend = ['input', attrs, '', {
-                'blur': function (evt) {
-                    validate_field_on_blur(this);
-                }
-            }];
-
-            let $extend = createElement2(extend);
-            $control.appendChild($extend);
-            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
-            break;
-        }
-
-        case 'jsoneditor':
-        {
-            let attrs = {
-                class: 'jsoneditor jse-theme-dark',
-                style: ''
-            };
-            Object.assign(attrs, extras);
-
-            if(readonly) {
-                attrs.readonly = '';
-            }
-            let extend = ['div', attrs];
-            let $extend = createElement2(extend);
-            $extend.setAttribute('name', name);
-            $control.appendChild($extend);
-            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
-            break;
-        }
-
-        case 'textarea':
-        {
-            let attrs = {class:'textarea', name:name, placeholder: placeholder};
-            Object.assign(attrs, extras);
-
-            if(readonly) {
-                attrs.readonly = '';
-            }
-            let extend = ['textarea', attrs, '', {
-                'blur': function (evt) {
-                    validate_field_on_blur(this);
-                }
-            }];
-            let $extend = createElement2(extend);
-            $control.appendChild($extend);
-            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
-            break;
-        }
-
-        case 'select':
-        {
-            // {id:"id", value:"name"}
-            // <option value="id" data-i18n:"name"> name </option>
-            let extend = ['div', {class: 'select' },
-                ['select',
-                    {name:name},
-                    options.map(option =>
-                        ['option', {value:option.id, i18n:option.value}, option.value]
-                    )
-                ]
-            ];
-            let $extend = createElement2(extend);
-            $control.appendChild($extend);
-            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
-            break;
-        }
-
-        case 'select2':
-        {
-            // {id:"id", value:"name"}
-            // <option value="id" data-i18n:"name"> name </option>
-            let extend = ['select',
-                {
-                    name:name,
-                    class: 'select2-multiple',
-                    multiple:'multiple',
-                    style: 'width: 100% !important;'
-                },
-                options.map(option =>
-                    ['option', {value:option.id, i18n:option.value}, option.value]
-                )
-            ];
-            let $extend = createElement2(extend);
-            $control.appendChild($extend);
-            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
-            break;
-        }
-
-        case 'checkbox':
-        {
-            let extend = ['label', {class: 'checkbox'},
-                ['input', {type: 'checkbox', name:name}]
-            ];
-            let $extend = createElement2(extend);
-            $control.appendChild($extend);
-            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
-            break;
-        }
-
-        case 'radio':
-        {
-            for(const option of options) {
-                // WARNING here can't use data-i18n, the radio element is destroyed.
-                let elm = `
-                   <label class="radio">
-                      <input type="radio" name="${name}">
-                      ${t(option)}
-                    </label>
-                `;
-
-                let $extend = createOneHtml(elm);
-                $control.appendChild($extend);
-            }
-            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
-            break;
-        }
-
-        default:
-            log_error(`Unsupported element type, tag ${tag}`);
-    }
-
-    return $element;
-}
-
-/******************************************************************
- *   Build topic form popup with bulma
- ******************************************************************/
-function build_topic_modal(gobj)
-{
-    const $form = build_topic_form(gobj);
-    let topic_name = gobj_read_str_attr(gobj, "topic_name");
-    let title = t(topic_name);
+    let priv = gobj.priv;
+    let desc = gobj_read_attr(gobj, "desc");
     let popup_id = gobj_read_str_attr(gobj, "popup_id");
+    let topic_name = gobj_read_str_attr(gobj, "topic_name");
 
     let $element = createElement2([
-        'div', {id: popup_id, class: 'modal' }, [
-            ['div', { class: 'modal-background' }, ''],
-            ['div', { class: 'modal-card modal-is-responsive' }, [
-                ['header', { class: 'modal-card-head p-3' }, [
-                    ['p', { class: 'modal-card-title', style:'text-align:center;' }, title],
-                    ['button', {class:"delete is-large", "aria-label":"close"}]
+        'div', {id: popup_id, class: 'modal is-active'}, [
+            ['div', {class: 'modal-background'}, ''],
+            ['div', {class: 'modal-card modal-is-responsive'}, [
+                ['header', {class: 'modal-card-head p-3'}, [
+                    ['p', {class: 'modal-card-title', style: 'text-align:center;'}, t(topic_name)],
+                    ['button', {class: 'delete is-large', 'aria-label': 'close'}, '', {
+                        click: function(evt) {
+                            evt.stopPropagation();
+                            request_close_form_dialog(gobj);
+                        }
+                    }]
                 ]],
-                ['section', { class: 'modal-card-body p-1' }, [
-                    $form
-                ]],
-                ['footer', { class: 'modal-card-foot p-3' }, [
-                    ['div', {class: 'buttons', style: 'justify-content:center; width:100%;'}, [
-                        ['button', { class: 'button is-success px-4', type: 'submit'}, [
-                            ['span', {class:'icon'}, [
-                                ['i', {class:'yi-floppy-disk'}]
-                            ]],
-                            ['span', {i18n:'save'}, 'save']
-                        ], {
-                            click: function(evt) {
-                                evt.stopPropagation();
-                                evt.preventDefault();
-                                let $form = $element.querySelector('form');
-                                if (validate_form(gobj, $form)) {
-                                    let values = get_form_values($form);
-                                    let ret;
-                                    if($form.__mode__==="create") {
-                                        ret = gobj_send_event(gobj, "EV_CREATE_RECORD", values, gobj);
-                                    } else {
-                                        ret = gobj_send_event(gobj, "EV_UPDATE_RECORD", values, gobj);
-                                    }
-                                    if(ret === 0) {
-                                        $element.classList.remove('is-active');
-                                    }
-                                }
-                            }
-                        }],
-
-                        // TODO disable/enable buttons save and undo accord to form state
-
-                        ['button', { class: 'button px-4 form-close'}, [
-                            ['span', {class:'icon'}, [
-                                ['i', {class:'yi-xmark'}]
-                            ]],
-                            ['span', {i18n:'cancel'}, 'cancel']
-                        ]],
-
-                        ['button', { class: 'button px-4'}, [
-                            ['span', {class:'icon'}, [
-                                ['i', {class:'yi-broom'}]
-                            ]],
-                            ['span', {i18n:'clear'}, 'clear']
-                        ], {
-                            click: function(evt) {
-                                evt.stopPropagation();
-                                clear_validation(gobj, $form);
-                                clear_data(gobj, $form);
-                            }
-                        }]
-                    ]]
-                ]]
+                /*  flex column so the hosted form takes the dialog
+                 *  height: fields scroll internally and the form's
+                 *  bottom toolbar stays visible (dialog footer)  */
+                ['section', {
+                    class: 'modal-card-body p-2',
+                    style: 'display:flex; flex-direction:column;'
+                }, []]
             ]]
         ], {
-            click: function (evt) {
+            click: function(evt) {
                 // Capture bubble events
                 evt.stopPropagation();
             }
         }
     ]);
 
-    /*------------------------*
-     *      Add events
-     *------------------------*/
-    /*
-     *  Button close
-     */
-    $element.querySelectorAll('.modal-close, .form-close, .delete').forEach(function (element) {
-        element.addEventListener('click', function(event) {
-            event.stopPropagation();
-            // TODO ver si hay algo modificado y preguntar si se desecha
-            $element.classList.remove('is-active');
-        });
-    });
+    let $body = $element.querySelector('.modal-card-body');
 
+    let form = gobj_create_pure_child(
+        "form_" + clean_name(gobj_name(gobj)),
+        "C_YUI_FORM",
+        {
+            template:       build_form_template(gobj),
+            record:         record,
+            fkey_options:   build_fkey_options(gobj),
+            form_mode:      mode,
+            pkey:           desc.pkey || "id",
+            editable:       true,
+            $parent:        $body
+        },
+        gobj
+    );
+    priv.form = form;
+    priv.$popup = $element;
+
+    let $form_container = gobj_read_attr(form, "$container");
+    if($form_container) {
+        $form_container.style.flex = "1 1 auto";
+        $form_container.style.minHeight = "0";
+    }
+
+    popup_mount_layer().appendChild($element);
     refresh_language($element, t);
 
-    /*-----------------------------------------*
-     *          Add to popup layer !!!
-     *-----------------------------------------*/
-    popup_mount_layer().appendChild($element);
+    gobj_start(form);   // mt_start loads `record` into the form
 
-    // jQuery($element).off('click').on('click', function(evt) {
-    //     evt.stopPropagation();
-    //     evt.preventDefault();
-    // });
-
-    /*------------------------*
-     *      Jsoneditor
-     *------------------------*/
-    $element.querySelectorAll('.jsoneditor').forEach(function (element) {
-        let font_family = "DejaVu Sans Mono, monospace";
-        let sz = 16;
-        element.style.setProperty('--jse-font-size-mono', sz + 'px');
-        element.style.setProperty('--jse-font-family-mono', font_family);
-
-        element.jsoneditor = new JSONEditor({
-            target: element,
-            props: {
-                timestampTag: function({field, value, path}) {
-                    return field === '__t__' || field === '__tm__' || field === 'tm' ||
-                        field === 'from_t' || field === 'to_t' || field === 't' ||
-                        field === 't_input' || field === 't_output' ||
-                        field === 'from_tm' || field === 'to_tm' || field === 'time';
-                },
-            }
-        });
-    });
-
-    /*---------------------------------------------------------*
-     *  Extensions of jquery must be done after DOM attaching
-     *---------------------------------------------------------*/
-    // let $$x = jQuery($element).find('.select2-multiple');
-    // if($$x && $$x.select2) {
-    //     $$x.select2();
-    // }
-
-    $element.querySelectorAll(".select2-multiple").forEach((el) => {
-        if(el.tomselect) {
-            return; // already initialized
-        }
-        new TomSelect(el, {
-            plugins: ["remove_button"], // Optional: Adds a remove button for multiple selections
-            create: false, // Set to `true` if you want users to add new options
-            hideSelected: true,
-            closeAfterSelect: false
-        });
-    });
-
-    return $element;
-}
-
-/************************************************************
- *  Show a validation error on a field
- ************************************************************/
-function show_field_error($field, message)
-{
-    $field.querySelectorAll('input, textarea, select').forEach(el => {
-        el.classList.add('is-danger');
-    });
-    let $help = $field.querySelector('.help');
-    if($help) {
-        $help.textContent = message;
-        $help.style.display = 'block';
+    let $with_focus = $element.querySelector('.with-focus');
+    if($with_focus) {
+        $with_focus.focus();
     }
 }
 
 /************************************************************
- *  Clear a validation error from a field
+ *  Close request from the dialog X: if the form carries
+ *  unsaved changes ask first (EV_WINDOW_TO_CLOSE contract).
  ************************************************************/
-function clear_field_error($field)
+function request_close_form_dialog(gobj)
 {
-    $field.querySelectorAll('input, textarea, select').forEach(el => {
-        el.classList.remove('is-danger');
-    });
-    let $help = $field.querySelector('.help');
-    if($help) {
-        $help.textContent = '';
-        $help.style.display = 'none';
-    }
-}
-
-/************************************************************
- *  Get the current value of a field for validation
- ************************************************************/
-function get_field_value_for_validation($field, conf)
-{
-    switch(conf.tag) {
-        case 'input': {
-            let $input = $field.querySelector('input');
-            if(!$input) {
-                return '';
-            }
-            if($input.type === 'checkbox') {
-                return $input.checked;
-            }
-            return $input.value;
-        }
-        case 'checkbox': {
-            let $input = $field.querySelector('input[type="checkbox"]');
-            if(!$input) {
-                return false;
-            }
-            return $input.checked;
-        }
-        case 'textarea': {
-            let $el = $field.querySelector('textarea');
-            if(!$el) {
-                return '';
-            }
-            return $el.value;
-        }
-        case 'select':
-        case 'select2': {
-            let $el = $field.querySelector('select');
-            if(!$el) {
-                return '';
-            }
-            if($el.tomselect) {
-                return $el.tomselect.getValue();
-            }
-            return $el.value;
-        }
-        case 'jsoneditor': {
-            let $el = $field.querySelector('.jsoneditor');
-            if(!$el || !$el.jsoneditor) {
-                return '';
-            }
-            let val = $el.jsoneditor.get();
-            if(val.text !== undefined) {
-                return val.text;
-            }
-            return JSON.stringify(val.json);
-        }
-        case 'radio': {
-            let $checked = $field.querySelector('input[type="radio"]:checked');
-            if(!$checked) {
-                return '';
-            }
-            return $checked.value;
-        }
-    }
-    return '';
-}
-
-/************************************************************
- *  Check if a field value is empty
- ************************************************************/
-function is_field_value_empty(value)
-{
-    if(value === null || value === undefined || value === '') {
-        return true;
-    }
-    if(Array.isArray(value) && value.length === 0) {
-        return true;
-    }
-    return false;
-}
-
-/************************************************************
- *  Determine if a field requires validation in the current mode
- ************************************************************/
-function is_field_required(conf, mode)
-{
-    if(conf.is_pkey) {
-        // pkey is required only in create mode (unless it's a rowid)
-        return (mode === "create" && !conf.is_rowid);
-    }
-    if(conf.readonly) {
-        return false;
-    }
-    return (conf.required || conf.not_null);
-}
-
-/************************************************************
- *  Validate a single field on blur
- *  Called from input/textarea blur event handlers
- ************************************************************/
-function validate_field_on_blur(element)
-{
-    let $field = element.closest('.xfield');
-    if(!$field || !$field.field_conf) {
-        return;
-    }
-    let conf = $field.field_conf;
-    let $form = element.closest('form');
-    let mode = $form ? $form.__mode__ : 'update';
-
-    if(!is_field_required(conf, mode)) {
-        clear_field_error($field);
-        return;
-    }
-
-    let value = get_field_value_for_validation($field, conf);
-    if(is_field_value_empty(value)) {
-        show_field_error($field, t('this field is required'));
-    } else {
-        clear_field_error($field);
-    }
-}
-
-/************************************************************
- *  Validate all required fields in the form
- *  Returns true if valid, false otherwise
- ************************************************************/
-function validate_form(gobj, $form)
-{
-    let is_valid = true;
-    let first_invalid = null;
-    let mode = $form.__mode__ || 'update';
-
-    $form.querySelectorAll('.xfield').forEach($field => {
-        let conf = $field.field_conf;
-        if(!conf) {
+    let priv = gobj.priv;
+    if(priv.form) {
+        let kw = {};
+        gobj_send_event(priv.form, "EV_WINDOW_TO_CLOSE", kw, gobj);
+        if(kw.abort_close) {
+            get_yesnocancel(t('All changes will be lost. Are you sure?'), function(evt) {
+                if(evt === "yes") {
+                    close_form_dialog(gobj);
+                }
+            });
             return;
         }
-
-        if(!is_field_required(conf, mode)) {
-            clear_field_error($field);
-            return;
-        }
-
-        let value = get_field_value_for_validation($field, conf);
-        if(is_field_value_empty(value)) {
-            show_field_error($field, t('this field is required'));
-            is_valid = false;
-            if(!first_invalid) {
-                first_invalid = $field;
-            }
-        } else {
-            clear_field_error($field);
-        }
-    });
-
-    if(first_invalid) {
-        let $focusable = first_invalid.querySelector('input, select, textarea');
-        if($focusable && $focusable.focus) {
-            $focusable.focus();
-        }
     }
-
-    return is_valid;
+    close_form_dialog(gobj);
 }
 
 /************************************************************
- *  Clear all validation errors from the form
+ *  Destroy the hosted form and remove the dialog DOM.
  ************************************************************/
-function clear_validation(gobj, $form)
+function close_form_dialog(gobj)
 {
-    $form.querySelectorAll('.xfield').forEach($field => {
-        clear_field_error($field);
-    });
+    let priv = gobj.priv;
+    if(priv.form) {
+        if(gobj_is_running(priv.form)) {
+            gobj_stop(priv.form);
+        }
+        gobj_destroy(priv.form);
+        priv.form = null;
+    }
+    if(priv.$popup) {
+        if(priv.$popup.parentNode) {
+            priv.$popup.parentNode.removeChild(priv.$popup);
+        }
+        priv.$popup = null;
+    }
 }
 
 /************************************************************
- *  Before show edit/create from,
- *      set form state "update" or "create"
- *  Only the "id" field is modified,
- *      in "update" is readonly
- *      in "create" is writable
- *  Although by default the pkey (primary key) is "id",
- *      use always desc.pkey value, who knows all cases!
+ *  True if the topic's pkey col carries the "rowid" flag.
  ************************************************************/
-function set_form_mode(gobj, $form, mode, index)
+function pkey_is_rowid(gobj)
 {
     let desc = gobj_read_attr(gobj, "desc");
     let col_pkey = kwid_find_one_record(
         gobj,
         desc.cols,  // kw
-        null,               // ids
-        {                   // jn_filter
+        null,       // ids
+        {           // jn_filter
             "id": desc.pkey
         }
     );
-    let is_rowid = str_in_list(col_pkey.flag, "rowid");
-
-    let $id = $form.querySelector(`[name="${desc.pkey}"]`);
-
-    if($id) {
-        if(mode === "update") {
-            /*
-             *  update mode
-             */
-            $id.setAttribute('readonly', 'readonly');
-            $id.removeAttribute('required');
-        } else {
-            /*
-             *  create mode
-             */
-            if(is_rowid) {
-                $id.setAttribute('readonly', 'readonly');
-                $id.removeAttribute('required');
-            } else {
-                $id.removeAttribute('readonly');
-                $id.setAttribute('required', '');
-            }
-        }
-    } else {
-        log_error(sprintf("%s: form without id field ('%s')",
-            gobj_short_name(gobj),
-            desc.pkey
-        ));
+    if(!col_pkey) {
+        return false;
     }
-
-    if(is_rowid) {
-        mode = "create";
-    }
-
-    $form.__mode__ = mode;
-    $form.__index__ = index;
+    return str_in_list(col_pkey.flag, "rowid");
 }
 
 /************************************************************
@@ -1847,35 +1213,10 @@ function set_form_mode(gobj, $form, mode, index)
  ************************************************************/
 function show_edit_form(gobj, row, index)
 {
-    let popup_id = gobj_read_str_attr(gobj, "popup_id");
-    let form_id = gobj_read_str_attr(gobj, "form_id");
-
-    let $element = document.getElementById(popup_id);
-    if(!$element) {
-        $element = build_topic_modal(gobj);
-    }
-
-    let $form = document.getElementById(form_id);
-    clear_validation(gobj,$form);
-
-    if(json_size(row) === 0 ||  // WARNING _check_box_state_ widely used
-        json_size(row) === 1 && ('_check_box_state_' in row)) {
-        /*
-         *  WARNING it won't pass by here,
-         *  "create" is call directly from Top New button
-         */
-        set_form_mode(gobj, $form, "create", index);
-    } else {
-        set_form_mode(gobj, $form, "update", index);
-    }
-
-    set_form_values(gobj, $form, row);
-
-    $element.classList.add('is-active');
-    let $with_focus = $element.querySelector('.with-focus');
-    if($with_focus) {
-        $with_focus.focus();
-    }
+    /*  a rowid pkey has no "update": every save appends a new
+     *  instance (timeranger semantics) — open in create mode  */
+    let mode = pkey_is_rowid(gobj)? "create" : "update";
+    open_form_dialog(gobj, mode, row);
 }
 
 /************************************************************
@@ -1884,24 +1225,7 @@ function show_edit_form(gobj, row, index)
  ************************************************************/
 function show_create_form(gobj, row)
 {
-    let popup_id = gobj_read_str_attr(gobj, "popup_id");
-    let form_id = gobj_read_str_attr(gobj, "form_id");
-
-    let $element = document.getElementById(popup_id);
-    if(!$element) {
-        $element = build_topic_modal(gobj);
-    }
-
-    let $form = document.getElementById(form_id);
-    clear_validation(gobj,$form);
-    set_form_mode(gobj, $form, "create", -1);
-    set_form_values(gobj, $form, row);
-
-    $element.classList.add('is-active');
-    let $with_focus = $element.querySelector('.with-focus');
-    if($with_focus) {
-        $with_focus.focus();
-    }
+    open_form_dialog(gobj, "create", row);
 }
 
 /************************************************************
@@ -1917,282 +1241,6 @@ function get_schema_col(gobj, id)
         }
     }
     return null;
-}
-
-/************************************************************
- *
- ************************************************************/
-function clear_data(gobj, $form)
-{
-    $form.querySelectorAll('input, select, textarea, .jsoneditor').forEach(input => {
-        if(input.name !== 'id') {
-            if (input.classList.contains('jsoneditor')) {
-                let jsoneditor = input.jsoneditor;
-                if(jsoneditor) {
-                    jsoneditor.set({text: ''});
-                }
-            } else if (input.type === 'checkbox') {
-                input.checked = false;
-            } else if (input.type === 'radio') {
-                input.checked = false;
-
-            } else if (input.type === 'datetime-local') { /* time */
-                input.value = null;
-
-            } else if (input.multiple) {
-                if(input.tomselect) {
-                    input.tomselect.clear();
-                }
-            } else {
-                input.value = null;
-            }
-        }
-    });
-}
-
-/************************************************************
- *
- ************************************************************/
-function get_form_values($form)
-{
-    const values = {};
-    // Process all form elements
-    $form.querySelectorAll('input, select, textarea, .jsoneditor').forEach(input => {
-        if (input.classList.contains('jsoneditor')) {
-            let jsoneditor = input.jsoneditor;
-            if(jsoneditor) {
-                let name = input.getAttribute('name');
-                let value = jsoneditor.get();
-                if(value.text===undefined) {
-                    values[name] = JSON.stringify(value.json, null, null);
-                } else {
-                    values[name] = value.text;
-                }
-            }
-        } else if (input.type === 'checkbox') {
-            // Handle single checkbox with true/false values
-            values[input.name] = input.checked;
-        } else if (input.type === 'radio') {
-            // Handle radio buttons
-            if (input.checked) {
-                values[input.name] = input.value;
-            }
-
-        } else if (input.type === 'datetime-local') { /* time */
-            // Create a new Date object from the datetime-local input value
-            const date = new Date(input.value);
-
-            // Convert the Date object to epoch time (in seconds)
-            const epochTime = Math.floor(date.getTime() / 1000);
-            values[input.name] = epochTime;
-
-        } else if (input.multiple) {
-            // Handle multi-select with Select2
-            // values[input.name] = $(input).val();
-
-            // Handle multi-select with Tom-Select
-            if (input.tomselect) {
-                values[input.name] = input.tomselect.getValue(); // Returns an array of selected values
-            }
-        } else {
-            // Handle other input types (text, email, number, select, textarea)
-            values[input.name] = input.value;
-        }
-    });
-
-    return values;
-}
-
-/************************************************************
- *  Convert a record column value from backend to frontend
- ************************************************************/
-function epochToDateTimeLocal(epochTime)
-{
-    const date = new Date(epochTime * 1000); // Convert to milliseconds
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-
-    // TODO for 'datetime-local' input, there is no seconds! we must use another library
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-/************************************************************
- *
- ************************************************************/
-function set_form_values(gobj, form, values)
-{
-    Object.keys(values).forEach(key => {
-        let element = form.querySelector(`[name="${key}"]`);
-        if (element) {
-            let value = values[key];
-            let col = get_schema_col(gobj, key);
-            if(col) {
-                value = transform__treedb_value_2_form_value(gobj, col, value);
-            }
-
-            switch (element.type) {
-                case 'select':
-                    element.value = value;
-                    break;
-
-                case 'select-one':
-                    element.value = value;
-                    break;
-
-                case 'select-multiple':
-                    // Handle multi-select with Select2
-                    //$(element).val(value).trigger('change');
-
-                    // Handle multi-select with Tom-Select
-                    if (element.tomselect) {
-                        element.tomselect.setValue(value);
-                    }
-                    break;
-
-                case 'radio':
-                    // TODO review
-                    let radio = form.querySelector(`input[name="${key}"][value="${values[key]}"]`);
-                    if (radio) {
-                        radio.checked = true;
-                    }
-                    break;
-
-                case 'checkbox':
-                    element.checked = value;  // Assume the value is true or false
-                    break;
-
-                case 'text':
-                case 'textarea':
-                case 'email':
-                    element.value = value;
-                    break;
-
-                case 'datetime-local': /* time */
-                    element.value = epochToDateTimeLocal(value);
-                    break;
-
-                default:
-                    if(element.classList.contains('jsoneditor')) {
-                        let jsoneditor = element.jsoneditor;
-                        if(jsoneditor) {
-                            jsoneditor.set(value);
-                        }
-                        break;
-                    }
-
-                    element.value = value;
-                    log_error(
-                        sprintf("%s: form type unknown: '%s'",
-                            gobj_short_name(gobj),
-                            element.type
-                        )
-                    );
-                    break;
-            }
-        }
-    });
-}
-
-/************************************************************
- *  Convert a record column value from backend
- *      to frontend form field
- ************************************************************/
-function transform__treedb_value_2_form_value(gobj, col, value)
-{
-    const field_desc = treedb_get_field_desc(col);
-
-    switch(field_desc.type) {
-        case "string":
-        case "email":   // string subtype
-        case "tel":     // string subtype
-        case "url":     // string subtype
-            break;
-        case "integer":
-            break;
-        case "real":
-            break;
-        case "boolean":
-            break;
-
-        case "object":
-        case "dict":
-        case "template":
-        case "array":
-        case "list":
-        case "coordinates":
-        case "blob":
-            // Return as it is, manage by jsoneditor
-            value = {json: value};
-            // value = {text: JSON.stringify(value)}; // other way
-            break;
-
-        case "enum":
-            switch(field_desc.real_type) {
-                case "string":
-                    break;
-                case "object":
-                case "dict":
-                case "array":
-                case "list":
-                    break;
-            }
-            break;
-
-        case "now":
-        case "time":
-            switch(field_desc.real_type) {
-                case "string":
-                case "integer":
-                    value = parseInt(value) || 0;
-                    value = new Date(value);
-                    break;
-            }
-            break;
-
-        case "color":
-            switch(field_desc.real_type) {
-                case "string":
-                    // TODO
-                    break;
-                case "integer":
-                    // TODO
-                    break;
-            }
-            break;
-
-        case "hook":    // Convert data from backend to frontend FORM FIELD
-            // WARNING hook fields are not writable and by now they are not showed in forms.
-            break;
-
-        case "fkey":    // Convert data from backend to frontend FORM FIELD
-            let new_value = [];
-            if(value) {
-                if(is_string(value)) {
-                    let fkey = treedb_decoder_fkey(col, value);
-                    if(fkey) {
-                        new_value.push(fkey.id);
-                    }
-                } else if(is_array(value)) {
-                    for(let i=0; i<value.length; i++) {
-                        let fkey = treedb_decoder_fkey(col, value[i]);
-                        if(fkey) {
-                            new_value.push(fkey.id);
-                        }
-                    }
-                } else {
-                    log_error("fkey type unsupported: " + JSON.stringify(value));
-                }
-            }
-
-            value = new_value;
-            break;
-    }
-
-    return value;
 }
 
 /************************************************************
@@ -2372,24 +1420,6 @@ function transform__form_value_2_treedb_value(gobj, col, value, operation)
     }
 
     return value;
-}
-
-/************************************************************
- *
- ************************************************************/
-function get_fkey_options(gobj, col)
-{
-    for(let topic_name of Object.keys(col.fkey)) {
-        // HACK we work only with one fkey
-        let kw = {
-            topic_name: topic_name
-        };
-        let webix = gobj_command(gobj_parent(gobj), "get_topic_data", kw, gobj);
-        let current_list = webix.data;
-        return list2options(current_list, "id", "id");
-    }
-    log_error("No fkey options found" + JSON.stringify(col));
-    return null;
 }
 
 /************************************************************
@@ -2931,58 +1961,29 @@ function ac_paste_rows(gobj, event, kw, src)
 }
 
 /************************************************************
- *  From internal Save button of "create" modal form
+ *  EV_SAVE_RECORD from the hosted C_YUI_FORM: kw is the
+ *  record already in treedb shape (the form itself encodes
+ *  fkeys, times and numbers). Route by the form's mode.
  ************************************************************/
-function ac_create_record(gobj, event, kw, src)
+function ac_form_save_record(gobj, event, kw, src)
 {
-    let new_kw = null;
-    try {
-        new_kw = transform__form_record_2_treedb_record(gobj, kw, "create");
-    } catch (e) {
-        log_warning(e);
-        throw e;
-    }
-
+    let mode = gobj_read_str_attr(src, "form_mode");
     gobj_publish_event(
         gobj,
-        "EV_CREATE_RECORD",
+        (mode === "create")? "EV_CREATE_RECORD" : "EV_UPDATE_RECORD",
         {
             topic_name: gobj_read_str_attr(gobj, "topic_name"),
-            record: new_kw
+            record: kw
         }
     );
 
-    /*
-     *  Return -1 will not close the form
-     */
-    return 0;
-}
+    /*  we are INSIDE the form's gobj_publish_event stack — never
+     *  destroy the publisher synchronously from a subscriber
+     *  callback: defer the close  */
+    setTimeout(function() {
+        close_form_dialog(gobj);
+    }, 0);
 
-/************************************************************
- *  From internal Save button of "update" modal form
- ************************************************************/
-function ac_update_record(gobj, event, kw, src)
-{
-    let new_kw = null;
-    try {
-        new_kw = transform__form_record_2_treedb_record(gobj, kw, "update");
-    } catch (e) {
-        log_warning(e);
-        throw e;
-    }
-
-    gobj_publish_event(
-        gobj,
-        "EV_UPDATE_RECORD",
-        {
-            topic_name: gobj_read_str_attr(gobj, "topic_name"),
-            record: new_kw
-        }
-    );
-
-    /*
-     *  Return -1 will not close the form
-     */
     return 0;
 }
 
@@ -3161,8 +2162,7 @@ function create_gclass(gclass_name)
             ["EV_NODE_DELETED",         ac_node_deleted,       null],
 
             ["EV_EDITION_MODE",         ac_edition_mode,       null],
-            ["EV_CREATE_RECORD",        ac_create_record,      null],
-            ["EV_UPDATE_RECORD",        ac_update_record,      null],
+            ["EV_SAVE_RECORD",          ac_form_save_record,   null],
 
             ["EV_NEW_ROW",              ac_new_row,            null],
             ["EV_DELETE_ROWS",          ac_delete_rows,        null],
@@ -3188,6 +2188,7 @@ function create_gclass(gclass_name)
         ["EV_NODE_DELETED",         0],
 
         ["EV_EDITION_MODE",         0],
+        ["EV_SAVE_RECORD",          0],
         ["EV_NEW_ROW",              0],
         ["EV_DELETE_ROWS",          0],
         ["EV_COPY_ROWS",            0],
@@ -3233,6 +2234,11 @@ function create_gclass(gclass_name)
  ***************************************************************/
 function register_c_yui_treedb_topic_with_form()
 {
+    /*  the edit/create dialog hosts a C_YUI_FORM child: make sure
+     *  its gclass exists even if the app didn't register it  */
+    if(!gclass_find_by_name("C_YUI_FORM", false)) {
+        register_c_yui_form();
+    }
     return create_gclass(GCLASS_NAME);
 }
 
