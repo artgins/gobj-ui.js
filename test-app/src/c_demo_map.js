@@ -44,12 +44,15 @@ const MAP_SETTINGS = {
     scrollZoom: true
 };
 
-/*  Static devices → markers. coordinates are [lng, lat]. */
+/*  Static devices → markers. coordinates are [lng, lat]. `connected` feeds
+ *  C_YUI_MAP's style expressions (marker/cluster colour); without it maplibre
+ *  warns "expected number, found null". No gobj_service_name here, so a marker
+ *  click shows the plain name/id popup (the window branch needs a service). */
 const DEVICES = [
-    {id: "madrid",    name: "Madrid",    settings: {coordinates: [-3.7038, 40.4168]}},
-    {id: "barcelona", name: "Barcelona", settings: {coordinates: [ 2.1734, 41.3851]}},
-    {id: "sevilla",   name: "Sevilla",   settings: {coordinates: [-5.9845, 37.3891]}},
-    {id: "bilbao",    name: "Bilbao",    settings: {coordinates: [-2.9350, 43.2630]}}
+    {id: "madrid",    name: "Madrid",    connected: true,  settings: {coordinates: [-3.7038, 40.4168]}},
+    {id: "barcelona", name: "Barcelona", connected: true,  settings: {coordinates: [ 2.1734, 41.3851]}},
+    {id: "sevilla",   name: "Sevilla",   connected: false, settings: {coordinates: [-5.9845, 37.3891]}},
+    {id: "bilbao",    name: "Bilbao",    connected: true,  settings: {coordinates: [-2.9350, 43.2630]}}
 ];
 
 
