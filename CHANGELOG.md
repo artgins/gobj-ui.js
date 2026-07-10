@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(form): `C_YUI_FORM` labels use the table-header i18n cascade.**
+  New `topic_name` attr: field labels now resolve `'<topic>.<col>' ->
+  '<col>' -> header (the same `col_label` cascade the treedb table uses),
+  keyed by the shared col id via `label_i18n` so a column translates
+  identically in the form and the table (before, the form keyed labels by
+  the raw header, so e.g. a table showing translated headers had an
+  English form). The treedb host passes `topic_name`; plain templates
+  (no topic) fall back to the field name/header unchanged.
+
 - **fix(form): `register_c_yui_form()` is idempotent.** Since the treedb
   host auto-registers `C_YUI_FORM`, an app that ALSO registers it
   explicitly (wattyzer does) logged a red `GClass ALREADY created:

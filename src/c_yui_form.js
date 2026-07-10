@@ -82,6 +82,7 @@ SDATA(data_type_t.DTP_JSON,     "placeholders",     0,  "{}",   "Placeholder val
 SDATA(data_type_t.DTP_JSON,     "fkey_options",     0,  "{}",   "Options for fkey fields: {topic_name: [ids or {id} records]}, read at build time"),
 SDATA(data_type_t.DTP_STRING,   "form_mode",        0,  "",     "'create' (pkey editable+required) or 'update' (pkey readonly); empty = no pkey handling"),
 SDATA(data_type_t.DTP_STRING,   "pkey",             0,  "id",   "Primary key field name, used by form_mode"),
+SDATA(data_type_t.DTP_STRING,   "topic_name",       0,  "",     "Treedb topic name: labels use the i18n cascade '<topic>.<col>' -> '<col>' -> header (like table headers)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",         0,  false,  "Default is editable, set false to readonly"),
 SDATA(data_type_t.DTP_BOOLEAN,  "selectable",       0,  true,   "Rows selectable with 'click' (BAD with editable=true)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows"),
@@ -455,7 +456,19 @@ function build_html_form(gobj, $form, prefix, template)
          *  items not filled
          */
         html_field_conf.name = field_desc.name;
-        html_field_conf.label = field_desc.header;
+        /*
+         *  Label i18n: mirror the table-header cascade (col_label) so a
+         *  column translates the same in the form and the table. The
+         *  visible text resolves '<topic>.<col>' -> '<col>' -> header at
+         *  build; `label_i18n` (the shared col id) is the stable key
+         *  refresh_language re-resolves on a language switch.
+         */
+        let topic_name = gobj_read_str_attr(gobj, "topic_name");
+        let label_keys = topic_name
+            ? [topic_name + "." + field_desc.name, field_desc.name]
+            : [field_desc.name];
+        html_field_conf.label = t(label_keys, {defaultValue: field_desc.header});
+        html_field_conf.label_i18n = field_desc.name;
         html_field_conf.placeholder = field_desc.placeholder?t(field_desc.placeholder):'';
 
         let placeholders = gobj_read_attr(gobj, "placeholders");
@@ -856,6 +869,7 @@ function create_form_field(
         inputType,
         name,
         label,
+        label_i18n,
         placeholder,
         options,
         extras, // extra html input/textarea attributes
@@ -906,7 +920,7 @@ function create_form_field(
                     $element = createElement2(
                         ['div', {class: 'xfield field is-horizontal'}, [
                             ['div', {class: 'field-label is-normal' }, [
-                                ['label', {class:'label ', i18n:label, for:name}, label]
+                                ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
                             ]],
 
                             ['div', {class: 'field-body'}, [
@@ -921,7 +935,7 @@ function create_form_field(
                     $element = createElement2(
                         ['div', {class: 'xfield field is-horizontal'}, [
                             ['div', {class: 'field-label is-normal' }, [
-                                ['label', {class:'label ', i18n:label, for:name}, label]
+                                ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
                             ]],
 
                             ['div', {class: 'field-body'}, [
@@ -944,7 +958,7 @@ function create_form_field(
             $element = createElement2(
                 ['div', {class: 'xfield field is-horizontal'}, [
                     ['div', {class: 'field-label is-normal' }, [
-                        ['label', {class:'label ', i18n:label, for:name}, label]
+                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
                     ]],
 
                     ['div', {class: 'field-body'}, [
@@ -960,7 +974,7 @@ function create_form_field(
             $element = createElement2(
                 ['div', {class: 'xfield field is-horizontal'}, [
                     ['div', {class: 'field-label is-normal' }, [
-                        ['label', {class:'label ', i18n:label, for:name}, label]
+                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
                     ]],
 
                     ['div', {class: 'field-body'}, [
@@ -979,7 +993,7 @@ function create_form_field(
             $element = createElement2(
                 ['div', {class: 'field is-horizontal tabulator-buttons'}, [
                     ['div', {class: 'field-label is-normal' }, [
-                        ['label', {class:'label', i18n:label}, label]
+                        ['label', {class:'label', i18n:(label_i18n||label)}, label]
                     ]],
 
                     ['div', {class: 'field-body'}, [
@@ -1022,7 +1036,7 @@ function create_form_field(
             $element = createElement2(
                 ['div', {class: 'xfield field is-horizontal'}, [
                     ['div', {class: 'field-label is-normal' }, [
-                        ['label', {class:'label ', i18n:label, for:name}, label]
+                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
                     ]],
 
                     ['div', {class: 'field-body'}, [

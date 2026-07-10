@@ -1119,6 +1119,7 @@ function open_form_dialog(gobj, mode, record)
             fkey_options:   build_fkey_options(gobj),
             form_mode:      mode,
             pkey:           desc.pkey || "id",
+            topic_name:     topic_name,
             editable:       true,
             $parent:        $body
         },
