@@ -228,7 +228,7 @@ function build_ui(gobj)
         ["div", {class: "C_DEMO_FORM DEMO_CARD view-card"}, [
             ["div", {class: "DEMO_HEAD"}, head],
             ["div", {class: "DEMO_FORM_HOST box p-2",
-                     style: "height:70vh; overflow:auto; max-width:640px;"}, []],
+                     style: "max-width:640px;"}, []],
             ["div", {class: "DEMO_FORM_RESULT", style: "max-width:640px;"}, [
                 ["p", {class: "is-size-7 has-text-grey mb-1",
                        i18n: "Last saved record:"}, "Last saved record:"],

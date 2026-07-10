@@ -24,26 +24,25 @@
     line-height: 1.5;
 }
 
-/*  On mobile the explanatory lead wraps to many lines; in a flex-column
- *  card it then steals the vertical space a hosted component (e.g. the Form)
- *  needs, shrinking it to a couple of rows. Cap the lead and let it scroll
- *  so the component below keeps its height. */
-@media screen and (max-width: 768px) {
-    .DEMO_LEAD {
-        max-height: 6.5rem;
-        overflow-y: auto;
-    }
-}
+/*  Layout model: ONE vertical scroll for the whole view (the .view-card),
+ *  with every part at its natural height — no nested scrollbars. The lead
+ *  keeps its full height, and each hosted component takes its content height
+ *  (at least its own minimum, e.g. the form's vertical toolbar). */
 
-/*  Saving grows the JSON echo below the form; in the flex-column card that
- *  would collapse the form host (flex-shrink) and clip its vertical toolbar.
- *  Give the host a floor so its toolbar is always fully visible, and cap the
- *  echo so it scrolls instead of pushing the form out. */
-.DEMO_FORM_HOST {
-    min-height: 16rem;
+/*  C_YUI_FORM defaults to height:100% with an internal scroll (for
+ *  fixed-pane hosts). In this demo we let it grow to its content so every
+ *  field shows and the single card scroll reveals them all. align-items keeps
+ *  the vertical toolbar at its natural height (never taller than its buttons)
+ *  so the row height is driven by the fields, and the toolbar stays fully
+ *  visible at the top. */
+.DEMO_FORM_HOST .C_YUI_FORM {
+    height: auto !important;       /* overrides the component's inline height:100% */
+    align-items: flex-start;
 }
-.DEMO_FORM_JSON {
-    max-height: 30vh;
+.DEMO_FORM_HOST .C_YUI_FORM .yui-form,
+.DEMO_FORM_HOST .C_YUI_FORM .yui-toolbar-form {
+    height: auto !important;
+    overflow: visible !important;
 }
 
 .DEMO_META {
