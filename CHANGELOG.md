@@ -24,6 +24,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   the first editable field instead of the readonly pkey. The Tabulator
   pagination chrome (page-size selector + First/Prev/Next/Last) hides
   while all rows fit in one page — the row-count footer stays.
+- **fix(treedb): table toolbar is at most 2 rows on mobile.** Bulma
+  `.buttons` wraps internally, stacking the toolbar into 3 rows on
+  narrow phones. The record-buttons group now stays on one line and
+  scrolls horizontally if it overflows (same distribute-or-scroll
+  pattern as the nav icon-bar), so the toolbar is 1 row when
+  everything fits and exactly 2 when it doesn't.
 - **fix(nav): icon-bar distributes when items fit, scrolls when they
   don't.** `.yui-nav-iconbar` items were `flex: 1 1 0`, so a menu with
   many first-level entries crushed them into the viewport width instead

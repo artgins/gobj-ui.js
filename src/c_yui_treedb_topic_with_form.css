@@ -29,3 +29,19 @@
 .tabulator.yui-single-page .tabulator-footer .tabulator-paginator {
     display: none;
 }
+
+/*  Toolbar wrapping discipline (mobile): the record-buttons group
+ *  must never split across lines — Bulma .buttons wraps internally,
+ *  which stacked the toolbar into 3 rows on narrow phones. Keep the
+ *  group on one line and scroll it horizontally if it overflows
+ *  (same distribute-or-scroll pattern as the nav icon-bar); the
+ *  search+refresh block then wraps as a whole, so the toolbar is
+ *  1 row when it fits and exactly 2 when it doesn't.  */
+.toolbar_tabulator_table .buttons {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+.toolbar_tabulator_table .control.has-icons-left {
+    min-width: 0;
+}
