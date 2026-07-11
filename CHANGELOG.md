@@ -7,6 +7,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(icons): add `yi-circle-info`, `yi-triangle-exclamation` and
+  `yi-circle-exclamation`** to `yui_icons.css` (the info/warning/error
+  glyph family). test-app gains a **Modals** chapter (`/modals`)
+  exercising every `c_yui_main.js` volatil-modal helper — the blocking
+  questions (`get_yesnocancel`/`get_yesno`/`get_ok`) and the typed
+  info/warning/error messages — echoing each answer.
 - **fix(main): volatil modals close on Escape.** The blocking dialogs
   built by `display_volatil_modal` (`get_yesnocancel` / `get_yesno` /
   `get_ok`, info/warning/error messages) now treat Escape as cancel:

@@ -51,6 +51,7 @@ import {register_c_demo_json}   from "./c_demo_json.js";
 import {register_c_demo_wizard} from "./c_demo_wizard.js";
 import {register_c_demo_pager}  from "./c_demo_pager.js";
 import {register_c_demo_map}    from "./c_demo_map.js";
+import {register_c_demo_modals} from "./c_demo_modals.js";
 
 import {setup_locale} from "./locales.js";
 
@@ -105,6 +106,7 @@ function main()
     register_c_demo_wizard();
     register_c_demo_pager();
     register_c_demo_map();
+    register_c_demo_modals();
 
     /*  i18n (en/es). C_YUI_FORM, the shell and the views translate their
      *  DOM through i18next's module-level t(); this inits the shared

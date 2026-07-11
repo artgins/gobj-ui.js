@@ -55,6 +55,7 @@ component publishes events) declares them.
 | **Pager** (`/pager`) | `C_YUI_PAGER` | A drill-down page stack ("← title" header). Push pages with the button, pop with "←"; publishes `EV_PAGE_SHOWN` / `EV_PAGE_DISCARD` / `EV_PAGER_EXIT`. Offline. |
 | **Map** (`/map`) | `C_YUI_MAP` (MapLibre) | A basemap with Spanish-city markers. Differs from the others: it renders into an external pre-sized `$map` (no `$container`). **Needs network** for the basemap tiles (`tiles.openfreemap.org`); offline it degrades to a blank map with controls. |
 | **Treedb** (`/treedb`) | `C_YUI_TREEDB_TOPIC_WITH_FORM` | The real treedb topic table + its hosted `C_YUI_FORM` edit dialog, against an **in-memory backend**: the wrapper plays the `C_YUI_TREEDB_TOPICS` role (feeds `EV_LOAD_NODES`, answers `get_topic_data` for fkey options, applies and echoes the published `EV_CREATE/UPDATE/DELETE_RECORD`). Pkey follows the `form_mode` contract, fkeys are TomSelects fed with sibling-topic rows, the dict col edits as raw JSON. Offline. |
+| **Modals** (`/modals`) | `c_yui_main.js` helpers | The volatil-modal helpers, one button each: blocking questions (`get_yesnocancel` / `get_yesno` / `get_ok` — Enter answers yes, Escape cancels/dismisses without stacking) and typed messages (`display_info/warning/error_message`, colour-coded header + x). Answers are echoed below the buttons. Offline. |
 
 `C_YUI_MAP` (and other legacy components) look up a `__yui_main__`
 service to subscribe to its `EV_RESIZE`. The declarative shell doesn't
@@ -126,6 +127,7 @@ the view routes them by setting the hash — exactly what the shell does.
 | `src/c_demo_pager.js` | the **Pager** chapter — hosts `C_YUI_PAGER` |
 | `src/c_demo_map.js` | the **Map** chapter — hosts `C_YUI_MAP` (MapLibre) |
 | `src/c_demo_treedb.js` | the **Treedb** chapter — hosts `C_YUI_TREEDB_TOPIC_WITH_FORM` over an in-memory backend |
+| `src/c_demo_modals.js` | the **Modals** chapter — the `c_yui_main.js` volatil-modal helpers |
 | `src/c_demo_main.js` | minimal `__yui_main__` service (EV_RESIZE) for the map |
 | `src/locales.js` | i18next setup + the `es` translation bundle (en/es toggle) |
 | `src/demo.css` | app-owned styling for the view cards + table dark theme (never shell chrome) |

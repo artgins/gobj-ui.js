@@ -114,7 +114,25 @@ const es_translation = {
     "Four cards, four leaves. Add a fifth item to submenu.items and the grid grows automatically.": "Cuatro tarjetas, cuatro hojas. Añade un quinto elemento a submenu.items y la rejilla crece automáticamente.",
     "Accordion is a PRIMARY-zone layout: its first-level entries are collapsible sections and their bodies are the second-level items. Because those bodies are the routable 2nd level, accordion can't be a 3rd-level submenu — so this chapter embeds a live accordion nav below. Click a section head to expand; click a leaf to navigate for real.": "El acordeón es un layout de zona PRIMARIA: sus entradas de primer nivel son secciones plegables y sus cuerpos son los elementos de segundo nivel. Como esos cuerpos son el 2º nivel enrutable, el acordeón no puede ser un submenú de 3er nivel, así que este capítulo embebe un nav acordeón vivo abajo. Pulsa la cabecera de una sección para desplegarla; pulsa una hoja para navegar de verdad.",
     "This is the gobj-ui form component C_YUI_FORM, hosted as a child. Fields come from a declarative template; edit any value and press Save (floppy icon) — the component publishes EV_SAVE_RECORD and the submitted JSON appears below.": "Este es el componente de formulario de gobj-ui C_YUI_FORM, alojado como hijo. Los campos vienen de una plantilla declarativa; edita cualquier valor y pulsa Guardar (icono de disquete) — el componente publica EV_SAVE_RECORD y el JSON enviado aparece abajo.",
-    "A Tabulator data table with static rows, built directly in the view (the pattern the yunos use, e.g. gui_agent's node list). Click a header to sort, click a row to select; the Status column uses a coloured-tag formatter.": "Una tabla de datos Tabulator con filas estáticas, construida directamente en la vista (el patrón que usan los yunos, p. ej. la lista de nodos de gui_agent). Pulsa una cabecera para ordenar, pulsa una fila para seleccionar; la columna Estado usa un formateador de etiqueta con color."
+    "A Tabulator data table with static rows, built directly in the view (the pattern the yunos use, e.g. gui_agent's node list). Click a header to sort, click a row to select; the Status column uses a coloured-tag formatter.": "Una tabla de datos Tabulator con filas estáticas, construida directamente en la vista (el patrón que usan los yunos, p. ej. la lista de nodos de gui_agent). Pulsa una cabecera para ordenar, pulsa una fila para seleccionar; la columna Estado usa un formateador de etiqueta con color.",
+    "Modals": "Modales",
+    "The volatil-modal helpers of c_yui_main.js: blocking questions (get_yesnocancel / get_yesno / get_ok) and typed messages (info / warning / error, colour-coded header + x). Enter answers yes, Escape cancels or dismisses — repeat presses never stack a second modal. Each answer is echoed below the buttons. Fully offline.":
+        "Los helpers de modales volátiles de c_yui_main.js: preguntas bloqueantes (get_yesnocancel / get_yesno / get_ok) y mensajes tipados (info / aviso / error, cabecera con color + x). Enter responde sí, Escape cancela o descarta — pulsar repetidamente nunca apila un segundo modal. Cada respuesta se muestra bajo los botones. Totalmente offline.",
+    "yes / no / cancel": "sí / no / cancelar",
+    "yes / no": "sí / no",
+    "ok": "ok",
+    "info": "info",
+    "warning": "aviso",
+    "error": "error",
+    "yes": "sí",
+    "no": "no",
+    "cancel": "cancelar",
+    "accept": "aceptar",
+    "Delete the selected records?": "¿Borrar los registros seleccionados?",
+    "Operation completed.": "Operación completada.",
+    "This node runs release 7.7.2.": "Este nodo ejecuta la release 7.7.2.",
+    "The connection is unstable.": "La conexión es inestable.",
+    "The yuno did not answer.": "El yuno no respondió."
 };
 
 export const resources = {
