@@ -73,6 +73,7 @@ import {register_c_yui_form} from "./c_yui_form.js";
 import {t} from "i18next";
 
 import "./c_yui_treedb_topic_with_form.css";
+import "./tabulator.css";
 
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 

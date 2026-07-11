@@ -56,6 +56,7 @@ import TomSelect from "tom-select"; // Import Tom-Select JS
 import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "./c_yui_form.css";
+import "./tabulator.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";

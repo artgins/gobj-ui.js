@@ -643,3 +643,15 @@
         display: none;
     }
 }
+
+/*  Moved from c_yui_main.css (2.6.1): mobile Bulma columns edge-to-edge.
+ *  Self-contained here so every consumer gets it without the
+ *  legacy stack's stylesheet. */
+
+@media screen and (max-width: 768px) {
+    .column {
+        padding: 0 !important;
+        margin-bottom: 16px !important;
+    }
+}
+

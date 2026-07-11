@@ -48,3 +48,31 @@
 .yui-horizontal-toolbar-scroll-btn span {
     width: 1.2em;
 }
+
+/*  Moved from c_yui_main.css (2.6.1): horizontal toolbar section.
+ *  Self-contained here so every consumer gets it without the
+ *  legacy stack's stylesheet. */
+
+/*********************************************************
+ *      Toolbars
+ *********************************************************/
+.yui-horizontal-toolbar-section {
+    display: flex;
+    height: auto;
+    flex-shrink: 0; /* Prevents resizing */
+    white-space: nowrap;
+    margin: 0 2px; /* Space between sections */
+    justify-content: space-between;
+    align-items: center;
+}
+
+a.flex-horizontal-section { /* To make flex any <a> */
+    display: flex;
+    flex-shrink: 0; /* Prevents resizing */
+    white-space: nowrap;
+    margin: 0 2px; /* Space between sections */
+    justify-content: space-between;
+    align-items: center;
+    padding-inline-end: 2rem;
+}
+

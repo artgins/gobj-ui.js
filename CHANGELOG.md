@@ -5,6 +5,33 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.6.1
+
+- **fix: 2.6.0 dropped shared CSS the apps relied on.** `c_yui_main.css`
+  reached every v2 bundle through the gclasses' `c_yui_main.js` import
+  that 2.6.0 removed — and it carried rules that were never
+  legacy-specific: the whole generic Tabulator theming (column
+  separator, frozen columns, light striping/hover, `[data-theme=dark]`
+  and `[data-theme=system]` blocks), the responsive edit-dialog card
+  (`modal-is-responsive`), the `without-border` / `strong-shadow` /
+  `overscroll-contain` / `flex-horizontal-section` utilities, the
+  horizontal toolbar section and the mobile Bulma-columns rule.
+  Deployed symptom: gui_agent / gui_treedb tables lost their dark
+  theming and striping. Each rule moved to the stylesheet of the module
+  that uses it, self-contained via that module's own JS import:
+  - Tabulator theming → `tabulator.css` (now also imported by
+    `c_yui_form.js` and `c_yui_treedb_topic_with_form.js`, the two
+    Tabulator builders — consumers need no explicit import).
+  - `modal-is-responsive` + `without-border` →
+    `c_yui_treedb_topic_with_form.css`.
+  - `strong-shadow` + `without-border` → new `c_yui_window.css`
+    (imported by `c_yui_window.js`).
+  - `overscroll-contain` → `c_yui_form.css`.
+  - `.yui-horizontal-toolbar-section` → `yui_toolbar.css`.
+  - mobile `.column` edge-to-edge → `c_yui_shell.css`.
+  `c_yui_main.css` keeps the legacy-only rules (layers, volatil modals,
+  theme classes) — legacy-stack apps are unaffected.
+
 ## 2.6.0
 
 - **feat(shell): the component gclasses migrate to the shell modal

@@ -47,6 +47,8 @@ import {t} from "i18next";
 import {yui_shell_confirm_yesnocancel} from "./shell_modals.js";
 import {yui_shell_of} from "./c_yui_shell.js";
 
+import "./c_yui_window.css";
+
 /***************************************************************
  *              Constants
  ***************************************************************/

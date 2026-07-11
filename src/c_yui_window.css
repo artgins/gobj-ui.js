@@ -1,0 +1,22 @@
+/***********************************************************************
+ *          c_yui_window.css
+ *
+ *      Styles C_YUI_WINDOW tags on its chrome.  Moved from
+ *      c_yui_main.css (2.6.1) so windows are self-contained and no
+ *      longer depend on the legacy stack's stylesheet.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+.strong-shadow {
+    box-shadow:
+        0 1em 2em -0.125em hsla(var(--bulma-shadow-h), var(--bulma-shadow-s), var(--bulma-shadow-l), 0.3),
+        0 0 0 2px hsla(var(--bulma-shadow-h), var(--bulma-shadow-s), var(--bulma-shadow-l), 0.1) !important;
+}
+
+.without-border {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}

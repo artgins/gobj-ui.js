@@ -45,3 +45,56 @@
 .toolbar_tabulator_table .control.has-icons-left {
     min-width: 0;
 }
+
+/*  Moved from c_yui_main.css (2.6.1): the responsive edit-dialog card
+ *  and the utilities this gclass tags on its DOM.
+ *  Self-contained here so every consumer gets it without the
+ *  legacy stack's stylesheet. */
+
+/* Custom class to adjust the modal width */
+.modal-card.modal-is-responsive {
+    width: 100%;
+    max-width: 100%;
+}
+
+@media screen and (min-width: 768px) {
+    .modal-card.modal-is-responsive {
+        width: 50rem;
+        max-width: 50rem;
+    }
+}
+
+/*
+ *  Mobile (< 768px, dovetails with the desktop rule above): a
+ *  `modal-is-responsive` card (the C_YUI_TREEDB edit/delete form
+ *  popup, and any other consumer of this opt-in class) takes the
+ *  WHOLE screen instead of a centred sheet — more room to edit on a
+ *  phone.  Confirm dialogs do not carry `modal-is-responsive`, so
+ *  they stay compact.  Edge-to-edge: full size, no margin, flat
+ *  corners; the body keeps Bulma's own scroll.
+ */
+@media screen and (max-width: 767px) {
+    .modal-card.modal-is-responsive {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
+        margin: 0;
+        border-radius: 0;
+    }
+    .modal-card.modal-is-responsive .modal-card-head,
+    .modal-card.modal-is-responsive .modal-card-foot {
+        border-radius: 0;
+    }
+    .modal-card.modal-is-responsive .modal-card-body {
+        flex: 1 1 auto;
+        overflow-y: auto;
+    }
+}
+
+.without-border {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+

@@ -48,3 +48,12 @@
     border-color: var(--bulma-border, #dbdbdb);
     cursor: default;
 }
+
+/*  Moved from c_yui_main.css (2.6.1): scroll containment for the fields area.
+ *  Self-contained here so every consumer gets it without the
+ *  legacy stack's stylesheet. */
+
+.overscroll-contain {
+    overscroll-behavior: contain;
+}
+

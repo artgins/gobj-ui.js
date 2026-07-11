@@ -51,3 +51,181 @@
 [data-theme=dark] .tabulator-data-tree-control .tabulator-data-tree-control-collapse:after {
     background: #ffffff !important;
 }
+
+/*  Moved from c_yui_main.css (2.6.1): generic Tabulator theming
+ *  (column separator, frozen columns, striping/hover, dark + system themes).
+ *  Self-contained here so every consumer gets it without the
+ *  legacy stack's stylesheet. */
+
+/*********************************************************
+ *      Tabulator
+ *********************************************************/
+
+/* Visible column separator via pseudo-element on the right-side resize handle only.
+   .prev handles (left-side) are excluded so hidden columns (e.g. Select Row when
+   not in edit mode) don't leave a spurious line at the start of the table. */
+.tabulator .tabulator-col-resize-handle:not(.prev)::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background-color: var(--bulma-border);
+}
+
+.tabulator-row .tabulator-cell.tabulator-frozen {
+    background-color: var(--bulma-background) !important;
+}
+.tabulator .tabulator-header .tabulator-frozen {
+    background-color: var(--bulma-background) !important;
+}
+
+/*
+ *  Tabulator light theme — alternating row backgrounds
+ *  scheme-main-ter (#f5f5f5) gives visible contrast against white odd rows.
+ *  !important needed to override the tabulator_bulma.css theme.
+ */
+.tabulator .tabulator-row,
+.tabulator .tabulator-row.tabulator-row-odd {
+    background-color: var(--bulma-scheme-main, #fff) !important;
+}
+
+.tabulator .tabulator-row.tabulator-row-even {
+    background-color: var(--bulma-scheme-main-ter, #f5f5f5) !important;
+}
+
+.tabulator .tabulator-row.tabulator-selectable:hover {
+    background-color: var(--bulma-background, #ebebeb) !important;
+}
+
+/*
+ *  Tabulator dark theme
+ *  Activated by html[data-theme=dark] (set by the app's theme switcher)
+ */
+[data-theme=dark] .tabulator {
+    background-color: var(--bulma-body-background-color);
+    border-color: var(--bulma-border);
+    color: var(--bulma-body-color);
+}
+
+[data-theme=dark] .tabulator .tabulator-header,
+[data-theme=dark] .tabulator .tabulator-header .tabulator-col {
+    background-color: var(--bulma-background);
+    border-color: var(--bulma-border);
+    color: var(--bulma-text);
+}
+
+[data-theme=dark] .tabulator .tabulator-header .tabulator-col.tabulator-sortable:hover {
+    background-color: var(--bulma-background-bis, var(--bulma-background));
+}
+
+[data-theme=dark] .tabulator-row,
+[data-theme=dark] .tabulator-row.tabulator-row-odd {
+    background-color: var(--bulma-body-background-color) !important;
+    color: var(--bulma-body-color);
+    border-color: var(--bulma-border);
+}
+
+[data-theme=dark] .tabulator-row.tabulator-row-even {
+    background-color: var(--bulma-background) !important;
+    color: var(--bulma-body-color);
+    border-color: var(--bulma-border);
+}
+
+[data-theme=dark] .tabulator-row .tabulator-cell {
+    border-color: var(--bulma-border);
+    color: var(--bulma-body-color);
+}
+
+[data-theme=dark] .tabulator-row.tabulator-selectable:hover {
+    background-color: var(--bulma-background) !important;
+    color: var(--bulma-text) !important;
+}
+
+[data-theme=dark] .tabulator-row.tabulator-selected {
+    background-color: var(--bulma-link) !important;
+    color: var(--bulma-link-invert) !important;
+}
+
+[data-theme=dark] .tabulator-row.tabulator-selected .tabulator-cell {
+    color: var(--bulma-link-invert) !important;
+}
+
+[data-theme=dark] .tabulator .tabulator-footer {
+    background-color: var(--bulma-background);
+    border-color: var(--bulma-border);
+    color: var(--bulma-text);
+}
+
+[data-theme=dark] .tabulator .tabulator-footer .tabulator-page {
+    background-color: transparent;
+    color: var(--bulma-text);
+    border-color: var(--bulma-border);
+}
+
+[data-theme=dark] .tabulator .tabulator-footer .tabulator-page:not(.disabled):hover {
+    background-color: var(--bulma-background);
+    color: var(--bulma-text);
+}
+
+[data-theme=dark] .tabulator .tabulator-footer .tabulator-page.active {
+    background-color: var(--bulma-link);
+    color: var(--bulma-link-invert);
+}
+
+[data-theme=dark] .tabulator-row .tabulator-cell.tabulator-frozen {
+    background-color: var(--bulma-background) !important;
+}
+
+/* system theme: follow OS preference */
+@media (prefers-color-scheme: dark) {
+    [data-theme=system] .tabulator {
+        background-color: var(--bulma-body-background-color);
+        border-color: var(--bulma-border);
+        color: var(--bulma-body-color);
+    }
+    [data-theme=system] .tabulator .tabulator-header,
+    [data-theme=system] .tabulator .tabulator-header .tabulator-col {
+        background-color: var(--bulma-background);
+        border-color: var(--bulma-border);
+        color: var(--bulma-text);
+    }
+    [data-theme=system] .tabulator-row,
+    [data-theme=system] .tabulator-row.tabulator-row-odd {
+        background-color: var(--bulma-body-background-color) !important;
+        color: var(--bulma-body-color);
+        border-color: var(--bulma-border);
+    }
+    [data-theme=system] .tabulator-row.tabulator-row-even {
+        background-color: var(--bulma-background) !important;
+        color: var(--bulma-body-color);
+        border-color: var(--bulma-border);
+    }
+    [data-theme=system] .tabulator-row .tabulator-cell {
+        border-color: var(--bulma-border);
+        color: var(--bulma-body-color);
+    }
+    [data-theme=system] .tabulator-row.tabulator-selectable:hover {
+        background-color: var(--bulma-background) !important;
+    }
+    [data-theme=system] .tabulator-row.tabulator-selected {
+        background-color: var(--bulma-link) !important;
+        color: var(--bulma-link-invert) !important;
+    }
+    [data-theme=system] .tabulator .tabulator-footer {
+        background-color: var(--bulma-background);
+        border-color: var(--bulma-border);
+        color: var(--bulma-text);
+    }
+    [data-theme=system] .tabulator .tabulator-footer .tabulator-page {
+        background-color: transparent;
+        color: var(--bulma-text);
+        border-color: var(--bulma-border);
+    }
+    [data-theme=system] .tabulator .tabulator-footer .tabulator-page.active {
+        background-color: var(--bulma-link);
+        color: var(--bulma-link-invert);
+    }
+}
+
