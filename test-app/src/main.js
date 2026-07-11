@@ -36,6 +36,8 @@ import {register_c_yui_wizard}       from "@yuneta/gobj-ui/src/c_yui_wizard.js";
 import {register_c_yui_pager}        from "@yuneta/gobj-ui/src/c_yui_pager.js";
 import {register_c_yui_map}          from "@yuneta/gobj-ui/src/c_yui_map.js";
 import {register_c_yui_window}       from "@yuneta/gobj-ui/src/c_yui_window.js";
+import {register_c_yui_window_manager}
+                                     from "@yuneta/gobj-ui/src/c_yui_window_manager.js";
 import {register_c_yui_treedb_topic_with_form}
     from "@yuneta/gobj-ui/src/c_yui_treedb_topic_with_form.js";
 
@@ -52,6 +54,7 @@ import {register_c_demo_wizard} from "./c_demo_wizard.js";
 import {register_c_demo_pager}  from "./c_demo_pager.js";
 import {register_c_demo_map}    from "./c_demo_map.js";
 import {register_c_demo_modals} from "./c_demo_modals.js";
+import {register_c_demo_windows} from "./c_demo_windows.js";
 
 import {setup_locale} from "./locales.js";
 
@@ -93,6 +96,7 @@ function main()
     register_c_yui_pager();
     register_c_yui_map();
     register_c_yui_window();     // host for the developer window (account menu)
+    register_c_yui_window_manager(); // dock/taskbar for windows (Windows chapter)
 
     register_c_demo();
     register_c_demo_main();
@@ -107,6 +111,7 @@ function main()
     register_c_demo_pager();
     register_c_demo_map();
     register_c_demo_modals();
+    register_c_demo_windows();
 
     /*  i18n (en/es). C_YUI_FORM, the shell and the views translate their
      *  DOM through i18next's module-level t(); this inits the shared
@@ -150,6 +155,22 @@ function main()
      *  it up to subscribe to EV_RESIZE. A registered service satisfies the
      *  lookup (no "service not found" log) and gives the map real reflow. */
     gobj_create_service("__yui_main__", "C_DEMO_MAIN", {}, yuno);
+
+    /*  Window manager (dock/taskbar). A named service so C_YUI_WINDOW
+     *  hosts (the Windows chapter, the Developer window) opt in via
+     *  gobj_find_service("__window_manager__"). The dock mounts INLINE
+     *  into the Windows chapter's DEMO_WINDOWS_DOCK strip; while that
+     *  strip is not in the DOM it falls back to a floating bar
+     *  (bottom-left) by the manager's own contract. */
+    gobj_create_service(
+        "__window_manager__",
+        "C_YUI_WINDOW_MANAGER",
+        {
+            dock_mode:       "inline",
+            inline_selector: ".DEMO_WINDOWS_DOCK"
+        },
+        yuno
+    );
 
     gobj_start(yuno);
     gobj_play(yuno);

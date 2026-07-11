@@ -22,6 +22,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   gains `question` (used by the yes/no questions) and `success`
   (`get_ok`), `danger` stays an alias of `error`. No animations, per
   the house rule.
+- **test-app: Windows chapter** (`/windows`, `C_DEMO_WINDOWS`) — the
+  last offline coverage gap: floating `C_YUI_WINDOW`s opted into a
+  `C_YUI_WINDOW_MANAGER` dock (`__window_manager__` service). The dock
+  mounts inline into the chapter's card (floating fallback while the
+  card isn't in the DOM); spawn/drag/resize/maximize, minimize-to-chip,
+  raise-on-press, close-unregisters; on mobile a window is a
+  full-screen sheet. With this every offline-capable gobj-ui gclass is
+  exercised by the demo (the treedb trio + `C_G6_NODES_TREE` still
+  need a live backend).
 - **feat(icons): add `yi-circle-info`, `yi-triangle-exclamation` and
   `yi-circle-exclamation`** to `yui_icons.css` (the info/warning/error
   glyph family). test-app gains a **Modals** chapter (`/modals`)

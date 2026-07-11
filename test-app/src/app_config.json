@@ -651,6 +651,22 @@
                     }
                 },
                 {
+                    "id": "windows",
+                    "name": "Windows",
+                    "icon": "yi-square",
+                    "tooltip": "Floating C_YUI_WINDOWs + the C_YUI_WINDOW_MANAGER dock",
+                    "route": "/windows",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_DEMO_WINDOWS",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Windows",
+                            "lead": "C_YUI_WINDOW floating windows managed by the C_YUI_WINDOW_MANAGER dock (service __window_manager__). Spawn a few: drag the titlebar, resize the edges, maximize; minimize rolls a window to a chip in the dock strip below, a press raises/focuses it, x closes it. Open windows float over the other chapters (the view is keep_alive). On mobile a window becomes a full-screen sheet — minimize it to the dock to get back. Fully offline."
+                        }
+                    }
+                },
+                {
                     "id": "map",
                     "name": "Map",
                     "icon": "yi-location-dot",
@@ -751,6 +767,12 @@
                     "name": "Modals",
                     "icon": "yi-circle-info",
                     "route": "/modals"
+                },
+                {
+                    "id": "q-windows",
+                    "name": "Windows",
+                    "icon": "yi-square",
+                    "route": "/windows"
                 },
                 {
                     "id": "q-map",
