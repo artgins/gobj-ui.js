@@ -5,6 +5,12 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **feat(icons): `yi-plug` / `yi-plug-slash`** — hand-drawn CSS-mask glyphs
+  (connect / disconnect), first consumer: gui_treedb's Settings
+  connect/disconnect button.
+
 ## 3.0.0
 
 **BREAKING: the legacy GClass GUI stack is removed from this line**
