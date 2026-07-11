@@ -5,10 +5,11 @@
  *      live view. One button per helper: the blocking questions
  *      (get_yesnocancel / get_yesno / get_ok — Enter answers yes,
  *      Escape cancels/dismisses without stacking) and the typed
- *      messages (display_info/warning/error_message, colour-coded
- *      header + x). Each answer is echoed below the buttons. No child
- *      gobj: the helpers are plain functions that mount a Bulma modal
- *      on the popup layer and destroy it on answer.
+ *      messages (display_info/warning/error_message, tinted round
+ *      icon + accent-colored accept). Each answer is echoed below
+ *      the buttons. No child gobj: the helpers are plain functions
+ *      that mount a Bulma modal on the popup layer and destroy it
+ *      on answer.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

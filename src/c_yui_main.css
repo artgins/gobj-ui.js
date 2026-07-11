@@ -421,3 +421,81 @@ a.flex-horizontal-section { /* To make flex any <a> */
         color: var(--bulma-link-invert);
     }
 }
+
+/*============================================================
+ *      Volatil modals (display_volatil_modal):
+ *      get_yesnocancel / get_yesno / get_ok and the typed
+ *      info/warning/error messages. Icon-centric layout: a
+ *      narrow rounded card with a tinted round icon of the
+ *      type; everything maps to Bulma vars so one rule set
+ *      follows light and dark.
+ *============================================================*/
+.modal.yui-volatil .modal-background {
+    background-color: color-mix(in srgb, var(--bulma-scheme-invert, #000) 45%, transparent);
+}
+.modal.yui-volatil .modal-card {
+    position: relative;
+    width: min(26rem, calc(100vw - 2rem));
+    border-radius: 0.75rem;
+    background: var(--bulma-scheme-main, #fff);
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--bulma-scheme-invert, #000) 30%, transparent);
+    padding: 1.5rem 1.5rem 1.25rem;
+}
+.modal.yui-volatil .modal-card-body {
+    background: transparent;
+    padding: 0;
+}
+.modal.yui-volatil .modal-card-foot {
+    background: transparent;
+    border-top: none;
+    padding: 1rem 0 0;
+}
+.yui-volatil-icon {
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 0.75rem;
+    font-size: 1.5rem;
+    background: color-mix(in srgb, var(--yui-volatil-base, var(--bulma-info, #3e8ed0)) 15%, transparent);
+    color: var(--yui-volatil-ink, var(--bulma-info, #3e8ed0));
+}
+.modal.yui-volatil.is-info,
+.modal.yui-volatil.is-question {
+    --yui-volatil-base: var(--bulma-info, #3e8ed0);
+    --yui-volatil-ink: var(--bulma-info-on-scheme, #3e8ed0);
+}
+.modal.yui-volatil.is-success {
+    --yui-volatil-base: var(--bulma-success, #48c78e);
+    --yui-volatil-ink: var(--bulma-success-on-scheme, #257953);
+}
+.modal.yui-volatil.is-warning {
+    --yui-volatil-base: var(--bulma-warning, #ffe08a);
+    --yui-volatil-ink: var(--bulma-warning-on-scheme, #946c00);
+}
+.modal.yui-volatil.is-error {
+    --yui-volatil-base: var(--bulma-danger, #f14668);
+    --yui-volatil-ink: var(--bulma-danger-on-scheme, #cc0f35);
+}
+.yui-volatil-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    margin-bottom: 0.25rem;
+    color: var(--bulma-text-strong, inherit);
+}
+.yui-volatil-x {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+}
+.yui-volatil-msg {
+    font-size: 1.05rem;
+    color: var(--bulma-text, inherit);
+}
+.modal.yui-volatil .modal-card-body .buttons {
+    margin-top: 1.25rem;
+    margin-bottom: 0;
+}

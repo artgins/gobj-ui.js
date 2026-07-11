@@ -7,6 +7,21 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(main): redesigned volatil modals.** `display_volatil_modal`
+  (the `get_yesnocancel`/`get_yesno`/`get_ok` questions and the typed
+  info/warning/error messages) drops the raw-Bulma look — huge `.title`
+  question text, 640px card, saturated full-width colored header — for
+  an icon-centric layout: a narrow rounded card (max 26rem), a tinted
+  round icon of the type (question/success/info/warning/error, the new
+  `yi-*` glyphs), an optional capitalized title, normal-size message and
+  centered buttons; the accept button of the typed messages follows the
+  type accent (info blue / warning amber / error red). Everything maps
+  to Bulma vars so one rule set follows light and dark; the overlay dim
+  is softened (45%) so stacked confirms no longer black the page out.
+  API unchanged (`title`/`msg`/`type`/`x_close`/`buttons`); `type`
+  gains `question` (used by the yes/no questions) and `success`
+  (`get_ok`), `danger` stays an alias of `error`. No animations, per
+  the house rule.
 - **feat(icons): add `yi-circle-info`, `yi-triangle-exclamation` and
   `yi-circle-exclamation`** to `yui_icons.css` (the info/warning/error
   glyph family). test-app gains a **Modals** chapter (`/modals`)

@@ -879,8 +879,24 @@ function display_volatil_modal(
     {title, msg, callback, type, x_close, buttons}
 ) {
     const callback_ = callback;  // ✅ Assign to a constant
+
+    /*  Normalize the type: it picks the tinted icon and the accent
+     *  color (see the .yui-volatil rules in c_yui_main.css).  */
+    let type_ = (type || "info").toLowerCase();
+    if(type_ === "danger") {
+        type_ = "error";
+    }
+    const TYPE_ICONS = {
+        "info":     "yi-circle-info",
+        "question": "yi-question",
+        "success":  "yi-square-check",
+        "warning":  "yi-triangle-exclamation",
+        "error":    "yi-circle-exclamation",
+    };
+    let icon = TYPE_ICONS[type_] || TYPE_ICONS["info"];
+
     let $element = createElement2([
-        'div', {class: 'modal'}, [
+        'div', {class: `modal yui-volatil is-${type_}`}, [
             ['div', {class: 'modal-background'}, ''],
             ['div', {class: 'modal-card'}, []]
         ]
@@ -917,37 +933,23 @@ function display_volatil_modal(
     document.addEventListener('keydown', on_keydown, true);
 
     let $modal_card = $element.querySelector('.modal-card');
-    if(title || x_close) {
-        if(!type) {
-            type = "";
-        }
-        let background_color = "";
-        switch(type.toLowerCase()) {
-            case "info":
-                background_color = 'has-background-info';
-                break;
-            case "success":
-                background_color = 'has-background-success';
-                break;
-            case "warning":
-                background_color = 'has-background-warning';
-                break;
-            case "error":
-            case "danger":
-                background_color = 'has-background-danger';
-                break;
-        }
 
-        let title_ = !title ? [] : ['p', {class: 'modal-card-title has-text-centered'}, title];
-        let x_close_ = !x_close ? [] : ['button', {class: 'delete is-large', 'aria-label': 'close'}];
-
-        let $header = createElement2(
-            ['header', {class: `modal-card-head ${background_color} p-3`}, [
-                title_,
-                x_close_
-            ]]
-        );
-        $modal_card.appendChild($header);
+    /*  Icon-centric layout (no colored header bar): a tinted round
+     *  icon of the type, an optional title, an optional top-right x. */
+    $modal_card.appendChild(createElement2(
+        ['div', {class: 'yui-volatil-icon'}, [
+            ['i', {class: icon, 'aria-hidden': 'true'}]
+        ]]
+    ));
+    if(title) {
+        $modal_card.appendChild(createElement2(
+            ['p', {class: 'yui-volatil-title has-text-centered'}, title]
+        ));
+    }
+    if(x_close) {
+        $modal_card.appendChild(createElement2(
+            ['button', {class: 'delete yui-volatil-x', 'aria-label': 'close'}]
+        ));
     }
 
     let $section = createElement2(
@@ -1042,7 +1044,7 @@ function display_info_message(title, msg, callback)
         type: 'info',
         buttons: [{
             content:
-            `<button class="button is-success px-6 with-focus">${t('accept')}</button>`,
+            `<button class="button is-info px-6 with-focus">${t('accept')}</button>`,
         }]
     });
 }
@@ -1062,7 +1064,7 @@ function display_warning_message(title, msg, callback)
         type: 'warning',
         buttons: [{
             content:
-                `<button class="button is-success px-6 with-focus">${t('accept')}</button>`,
+                `<button class="button is-warning px-6 with-focus">${t('accept')}</button>`,
         }]
     });
 }
@@ -1082,7 +1084,7 @@ function display_error_message(title, msg, callback, without_buttons)
         type: 'error',
         buttons: without_buttons? []: [{
             content:
-                `<button class="button is-success px-6 with-focus">${t('accept')}</button>`,
+                `<button class="button is-danger px-6 with-focus">${t('accept')}</button>`,
         }]
     });
 }
@@ -1094,7 +1096,7 @@ function get_yesnocancel(msg, callback)
 {
     let content =
         `<div class="">
-        <p class="title">${t(msg)}</p>
+        <p class="yui-volatil-msg">${t(msg)}</p>
         <div class="buttons is-centered">
             <button class="button to-close is-success px-6 with-focus yesButton">${t('yes')}</button>
             <button class="button to-close is-danger px-6 noButton">${t('no')}</button>
@@ -1116,7 +1118,7 @@ function get_yesnocancel(msg, callback)
         title: null,
         msg: content,
         callback: callback_,
-        type: 'info'
+        type: 'question'
     });
 }
 
@@ -1127,7 +1129,7 @@ function get_yesno(msg, callback)
 {
     let content =
     `<div class="">
-        <p class="title">${msg}</p>
+        <p class="yui-volatil-msg">${msg}</p>
         <div class="buttons is-centered">
             <button class="button to-close is-success px-6 with-focus yesButton">${t('yes')}</button>
             <button class="button to-close is-danger px-6 noButton">${t('no')}</button>
@@ -1148,7 +1150,7 @@ function get_yesno(msg, callback)
         title: null,
         msg: content,
         callback: callback_,
-        type: 'info'
+        type: 'question'
     });
 }
 
@@ -1159,7 +1161,7 @@ function get_ok(msg, callback)
 {
     let content =
         `<div class="">
-        <p class="title">${msg}</p>
+        <p class="yui-volatil-msg">${msg}</p>
         <div class="buttons is-centered">
             <button class="button to-close is-success px-6 with-focus yesButton">${t('accept')}</button>
         </div>
@@ -1179,7 +1181,7 @@ function get_ok(msg, callback)
         title: null,
         msg: content,
         callback: callback_,
-        type: 'info'
+        type: 'success'
     });
 }
 
