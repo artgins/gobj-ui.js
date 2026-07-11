@@ -5,7 +5,7 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 2.4.0
 
 - **fix(form): hosted third-party widgets follow the app theme.** The
   JSON editor (`vanilla-jsoneditor`) was hardcoded to `jse-theme-dark` —
