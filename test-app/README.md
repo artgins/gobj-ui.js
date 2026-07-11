@@ -54,6 +54,7 @@ component publishes events) declares them.
 | **Wizard** (`/wizard`) | `C_YUI_WIZARD` | A multi-step wizard (title + "N / M" + Back/Next→Confirm). Steps via `EV_SET_STEPS`; publishes `EV_STEP_SHOWN` / `EV_WIZARD_DONE` / `EV_WIZARD_CANCEL`. Offline. |
 | **Pager** (`/pager`) | `C_YUI_PAGER` | A drill-down page stack ("← title" header). Push pages with the button, pop with "←"; publishes `EV_PAGE_SHOWN` / `EV_PAGE_DISCARD` / `EV_PAGER_EXIT`. Offline. |
 | **Map** (`/map`) | `C_YUI_MAP` (MapLibre) | A basemap with Spanish-city markers. Differs from the others: it renders into an external pre-sized `$map` (no `$container`). **Needs network** for the basemap tiles (`tiles.openfreemap.org`); offline it degrades to a blank map with controls. |
+| **Treedb** (`/treedb`) | `C_YUI_TREEDB_TOPIC_WITH_FORM` | The real treedb topic table + its hosted `C_YUI_FORM` edit dialog, against an **in-memory backend**: the wrapper plays the `C_YUI_TREEDB_TOPICS` role (feeds `EV_LOAD_NODES`, answers `get_topic_data` for fkey options, applies and echoes the published `EV_CREATE/UPDATE/DELETE_RECORD`). Pkey follows the `form_mode` contract, fkeys are TomSelects fed with sibling-topic rows, the dict col edits as raw JSON. Offline. |
 
 `C_YUI_MAP` (and other legacy components) look up a `__yui_main__`
 service to subscribe to its `EV_RESIZE`. The declarative shell doesn't
@@ -62,8 +63,7 @@ provide one, so `c_demo_main.js` registers a minimal `__yui_main__`
 gives the map real reflow and silences the "service not found" log.
 
 Not demoed (need a live backend/treedb, out of scope here):
-`C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` /
-`C_YUI_TREEDB_TOPIC_WITH_FORM` / `C_G6_NODES_TREE`.
+`C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` / `C_G6_NODES_TREE`.
 
 Because `C_YUI_FORM` (and the shell) translate their DOM through
 i18next's module-level `t()`, `main.js` initialises the shared i18next
@@ -125,6 +125,7 @@ the view routes them by setting the hash — exactly what the shell does.
 | `src/c_demo_wizard.js` | the **Wizard** chapter — hosts `C_YUI_WIZARD` |
 | `src/c_demo_pager.js` | the **Pager** chapter — hosts `C_YUI_PAGER` |
 | `src/c_demo_map.js` | the **Map** chapter — hosts `C_YUI_MAP` (MapLibre) |
+| `src/c_demo_treedb.js` | the **Treedb** chapter — hosts `C_YUI_TREEDB_TOPIC_WITH_FORM` over an in-memory backend |
 | `src/c_demo_main.js` | minimal `__yui_main__` service (EV_RESIZE) for the map |
 | `src/locales.js` | i18next setup + the `es` translation bundle (en/es toggle) |
 | `src/demo.css` | app-owned styling for the view cards + table dark theme (never shell chrome) |
