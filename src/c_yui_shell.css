@@ -141,16 +141,24 @@
 .yui-nav-vertical .yui-nav-label { white-space: nowrap; }
 
 /*--- icon-bar (bottom/top icon bar) ---*/
+/*  Distribute-or-scroll: items grow to share spare width but never
+ *  shrink below their content (flex: 1 0 auto); when they don't fit the
+ *  bar scrolls horizontally. justify-content must stay flex-start —
+ *  with space-around + overflow the leading items get clipped past the
+ *  left edge and become unreachable. */
 .yui-nav-iconbar {
     display: flex;
-    justify-content: space-around;
+    justify-content: flex-start;
     align-items: stretch;
     margin: 0;
     padding: 0.25rem 0;
     width: 100%;
     background: var(--bulma-scheme-main, #fff);
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
-.yui-nav-iconbar .level-item { flex: 1 1 0; justify-content: center; }
+.yui-nav-iconbar .level-item { flex: 1 0 auto; justify-content: center; }
+.yui-nav-iconbar .yui-nav-label { white-space: nowrap; }
 .yui-nav-iconbar .yui-nav-item {
     display: flex;
     flex-direction: column;

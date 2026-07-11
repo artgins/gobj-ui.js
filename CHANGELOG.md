@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **fix(nav): icon-bar distributes when items fit, scrolls when they
+  don't.** `.yui-nav-iconbar` items were `flex: 1 1 0`, so a menu with
+  many first-level entries crushed them into the viewport width instead
+  of overflowing — on mobile part of the menu was unreachable. Items are
+  now `flex: 1 0 auto` (grow to share spare width, never shrink below
+  content) and the bar gets `overflow-x: auto`; `justify-content` moves
+  from `space-around` to `flex-start` (with overflow, `space-around`
+  clips the leading items past the left edge), labels are `nowrap`.
+
 ## 2.3.1
 
 - **chore(deps): upgrade `vanilla-jsoneditor` 0.23.8 → 3.12.0.** The
