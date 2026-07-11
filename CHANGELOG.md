@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **fix(main): volatil modals close on Escape.** The blocking dialogs
+  built by `display_volatil_modal` (`get_yesnocancel` / `get_yesno` /
+  `get_ok`, info/warning/error messages) now treat Escape as cancel:
+  it clicks the cancel/x affordance when present (keeping the callback
+  semantics) and just dismisses a buttonless modal. The listener runs
+  in capture phase and only on the top-most open modal, so Escape
+  handlers beneath (e.g. the treedb edit dialog's, added in 2.4.0)
+  don't also fire — pressing Escape repeatedly could stack a second
+  confirm on top of the first. Theming needed no change: the confirm
+  already follows light/dark (the earlier "white in dark" report was
+  two stacked modal-background overlays dimming a light page).
+
 ## 2.4.0
 
 - **fix(form): hosted third-party widgets follow the app theme.** The

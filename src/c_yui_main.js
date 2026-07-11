@@ -27,7 +27,7 @@
  *          The tabs in a content-layer to manage sub-containers can be managed by yui_tabs.js
  *          or be integrated in each gobj.
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 /* global ResizeObserver, window, document */
@@ -887,9 +887,34 @@ function display_volatil_modal(
     ]);
 
     const destroyModal = ()=> {
+        document.removeEventListener('keydown', on_keydown, true);
         $element.classList.remove('is-active');
         $element.parentNode.removeChild($element);
     };
+
+    /*  Escape = cancel. Capture phase on document, so Escape handlers
+     *  beneath the modal (e.g. the treedb edit dialog's own) don't also
+     *  fire and stack a second confirm. Only the top-most open modal
+     *  reacts; the cancel/x click path carries the callback semantics,
+     *  a buttonless modal just dismisses. */
+    const on_keydown = (evt)=> {
+        if(evt.key !== "Escape") {
+            return;
+        }
+        let $modals = document.querySelectorAll('.modal.is-active');
+        if($modals.length && $modals[$modals.length - 1] !== $element) {
+            return;
+        }
+        evt.stopPropagation();
+        evt.preventDefault();
+        let $cancel = $element.querySelector('.cancelButton, .delete');
+        if($cancel) {
+            $cancel.click();
+        } else {
+            destroyModal();
+        }
+    };
+    document.addEventListener('keydown', on_keydown, true);
 
     let $modal_card = $element.querySelector('.modal-card');
     if(title || x_close) {
