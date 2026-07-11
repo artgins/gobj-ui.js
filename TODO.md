@@ -11,13 +11,11 @@ on npmjs.com.
 
 ---
 
-## 1. (Optional, deferred) Migrate legacy GUIs off `C_YUI_MAIN` / `C_YUI_ROUTING`
+## 1. Migrate legacy GUIs off `C_YUI_MAIN` / `C_YUI_ROUTING` — CLOSED
 
-> **Status: §1.1 obsolete, §1.2 done in `2.6.0`.**  Only §1.3
-> (external repo, superseded — see note there) and the final
-> removal (§1.4) remain, and the removal is still **not planned**:
-> `C_YUI_MAIN` and `C_YUI_ROUTING` stay shipped and supported.
-> Do **not** start §1.4 without an explicit go-ahead.
+> **Status: CLOSED in `3.0.0`.**  §1.1 obsolete, §1.2 done in
+> `2.6.0`, §1.3 superseded (estadodelaire lives on npm v1), §1.4
+> executed in `3.0.0` with the user's go-ahead (2026-07-11).
 
 ### 1.1. ~~Migrate `C_YUI_TABS` off `EV_ROUTING_CHANGED`~~ — obsolete
 
@@ -38,9 +36,9 @@ shell created on the page).  The treedb edit dialog mounts on the
 shell's popup layer (`yui_shell_popup_layer`) and rides the shell
 Escape chain, LIFO with the confirms.
 
-The only remaining `c_yui_main.js` importer is the test-app Modals
-chapter, which demos the legacy helpers **deliberately** (drift
-policy, SHELL.md §10) next to the shell ones.
+The test-app Modals chapter kept demoing the legacy helpers next to
+the shell ones until §1.4 removed them (it now demos the shell
+helpers only).
 
 `c_g6_nodes_tree.js`, `c_yui_form.js` and `yui_dev.js` (listed as
 "likely" in the original checklist) were already clean.
@@ -81,26 +79,21 @@ top of `gobj-ui`.  Replace its bootstrap:
   **before continuing**.  Do not patch around it ad-hoc inside
   `gui/`.
 
-### 1.4. Delete `C_YUI_MAIN` and `C_YUI_ROUTING` from `gobj-ui`
+### 1.4. ~~Delete `C_YUI_MAIN` and `C_YUI_ROUTING`~~ — done in `3.0.0`
 
-Gated on an explicit removal decision (not planned).  In-tree
-blockers are gone since `2.6.0`; the test-app Modals chapter still
-demos the legacy helpers and would drop that group here.
+Removed `c_yui_main.js`/`.css`, `c_yui_routing.js`/`.css`,
+`c_yui_tabs.js`, plus the equally consumer-less `themes.js` and
+`ytable.js`/`.css`; exports dropped from `index.js`; SHELL.md §10
+rewritten (coexistence/drift policy retired) and the old §12
+"don't import both css" limitation deleted; README updated.  The
+`2.5.0` icon-centric volatil design was ported into
+`yui_shell_confirm_*` (tinted type icon, `opts.type`) before the
+removal, so the redesign survives in the blessed API.  The test-app
+Modals chapter now demos the shell helpers only.
 
-- Delete `src/c_yui_main.js`, `src/c_yui_main.css`,
-  `src/c_yui_routing.js`, `src/c_yui_routing.css`.
-- Remove their exports from `index.js`.
-- Drop `import "@yuneta/gobj-ui/src/c_yui_main.css"` /
-  `c_yui_routing.css` from any remaining `main.js`.
-- Update `SHELL.md` §11 to remove the "Do not import `c_yui_main.css`
-  and `c_yui_shell.css` together" item (and renumber).
-- Update `README.md` of `gobj-ui` to drop the `C_YUI_MAIN` /
-  `C_YUI_ROUTING` mentions.
-- Bump `gobj-ui` to `8.0.0` (breaking change).  Add CHANGELOG entry
-  with the removal and link to this TODO.
-
-**Done when (1 as a whole):** `gobj-ui` no longer ships either
-gclass and no consumer inside the org references them.
+**Done (1 as a whole, 2026-07-11):** `gobj-ui` `main` no longer
+ships the legacy stack and no consumer references it; the frozen v1
+npm line still serves estadodelaire/hidraulia.
 
 ---
 

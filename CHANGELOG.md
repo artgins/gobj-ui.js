@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 3.0.0
+
+**BREAKING: the legacy GClass GUI stack is removed from this line**
+(TODO §1.4; every in-org consumer had already migrated — the frozen v1
+npm line, dist-tag `legacy`, still ships it for estadodelaire/hidraulia).
+
+- **Removed**: `c_yui_main.js`/`.css` (C_YUI_MAIN + the `display_*` /
+  `get_yes*` volatil helpers), `c_yui_routing.js`/`.css`,
+  `c_yui_tabs.js`, and the equally consumer-less `themes.js` and
+  `ytable.js`/`.css`. Their exports are gone from the `index.js`
+  barrel. SHELL.md §10 rewritten (coexistence/drift policy retired;
+  the old §12 "don't import both css" limitation deleted), README
+  updated.
+- **feat(shell): the confirms adopt the icon-centric design** ported
+  from the 2.5.0 volatil redesign before deleting it: a narrow rounded
+  card with a tinted round icon of the type, optional capitalized
+  title, centered message/buttons, X top-right; `build_dialog` gains
+  `opts.type` (`question`/`success`/`info`/`warning`/`error`, `danger`
+  aliases error; confirms default to `question`, `yui_shell_confirm_ok`
+  to `success`) and focuses the primary button so Enter answers it —
+  same Promise/Escape-chain/focus-trap contract, CSS in
+  `c_yui_shell.css` (`.yui-confirm`, Bulma vars, light+dark).
+- **test-app: the Modals chapter demos the shell helpers only** (the
+  legacy trigger group is gone with the helpers).
+
 ## 2.6.1
 
 - **fix: 2.6.0 dropped shared CSS the apps relied on.** `c_yui_main.css`

@@ -1,21 +1,15 @@
 /***********************************************************************
  *          c_demo_modals.js
  *
- *      C_DEMO_MODALS — both modal helper families as a live view,
- *      one button per helper, each answer echoed below the buttons.
- *
- *      Shell helpers (shell_modals.js) — the blessed v2 path, used
- *      by the treedb gclasses and C_YUI_WINDOW: Promise-based
- *      confirms on the shell's modal layer + Escape priority chain,
+ *      C_DEMO_MODALS — the shell modal helpers (shell_modals.js) as
+ *      a live view, one button per helper, each answer echoed below
+ *      the buttons: Promise-based icon-centric confirms on the
+ *      shell's modal layer riding its Escape priority chain (Enter
+ *      answers the primary, Escape dismisses with the safe default),
  *      and auto-dismiss notifications on the notification layer.
- *
- *      Legacy volatil helpers (c_yui_main.js) — kept per the drift
- *      policy (SHELL.md §10): the blocking questions
- *      (get_yesnocancel / get_yesno / get_ok — Enter answers yes,
- *      Escape cancels/dismisses without stacking) and the typed
- *      messages (display_info/warning/error_message, tinted round
- *      icon + accent-colored accept). Plain functions that mount a
- *      Bulma modal on the popup layer and destroy it on answer.
+ *      (The legacy volatil helpers this chapter also demoed were
+ *      removed with c_yui_main.js in 3.0.0; their icon-centric look
+ *      lives on in the shell confirms.)
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -29,15 +23,6 @@ import {
     createElement2,
     refresh_language,
 } from "@yuneta/gobj-js";
-
-import {
-    get_yesnocancel,
-    get_yesno,
-    get_ok,
-    display_info_message,
-    display_warning_message,
-    display_error_message,
-} from "@yuneta/gobj-ui/src/c_yui_main.js";
 
 import {
     yui_shell_show_info,
@@ -58,61 +43,9 @@ import {t} from "i18next";
  ***************************************************************/
 const GCLASS_NAME = "C_DEMO_MODALS";
 
-/*  One entry per helper: button spec + the call it demonstrates. */
-const TRIGGERS = [
-    {
-        id: "yesnocancel", label: "yes / no / cancel", icon: "yi-question",
-        run: (echo) => {
-            get_yesnocancel("All changes will be lost. Are you sure?", (answer) => {
-                echo(`get_yesnocancel -> "${answer}"`);
-            });
-        }
-    },
-    {
-        id: "yesno", label: "yes / no", icon: "yi-question",
-        run: (echo) => {
-            get_yesno(t("Delete the selected records?"), (answer) => {
-                echo(`get_yesno -> "${answer}"`);
-            });
-        }
-    },
-    {
-        id: "ok", label: "ok", icon: "yi-square-check",
-        run: (echo) => {
-            get_ok(t("Operation completed."), (answer) => {
-                echo(`get_ok -> "${answer}"`);
-            });
-        }
-    },
-    {
-        id: "info", label: "info", icon: "yi-circle-info",
-        run: (echo) => {
-            display_info_message(null, t("This node runs release 7.7.2."), () => {
-                echo("display_info_message -> accepted");
-            });
-        }
-    },
-    {
-        id: "warning", label: "warning", icon: "yi-triangle-exclamation",
-        run: (echo) => {
-            display_warning_message(null, t("The connection is unstable."), () => {
-                echo("display_warning_message -> accepted");
-            });
-        }
-    },
-    {
-        id: "error", label: "error", icon: "yi-circle-exclamation",
-        run: (echo) => {
-            display_error_message(null, t("The yuno did not answer."), () => {
-                echo("display_error_message -> accepted");
-            });
-        }
-    },
-];
-
-/*  Same coverage for the shell helpers — the blessed v2 path.
+/*  One entry per helper: button spec + the call it demonstrates.
  *  run(echo, gobj): the shell is resolved from the view gobj. */
-const SHELL_TRIGGERS = [
+const TRIGGERS = [
     {
         id: "shell-yesnocancel", label: "confirm yes / no / cancel",
         icon: "yi-question",
@@ -295,12 +228,6 @@ function build_ui(gobj)
     let $c = createElement2(
         ["div", {class: "C_DEMO_MODALS DEMO_CARD view-card"}, [
             ["div", {class: "DEMO_HEAD"}, head],
-            ["h2", {class: "DEMO_MODALS_GROUP_TITLE title is-6 mb-2",
-                    i18n: "shell helpers"}, "shell helpers"],
-            ["div", {class: "DEMO_MODALS_TRIGGERS buttons"},
-                trigger_buttons(SHELL_TRIGGERS)],
-            ["h2", {class: "DEMO_MODALS_GROUP_TITLE title is-6 mb-2",
-                    i18n: "legacy volatil helpers"}, "legacy volatil helpers"],
             ["div", {class: "DEMO_MODALS_TRIGGERS buttons"},
                 trigger_buttons(TRIGGERS)],
             ["p", {class: "DEMO_MODALS_RESULT is-size-7 has-text-grey"}, "—"]
@@ -313,7 +240,7 @@ function build_ui(gobj)
             $r.textContent = text;
         }
     };
-    for(let trig of TRIGGERS.concat(SHELL_TRIGGERS)) {
+    for(let trig of TRIGGERS) {
         let $btn = $c.querySelector(`[data-trigger="${trig.id}"]`);
         if($btn) {
             $btn.addEventListener("click", () => {

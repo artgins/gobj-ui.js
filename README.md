@@ -1,8 +1,10 @@
 # gobj-ui — Yuneta UI Library
 
 Reusable GUI components for Yuneta GClass front-ends: a declarative shell
-(`C_YUI_SHELL`/`NAV`/`PAGER`/`WIZARD`), the legacy GClass GUI stack
-(`C_YUI_MAIN`/`WINDOW`/`TABS`/`ROUTING`), TreeDB editors, charts and maps.
+(`C_YUI_SHELL`/`NAV`/`PAGER`/`WIZARD`), floating windows
+(`C_YUI_WINDOW`/`WINDOW_MANAGER`), TreeDB editors, charts and maps. The
+legacy GClass GUI stack (`C_YUI_MAIN`/`TABS`/`ROUTING`) was removed from
+this line in `3.0.0` — the frozen v1 npm line still ships it.
 
 Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://github.com/artgins/gobj-js).
 
@@ -16,8 +18,8 @@ consumers. They are independent snapshots (no shared git ancestry):
 | **v2** | `main` | `2.0.0`+ | `src/` subdir | **wattyzer** | local `file:` dep on the yunetas submodule | active development |
 | **v1** | `v1` | `1.0.0` | `src/` subdir | **estadodelaire**, **hidraulia** | published npm `@yuneta/gobj-ui@^1.0.0` | frozen, maintenance-only |
 
-- **v2 / `main`** is the active development line: the declarative shell on top
-  of the legacy stack. It is embedded as a git submodule in **yunetas** at
+- **v2 / `main`** is the active development line: the declarative shell
+  (legacy-stack-free since `3.0.0`). It is embedded as a git submodule in **yunetas** at
   `kernel/js/gobj-ui`, and **wattyzer** consumes that checkout as a `file:`
   dependency (`@yuneta/gobj-ui` → `../../../yunetas/kernel/js/gobj-ui`),
   importing by package specifier (`@yuneta/gobj-ui/src/*.js`, exports map

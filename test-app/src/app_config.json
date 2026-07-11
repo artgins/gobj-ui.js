@@ -638,7 +638,7 @@
                     "id": "modals",
                     "name": "Modals",
                     "icon": "yi-circle-info",
-                    "tooltip": "Shell confirm/notification helpers + legacy volatil modals",
+                    "tooltip": "Shell confirm/notification helpers",
                     "route": "/modals",
                     "target": {
                         "stage": "main",
@@ -646,7 +646,7 @@
                         "lifecycle": "keep_alive",
                         "kw": {
                             "title": "Modals",
-                            "lead": "Both modal families. Shell helpers (shell_modals.js, the blessed v2 path): Promise-based confirms on the shell's modal layer riding its Escape priority chain, and auto-dismiss notifications. Legacy volatil helpers (c_yui_main.js, drift policy): blocking questions (get_yesnocancel / get_yesno / get_ok) and typed messages with the tinted round icon. Escape cancels or dismisses — repeat presses never stack a second modal. Each answer is echoed below the buttons. Fully offline."
+                            "lead": "The shell modal helpers (shell_modals.js): Promise-based icon-centric confirms (yui_shell_confirm_ok / yesno / yesnocancel) on the shell's modal layer riding its Escape priority chain — Enter answers the primary, Escape dismisses with the safe default, repeat presses never stack a second modal — and auto-dismiss notifications (yui_shell_show_info / warning / error). Each answer is echoed below the buttons. Fully offline."
                         }
                     }
                 },

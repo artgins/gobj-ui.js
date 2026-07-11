@@ -321,13 +321,28 @@ export function yui_shell_show_modal(shell, content, opts)
 
 
 /***************************************************************
- *              Blocking dialogs (Bulma .modal-card)
+ *              Blocking dialogs (icon-centric .modal-card)
  *
  *      build_dialog returns a Promise that resolves with the
  *      clicked button's `value`.  Escape, the close button and
  *      the dismiss action all resolve with the LAST button's value
  *      (cancel/no/ok by convention — the safe-default action).
+ *
+ *      Layout ported from the legacy volatil modals (2.5.0
+ *      redesign, removed in 3.0.0): a narrow rounded card with a
+ *      tinted round icon of the `opts.type`
+ *      (question/success/info/warning/error, `danger` aliases
+ *      error), optional capitalized title, centered message and
+ *      buttons.  Everything maps to Bulma vars (light and dark).
  ***************************************************************/
+const CONFIRM_TYPE_ICONS = {
+    "info":     "yi-circle-info",
+    "question": "yi-question",
+    "success":  "yi-square-check",
+    "warning":  "yi-triangle-exclamation",
+    "error":    "yi-circle-exclamation",
+};
+
 function build_dialog(shell, message, buttons, opts)
 {
     let $layer = modal_layer(shell);
@@ -339,16 +354,18 @@ function build_dialog(shell, message, buttons, opts)
     let title = (opts && opts.title) || "";
     let dismiss_value = buttons[buttons.length - 1].value;
 
+    let type = ((opts && opts.type) || "question").toLowerCase();
+    if(type === "danger") {
+        type = "error";
+    }
+    let icon = CONFIRM_TYPE_ICONS[type] || CONFIRM_TYPE_ICONS["question"];
+
     let $body_children = (typeof message === "string")
-        ? [["p", {i18n: message}, message]]
+        ? [["p", {class: "yui-confirm-msg", i18n: message}, message]]
         : [message];
 
-    let title_attrs = !empty_string(title)
-        ? {class: "modal-card-title", i18n: title}
-        : {class: "modal-card-title"};
-
     let $footer_children = buttons.map(b => {
-        let cls = "button";
+        let cls = "button px-5";
         if(b.kind === "primary") {
             cls += " is-link";
         } else if(b.kind === "danger") {
@@ -362,24 +379,30 @@ function build_dialog(shell, message, buttons, opts)
         return ["button", btn_attrs, b.label];
     });
 
+    let $card_children = [
+        ["div", {class: "yui-confirm-icon"},
+            [["i", {class: icon, "aria-hidden": "true"}]]
+        ]
+    ];
+    if(!empty_string(title)) {
+        $card_children.push(
+            ["p", {class: "yui-confirm-title has-text-centered",
+                   i18n: title}, title]
+        );
+    }
+    $card_children.push(
+        ["button", {class: "delete yui-confirm-x", "aria-label": "close"}],
+        ["section", {class: "modal-card-body has-text-centered"},
+            $body_children],
+        ["footer", {class: "modal-card-foot"}, $footer_children]
+    );
+
     let $modal = createElement2(
-        ["div", {class: "modal yui-modal yui-confirm is-active",
+        ["div", {class: `modal yui-modal yui-confirm is-active is-${type}`,
                  role: "dialog", "aria-modal": "true"},
             [
                 ["div", {class: "modal-background"}],
-                ["div", {class: "modal-card"},
-                    [
-                        ["header", {class: "modal-card-head"},
-                            [
-                                ["p", title_attrs, title],
-                                ["button", {class: "delete",
-                                            "aria-label": "close"}]
-                            ]
-                        ],
-                        ["section", {class: "modal-card-body"}, $body_children],
-                        ["footer", {class: "modal-card-foot"}, $footer_children]
-                    ]
-                ]
+                ["div", {class: "modal-card"}, $card_children]
             ]
         ]
     );
@@ -419,7 +442,7 @@ function build_dialog(shell, message, buttons, opts)
         $modal.querySelector(".modal-background").addEventListener(
             "click", () => close(dismiss_value)
         );
-        $modal.querySelector(".modal-card-head .delete").addEventListener(
+        $modal.querySelector(".modal-card .delete").addEventListener(
             "click", () => close(dismiss_value)
         );
         let footer_buttons = $modal.querySelectorAll(
@@ -430,6 +453,12 @@ function build_dialog(shell, message, buttons, opts)
                 close($btn.getAttribute("data-modal-button-value"));
             });
         });
+
+        /*  Enter answers the primary action, like the volatil modals. */
+        let $primary = $modal.querySelector(".modal-card-foot button");
+        if($primary) {
+            $primary.focus();
+        }
     });
 }
 
@@ -437,6 +466,9 @@ function build_dialog(shell, message, buttons, opts)
 export function yui_shell_confirm_ok(shell, message, opts)
 {
     let label = (opts && opts.ok_label) || "OK";
+    if(!opts || !opts.type) {
+        opts = Object.assign({}, opts, {type: "success"});
+    }
     return build_dialog(shell, message, [
         {label: label, value: "ok", kind: "primary"}
     ], opts).then(() => undefined);

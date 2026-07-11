@@ -1,9 +1,9 @@
 # `C_YUI_SHELL` + `C_YUI_NAV` — Declarative shell
 
 Application-level presentation and navigation system for Yuneta GUIs.
-Replaces the `C_YUI_MAIN` + `C_YUI_ROUTING` pair (both still exist and
-can coexist) with a couple of GClasses driven by a JSON document in the
-Yuneta configuration style.
+Replaced the legacy `C_YUI_MAIN` + `C_YUI_ROUTING` pair (removed in
+`3.0.0`; the frozen v1 npm line still ships them) with a couple of
+GClasses driven by a JSON document in the Yuneta configuration style.
 
 - Built with **Vite** (same as the rest of `gobj-ui`).
 - Backed by **Bulma** (`.menu`, `.tabs`, `.level`, `.navbar`,
@@ -67,8 +67,10 @@ keyed on `data-toolbar-item-id`, the shell got better at its job.
    that was there"*.
 6. **Per-option lifecycle**: `eager` / `keep_alive` / `lazy_destroy`,
    to balance the cost of rebuilding against RAM usage.
-7. **No regressions on `gobj-ui`**: existing components (`C_YUI_MAIN`,
-   `C_YUI_ROUTING`, `C_YUI_TABS`, etc.) are left untouched.
+7. **No regressions on `gobj-ui`**: existing components were left
+   untouched while the shell proved itself.  (Historical constraint:
+   once every consumer had migrated, `C_YUI_MAIN` / `C_YUI_ROUTING` /
+   `C_YUI_TABS` were removed in `3.0.0`.)
 
 ---
 
@@ -646,9 +648,9 @@ Every modal/dialog automatically:
   Shift+Tab cycles backwards, focus is restored on close),
 - removes itself from the DOM when closed.
 
-The legacy `display_*` / `get_yes*` helpers in `c_yui_main.js`
-remain unchanged; see §10 *drift policy*. Apps importing one stack
-should not import the other.
+The legacy `display_*` / `get_yes*` helpers were removed with
+`c_yui_main.js` in `3.0.0` (see §10); their icon-centric card design
+lives on in the `yui_shell_confirm_*` dialogs.
 
 ### Internationalisation
 
@@ -666,8 +668,7 @@ i18next.changeLanguage("es");
 refresh_language(shell.$container, t);
 ```
 
-This is the same flow `c_yui_main.js` uses in its
-`change_language()`. Apps that already configure i18next get the
+Apps that already configure i18next get the
 shell labels switched for free; apps without i18next can pass any
 `(key) => string` function as `t`.
 
@@ -963,44 +964,29 @@ What this example demonstrates that the generic §2 picture only states:
 
 ---
 
-## 10. Coexistence with `C_YUI_MAIN` / `C_YUI_ROUTING` — no migration planned
+## 10. The legacy stack (`C_YUI_MAIN` / `C_YUI_ROUTING`) — removed in `3.0.0`
 
-This pass closes **every** promise of the original design.
-`C_YUI_MAIN` and `C_YUI_ROUTING` are **not** scheduled for removal:
-they keep being shipped and supported alongside the new shell.
+The legacy stack coexisted with the shell while consumers migrated
+(this section used to document the coexistence and drift policy).
+As of `3.0.0` the migration is complete and `c_yui_main.js`/`.css`,
+`c_yui_routing.js`/`.css`, `c_yui_tabs.js`, `themes.js` and
+`ytable.js`/`.css` are **removed from this line**.  The frozen **v1
+npm line** (`@yuneta/gobj-ui@^1.x`, dist-tag `legacy`) still ships
+them for estadodelaire/hidraulia.
 
-### Which one to use
+What replaced each piece on `main`:
 
-- **New GUIs → `C_YUI_SHELL` + `C_YUI_NAV`.** Declarative config,
-  routed stages, drawer overlay, focus-trap, `data-i18n` labels
-  driven by `refresh_language()` (the canonical Yuneta i18n flow),
-  the new modal/notification helpers (`yui_shell_show_*` /
-  `yui_shell_confirm_*`, see `TODO.md` §4).
-- **Existing GUIs → keep `C_YUI_MAIN` + `C_YUI_ROUTING`.** Switching
-  is opt-in, not mandated. If an app already works on top of the
-  legacy stack, leave it alone.
-
-The two stacks coexist and **do not interoperate** in the same DOM —
-do not import `c_yui_main.css` and `c_yui_shell.css` together (see
-§11 below). One app picks one stack and stays there.
-
-### Drift policy between the two stacks
-
-Bug reports against `display_*`, `get_yes*`, `get_ok` (legacy) are
-fixed on the legacy implementation only. The new shell helpers
-(`yui_shell_show_*`, `yui_shell_confirm_*`) **do not back-port**
-those fixes unless the original behaviour was a real feature, not a
-quirk. Conversely, improvements landed on the new shell stay on the
-shell. Treat the two APIs as parallel — same intent, separate code.
-
-Since `2.6.0` the shared component gclasses (`C_YUI_TREEDB_TOPICS`,
-`C_YUI_TREEDB_GRAPH`, `C_YUI_TREEDB_TOPIC_WITH_FORM`,
-`C_YUI_WINDOW`) use the **shell helpers**, resolving the shell per
-call with `yui_shell_of(gobj)` — they no longer import
-`c_yui_main.js`, so shell apps stop bundling `c_yui_main.css`.
-Hosting them therefore assumes a `C_YUI_SHELL` on the page; without
-one the confirms degrade to a `log_warning` plus the safe-default
-answer.
+- Shell + routing: `C_YUI_SHELL` + `C_YUI_NAV` (this document).
+- `display_*` / `get_yes*` volatil modals: `yui_shell_show_*` /
+  `yui_shell_confirm_*` (§4 modal API).  The `2.5.0` icon-centric
+  card design was ported into the shell confirms before the removal
+  (tinted round type icon, narrow rounded card, centered buttons,
+  `opts.type`: question/success/info/warning/error).
+- The component gclasses (`C_YUI_TREEDB_*`, `C_YUI_WINDOW`) resolve
+  the shell per call with `yui_shell_of(gobj)` and mount popups on
+  the shell layers (`yui_shell_popup_layer`).  Hosting them assumes
+  a `C_YUI_SHELL` on the page; without one the confirms degrade to
+  a `log_warning` plus the safe-default answer.
 
 ### Implemented ✓ in this pass
 
@@ -1038,11 +1024,10 @@ answer.
 - Hard contract: when a view does not expose `$container`, the shell
   logs an error and destroys the half-built gobj.
 
-### If the migration decision is ever revisited
+### Migration track — closed
 
-The work needed to retire `C_YUI_MAIN` / `C_YUI_ROUTING` is captured
-as an optional, deferred track in `TODO.md` §8 (sub-tasks 8.1 → 8.4).
-Until that decision is made, do **not** start any of those sub-tasks.
+The retirement plan lived in `TODO.md` §1 (inventory → consumer
+migration → removal); it completed with the `3.0.0` removal above.
 
 ---
 
@@ -1093,15 +1078,3 @@ yui_shell_pop_escape(shell, close_modal);
 `"overlay"`). It is informational today (the LIFO ordering is what
 drives priority); keep it accurate so the FSM trace is readable.
 
-## 12. Known limitations
-
-These are intentional gaps, documented so they don't surface as
-review nits.  Each one has a clear path forward when it becomes
-worth the work.
-
-1. **Do not import `c_yui_main.css` and `c_yui_shell.css` together.**
-   `c_yui_main.css` defines its own `.top-layer` / `.content-layer` /
-   `.bottom-layer` with `position:fixed` and CSS variables that
-   collide with the shell's full-screen grid.  Pick one: the new
-   shell while the migration is in progress, or the legacy main while
-   you have not switched.  Apps mixing both will see double layout.
