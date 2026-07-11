@@ -34,6 +34,8 @@ import {
     gclass_create, log_error, log_warning,
     gobj_create, gobj_destroy,
     gobj_start, gobj_stop,
+    gobj_parent,
+    gobj_gclass_name,
     gobj_publish_event,
     gobj_send_event,
     gobj_subscribe_event,
@@ -67,6 +69,12 @@ import {
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_SHELL";
+
+/*  Last shell created on the page — fallback for yui_shell_of()
+ *  when the caller is not a shell descendant (e.g. a floating
+ *  C_YUI_WINDOW parented to the app gobj).  Real apps have exactly
+ *  one shell; tests that create several get the most recent. */
+let __last_shell__ = null;
 
 /*  Zones rendered inside the base layer. */
 const ZONE_IDS = ["top", "top-sub", "left", "center", "right", "bottom-sub", "bottom"];
@@ -165,6 +173,8 @@ function mt_create(gobj)
          *  tear down the previous one through the same code path. */
         active_dropdown: null
     });
+
+    __last_shell__ = gobj;
 
     build_ui(gobj);
 }
@@ -318,6 +328,10 @@ function mt_destroy(gobj)
     }
     gobj_write_attr(gobj, "$container", null);
     gobj_write_attr(gobj, "priv", null);
+
+    if(__last_shell__ === gobj) {
+        __last_shell__ = null;
+    }
 }
 
 
@@ -2409,6 +2423,25 @@ function register_c_yui_shell()
  ***************************************************************/
 
 /************************************************************
+ *  Resolve the shell that governs `gobj`: the nearest
+ *  C_YUI_SHELL ancestor, else the last shell created on the
+ *  page (apps have exactly one).  Null when no shell exists —
+ *  callers must degrade loudly (shell_modals logs a warning
+ *  and resolves the safe default).
+ ************************************************************/
+function yui_shell_of(gobj)
+{
+    let g = gobj;
+    while(g) {
+        if(gobj_gclass_name(g) === GCLASS_NAME) {
+            return g;
+        }
+        g = gobj_parent(g);
+    }
+    return __last_shell__;
+}
+
+/************************************************************
  *  Programmatic navigation (bypass hash).
  ************************************************************/
 function yui_shell_navigate(shell_gobj, route)
@@ -2552,6 +2585,7 @@ function yui_shell_close_dropdown(shell_gobj)
 
 export {
     register_c_yui_shell,
+    yui_shell_of,
     yui_shell_navigate,
     yui_shell_open_drawer,
     yui_shell_close_drawer,

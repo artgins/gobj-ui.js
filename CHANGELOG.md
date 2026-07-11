@@ -5,6 +5,44 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 2.6.0
+
+- **feat(shell): the component gclasses migrate to the shell modal
+  helpers (TODO §1.2).** `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH`
+  (command-error message) and `C_YUI_TREEDB_TOPIC_WITH_FORM` /
+  `C_YUI_WINDOW` (delete/dirty-guard/close-warning confirms) now call
+  `yui_shell_show_error` / `yui_shell_confirm_yesnocancel` /
+  `yui_shell_confirm_ok` instead of the legacy `display_error_message`
+  / `get_yesnocancel` / `get_ok`, and no longer import `c_yui_main.js`
+  — shell apps stop bundling the legacy stack's JS+CSS. Button labels
+  keep the historical i18n keys (`yes`/`no`/`cancel`/`accept`), so
+  existing app locales translate unchanged. The legacy helpers stay
+  shipped and unchanged for legacy-stack apps (drift policy,
+  SHELL.md §10).
+- **feat(shell): `yui_shell_of(gobj)`** — resolve the shell that
+  governs a gobj: nearest `C_YUI_SHELL` ancestor, else the last shell
+  created on the page (real apps have exactly one), else null. New
+  export of `c_yui_shell.js`; the layer accessors in `shell_modals.js`
+  are null-shell safe (warning + safe-default resolution).
+- **feat(shell): `yui_shell_popup_layer(shell)`** (shell_modals.js) —
+  public accessor for the popup layer (z 20). The treedb edit dialog
+  mounts there instead of `document.body`: a body-mounted Bulma
+  `.modal` painted **above** the shell's modal layer and blocked the
+  confirms' pointer events (the shell is its own stacking context).
+- **fix(treedb): the edit dialog rides the shell Escape chain.** Its
+  Escape handler is pushed on `yui_shell_push_escape` (popped on
+  close), LIFO with the shell confirms — Escape on an open confirm
+  cancels only the confirm and can no longer re-enter the dialog's own
+  document listener (the legacy stacking bug, now structurally
+  impossible under a shell). The document listener remains as the
+  shell-less fallback. `mt_destroy` now tears an open dialog down
+  (a transport rebind used to leak the dialog DOM and its Escape
+  handler).
+- **test-app: the Modals chapter demos both families** — a "shell
+  helpers" group (`yui_shell_confirm_*` + `yui_shell_show_*` resolved
+  from the chapter's gobj via `yui_shell_of`) above the legacy volatil
+  group, echoing each Promise answer.
+
 ## 2.5.0
 
 - **feat(main): redesigned volatil modals.** `display_volatil_modal`

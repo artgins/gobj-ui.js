@@ -57,9 +57,16 @@ import {
 } from "@yuneta/gobj-js";
 
 import {
-    get_yesnocancel,
-    get_ok,
-} from "./c_yui_main.js";
+    yui_shell_confirm_yesnocancel,
+    yui_shell_confirm_ok,
+    yui_shell_popup_layer,
+} from "./shell_modals.js";
+
+import {
+    yui_shell_of,
+    yui_shell_push_escape,
+    yui_shell_pop_escape,
+} from "./c_yui_shell.js";
 
 import {register_c_yui_form} from "./c_yui_form.js";
 
@@ -132,17 +139,26 @@ let PRIVATE_DATA = {
     tabulator:          null,
     form:               null,   // hosted C_YUI_FORM child (while dialog open)
     $popup:             null,   // dialog DOM element
-    on_keydown:         null,   // document Escape handler (while dialog open)
+    on_keydown:         null,   // document Escape handler (no-shell fallback)
+    escape_shell:       null,   // shell whose Escape chain holds escape_handler
+    escape_handler:     null,   // close handler pushed on the shell chain
 };
 
 let __gclass__ = null;
 
-/*  Where to mount the edit/delete modal.  The legacy C_YUI_MAIN
- *  shell provided a "#popup-layer" element; the new C_YUI_SHELL does
- *  not.  Bulma `.modal` is position:fixed, so document.body is a
- *  correct universal fallback (works under any host). */
-function popup_mount_layer()
+/*  Where to mount the edit/delete modal.  Under a C_YUI_SHELL use
+ *  its popup layer (z 20): the shell confirms live on the modal
+ *  layer (z 99), so they always paint above this dialog — a
+ *  body-mounted Bulma `.modal` would cover them (the shell is a
+ *  stacking context below body-level modals).  The legacy
+ *  C_YUI_MAIN "#popup-layer" and document.body (Bulma `.modal` is
+ *  position:fixed) remain the shell-less fallbacks. */
+function popup_mount_layer(gobj)
 {
+    let $layer = yui_shell_popup_layer(yui_shell_of(gobj));
+    if($layer) {
+        return $layer;
+    }
     return document.getElementById("popup-layer") || document.body;
 }
 
@@ -200,6 +216,11 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    /*  A destroy with the edit dialog open (e.g. the hosted view is
+     *  rebuilt on a transport rebind) must tear the dialog down too:
+     *  it unhooks the Escape handler (shell chain or document
+     *  listener) and removes the dialog DOM. */
+    close_form_dialog(gobj);
     destroy_ui(gobj);
 }
 
@@ -1181,17 +1202,30 @@ function open_form_dialog(gobj, mode, record)
         $form_container.style.minHeight = "0";
     }
 
-    popup_mount_layer().appendChild($element);
+    popup_mount_layer(gobj).appendChild($element);
     refresh_language($element, t);
 
-    /*  Escape closes through the same unsaved-changes guard as the X. */
-    priv.on_keydown = function(evt) {
-        if(evt.key === "Escape") {
-            evt.stopPropagation();
+    /*  Escape closes through the same unsaved-changes guard as the X.
+     *  Under a shell, ride its Escape priority chain — LIFO with the
+     *  shell confirm dialogs, so Escape on an open confirm never
+     *  reaches this dialog and stacks a second one.  Without a shell
+     *  (bare unit tests) fall back to a document listener. */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        priv.escape_shell = shell;
+        priv.escape_handler = function() {
             request_close_form_dialog(gobj);
-        }
-    };
-    document.addEventListener("keydown", priv.on_keydown);
+        };
+        yui_shell_push_escape(shell, "popup", priv.escape_handler);
+    } else {
+        priv.on_keydown = function(evt) {
+            if(evt.key === "Escape") {
+                evt.stopPropagation();
+                request_close_form_dialog(gobj);
+            }
+        };
+        document.addEventListener("keydown", priv.on_keydown);
+    }
 
     gobj_start(form);   // mt_start loads `record` into the form
 
@@ -1219,8 +1253,12 @@ function request_close_form_dialog(gobj)
         let kw = {};
         gobj_send_event(priv.form, "EV_WINDOW_TO_CLOSE", kw, gobj);
         if(kw.abort_close) {
-            get_yesnocancel(t('All changes will be lost. Are you sure?'), function(evt) {
-                if(evt === "yes") {
+            yui_shell_confirm_yesnocancel(
+                yui_shell_of(gobj),
+                'All changes will be lost. Are you sure?',
+                {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
+            ).then(function(answer) {
+                if(answer === "yes") {
                     close_form_dialog(gobj);
                 }
             });
@@ -1236,6 +1274,11 @@ function request_close_form_dialog(gobj)
 function close_form_dialog(gobj)
 {
     let priv = gobj.priv;
+    if(priv.escape_handler) {
+        yui_shell_pop_escape(priv.escape_shell, priv.escape_handler);
+        priv.escape_shell = null;
+        priv.escape_handler = null;
+    }
     if(priv.on_keydown) {
         document.removeEventListener("keydown", priv.on_keydown);
         priv.on_keydown = null;
@@ -1640,7 +1683,7 @@ function show_dropdown_popup_menu(gobj, x, y, items, callback)
     /*
      *  Add to popup layer
      */
-    popup_mount_layer().appendChild($element);
+    popup_mount_layer(gobj).appendChild($element);
 
     /*
      *  Set position
@@ -1929,12 +1972,18 @@ function ac_delete_rows(gobj, event, kw, src)
          *----------------------------*/
         let rows = tabulator.getSelectedData();
         if (!rows.length) {
-            get_ok(t('please select some row'));
+            yui_shell_confirm_ok(
+                yui_shell_of(gobj), 'please select some row',
+                {t: t, ok_label: "accept"}
+            );
             return 0;
         }
 
-        get_yesnocancel(t('are you sure'), function(evt) {
-            if(evt === "yes") {
+        yui_shell_confirm_yesnocancel(
+            yui_shell_of(gobj), 'are you sure',
+            {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
+        ).then(function(answer) {
+            if(answer === "yes") {
                 for(let row of rows) {
                     // TODO why don't send once EV_DELETE_RECORD(S)
                     gobj_publish_event(
@@ -1954,8 +2003,11 @@ function ac_delete_rows(gobj, event, kw, src)
          *  Delete one row
          *  {index: , row: }
          *----------------------------*/
-        get_yesnocancel(t('are you sure'), function(evt) {
-            if(evt === "yes") {
+        yui_shell_confirm_yesnocancel(
+            yui_shell_of(gobj), 'are you sure',
+            {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
+        ).then(function(answer) {
+            if(answer === "yes") {
                 gobj_publish_event(
                     gobj,
                     "EV_DELETE_RECORD",
@@ -1983,7 +2035,10 @@ function ac_copy_rows(gobj, event, kw, src)
      *----------------------------*/
     let rows = tabulator.getSelectedData();
     if (!rows.length) {
-        get_ok(t('please select some row'));
+        yui_shell_confirm_ok(
+            yui_shell_of(gobj), 'please select some row',
+            {t: t, ok_label: "accept"}
+        );
         return 0;
     }
 

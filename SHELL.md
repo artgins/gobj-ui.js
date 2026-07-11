@@ -993,6 +993,15 @@ those fixes unless the original behaviour was a real feature, not a
 quirk. Conversely, improvements landed on the new shell stay on the
 shell. Treat the two APIs as parallel — same intent, separate code.
 
+Since `2.6.0` the shared component gclasses (`C_YUI_TREEDB_TOPICS`,
+`C_YUI_TREEDB_GRAPH`, `C_YUI_TREEDB_TOPIC_WITH_FORM`,
+`C_YUI_WINDOW`) use the **shell helpers**, resolving the shell per
+call with `yui_shell_of(gobj)` — they no longer import
+`c_yui_main.js`, so shell apps stop bundling `c_yui_main.css`.
+Hosting them therefore assumes a `C_YUI_SHELL` on the page; without
+one the confirms degrade to a `log_warning` plus the safe-default
+answer.
+
 ### Implemented ✓ in this pass
 
 - Zones + `show_on` with the operators `>=`, `<=`, `<`, `>`,

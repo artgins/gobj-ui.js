@@ -49,14 +49,34 @@ import {
  ***************************************************************/
 function notification_layer(shell)
 {
+    if(!shell) {
+        return null;
+    }
     let priv = gobj_read_attr(shell, "priv");
     return priv && priv.layers && priv.layers.notification;
 }
 
 function modal_layer(shell)
 {
+    if(!shell) {
+        return null;
+    }
     let priv = gobj_read_attr(shell, "priv");
     return priv && priv.layers && priv.layers.modal;
+}
+
+/*  Public: where a component should mount its own popup/dialog DOM
+ *  (e.g. the treedb edit dialog).  The popup layer (z 20) sits below
+ *  the modal layer (z 99), so shell confirms always paint above the
+ *  component's dialog — matching the Escape chain LIFO order.  Null
+ *  when there is no shell: the caller picks its legacy fallback. */
+export function yui_shell_popup_layer(shell)
+{
+    if(!shell) {
+        return null;
+    }
+    let priv = gobj_read_attr(shell, "priv");
+    return (priv && priv.layers && priv.layers.popup) || null;
 }
 
 

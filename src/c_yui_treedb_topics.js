@@ -41,9 +41,8 @@ import {
     refresh_language,
 } from "@yuneta/gobj-js";
 
-import {
-    display_error_message
-} from "./c_yui_main.js";
+import {yui_shell_show_error} from "./shell_modals.js";
+import {yui_shell_of} from "./c_yui_shell.js";
 
 import {t} from "i18next";
 
@@ -819,7 +818,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  app-modal that wedges the whole SPA behind an empty tab. */
             show_load_error(gobj, t(comment));
         } else {
-            display_error_message("Error", t(comment));
+            yui_shell_show_error(yui_shell_of(gobj), comment, {t: t});
         }
         return 0;
     }

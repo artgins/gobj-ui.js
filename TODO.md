@@ -13,53 +13,45 @@ on npmjs.com.
 
 ## 1. (Optional, deferred) Migrate legacy GUIs off `C_YUI_MAIN` / `C_YUI_ROUTING`
 
-> **Status: not planned.**  Captured here as a reference checklist
-> for whoever decides to take it on later.  Until that decision is
-> made, `C_YUI_MAIN` and `C_YUI_ROUTING` stay shipped and supported.
-> Do **not** start any sub-task below without an explicit go-ahead.
+> **Status: §1.1 obsolete, §1.2 done in `2.6.0`.**  Only §1.3
+> (external repo, superseded — see note there) and the final
+> removal (§1.4) remain, and the removal is still **not planned**:
+> `C_YUI_MAIN` and `C_YUI_ROUTING` stay shipped and supported.
+> Do **not** start §1.4 without an explicit go-ahead.
 
-The work needed if the decision is reversed:
+### 1.1. ~~Migrate `C_YUI_TABS` off `EV_ROUTING_CHANGED`~~ — obsolete
 
-### 1.1. Migrate `C_YUI_TABS` from `EV_ROUTING_CHANGED` to `EV_ROUTE_CHANGED`
+Nothing in `src/` or `test-app/` references `EV_ROUTING_CHANGED`
+anymore, and no in-org app registers `C_YUI_TABS` / `C_YUI_ROUTING`
+/ `C_YUI_MAIN` (checked 2026-07-11 across `yunos/js/*`, wattyzer
+and the test-app).  Nothing to migrate.
 
-`C_YUI_TABS.ac_show` / `ac_hide` listen to `EV_ROUTING_CHANGED` of
-`C_YUI_ROUTING`.  Move that subscription to the shell's
-`EV_ROUTE_CHANGED`:
+### 1.2. ~~Migrate the in-tree `display_*` / `get_yes*` consumers~~ — done in `2.6.0`
 
-- Add an attr `shell` (DTP_POINTER, optional) on `C_YUI_TABS`.
-- In `mt_start`, if `shell` is set: `gobj_subscribe_event(shell,
-  "EV_ROUTE_CHANGED", {}, gobj)`.  In `mt_stop`: unsubscribe.
-- Keep the legacy `C_YUI_ROUTING` path as a fallback when `shell` is
-  not set, so the migration can land before consumers are converted.
-- Add a small test-app stage that uses tabs to confirm.
+`c_yui_treedb_topics.js`, `c_yui_treedb_graph.js`,
+`c_yui_treedb_topic_with_form.js` and `c_yui_window.js` now use the
+shell helpers (`yui_shell_show_error`, `yui_shell_confirm_*`) and no
+longer import `c_yui_main.js`, so v2 app bundles stop dragging in
+`c_yui_main.css`.  The shell is resolved per call with
+`yui_shell_of(gobj)` (nearest `C_YUI_SHELL` ancestor, else the last
+shell created on the page).  The treedb edit dialog mounts on the
+shell's popup layer (`yui_shell_popup_layer`) and rides the shell
+Escape chain, LIFO with the confirms.
 
-### 1.2. Inventory the remaining `C_YUI_ROUTING` / `C_YUI_MAIN` consumers
+The only remaining `c_yui_main.js` importer is the test-app Modals
+chapter, which demos the legacy helpers **deliberately** (drift
+policy, SHELL.md §10) next to the shell ones.
 
-```
-grep -r register_c_yui_main      kernel/ utils/ yunos/
-grep -r register_c_yui_routing   kernel/ utils/ yunos/
-grep -rl EV_ROUTING_CHANGED      kernel/ utils/ yunos/
-grep -rlE 'display_(error|info|warning|volatil)|get_yes|get_ok' kernel/ utils/ yunos/
-```
-
-Likely consumers inside `gobj-ui`:
-
-- `c_yui_treedb_topics.js`
-- `c_yui_treedb_topic_with_form.js`
-- `c_yui_treedb_graph.js`
-- `c_g6_nodes_tree.js`
-- `c_yui_form.js` (uses `display_*`)
-- `yui_dev.js` (developer panel)
-
-For each consumer:
-
-- Replace `EV_ROUTING_CHANGED` subscription with `EV_ROUTE_CHANGED`
-  via the shell (see 1.1).
-- Replace `display_*` / `get_yes*` calls with the shell-helper
-  version (`yui_shell_show_*` / `yui_shell_confirm_*`).
-- Drop the dependency on the old gclasses from imports.
+`c_g6_nodes_tree.js`, `c_yui_form.js` and `yui_dev.js` (listed as
+"likely" in the original checklist) were already clean.
 
 ### 1.3. Migrate `estadodelaire/gui` to the shell — first real-world test
+
+> **Superseded in practice**: estadodelaire consumes the **published
+> npm v1 line** (`@yuneta/gobj-ui@^1.x`, frozen), not this `main`
+> checkout — migrating it means moving it to v2, a project decision
+> of its own.  The checklist below is kept as the reference plan for
+> that migration if it is ever decided.
 
 The companion repo `artgins/estadodelaire` is the canonical app on
 top of `gobj-ui`.  Replace its bootstrap:
@@ -91,7 +83,9 @@ top of `gobj-ui`.  Replace its bootstrap:
 
 ### 1.4. Delete `C_YUI_MAIN` and `C_YUI_ROUTING` from `gobj-ui`
 
-Gated on 1.1, 1.2, 1.3.  All four greps above must return empty.
+Gated on an explicit removal decision (not planned).  In-tree
+blockers are gone since `2.6.0`; the test-app Modals chapter still
+demos the legacy helpers and would drop that group here.
 
 - Delete `src/c_yui_main.js`, `src/c_yui_main.css`,
   `src/c_yui_routing.js`, `src/c_yui_routing.css`.

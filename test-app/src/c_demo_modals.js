@@ -1,15 +1,21 @@
 /***********************************************************************
  *          c_demo_modals.js
  *
- *      C_DEMO_MODALS — the volatil-modal helpers of c_yui_main.js as a
- *      live view. One button per helper: the blocking questions
+ *      C_DEMO_MODALS — both modal helper families as a live view,
+ *      one button per helper, each answer echoed below the buttons.
+ *
+ *      Shell helpers (shell_modals.js) — the blessed v2 path, used
+ *      by the treedb gclasses and C_YUI_WINDOW: Promise-based
+ *      confirms on the shell's modal layer + Escape priority chain,
+ *      and auto-dismiss notifications on the notification layer.
+ *
+ *      Legacy volatil helpers (c_yui_main.js) — kept per the drift
+ *      policy (SHELL.md §10): the blocking questions
  *      (get_yesnocancel / get_yesno / get_ok — Enter answers yes,
  *      Escape cancels/dismisses without stacking) and the typed
  *      messages (display_info/warning/error_message, tinted round
- *      icon + accent-colored accept). Each answer is echoed below
- *      the buttons. No child gobj: the helpers are plain functions
- *      that mount a Bulma modal on the popup layer and destroy it
- *      on answer.
+ *      icon + accent-colored accept). Plain functions that mount a
+ *      Bulma modal on the popup layer and destroy it on answer.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -32,6 +38,17 @@ import {
     display_warning_message,
     display_error_message,
 } from "@yuneta/gobj-ui/src/c_yui_main.js";
+
+import {
+    yui_shell_show_info,
+    yui_shell_show_warning,
+    yui_shell_show_error,
+    yui_shell_confirm_ok,
+    yui_shell_confirm_yesno,
+    yui_shell_confirm_yesnocancel,
+} from "@yuneta/gobj-ui/src/shell_modals.js";
+
+import {yui_shell_of} from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
 import {t} from "i18next";
 
@@ -89,6 +106,76 @@ const TRIGGERS = [
             display_error_message(null, t("The yuno did not answer."), () => {
                 echo("display_error_message -> accepted");
             });
+        }
+    },
+];
+
+/*  Same coverage for the shell helpers — the blessed v2 path.
+ *  run(echo, gobj): the shell is resolved from the view gobj. */
+const SHELL_TRIGGERS = [
+    {
+        id: "shell-yesnocancel", label: "confirm yes / no / cancel",
+        icon: "yi-question",
+        run: (echo, gobj) => {
+            yui_shell_confirm_yesnocancel(
+                yui_shell_of(gobj),
+                "All changes will be lost. Are you sure?",
+                {t: t}
+            ).then((answer) => {
+                echo(`yui_shell_confirm_yesnocancel -> "${answer}"`);
+            });
+        }
+    },
+    {
+        id: "shell-yesno", label: "confirm yes / no", icon: "yi-question",
+        run: (echo, gobj) => {
+            yui_shell_confirm_yesno(
+                yui_shell_of(gobj),
+                "Delete the selected records?",
+                {t: t}
+            ).then((answer) => {
+                echo(`yui_shell_confirm_yesno -> ${answer}`);
+            });
+        }
+    },
+    {
+        id: "shell-ok", label: "confirm ok", icon: "yi-square-check",
+        run: (echo, gobj) => {
+            yui_shell_confirm_ok(
+                yui_shell_of(gobj),
+                "Operation completed.",
+                {t: t}
+            ).then(() => {
+                echo("yui_shell_confirm_ok -> accepted");
+            });
+        }
+    },
+    {
+        id: "shell-info", label: "notify info", icon: "yi-circle-info",
+        run: (echo, gobj) => {
+            yui_shell_show_info(
+                yui_shell_of(gobj), "This node runs release 7.7.2.", {t: t}
+            );
+            echo("yui_shell_show_info -> shown (auto-dismiss)");
+        }
+    },
+    {
+        id: "shell-warning", label: "notify warning",
+        icon: "yi-triangle-exclamation",
+        run: (echo, gobj) => {
+            yui_shell_show_warning(
+                yui_shell_of(gobj), "The connection is unstable.", {t: t}
+            );
+            echo("yui_shell_show_warning -> shown (auto-dismiss)");
+        }
+    },
+    {
+        id: "shell-error", label: "notify error", icon: "yi-circle-exclamation",
+        run: (echo, gobj) => {
+            yui_shell_show_error(
+                yui_shell_of(gobj), "The yuno did not answer.", {t: t}
+            );
+            echo("yui_shell_show_error -> shown (auto-dismiss)");
         }
     },
 ];
@@ -186,26 +273,36 @@ function build_ui(gobj)
         head.push(["p", {class: "DEMO_LEAD content", i18n: lead, style: "max-width:60ch;"}, lead]);
     }
 
-    let buttons = [];
-    for(let trig of TRIGGERS) {
-        buttons.push(
-            ["button", {
-                class: "DEMO_MODALS_TRIGGER button",
-                "data-trigger": trig.id,
-                title: trig.label,
-                "aria-label": trig.label
-            }, [
-                ["i", {class: trig.icon, "aria-hidden": "true"}],
-                ["span", {class: "is-hidden-mobile", i18n: trig.label,
-                          style: "padding-left:5px;"}, trig.label]
-            ]]
-        );
-    }
+    const trigger_buttons = (triggers) => {
+        let buttons = [];
+        for(let trig of triggers) {
+            buttons.push(
+                ["button", {
+                    class: "DEMO_MODALS_TRIGGER button",
+                    "data-trigger": trig.id,
+                    title: trig.label,
+                    "aria-label": trig.label
+                }, [
+                    ["i", {class: trig.icon, "aria-hidden": "true"}],
+                    ["span", {class: "is-hidden-mobile", i18n: trig.label,
+                              style: "padding-left:5px;"}, trig.label]
+                ]]
+            );
+        }
+        return buttons;
+    };
 
     let $c = createElement2(
         ["div", {class: "C_DEMO_MODALS DEMO_CARD view-card"}, [
             ["div", {class: "DEMO_HEAD"}, head],
-            ["div", {class: "DEMO_MODALS_TRIGGERS buttons"}, buttons],
+            ["h2", {class: "DEMO_MODALS_GROUP_TITLE title is-6 mb-2",
+                    i18n: "shell helpers"}, "shell helpers"],
+            ["div", {class: "DEMO_MODALS_TRIGGERS buttons"},
+                trigger_buttons(SHELL_TRIGGERS)],
+            ["h2", {class: "DEMO_MODALS_GROUP_TITLE title is-6 mb-2",
+                    i18n: "legacy volatil helpers"}, "legacy volatil helpers"],
+            ["div", {class: "DEMO_MODALS_TRIGGERS buttons"},
+                trigger_buttons(TRIGGERS)],
             ["p", {class: "DEMO_MODALS_RESULT is-size-7 has-text-grey"}, "—"]
         ]]
     );
@@ -216,11 +313,11 @@ function build_ui(gobj)
             $r.textContent = text;
         }
     };
-    for(let trig of TRIGGERS) {
+    for(let trig of TRIGGERS.concat(SHELL_TRIGGERS)) {
         let $btn = $c.querySelector(`[data-trigger="${trig.id}"]`);
         if($btn) {
             $btn.addEventListener("click", () => {
-                trig.run(echo);
+                trig.run(echo, gobj);
             });
         }
     }

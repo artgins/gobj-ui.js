@@ -44,7 +44,8 @@ import {
 
 import {t} from "i18next";
 
-import {get_yesnocancel} from "./c_yui_main.js";
+import {yui_shell_confirm_yesnocancel} from "./shell_modals.js";
+import {yui_shell_of} from "./c_yui_shell.js";
 
 /***************************************************************
  *              Constants
@@ -672,8 +673,11 @@ function close_window(gobj)
         gobj_stop_children(gobj);
         gobj_destroy(gobj);
     } else if(kw_close.warning) {
-        get_yesnocancel(kw_close.warning, function(resp) {
-            if(resp === "yes") {
+        yui_shell_confirm_yesnocancel(
+            yui_shell_of(gobj), kw_close.warning,
+            {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
+        ).then(function(answer) {
+            if(answer === "yes") {
                 if(on_close) {
                     on_close();
                 }
