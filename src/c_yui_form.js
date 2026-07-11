@@ -3,7 +3,7 @@
  *
  *          Form (in Window or not)
  *
- *          Copyright (c) 2024-2025, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
@@ -55,6 +55,7 @@ import TomSelect from "tom-select"; // Import Tom-Select JS
 
 import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
+import "./c_yui_form.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";
@@ -836,6 +837,23 @@ function apply_form_mode(gobj, $form)
 }
 
 /******************************************************************
+ *  True when the app renders dark: explicit <html data-theme>, or
+ *  the OS scheme when the attribute is absent ("system" theme
+ *  removes it — see themes.js). Read at field-build time; the
+ *  hosting dialog rebuilds the form on every open.
+ ******************************************************************/
+function form_is_dark_theme()
+{
+    let attr = document.documentElement.getAttribute("data-theme");
+    if(attr) {
+        return attr === "dark";
+    }
+    return typeof window !== "undefined" &&
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+/******************************************************************
  *  With html field conf builds an html element,
  *  ready to add to the form
  *
@@ -1236,7 +1254,7 @@ function create_form_field(
         case "jsoneditor":
         {
             let attrs = {
-                class: 'jsoneditor jse-theme-dark',
+                class: 'jsoneditor' + (form_is_dark_theme() ? ' jse-theme-dark' : ''),
                 name: name,
                 style: ''
             };

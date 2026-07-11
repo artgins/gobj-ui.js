@@ -22,3 +22,10 @@
 .tabulator .tabulator-footer .yui-tabulator-rowcount {
     line-height: 1.5;
 }
+
+/*  All rows fit in one page: the page-size selector and the
+ *  First/Prev/1/Next/Last strip are pure noise (worst on mobile) —
+ *  update_rowcount() toggles the class on every data change.  */
+.tabulator.yui-single-page .tabulator-footer .tabulator-paginator {
+    display: none;
+}

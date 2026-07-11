@@ -3,7 +3,7 @@
  *
  *          Table of TreeDB topic with FORM for editing
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
@@ -132,6 +132,7 @@ let PRIVATE_DATA = {
     tabulator:          null,
     form:               null,   // hosted C_YUI_FORM child (while dialog open)
     $popup:             null,   // dialog DOM element
+    on_keydown:         null,   // document Escape handler (while dialog open)
 };
 
 let __gclass__ = null;
@@ -827,7 +828,9 @@ function create_tabulator(gobj)
     }
     let tabulator = new Tabulator($table_el, tabulator_settings);
 
-    /*  Keep the footer in sync with the visible (active) row count. */
+    /*  Keep the footer in sync with the visible (active) row count,
+     *  and hide the pagination chrome while everything fits in one
+     *  page (it comes back as soon as a second page exists). */
     function update_rowcount() {
         let $rc = tabulator.element &&
             tabulator.element.querySelector(".yui-tabulator-rowcount");
@@ -841,6 +844,15 @@ function create_tabulator(gobj)
             n = 0;
         }
         $rc.textContent = `${n} ${t("rows")}`;
+
+        let single_page = true;
+        try {
+            let max = tabulator.getPageMax();   // false = pagination off
+            single_page = (max === false) || max <= 1;
+        } catch(e) {
+            single_page = true;
+        }
+        tabulator.element.classList.toggle("yui-single-page", single_page);
     }
 
     tabulator._ready = false;
@@ -1103,12 +1115,23 @@ function open_form_dialog(gobj, mode, record)
     let popup_id = gobj_read_str_attr(gobj, "popup_id");
     let topic_name = gobj_read_str_attr(gobj, "topic_name");
 
+    /*  Title says what you are doing: "new <topic>" on create,
+     *  "<topic> — <pkey>" on update. */
+    let pkey = desc.pkey || "id";
+    let title;
+    if(mode === "create") {
+        title = t("new") + " " + t(topic_name);
+    } else {
+        let rid = record ? String(record[pkey] ?? "") : "";
+        title = t(topic_name) + (empty_string(rid) ? "" : " — " + rid);
+    }
+
     let $element = createElement2([
         'div', {id: popup_id, class: 'modal is-active'}, [
             ['div', {class: 'modal-background'}, ''],
             ['div', {class: 'modal-card modal-is-responsive'}, [
                 ['header', {class: 'modal-card-head p-3'}, [
-                    ['p', {class: 'modal-card-title', style: 'text-align:center;'}, t(topic_name)],
+                    ['p', {class: 'modal-card-title', style: 'text-align:center;'}, title],
                     ['button', {class: 'delete is-large', 'aria-label': 'close'}, '', {
                         click: function(evt) {
                             evt.stopPropagation();
@@ -1161,9 +1184,25 @@ function open_form_dialog(gobj, mode, record)
     popup_mount_layer().appendChild($element);
     refresh_language($element, t);
 
+    /*  Escape closes through the same unsaved-changes guard as the X. */
+    priv.on_keydown = function(evt) {
+        if(evt.key === "Escape") {
+            evt.stopPropagation();
+            request_close_form_dialog(gobj);
+        }
+    };
+    document.addEventListener("keydown", priv.on_keydown);
+
     gobj_start(form);   // mt_start loads `record` into the form
 
-    let $with_focus = $element.querySelector('.with-focus');
+    /*  Focus the pkey unless the mode made it readonly (update) —
+     *  then the first editable field. */
+    let $with_focus = $element.querySelector('.with-focus:not([readonly])');
+    if(!$with_focus) {
+        $with_focus = $element.querySelector(
+            'input.input:not([readonly]), textarea, select'
+        );
+    }
     if($with_focus) {
         $with_focus.focus();
     }
@@ -1197,6 +1236,10 @@ function request_close_form_dialog(gobj)
 function close_form_dialog(gobj)
 {
     let priv = gobj.priv;
+    if(priv.on_keydown) {
+        document.removeEventListener("keydown", priv.on_keydown);
+        priv.on_keydown = null;
+    }
     if(priv.form) {
         if(gobj_is_running(priv.form)) {
             gobj_stop(priv.form);

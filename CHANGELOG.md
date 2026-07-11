@@ -7,6 +7,23 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(form): hosted third-party widgets follow the app theme.** The
+  JSON editor (`vanilla-jsoneditor`) was hardcoded to `jse-theme-dark` —
+  a black block inside a light form; the class is now set from the app
+  theme (explicit `<html data-theme>`, or the OS scheme when absent) at
+  field-build time. tom-select (fkey fields) shipped light-only colors —
+  pure white in dark theme; a new `c_yui_form.css` maps its control,
+  items and dropdown to Bulma CSS vars, so one rule set follows both
+  themes. The JSON editor accent color also maps to `--bulma-link`.
+  Readonly inputs (e.g. the pkey in update mode) now render visually
+  muted instead of looking editable.
+- **feat(treedb): edit/create dialog UX.** The dialog title states the
+  operation: `new <topic>` on create, `<topic> — <pkey>` on update
+  (was the bare topic name in both). Escape closes the dialog through
+  the same unsaved-changes guard as the X. On update, focus lands on
+  the first editable field instead of the readonly pkey. The Tabulator
+  pagination chrome (page-size selector + First/Prev/Next/Last) hides
+  while all rows fit in one page — the row-count footer stays.
 - **fix(nav): icon-bar distributes when items fit, scrolls when they
   don't.** `.yui-nav-iconbar` items were `flex: 1 1 0`, so a menu with
   many first-level entries crushed them into the viewport width instead
