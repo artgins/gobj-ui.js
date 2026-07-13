@@ -7,6 +7,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(dom): logical class names on windows, modals, confirms and toasts —
+  plus a `logical_class` parameter.** The library's chrome now follows the
+  repo's DOM convention (uppercase = logical block, lowercase = styling):
+  `WINDOW_HEADER/CONTROLS/MIN/MAX/CLOSE/BODY/FOOTER/RESIZE`,
+  `MODAL[_BACKDROP|_CONTENT|_HEADER|_BACK|_TITLE|_CLOSE|_BODY]`, `CONFIRM*`,
+  `TOAST*`. Those name the *kind* of block; to reference **one** window/popup
+  exactly, the caller now passes its own name — a `logical_class` attr on
+  `C_YUI_WINDOW` and a `logical_class` option on `yui_shell_show_modal()` /
+  `yui_shell_confirm_*()` — which lands on the root element. Existing styling
+  classes are kept and the logical names are prepended, so no CSS or internal
+  `querySelector` changes.
+
 - **BREAKING(window): minimize requires a window manager.** `C_YUI_WINDOW`'s
   minimize button is painted only when the window has a `manager`
   (`C_YUI_WINDOW_MANAGER`) — minimize means "send to the dock", and without a

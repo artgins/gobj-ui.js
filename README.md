@@ -88,4 +88,29 @@ renames a logical class, and adding a logical class never requires a CSS rule.
 you can't tell it's "the comment line". These are primarily debug aids, but
 they **may** double as real CSS hooks; styling them is fine when useful.
 
+#### Naming a window / modal from the app: `logical_class`
+
+The library's own chrome carries its block names — a window is tagged
+`WINDOW_HEADER` / `WINDOW_CONTROLS` / `WINDOW_MIN` / `WINDOW_MAX` /
+`WINDOW_CLOSE` / `WINDOW_BODY` / `WINDOW_FOOTER` / `WINDOW_RESIZE`, a modal
+`MODAL` / `MODAL_BACKDROP` / `MODAL_CONTENT` / `MODAL_HEADER` / `MODAL_BACK` /
+`MODAL_TITLE` / `MODAL_CLOSE` / `MODAL_BODY`, a confirm `CONFIRM*` and a toast
+`TOAST*`.
+
+Those names identify the *kind* of block, not the *instance*: every window in
+the app is a `C_YUI_WINDOW`, every popup is a `MODAL`. To target **one**
+exactly, the caller passes its own name:
+
+```js
+gobj_create_service("keys", "C_YUI_WINDOW",
+    {logical_class: "TRANGER_KEYS_WINDOW", ...}, gobj);
+
+yui_shell_show_modal(shell, $box,
+    {logical_class: "TRANGER_KEYS_SHEET", dialog: true, ...});
+
+yui_shell_confirm_yesno(shell, msg, {logical_class: "...", ...});
+```
+
+It lands on the root element, alongside `C_YUI_WINDOW` / `MODAL` / `CONFIRM`.
+
 Copyright (c) 2024-2026, ArtGins. All Rights Reserved.

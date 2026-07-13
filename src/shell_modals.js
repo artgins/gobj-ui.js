@@ -119,11 +119,11 @@ function show_notification(shell, kind, message, opts)
         ? {i18n: message}
         : {};
     let $note = createElement2(
-        ["div", {class: `notification yui-notification is-${kind} is-light`,
+        ["div", {class: `TOAST notification yui-notification is-${kind} is-light`,
                  role: kind === "danger" ? "alert" : "status"},
             [
-                ["button", {class: "delete", "aria-label": "close"}],
-                ["p", p_attrs, message]
+                ["button", {class: "TOAST_CLOSE delete", "aria-label": "close"}],
+                ["p", {...p_attrs, class: "TOAST_MSG"}, message]
             ]
         ]
     );
@@ -214,37 +214,43 @@ export function yui_shell_show_modal(shell, content, opts)
     let with_close = !(opts && opts.with_close_button === false);
     let modal_children;
     if(dialog) {
-        let header = ["div", {class: "yui-dialog-header"}, [
-            ["button", {class: "yui-dialog-back", type: "button", "aria-label": "back"},
+        let header = ["div", {class: "MODAL_HEADER yui-dialog-header"}, [
+            ["button", {class: "MODAL_BACK yui-dialog-back", type: "button", "aria-label": "back"},
                 [["i", {class: "yi-arrow-left"}]]],
-            ["span", {class: "yui-dialog-title", i18n: title}, title],
-            ["button", {class: "yui-dialog-x", type: "button", "aria-label": "close"},
+            ["span", {class: "MODAL_TITLE yui-dialog-title", i18n: title}, title],
+            ["button", {class: "MODAL_CLOSE yui-dialog-x", type: "button", "aria-label": "close"},
                 [["i", {class: "yi-xmark"}]]],
         ]];
-        let body = ["div", {class: "yui-dialog-body"}, inner ? [inner] : []];
+        let body = ["div", {class: "MODAL_BODY yui-dialog-body"}, inner ? [inner] : []];
         modal_children = [
-            ["div", {class: "modal-background"}],
-            ["div", {class: "modal-content yui-dialog-content"}, [header, body]]
+            ["div", {class: "MODAL_BACKDROP modal-background"}],
+            ["div", {class: "MODAL_CONTENT modal-content yui-dialog-content"}, [header, body]]
         ];
         /*  The header X replaces the external Bulma close button. */
         with_close = false;
     } else {
         modal_children = [
-            ["div", {class: "modal-background"}],
-            ["div", {class: "modal-content"},
+            ["div", {class: "MODAL_BACKDROP modal-background"}],
+            ["div", {class: "MODAL_CONTENT modal-content"},
                 inner ? [inner] : []
             ]
         ];
         if(with_close) {
             modal_children.push(
-                ["button", {class: "modal-close is-large",
+                ["button", {class: "MODAL_CLOSE modal-close is-large",
                             "aria-label": "close"}]
             );
         }
     }
 
+    /*  `opts.logical_class`: the CALLER's UPPER_SNAKE name for THIS modal
+     *  (e.g. TRANGER_KEYS_SHEET). Every modal shares the MODAL block names,
+     *  only this tells one popup from another in the Inspector or a selector. */
+    let logical = (opts && opts.logical_class) || "";
+
     let $modal = createElement2(
-        ["div", {class: "modal yui-modal" + (dialog ? " yui-dialog" : "") + " is-active",
+        ["div", {class: "MODAL" + (logical ? " " + logical : "") +
+                        " modal yui-modal" + (dialog ? " yui-dialog" : "") + " is-active",
                  role: "dialog", "aria-modal": "true"},
             modal_children
         ]
@@ -361,11 +367,11 @@ function build_dialog(shell, message, buttons, opts)
     let icon = CONFIRM_TYPE_ICONS[type] || CONFIRM_TYPE_ICONS["question"];
 
     let $body_children = (typeof message === "string")
-        ? [["p", {class: "yui-confirm-msg", i18n: message}, message]]
+        ? [["p", {class: "CONFIRM_MSG yui-confirm-msg", i18n: message}, message]]
         : [message];
 
     let $footer_children = buttons.map(b => {
-        let cls = "button px-5";
+        let cls = "CONFIRM_BTN button px-5";
         if(b.kind === "primary") {
             cls += " is-link";
         } else if(b.kind === "danger") {
@@ -380,29 +386,33 @@ function build_dialog(shell, message, buttons, opts)
     });
 
     let $card_children = [
-        ["div", {class: "yui-confirm-icon"},
+        ["div", {class: "CONFIRM_ICON yui-confirm-icon"},
             [["i", {class: icon, "aria-hidden": "true"}]]
         ]
     ];
     if(!empty_string(title)) {
         $card_children.push(
-            ["p", {class: "yui-confirm-title has-text-centered",
+            ["p", {class: "CONFIRM_TITLE yui-confirm-title has-text-centered",
                    i18n: title}, title]
         );
     }
     $card_children.push(
-        ["button", {class: "delete yui-confirm-x", "aria-label": "close"}],
-        ["section", {class: "modal-card-body has-text-centered"},
+        ["button", {class: "CONFIRM_CLOSE delete yui-confirm-x", "aria-label": "close"}],
+        ["section", {class: "CONFIRM_BODY modal-card-body has-text-centered"},
             $body_children],
-        ["footer", {class: "modal-card-foot"}, $footer_children]
+        ["footer", {class: "CONFIRM_FOOT modal-card-foot"}, $footer_children]
     );
 
+    /*  Caller's own UPPER_SNAKE name for THIS confirm, same contract as
+     *  yui_shell_show_modal's `logical_class`. */
+    let logical = (opts && opts.logical_class) ? " " + opts.logical_class : "";
+
     let $modal = createElement2(
-        ["div", {class: `modal yui-modal yui-confirm is-active is-${type}`,
+        ["div", {class: `CONFIRM${logical} modal yui-modal yui-confirm is-active is-${type}`,
                  role: "dialog", "aria-modal": "true"},
             [
-                ["div", {class: "modal-background"}],
-                ["div", {class: "modal-card"}, $card_children]
+                ["div", {class: "CONFIRM_BACKDROP modal-background"}],
+                ["div", {class: "CONFIRM_CARD modal-card"}, $card_children]
             ]
         ]
     );

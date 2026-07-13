@@ -27,6 +27,7 @@ import {
     kw_set_local_storage_value,
     gobj_read_attr,
     gobj_read_bool_attr,
+    gobj_read_str_attr,
     gobj_is_service,
     gobj_name,
     gobj_read_integer_attr,
@@ -93,6 +94,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "maximized",    0,  false,  "Flag to indicate if
 SDATA(data_type_t.DTP_JSON,     "window_style", 0,  "{}",   "Override window style"),
 SDATA(data_type_t.DTP_POINTER,  "on_close",     0,  null,   "Callback on destroy"),
 SDATA(data_type_t.DTP_POINTER,  "manager",      0,  null,   "Optional C_YUI_WINDOW_MANAGER (gobj or service name) for dock/taskbar"),
+SDATA(data_type_t.DTP_STRING,   "logical_class",0,  "",     "Logical UPPER_SNAKE class(es) added to the window root, so the app can target THIS window exactly (e.g. 'TRANGER_KEYS_WINDOW')"),
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, shown on the dock chip"),
 SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Dock-chip icon: a yi-* class name or inline SVG (by window type)"),
 // TODO pendiente focus modal keyboard
@@ -389,16 +391,24 @@ function build_ui(gobj)
     };
     Object.assign(window_style, gobj_read_attr(gobj, "window_style"));
 
+    /*  Logical (UPPER_SNAKE) block names, per the repo's DOM convention:
+     *  uppercase identifies the block, lowercase styles it. `logical_class`
+     *  is the CALLER's name for this particular window (e.g.
+     *  TRANGER_KEYS_WINDOW) — several windows share the C_YUI_WINDOW class,
+     *  only this tells them apart in the Inspector or in a selector. */
+    let logical = gobj_read_str_attr(gobj, "logical_class");
+
     let $container = createElement2(
         ['div', {
-            class: 'C_YUI_WINDOW strong-shadow is-flex is-flex-direction-column' + (mobile ? ' is-mobile-sheet' : ''),
+            class: 'C_YUI_WINDOW' + (logical ? ' ' + logical : '') +
+                   ' strong-shadow is-flex is-flex-direction-column' + (mobile ? ' is-mobile-sheet' : ''),
             style: window_style}, [
 
             /*----------------------------*
              *          Header
              *----------------------------*/
             ['div', {
-                class: 'yui-window-header p-1 is-flex-shrink-0 is-flex is-flex-nowrap is-justify-content-space-between is-align-items-center', style: 'border-bottom:1px solid var(--bulma-border); cursor:move; box-sizing: border-box;'
+                class: 'WINDOW_HEADER yui-window-header p-1 is-flex-shrink-0 is-flex is-flex-nowrap is-justify-content-space-between is-align-items-center', style: 'border-bottom:1px solid var(--bulma-border); cursor:move; box-sizing: border-box;'
                 }, [
                 /*  Custom header content: a single-row, horizontally
                  *  scrollable strip.  It takes the remaining width and
@@ -424,12 +434,12 @@ function build_ui(gobj)
                  *  Minimize exists ONLY with a window manager: it means
                  *  "send to the dock", and there is no such place without
                  *  one. `manager` is already resolved (mt_create). */
-                ['div', {class: 'yui-window-titlebar-controls is-flex-shrink-0', style: 'position:relative; z-index:1; cursor:default;'}, [
+                ['div', {class: 'WINDOW_CONTROLS yui-window-titlebar-controls is-flex-shrink-0', style: 'position:relative; z-index:1; cursor:default;'}, [
                     /*----------------------------*
                      *      Minimize (to dock)
                      *----------------------------*/
                     ['button', {
-                        class: 'yui-wc wc-min', type: 'button', 'aria-label': 'minimize',
+                        class: 'WINDOW_MIN yui-wc wc-min', type: 'button', 'aria-label': 'minimize',
                         style: (gobj_read_bool_attr(gobj, "showMin") &&
                                 gobj_read_pointer_attr(gobj, "manager")) ? '' : 'display:none;',
                     }, WC_MIN, {
@@ -442,7 +452,7 @@ function build_ui(gobj)
                      *      Maximize / restore
                      *----------------------------*/
                     ['button', {
-                        class: 'yui-wc wc-max', type: 'button', 'aria-label': 'maximize',
+                        class: 'WINDOW_MAX yui-wc wc-max', type: 'button', 'aria-label': 'maximize',
                         style: gobj_read_bool_attr(gobj, "showMax") ? '' : 'display:none;',
                     }, WC_MAX, {
                         click: (evt) => {
@@ -454,7 +464,7 @@ function build_ui(gobj)
                      *      Close
                      *----------------------------*/
                     ['button', {
-                        class: 'yui-wc wc-close', type: 'button', 'aria-label': 'close',
+                        class: 'WINDOW_CLOSE yui-wc wc-close', type: 'button', 'aria-label': 'close',
                     }, WC_CLOSE, {
                         click: (evt) => {
                             evt.stopPropagation();
@@ -503,7 +513,7 @@ function build_ui(gobj)
              *          Body
              *----------------------------*/
             ['div', {
-                class: 'yui-window-body is-flex-grow-1 p-1',
+                class: 'WINDOW_BODY yui-window-body is-flex-grow-1 p-1',
                 style: {
                     "position": "relative", // to resize button (absolute position) when no footer bar
                     "overflow": "auto",
@@ -515,7 +525,7 @@ function build_ui(gobj)
             /*----------------------------*
              *          Footer
              *----------------------------*/
-            ['div', {class: 'yui-window-footer is-flex-shrink-0'}, [
+            ['div', {class: 'WINDOW_FOOTER yui-window-footer is-flex-shrink-0'}, [
                 ['div', {
                     class: 'is-justify-content-space-between is-align-items-center p-1',
                     style: {
@@ -566,7 +576,7 @@ function build_ui(gobj)
      *----------------------------*/
     if(gobj_read_bool_attr(gobj, "resizable") && !gobj_read_bool_attr(gobj, "showFooter")) {
         let $resizable_btn = createElement2(['div', {
-            class: 'without-border yui-window-resize',
+            class: 'WINDOW_RESIZE without-border yui-window-resize',
             style: {
                 cursor: "nwse-resize",
                 display: "flex",
