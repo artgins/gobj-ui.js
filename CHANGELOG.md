@@ -7,6 +7,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(icons): `yi-pause`, `yi-play`, `yi-download`.** Three deliberate mask
+  rules added to `yui_icons.css` — the set is a small CSS-mask family, not
+  FontAwesome, so a `yi-*` class it does not define renders as a solid black
+  square. Consumed by gui_treedb's Live pause/resume and the card CSV export.
+
 - **feat(treedb-graph): the Graph follows links made by ANOTHER operator.**
   `C_YUI_TREEDB_GRAPH` subscribed to `EV_TREEDB_NODE_CREATED/UPDATED/DELETED`
   but never to `EV_TREEDB_NODE_LINKED` / `EV_TREEDB_NODE_UNLINKED`, so an open
