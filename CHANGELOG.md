@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **BREAKING(window): minimize requires a window manager.** `C_YUI_WINDOW`'s
+  minimize button is painted only when the window has a `manager`
+  (`C_YUI_WINDOW_MANAGER`) — minimize means "send to the dock", and without a
+  manager there is nowhere to send it. The self-contained "shade" (roll up to
+  the title bar in place) fallback and its `is-shaded` CSS are **removed**;
+  `showMin` is ignored when there is no manager. A manager-less window now
+  shows only maximize/restore + close.
+
 - **feat(icons): `yi-plug` / `yi-plug-slash`** — hand-drawn CSS-mask glyphs
   (connect / disconnect), first consumer: gui_treedb's Settings
   connect/disconnect button.

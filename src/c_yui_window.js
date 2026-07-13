@@ -88,7 +88,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "resizable",    0,  true,   "Allow resizing"),
 SDATA(data_type_t.DTP_BOOLEAN,  "showFooter",   0,  true,   "Show footer"),
 SDATA(data_type_t.DTP_BOOLEAN,  "openMaximized",0,  false,  "Open the window maximized"),
 SDATA(data_type_t.DTP_BOOLEAN,  "showMax",      0,  true,   "Show maximize button"),
-SDATA(data_type_t.DTP_BOOLEAN,  "showMin",      0,  true,   "Show minimize (roll-up / shade) button"),
+SDATA(data_type_t.DTP_BOOLEAN,  "showMin",      0,  true,   "Show minimize (to dock) button; ignored without a `manager`"),
 SDATA(data_type_t.DTP_BOOLEAN,  "maximized",    0,  false,  "Flag to indicate if maximized"),
 SDATA(data_type_t.DTP_JSON,     "window_style", 0,  "{}",   "Override window style"),
 SDATA(data_type_t.DTP_POINTER,  "on_close",     0,  null,   "Callback on destroy"),
@@ -107,7 +107,6 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     prevSize: 0,
-    preShadeHeight: 0,
 };
 
 let __gclass__ = null;
@@ -137,12 +136,15 @@ function mt_create(gobj)
 
     let window_id = "window-" + clean_name(gobj_short_name(gobj));
     gobj_write_attr(gobj, "window_id", window_id);
-    build_ui(gobj);
 
     /*  Optional window manager (dock/taskbar): register, and raise/
-     *  highlight on any pointer press. Absent → the window is a plain
-     *  floating window and minimize falls back to shade in place. */
+     *  highlight on any pointer press. Resolved BEFORE build_ui: minimize
+     *  means "send to the dock", so without a manager there is nowhere to
+     *  minimize TO and build_ui must not paint the button at all. */
     let manager = resolve_manager(gobj);
+
+    build_ui(gobj);
+
     if(manager) {
         let $c = gobj_read_attr(gobj, "$container");
         if($c) {
@@ -251,9 +253,6 @@ function ensure_window_style()
 .yui-wc:hover { background: var(--bulma-scheme-main-ter); color: var(--bulma-text-strong); }
 .yui-wc.wc-close:hover { background: #e0364a; color: #fff; }
 .yui-wc svg { width: 15px; height: 15px; display: block; }
-.C_YUI_WINDOW.is-shaded .yui-window-body,
-.C_YUI_WINDOW.is-shaded .yui-window-footer { display: none !important; }
-.C_YUI_WINDOW.is-shaded { height: auto !important; }
 .yui-window-resize { color: var(--bulma-text-weak); opacity: 0.55; }
 .yui-window-resize:hover { opacity: 1; color: var(--bulma-text); }
 @media (max-width: ${MOBILE_MAX}px) {
@@ -298,40 +297,17 @@ function resolve_manager(gobj)
 }
 
 /************************************************************
- *   Minimize: with a manager, send the window to the dock;
- *   otherwise "shade" it in place. Called by the minimize button.
+ *   Minimize: send the window to the dock. Only reachable when
+ *   a manager exists — the button is not painted otherwise.
  ************************************************************/
 function do_minimize(gobj)
 {
     let manager = gobj_read_pointer_attr(gobj, "manager");
-    if(manager) {
-        gobj_send_event(manager, "EV_MINIMIZE_WINDOW", {window: gobj}, gobj);
-    } else {
-        toggle_shade(gobj);
-    }
-}
-
-/************************************************************
- *   Minimize as "shade": roll the window up to its title bar
- *   in place (self-contained; no window manager needed). Toggles.
- ************************************************************/
-function toggle_shade(gobj)
-{
-    let priv = gobj.priv;
-    let $container = gobj_read_attr(gobj, "$container");
-    if(!$container) {
+    if(!manager) {
+        log_error(`${gobj_short_name(gobj)}: minimize without a window manager`);
         return;
     }
-    if($container.classList.contains("is-shaded")) {
-        $container.classList.remove("is-shaded");
-        if(priv.preShadeHeight) {
-            $container.style.height = parseInt(priv.preShadeHeight) + 'px';
-        }
-    } else {
-        priv.preShadeHeight = $container.getBoundingClientRect().height;
-        $container.classList.add("is-shaded");
-        $container.style.height = "auto";
-    }
+    gobj_send_event(manager, "EV_MINIMIZE_WINDOW", {window: gobj}, gobj);
 }
 
 /************************************************************
@@ -444,14 +420,18 @@ function build_ui(gobj)
                 ]],
                 /*  Window controls: pinned top-right, never shrink,
                  *  never wrap, always on top so the click always lands.
-                 *  Minimize (shade) · maximize/restore · close. */
+                 *  Minimize (to dock) · maximize/restore · close.
+                 *  Minimize exists ONLY with a window manager: it means
+                 *  "send to the dock", and there is no such place without
+                 *  one. `manager` is already resolved (mt_create). */
                 ['div', {class: 'yui-window-titlebar-controls is-flex-shrink-0', style: 'position:relative; z-index:1; cursor:default;'}, [
                     /*----------------------------*
-                     *      Minimize (shade)
+                     *      Minimize (to dock)
                      *----------------------------*/
                     ['button', {
                         class: 'yui-wc wc-min', type: 'button', 'aria-label': 'minimize',
-                        style: gobj_read_bool_attr(gobj, "showMin") ? '' : 'display:none;',
+                        style: (gobj_read_bool_attr(gobj, "showMin") &&
+                                gobj_read_pointer_attr(gobj, "manager")) ? '' : 'display:none;',
                     }, WC_MIN, {
                         click: (evt) => {
                             evt.stopPropagation();
