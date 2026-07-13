@@ -146,6 +146,7 @@ let PRIVATE_DATA = {
     operation_mode:     null,
     layout:             null,
     _topics_subscribed: {},
+    _links_subscribed:  false,  /*  EV_TREEDB_NODE_LINKED/UNLINKED (treedb-wide)  */
 
     is_pinhold_window:  false, // inherited of v6, todo review
 };
@@ -508,6 +509,48 @@ function treedb_nodes(gobj, treedb_name, topic_name, options)
 }
 
 /************************************************************
+ *  Command to remote service: re-read ONE node (by id).
+ *
+ *  Used to resync a node whose links changed: the answer is fed to the
+ *  nodes-tree as EV_NODE_UPDATED, whose fkey diff (old vs new refs) is what
+ *  draws or clears the edge. Reusing that path keeps the tree the single
+ *  owner of the edge model — the alternative (deriving the edge here from
+ *  the event's parent/child ids) would duplicate it.
+ ************************************************************/
+function treedb_get_node(gobj, treedb_name, topic_name, node_id)
+{
+    let priv = gobj.priv;
+
+    if(!priv.gobj_remote_yuno) {
+        log_error(`${gobj_short_name(gobj)}: No gobj_remote_yuno defined`);
+        return;
+    }
+
+    let kw = {
+        service: treedb_name,
+        treedb_name: treedb_name,
+        topic_name: topic_name,
+        node_id: node_id,
+        options: {
+            list_dict: true     /*  same shape as the initial `nodes` load  */
+        }
+    };
+
+    kw.__md_command__ = { // Data to be returned
+        topic_name: topic_name,
+    };
+
+    let ret = gobj_command(priv.gobj_remote_yuno,
+        "node",
+        kw,
+        gobj
+    );
+    if(ret) {
+        log_error(ret);
+    }
+}
+
+/************************************************************
  *  Command to remote service
  ************************************************************/
 function treedb_create_node(gobj, treedb_name, topic_name, record, options)
@@ -782,11 +825,53 @@ function get_nodes(gobj, topic_name)
 /************************************************************
  *
  ************************************************************/
+/************************************************************
+ *  EV_TREEDB_NODE_LINKED / EV_TREEDB_NODE_UNLINKED are TREEDB-wide, not
+ *  per-topic: their kw is the RELATIONSHIP
+ *  ({hook_name, parent_topic_name, child_topic_name, parent_id, child_id,
+ *  treedb_name}), with no `topic_name` — so they are subscribed ONCE, and
+ *  filtered by treedb_name alone (a {topic_name} filter would match nothing).
+ *
+ *  NOTE: the backend only publishes them when its C_NODE service is
+ *  configured with `with_link_events` (SDF_RD, default FALSE). Without it,
+ *  a link/unlink is announced the backward-compatible way — an
+ *  EV_TREEDB_NODE_UPDATED of the PARENT — which cannot move an edge here:
+ *  an edge IS a fkey of the CHILD (link-saves-child), and the parent's fkeys
+ *  did not change. That is why an open Graph kept showing stale edges when
+ *  another operator linked two nodes.
+ ************************************************************/
+function subscribe_treedb_links(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._links_subscribed) {
+        return;
+    }
+    priv._links_subscribed = true;
+
+    for(let event of ["EV_TREEDB_NODE_LINKED", "EV_TREEDB_NODE_UNLINKED"]) {
+        gobj_subscribe_event(priv.gobj_remote_yuno,
+            event,
+            {
+                __service__: priv.treedb_name,
+                __filter__: {
+                    "treedb_name": priv.treedb_name
+                }
+            },
+            gobj
+        );
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function subscribe_treedb(gobj, topic_name)
 {
     let priv = gobj.priv;
     const gobj_remote_yuno = priv.gobj_remote_yuno;
     const treedb_name = priv.treedb_name;
+
+    subscribe_treedb_links(gobj);
 
     /*
      *  Avoid repetitions of subscribings
@@ -973,6 +1058,24 @@ function ac_mt_command_answer(gobj, event, kw, src)
             }
             break;
 
+        case "node":
+            if(result >= 0) {
+                /*
+                 *  A node we re-read because its links changed. Feed it as an
+                 *  UPDATE: the tree diffs its fkey refs against the ones it
+                 *  holds and draws / clears exactly the edges that moved.
+                 */
+                gobj_send_event(priv.gobj_nodes_tree,
+                    "EV_NODE_UPDATED",
+                    {
+                        topic_name: kw_get_str(gobj, kw_command, "topic_name", "", 0),
+                        node: data
+                    },
+                    gobj
+                );
+            }
+            break;
+
         case "create-node":
         case "update-node":
         case "delete-node":
@@ -1044,6 +1147,51 @@ function ac_treedb_node_updated(gobj, event, kw, src)
             },
             gobj
         );
+    }
+
+    return 0;
+}
+
+/********************************************
+ *  Remote subscription response: two nodes were LINKED or UNLINKED
+ *  (by us, or by another operator on the same treedb).
+ *
+ *  The kw is the relationship, not a node:
+ *      {hook_name, parent_topic_name, child_topic_name,
+ *       parent_id, child_id, treedb_name}
+ *
+ *  An edge IS a fkey of the CHILD (link-saves-child), so the child is what
+ *  must be resynced — re-read it, and its EV_NODE_UPDATED diff moves the
+ *  edge. The PARENT is re-read too: its hook (the children list it shows,
+ *  and what the hook-data viewer reads) changed in memory even though it was
+ *  never saved.
+ *
+ *  Only topics already loaded in the graph are re-read: a link to a topic
+ *  the user never opened has no node here to update.
+ ********************************************/
+function ac_treedb_node_linked(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    let parent_topic_name = kw_get_str(gobj, kw, "parent_topic_name", "", 0);
+    let child_topic_name = kw_get_str(gobj, kw, "child_topic_name", "", 0);
+    let parent_id = kw_get_str(gobj, kw, "parent_id", "", 0);
+    let child_id = kw_get_str(gobj, kw, "child_id", "", 0);
+
+    if(treedb_name !== priv.treedb_name) {
+        log_error("It's not my treedb_name: " + treedb_name);
+        return 0;
+    }
+    if(!child_id || !parent_id) {
+        log_error(`${gobj_short_name(gobj)}: ${event} without parent_id/child_id`);
+        return -1;
+    }
+
+    if(priv._topics_subscribed[child_topic_name]) {
+        treedb_get_node(gobj, treedb_name, child_topic_name, child_id);
+    }
+    if(priv._topics_subscribed[parent_topic_name]) {
+        treedb_get_node(gobj, treedb_name, parent_topic_name, parent_id);
     }
 
     return 0;
@@ -1522,6 +1670,8 @@ function create_gclass(gclass_name)
             ["EV_TREEDB_NODE_CREATED",      ac_treedb_node_created,     null],
             ["EV_TREEDB_NODE_UPDATED",      ac_treedb_node_updated,     null],
             ["EV_TREEDB_NODE_DELETED",      ac_treedb_node_deleted,     null],
+            ["EV_TREEDB_NODE_LINKED",       ac_treedb_node_linked,      null],
+            ["EV_TREEDB_NODE_UNLINKED",     ac_treedb_node_linked,      null],
             ["EV_REFRESH_TREEDB",           ac_refresh_treedb,          null],
             ["EV_SHOW_HOOK_DATA",           ac_show_hook_data,          null],
             ["EV_SHOW_TREEDB_TOPIC",        ac_show_treedb_topic,       null],
@@ -1550,6 +1700,8 @@ function create_gclass(gclass_name)
         ["EV_TREEDB_NODE_CREATED",      event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_TREEDB_NODE_UPDATED",      event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_TREEDB_NODE_DELETED",      event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_TREEDB_NODE_LINKED",       event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_TREEDB_NODE_UNLINKED",     event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_REFRESH_TREEDB",           0],
         ["EV_SHOW_HOOK_DATA",           0],
         ["EV_SHOW_TREEDB_TOPIC",        0],

@@ -7,6 +7,29 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(treedb-graph): the Graph follows links made by ANOTHER operator.**
+  `C_YUI_TREEDB_GRAPH` subscribed to `EV_TREEDB_NODE_CREATED/UPDATED/DELETED`
+  but never to `EV_TREEDB_NODE_LINKED` / `EV_TREEDB_NODE_UNLINKED`, so an open
+  Graph kept drawing stale edges until it was reloaded. It consumes them now.
+
+  Why the existing node events could not cover it: an edge **is a fkey of the
+  CHILD** (link-saves-child), and the backend's backward-compatible path
+  announces a link as an `EV_TREEDB_NODE_UPDATED` of the **PARENT** — whose
+  fkeys did not change, so the tree's fkey diff correctly found nothing to do.
+  On a link/unlink the view now re-reads the CHILD (new `node` command) and
+  feeds it to `C_G6_NODES_TREE` as `EV_NODE_UPDATED`: its old-vs-new fkey diff
+  is what draws or clears exactly the edge that moved, so the tree stays the
+  single owner of the edge model. The PARENT is re-read too — its hook (the
+  children list, what the hook-data viewer shows) changed in memory even
+  though it was never saved. Topics not loaded in the graph are not re-read.
+
+  **Requires the backend service to be configured with `with_link_events`**
+  (`C_NODE`, `SDF_RD`, default **false**). Note it is an either/or in the
+  backend: with link events ON, a link/unlink no longer publishes the parent's
+  `EV_TREEDB_NODE_UPDATED` — so enabling it on a treedb that also serves a v1
+  SPA changes what that SPA receives. Left off by default for exactly that
+  reason; no behaviour changes for a backend that does not publish them.
+
 - **feat(dom): logical class names on windows, modals, confirms and toasts —
   plus a `logical_class` parameter.** The library's chrome now follows the
   repo's DOM convention (uppercase = logical block, lowercase = styling):
