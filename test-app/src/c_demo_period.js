@@ -201,8 +201,13 @@ function build_ui(gobj)
         ["pre", {class: "is-size-7 DEMO_PERIOD_ECHO",
                  style: "max-height:12rem; overflow:auto;"}, t("nothing yet")]);
 
+    /*  The ROLLING windows live here and nowhere else: gui_treedb dropped them
+     *  (day/week already answer its question), so this demo is the only place
+     *  the library's rolling modes are exercised — and the only i18n block a
+     *  consumer can copy them from.  */
     let $left = build_picker(gobj, "period_log", t("a log: hours, days, weeks, years"), {
         periods:      ["hour", "day", "week", "year"],
+        rolling:      ["24h", "7d"],
         with_span:    true,
         with_custom:  true,
         mode:         "day",

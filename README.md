@@ -159,7 +159,10 @@ mode, the host owns what is in it. Reference consumer: the Rows options of
 
 The library asks the APP's i18next for its keys, so a consumer must define them
 (`day`, `week`, `quarter`, `today`, `week {{n}}`, `quarter {{n}} {{y}}`,
-`previous period`, …) — copy the block from `gui_treedb/src/locales/en.js`.
+`previous period`, …) — copy the block from `test-app/src/locales.js`, which is
+the complete one: it is the only consumer that declares every mode, `rolling`
+included (`last 24h`, `last 7 days`), and a missing key is **invisible** —
+i18next answers it with the key itself.
 The picker subscribes ITSELF to the shell's `EV_LANGUAGE_CHANGED` (its labels
 are composed at render time), so a host has nothing to forward — a host that
 forwards the event anyway just repaints it twice, harmlessly. All Intl
