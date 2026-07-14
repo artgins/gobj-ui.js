@@ -27,12 +27,18 @@
  *  specificity loses — the strip stayed pinned to the left of the arrows it
  *  belongs to. When it does not fit it scrolls, and then it fills the row
  *  anyway.  */
+/*  `safe center`, not plain `center`: a CENTRED flex row that overflows spills
+ *  out of BOTH ends, and `scrollLeft` cannot go negative — so on a phone the
+ *  first granularities were painted off the left edge and NO swipe could reach
+ *  them (at 360px the browser exposed 28px of the 57px of overflow, and "All"
+ *  sat at -28px). The `safe` keyword keeps the strip centred while it fits and
+ *  falls back to start-alignment the moment it does not.  */
 .YUI_PERIOD .YUI_PERIOD_MODES {
     flex: 1 1 auto;
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: thin;
-    justify-content: center;
+    justify-content: safe center;
 }
 
 .YUI_PERIOD_MODES::-webkit-scrollbar {

@@ -706,6 +706,9 @@ function repaint(gobj)
         m.$btn.classList.toggle("is-active", m === mode);
         m.$btn.classList.toggle("is-link", m === mode && !m.overflow);
     }
+    if(mode && mode.$btn) {
+        scroll_mode_into_view(gobj, mode.$btn);
+    }
     if(priv.$more) {
         /*  An overflow granularity in use must SAY so on the trigger: the
          *  control shows no active segment otherwise, and the user cannot
@@ -790,6 +793,35 @@ function repaint(gobj)
     }
 }
 
+
+/***************************************************************
+ *  Bring the active granularity inside the visible part of the strip.
+ *
+ *  The strip only overflows on a narrow screen, and there the active mode
+ *  can sit past either edge — "Custom" at the right, "Hour" at the left of
+ *  a strip the user already pushed. Scrolling the CONTAINER (not
+ *  scrollIntoView, which walks up and drags the page/dialog with it) is the
+ *  only part of this that must not be guessed.
+ ***************************************************************/
+function scroll_mode_into_view(gobj, $btn)
+{
+    let $m = gobj.priv.$modes;
+    if(!$m || $m.scrollWidth <= $m.clientWidth + 1) {
+        return;
+    }
+    /*  Rects, NOT offsetLeft: the strip is not a positioned element, so the
+     *  button's offsetParent is some ancestor of it and offsetLeft would be
+     *  measured from the wrong origin.  */
+    let strip = $m.getBoundingClientRect();
+    let btn = $btn.getBoundingClientRect();
+    let left = btn.left - strip.left + $m.scrollLeft;
+    let right = left + btn.width;
+    if(left < $m.scrollLeft) {
+        $m.scrollLeft = left;
+    } else if(right > $m.scrollLeft + $m.clientWidth) {
+        $m.scrollLeft = right - $m.clientWidth;
+    }
+}
 
 /***************************************************************
  *  The "there is more" hint of the scrolling strip: fade the edge

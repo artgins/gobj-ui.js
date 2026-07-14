@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(period): the first granularities were unreachable on a phone.** The
+  segmented strip was centred (`justify-content: center`), and a centred flex
+  row that overflows spills out of **both** ends — but `scrollLeft` cannot go
+  negative, so the buttons painted off the left edge ("All", "Hour") could not
+  be scrolled to by any swipe: the browser exposed only half the overflow
+  (measured at 360px: first button at `-28px`, `maxScroll` 28 of 57). The strip
+  now uses `justify-content: safe center`, which centres it while it fits and
+  falls back to start-alignment the moment it does not. The active granularity
+  also scrolls itself into view on repaint, so a mode living at either end
+  ("Custom") is visible when the picker opens.
+
 - **fix(period): the overflow menu dismisses like a popover.** It only
   closed by re-clicking its `⋯` trigger: no outside-click dismiss, no
   Escape, and it stayed open when a mode was picked from the segmented
