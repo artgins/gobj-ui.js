@@ -29,6 +29,7 @@ import {
     is_current_period,
     infer_period,
     period_label,
+    day_number,
     YUI_PERIODS
 } from "./yui_time.js";
 
@@ -178,16 +179,25 @@ describe("stepping", () => {
         expect(period_shift("quarter", local(2026, 11, 15), 1)).toBe(local(2027, 0, 1));
     });
 
-    it("steps a day to the next LOCAL midnight — every day of the year", () => {
+    it("steps a day to the start of the next LOCAL day — every day of the year", () => {
         /*  The DST trap: a day that adds 86400000 ms lands at 23:00 or at
          *  01:00 the two days a year the clock moves. Walking a whole year
-         *  catches it in any timezone that has DST at all.  */
+         *  catches it in any timezone that has DST at all.
+         *
+         *  NOT asserted: hour === 0. In timezones whose transition happens
+         *  AT midnight (America/Santiago springs 23:59 -> 01:00) the first
+         *  existing instant of the day IS 01:00, and that is the right
+         *  answer. What must hold in every timezone: the step lands exactly
+         *  on the first instant of the next calendar day (what the Date
+         *  constructor resolves for it), and the buckets stay contiguous.  */
         let d = local(2026, 0, 1);
         for(let i = 0; i < 365; i++) {
             let next = period_shift("day", d, 1);
             let as_date = new Date(next);
-            expect(as_date.getHours()).toBe(0);
-            expect(as_date.getMinutes()).toBe(0);
+            expect(next).toBe(local(
+                as_date.getFullYear(), as_date.getMonth(), as_date.getDate()
+            ));
+            expect(day_number(as_date)).toBe(day_number(new Date(d)) + 1);
             expect(period_bounds("day", d).to).toBe(next - 1);
             d = next;
         }
@@ -270,8 +280,14 @@ describe("labels", () => {
     it("numbers any other week, and adds the year only when it is not this one", () => {
         let now = Date.now();
         let back = period_shift("week", now, -3);
-        expect(period_label("week", back, t))
-            .toBe(`week ${iso_week(new Date(back)).week}`);
+        /*  Runtime-relative on purpose (the suffix compares against TODAY's
+         *  year), so the expectation must be too: a run in early January has
+         *  its week-3-weeks-ago in the previous ISO year, suffix included.  */
+        let w = iso_week(new Date(back));
+        let expected = (w.year === new Date().getFullYear())
+            ? `week ${w.week}`
+            : `week ${w.week} ${w.year}`;
+        expect(period_label("week", back, t)).toBe(expected);
         /*  14 jul 2019 was a SUNDAY: it closes week 28, it does not open 29.  */
         expect(period_label("week", local(2019, 6, 14), t)).toBe("week 28 2019");
     });

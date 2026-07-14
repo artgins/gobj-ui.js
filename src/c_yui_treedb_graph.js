@@ -823,9 +823,6 @@ function get_nodes(gobj, topic_name)
 }
 
 /************************************************************
- *
- ************************************************************/
-/************************************************************
  *  EV_TREEDB_NODE_LINKED / EV_TREEDB_NODE_UNLINKED are TREEDB-wide, not
  *  per-topic: their kw is the RELATIONSHIP
  *  ({hook_name, parent_topic_name, child_topic_name, parent_id, child_id,
@@ -966,6 +963,34 @@ function unsubscribe_treedb(gobj, topic_name)
         },
         gobj
     );
+
+    /*  The treedb-wide LINKED/UNLINKED subscription rides the per-topic
+     *  ones: when the last topic goes, it goes too — otherwise it outlives
+     *  every view of the treedb and keeps pushing events nobody will use
+     *  (the handler's _topics_subscribed guards make them no-ops, but the
+     *  traffic still crosses the wire).  */
+    let any_left = false;
+    for(let k in priv._topics_subscribed) {
+        if(priv._topics_subscribed[k]) {
+            any_left = true;
+            break;
+        }
+    }
+    if(!any_left && priv._links_subscribed) {
+        priv._links_subscribed = false;
+        for(let ev of ["EV_TREEDB_NODE_LINKED", "EV_TREEDB_NODE_UNLINKED"]) {
+            gobj_unsubscribe_event(gobj_remote_yuno,
+                ev,
+                {
+                    __service__: treedb_name,
+                    __filter__: {
+                        "treedb_name": treedb_name
+                    }
+                },
+                gobj
+            );
+        }
+    }
 }
 
 /********************************************

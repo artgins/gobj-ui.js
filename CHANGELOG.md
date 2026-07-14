@@ -7,6 +7,26 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(period): the picker re-translates itself.** `C_YUI_PERIOD` declared
+  the `EV_LANGUAGE_CHANGED` handler but relied on the HOST to forward the
+  event, an obligation the README never stated (and an inconsistency:
+  `C_YUI_TREEDB_TOPIC_WITH_FORM` subscribes itself). A bare picker mounted by
+  a README-faithful consumer kept "Week 27"/month names frozen in the old
+  language. It now subscribes itself to the shell in `mt_start` (a host that
+  forwards anyway just repaints twice, harmlessly); README documents it.
+  Also: the missing period keys (`minute`, `5min`, `15min`, `fortnight`,
+  `last 6h`, `last 30 days`) added to the test-app bundles, the day-step test
+  made honest in timezones whose DST transition happens AT midnight
+  (America/Santiago: the first instant of that day IS 01:00 — assert bucket
+  contiguity, not `hour === 0`), and the week-label test made deterministic
+  across a year boundary.
+
+- **fix(treedb-graph): the treedb-wide LINKED/UNLINKED subscription is
+  dropped with the last topic.** It was armed once and never released, so it
+  outlived every view of the treedb and kept pushing events whose handler
+  discarded them. It now rides the per-topic subscriptions: last topic out,
+  links subscription out (and back on the next subscribe).
+
 - **feat(period): a date navigator, and the algebra under it
   (`C_YUI_PERIOD` + `yui_time.js`).** Picking a range was two
   `datetime-local` inputs that had to agree with each other; it is now a

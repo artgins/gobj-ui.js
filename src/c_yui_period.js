@@ -66,11 +66,14 @@ import {
     gobj_read_integer_attr,
     gobj_parent,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
     gobj_send_event,
     gobj_publish_event,
     gobj_change_state,
     gobj_short_name,
 } from "@yuneta/gobj-js";
+
+import {yui_shell_of} from "./c_yui_shell.js";
 
 import {
     YUI_PERIODS_DEFAULT,
@@ -204,6 +207,16 @@ function mt_start(gobj)
      *  decides whether that is where we belong.  */
     gobj_change_state(gobj, (mode && mode.kind === "bucket")? "ST_BUCKET" : "ST_FLAT");
 
+    /*  The composed labels ("Week 27", month names) are t()-built at render
+     *  time, so a language switch must repaint them. Subscribe to the shell
+     *  DIRECTLY, like C_YUI_TREEDB_TOPIC_WITH_FORM: a host that mounts a
+     *  bare picker gets the repaint without having to forward the event
+     *  (a host that forwards anyway just repaints twice, harmlessly).  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+
     /*  Bounds, but NO event: nobody asked for anything yet, and a host
      *  that fires a query on every EV_PERIOD_CHANGED would run one before
      *  the user touched the picker.  */
@@ -216,6 +229,10 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
     close_calendar(gobj);
 }
 
