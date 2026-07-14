@@ -100,7 +100,12 @@
     font-size: 1.25rem;
 }
 
-.YUI_PERIOD .YUI_PERIOD_LABEL {
+/*  THREE classes deep, and the reason is the rule right above: the label is a
+ *  `.button` INSIDE the navigator, so `.YUI_PERIOD .YUI_PERIOD_NAV .button`
+ *  outranked a two-class label rule and pinned it to the arrows' 1.25rem — the
+ *  row rendered flat, with nothing standing out, which is the opposite of what
+ *  it is for.  */
+.YUI_PERIOD .YUI_PERIOD_NAV .YUI_PERIOD_LABEL {
     font-size: 1.35rem;
     font-weight: 700;
     min-width: 9rem;

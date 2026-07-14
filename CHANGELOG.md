@@ -7,6 +7,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(period): the label is the loudest thing in the navigator again.** It
+  is a `.button` INSIDE `.YUI_PERIOD_NAV`, so the three-class rule that sizes
+  the arrows outranked the two-class label rule and pinned the label to the
+  arrows' `1.25rem` — the row rendered flat, nothing standing out, the opposite
+  of what it is for. The label rule now matches through the navigator too
+  (measured: label 21.6px vs arrows 20px, as designed).
+
 - **fix(period): the first granularities were unreachable on a phone.** The
   segmented strip was centred (`justify-content: center`), and a centred flex
   row that overflows spills out of **both** ends — but `scrollLeft` cannot go
