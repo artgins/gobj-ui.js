@@ -39,12 +39,17 @@ function attach_clear($control, $input, on_clear)
     }
     $control.classList.add("has-clear");
 
+    /*  The key travels with the button: a `title` set from t() at build time
+     *  is invisible to refresh_language(), so the tooltip stayed in the old
+     *  language for the life of the input.  */
     let $btn = createElement2(["button", {
-        type:         "button",
-        class:        "delete is-medium yui-input-clear",
-        tabindex:     "-1",
-        title:        i18next.t("clear"),
-        "aria-label": i18next.t("clear")
+        type:                    "button",
+        class:                   "delete is-medium yui-input-clear",
+        tabindex:                "-1",
+        title:                   i18next.t("clear"),
+        "aria-label":            i18next.t("clear"),
+        "data-i18n-title":       "clear",
+        "data-i18n-aria-label":  "clear"
     }]);
 
     function sync()

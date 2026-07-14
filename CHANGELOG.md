@@ -32,6 +32,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   formatter on the EXISTING header cell, which appends ("Device GroupDevice
   Group"). Its `clear search` / `refresh` tooltips were raw English literals (not
   even `t()`); they carry `data-i18n-title` now.
+- **fix(inputs): the clear (✕) button's tooltip could not be re-translated.**
+  `attach_clear()` set `title` / `aria-label` from `t()` at build time — invisible
+  to `refresh_language()` — so the tooltip stayed in the old language for the life
+  of the input (seen in gui_agent: "Limpiar" on an English UI). It carries
+  `data-i18n-title` / `data-i18n-aria-label` now.
 - **fix(form): the tom-select clear button asked for a CAPITALIZED i18n key**
   (`Remove all selected options`). Keys are lower-case by convention — the apps'
   `validate-locales` enforces it — so no locale could legally define it and it
