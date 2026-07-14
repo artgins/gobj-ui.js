@@ -143,6 +143,30 @@
     color: var(--bulma-text) !important;
 }
 
+/*
+ *  The CELL EDITOR in dark theme.
+ *
+ *  Tabulator gives its editor input no colour of its own, so it inherits the
+ *  browser default: BLACK text on the dark cell — the value disappears the
+ *  moment you click into it, and comes back when the field loses focus. Same
+ *  for a header-filter input and for a <select>.
+ */
+[data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing input,
+[data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing select,
+[data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing textarea,
+[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input,
+[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter select {
+    background-color: var(--bulma-scheme-main, #16181d);
+    color: var(--bulma-body-color, #e6e6e6) !important;
+    caret-color: var(--bulma-body-color, #e6e6e6);
+    border-color: var(--bulma-border);
+}
+
+[data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
+[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input::placeholder {
+    color: var(--bulma-text-weak, #8a8f98);
+}
+
 [data-theme=dark] .tabulator-row.tabulator-selected {
     background-color: var(--bulma-link) !important;
     color: var(--bulma-link-invert) !important;

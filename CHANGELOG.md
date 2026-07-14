@@ -7,6 +7,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(tabulator): the cell editor was invisible in dark mode.** Tabulator gives
+  its editor input no colour of its own, so it inherited the browser default —
+  BLACK text on the dark cell: the value disappeared the moment you clicked into
+  it and came back when the field lost focus (which is why a screenshot never
+  showed it). The editor, the header-filter inputs and their placeholders are
+  themed now.
+
 - **feat(shell): the language switch is a fact the shell PUBLISHES.**
   `refresh_language()` re-translates every node that CARRIES its key, but a view
   that composed a string with `t()` at render time — a Tabulator header, a
