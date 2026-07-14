@@ -7,6 +7,35 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): the language switch is a fact the shell PUBLISHES.**
+  `refresh_language()` re-translates every node that CARRIES its key, but a view
+  that composed a string with `t()` at render time — a Tabulator header, a
+  paginator, a row counter, a title — holds no key and cannot be reached that
+  way, so it stayed in the old language for the rest of its life. The app now
+  switches its i18next and calls **`yui_shell_language_changed(shell)`**; the
+  shell re-translates the document and publishes **`EV_LANGUAGE_CHANGED`**, and
+  any view (this library's or an app's) subscribes and re-renders what no
+  attribute can reach. One contract, instead of an event per app.
+- **feat(tabulator): Tabulator's own chrome goes through i18n**
+  (`yui_tabulator_i18n.js`). The paginator ("Page Size", "First", "Prev",
+  "Next", "Last"), the placeholder and the loading/error notices are rendered by
+  Tabulator itself and never passed through `t()`: a table sat in English inside
+  a Spanish view. `yui_tabulator_lang(t)` hands a table its language at build and
+  `yui_tabulator_relocalize(table, t)` puts it in the new one — under a FRESH
+  locale name each time, because `setLocale()` with the name already in force is
+  a no-op and the paginator is drawn once. Every key falls back to the English
+  string Tabulator used to render (`defaultValue`), so an app that defines none
+  of them sees no change.
+- **fix(treedb-table): the table view follows a language switch.** It relocalizes
+  its Tabulator, re-translates its placeholder, and rebuilds its columns from
+  their own definitions — re-applying the locale makes Tabulator re-run the title
+  formatter on the EXISTING header cell, which appends ("Device GroupDevice
+  Group"). Its `clear search` / `refresh` tooltips were raw English literals (not
+  even `t()`); they carry `data-i18n-title` now.
+- **fix(form): the tom-select clear button asked for a CAPITALIZED i18n key**
+  (`Remove all selected options`). Keys are lower-case by convention — the apps'
+  `validate-locales` enforces it — so no locale could legally define it and it
+  rendered as its own key.
 - **feat(icons): `yi-pause`, `yi-play`, `yi-download`, `yi-link`.** Four
   deliberate mask rules added to `yui_icons.css` — the set is a small CSS-mask
   family, not FontAwesome, so a `yi-*` class it does not define renders as a

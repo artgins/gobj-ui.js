@@ -1204,7 +1204,11 @@ function create_form_field(
                     field_desc.real_type === "string")? 1 : null,
                 plugins: {
                     'clear_button': {
-                        'title': t('Remove all selected options'),
+                        /*  i18n keys are lower-case by convention (the apps'
+                            validate-locales enforces it): this one was the only
+                            capitalized key in the library, so no locale could
+                            legally define it and it rendered as its own key.  */
+                        'title': t('remove all selected options'),
                     },
                     'no_active_items': {},
                     'no_backspace_delete': {},

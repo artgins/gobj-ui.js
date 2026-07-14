@@ -16,6 +16,7 @@ import {
     log_error,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
     gobj_parent,
     sprintf,
     gobj_read_attr,
@@ -70,6 +71,8 @@ import {
 
 import {register_c_yui_form} from "./c_yui_form.js";
 
+import {yui_tabulator_lang, yui_tabulator_relocalize} from "./yui_tabulator_i18n.js";
+
 import {t} from "i18next";
 
 import "./c_yui_treedb_topic_with_form.css";
@@ -119,7 +122,7 @@ SDATA(data_type_t.DTP_JSON,     "tabulator_settings",   0,  {
     pagination: true,
     paginationSize: 25,
     paginationSizeSelector: [25, 50, 100, true],
-    placeholder: "No data available",
+    placeholder: "No data available",   /*  overridden per-language at create  */
     maxHeight: "100%"
 }, "Default settings for Tabulator"),
 
@@ -200,6 +203,14 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    /*  The shell publishes the language switch (yui_shell_language_changed):
+     *  the column headers re-translate themselves (they carry data-i18n — see
+     *  col_label), but Tabulator's OWN chrome is drawn once and needs to be
+     *  told.  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
     create_tabulator(gobj);
 }
 
@@ -208,6 +219,10 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
     close_form_dialog(gobj);
     table__destroy(gobj);
 }
@@ -470,7 +485,8 @@ function build_ui(gobj)
                 ['span', {class: 'icon is-left'}, [
                     ['i', {class: 'yi-magnifying-glass'}]
                 ]],
-                ['span', {class: 'icon is-right', style: 'cursor:pointer; pointer-events:all;', title: 'clear search'}, [
+                ['span', {class: 'icon is-right', style: 'cursor:pointer; pointer-events:all;',
+                          title: t('clear search'), 'data-i18n-title': 'clear search'}, [
                     ['i', {class: 'yi-xmark'}]
                 ], {
                     'click': (event) => {
@@ -511,7 +527,7 @@ function build_ui(gobj)
 
     if(with_refresh_button) {
         let $refresh = createElement2(
-            ['button', {class: 'button mr-1', title: 'refresh'}, [
+            ['button', {class: 'button mr-1', title: t('refresh'), 'data-i18n-title': 'refresh'}, [
                 ['i', {class: 'yi-arrows-rotate'}],
                 ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
             ], {
@@ -848,7 +864,18 @@ function create_tabulator(gobj)
         log_error(`${gobj_short_name(gobj)}: table element '#${table_id}' not found in $container`);
         return;
     }
-    let tabulator = new Tabulator($table_el, tabulator_settings);
+    /*  Tabulator renders its own chrome — the paginator, the placeholder, the
+     *  loading/error notices — and nothing ever passed those through i18n: the
+     *  table sat in English inside a Spanish view. Hand it the current
+     *  language (every key falls back to what it used to render, so an app
+     *  that defines none of them sees no change).  */
+    let tabulator = new Tabulator($table_el,
+        Object.assign({}, tabulator_settings, yui_tabulator_lang(t), {
+            /*  The placeholder ships as an English literal in the settings
+             *  default; hand it the current language (falling back to exactly
+             *  what it said before for an app that does not define the key).  */
+            placeholder: t("no data available", {defaultValue: "No data available"})
+        }));
 
     /*  Keep the footer in sync with the visible (active) row count,
      *  and hide the pagination chrome while everything fits in one
@@ -1720,6 +1747,37 @@ function show_dropdown_popup_menu(gobj, x, y, items, callback)
 /************************************************************
  *  From external, at the beginning, load all topic data
  ************************************************************/
+/***************************************************************
+ *  The language changed (the shell publishes it after the app switched).
+ *
+ *  The column headers carry their key (col_label's title formatter emits a
+ *  data-i18n span), so refresh_language() has already re-translated them.
+ *  What it cannot reach is what TABULATOR itself renders: its paginator, its
+ *  placeholder, its loading/error notices — drawn once, from its own lang
+ *  dict. Re-apply it in the new language.
+ ***************************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        return 0;
+    }
+    yui_tabulator_relocalize(tabulator, t);
+    try {
+        tabulator.options.placeholder =
+            t("no data available", {defaultValue: "No data available"});
+        /*  Re-setting the locale makes Tabulator re-run the title formatter on
+         *  the EXISTING header cell, which APPENDS its span to the one already
+         *  there ("Device GroupDevice Group"). Rebuilding the columns from
+         *  their own definitions renders each header once, from scratch.  */
+        tabulator.setColumns(tabulator.getColumnDefinitions());
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot re-render the table: ${e}`);
+        return -1;
+    }
+    return 0;
+}
+
 function ac_load_nodes(gobj, event, kw, src)
 {
     let data = kw;
@@ -2280,6 +2338,7 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
+            ["EV_LANGUAGE_CHANGED",     ac_language_changed,   null],
             ["EV_LOAD_NODES",           ac_load_nodes,         null],
             ["EV_LOAD_NODE_CREATED",    ac_load_node_created,  null],
             ["EV_LOAD_NODE_UPDATED",    ac_load_node_updated,  null],
@@ -2306,6 +2365,7 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
+        ["EV_LANGUAGE_CHANGED",     0],
         ["EV_LOAD_NODES",           0],
         ["EV_LOAD_NODE_CREATED",    0],
         ["EV_LOAD_NODE_UPDATED",    0],

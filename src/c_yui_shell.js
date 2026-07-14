@@ -42,6 +42,7 @@ import {
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     createElement2, empty_string, is_object, is_array, is_string,
     refresh_language,
+    is_gobj,
 } from "@yuneta/gobj-js";
 
 import {
@@ -2389,6 +2390,17 @@ function create_gclass(gclass_name)
                                      |event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_ROUTE_CHANGED",          event_flag_t.EVF_OUTPUT_EVENT
                                      |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS],
+
+        /*  The language changed (the app switched it and called
+         *  yui_shell_language_changed).  refresh_language() re-translates
+         *  every node that CARRIES its key, but a view that COMPOSED a string
+         *  with t() at render time — a title, a row counter, a Tabulator
+         *  header or paginator — holds no key and cannot be reached that way.
+         *  So the fact is published: such a view subscribes to its shell and
+         *  re-renders its own translated parts.  */
+        ["EV_LANGUAGE_CHANGED",       event_flag_t.EVF_OUTPUT_EVENT
+                                     |event_flag_t.EVF_PUBLIC_EVENT
                                      |event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
@@ -2521,6 +2533,28 @@ function yui_shell_set_translator(shell_gobj, t)
 }
 
 /************************************************************
+ *  The app switched the language: re-translate the whole document (every
+ *  node carrying data-i18n / data-i18n-title / data-i18n-aria-label) and
+ *  PUBLISH the fact, so the views that build DOM imperatively — Tabulator
+ *  headers and paginators, composed titles, row counters — can re-render
+ *  what no attribute can reach.
+ *
+ *  The app remains the owner of the locales: it switches its i18next and
+ *  calls this. The shell only fans the fact out.
+ ************************************************************/
+function yui_shell_language_changed(shell_gobj)
+{
+    if(!shell_gobj || !is_gobj(shell_gobj)) {
+        return;
+    }
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    if(priv && typeof priv.translator === "function") {
+        refresh_language(document.body, priv.translator);
+    }
+    gobj_publish_event(shell_gobj, "EV_LANGUAGE_CHANGED", {});
+}
+
+/************************************************************
  *  Set the backend-connection state painted by every
  *  type:"connection" toolbar item.  Host/event-driven: the
  *  app calls this from its transport handlers (EV_ON_OPEN →
@@ -2595,6 +2629,7 @@ export {
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
+    yui_shell_language_changed,
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,
     yui_shell_close_dropdown,
