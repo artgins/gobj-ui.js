@@ -60,6 +60,53 @@ validate and before publishing a v1 release.
 
 ## Conventions
 
+### i18n: a string must be able to CHANGE language, not just be translated once
+
+Passing a string through `t()` is **not** enough. `refresh_language()` only
+re-translates a node that **carries its key**, so anything a view composed with
+`t()` at render time stays in the old language for the rest of its life. Three
+shapes, and the fix for each:
+
+| Shape | Symptom | Fix |
+|---|---|---|
+| Text built with `t()` | never changes language | `i18n` / `data-i18n` on the element (`["span", {i18n: "rows"}, t("rows")]`) |
+| A composed string (`` `${key} · ${t(mode)}` ``) | carries no key at all | split it: the translatable halves get their own key. (Note `createElement2` **trims** text nodes — space a `·` separator with CSS, not with spaces.) |
+| `title` / `aria-label` set with `t()` | tooltip stuck in the old language | `data-i18n-title` / `data-i18n-aria-label` |
+| Anything a WIDGET renders (a Tabulator header, its paginator, a formatter) | drawn once; no attribute reaches it | subscribe to the shell and re-render (below) |
+
+**The contract.** The app owns the locales: it switches its i18next and calls
+
+```js
+yui_shell_language_changed(shell);   // c_yui_shell.js
+```
+
+which re-translates the document and publishes **`EV_LANGUAGE_CHANGED`**. Any
+view that builds DOM imperatively subscribes to its shell (`yui_shell_of(gobj)`)
+and re-renders in the ACTION — a language change is an OS notification like any
+other, so it crosses the FSM, never a raw `i18next.on("languageChanged")`.
+
+**Tabulator** renders its own chrome (the paginator, the placeholder, the
+loading/error notices) and it never went through i18n. Use:
+
+```js
+new Tabulator($el, {...settings, ...yui_tabulator_lang(t)});   // at build
+yui_tabulator_relocalize(table, t);                            // on the event
+```
+
+Every key falls back to the English string Tabulator used to render
+(`defaultValue`), so an app that defines none of them sees no change. Two traps
+the implementation already handles: `setLocale()` with the locale name already
+in force is a **no-op** (hence a fresh name per switch), and re-applying a locale
+makes Tabulator re-run a title formatter on the EXISTING header cell, which
+**appends** to it — rebuild the columns from their definitions.
+
+**A missing key is invisible:** i18next answers an unknown key **with the key
+itself**, so it renders (lower-case English) and simply never changes language.
+A **duplicate** key in a locale file is silent too — an object literal keeps the
+last one. Both are caught by the apps' `scripts/validate-locales.mjs`, which
+also scans the gobj-ui modules the app mounts: **the library translates through
+the APP's i18next**, so every key it asks for must be defined by the app.
+
 ### Logical class names on important DOM blocks
 
 When a gclass builds DOM, tag its elements so the tree is self-describing in
