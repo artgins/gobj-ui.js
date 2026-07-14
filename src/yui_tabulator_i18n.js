@@ -96,8 +96,26 @@ function yui_tabulator_relocalize(table, t)
     }
     try {
         let name = next_lang_name();
+        let strings = tabulator_strings(t);
+
+        /*  Tabulator DEEP-CLONES options.langs into its localize module when
+         *  the table is built, and never looks at the option again: writing a
+         *  new language there and calling setLocale() only earned a
+         *  "Matching locale not found, using default: yui-5" — and the
+         *  paginator it was meant to translate stayed in the old language.
+         *  Install it where the module actually reads it. The option is still
+         *  written, so a table rebuilt from its options keeps the language.  */
         table.options.langs = table.options.langs || {};
-        table.options.langs[name] = tabulator_strings(t);
+        table.options.langs[name] = strings;
+
+        let localize = table.modules && table.modules.localize;
+        if(localize && typeof localize.installLang === "function") {
+            localize.installLang(name, strings);
+        } else {
+            log_warning(`yui_tabulator_relocalize: no localize module: ` +
+                        `Tabulator's own chrome stays in the old language`);
+        }
+
         table.setLocale(name);      /*  a NEW name: this is what re-renders  */
     } catch(e) {
         log_warning(`yui_tabulator_relocalize: table gone: ${e}`);

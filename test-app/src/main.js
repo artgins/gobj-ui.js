@@ -34,6 +34,7 @@ import {register_c_yui_gobj_tree_js} from "@yuneta/gobj-ui/src/c_yui_gobj_tree_j
 import {register_c_yui_json_graph}   from "@yuneta/gobj-ui/src/c_yui_json_graph.js";
 import {register_c_yui_wizard}       from "@yuneta/gobj-ui/src/c_yui_wizard.js";
 import {register_c_yui_pager}        from "@yuneta/gobj-ui/src/c_yui_pager.js";
+import {register_c_yui_period}       from "@yuneta/gobj-ui/src/c_yui_period.js";
 import {register_c_yui_map}          from "@yuneta/gobj-ui/src/c_yui_map.js";
 import {register_c_yui_window}       from "@yuneta/gobj-ui/src/c_yui_window.js";
 import {register_c_yui_window_manager}
@@ -52,6 +53,7 @@ import {register_c_demo_tree}   from "./c_demo_tree.js";
 import {register_c_demo_json}   from "./c_demo_json.js";
 import {register_c_demo_wizard} from "./c_demo_wizard.js";
 import {register_c_demo_pager}  from "./c_demo_pager.js";
+import {register_c_demo_period} from "./c_demo_period.js";
 import {register_c_demo_map}    from "./c_demo_map.js";
 import {register_c_demo_modals} from "./c_demo_modals.js";
 import {register_c_demo_windows} from "./c_demo_windows.js";
@@ -94,6 +96,7 @@ function main()
     register_c_yui_json_graph();
     register_c_yui_wizard();
     register_c_yui_pager();
+    register_c_yui_period();
     register_c_yui_map();
     register_c_yui_window();     // host for the developer window (account menu)
     register_c_yui_window_manager(); // dock/taskbar for windows (Windows chapter)
@@ -109,6 +112,7 @@ function main()
     register_c_demo_json();
     register_c_demo_wizard();
     register_c_demo_pager();
+    register_c_demo_period();
     register_c_demo_map();
     register_c_demo_modals();
     register_c_demo_windows();

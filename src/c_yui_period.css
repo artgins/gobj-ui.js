@@ -1,0 +1,133 @@
+/*
+ * c_yui_period.css
+ * The date navigator (C_YUI_PERIOD).
+ *
+ * Imported by c_yui_period.js, so it rides the component: a consumer that
+ * imports the gclass gets its styles, and one that does not, does not ship
+ * them.
+ */
+
+.YUI_PERIOD {
+    max-width: 100%;
+}
+
+/*
+ * The granularities are a SEGMENTED control: one line of joined pills.
+ * When they do not fit — a phone, or an app that declared ten of them —
+ * the strip SCROLLS sideways. Wrapping would break the joined look mid-row,
+ * and letting it overflow would push the last modes out of the card (it did:
+ * "Custom" was cut off by the dialog's edge, unreachable).
+ */
+.YUI_PERIOD_MODES_ROW {
+    max-width: 100%;
+}
+
+/*  Two classes deep, again: Bulma's `.buttons` sets `justify-content:
+ *  flex-start` and ships after this file, so a single-class rule of equal
+ *  specificity loses — the strip stayed pinned to the left of the arrows it
+ *  belongs to. When it does not fit it scrolls, and then it fills the row
+ *  anyway.  */
+.YUI_PERIOD .YUI_PERIOD_MODES {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    justify-content: center;
+}
+
+.YUI_PERIOD_MODES::-webkit-scrollbar {
+    height: 4px;
+}
+
+/*  Bulma's .buttons gives every child a margin-bottom, for the rows it
+ *  expects to wrap. This one never wraps, so that margin is just a gap.  */
+.YUI_PERIOD_MODES .button {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+/*
+ * The overflow menu lives OUTSIDE the scrolling strip on purpose: a dropdown
+ * inside an `overflow-x` container is clipped by it, so its items would open
+ * into a 4px-tall scrollbar.
+ */
+.YUI_PERIOD_MORE {
+    flex: 0 0 auto;
+    margin-left: 0.25rem;
+}
+
+/*
+ * The navigator is the LOUDEST thing in the block: it is what the user
+ * actually operates ("show me yesterday"), and at Bulma's default button size
+ * it read as chrome. Big targets, a big label — a phone thumb hits them
+ * without aiming.
+ */
+/*  Two classes deep on purpose: Bulma's `.button` sets its own font-size and
+ *  ships AFTER this file, so a single-class rule of equal specificity loses
+ *  to it — the label stayed at 16px and read as chrome.  */
+.YUI_PERIOD .YUI_PERIOD_NAV .button {
+    height: auto;
+    min-width: 2.75rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 1.25rem;
+}
+
+.YUI_PERIOD .YUI_PERIOD_LABEL {
+    font-size: 1.35rem;
+    font-weight: 700;
+    min-width: 9rem;
+}
+
+.YUI_PERIOD_LABEL .YUI_PERIOD_LABEL_TEXT {
+    margin-left: 0.4rem;
+}
+
+/*  A name is for the user; these two timestamps are what the query carries.
+ *  Quiet, but always there — nobody should have to guess what "Week 27"
+ *  resolves to.  */
+.YUI_PERIOD_RESOLVED {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin-top: 0.15rem;
+}
+
+/*  Disabled, not gone (see repaint): the row keeps its place so the card does
+ *  not re-flow under the cursor on every mode change.  */
+.YUI_PERIOD_NAV.yui-period-nav-off {
+    opacity: 0.45;
+}
+
+/*  The calendar hangs off the navigator, centred under the label.
+ *  `display: flex` lives HERE and not as Bulma's `.is-flex` helper: that one
+ *  is `!important` and would beat `.is-hidden` (also `!important`), keeping
+ *  the arrows on screen in the modes that have no bucket to walk.  */
+.YUI_PERIOD_NAV {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.YUI_PERIOD_CALENDAR {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    min-width: 17rem;
+    max-width: 95vw;
+}
+
+.YUI_PERIOD_CAL_DAY,
+.YUI_PERIOD_CAL_MONTH,
+.YUI_PERIOD_CAL_YEAR {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/*  No transitions (framework rule): a granularity switches, it does not
+ *  glide.  */
+.YUI_PERIOD .button,
+.YUI_PERIOD_CALENDAR {
+    transition: none !important;
+}

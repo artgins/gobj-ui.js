@@ -18,6 +18,50 @@
 import i18next from "i18next";
 
 const es_translation = {
+    /*
+     *  The date navigator (C_YUI_PERIOD): the granularities, the label of
+     *  the bucket it is parked on, and its chrome. The library translates
+     *  through the APP's i18next, so these keys live here.
+     */
+    "Period": "Periodo",
+    "span": "Todo",
+    "custom": "Personalizado",
+    "hour": "Hora",
+    "day": "Día",
+    "week": "Semana",
+    "month": "Mes",
+    "year": "Año",
+    "bimester": "Bimestre",
+    "quarter": "Trimestre",
+    "semester": "Semestre",
+    "decade": "Década",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "tomorrow": "Mañana",
+    "week {{n}}": "Semana {{n}}",
+    "week {{n}} {{y}}": "Semana {{n}}, {{y}}",
+    "quarter {{n}} {{y}}": "T{{n}} {{y}}",
+    "semester {{n}} {{y}}": "S{{n}} {{y}}",
+    "last hour": "Última hora",
+    "last 24h": "Últimas 24h",
+    "last 7 days": "Últimos 7 días",
+    "previous period": "Periodo anterior",
+    "next period": "Periodo siguiente",
+    "latest period": "Ir al más reciente",
+    "pick a date": "Elegir fecha",
+    "more periods": "Más periodos",
+    "this week": "Esta semana",
+    "last week": "La semana pasada",
+    "oldest period": "Ir al más antiguo",
+    "no time limits": "Sin límites de tiempo",
+    "the range typed below": "El rango escrito abajo",
+    "from": "desde",
+    "to": "hasta",
+    "nothing yet": "nada todavía",
+    "what the query builder receives": "lo que recibe el constructor de consultas",
+    "a log: hours, days, weeks, years": "un log: horas, días, semanas, años",
+    "a report: quarters and semesters": "un informe: trimestres y semestres",
+
     "Last saved record:": "Último registro guardado:",
     "name": "nombre",
     "email": "correo",
@@ -148,8 +192,48 @@ const es_translation = {
         "Ventanas flotantes C_YUI_WINDOW gestionadas por el dock C_YUI_WINDOW_MANAGER (servicio __window_manager__). Abre unas cuantas: arrastra la barra de título, redimensiona los bordes, maximiza; minimizar recoge la ventana como chip en la tira del dock de abajo, una pulsación la eleva/enfoca, la x la cierra. Las ventanas abiertas flotan sobre los demás capítulos (la vista es keep_alive). En móvil la ventana se convierte en una hoja a pantalla completa — minimízala al dock para volver. Totalmente offline."
 };
 
+/*
+ *  The library's own keys are lower-case ASCII (gobj-ui convention: a
+ *  missing translation falls through to the key, so the gap is visible).
+ *  They are NOT English display strings — "quarter {{n}} {{y}}" must render
+ *  as "Q3 2026" — so unlike the demo's own keys they need an `en` bundle.
+ */
+const en_translation = {
+    "span": "All",
+    "custom": "Custom",
+    "hour": "Hour",
+    "day": "Day",
+    "week": "Week",
+    "month": "Month",
+    "year": "Year",
+    "bimester": "2 months",
+    "quarter": "Quarter",
+    "semester": "Semester",
+    "decade": "Decade",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "week {{n}}": "Week {{n}}",
+    "week {{n}} {{y}}": "Week {{n}}, {{y}}",
+    "quarter {{n}} {{y}}": "Q{{n}} {{y}}",
+    "semester {{n}} {{y}}": "H{{n}} {{y}}",
+    "last hour": "Last hour",
+    "last 24h": "Last 24h",
+    "last 7 days": "Last 7 days",
+    "previous period": "Previous period",
+    "next period": "Next period",
+    "latest period": "Jump to the latest",
+    "pick a date": "Pick a date",
+    "more periods": "More periods",
+    "this week": "This week",
+    "last week": "Last week",
+    "oldest period": "Jump to the oldest",
+    "no time limits": "No time limits",
+    "the range typed below": "The range typed below",
+};
+
 export const resources = {
-    en: {name: "English", translation: {}},
+    en: {name: "English", translation: en_translation},
     es: {name: "Español", translation: es_translation},
 };
 

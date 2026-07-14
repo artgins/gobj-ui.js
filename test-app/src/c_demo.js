@@ -32,6 +32,7 @@ import {
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
+    yui_shell_language_changed,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
 import {yui_shell_show_modal} from "@yuneta/gobj-ui/index.js";
@@ -190,13 +191,21 @@ function ac_toggle_theme(gobj, event, kw, src)
 
 /***************************************************************
  *  Toolbar language button (action:event EV_TOGGLE_LANGUAGE).
- *  Flip es<->en and repaint every [data-i18n] node in the page
- *  (shell chrome + views) with the new language.
+ *
+ *  Flip es<->en and hand the fact to the SHELL: it repaints every
+ *  [data-i18n] node in the page (shell chrome + views) AND publishes
+ *  EV_LANGUAGE_CHANGED. The event is the half that matters for anything
+ *  a widget DRAWS — a Tabulator header, a month name, "Week 27" — because
+ *  those carry no key for an attribute to reach: their view re-renders on
+ *  the event. Repainting the attributes alone left them in the old
+ *  language for the life of the view.
  ***************************************************************/
 function ac_toggle_language(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+
     toggle_locale();
-    refresh_language(document.body, t);
+    yui_shell_language_changed(priv.shell);
     return 0;
 }
 

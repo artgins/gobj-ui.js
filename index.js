@@ -62,6 +62,35 @@ export { register_c_yui_treedb_graph } from "./src/c_yui_treedb_graph.js";
 export { register_c_g6_nodes_tree } from "./src/c_g6_nodes_tree.js";
 
 /*
+ *  Date navigator: granularity + arrows + calendar (C_YUI_PERIOD), on
+ *  top of the period algebra of yui_time (unit + count, so an app gets
+ *  quarters, semesters or bimesters by declaring them).
+ */
+export { register_c_yui_period } from "./src/c_yui_period.js";
+export {
+    YUI_PERIODS,
+    YUI_PERIODS_DEFAULT,
+    YUI_ROLLING,
+    safe_locale,
+    epoch_to_ms,
+    ms_to_epoch,
+    epoch_to_local_input,
+    local_input_to_epoch,
+    fmt_epoch,
+    iso_week,
+    period_spec,
+    period_start,
+    period_shift,
+    period_bounds,
+    period_bounds_epoch,
+    rolling_bounds,
+    is_current_period,
+    infer_period,
+    period_name,
+    period_label,
+} from "./src/yui_time.js";
+
+/*
  *  Libraries and utilities
  */
 export { addClasses, removeClasses, toggleClasses, removeChildElements, disableElements, enableElements, set_submit_state, set_cancel_state, set_active_state, getStrokeColor } from "./src/lib_graph.js";

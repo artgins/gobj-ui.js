@@ -107,6 +107,60 @@ last one. Both are caught by the apps' `scripts/validate-locales.mjs`, which
 also scans the gobj-ui modules the app mounts: **the library translates through
 the APP's i18next**, so every key it asks for must be defined by the app.
 
+### Dates: never hand-roll them again
+
+Every date UI in the projects had grown its own copy of the same two things —
+"epoch → the local wall clock" and "what are the bounds of this week" — and the
+copies disagreed (one rendered UTC, another local; one closed a range on the
+next bucket's first instant, another on its last). Both now live here, and
+nothing else should.
+
+**`yui_time.js` — the pure half** (no DOM, no dependency):
+
+- `epoch_to_local_input` / `local_input_to_epoch` / `fmt_epoch` / `epoch_to_ms`
+  / `ms_to_epoch` — every conversion crosses the producer's unit flag
+  (`ms`: seconds unless a topic's `system_flag` says milliseconds).
+- `period_bounds` / `period_shift` / `period_start` / `period_label` /
+  `infer_period` / `is_current_period` — the algebra of **periods**.
+
+A period is **`(unit, count)`**, not a name from a fixed list:
+
+```js
+{id: "quarter",  unit: "month",  count: 3}    // and semester is count 6,
+{id: "bimester", unit: "month",  count: 2}    // bimester 2, decade year×10,
+{id: "15min",    unit: "minute", count: 15}   // …
+```
+
+so an app that reports by quarter DECLARES a quarter — it does not ask for a new
+component. `YUI_PERIODS` is the catalog of the named ones; anything an app
+invents labels itself by its own edges (`1 jul – 31 aug 2026`).
+
+Three invariants worth knowing before touching it:
+
+- **Buckets are aligned**, never counted back from now: months to the year (so
+  2/3/4/6/12 fall on calendar boundaries), weeks to Monday (ISO), hours to local
+  midnight. A window that ends at `now` is a **rolling** window (`YUI_ROLLING`),
+  a different animal — it has no previous, and its upper end stays **open**.
+- **The upper bound is inclusive** — the bucket's last millisecond, not the next
+  one's first. Both ends of a match condition are inclusive, and an exclusive end
+  handed to one silently swallows the record that landed on the boundary.
+- **Stepping is calendar arithmetic**, never `+86400000`: a DST day is 23 or 25
+  hours long, and `31 jan + 1 month` is february, not "3 march".
+
+**`C_YUI_PERIOD` — the UI half**: a granularity strip + `‹ label › >|` + a
+calendar on the label (day / month / year grid, chosen by the granularity's own
+unit). It publishes `EV_PERIOD_CHANGED {mode, anchor, from, to}` and mirrors
+`from`/`to` in read-only attrs, in the consumer's unit, `0` = unbounded. Modes
+that cannot be walked (`span`, `custom`, a rolling window) live in `ST_FLAT`, so
+an arrow arriving there fails loudly. `with_custom` reveals a `$custom` slot the
+HOST fills (its own from/to inputs): the component shows and hides it with the
+mode, the host owns what is in it. Reference consumer: the Rows options of
+`gui_treedb`'s `C_TRANGER_VIEW`; live demo in `test-app` (chapter **Period**).
+
+The library asks the APP's i18next for its keys, so a consumer must define them
+(`day`, `week`, `quarter`, `today`, `week {{n}}`, `quarter {{n}} {{y}}`,
+`previous period`, …) — copy the block from `gui_treedb/src/locales/en.js`.
+
 ### Logical class names on important DOM blocks
 
 When a gclass builds DOM, tag its elements so the tree is self-describing in

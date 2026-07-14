@@ -635,6 +635,22 @@
                     }
                 },
                 {
+                    "id": "period",
+                    "name": "Period",
+                    "icon": "yi-calendar-days",
+                    "tooltip": "The date navigator: granularity + arrows + calendar",
+                    "route": "/period",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_DEMO_PERIOD",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "Period",
+                            "lead": "C_YUI_PERIOD is a date navigator: pick a granularity, then walk it with the arrows (the label opens a calendar). A period is not an enum — it is (unit, count) — so the SAME component gives quarters, semesters, bimesters or 15-minute buckets by declaring them. Two instances below with different sets; every EV_PERIOD_CHANGED is echoed with the timestamps the bucket resolves to. Fully offline."
+                        }
+                    }
+                },
+                {
                     "id": "modals",
                     "name": "Modals",
                     "icon": "yi-circle-info",

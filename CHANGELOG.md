@@ -7,6 +7,101 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(period): a date navigator, and the algebra under it
+  (`C_YUI_PERIOD` + `yui_time.js`).** Picking a range was two
+  `datetime-local` inputs that had to agree with each other; it is now a
+  granularity plus a big `|< < LABEL > >|` navigator — pick "week", then walk.
+  The label is the control: it says where you are in words a human uses
+  ("Today", "Yesterday", "This week", "Last week", "Week 27", "July", "2025"),
+  it opens a calendar (a day / month / year grid, chosen by the granularity's
+  own unit), and under it the two timestamps the bucket RESOLVES to are always
+  printed — a name is for the user, the query carries instants. `|<` and `>|`
+  jump to the oldest and newest buckets the data actually holds (`min`/`max`),
+  and an arrow that could only paint empty buckets greys itself out.
+
+  A period is **not an enum of five names**: it is `(unit, count)`. So the same
+  component gives an app quarters, semesters, bimesters, fortnights, decades or
+  15-minute buckets by DECLARING them — nothing is added to the component:
+
+  ```js
+  gobj_create("period", C_YUI_PERIOD, {
+      periods:      ["hour", "day", "week", "month", "year"],
+      more_periods: ["bimester", "quarter", "semester", "decade"],  // overflow menu
+      rolling:      ["1h", "24h", "7d"],   // NOT buckets: they end at `now`
+      with_span:    true,                  // "All": no bounds
+      with_custom:  true,                  // reveals the host's own from/to slot
+      ms:           false                  // the consumer's time unit
+  }, parent);
+  ```
+
+  It publishes `EV_PERIOD_CHANGED {mode, anchor, from, to}` and keeps `from`/`to`
+  as read-only attrs, both in the CONSUMER's unit (seconds, or milliseconds),
+  `0` meaning unbounded — the shape a query builder already speaks. Buckets that
+  can be walked live in `ST_BUCKET` and the flat modes in `ST_FLAT`, so an arrow
+  arriving where there is nothing to walk fails loudly instead of no-op'ing.
+
+  `yui_time.js` is the pure half (no DOM, no dependency, no library): epoch
+  conversions that cross the seconds/milliseconds flag, and the algebra —
+  `period_bounds` / `period_shift` / `period_label` / `infer_period`. Buckets are
+  ALIGNED (months to the year, weeks to Monday/ISO, hours to local midnight),
+  the upper bound is INCLUSIVE (the last millisecond, not the first of the next
+  bucket — an exclusive end swallows the record that lands on the boundary), and
+  every step is calendar arithmetic, never `+86400000` (a DST day is 23 or 25
+  hours long). Covered by 35 tests, green in UTC, `Europe/Madrid` and
+  `Pacific/Chatham`.
+
+  It also replaces the three copies of "epoch → local wall clock" that had grown
+  in the tree (gui_treedb's `tranger_helpers.js` now delegates here). New icons:
+  `yi-calendar-days`, `yi-chevron-left`, `yi-chevron-right`, `yi-forward-step`,
+  `yi-ellipsis`.
+
+- **fix(period): a bucket saved by a SECONDS consumer never came back as one.**
+  `infer_period()` compared in milliseconds, but a bucket ends on its last
+  millisecond (`…23:59:59.999`) and a consumer that keeps seconds stored that end
+  TRUNCATED (`…23:59:59`) — so the exact match never fired, and every saved week
+  reopened as a hand-typed range with no granularity lit. It now takes the
+  consumer's unit (`infer_period(from, to, candidates, ms)`) and compares the
+  bounds as that consumer would have written them.
+
+- **fix(period): "custom" is a STATE, not just a button.** With `with_custom:
+  false` the mode disappeared entirely, so a range matching no bucket had nothing
+  to be — it fell back to another mode (*"unknown mode: custom"*, and "All" lit
+  while the query carried a week). The state always exists; `with_custom` only
+  decides whether it is also OFFERED as a button. Without one it is simply the
+  state where no granularity is lit and the arrows are dead.
+
+- **fix(tabulator-i18n): the language it was handed never reached it.** Tabulator
+  DEEP-CLONES `options.langs` into its localize module when the table is built and
+  never reads the option again, so registering a fresh language there and calling
+  `setLocale()` only earned a *"Matching locale not found, using default: yui-5"* —
+  and the chrome it was meant to translate (the paginator above all) stayed in the
+  old language. `yui_tabulator_relocalize()` now installs the strings where the
+  module actually reads them (`localize.installLang`).
+
+- **feat(period): `with_resolved`, and a label that is just the label.** The
+  read-only "from → to" line is now optional: a host that shows the same range in
+  its OWN editable inputs (gui_treedb does) asks for it to be left out instead of
+  printing the two timestamps twice. The calendar icon inside the label is gone —
+  clicking it did exactly what clicking the label does.
+
+- **fix(period): `.is-flex` beat `.is-hidden`, so the arrows survived the modes
+  that have nothing to walk.** Both Bulma helpers are `!important` and is-flex
+  wins, so a navigator built with `is-flex` and hidden with `is-hidden` stayed on
+  screen in "All" / "Custom" — offering `< >` for a period that did not exist.
+  The row is laid out from the component's own css now, where `is-hidden` can
+  win. Its calendar also SWALLOWS the Escape that closes it (capture phase,
+  `stopPropagation`): the keypress used to travel on to the shell's escape chain
+  and close the whole dialog underneath.
+
+- **fix(test-app): the language toggle repainted attributes but published
+  nothing.** It called `refresh_language(document.body, t)` directly, so any
+  label a view COMPOSED with `t()` — a month name, "Week 27", a Tabulator
+  header — stayed in the old language for the life of the view. It now calls
+  `yui_shell_language_changed(shell)`, which repaints the attributes AND
+  publishes `EV_LANGUAGE_CHANGED`, the contract every consumer is told to use.
+  The demo gained a **Period** chapter (two navigators, different granularity
+  sets, echoing the timestamps each bucket resolves to).
+
 - **fix(tabulator): the cell editor was invisible in dark mode.** Tabulator gives
   its editor input no colour of its own, so it inherited the browser default —
   BLACK text on the dark cell: the value disappeared the moment you clicked into
