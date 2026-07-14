@@ -91,9 +91,10 @@ import {
     period_label,
     day_number,
     start_of_iso_week,
+    iso_week,
 } from "./yui_time.js";
 
-import {t} from "i18next";
+import i18next, {t} from "i18next";
 
 import "./c_yui_period.css";
 
@@ -152,7 +153,9 @@ let PRIVATE_DATA = {
     $resolved:  null,
     $calendar:  null,       /*  the popover, null when closed  */
     cal_view:   0,          /*  the month/year the popover is BROWSING  */
-    on_dismiss: null        /*  document listener that closes the popover  */
+    on_dismiss: null,       /*  document listener that closes the popover  */
+    on_more_dismiss: null,  /*  same, for the overflow menu  */
+    modes_ro:   null        /*  ResizeObserver re-checking the strip's fades  */
 };
 
 let __gclass__ = null;
@@ -201,6 +204,7 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    let priv = gobj.priv;
     let mode = cur_mode(gobj);
 
     /*  The FSM starts in the first state declared; the mode we start ON
@@ -217,6 +221,16 @@ function mt_start(gobj)
         gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
     }
 
+    /*  The strip's overflow depends on the width the PARENT gives it, which
+     *  is unknown until mounted — and changes with the viewport and with the
+     *  language. Observe it instead of guessing.  */
+    if(typeof ResizeObserver !== "undefined") {
+        priv.modes_ro = new ResizeObserver(() => {
+            update_modes_fade(gobj);
+        });
+        priv.modes_ro.observe(priv.$modes);
+    }
+
     /*  Bounds, but NO event: nobody asked for anything yet, and a host
      *  that fires a query on every EV_PERIOD_CHANGED would run one before
      *  the user touched the picker.  */
@@ -229,11 +243,18 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
     let shell = yui_shell_of(gobj);
     if(shell) {
         gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
     }
+    if(priv.modes_ro) {
+        priv.modes_ro.disconnect();
+        priv.modes_ro = null;
+    }
     close_calendar(gobj);
+    close_more(gobj);
 }
 
 /***************************************************************
@@ -242,6 +263,7 @@ function mt_stop(gobj)
 function mt_destroy(gobj)
 {
     close_calendar(gobj);
+    close_more(gobj);
 }
 
 
@@ -326,6 +348,19 @@ function find_mode(gobj, id)
 function cur_mode(gobj)
 {
     return find_mode(gobj, gobj_read_attr(gobj, "mode"));
+}
+
+/***************************************************************
+ *  The locale the picker FORMATS with: the app's language — the one
+ *  t() answers in — so "Semana" never sits next to "July 2026" (a
+ *  browser in one language under a UI switched to another mixes the
+ *  two otherwise). safe_locale falls back to the browser's when
+ *  i18next has no language yet, and guards Firefox's literal
+ *  "undefined" string.
+ ***************************************************************/
+function ui_locale()
+{
+    return safe_locale(i18next.language);
 }
 
 /***************************************************************
@@ -439,6 +474,13 @@ function build_ui(gobj)
         priv.$modes.appendChild(build_mode_button(gobj, mode));
     }
 
+    /*  Scroll plumbing, not an action: it changes nothing outside the strip.
+     *  The fade classes are the "there is more" hint a 4px scrollbar fails
+     *  to give on a phone.  */
+    priv.$modes.addEventListener("scroll", () => {
+        update_modes_fade(gobj);
+    }, {passive: true});
+
     /*  The strip SCROLLS when the granularities do not fit (see the css), and
      *  a scrolling box CLIPS what hangs out of it — so the overflow menu is a
      *  sibling of the strip, not a member of it.  */
@@ -466,11 +508,16 @@ function build_ui(gobj)
     /*  The label is the biggest thing on screen and it is a BUTTON: it says
      *  where you are ("Yesterday", "Week 27", "July") and it opens the
      *  calendar. Everything else in the row is chrome around it.  */
+    /*  The small calendar glyph is the AFFORDANCE: nothing else says "this
+     *  opens a calendar" before the first click — desktop has a tooltip,
+     *  a phone has neither hover nor title.  */
     priv.$label = createElement2(
         ["button", {class: "button is-ghost YUI_PERIOD_LABEL", type: "button",
                     title: t("pick a date"), "aria-label": t("pick a date"),
                     "data-i18n-title": "pick a date", "data-i18n-aria-label": "pick a date"},
-            [["span", {class: "YUI_PERIOD_LABEL_TEXT"}, ""]]
+            [["span", {class: "icon YUI_PERIOD_LABEL_ICON"},
+                [["i", {class: "yi-calendar-days"}]]],
+             ["span", {class: "YUI_PERIOD_LABEL_TEXT"}, ""]]
         ]);
     priv.$label.addEventListener("click", () => {
         gobj_send_event(gobj, "EV_PICK_DATE", {}, gobj);
@@ -544,7 +591,7 @@ function build_more_menu(gobj)
             ]);
         $item.addEventListener("click", (ev) => {
             ev.preventDefault();
-            priv.$more.classList.remove("is-active");
+            close_more(gobj);
             gobj_send_event(gobj, "EV_SET_MODE", {mode: mode.id}, gobj);
         });
         mode.$btn = $item;
@@ -567,10 +614,65 @@ function build_more_menu(gobj)
         ]);
 
     $trigger.addEventListener("click", () => {
-        priv.$more.classList.toggle("is-active");
+        if(priv.$more.classList.contains("is-active")) {
+            close_more(gobj);
+        } else {
+            open_more(gobj);
+        }
     });
 
     return priv.$more;
+}
+
+/***************************************************************
+ *  The overflow menu dismisses like the calendar popover: anything
+ *  outside closes it, Escape included — and that Escape stops there
+ *  (capture phase), for the same reason as the calendar's: one
+ *  Escape, one thing closed. Without this the menu only closed by
+ *  re-clicking the trigger, and on a phone its open items sat over
+ *  the navigator swallowing taps meant for the label.
+ ***************************************************************/
+function open_more(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv.$more) {
+        return;
+    }
+    close_calendar(gobj);                   /*  one popover at a time  */
+    priv.$more.classList.add("is-active");
+
+    if(priv.on_more_dismiss) {
+        return;
+    }
+    priv.on_more_dismiss = (ev) => {
+        if(ev.type === "keydown") {
+            if(ev.key !== "Escape") {
+                return;
+            }
+            ev.preventDefault();
+            ev.stopPropagation();
+        }
+        if(ev.type === "pointerdown" && priv.$more.contains(ev.target)) {
+            return;
+        }
+        close_more(gobj);
+    };
+    document.addEventListener("pointerdown", priv.on_more_dismiss, true);
+    document.addEventListener("keydown", priv.on_more_dismiss, true);
+}
+
+function close_more(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.on_more_dismiss) {
+        document.removeEventListener("pointerdown", priv.on_more_dismiss, true);
+        document.removeEventListener("keydown", priv.on_more_dismiss, true);
+        priv.on_more_dismiss = null;
+    }
+    if(priv.$more) {
+        priv.$more.classList.remove("is-active");
+    }
 }
 
 function nav_button(gobj, logical, icon, key, on_click)
@@ -658,7 +760,7 @@ function repaint(gobj)
     let anchor = gobj_read_integer_attr(gobj, "anchor");
     let $text = priv.$label.querySelector(".YUI_PERIOD_LABEL_TEXT");
     if($text) {
-        $text.textContent = period_label(mode.spec, anchor, t, safe_locale());
+        $text.textContent = period_label(mode.spec, anchor, t, ui_locale());
     }
 
     if(priv.$resolved) {
@@ -686,6 +788,24 @@ function repaint(gobj)
         priv.$prev.disabled = false;
         priv.$first.disabled = true;
     }
+}
+
+
+/***************************************************************
+ *  The "there is more" hint of the scrolling strip: fade the edge
+ *  that hides content. Only the classes live here; the mask is css.
+ ***************************************************************/
+function update_modes_fade(gobj)
+{
+    let $m = gobj.priv.$modes;
+    if(!$m) {
+        return;
+    }
+    let overflow = $m.scrollWidth > $m.clientWidth + 1;
+    let at_start = $m.scrollLeft <= 1;
+    let at_end = $m.scrollLeft + $m.clientWidth >= $m.scrollWidth - 1;
+    $m.classList.toggle("yui-period-fade-left", overflow && !at_start);
+    $m.classList.toggle("yui-period-fade-right", overflow && !at_end);
 }
 
 
@@ -722,6 +842,7 @@ function open_calendar(gobj)
         return;
     }
     close_calendar(gobj);
+    close_more(gobj);                       /*  one popover at a time  */
 
     priv.cal_view = gobj_read_integer_attr(gobj, "anchor");
 
@@ -779,7 +900,7 @@ function render_calendar(gobj)
     }
     let kind = grid_kind(mode.spec);
     let view = new Date(priv.cal_view);
-    let locale = safe_locale();
+    let locale = ui_locale();
 
     let step_view = (delta) => {
         let d = new Date(priv.cal_view);
@@ -831,16 +952,44 @@ function render_calendar(gobj)
     priv.$calendar.replaceChildren($head, $grid, $today);
 }
 
-function cell_button(gobj, label, anchor_ms, selected, logical)
+function cell_button(gobj, label, anchor_ms, selected, logical, aria)
 {
+    /*  `aria` is the full name of the instant ("14 July 2026"): the visible
+     *  label is a bare number, which a screen reader hears with no month or
+     *  year around it.  */
     let $btn = createElement2(
         /*  The ONE place `is-small` is earned: 42 cells in a popover.  */
         ["button", {class: `button is-small ${selected? "is-link" : "is-ghost"} ${logical}`,
-                    type: "button", style: "width:100%;"}, String(label)]);
+                    type: "button", style: "width:100%;",
+                    title: aria || "", "aria-label": aria || ""}, String(label)]);
     $btn.addEventListener("click", () => {
         gobj_send_event(gobj, "EV_DATE_PICKED", {anchor: anchor_ms}, gobj);
     });
     return $btn;
+}
+
+/***************************************************************
+ *  Hovering a cell previews the BUCKET a click would pick: a week
+ *  rings its whole row, a quarter its three months — what you are
+ *  about to get, before committing. Pointer plumbing, not an
+ *  action: it changes nothing outside the popover.
+ ***************************************************************/
+function wire_bucket_preview(spec, cells)
+{
+    for(let c of cells) {
+        c.$btn.addEventListener("mouseenter", () => {
+            let b = period_bounds(spec, c.ts);
+            for(let o of cells) {
+                o.$btn.classList.toggle("yui-period-preview",
+                    o.ts >= b.from && o.ts <= b.to);
+            }
+        });
+        c.$btn.addEventListener("mouseleave", () => {
+            for(let o of cells) {
+                o.$btn.classList.remove("yui-period-preview");
+            }
+        });
+    }
 }
 
 /***************************************************************
@@ -854,24 +1003,53 @@ function build_days_grid(gobj, view, locale)
     let anchor = gobj_read_integer_attr(gobj, "anchor");
     let sel = period_bounds(mode.spec, anchor);
 
+    /*  The week-number gutter earns its place only when the bucket IS a
+     *  week: the number is then the NAME of what a click picks.  */
+    let with_weeks = (mode.spec.unit === "week");
+    let columns = with_weeks
+        ? "grid-template-columns:2.5ch repeat(7, 1fr);"
+        : "grid-template-columns:repeat(7, 1fr);";
+
     let first = new Date(view.getFullYear(), view.getMonth(), 1);
     let start = start_of_iso_week(first);
     let today = day_number(new Date());
 
     let $rows = [];
+    let cells = [];
 
     let $dow = [];
+    if(with_weeks) {
+        $dow.push(["div", {class: "YUI_PERIOD_CAL_DOW"}, ""]);
+    }
     for(let i = 0; i < 7; i++) {
         let d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
         $dow.push(["div", {class: "has-text-centered is-size-7 has-text-grey YUI_PERIOD_CAL_DOW"},
             new Intl.DateTimeFormat(locale, {weekday: "narrow"}).format(d)]);
     }
     $rows.push(["div", {class: "YUI_PERIOD_CAL_WEEK",
-                        style: "display:grid; grid-template-columns:repeat(7, 1fr); gap:2px;"},
+                        style: `display:grid; ${columns} gap:2px;`},
         $dow]);
+
+    let day_name = new Intl.DateTimeFormat(locale,
+        {day: "numeric", month: "long", year: "numeric"});
 
     for(let w = 0; w < 6; w++) {
         let $cells = [];
+        if(with_weeks) {
+            let monday = new Date(start.getFullYear(), start.getMonth(),
+                                  start.getDate() + w * 7);
+            let wk = iso_week(monday).week;
+            let wk_name = t("week {{n}}", {n: wk});
+            let $wk = createElement2(
+                ["button", {class: "button is-small is-ghost is-size-7 has-text-grey " +
+                                   "YUI_PERIOD_CAL_WEEKNUM",
+                            type: "button", style: "width:100%;",
+                            title: wk_name, "aria-label": wk_name}, String(wk)]);
+            $wk.addEventListener("click", () => {
+                gobj_send_event(gobj, "EV_DATE_PICKED", {anchor: monday.getTime()}, gobj);
+            });
+            $cells.push($wk);
+        }
         for(let i = 0; i < 7; i++) {
             let d = new Date(start.getFullYear(), start.getMonth(),
                              start.getDate() + w * 7 + i);
@@ -880,20 +1058,23 @@ function build_days_grid(gobj, view, locale)
              *  week bucket lights its whole row and a 15-minute one lights
              *  the single day that holds it.  */
             let selected = ts >= sel.from && ts <= sel.to;
-            let $btn = cell_button(gobj, d.getDate(), ts, selected, "YUI_PERIOD_CAL_DAY");
+            let $btn = cell_button(gobj, d.getDate(), ts, selected, "YUI_PERIOD_CAL_DAY",
+                                   day_name.format(d));
             if(d.getMonth() !== view.getMonth()) {
                 $btn.classList.add("has-text-grey-light");
             }
             if(day_number(d) === today) {
                 $btn.classList.add("has-text-weight-bold", "YUI_PERIOD_CAL_TODAY_CELL");
             }
+            cells.push({ts: ts, $btn: $btn});
             $cells.push($btn);
         }
         $rows.push(["div", {class: "YUI_PERIOD_CAL_WEEK",
-                            style: "display:grid; grid-template-columns:repeat(7, 1fr); gap:2px;"},
+                            style: `display:grid; ${columns} gap:2px;`},
             $cells]);
     }
 
+    wire_bucket_preview(mode.spec, cells);
     return createElement2(["div", {class: "YUI_PERIOD_CAL_GRID"}, $rows]);
 }
 
@@ -902,15 +1083,21 @@ function build_months_grid(gobj, view, locale)
     let mode = cur_mode(gobj);
     let sel = period_bounds(mode.spec, gobj_read_integer_attr(gobj, "anchor"));
 
+    let short_name = new Intl.DateTimeFormat(locale, {month: "short"});
+    let full_name = new Intl.DateTimeFormat(locale, {month: "long", year: "numeric"});
+
+    let cells = [];
     let $cells = [];
     for(let m = 0; m < 12; m++) {
         let d = new Date(view.getFullYear(), m, 1);
         let ts = d.getTime();
         let selected = ts >= sel.from && ts <= sel.to;
-        $cells.push(cell_button(gobj,
-            new Intl.DateTimeFormat(locale, {month: "short"}).format(d),
-            ts, selected, "YUI_PERIOD_CAL_MONTH"));
+        let $btn = cell_button(gobj, short_name.format(d), ts, selected,
+                               "YUI_PERIOD_CAL_MONTH", full_name.format(d));
+        cells.push({ts: ts, $btn: $btn});
+        $cells.push($btn);
     }
+    wire_bucket_preview(mode.spec, cells);
     return createElement2(
         ["div", {class: "YUI_PERIOD_CAL_GRID",
                  style: "display:grid; grid-template-columns:repeat(3, 1fr); gap:4px;"},
@@ -923,13 +1110,18 @@ function build_years_grid(gobj, view)
     let sel = period_bounds(mode.spec, gobj_read_integer_attr(gobj, "anchor"));
 
     let base = Math.floor(view.getFullYear() / 12) * 12;
+    let cells = [];
     let $cells = [];
     for(let i = 0; i < 12; i++) {
         let d = new Date(base + i, 0, 1);
         let ts = d.getTime();
         let selected = ts >= sel.from && ts <= sel.to;
-        $cells.push(cell_button(gobj, base + i, ts, selected, "YUI_PERIOD_CAL_YEAR"));
+        let $btn = cell_button(gobj, base + i, ts, selected,
+                               "YUI_PERIOD_CAL_YEAR", String(base + i));
+        cells.push({ts: ts, $btn: $btn});
+        $cells.push($btn);
     }
+    wire_bucket_preview(mode.spec, cells);
     return createElement2(
         ["div", {class: "YUI_PERIOD_CAL_GRID",
                  style: "display:grid; grid-template-columns:repeat(3, 1fr); gap:4px;"},
@@ -959,6 +1151,7 @@ function ac_set_mode(gobj, event, kw, src)
         return -1;
     }
     close_calendar(gobj);
+    close_more(gobj);
     gobj_write_attr(gobj, "mode", mode.id);
 
     /*  A rolling window is always "now", and coming back from one with a

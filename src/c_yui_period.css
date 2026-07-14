@@ -39,6 +39,28 @@
     height: 4px;
 }
 
+/*
+ * The "there is more" hint: a 4px scrollbar is invisible to a thumb, so the
+ * edge that hides content fades out instead. The classes are toggled from
+ * update_modes_fade() (scroll + ResizeObserver); a strip that fits gets none.
+ */
+.YUI_PERIOD_MODES.yui-period-fade-right {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+}
+
+.YUI_PERIOD_MODES.yui-period-fade-left {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 2rem);
+    mask-image: linear-gradient(to right, transparent, #000 2rem);
+}
+
+.YUI_PERIOD_MODES.yui-period-fade-left.yui-period-fade-right {
+    -webkit-mask-image: linear-gradient(to right,
+        transparent, #000 2rem, #000 calc(100% - 2rem), transparent);
+    mask-image: linear-gradient(to right,
+        transparent, #000 2rem, #000 calc(100% - 2rem), transparent);
+}
+
 /*  Bulma's .buttons gives every child a margin-bottom, for the rows it
  *  expects to wrap. This one never wraps, so that margin is just a gap.  */
 .YUI_PERIOD_MODES .button {
@@ -82,6 +104,13 @@
     margin-left: 0.4rem;
 }
 
+/*  The calendar glyph is an affordance, not a headline: quieter and smaller
+ *  than the label text it decorates.  */
+.YUI_PERIOD_LABEL .YUI_PERIOD_LABEL_ICON {
+    font-size: 1rem;
+    opacity: 0.55;
+}
+
 /*  A name is for the user; these two timestamps are what the query carries.
  *  Quiet, but always there — nobody should have to guess what "Week 27"
  *  resolves to.  */
@@ -120,9 +149,20 @@
 
 .YUI_PERIOD_CAL_DAY,
 .YUI_PERIOD_CAL_MONTH,
-.YUI_PERIOD_CAL_YEAR {
+.YUI_PERIOD_CAL_YEAR,
+.YUI_PERIOD_CAL_WEEKNUM {
     padding-left: 0;
     padding-right: 0;
+}
+
+/*  The bucket a click would pick, while hovering: a quiet inset ring — the
+ *  solid fill stays reserved for the bucket that IS selected.
+ *  Three classes deep: Bulma's `.button.is-ghost` sets `box-shadow: none` at
+ *  (0,2,0) and ships after this file, so a two-class rule loses to it.
+ *  currentColor, so the ring follows the cell (link-blue, grey on the
+ *  neighbouring months) and both themes for free.  */
+.YUI_PERIOD .YUI_PERIOD_CALENDAR .yui-period-preview {
+    box-shadow: inset 0 0 0 1px currentColor;
 }
 
 /*  No transitions (framework rule): a granularity switches, it does not

@@ -162,7 +162,10 @@ The library asks the APP's i18next for its keys, so a consumer must define them
 `previous period`, …) — copy the block from `gui_treedb/src/locales/en.js`.
 The picker subscribes ITSELF to the shell's `EV_LANGUAGE_CHANGED` (its labels
 are composed at render time), so a host has nothing to forward — a host that
-forwards the event anyway just repaints it twice, harmlessly.
+forwards the event anyway just repaints it twice, harmlessly. All Intl
+formatting (month names, weekday initials, the parked-bucket label) follows
+i18next's ACTIVE language, not `navigator.language` — the calendar never mixes
+scripts with the UI around it.
 
 ### Logical class names on important DOM blocks
 

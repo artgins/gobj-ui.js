@@ -7,6 +7,34 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(period): the overflow menu dismisses like a popover.** It only
+  closed by re-clicking its `⋯` trigger: no outside-click dismiss, no
+  Escape, and it stayed open when a mode was picked from the segmented
+  control — on a phone its open items sat over the navigator swallowing
+  taps meant for the label. It now uses the calendar popover's own dismiss
+  pattern (capture-phase listener; the Escape that closes it stops there),
+  closes on any `EV_SET_MODE`, and calendar/menu close each other (one
+  popover at a time).
+
+- **fix(period): the calendar formats in the APP's language.** Month
+  names, weekday initials and the parked-bucket label were built with
+  `navigator.language`, so a UI switched to Spanish showed "July 2026 ·
+  M T W T F S S" inside an otherwise-Spanish dialog (and vice versa). All
+  Intl formatting now follows i18next's active language, falling back to
+  the browser's when i18next has none.
+
+- **feat(period): calendar polish.** (1) The label carries a small
+  calendar glyph — the affordance that it opens one (a phone has neither
+  hover underline nor tooltip). (2) Hovering a cell previews the BUCKET a
+  click would pick with a quiet inset ring: a week rings its whole row, a
+  quarter its three months. (3) In week mode the day grid gains an ISO
+  week-number gutter, and the number is clickable (it IS the name of what
+  a click picks). (4) Every cell carries `title`/`aria-label` with the
+  full instant ("14 July 2026") — the visible label is a bare number a
+  screen reader hears without month or year. (5) When the granularity
+  strip overflows, the hiding edge fades out (scroll + ResizeObserver
+  toggling mask classes) — a 4px scrollbar is invisible to a thumb.
+
 - **fix(period): the picker re-translates itself.** `C_YUI_PERIOD` declared
   the `EV_LANGUAGE_CHANGED` handler but relied on the HOST to forward the
   event, an obligation the README never stated (and an inconsistency:
