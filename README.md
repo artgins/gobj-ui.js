@@ -58,6 +58,55 @@ npm test           # vitest (v2/main only; v1 has no test target)
 tarball; v2 (wattyzer) imports source files by specifier. Rebuild `dist/` to
 validate and before publishing a v1 release.
 
+## Components
+
+### C_YUI_JSON — lazy JSON tree viewer
+
+A container-agnostic viewer (like `C_YUI_PAGER`): it owns only a toolbar +
+scrollable tree body and exposes a `$container` the parent mounts wherever it
+wants (a `C_YUI_WINDOW` body, a `yui_shell_show_modal` card, or inline). It is
+built to show **arbitrarily large** JSON, so it never assumes the whole
+document fits in memory or the DOM.
+
+**Server-driven lazy expansion.** The C kernel's `kw_collapse()` (`kwid.c`,
+used by the `print-tranger` command) truncates over-limit dicts/arrays into a
+sentinel — `{ "__collapsed__": { "path": …, "size": N } }` (dict) or
+`[ { "__collapsed__": … } ]` (array). `C_YUI_JSON` renders each sentinel as an
+expandable stub and, when the user opens it, **does not fetch anything itself**:
+it publishes `EV_EXPAND_PATH {path, size}` to its subscriber. The subscriber is
+the only party that knows the backend (it re-issues `print-tranger path=<path>`
+with limits, or any equivalent), and hands the subtree back via
+`EV_SUBTREE_LOADED {path, json}`. Only expanded containers are materialised in
+the DOM, so the tree stays bounded regardless of document size. With no
+sentinels present it degrades to a plain client-side collapsible tree.
+
+**Contract:**
+
+- Attributes: `subscriber`, `title` (i18n key, optional), `json_data` (initial
+  JSON, optional), `$container` (mounted by the parent).
+- Input events: `EV_SET_JSON {json}` (replace the whole document; `ST_EMPTY` →
+  `ST_READY`), `EV_SUBTREE_LOADED {path, json}` (splice a fetched subtree),
+  `EV_SUBTREE_ERROR {path, error}`, plus `EV_REFRESH` / `EV_SHOW` / `EV_HIDE` /
+  `EV_LANGUAGE_CHANGED`.
+- Output event: `EV_EXPAND_PATH {path, size}` (`EVF_OUTPUT_EVENT`) — the parent
+  must declare it in its own FSM (CHILD subscription model).
+- Internal (DOM → FSM): `EV_TOGGLE_NODE`, `EV_EXPAND_COLLAPSED`, `EV_SEARCH`,
+  `EV_EXPAND_ALL`, `EV_COLLAPSE_ALL`, `EV_COPY_ALL`. Every kw carries only a
+  `path` string — never a DOM node or gobj.
+- Paths use the kernel delimiter (backtick) and index arrays numerically, so a
+  path emitted by the viewer round-trips through `kw_find_path` on the backend.
+
+**Backend note.** `print-tranger` (`c_tranger.c`) already serves the dict-drill
+path; the array-drill path currently fails because `kw_collapse()` requires a
+dict at the requested path. To view a **treedb's** raw tranger, add an
+equivalent `print-tranger` command to `C_NODE` (it holds `priv->tranger`); the
+node graph itself is reachable through the same viewer via `export-db` / `jtree`
+(non-collapsed, so no lazy drill — the viewer renders them client-side).
+
+Logical DOM classes: `JSON_VIEWER`, `JSON_TOOLBAR`, `JSON_SEARCH`, `JSON_TREE`,
+`JSON_ROW`, `JSON_KEY`, `JSON_VALUE`, `JSON_SUMMARY`, `JSON_COLLAPSED`,
+`JSON_TIME`. The gclass imports its own `c_yui_json.css`.
+
 ## Conventions
 
 ### i18n: a string must be able to CHANGE language, not just be translated once

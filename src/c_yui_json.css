@@ -1,0 +1,132 @@
+/***********************************************************************
+ *          c_yui_json.css
+ *
+ *      Styling for C_YUI_JSON (lazy JSON tree viewer).
+ *      Monospace tree, type-coloured leaves, dark-aware.
+ *      No transitions/animations by design (lib-yui convention).
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+.C_YUI_JSON {
+    --json-string: #006000;
+    --json-number: #b5330b;
+    --json-boolean: #b36b00;
+    --json-null: #475ed0;
+    --json-key: var(--bulma-text-strong, #1a1a1a);
+    --json-row-hover: rgba(0, 0, 0, 0.05);
+}
+
+:root[data-theme="dark"] .C_YUI_JSON,
+.C_YUI_JSON[data-theme="dark"] {
+    --json-string: #7ec87e;
+    --json-number: #ff8a65;
+    --json-boolean: #ffb74d;
+    --json-null: #90a4f4;
+    --json-key: var(--bulma-text-strong, #e6e6e6);
+    --json-row-hover: rgba(255, 255, 255, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .C_YUI_JSON {
+        --json-string: #7ec87e;
+        --json-number: #ff8a65;
+        --json-boolean: #ffb74d;
+        --json-null: #90a4f4;
+        --json-key: var(--bulma-text-strong, #e6e6e6);
+        --json-row-hover: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.C_YUI_JSON .JSON_TOOLBAR {
+    border-bottom: 1px solid var(--bulma-border-weak, #e0e0e0);
+}
+
+.C_YUI_JSON .JSON_TREE {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 0.25rem 0;
+}
+
+.C_YUI_JSON .JSON_ROW {
+    display: flex;
+    align-items: flex-start;
+    white-space: pre;
+    padding-right: 0.5rem;
+}
+
+.C_YUI_JSON .JSON_ROW:hover {
+    background: var(--json-row-hover);
+}
+
+.C_YUI_JSON .JSON_ROW_BODY {
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-width: 0;
+}
+
+/*
+ *  Toggle affordance: a fixed-width gutter so keys align across depths.
+ *  The chevron is rotated 90deg when open (static transform, no
+ *  transition — animation is disabled by convention).
+ */
+.C_YUI_JSON .JSON_TOGGLE {
+    flex: 0 0 auto;
+    width: 1.2em;
+    text-align: center;
+    color: var(--bulma-text-weak, #7a7a7a);
+    cursor: default;
+    user-select: none;
+}
+
+.C_YUI_JSON .JSON_CONTAINER,
+.C_YUI_JSON .JSON_COLLAPSED {
+    cursor: pointer;
+}
+
+.C_YUI_JSON .JSON_CONTAINER .JSON_TOGGLE i {
+    display: inline-block;
+    font-size: 0.85em;
+}
+
+.C_YUI_JSON .JSON_TOGGLE.is-open i {
+    transform: rotate(90deg);
+}
+
+.C_YUI_JSON .JSON_TOGGLE_REMOTE i {
+    font-size: 0.8em;
+    color: var(--bulma-link, #3273dc);
+}
+
+.C_YUI_JSON .JSON_KEY {
+    color: var(--json-key);
+    font-weight: 600;
+}
+
+.C_YUI_JSON .JSON_PUNCT {
+    color: var(--bulma-text-weak, #7a7a7a);
+}
+
+.C_YUI_JSON .JSON_TYPE_STRING  { color: var(--json-string); }
+.C_YUI_JSON .JSON_TYPE_NUMBER  { color: var(--json-number); }
+.C_YUI_JSON .JSON_TYPE_BOOLEAN { color: var(--json-boolean); }
+.C_YUI_JSON .JSON_TYPE_NULL    { color: var(--json-null); font-style: italic; }
+
+.C_YUI_JSON .JSON_STUB {
+    color: var(--bulma-link, #3273dc);
+    font-weight: 600;
+}
+
+.C_YUI_JSON .JSON_COLLAPSED.is-pending {
+    cursor: progress;
+    opacity: 0.7;
+}
+
+/*
+ *  Disable any transition a host stylesheet might inject.
+ */
+.C_YUI_JSON * {
+    transition: none !important;
+}

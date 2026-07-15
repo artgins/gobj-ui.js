@@ -22,6 +22,7 @@ export { register_c_yui_form } from "./src/c_yui_form.js";
 export { register_c_yui_map } from "./src/c_yui_map.js";
 export { register_c_yui_uplot } from "./src/c_yui_uplot.js";
 export { register_c_yui_json_graph } from "./src/c_yui_json_graph.js";
+export { register_c_yui_json } from "./src/c_yui_json.js";
 export { register_c_yui_gobj_tree_js } from "./src/c_yui_gobj_tree_js.js";
 
 /*
