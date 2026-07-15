@@ -57,6 +57,8 @@ import {
     trace_json,
     json_object_update_missing,
     gobj_start,
+    is_gobj,
+    gobj_is_destroying,
     log_info,
     trace_msg,
     refresh_language,
@@ -80,7 +82,7 @@ import {
     set_submit_state,
     set_active_state,
 } from "./lib_graph.js";
-import {yui_shell_show_error} from "./shell_modals.js";
+import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {yui_shell_of} from "./c_yui_shell.js";
 
 import {t} from "i18next";
@@ -141,6 +143,9 @@ let PRIVATE_DATA = {
     gobj_nodes_tree:    null,
     gobj_treedb_tables: null,
     hook_data_viewer:   null,
+    json_gobj:          null,   /*  C_YUI_JSON viewer of the raw tranger (or null)  */
+    json_win:           null,   /*  C_YUI_WINDOW hosting it, desktop (or null)  */
+    json_modal:         null,   /*  shell modal hosting it, mobile (or null)  */
     with_treedb_tables: false,
     canvas_id:          null,
     operation_mode:     null,
@@ -285,6 +290,7 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    close_json_viewer(gobj);
     gobj_stop_children(gobj);
 }
 
@@ -419,6 +425,21 @@ function make_toolbar(gobj)
                 gobj_send_event(gobj, "EV_REFRESH_TREEDB", {evt}, gobj);
             }
         }],
+
+        /*  Inspect the treedb's raw tranger json in the lazy tree viewer
+         *  (print-tranger on the C_NODE service). A treedb can be huge, so
+         *  the viewer drills in on demand — see open_json_viewer.  */
+        ['button', {class: 'button ml-2 TREEDB_JSON_BTN',
+                    title: t('raw json'), 'aria-label': t('raw json'),
+                    'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
+            ['i', {class: 'yi-eye'}],
+            ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'raw json'}, 'raw json']
+        ], {
+            click: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_OPEN_JSON", {}, gobj);
+            }
+        }],
     ];
 
     /*
@@ -441,6 +462,189 @@ function make_toolbar(gobj)
     refresh_language($toolbar_header, t);
 
     return $toolbar_header;
+}
+
+/************************************************************
+ *  True on a phone-width viewport (Bulma's mobile breakpoint).
+ ************************************************************/
+function is_mobile()
+{
+    return typeof window !== "undefined" && window.innerWidth <= 768;
+}
+
+/************************************************************
+ *  Raw-tranger JSON viewer: a C_YUI_JSON driving its own DOM, hosted in a
+ *  moveable C_YUI_WINDOW on desktop / an adaptive modal sheet on mobile. It
+ *  is a helper of THIS view (CHILD model: it publishes EV_EXPAND_PATH back
+ *  to us), single at a time.
+ *
+ *  A treedb's tranger can be enormous, so the first fetch is collapsed
+ *  (print-tranger with lists/dicts limits) and the viewer drills in on
+ *  demand: EV_EXPAND_PATH -> print-tranger path=<path> -> EV_SUBTREE_LOADED.
+ *
+ *  print-tranger must exist on the backend C_NODE service (SDK >= the
+ *  release that added it); against an older backend the command answers
+ *  "command not found" and the viewer shows that error.
+ ************************************************************/
+function open_json_viewer(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.json_win || priv.json_modal) {
+        return;     /*  already open  */
+    }
+    if(gclass_find_by_name("C_YUI_JSON") === null) {
+        log_error(`${gobj_short_name(gobj)}: C_YUI_JSON not registered by the app`);
+        yui_shell_show_error(yui_shell_of(gobj), "raw json viewer unavailable", {t: t});
+        return;
+    }
+
+    let mobile = is_mobile();
+    let shell = yui_shell_of(gobj);
+
+    let jv = gobj_create_service(
+        `treedb-json-${clean_name(gobj_name(gobj))}`,
+        "C_YUI_JSON",
+        {
+            subscriber: gobj,       /*  publishes EV_EXPAND_PATH to us  */
+            title:      "raw json"
+        },
+        gobj
+    );
+    if(!jv) {
+        log_error(`${gobj_short_name(gobj)}: cannot create the JSON viewer`);
+        return;
+    }
+    priv.json_gobj = jv;
+    gobj_start(jv);
+    let $box = gobj_read_pointer_attr(jv, "$container");
+
+    if(mobile) {
+        if(!shell) {
+            log_error(`${gobj_short_name(gobj)}: no shell, cannot open the JSON sheet`);
+            close_json_viewer(gobj);
+            return;
+        }
+        priv.json_modal = yui_shell_show_modal(shell, $box, {
+            dialog:        true,
+            logical_class: "TREEDB_JSON_SHEET",
+            title:         `${priv.treedb_name} · ${t("raw json")}`,
+            t:             t,
+            on_close: () => {
+                if(gobj_is_destroying(gobj)) {
+                    return;
+                }
+                gobj_send_event(gobj, "EV_JSON_CLOSED", {}, gobj);
+            }
+        });
+    } else {
+        let $win_parent = (shell && yui_shell_popup_layer(shell)) ||
+            (typeof document !== "undefined" && document.getElementById("top-layer")) ||
+            null;
+
+        priv.json_win = gobj_create_service(
+            `treedb-jsonwin-${clean_name(gobj_name(gobj))}`,
+            "C_YUI_WINDOW",
+            {
+                $parent:    $win_parent,
+                subscriber: null,
+                modal:      false,
+                showMax:    true,
+                showFooter: false,
+                resizable:  true,
+                center:     true,
+                auto_save_size_and_position: true,
+                width:      640,
+                height:     620,
+                logical_class: "TREEDB_JSON_WINDOW",
+                title:      `${priv.treedb_name} · ${t("raw json")}`,
+                icon:       "yi-eye",
+                body:       $box,
+                manager:    null,
+                on_close: () => {
+                    if(gobj_is_destroying(gobj)) {
+                        return;
+                    }
+                    gobj_send_event(gobj, "EV_JSON_CLOSED", {}, gobj);
+                }
+            },
+            gobj
+        );
+        if(!priv.json_win) {
+            log_error(`${gobj_short_name(gobj)}: cannot create the JSON window`);
+            close_json_viewer(gobj);
+            return;
+        }
+    }
+
+    request_print_tranger(gobj, "");    /*  first fetch: whole tranger, collapsed  */
+}
+
+/************************************************************
+ *  Close the JSON viewer (user dismiss / teardown). Destroys the viewer
+ *  gobj and whichever presenter is up, then clears the refs.
+ ************************************************************/
+function close_json_viewer(gobj)
+{
+    let priv = gobj.priv;
+    let jv = priv.json_gobj;
+    let win = priv.json_win;
+    let modal = priv.json_modal;
+
+    priv.json_gobj = null;
+    priv.json_win = null;
+    priv.json_modal = null;
+
+    if(win && is_gobj(win)) {
+        try {
+            gobj_destroy(win);
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: already gone: ${e}`);
+        }
+    }
+    if(modal && typeof modal.close === "function") {
+        try {
+            modal.close();
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: already gone: ${e}`);
+        }
+    }
+    if(jv && is_gobj(jv)) {
+        try {
+            gobj_destroy(jv);
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: already gone: ${e}`);
+        }
+    }
+}
+
+/************************************************************
+ *  Fetch the treedb's raw tranger (or one subtree when `path` is set) as
+ *  bounded, drillable JSON. Collapsed at 100 so a huge tranger stays a
+ *  small payload of `__collapsed__` stubs the viewer expands on demand.
+ ************************************************************/
+function request_print_tranger(gobj, path)
+{
+    let priv = gobj.priv;
+    if(!priv.gobj_remote_yuno) {
+        log_error(`${gobj_short_name(gobj)}: No gobj_remote_yuno defined`);
+        let jv = priv.json_gobj;
+        if(path && jv && is_gobj(jv) && !gobj_is_destroying(jv)) {
+            gobj_send_event(jv, "EV_SUBTREE_ERROR",
+                {path: path, error: t("no session")}, gobj);
+        }
+        return;
+    }
+    let ret = gobj_command(priv.gobj_remote_yuno, "print-tranger",
+        {
+            service:     priv.treedb_name,
+            expanded:    1,
+            lists_limit: 100,
+            dicts_limit: 100,
+            path:        path || ""
+        }, gobj);
+    if(ret) {
+        log_error(ret);
+    }
 }
 
 /************************************************************
@@ -1045,6 +1249,36 @@ function ac_mt_command_answer(gobj, event, kw, src)
     let command = kw_get_str(gobj, __command__, "command", "", kw_flag_t.KW_REQUIRED);
     let kw_command = kw_get_dict(gobj, __command__, "kw", {}, kw_flag_t.KW_REQUIRED);
 
+    /*
+     *  print-tranger feeds the raw-JSON viewer, correlated by the echoed
+     *  `path`: empty = first whole-tranger fetch (EV_SET_JSON), a set path =
+     *  a lazy drill (EV_SUBTREE_LOADED). Handled before the generic error
+     *  path so a failed drill marks its own branch, not the whole view.
+     */
+    if(command === "print-tranger") {
+        let jv = priv.json_gobj;
+        if(!jv || !is_gobj(jv) || gobj_is_destroying(jv)) {
+            return 0;   /*  viewer closed before its answer landed: benign  */
+        }
+        let path = kw_get_str(gobj, kw_command, "path", "", 0);
+        if(result < 0) {
+            if(path) {
+                gobj_send_event(jv, "EV_SUBTREE_ERROR",
+                    {path: path, error: comment || "print-tranger failed"}, gobj);
+            } else {
+                yui_shell_show_error(yui_shell_of(gobj),
+                    comment || "print-tranger failed", {t: t});
+            }
+            return 0;
+        }
+        if(path) {
+            gobj_send_event(jv, "EV_SUBTREE_LOADED", {path: path, json: data}, gobj);
+        } else {
+            gobj_send_event(jv, "EV_SET_JSON", {json: data}, gobj);
+        }
+        return 0;
+    }
+
     if(result < 0) {
         if(command === "descs") {
             /*  The schema couldn't load (not a treedb, no authz for it, backend
@@ -1260,6 +1494,47 @@ function ac_refresh_treedb(gobj, event, kw, src)
      *  Get data
      */
     refresh_data(gobj);
+    return 0;
+}
+
+/********************************************
+ *  Open the raw-tranger JSON viewer.
+ ********************************************/
+function ac_open_json(gobj, event, kw, src)
+{
+    open_json_viewer(gobj);
+    return 0;
+}
+
+/********************************************
+ *  The viewer asked to load a collapsed subtree: re-issue print-tranger
+ *  for that path. The answer returns through ac_mt_command_answer and is
+ *  fed back as EV_SUBTREE_LOADED / EV_SUBTREE_ERROR.
+ ********************************************/
+function ac_json_expand_path(gobj, event, kw, src)
+{
+    request_print_tranger(gobj, (kw && kw.path) || "");
+    return 0;
+}
+
+/********************************************
+ *  The JSON viewer was dismissed (X / dock / Escape / back), or torn down
+ *  by close_json_viewer(): release the viewer and clear the refs.
+ ********************************************/
+function ac_json_closed(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let jv = priv.json_gobj;
+    priv.json_gobj = null;
+    priv.json_win = null;
+    priv.json_modal = null;
+    if(jv && is_gobj(jv)) {
+        try {
+            gobj_destroy(jv);
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: already gone: ${e}`);
+        }
+    }
     return 0;
 }
 
@@ -1698,6 +1973,9 @@ function create_gclass(gclass_name)
             ["EV_TREEDB_NODE_LINKED",       ac_treedb_node_linked,      null],
             ["EV_TREEDB_NODE_UNLINKED",     ac_treedb_node_linked,      null],
             ["EV_REFRESH_TREEDB",           ac_refresh_treedb,          null],
+            ["EV_OPEN_JSON",                ac_open_json,               null],
+            ["EV_EXPAND_PATH",              ac_json_expand_path,        null],
+            ["EV_JSON_CLOSED",              ac_json_closed,             null],
             ["EV_SHOW_HOOK_DATA",           ac_show_hook_data,          null],
             ["EV_SHOW_TREEDB_TOPIC",        ac_show_treedb_topic,       null],
             ["EV_VERTEX_CLICKED",           ac_vertex_clicked,          null],
@@ -1728,6 +2006,9 @@ function create_gclass(gclass_name)
         ["EV_TREEDB_NODE_LINKED",       event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_TREEDB_NODE_UNLINKED",     event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_REFRESH_TREEDB",           0],
+        ["EV_OPEN_JSON",                0],
+        ["EV_EXPAND_PATH",              0],
+        ["EV_JSON_CLOSED",              0],
         ["EV_SHOW_HOOK_DATA",           0],
         ["EV_SHOW_TREEDB_TOPIC",        0],
         ["EV_VERTEX_CLICKED",           0],
