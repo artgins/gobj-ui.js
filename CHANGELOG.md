@@ -7,6 +7,24 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(C_YUI_JSON): lazy JSON tree viewer for large tranger/treedb dumps.** A
+  container-agnostic component (`register_c_yui_json`) that renders arbitrarily
+  large JSON via server-driven lazy expansion: it understands the kernel's
+  `kw_collapse()` `__collapsed__` sentinels (emitted by `print-tranger`) and,
+  when the user opens one, publishes `EV_EXPAND_PATH {path,size}` to its
+  subscriber (which owns the backend) instead of fetching itself; the subtree
+  returns via `EV_SUBTREE_LOADED`. Only expanded containers hit the DOM, so the
+  tree stays bounded regardless of document size. With no sentinels it degrades
+  to a plain client-side collapsible tree (search / expand / collapse / copy,
+  timestamp tagging, i18n). Documented in the README.
+
+- **feat(treedb views): "Raw JSON" / "Tree JSON" buttons over C_YUI_JSON.**
+  `C_YUI_TREEDB_GRAPH` gets a "Raw JSON" toolbar button (the treedb's tranger
+  via C_NODE `print-tranger`, lazy drill). `C_YUI_TREEDB_TOPICS` — which had no
+  toolbar — gets one with "Raw JSON" (whole tranger) plus "Tree JSON" (the
+  selected topic's `jtree`, non-collapsed, client-side tree). Both host the new
+  C_YUI_JSON; a consumer that mounts these views must `register_c_yui_json()`.
+
 - **fix(period): the label is the loudest thing in the navigator again.** It
   is a `.button` INSIDE `.YUI_PERIOD_NAV`, so the three-class rule that sizes
   the arrows outranked the two-class label rule and pinned the label to the
