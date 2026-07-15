@@ -84,6 +84,7 @@ SDATA(data_type_t.DTP_JSON,     "record",           0,  "{}",   "Data to form"),
 SDATA(data_type_t.DTP_JSON,     "placeholders",     0,  "{}",   "Placeholder values for form fields"),
 SDATA(data_type_t.DTP_JSON,     "fkey_options",     0,  "{}",   "Options for fkey fields: {topic_name: [ids or {id} records]}, read at build time"),
 SDATA(data_type_t.DTP_STRING,   "form_mode",        0,  "",     "'create' (pkey editable+required) or 'update' (pkey readonly); empty = no pkey handling"),
+SDATA(data_type_t.DTP_STRING,   "render_mode",      0,  "exec", "'exec' interprets structured cols (template->sub-form, table->grid, coordinates->picker); 'edit' shows them as raw JSON editors (record-editing, e.g. the treedb topic form)"),
 SDATA(data_type_t.DTP_STRING,   "pkey",             0,  "id",   "Primary key field name, used by form_mode"),
 SDATA(data_type_t.DTP_STRING,   "topic_name",       0,  "",     "Treedb topic name: labels use the i18n cascade '<topic>.<col>' -> '<col>' -> header (like table headers)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",         0,  false,  "Default is editable, set false to readonly"),
@@ -530,6 +531,12 @@ function build_form_field_conf(gobj, field_desc)
         default_value: field_desc.default_value,
     };
 
+    /*  'edit' mode edits the raw record: the structured cols
+     *  (template / table / coordinates) are shown as raw JSON editors,
+     *  like the pre-merge treedb topic form. 'exec' (default) interprets
+     *  them into sub-widgets (sub-form / grid / coordinates picker).  */
+    let raw_structured = gobj_read_str_attr(gobj, "render_mode") === "edit";
+
     switch(field_desc.type) {
         case "object":
         case "dict":
@@ -539,13 +546,21 @@ function build_form_field_conf(gobj, field_desc)
             break;
 
         case "template":
-            field_conf.tag = "fieldset";
-            field_conf.options = field_desc.enum_list;
+            if(raw_structured) {
+                field_conf.tag = "jsoneditor";
+            } else {
+                field_conf.tag = "fieldset";
+                field_conf.options = field_desc.enum_list;
+            }
             break;
 
         case "table":
-            field_conf.tag = "table";
-            field_conf.options = field_desc.enum_list;
+            if(raw_structured) {
+                field_conf.tag = "jsoneditor";
+            } else {
+                field_conf.tag = "table";
+                field_conf.options = field_desc.enum_list;
+            }
             break;
 
         case "blob":
@@ -685,7 +700,7 @@ function build_form_field_conf(gobj, field_desc)
             break;
 
         case "coordinates":
-            field_conf.tag = 'coordinates';
+            field_conf.tag = raw_structured ? "jsoneditor" : "coordinates";
             break;
 
         default:
@@ -2349,6 +2364,18 @@ function treedb_value_2_form_value(gobj, field_desc, value)
     let type = field_desc.type;
     let real_type = field_desc.real_type;
 
+    /*  'edit' mode shows template/table/coordinates as raw JSON editors:
+     *  hand the raw value to jsoneditor in its Content shape, exactly like
+     *  object/dict/blob/array. In 'exec' mode these fall through to their
+     *  interpreted-widget conversions below.  */
+    if(gobj_read_str_attr(gobj, "render_mode") === "edit" &&
+            (type === "template" || type === "table" || type === "coordinates")) {
+        if(type === "table") {
+            return {json: is_array(value)? value : []};
+        }
+        return {json: (is_object(value) || is_array(value))? value : {}};
+    }
+
     switch(type) {
         case "fkey": {
             /*  Decode ref(s) ("topic^id^hook", bare "$id", dict keys or
@@ -2474,6 +2501,28 @@ function form_value_2_treedb_value(gobj, field_desc, value)
 {
     let type = field_desc.type;
     let real_type = field_desc.real_type;
+
+    /*  'edit' mode: template/table/coordinates come back as the raw JSON
+     *  string typed into the jsoneditor — parse it, don't run the
+     *  interpreted-widget conversions ('exec' mode) below.  */
+    if(gobj_read_str_attr(gobj, "render_mode") === "edit" &&
+            (type === "template" || type === "table" || type === "coordinates")) {
+        if(is_string(value)) {
+            try {
+                value = JSON.parse(value);
+            } catch (e) {
+                value = (type === "table")? [] : {};
+            }
+        }
+        if(type === "table") {
+            if(!is_array(value)) {
+                value = [];
+            }
+        } else if(!is_object(value) && !is_array(value)) {
+            value = {};
+        }
+        return value;
+    }
 
     switch(type) {
         case "fkey":

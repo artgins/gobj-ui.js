@@ -7,6 +7,24 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(form): `C_YUI_FORM` regains the "edit" vs "exec" render modes.** A new
+  `render_mode` attr (`"exec"` default, `"edit"`) controls how the three
+  *structured* column types are rendered. `"exec"` **interprets** them into
+  sub-widgets — `template`→nested sub-form (`fieldset`), `table`→Tabulator grid,
+  `coordinates`→map picker. `"edit"` shows them as **raw JSON editors**, the way
+  the pre-merge `C_YUI_TREEDB_TOPIC_WITH_FORM` field builder did (a regression
+  from the single-form consolidation, commit `0823563`, which kept only the
+  exec dispatch). Everything else (scalars, `enum`→select, `fkey`→select2, plain
+  `dict/array/blob`→jsoneditor) is identical in both modes. The load/save
+  conversions (`treedb_value_2_form_value` / `form_value_2_treedb_value`) are
+  mode-aware so the raw JSON round-trips. `C_YUI_TREEDB_TOPIC_WITH_FORM` now
+  hosts the form with `render_mode:"edit"` — editing a topic record (e.g.
+  `device_types`) again shows its `template`/`table`/`coordinates` columns as
+  JSON editors instead of interpreting the stored schema into live widgets. This
+  also sidesteps the malformed-`enum_list` crash below for `device_types`: that
+  `enum` only existed as an interpreted sub-field of the template, which "edit"
+  mode no longer expands.
+
 - **fix(form): a malformed enum no longer crashes the whole form.**
   `C_YUI_FORM`'s `select` / `select2` branches assumed `options` was always an
   array; an `enum` column whose `enum_list` was missing or non-array threw

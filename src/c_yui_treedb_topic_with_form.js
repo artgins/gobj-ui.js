@@ -1185,6 +1185,10 @@ function open_form_dialog(gobj, mode, record)
             record:         record,
             fkey_options:   build_fkey_options(gobj),
             form_mode:      mode,
+            /*  Editing the raw topic record: structured cols
+             *  (template / table / coordinates) are raw JSON editors,
+             *  not interpreted into sub-widgets (the pre-merge behaviour). */
+            render_mode:    "edit",
             pkey:           desc.pkey || "id",
             topic_name:     topic_name,
             editable:       true,
