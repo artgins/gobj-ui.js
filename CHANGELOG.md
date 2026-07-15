@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(treedb): schema-graph landing (prototype).** New gclass
+  `C_YUI_TREEDB_SCHEMA` draws the treedb as a **graph of topics** — one G6 node
+  per topic, one edge per `hook`/`fkey` relationship — from the schema `descs`
+  alone (no data, no backend calls; left-to-right dagre following parent→child).
+  A node click opens that topic's table via a host-supplied `node_route` hash
+  (deep-linkable, Back-friendly). `C_YUI_TREEDB_TOPICS` hosts it as an alternate
+  landing: a toolbar toggle (`EV_TOGGLE_LANDING_VIEW`) switches the landing
+  between the cards grid and the schema graph; the child is built lazily on
+  first switch. Prototype scope: nodes + relationship edges + click-to-open (no
+  theme-change re-render or live schema edits yet).
+
 - **feat(treedb): a "← topics" button in the graph view.** `C_YUI_TREEDB_GRAPH`
   gains an optional `back_route` attr; when set (host-supplied), the toolbar
   shows a real hash-link "← topics" button back to the topics grid — symmetric

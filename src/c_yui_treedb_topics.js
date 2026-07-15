@@ -36,6 +36,7 @@ import {
     gobj_stop,
     gobj_current_state,
     gobj_create_service,
+    gobj_create_pure_child,
     gobj_command,
     gobj_match_children,
     msg_iev_get_stack,
@@ -90,6 +91,8 @@ let PRIVATE_DATA = {
     _topics_subscribed: {},
     _pending_info:      null,   /*  topic whose info panel to show once descs load  */
     _selected_card_topic: null, /*  highlighted topic card in the landing grid  */
+    _landing_view:      "cards",/*  landing sub-view: "cards" | "schema"  */
+    schema_gobj:        null,   /*  C_YUI_TREEDB_SCHEMA child (built lazily)  */
     json_gobj:          null,   /*  C_YUI_JSON raw-tranger viewer (or null)  */
     json_win:           null,   /*  C_YUI_WINDOW hosting it, desktop (or null)  */
     json_modal:         null,   /*  shell modal hosting it, mobile (or null)  */
@@ -266,6 +269,20 @@ function build_ui(gobj)
                             gobj_send_event(gobj, "EV_OPEN_JSON", {}, gobj);
                         }
                     }],
+                    /*  Landing view toggle: cards grid <-> schema graph
+                     *  (topics as nodes). Shown only on the landing. */
+                    ['button', {class: 'button TREEDB_LANDING_TOGGLE is-hidden',
+                                title: t('schema graph'), 'aria-label': t('schema graph'),
+                                'data-i18n-title': 'schema graph',
+                                'data-i18n-aria-label': 'schema graph'}, [
+                        ['span', {class: 'icon'}, [['i', {class: 'yi-hexagon-nodes'}]]],
+                        ['span', {class: 'is-hidden-mobile', i18n: 'schema'}, 'schema']
+                    ], {
+                        click: (evt) => {
+                            evt.stopPropagation();
+                            gobj_send_event(gobj, "EV_TOGGLE_LANDING_VIEW", {}, gobj);
+                        }
+                    }],
                 ]],
                 ['div', {class: `tabs ${gobj_read_attr(gobj, "tabs_style")}`, style: ''}, [
                     ['ul', {}]
@@ -280,6 +297,10 @@ function build_ui(gobj)
                      style: 'min-height:0; overflow:auto;'}, [
                 ['div', {class: 'yui-nav-cards'}, []]
             ]],
+            /*  Schema-graph landing (topics as nodes): hosts a C_YUI_TREEDB_SCHEMA
+             *  child, built lazily on first toggle. */
+            ['div', {class: 'is-flex-grow-1 TREEDB_TOPICS_SCHEMA is-hidden',
+                     style: 'min-height:0; overflow:hidden;'}, []],
             /*  Routed topic-info panel (the card's info icon / .../<topic>/info):
              *  a read-only schema view built from the topic's desc. Hidden until
              *  the info route is active. */
@@ -598,8 +619,10 @@ function show_topics_landing(gobj)
     let $tabs = $container.querySelector(".tabs");
     let $sub = $container.querySelector(".sub-container");
     let $landing = $container.querySelector(".TREEDB_TOPICS_LANDING");
+    let $schema = $container.querySelector(".TREEDB_TOPICS_SCHEMA");
     let $info = $container.querySelector(".TREEDB_TOPIC_INFO");
     let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
+    let $toggle = $container.querySelector(".TREEDB_LANDING_TOGGLE");
     if($tabs) {
         $tabs.classList.add("is-hidden");
     }
@@ -609,12 +632,37 @@ function show_topics_landing(gobj)
     if($info) {
         $info.classList.add("is-hidden");
     }
-    if($landing) {
-        $landing.classList.remove("is-hidden");
-    }
     if($back) {
         $back.classList.add("is-hidden");
     }
+    if($toggle) {
+        $toggle.classList.remove("is-hidden");   /*  the toggle lives on the landing  */
+    }
+
+    /*  Cards grid vs schema graph — the two landing sub-views. */
+    let schema_mode = gobj.priv._landing_view === "schema";
+    if(schema_mode) {
+        if($landing) {
+            $landing.classList.add("is-hidden");
+        }
+        /*  Reveal the pane BEFORE building: G6 renders at 0×0 in a
+         *  display:none container. */
+        if($schema) {
+            $schema.classList.remove("is-hidden");
+        }
+        build_schema_child(gobj);
+        if(gobj.priv.schema_gobj) {
+            gobj_send_event(gobj.priv.schema_gobj, "EV_SHOW", {}, gobj);
+        }
+    } else {
+        if($schema) {
+            $schema.classList.add("is-hidden");
+        }
+        if($landing) {
+            $landing.classList.remove("is-hidden");
+        }
+    }
+
     /*  Hide the currently shown topic content + deactivate its tab. */
     let $current_item = gobj_read_attr(gobj, "$current_item");
     if($current_item) {
@@ -627,6 +675,53 @@ function show_topics_landing(gobj)
             }
         }
     }
+}
+
+/************************************************************
+ *  Lazily build the schema-graph child (C_YUI_TREEDB_SCHEMA) into
+ *  the landing's schema pane. It draws the treedb as topics+links
+ *  from `descs` (already loaded) and navigates on a node click via
+ *  the table hash route.
+ ************************************************************/
+function build_schema_child(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.schema_gobj) {
+        return;
+    }
+    if(gclass_find_by_name("C_YUI_TREEDB_SCHEMA") === null) {
+        log_error(`${gobj_short_name(gobj)}: C_YUI_TREEDB_SCHEMA not registered by the app`);
+        return;
+    }
+    let $container = gobj_read_attr(gobj, "$container");
+    let $pane = $container && $container.querySelector(".TREEDB_TOPICS_SCHEMA");
+    if(!$pane) {
+        return;
+    }
+    let routes = gobj_read_attr(gobj, "card_action_routes");
+    let node_route = (is_object(routes) && routes.table) ? routes.table : "";
+
+    let schema = gobj_create_pure_child(
+        "schema_" + clean_name(gobj_name(gobj)),
+        "C_YUI_TREEDB_SCHEMA",
+        {
+            subscriber: gobj,
+            descs:      gobj_read_attr(gobj, "descs"),
+            node_route: node_route,
+            system:     gobj_read_bool_attr(gobj, "system")
+        },
+        gobj
+    );
+    if(!schema) {
+        log_error(`${gobj_short_name(gobj)}: cannot create the schema view`);
+        return;
+    }
+    priv.schema_gobj = schema;
+    let $sc = gobj_read_attr(schema, "$container");
+    if($sc) {
+        $pane.appendChild($sc);
+    }
+    gobj_start(schema);
 }
 
 /************************************************************
@@ -646,13 +741,21 @@ function show_topic_detail(gobj)
     let $tabs = $container.querySelector(".tabs");
     let $sub = $container.querySelector(".sub-container");
     let $landing = $container.querySelector(".TREEDB_TOPICS_LANDING");
+    let $schema = $container.querySelector(".TREEDB_TOPICS_SCHEMA");
     let $info = $container.querySelector(".TREEDB_TOPIC_INFO");
     let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
+    let $toggle = $container.querySelector(".TREEDB_LANDING_TOGGLE");
     if($landing) {
         $landing.classList.add("is-hidden");
     }
+    if($schema) {
+        $schema.classList.add("is-hidden");
+    }
     if($info) {
         $info.classList.add("is-hidden");
+    }
+    if($toggle) {
+        $toggle.classList.add("is-hidden");   /*  landing-only  */
     }
     if($tabs) {
         $tabs.classList.remove("is-hidden");
@@ -703,9 +806,17 @@ function show_topic_info(gobj, topic)
     let $tabs = $container.querySelector(".tabs");
     let $sub = $container.querySelector(".sub-container");
     let $landing = $container.querySelector(".TREEDB_TOPICS_LANDING");
+    let $schema = $container.querySelector(".TREEDB_TOPICS_SCHEMA");
     let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
+    let $toggle = $container.querySelector(".TREEDB_LANDING_TOGGLE");
     if($landing) {
         $landing.classList.add("is-hidden");
+    }
+    if($schema) {
+        $schema.classList.add("is-hidden");
+    }
+    if($toggle) {
+        $toggle.classList.add("is-hidden");
     }
     if($tabs) {
         $tabs.classList.add("is-hidden");
@@ -1667,6 +1778,22 @@ function ac_select_topic_card(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Toggle the landing between the cards grid and the schema graph.
+ ************************************************************/
+function ac_toggle_landing_view(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    priv._landing_view = (priv._landing_view === "schema") ? "cards" : "schema";
+    let $container = gobj_read_attr(gobj, "$container");
+    let $toggle = $container && $container.querySelector(".TREEDB_LANDING_TOGGLE");
+    if($toggle) {
+        $toggle.classList.toggle("is-primary", priv._landing_view === "schema");
+    }
+    show_topics_landing(gobj);
+    return 0;
+}
+
+/************************************************************
  *  Back from a topic to the cards-landing grid (the section index).
  ************************************************************/
 function ac_back_to_topics(gobj, event, kw, src)
@@ -1982,6 +2109,7 @@ function create_gclass(gclass_name)
             ["EV_SHOW",                 ac_show,                    null],
             ["EV_SHOW_TOPIC_INFO",      ac_show_topic_info,         null],
             ["EV_SELECT_TOPIC_CARD",    ac_select_topic_card,       null],
+            ["EV_TOGGLE_LANDING_VIEW",  ac_toggle_landing_view,     null],
             ["EV_HIDE",                 ac_hide,                    null],
             ["EV_BACK_TO_TOPICS",       ac_back_to_topics,          null],
             ["EV_TRANSPORT_STATE",      ac_transport_state,         null],
@@ -2006,6 +2134,7 @@ function create_gclass(gclass_name)
         ["EV_SHOW",                 0],
         ["EV_SHOW_TOPIC_INFO",      0],
         ["EV_SELECT_TOPIC_CARD",    0],
+        ["EV_TOGGLE_LANDING_VIEW",  0],
         ["EV_HIDE",                 0],
         ["EV_BACK_TO_TOPICS",       0],
         ["EV_TRANSPORT_STATE",      0],
