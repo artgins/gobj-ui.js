@@ -69,6 +69,7 @@ SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote TreeDB s
 SDATA(data_type_t.DTP_JSON,     "descs",            0,  null,   "Description of topics"),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
 SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth", "Bulma tab styling"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_cards_landing",0, false,  "Land on a grid of topic cards (list->detail): a card opens its table, with the tabs bar + a back-to-grid button. Off = tabs only (legacy)."),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Root HTML element, show/hide managed by external routing"),
 SDATA(data_type_t.DTP_POINTER,  "$current_item",    0,  null,   "Currently selected item"),
 SDATA(data_type_t.DTP_STRING,   "last_selection",   0,  null,   "Last href selection"),
@@ -231,6 +232,19 @@ function build_ui(gobj)
             ['div', {class: 'is-flex-grow-0'}, [
                 ['div', {class: 'is-flex is-align-items-center TREEDB_TOPICS_TOOLBAR',
                          style: 'gap:.25rem; padding:.25rem .25rem;'}, [
+                    /*  Back to the topic-cards grid (cards-landing mode only);
+                     *  hidden until a topic is open. */
+                    ['button', {class: 'button TREEDB_TOPICS_BACK is-hidden',
+                                title: t('topics'), 'aria-label': t('topics'),
+                                'data-i18n-title': 'topics', 'data-i18n-aria-label': 'topics'}, [
+                        ['span', {class: 'icon'}, [['i', {class: 'yi-arrow-left'}]]],
+                        ['span', {class: 'is-hidden-mobile', i18n: 'topics'}, 'topics']
+                    ], {
+                        click: (evt) => {
+                            evt.stopPropagation();
+                            gobj_send_event(gobj, "EV_BACK_TO_TOPICS", {}, gobj);
+                        }
+                    }],
                     /*  Inspect the treedb's raw tranger json (whole service,
                      *  print-tranger, lazy drill).  */
                     ['button', {class: 'button TREEDB_JSON_BTN',
@@ -250,12 +264,25 @@ function build_ui(gobj)
                 ]],
             ]],
             ['div', {class: 'is-flex-grow-1 sub-container', style: 'height:100%; min-height:0; overflow: auto;'}, [
+            ]],
+            /*  Cards-landing grid (list->detail): one card per topic, shown on
+             *  entry; a click opens the topic's table. Empty/hidden in the
+             *  legacy tabs-only mode. Reuses the shell's .yui-nav-cards look. */
+            ['div', {class: 'is-flex-grow-1 TREEDB_TOPICS_LANDING is-hidden',
+                     style: 'min-height:0; overflow:auto;'}, [
+                ['div', {class: 'yui-nav-cards'}, []]
             ]]
         ]]
     );
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
     refresh_toolbar_buttons(gobj);  /*  starts disabled until connected / a tree topic  */
+
+    /*  Cards-landing: present the (still empty) grid from the first paint so
+     *  there is no flash of an empty tabs bar while the schema loads. */
+    if(gobj_read_bool_attr(gobj, "with_cards_landing")) {
+        show_topics_landing(gobj);
+    }
 }
 
 /************************************************************
@@ -394,13 +421,7 @@ function add_tab(gobj, gobj2, id, text, icon)
      */
     $a.addEventListener("click", function(ev) {
         ev.preventDefault();
-        /*  Switch locally now (instant, works standalone) … */
-        gobj_send_event(gobj, "EV_SHOW", {href: id}, gobj);
-        /*  … and tell any host so it can mirror the topic into the
-         *  URL path (deep-link / reload restore).  Optional sub:
-         *  EVF_NO_WARN_SUBS so standalone use stays quiet. */
-        let topic = id.indexOf("?") >= 0 ? id.split("?")[1] : id;
-        gobj_publish_event(gobj, "EV_TOPIC_SELECTED", {topic: topic});
+        select_topic_by_id(gobj, id);
     });
 
     /*
@@ -432,6 +453,128 @@ function remove_tab(gobj, gobj2, id)
     let $child_content = gobj_read_attr(gobj2, "$container");
     if($child_content && $child_content.parentNode) {
         $child_content.parentNode.removeChild($child_content);
+    }
+    /*  Drop its landing card too, if any. */
+    let $card = $container.querySelector(
+        `.TREEDB_TOPIC_CARD[data-topic-href="${id}"]`);
+    if($card && $card.parentNode) {
+        $card.parentNode.removeChild($card);
+    }
+}
+
+/************************************************************
+ *  Select a topic: the single entry point for a tab click AND a
+ *  landing-card click. Switch locally now (instant, works standalone)
+ *  and tell any host so it can mirror the topic into the URL path
+ *  (deep-link / reload restore). Optional sub: EVF_NO_WARN_SUBS so
+ *  standalone use stays quiet.
+ ************************************************************/
+function select_topic_by_id(gobj, id)
+{
+    gobj_send_event(gobj, "EV_SHOW", {href: id}, gobj);
+    let topic = id.indexOf("?") >= 0 ? id.split("?")[1] : id;
+    gobj_publish_event(gobj, "EV_TOPIC_SELECTED", {topic: topic});
+}
+
+/************************************************************
+ *  Add one topic card to the cards-landing grid (list->detail).
+ *  Same id contract as the tab (`<gobj>?<topic>`); a click enters
+ *  the topic exactly like clicking its tab.
+ ************************************************************/
+function add_topic_card(gobj, id, text, icon)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    let $grid = $container.querySelector(".TREEDB_TOPICS_LANDING .yui-nav-cards");
+    if(!$grid) {
+        return;
+    }
+    let $card = createElement2(
+        ['a', {class: 'yui-nav-item yui-nav-card TREEDB_TOPIC_CARD',
+               href: '#', 'data-topic-href': id,
+               'aria-label': text, 'data-i18n-aria-label': text}, [
+            ['span', {class: 'icon is-medium'}, [['i', {class: icon || 'yi-table',
+                'aria-hidden': 'true'}]]],
+            ['span', {class: 'yui-nav-label', i18n: text}, text]
+        ]]
+    );
+    $card.addEventListener("click", function(ev) {
+        ev.preventDefault();
+        select_topic_by_id(gobj, id);
+    });
+    $grid.appendChild($card);
+    refresh_language($card, t);
+}
+
+/************************************************************
+ *  Cards-landing mode: show the topic-cards grid (the section
+ *  index), hide the tabs bar + the topic table, hide the back
+ *  button. Deactivate any active tab so nothing looks selected.
+ ************************************************************/
+function show_topics_landing(gobj)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    let $tabs = $container.querySelector(".tabs");
+    let $sub = $container.querySelector(".sub-container");
+    let $landing = $container.querySelector(".TREEDB_TOPICS_LANDING");
+    let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
+    if($tabs) {
+        $tabs.classList.add("is-hidden");
+    }
+    if($sub) {
+        $sub.classList.add("is-hidden");
+    }
+    if($landing) {
+        $landing.classList.remove("is-hidden");
+    }
+    if($back) {
+        $back.classList.add("is-hidden");
+    }
+    /*  Hide the currently shown topic content + deactivate its tab. */
+    let $current_item = gobj_read_attr(gobj, "$current_item");
+    if($current_item) {
+        $current_item.classList.remove("is-active");
+        let gobj2 = $current_item.gobj;
+        if(gobj2) {
+            let $child = gobj_read_attr(gobj2, "$container");
+            if($child) {
+                $child.classList.add("is-hidden");
+            }
+        }
+    }
+}
+
+/************************************************************
+ *  Cards-landing mode: enter a topic (hide the grid, show the
+ *  tabs bar + the topic table + the back button). No-op unless
+ *  the landing is enabled.
+ ************************************************************/
+function show_topic_detail(gobj)
+{
+    if(!gobj_read_bool_attr(gobj, "with_cards_landing")) {
+        return;
+    }
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    let $tabs = $container.querySelector(".tabs");
+    let $sub = $container.querySelector(".sub-container");
+    let $landing = $container.querySelector(".TREEDB_TOPICS_LANDING");
+    let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
+    if($landing) {
+        $landing.classList.add("is-hidden");
+    }
+    if($tabs) {
+        $tabs.classList.remove("is-hidden");
+    }
+    if($sub) {
+        $sub.classList.remove("is-hidden");
+    }
+    if($back) {
+        $back.classList.remove("is-hidden");
     }
 }
 
@@ -509,6 +652,7 @@ function process_treedb_descs(gobj)
 
         // TODO get icon from remote config
         add_tab(gobj, gobj_topic_form, id, key, "yi-table");
+        add_topic_card(gobj, id, key, "yi-table");
 
         gobj_start(gobj_topic_form);
     }
@@ -521,26 +665,38 @@ function process_treedb_descs(gobj)
      *  (e.g. the persisted topic no longer exists in the schema).
      */
     let href = gobj_read_str_attr(gobj, "last_selection");
-    if(!href) {
-        try {
-            let topic = window.localStorage.getItem(
-                `yui_treedb_topics:${gobj_name(gobj)}`
-            );
-            if(topic) {
-                href = `${gobj_name(gobj)}?${topic}`;
-            }
-        } catch(e) {
-            // localStorage unavailable — fall through to first tab
+    if(gobj_read_bool_attr(gobj, "with_cards_landing")) {
+        /*  Cards-landing: the grid IS the entry point, so DON'T auto-restore
+         *  the persisted topic — only honour an explicit deep-link (a host
+         *  EV_SHOW carrying a `?<topic>` arrived while descs were loading and
+         *  set last_selection). No topic in flight ⇒ land on the grid. */
+        if(href && href.indexOf("?") >= 0) {
+            gobj_send_event(gobj, "EV_SHOW", {href: href}, gobj);
+        } else {
+            show_topics_landing(gobj);
         }
+    } else {
+        if(!href) {
+            try {
+                let topic = window.localStorage.getItem(
+                    `yui_treedb_topics:${gobj_name(gobj)}`
+                );
+                if(topic) {
+                    href = `${gobj_name(gobj)}?${topic}`;
+                }
+            } catch(e) {
+                // localStorage unavailable — fall through to first tab
+            }
+        }
+        gobj_send_event(
+            gobj,
+            "EV_SHOW",
+            {
+                href: href
+            },
+            gobj
+        );
     }
-    gobj_send_event(
-        gobj,
-        "EV_SHOW",
-        {
-            href: href
-        },
-        gobj
-    );
 
     /*
      *  Subscribe events to manage Ui_treedb_topic_form kids
@@ -1150,6 +1306,15 @@ function ac_show(gobj, event, kw, src)
 {
     let href = kw.href;
 
+    /*  Cards-landing: a show without a concrete `?<topic>` means "enter the
+     *  workspace" — land on the grid instead of auto-opening the first tab. */
+    if(gobj_read_bool_attr(gobj, "with_cards_landing") &&
+            (!href || href.indexOf("?") < 0)) {
+        show_topics_landing(gobj);
+        refresh_toolbar_buttons(gobj);
+        return 0;
+    }
+
     let $container = gobj_read_attr(gobj, "$container");
     let $current_item = gobj_read_attr(gobj, "$current_item");
     let $a = $container.querySelector(`a[href="${href}"]`);
@@ -1220,9 +1385,24 @@ function ac_show(gobj, event, kw, src)
             }
             gobj_send_event(gobj2, "EV_SHOW", kw, gobj);
         }
+        /*  A concrete topic is open: leave the cards grid for the detail
+         *  (tabs bar + table + back button). No-op in tabs-only mode. */
+        show_topic_detail(gobj);
     }
 
     refresh_toolbar_buttons(gobj);  /*  the new tab may or may not be a tree  */
+    return 0;
+}
+
+/************************************************************
+ *  Back from a topic to the cards-landing grid (the section index).
+ ************************************************************/
+function ac_back_to_topics(gobj, event, kw, src)
+{
+    show_topics_landing(gobj);
+    /*  Tell the host the topic segment is gone so a reload re-lands on the
+     *  grid (empty topic ⇒ the host drops the <topic> from the URL). */
+    gobj_publish_event(gobj, "EV_TOPIC_SELECTED", {topic: ""});
     return 0;
 }
 
@@ -1529,6 +1709,7 @@ function create_gclass(gclass_name)
             ["EV_JSON_CLOSED",          ac_json_closed,             null],
             ["EV_SHOW",                 ac_show,                    null],
             ["EV_HIDE",                 ac_hide,                    null],
+            ["EV_BACK_TO_TOPICS",       ac_back_to_topics,          null],
             ["EV_TRANSPORT_STATE",      ac_transport_state,         null],
         ]]
     ];
@@ -1550,6 +1731,7 @@ function create_gclass(gclass_name)
         ["EV_JSON_CLOSED",          0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],
+        ["EV_BACK_TO_TOPICS",       0],
         ["EV_TRANSPORT_STATE",      0],
         ["EV_TOPIC_SELECTED",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS]

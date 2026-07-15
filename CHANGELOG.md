@@ -7,6 +7,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(treedb): optional topic-cards landing (list → detail).**
+  `C_YUI_TREEDB_TOPICS` gains `with_cards_landing` (default `false`, so existing
+  consumers are unchanged). When on, entering the view shows a grid of topic
+  cards (reusing the shell's `.yui-nav-cards` look) instead of opening a topic
+  table straight away; clicking a card opens that topic's table with the tabs
+  bar kept for quick switching plus a back-to-grid button (`EV_BACK_TO_TOPICS`).
+  The card click and the tab click share one entry point (`select_topic_by_id`).
+  A deep-linked topic (host `EV_SHOW` with `?<topic>`, e.g. F5 on a topic URL)
+  still opens straight into detail; a plain entry lands on the grid, and the
+  persisted last-topic is not auto-restored in this mode. Back publishes
+  `EV_TOPIC_SELECTED` with an empty topic so a host can drop the `<topic>` URL
+  segment.
+
 - **fix(treedb): row selection is checkbox-only; no hover wash.**
   `C_YUI_TREEDB_TOPIC_WITH_FORM`'s table used `selectableRows:true`, so clicking
   anywhere on a row — including the edit (yi-pen) button — implicitly ticked its
