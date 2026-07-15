@@ -22,8 +22,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   via `currentColor`, theme-aware) instead of a raw inline SVG with a hardcoded
   fill, hidden arrows toggle `display:''`/`none` so the CSS flex-centering
   reasserts, and the buttons gain `type="button"` + translatable
-  `title`/`aria-label`. No API change (`yui_toolbar(attrs, items)`, CSS classes
-  and export are unchanged; the caller's `attrs` object is no longer mutated).
+  `title`/`aria-label`. The arrows start hidden and the detach cleanup only
+  fires once the toolbar has actually been live, so a non-scrollable toolbar
+  never shows a stray arrow before its first layout. No API change
+  (`yui_toolbar(attrs, items)`, CSS classes and export are unchanged; the
+  caller's `attrs` object is no longer mutated).
 
 - **feat(shell): browser Back closes modals and floating windows.** Overlays
   now integrate with browser history. Opening a shell modal

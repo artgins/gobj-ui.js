@@ -27,6 +27,9 @@ function yui_toolbar(attrs={}, items = [])
         return ['button',
             {
                 class: `yui-horizontal-toolbar-scroll-btn ${side} has-text-link`,
+                /*  Start hidden: only shown once we know the content overflows,
+                 *  never a flash of both arrows on a toolbar that doesn't scroll. */
+                style: 'display:none',
                 type: 'button',
                 title: label,
                 'aria-label': label,
@@ -74,12 +77,18 @@ function yui_toolbar(attrs={}, items = [])
         $container.scrollBy({left: scroll_step(), behavior: 'smooth'});
     }
 
+    let wasConnected = false;
     function updateScrollButtons() {
-        /*
-         *  Once detached from the DOM, stop observing so the toolbar subtree
-         *  can be garbage collected (the observer's only tie is $container).
-         */
-        if(!$container.isConnected) {
+        if($container.isConnected) {
+            wasConnected = true;
+        } else if(wasConnected) {
+            /*
+             *  Detached AFTER having been live: stop observing so the toolbar
+             *  subtree can be garbage collected (the observer's only tie is
+             *  $container). Before the first insertion the node is legitimately
+             *  disconnected — fall through and compute (widths are 0, so both
+             *  arrows resolve to hidden), never disconnect pre-emptively.
+             */
             observer.disconnect();
             debouncedResize.cancel();
             return;
