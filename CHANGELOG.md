@@ -7,6 +7,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(treedb): row selection is checkbox-only; no hover wash.**
+  `C_YUI_TREEDB_TOPIC_WITH_FORM`'s table used `selectableRows:true`, so clicking
+  anywhere on a row — including the edit (yi-pen) button — implicitly ticked its
+  *Select Row* checkbox, and hovering washed the row with a highlight that read
+  as a selection. It now uses `selectableRows:"highlight"`, which disables
+  click-to-select while keeping the checkbox column fully functional (the
+  `rowSelection` formatter toggles selection directly), so opening the edit form
+  no longer selects the row. A reusable `yui-no-row-hover` modifier on the
+  `.tabulator` element (in `tabulator.css`) suppresses the whole-row hover wash
+  and pointer cursor for unselected rows in every theme; only a checkbox-selected
+  row changes colour. Scoped to this table — other tables' hover is untouched.
+
 - **feat(form): `C_YUI_FORM` regains the "edit" vs "exec" render modes.** A new
   `render_mode` attr (`"exec"` default, `"edit"`) controls how the three
   *structured* column types are rendered. `"exec"` **interprets** them into

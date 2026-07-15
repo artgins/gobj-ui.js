@@ -826,7 +826,12 @@ function create_tabulator(gobj)
     }
 
     let pkey = desc.pkey || "id";
-    let selectable = with_checkbox ? true : (with_radio ? 1 : false);
+    /*  Selection is driven ONLY by the checkbox column, never by clicking
+     *  the row: "highlight" keeps the rowSelection checkbox fully working
+     *  (it calls toggleSelect() directly) while disabling click-to-select,
+     *  so opening the edit (yi-pen) form no longer implicitly ticks the
+     *  row. Radio keeps single click-select (its own widget).  */
+    let selectable = with_checkbox ? "highlight" : (with_radio ? 1 : false);
 
     let tabulator_settings = json_deep_copy(gobj_read_attr(gobj, "tabulator_settings"));
 
@@ -866,6 +871,14 @@ function create_tabulator(gobj)
              *  what it said before for an app that does not define the key).  */
             placeholder: t("no data available", {defaultValue: "No data available"})
         }));
+
+    /*  "highlight" still paints the whole-row hover wash (and a pointer
+     *  cursor), which reads as a selection. This table selects only via the
+     *  checkbox, so suppress the hover: rows stay visually static, and only
+     *  a checkbox-selected row changes colour (see tabulator.css). */
+    if(with_checkbox) {
+        $table_el.classList.add("yui-no-row-hover");
+    }
 
     /*  Keep the footer in sync with the visible (active) row count,
      *  and hide the pagination chrome while everything fits in one

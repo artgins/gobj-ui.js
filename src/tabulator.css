@@ -99,6 +99,39 @@
     background-color: var(--bulma-background, #ebebeb) !important;
 }
 
+/* ====================================================================
+ *  Opt-out of the whole-row hover wash + pointer cursor. For tables that
+ *  select ONLY through the checkbox column (selectableRows:"highlight"),
+ *  the hover highlight reads as a selection. Add `yui-no-row-hover` on the
+ *  .tabulator element: unselected rows stay visually static on hover; a
+ *  checkbox-selected row keeps its `.tabulator-selected` colour (the
+ *  :not() guard leaves it alone). Colours mirror the striping rules so
+ *  hover === the row's own background in every theme.
+ * ==================================================================== */
+.tabulator.yui-no-row-hover .tabulator-row.tabulator-selectable:hover {
+    cursor: default !important;
+}
+.tabulator.yui-no-row-hover
+        .tabulator-row.tabulator-row-odd.tabulator-selectable:not(.tabulator-selected):hover {
+    background-color: var(--bulma-scheme-main, #fff) !important;
+    color: var(--bulma-body-color) !important;
+}
+.tabulator.yui-no-row-hover
+        .tabulator-row.tabulator-row-even.tabulator-selectable:not(.tabulator-selected):hover {
+    background-color: var(--bulma-scheme-main-ter, #f5f5f5) !important;
+    color: var(--bulma-body-color) !important;
+}
+[data-theme=dark] .tabulator.yui-no-row-hover
+        .tabulator-row.tabulator-row-odd.tabulator-selectable:not(.tabulator-selected):hover {
+    background-color: var(--bulma-body-background-color) !important;
+    color: var(--bulma-body-color) !important;
+}
+[data-theme=dark] .tabulator.yui-no-row-hover
+        .tabulator-row.tabulator-row-even.tabulator-selectable:not(.tabulator-selected):hover {
+    background-color: var(--bulma-background) !important;
+    color: var(--bulma-body-color) !important;
+}
+
 /*
  *  Tabulator dark theme
  *  Activated by html[data-theme=dark] (set by the app's theme switcher)
@@ -232,6 +265,16 @@
     }
     [data-theme=system] .tabulator-row.tabulator-selectable:hover {
         background-color: var(--bulma-background) !important;
+    }
+    [data-theme=system] .tabulator.yui-no-row-hover
+            .tabulator-row.tabulator-row-odd.tabulator-selectable:not(.tabulator-selected):hover {
+        background-color: var(--bulma-body-background-color) !important;
+        color: var(--bulma-body-color) !important;
+    }
+    [data-theme=system] .tabulator.yui-no-row-hover
+            .tabulator-row.tabulator-row-even.tabulator-selectable:not(.tabulator-selected):hover {
+        background-color: var(--bulma-background) !important;
+        color: var(--bulma-body-color) !important;
     }
     [data-theme=system] .tabulator-row.tabulator-selected {
         background-color: var(--bulma-link) !important;
