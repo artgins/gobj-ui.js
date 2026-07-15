@@ -58,6 +58,7 @@ import {
     json_object_update_missing,
     gobj_start,
     gobj_stop,
+    gobj_current_state,
     is_gobj,
     gobj_is_destroying,
     log_info,
@@ -339,7 +340,47 @@ function build_ui(gobj)
 
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
+    refresh_raw_json_button(gobj);  /*  disabled until the backend session is up  */
     return $container;
+}
+
+/************************************************************
+ *  The "Raw JSON" viewer issues a remote print-tranger, so it only makes
+ *  sense with a live backend session — the remote (C_IEVENT_CLI) is in
+ *  ST_SESSION exactly while connected. Enable the button only then; native
+ *  `disabled` dims it (Bulma) and blocks its click.
+ ************************************************************/
+function is_connected(gobj)
+{
+    let remote = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
+    return !!remote && gobj_current_state(remote) === "ST_SESSION";
+}
+
+function refresh_raw_json_button(gobj, connected)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    if(typeof connected !== "boolean") {
+        connected = is_connected(gobj);
+    }
+    let $raw = $container.querySelector(".TREEDB_JSON_BTN");
+    if($raw) {
+        $raw.disabled = !connected;
+    }
+}
+
+/************************************************************
+ *  The host (C_TREEDB_VIEW) forwards the backend transport edges here so the
+ *  "Raw JSON" button disables the moment the session drops and re-enables on
+ *  reconnect. The library view must not subscribe to the C_IEVENT_CLI itself
+ *  (that forwards the subscription upstream and breaks the session).
+ ************************************************************/
+function ac_transport_state(gobj, event, kw, src)
+{
+    refresh_raw_json_button(gobj, !!(kw && kw.connected));
+    return 0;
 }
 
 /************************************************************
@@ -2001,6 +2042,7 @@ function create_gclass(gclass_name)
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
             ["EV_RESIZE",                   ac_resize,                  null],
+            ["EV_TRANSPORT_STATE",          ac_transport_state,         null],
         ]]
     ];
 
@@ -2036,6 +2078,7 @@ function create_gclass(gclass_name)
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
         ["EV_RESIZE",                   0],
+        ["EV_TRANSPORT_STATE",          0],
     ];
 
     /*----------------------------------------*

@@ -18,6 +18,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   window closed nothing reaches the console — that is the literal meaning of
   the choice (default is Both).
 
+- **feat(treedb views): disable the JSON viewers while disconnected.** The
+  "Raw JSON" button (`C_YUI_TREEDB_TOPICS` + `C_YUI_TREEDB_GRAPH`) and the
+  "Tree JSON" button issue remote commands, so they only make sense with a
+  live backend session — they are now disabled while the session is down and
+  re-enabled on reconnect. The library view can't watch the `C_IEVENT_CLI`
+  itself (subscribing there forwards upstream and breaks the session), so the
+  host forwards the transport edges as a new `EV_TRANSPORT_STATE` event, which
+  a view opts into by declaring it (`gobj_has_event` guard). Initial state is
+  read from the remote's `ST_SESSION` at build.
+
 - **fix(treedb Tree-JSON): derive and pass the topic's self-referent hook.**
   The "Tree JSON" button (`C_YUI_TREEDB_TOPICS`) called the backend `jtree`
   command with only `topic_name` and no `hook`, so every topic answered

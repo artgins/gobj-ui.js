@@ -34,6 +34,7 @@ import {
     gobj_read_bool_attr,
     gobj_start,
     gobj_stop,
+    gobj_current_state,
     gobj_create_service,
     gobj_command,
     gobj_match_children,
@@ -269,28 +270,50 @@ function build_ui(gobj)
     );
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
-    refresh_jtree_button(gobj);     /*  starts disabled until a tree topic is shown  */
+    refresh_toolbar_buttons(gobj);  /*  starts disabled until connected / a tree topic  */
 }
 
 /************************************************************
- *  Enable the "Tree JSON" button only for a hierarchical topic (one with a
- *  self-referent hook) — a flat topic has no tree to draw. Called at build
- *  time and on every tab change. Native `disabled` both dims the button
- *  (Bulma) and blocks its click, so open_json_viewer's guard is a backstop.
+ *  Is the backend session live? Both JSON viewers issue remote commands
+ *  (print-tranger / jtree), so they only make sense with a session — the
+ *  remote (C_IEVENT_CLI) is in ST_SESSION exactly while connected.
  ************************************************************/
-function refresh_jtree_button(gobj)
+function is_connected(gobj)
+{
+    let remote = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
+    return !!remote && gobj_current_state(remote) === "ST_SESSION";
+}
+
+/************************************************************
+ *  Enable the toolbar's JSON buttons from the live state:
+ *    - "Raw JSON": only when the backend session is up.
+ *    - "Tree JSON": only when connected AND the selected topic is
+ *      hierarchical (has a self-referent hook) — a flat topic has no tree.
+ *  Called at build, on every tab change, and when the host forwards a
+ *  transport edge (EV_TRANSPORT_STATE). `connected` defaults to the live
+ *  session state; the host passes it explicitly on a transport edge because
+ *  the remote's state may not have settled yet. Native `disabled` dims the
+ *  button (Bulma) and blocks its click, so the action guards are backstops.
+ ************************************************************/
+function refresh_toolbar_buttons(gobj, connected)
 {
     let $container = gobj_read_attr(gobj, "$container");
     if(!$container) {
         return;
     }
-    let $btn = $container.querySelector(".TREEDB_JTREE_BTN");
-    if(!$btn) {
-        return;
+    if(typeof connected !== "boolean") {
+        connected = is_connected(gobj);
     }
-    let topic = gobj.priv.selected_topic || "";
-    let descs = gobj_read_attr(gobj, "descs") || {};
-    $btn.disabled = !self_hook_of(descs[topic], topic);
+    let $raw = $container.querySelector(".TREEDB_JSON_BTN");
+    if($raw) {
+        $raw.disabled = !connected;
+    }
+    let $tree = $container.querySelector(".TREEDB_JTREE_BTN");
+    if($tree) {
+        let topic = gobj.priv.selected_topic || "";
+        let descs = gobj_read_attr(gobj, "descs") || {};
+        $tree.disabled = !connected || !self_hook_of(descs[topic], topic);
+    }
 }
 
 /************************************************************
@@ -1319,7 +1342,20 @@ function ac_show(gobj, event, kw, src)
         }
     }
 
-    refresh_jtree_button(gobj);     /*  the new tab may or may not be a tree  */
+    refresh_toolbar_buttons(gobj);  /*  the new tab may or may not be a tree  */
+    return 0;
+}
+
+/************************************************************
+ *  The host (C_TREEDB_VIEW) forwards the backend transport edges here so the
+ *  toolbar can disable the JSON viewers the moment the session drops (and
+ *  re-enable them on reconnect) — the library view must not subscribe to the
+ *  C_IEVENT_CLI itself (that forwards the subscription upstream and breaks
+ *  the session).
+ ************************************************************/
+function ac_transport_state(gobj, event, kw, src)
+{
+    refresh_toolbar_buttons(gobj, !!(kw && kw.connected));
     return 0;
 }
 
@@ -1623,6 +1659,7 @@ function create_gclass(gclass_name)
             ["EV_JSON_CLOSED",          ac_json_closed,             null],
             ["EV_SHOW",                 ac_show,                    null],
             ["EV_HIDE",                 ac_hide,                    null],
+            ["EV_TRANSPORT_STATE",      ac_transport_state,         null],
         ]]
     ];
 
@@ -1644,6 +1681,7 @@ function create_gclass(gclass_name)
         ["EV_JSON_CLOSED",          0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],
+        ["EV_TRANSPORT_STATE",      0],
         ["EV_TOPIC_SELECTED",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS]
     ];
