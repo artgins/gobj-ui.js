@@ -45,6 +45,7 @@ import {
     sprintf,
     is_string,
     is_array,
+    empty_string,
     is_object,
     kw_get_int,
     kw_get_str,
@@ -274,6 +275,9 @@ let PRIVATE_DATA = {
     _link_drag_svg:     null,       // SVG overlay for drag line
     _link_valid_hooks:  [],         // [{node_id, port_key}] compatible hook targets
     _link_saved_styles: [],         // saved port styles to restore on cancel
+    _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
+    _focus_ids:         [],         // node ids carrying the focus 'active' state
+    _pending_focus_topic: null,     // focus requested before data was loaded
 };
 
 let __gclass__ = null;
@@ -633,6 +637,15 @@ function build_graph(gobj)
                     stroke: '#1890ff',
                     labelFill: '#000',          // Force black; remove to let G6 dark theme control it
                     labelFontWeight: 'normal',
+                },
+                /*  Topic focus highlight (EV_FOCUS_TOPIC): an amber halo on
+                 *  every node of the focused topic. */
+                active: {
+                    lineWidth: 4,
+                    stroke: '#f0a020',
+                    halo: true,
+                    haloStroke: '#f0a020',
+                    haloLineWidth: 8,
                 },
             },
         },
@@ -2064,6 +2077,66 @@ async function graph_fitview(gobj)
     let graph = priv.graph;
 
     await graph.fitView();
+}
+
+/************************************************************
+ *  Focus the graph on one topic: highlight (amber 'active' state)
+ *  every node of that topic and centre the viewport on them. An
+ *  empty topic clears the highlight. If the graph is not rendered
+ *  or its data has not arrived, remember the request and replay it
+ *  once the data loads (see ac_load_data). Guarded end-to-end — a
+ *  missing G6 API or an unknown topic logs and no-ops, never throws.
+ ************************************************************/
+function graph_focus_topic(gobj, topic)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph || !priv.graph_rendered) {
+        priv._pending_focus_topic = topic;
+        return;
+    }
+
+    let data = {};
+    try {
+        data = graph.getData() || {};
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: graph.getData() failed: ${e}`);
+        return;
+    }
+    let nodes = is_array(data.nodes) ? data.nodes : [];
+
+    /*  Clear the previous focus highlight, then set the new one. */
+    let states = {};
+    for(let id of (priv._focus_ids || [])) {
+        states[id] = [];
+    }
+    let ids = [];
+    if(!empty_string(topic)) {
+        for(let n of nodes) {
+            if(n && n.data && n.data.topic_name === topic) {
+                ids.push(n.id);
+            }
+        }
+        if(ids.length === 0) {
+            log_warning(`${gobj_short_name(gobj)}: focus topic '${topic}' has no nodes`);
+        }
+        for(let id of ids) {
+            states[id] = ['active'];
+        }
+    }
+    priv._focus_ids = ids;
+    priv._focus_topic = topic || null;
+
+    try {
+        if(typeof graph.setElementState === "function") {
+            graph.setElementState(states);
+        }
+        if(ids.length && typeof graph.focusElement === "function") {
+            graph.focusElement(ids);
+        }
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: focus topic apply failed: ${e}`);
+    }
 }
 
 async function graph_zoom_in(gobj)
@@ -5452,6 +5525,13 @@ function ac_load_data(gobj, event, kw, src)
                     } else {
                         graph_remove_plugin(gobj, "history");
                     }
+                    /*  Nodes exist and are positioned now: apply a focus
+                     *  requested before the data was ready (deep link). */
+                    if(priv._pending_focus_topic !== null) {
+                        let ft = priv._pending_focus_topic;
+                        priv._pending_focus_topic = null;
+                        graph_focus_topic(gobj, ft);
+                    }
                 });
             });
         });
@@ -5788,6 +5868,12 @@ function ac_zoom_reset(gobj, event, kw, src)
 function ac_auto_fit(gobj, event, kw, src)
 {
     graph_fitview(gobj);
+    return 0;
+}
+
+function ac_focus_topic(gobj, event, kw, src)
+{
+    graph_focus_topic(gobj, kw && kw.topic);
     return 0;
 }
 
@@ -6153,6 +6239,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_OUT",                 ac_zoom_out,            null],
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
             ["EV_AUTO_FIT",                 ac_auto_fit,            null],
+            ["EV_FOCUS_TOPIC",              ac_focus_topic,         null],
             ["EV_CENTER",                   ac_center,              null],
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_SET_LAYOUT",               ac_set_layout,          null],
@@ -6195,6 +6282,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_OUT",                 0],
         ["EV_ZOOM_RESET",               0],
         ["EV_AUTO_FIT",                 0],
+        ["EV_FOCUS_TOPIC",              0],
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],

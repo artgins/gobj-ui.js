@@ -1947,6 +1947,26 @@ function ac_set_operation_mode(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Focus the graph on a topic (a topic card's graph icon, or a
+ *  `.../graphs/db/<sel>/<topic>` deep link): forward it to the G6
+ *  tree, which centres + highlights that topic's nodes (deferring
+ *  until its data is loaded).
+ ************************************************************/
+function ac_set_focus_topic(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(
+            priv.gobj_nodes_tree,
+            "EV_FOCUS_TOPIC",
+            {topic: kw && kw.topic},
+            gobj
+        );
+    }
+    return 0;
+}
+
+/************************************************************
  *  Parent (routing) inform us that we go showing
  *
  *      {
@@ -2039,6 +2059,7 @@ function create_gclass(gclass_name)
             ["EV_CLOSE_WINDOW",             ac_close_window,            null],
             ["EV_SET_LAYOUT",               ac_set_layout,              null],
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
+            ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
             ["EV_RESIZE",                   ac_resize,                  null],
@@ -2073,6 +2094,7 @@ function create_gclass(gclass_name)
         ["EV_CLOSE_WINDOW",             0],
         ["EV_SET_LAYOUT",               0],
         ["EV_SET_OPERATION_MODE",       0],
+        ["EV_SET_FOCUS_TOPIC",          0],
         ["EV_OPERATION_MODE_CHANGED",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_SHOW",                     0],

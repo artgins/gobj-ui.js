@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(treedb): graph focuses a topic; info panel shows topic metadata.**
+  The topic card's **graph** icon now deep-links to `#/graphs/db/<sel>/<topic>`:
+  `C_YUI_TREEDB_GRAPH` forwards the segment (`EV_SET_FOCUS_TOPIC`) to
+  `C_G6_NODES_TREE`, which highlights every node of that topic (a new amber
+  `active` node state) and centres the viewport on them (`focusElement`),
+  deferring until the graph data has loaded (F5-safe). The graph's URL segment
+  is now the focus topic; the operation mode is no longer routed (it stays a
+  persisted UI control). The routed **info panel** now leads with topic
+  **metadata** — version (emphasised), system flag, pkey, tkey — above the
+  columns table.
+
 - **feat(treedb): topic cards gain 3 hash-routed actions + a routed info panel.**
   Building on the cards landing, each topic card can now carry three real
   `<a href="#…">` icon actions — **info / table / graph** — via the new

@@ -723,6 +723,39 @@ function build_topic_info_panel(gobj, $info, topic, desc)
     }
 
     let pkey = desc.pkey || "";
+
+    /*  Topic metadata (version matters to the operator): version /
+     *  system / pkey / tkey. Each row is shown only when its value is
+     *  present; the version is emphasised as a tag. */
+    let fmt_flag = (v) => {
+        if(is_array(v)) {
+            return v.join(", ");
+        }
+        if(is_object(v)) {
+            return Object.keys(v).join(", ");
+        }
+        return (v === undefined || v === null) ? "" : String(v);
+    };
+    let $meta = [];
+    let push_meta = (key, value, highlight) => {
+        if(value === undefined || value === null || value === "") {
+            return;
+        }
+        let $val = highlight
+            ? ["span", {class: "tag is-info"}, `${value}`]
+            : ["code", {}, `${value}`];
+        $meta.push(
+            ["tr", {}, [
+                ["th", {i18n: key, style: "width:11rem;"}, key],
+                ["td", {}, [$val]]
+            ]]
+        );
+    };
+    push_meta("version", desc.topic_version, true);
+    push_meta("system", fmt_flag(desc.system_flag));
+    push_meta("pkey", pkey);
+    push_meta("tkey", desc.tkey);
+
     let $rows = [];
     let cols = is_array(desc.cols) ? desc.cols : [];
     for(let col of cols) {
@@ -755,11 +788,10 @@ function build_topic_info_panel(gobj, $info, topic, desc)
                     ["span", {i18n: `${topic}`}, `${topic}`]
                 ]]
             ]],
-            ["p", {class: "TREEDB_TOPIC_INFO_PKEY is-size-7 mb-3"}, [
-                ["span", {i18n: "pkey"}, "pkey"],
-                ["span", {}, `: `],
-                ["code", {}, `${pkey}`]
+            ["table", {class: "table is-narrow TREEDB_TOPIC_INFO_META mb-4"}, [
+                ["tbody", {}, $meta]
             ]],
+            ["h4", {class: "title is-6 mb-2", i18n: "columns"}, "columns"],
             ["table", {class: "table is-fullwidth is-striped is-narrow"}, [
                 ["thead", {}, [
                     ["tr", {}, [
