@@ -240,19 +240,32 @@ function make_toolbar(gobj)
                       style: 'font-weight:600;', 'data-i18n': title}, title]
         );
     }
+    /*  Search box: the magnifier and the clear (×) live INSIDE the field
+     *  (Bulma has-icons-left / has-icons-right). The × is hidden while the box
+     *  is empty (toggled in ac_search) and fires EV_CLEAR_SEARCH through the
+     *  FSM, so it only offers itself when there is something to clear.  */
     left_items.push(
-        ['input', {class: 'JSON_SEARCH input', type: 'search',
-                   style: 'max-width:22em;', placeholder: t("search")}, [], {
-            input: function(evt) {
-                gobj_send_event(gobj, "EV_SEARCH", {text: evt.target.value}, gobj);
-            }
-        }]
-    );
-    /*  Clear the search box. Hidden while it is empty (toggled in ac_search),
-     *  so it only offers itself when there is something to clear.  */
-    left_items.push(
-        icon_button(gobj, "yi-xmark", "EV_CLEAR_SEARCH", "clear search",
-            "JSON_SEARCH_CLEAR is-hidden")
+        ['div', {class: 'control has-icons-left has-icons-right',
+                 style: 'max-width:22em;'}, [
+            ['input', {class: 'JSON_SEARCH input', type: 'text',
+                       placeholder: t("search")}, [], {
+                input: function(evt) {
+                    gobj_send_event(gobj, "EV_SEARCH", {text: evt.target.value}, gobj);
+                }
+            }],
+            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]],
+            ['span', {class: 'JSON_SEARCH_CLEAR icon is-right is-hidden',
+                      style: 'cursor:pointer; pointer-events:all;',
+                      title: t("clear search"), 'data-i18n-title': 'clear search',
+                      'aria-label': t("clear search"),
+                      'data-i18n-aria-label': 'clear search'},
+                [['i', {class: 'yi-xmark'}]], {
+                click: function(evt) {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_CLEAR_SEARCH", {}, gobj);
+                }
+            }]
+        ]]
     );
 
     let right_items = [
@@ -276,10 +289,9 @@ function make_toolbar(gobj)
 /************************************************************
  *   A single icon toolbar button that fires `event_name`
  ************************************************************/
-function icon_button(gobj, icon, event_name, label_key, extra_class="")
+function icon_button(gobj, icon, event_name, label_key)
 {
-    return ['button', {class: `button ${event_name} ${extra_class}`.trim(),
-                       style: 'width:2.5em;',
+    return ['button', {class: `button ${event_name}`, style: 'width:2.5em;',
                        title: t(label_key), 'data-i18n-title': label_key,
                        'aria-label': t(label_key), 'data-i18n-aria-label': label_key}, [
         ['span', {class: 'icon'}, [['i', {class: icon}]]]

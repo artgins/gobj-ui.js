@@ -7,13 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
-- **feat(json viewer): clear button on the search box.** `C_YUI_JSON`'s toolbar
-  search now has a `yi-xmark` clear button (`JSON_SEARCH_CLEAR`) next to the
-  field. It fires `EV_CLEAR_SEARCH`, which empties the box, refocuses it and
-  re-renders the tree; it is hidden while the box is empty (toggled from
-  `ac_search`), so it only appears when there is something to clear. Reliable
-  across browsers where the native `type=search` clear affordance is
-  inconsistent. Reuses the existing `clear search` i18n key.
+- **feat(json viewer): clear (×) inside the search box.** `C_YUI_JSON`'s toolbar
+  search now uses the Bulma `has-icons-left`/`has-icons-right` idiom: a
+  magnifier on the left and a `yi-xmark` clear icon (`JSON_SEARCH_CLEAR`) inside
+  the field on the right (same look as the treedb table search). Clicking it
+  fires `EV_CLEAR_SEARCH`, which empties the box, refocuses it and re-renders
+  the tree; the × is hidden while the box is empty (toggled from `ac_search`),
+  so it only appears when there is something to clear. Reuses the existing
+  `clear search` i18n key.
 
 - **fix(toolbar): stop leaking a ResizeObserver per `yui_toolbar`, and make the
   scroll arrows reliable.** The horizontal toolbar observed `document.body` for
