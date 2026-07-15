@@ -7,6 +7,24 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(toolbar): stop leaking a ResizeObserver per `yui_toolbar`, and make the
+  scroll arrows reliable.** The horizontal toolbar observed `document.body` for
+  resizes; because `<body>` lives for the whole page, the observer's callback
+  pinned the toolbar's container (and its detached subtree) in memory for the
+  page lifetime — one leaked observer per toolbar ever built. It now observes
+  its own container, which is garbage-collected with the subtree and
+  self-`disconnect()`s once detached. This also fixes the arrows frequently
+  never appearing: inserting the toolbar changes `<body>` content but not its
+  size, so the body observer often never fired; observing the container
+  delivers an initial callback on layout and fires on width changes. Other
+  toolbar polish: scroll step is now ~80% of the visible width (was a barely
+  perceptible 20px), the arrows use the repo `yi-chevron-*` icon set (colored
+  via `currentColor`, theme-aware) instead of a raw inline SVG with a hardcoded
+  fill, hidden arrows toggle `display:''`/`none` so the CSS flex-centering
+  reasserts, and the buttons gain `type="button"` + translatable
+  `title`/`aria-label`. No API change (`yui_toolbar(attrs, items)`, CSS classes
+  and export are unchanged; the caller's `attrs` object is no longer mutated).
+
 - **feat(shell): browser Back closes modals and floating windows.** Overlays
   now integrate with browser history. Opening a shell modal
   (`yui_shell_show_modal`), a confirm dialog (`yui_shell_confirm_*`) or a

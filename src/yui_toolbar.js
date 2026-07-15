@@ -1,12 +1,14 @@
 /*
- *  A toolbar with scroll (hidden) horizontal
+ *  A horizontal toolbar with a hidden scrollbar and auto-appearing
+ *  left/right scroll arrows.
  *
  *  Using Bulma Framework (https://bulma.io)
  *
- *  attrs: attributes to <div> of yui-horizontal-toolbar
- *  items: [[createElement2() or parameters of createElement2]]
+ *  attrs: attributes for the outer <div> of yui-horizontal-toolbar
+ *         (the caller's object is not mutated).
+ *  items: [[createElement2() output or parameters of createElement2]]
  */
-/* global ResizeObserver, window, document */
+/* global ResizeObserver */
 
 import {
     createElement2, debounce
@@ -16,68 +18,100 @@ import "./yui_toolbar.css"; // Must be in index.js ?
 
 function yui_toolbar(attrs={}, items = [])
 {
-    const left_button = `
-        <span class="has-text-primary is-flex"><svg viewBox="0 0 320 512" style="fill:var(--bulma-link)"><path class="fa-secondary" opacity="1" d="M41.4 278.6c-12.5-12.5-12.5-32.8 0-45.3l160-160c12.5-12.5 32.8-12.5 45.3 0s12.5 32.8 0 45.3L109.3 256 246.6 393.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0l-160-160z"/><path class="fa-primary" d=""/></svg></span>
-    `;
-    const right_button = `
-        <span class="has-text-primary is-flex"><svg viewBox="0 0 320 512" style="fill:var(--bulma-link)"><path class="fa-secondary" opacity="1" d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/><path class="fa-primary" d=""/></svg></span>
-    `;
+    /*
+     *  Scroll arrow buttons: use the repo icon set (yi-chevron-*), colored
+     *  via currentColor so both themes work; never a hardcoded fill.
+     */
+    function arrow_button(side, icon, label)
+    {
+        return ['button',
+            {
+                class: `yui-horizontal-toolbar-scroll-btn ${side} has-text-link`,
+                type: 'button',
+                title: label,
+                'aria-label': label,
+                'data-i18n-title': label,
+                'data-i18n-aria-label': label
+            },
+            [['span', {class: 'icon'}, [['i', {class: icon}]]]],
+            {
+                click: side === 'left' ? cb_left_arrow : cb_right_arrow
+            }
+        ];
+    }
+
+    /*
+     *  Don't mutate the caller's attrs object.
+     */
+    const div_attrs = {...attrs};
+    div_attrs.class = div_attrs.class ?
+        `yui-horizontal-toolbar ${div_attrs.class}` : 'yui-horizontal-toolbar';
 
     // Create the toolbar container
-    attrs.class = attrs.class?`yui-horizontal-toolbar ${attrs.class}`:'yui-horizontal-toolbar';
-    let $toolbar = createElement2(['div', attrs, [
-        ['button', { class: 'yui-horizontal-toolbar-scroll-btn left' },
-            left_button, //'<',
-            {
-                click: cb_left_arrow
-            }
-        ],
-        ['div', { class: 'yui-horizontal-toolbar-container' }, items],
-        ['button', { class: 'yui-horizontal-toolbar-scroll-btn right' },
-            right_button, //'>',
-            {
-                click: cb_right_arrow
-            }
-        ]
+    let $toolbar = createElement2(['div', div_attrs, [
+        arrow_button('left',  'yi-chevron-left',  'scroll left'),
+        ['div', {class: 'yui-horizontal-toolbar-container'}, items],
+        arrow_button('right', 'yi-chevron-right', 'scroll right')
     ]]);
 
-    let $container =$toolbar.querySelector('.yui-horizontal-toolbar-container');
-    let $leftButton =$toolbar.querySelector('.yui-horizontal-toolbar-scroll-btn.left');
-    let $rightButton =$toolbar.querySelector('.yui-horizontal-toolbar-scroll-btn.right');
+    let $container = $toolbar.querySelector('.yui-horizontal-toolbar-container');
+    let $leftButton = $toolbar.querySelector('.yui-horizontal-toolbar-scroll-btn.left');
+    let $rightButton = $toolbar.querySelector('.yui-horizontal-toolbar-scroll-btn.right');
 
+    /*
+     *  Scroll by most of the visible width so a click makes a real jump,
+     *  with a sane floor when the toolbar is very narrow.
+     */
+    function scroll_step() {
+        return Math.max(80, Math.round($container.clientWidth * 0.8));
+    }
     function cb_left_arrow(evt) {
         evt.stopPropagation();
-        $container.scrollBy({ left: -20, behavior: 'smooth' });
+        $container.scrollBy({left: -scroll_step(), behavior: 'smooth'});
     }
     function cb_right_arrow(evt) {
         evt.stopPropagation();
-        $container.scrollBy({ left: 20, behavior: 'smooth' });
+        $container.scrollBy({left: scroll_step(), behavior: 'smooth'});
     }
 
-    function updateScrollButtons(evt) {
-        // window.console.log(evt);
-        const isScrollable = $container.scrollWidth > $container.clientWidth;
-        const atStart = $container.scrollLeft <= 0;
-        const atEnd = $container.scrollLeft >= $container.scrollWidth - $container.clientWidth;
-        $leftButton.style.display = isScrollable && !atStart ? 'block' : 'none';
-        $rightButton.style.display = isScrollable && !atEnd ? 'block' : 'none';
+    function updateScrollButtons() {
+        /*
+         *  Once detached from the DOM, stop observing so the toolbar subtree
+         *  can be garbage collected (the observer's only tie is $container).
+         */
+        if(!$container.isConnected) {
+            observer.disconnect();
+            debouncedResize.cancel();
+            return;
+        }
+        const tolerance = 1; /* sub-pixel rounding of scrollLeft */
+        const isScrollable = $container.scrollWidth > $container.clientWidth + tolerance;
+        const atStart = $container.scrollLeft <= tolerance;
+        const atEnd = $container.scrollLeft >=
+            $container.scrollWidth - $container.clientWidth - tolerance;
+        /*
+         *  Empty string (not 'none'/'block') lets the CSS `display:flex`
+         *  reassert and keep the arrow centered.
+         */
+        $leftButton.style.display = isScrollable && !atStart ? '' : 'none';
+        $rightButton.style.display = isScrollable && !atEnd ? '' : 'none';
     }
 
     $container.addEventListener('scroll', updateScrollButtons);
 
+    /*
+     *  Observe the container itself (NOT document.body): it delivers an
+     *  initial callback once the toolbar is laid out and fires whenever the
+     *  available width changes, and it does not pin the subtree to the
+     *  page-lifetime <body>.
+     */
     const debouncedResize = debounce(updateScrollButtons, 300);
     const observer = new ResizeObserver(() => {
         debouncedResize();
     });
-    observer.observe(document.body);
+    observer.observe($container);
 
     updateScrollButtons();
-
-
-    // window.addEventListener('resize', updateScrollButtons);
-    // window.addEventListener('pageshow', updateScrollButtons);
-    //
-    // updateScrollButtons();
 
     return $toolbar;
 }
