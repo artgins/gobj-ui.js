@@ -56,7 +56,7 @@ import TomSelect from "tom-select"; // Import Tom-Select JS
 import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "./c_yui_form.css";
-import {attach_clear} from "./yui_inputs.js";
+import {attach_clear, refresh_clear} from "./yui_inputs.js";
 import "./tabulator.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
@@ -836,6 +836,10 @@ function apply_form_mode(gobj, $form)
         $input.setAttribute("readonly", "readonly");
         $input.removeAttribute("required");
     }
+    /*  The pkey's editability just changed but no `input` fired — resync its
+     *  clear (✕): shown now that "create" made it editable, hidden in
+     *  "update". */
+    refresh_clear($input);
 }
 
 /******************************************************************
@@ -1090,8 +1094,9 @@ function create_form_field(
     switch (tag) {
         case 'input':
         {
+            let is_pkey = (name === gobj_read_str_attr(gobj, "pkey"));
             let attrs = {
-                class: `input ${name===gobj_read_str_attr(gobj, "pkey")?'with-focus':''}`,
+                class: `input ${is_pkey?'with-focus':''}`,
                 name: name,
                 type: inputType,
                 placeholder: placeholder
@@ -1131,10 +1136,13 @@ function create_form_field(
             $extend = createElement2(extend);
             $control.appendChild($extend);
             /*  NORM: every editable free-text field carries the clear (✕).
-             *  Skip readonly fields and the non-text pickers (color swatch,
-             *  datetime-local) where an emptied value makes no sense. The
-             *  synthetic `input` it dispatches re-fires EV_RECORD_CHANGED. */
-            if(!readonly && inputType !== 'color' && inputType !== 'datetime-local') {
+             *  Skip the non-text pickers (color swatch, datetime-local) where
+             *  an emptied value makes no sense. The pkey is built `readonly`
+             *  from the schema but apply_form_mode() makes it editable in
+             *  "create" mode — attach the clear anyway (it self-hides while
+             *  readonly). The synthetic `input` re-fires EV_RECORD_CHANGED. */
+            if(inputType !== 'color' && inputType !== 'datetime-local' &&
+                    (!readonly || is_pkey)) {
                 attach_clear($control, $extend);
             }
             break;
@@ -2282,6 +2290,9 @@ function set_form_values(gobj, template, $form, record)
                 );
                 break;
         }
+        /*  Values were set programmatically (no `input` event) — resync the
+         *  field's clear (✕) so a loaded value shows it right away. */
+        refresh_clear($input);
     });
 
     return modified;

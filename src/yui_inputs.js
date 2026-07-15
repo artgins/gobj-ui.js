@@ -29,6 +29,16 @@ import i18next from "i18next";
 
 
 /***************************************************************
+ *  The ✕ shows only when there is something to clear AND the field
+ *  can actually be edited — a readonly/disabled input (e.g. the pkey
+ *  in "update" mode) must not offer it.
+ ***************************************************************/
+function clear_visible($input)
+{
+    return !!$input.value && !$input.readOnly && !$input.disabled;
+}
+
+/***************************************************************
  *  Add a clear (✕) button to a Bulma control wrapping an input.
  *  Returns the button element (already appended to $control).
  ***************************************************************/
@@ -54,11 +64,14 @@ function attach_clear($control, $input, on_clear)
 
     function sync()
     {
-        $btn.classList.toggle("is-visible", !!$input.value);
+        $btn.classList.toggle("is-visible", clear_visible($input));
     }
 
     $input.addEventListener("input", sync);
     $btn.addEventListener("click", () => {
+        if($input.readOnly || $input.disabled) {
+            return;
+        }
         $input.value = "";
         $input.dispatchEvent(new Event("input", {bubbles: true}));
         if(typeof on_clear === "function") {
@@ -73,4 +86,26 @@ function attach_clear($control, $input, on_clear)
     return $btn;
 }
 
-export {attach_clear};
+/***************************************************************
+ *  Re-evaluate a clear (✕) after a PROGRAMMATIC change to its input
+ *  — a value loaded into the form, or `readonly` toggled by the form
+ *  mode — neither of which fires an `input` event. No-op on inputs
+ *  that never got a clear.
+ ***************************************************************/
+function refresh_clear($input)
+{
+    if(!$input) {
+        return;
+    }
+    let $control = $input.closest(".control.has-clear");
+    if(!$control) {
+        return;
+    }
+    let $btn = $control.querySelector(".yui-input-clear");
+    if(!$btn) {
+        return;
+    }
+    $btn.classList.toggle("is-visible", clear_visible($input));
+}
+
+export {attach_clear, refresh_clear};

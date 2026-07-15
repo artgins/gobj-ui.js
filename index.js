@@ -98,7 +98,7 @@ export { addClasses, removeClasses, toggleClasses, removeChildElements, disableE
 export { inject_svg_icons } from "./src/lib_icons.js";
 export { EditControl, MarkerControl } from "./src/lib_maplibre.js";
 export { yui_toolbar } from "./src/yui_toolbar.js";
-export { attach_clear } from "./src/yui_inputs.js";
+export { attach_clear, refresh_clear } from "./src/yui_inputs.js";
 export { info_traffic, setup_dev, build_dev_panel, apply_dev_traces, dev_window_was_open } from "./src/yui_dev.js";
 
 /*

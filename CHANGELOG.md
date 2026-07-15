@@ -28,7 +28,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   the synthetic `input` re-fires `EV_SEARCH`), the `C_YUI_TREEDB_TOPIC_WITH_FORM`
   table search, and `C_YUI_FORM`'s geolocation field (which now also correctly
   re-fires `EV_RECORD_CHANGED` on clear — previously it left the record model
-  stale).
+  stale). The ✕ now hides itself while an input is `readonly`/`disabled`, and a
+  new `refresh_clear($input)` re-evaluates it after a **programmatic** change
+  (value loaded, `readonly` toggled). This fixes the pkey (`id`) field: it is
+  built `readonly` from the schema but `apply_form_mode` makes it editable in
+  "create" mode, so it now gets the ✕ there (and stays without one in "update",
+  where it is readonly); loaded values also show the ✕ immediately instead of
+  only after an edit.
 
 - **feat(shell modal): `before_close` guard on `yui_shell_show_modal`.** A new
   optional `opts.before_close` is consulted on every user-driven dismiss
