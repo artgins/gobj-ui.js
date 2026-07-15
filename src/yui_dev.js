@@ -16,8 +16,8 @@ import {
     gobj_create_service,
     gobj_find_service,
     set_log_callback,
+    set_console_log_enabled,
     gobj_set_trace_machine_format,
-    trace_json,
 } from "@yuneta/gobj-js";
 
 import i18next from 'i18next';
@@ -161,6 +161,41 @@ function dev_hide_periodic()
     return dev_num("dev_hide_periodic", 0) ? true : false;
 }
 
+/*  Where dev output (traffic + all logs + automata) is routed:
+ *  "window"  → dev window only  (browser console silenced framework-wide)
+ *  "console" → browser console only  (nothing appended to the window)
+ *  "both"    → console + window  (default; unchanged from prior behaviour)
+ *  The console side of logs is gated in gobj-js (set_console_log_enabled);
+ *  the window side is gated here, in info_traffic / info_log. */
+function dev_route()
+{
+    let v = kw_get_local_storage_value("dev_output_route", "both", false);
+    return (v === "window" || v === "console") ? v : "both";
+}
+
+/*  Push the current route's console decision down to gobj-js. Called from
+ *  apply_dev_traces (startup) and whenever the Output selector changes. */
+function apply_console_route()
+{
+    set_console_log_enabled(dev_route() !== "window");
+}
+
+/*  Emit one inter-event traffic line to the browser console (routes
+ *  "console" and "both"). gobj-js only knows about framework logs, not this
+ *  traffic feed, so the console mirror is produced here. */
+function console_traffic(title, jn, direction, size)
+{
+    let event = (jn && jn.event) ? String(jn.event) : "(no event)";
+    let kw = (jn && jn.kw && typeof jn.kw === "object") ? jn.kw : jn;
+    let color = (direction === 2) ? "#16a34a" : (direction === 3) ? "#dc2626" : "#2563eb";
+    window.console.log(
+        "%c" + dir_arrow(direction) + " " + (title ? "[" + title + "] " : "") + event +
+            (size ? "  (" + size + "b)" : ""),
+        "color:" + color,
+        kw
+    );
+}
+
 function dev_muted()
 {
     let a = kw_get_local_storage_value("dev_muted_events", [], false);
@@ -178,6 +213,17 @@ function dev_set_muted(set)
 function set_view(v)
 {
     kw_set_local_storage_value("dev_view_mode", v);
+    rerender_all();
+    refresh_dev_chrome();
+}
+
+function set_output_route(v)
+{
+    if(v !== "window" && v !== "console" && v !== "both") {
+        v = "both";
+    }
+    kw_set_local_storage_value("dev_output_route", v);
+    apply_console_route();
     rerender_all();
     refresh_dev_chrome();
 }
@@ -834,12 +880,6 @@ function append_and_follow(logger, node)
  ************************************************************/
 function info_traffic(title, msg, direction, size)
 {
-    let logger = document.getElementById('developer-traffic-logger');
-    if(!logger) {
-        trace_json(msg);
-        return;
-    }
-
     if(!size) {
         size = 0;
     }
@@ -848,6 +888,21 @@ function info_traffic(title, msg, direction, size)
     try {
         jn = is_string(msg) ? JSON.parse(msg) : JSON.parse(JSON.stringify(msg));
     } catch(e) {
+        return;
+    }
+
+    let route = dev_route();
+
+    /*  Console side (routes "console" / "both"). */
+    if(route !== "window") {
+        console_traffic(title, jn, direction, size);
+    }
+
+    /*  Window side: skip when routed to the console only, or when the window
+     *  is not mounted (closed). No fallback console dump — console_traffic
+     *  above already covered every route that wants console output. */
+    let logger = document.getElementById('developer-traffic-logger');
+    if(!logger || route === "console") {
         return;
     }
 
@@ -921,6 +976,11 @@ let __in_info_log__ = false;
 function info_log(level, msg, hora)
 {
     if(__in_info_log__) {
+        return;
+    }
+    /*  Routed to the console only: the line already reached the browser
+     *  console (gobj-js gate left on), so don't mirror it into the window. */
+    if(dev_route() === "console") {
         return;
     }
     let logger = document.getElementById('developer-traffic-logger');
@@ -1084,6 +1144,11 @@ function refresh_dev_chrome()
         $b.classList.toggle('is-active', $b.getAttribute('data-view') === view);
     });
 
+    let route = dev_route();
+    document.querySelectorAll('.YDEV_SEG_BTN[data-output]').forEach(($b) => {
+        $b.classList.toggle('is-active', $b.getAttribute('data-output') === route);
+    });
+
     /*  The Expand section toggles only apply to the Expanded view — show
      *  the group only there, and reflect each toggle's persisted state. */
     let $eg = document.getElementById('ydev-expand-grp');
@@ -1236,6 +1301,27 @@ function build_control_bar()
         mk_view('name', 'Name only'),
     ]];
 
+    /*  Output routing: send traffic + all logs + automata to the dev window,
+     *  the browser console, or both. */
+    let OUT_TITLES = {
+        window:  'Dev window only (browser console stays clean)',
+        console: 'Browser console only (nothing shown in this window)',
+        both:    'Dev window and browser console',
+    };
+    let mk_out = (v, label) => ['button', {
+        class: 'YDEV_SEG_BTN', 'data-output': v, type: 'button', title: OUT_TITLES[v],
+    }, label, {
+        click: (ev) => {
+            ev.stopPropagation();
+            set_output_route(v);
+        }
+    }];
+    let output_seg = ['div', {class: 'YDEV_SEG', id: 'ydev-output'}, [
+        mk_out('window', 'Window'),
+        mk_out('console', 'Console'),
+        mk_out('both', 'Both'),
+    ]];
+
     /*  Expanded-view section toggles (only meaningful in the 'full' view;
      *  the group is shown/hidden by refresh_dev_chrome). */
     let mk_expand = (key, label) => ['button', {
@@ -1312,6 +1398,7 @@ function build_control_bar()
 
     return createElement2(['div', {class: 'YDEV_BAR'}, [
         grp('Traces', [...trace_chips, simple_mach]), sep(),
+        grp('Output', [output_seg]), sep(),
         grp('View', [view_seg]), expand_grp, sep(),
         grp('Show', [...dir_chips, periodic_chip]), sep(),
         grp('Find', [search]), sep(),
@@ -1393,6 +1480,10 @@ function apply_dev_traces()
      *  automata FSM trace arrives as debug) into the monitor. info_log no-ops
      *  while the window is closed, so this is safe to leave armed. */
     set_log_callback(info_log);
+
+    /*  Honour the persisted Window / Console / Both routing at startup so a
+     *  refresh keeps the console silenced when "Window only" was chosen. */
+    apply_console_route();
 }
 
 /************************************************************

@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(dev window): "Output" selector — Window / Console / Both.** The
+  developer monitor can now route all its output (inter-event traffic + every
+  framework log + the automata/FSM trace) to the dev window only, the browser
+  console only, or both (default, unchanged). Persisted in `localStorage`
+  (`dev_output_route`) and honoured across refreshes. "Window only" silences
+  the browser console via gobj-js's new `set_console_log_enabled`; "Console
+  only" stops mirroring into the window; traffic gains a clean one-line console
+  form. Note: "Window only" gates the console framework-wide, so with the
+  window closed nothing reaches the console — that is the literal meaning of
+  the choice (default is Both).
+
 - **feat(C_YUI_JSON): lazy JSON tree viewer for large tranger/treedb dumps.** A
   container-agnostic component (`register_c_yui_json`) that renders arbitrarily
   large JSON via server-driven lazy expansion: it understands the kernel's
