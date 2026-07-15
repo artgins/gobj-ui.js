@@ -47,7 +47,12 @@ import {
     log_warning,
     gclass_find_by_name,
     clean_name,
+    is_object,
+    is_array,
+    empty_string,
 } from "@yuneta/gobj-js";
+
+import "./c_yui_treedb_topics.css";
 
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {yui_shell_of} from "./c_yui_shell.js";
@@ -70,6 +75,7 @@ SDATA(data_type_t.DTP_JSON,     "descs",            0,  null,   "Description of 
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
 SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth", "Bulma tab styling"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_cards_landing",0, false,  "Land on a grid of topic cards (list->detail): a card opens its table, with the tabs bar + a back-to-grid button. Off = tabs only (legacy)."),
+SDATA(data_type_t.DTP_JSON,     "card_action_routes",0, null,   "Per-card hash-route templates {info, table, graph} with a {topic} placeholder (host-supplied, route-agnostic). Present ⇒ cards show 3 icon actions; absent ⇒ a single card that opens the table."),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Root HTML element, show/hide managed by external routing"),
 SDATA(data_type_t.DTP_POINTER,  "$current_item",    0,  null,   "Currently selected item"),
 SDATA(data_type_t.DTP_STRING,   "last_selection",   0,  null,   "Last href selection"),
@@ -82,6 +88,7 @@ let PRIVATE_DATA = {
     gobj_remote_yuno:   null,
     descs:              null,
     _topics_subscribed: {},
+    _pending_info:      null,   /*  topic whose info panel to show once descs load  */
     json_gobj:          null,   /*  C_YUI_JSON raw-tranger viewer (or null)  */
     json_win:           null,   /*  C_YUI_WINDOW hosting it, desktop (or null)  */
     json_modal:         null,   /*  shell modal hosting it, mobile (or null)  */
@@ -271,7 +278,12 @@ function build_ui(gobj)
             ['div', {class: 'is-flex-grow-1 TREEDB_TOPICS_LANDING is-hidden',
                      style: 'min-height:0; overflow:auto;'}, [
                 ['div', {class: 'yui-nav-cards'}, []]
-            ]]
+            ]],
+            /*  Routed topic-info panel (the card's info icon / .../<topic>/info):
+             *  a read-only schema view built from the topic's desc. Hidden until
+             *  the info route is active. */
+            ['div', {class: 'is-flex-grow-1 TREEDB_TOPIC_INFO is-hidden',
+                     style: 'min-height:0; overflow:auto;'}, []]
         ]]
     );
     gobj_write_attr(gobj, "$container", $container);
@@ -477,9 +489,30 @@ function select_topic_by_id(gobj, id)
 }
 
 /************************************************************
+ *  One icon-action anchor of a topic card: a REAL hash link
+ *  (deep-linkable, middle-clickable) — the shell routes it on
+ *  hashchange, no JS click handler needed.
+ ************************************************************/
+function card_action_anchor(logical_class, icon, i18n_key, href)
+{
+    return ['a', {
+        class:                  logical_class,
+        href:                   href,
+        title:                  t(i18n_key),
+        'aria-label':           t(i18n_key),
+        'data-i18n-title':      i18n_key,
+        'data-i18n-aria-label': i18n_key
+    }, [
+        ['span', {class: 'icon'}, [['i', {class: icon, 'aria-hidden': 'true'}]]]
+    ]];
+}
+
+/************************************************************
  *  Add one topic card to the cards-landing grid (list->detail).
- *  Same id contract as the tab (`<gobj>?<topic>`); a click enters
- *  the topic exactly like clicking its tab.
+ *  With `card_action_routes` (host-supplied templates) the card
+ *  shows three hash-routed icons — info / table / graph. Without,
+ *  it falls back to a single card that opens the table (same id
+ *  contract as the tab, `<gobj>?<topic>`).
  ************************************************************/
 function add_topic_card(gobj, id, text, icon)
 {
@@ -488,19 +521,54 @@ function add_topic_card(gobj, id, text, icon)
     if(!$grid) {
         return;
     }
+
+    let routes = gobj_read_attr(gobj, "card_action_routes");
+    if(!is_object(routes)) {
+        /*  Legacy single-action card: the whole card opens the table. */
+        let $card = createElement2(
+            ['a', {class: 'yui-nav-item yui-nav-card TREEDB_TOPIC_CARD',
+                   href: '#', 'data-topic-href': id,
+                   'aria-label': text, 'data-i18n-aria-label': text}, [
+                ['span', {class: 'icon is-medium'}, [['i', {class: icon || 'yi-table',
+                    'aria-hidden': 'true'}]]],
+                ['span', {class: 'yui-nav-label', i18n: text}, text]
+            ]]
+        );
+        $card.addEventListener("click", function(ev) {
+            ev.preventDefault();
+            select_topic_by_id(gobj, id);
+        });
+        $grid.appendChild($card);
+        refresh_language($card, t);
+        return;
+    }
+
+    /*  Three-icon card: info / table / graph, all real hash anchors.
+     *  {topic} in each template is the raw topic name (identifier-safe,
+     *  matching the tab/host `<base_route>/<topic>` convention). */
+    let topic = id.indexOf("?") >= 0 ? id.split("?")[1] : id;
+    let fill = (tpl) => String(tpl || "").replace("{topic}", topic);
+
+    let actions = [];
+    if(routes.info) {
+        actions.push(card_action_anchor(
+            "TREEDB_CARD_INFO", "yi-circle-info", "info", fill(routes.info)));
+    }
+    if(routes.table) {
+        actions.push(card_action_anchor(
+            "TREEDB_CARD_TABLE", "yi-table", "table", fill(routes.table)));
+    }
+    if(routes.graph) {
+        actions.push(card_action_anchor(
+            "TREEDB_CARD_GRAPH", "yi-hexagon-nodes", "graph", fill(routes.graph)));
+    }
+
     let $card = createElement2(
-        ['a', {class: 'yui-nav-item yui-nav-card TREEDB_TOPIC_CARD',
-               href: '#', 'data-topic-href': id,
-               'aria-label': text, 'data-i18n-aria-label': text}, [
-            ['span', {class: 'icon is-medium'}, [['i', {class: icon || 'yi-table',
-                'aria-hidden': 'true'}]]],
-            ['span', {class: 'yui-nav-label', i18n: text}, text]
+        ['div', {class: 'TREEDB_TOPIC_CARD', 'data-topic': topic}, [
+            ['span', {class: 'TREEDB_TOPIC_CARD_NAME', i18n: text}, text],
+            ['div', {class: 'TREEDB_TOPIC_CARD_ACTIONS'}, actions]
         ]]
     );
-    $card.addEventListener("click", function(ev) {
-        ev.preventDefault();
-        select_topic_by_id(gobj, id);
-    });
     $grid.appendChild($card);
     refresh_language($card, t);
 }
@@ -519,12 +587,16 @@ function show_topics_landing(gobj)
     let $tabs = $container.querySelector(".tabs");
     let $sub = $container.querySelector(".sub-container");
     let $landing = $container.querySelector(".TREEDB_TOPICS_LANDING");
+    let $info = $container.querySelector(".TREEDB_TOPIC_INFO");
     let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
     if($tabs) {
         $tabs.classList.add("is-hidden");
     }
     if($sub) {
         $sub.classList.add("is-hidden");
+    }
+    if($info) {
+        $info.classList.add("is-hidden");
     }
     if($landing) {
         $landing.classList.remove("is-hidden");
@@ -563,9 +635,13 @@ function show_topic_detail(gobj)
     let $tabs = $container.querySelector(".tabs");
     let $sub = $container.querySelector(".sub-container");
     let $landing = $container.querySelector(".TREEDB_TOPICS_LANDING");
+    let $info = $container.querySelector(".TREEDB_TOPIC_INFO");
     let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
     if($landing) {
         $landing.classList.add("is-hidden");
+    }
+    if($info) {
+        $info.classList.add("is-hidden");
     }
     if($tabs) {
         $tabs.classList.remove("is-hidden");
@@ -576,6 +652,127 @@ function show_topic_detail(gobj)
     if($back) {
         $back.classList.remove("is-hidden");
     }
+}
+
+/************************************************************
+ *  Cards-landing mode: show the routed topic-info panel (the card's
+ *  info icon / .../<topic>/info) — a read-only schema view built from
+ *  the topic's desc. Hide the grid, tabs and table; show the back
+ *  button. If the schema has not arrived yet, remember the topic and
+ *  replay once descs load (deep-link / F5 on an info URL).
+ ************************************************************/
+function show_topic_info(gobj, topic)
+{
+    let priv = gobj.priv;
+    if(empty_string(topic)) {
+        show_topics_landing(gobj);
+        return;
+    }
+    let descs = gobj_read_attr(gobj, "descs");
+    if(!descs) {
+        priv._pending_info = topic;   /*  wait for the schema  */
+        return;
+    }
+    let desc = descs[topic];
+    if(!is_object(desc)) {
+        /*  Unknown topic (stale deep-link): fall back to the grid. */
+        log_error(`${gobj_short_name(gobj)}: info for unknown topic '${topic}'`);
+        show_topics_landing(gobj);
+        return;
+    }
+
+    let $container = gobj_read_attr(gobj, "$container");
+    let $info = $container && $container.querySelector(".TREEDB_TOPIC_INFO");
+    if(!$info) {
+        return;
+    }
+    build_topic_info_panel(gobj, $info, topic, desc);
+    refresh_language($info, t);
+
+    let $tabs = $container.querySelector(".tabs");
+    let $sub = $container.querySelector(".sub-container");
+    let $landing = $container.querySelector(".TREEDB_TOPICS_LANDING");
+    let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
+    if($landing) {
+        $landing.classList.add("is-hidden");
+    }
+    if($tabs) {
+        $tabs.classList.add("is-hidden");
+    }
+    if($sub) {
+        $sub.classList.add("is-hidden");
+    }
+    if($info) {
+        $info.classList.remove("is-hidden");
+    }
+    if($back) {
+        $back.classList.remove("is-hidden");
+    }
+}
+
+/************************************************************
+ *  Build the read-only topic-info panel from a topic desc: the
+ *  topic name, its pkey, and a table of columns (name / type /
+ *  key relationship). Everything is guarded — a malformed desc
+ *  renders a shorter panel, never throws.
+ ************************************************************/
+function build_topic_info_panel(gobj, $info, topic, desc)
+{
+    while($info.firstChild) {
+        $info.removeChild($info.firstChild);
+    }
+
+    let pkey = desc.pkey || "";
+    let $rows = [];
+    let cols = is_array(desc.cols) ? desc.cols : [];
+    for(let col of cols) {
+        if(!col || !col.id || col.id.charAt(0) === "_") {
+            continue;
+        }
+        let type = col.type || (is_array(col.flag) ? col.flag.join(", ") : (col.flag || ""));
+        let rel = "";
+        if(col.id === pkey) {
+            rel = "pkey";
+        } else if(is_object(col.fkey)) {
+            rel = "→ " + Object.keys(col.fkey).join(", ");
+        } else if(is_object(col.hook)) {
+            rel = "hook → " + Object.keys(col.hook).join(", ");
+        }
+        $rows.push(
+            ["tr", {}, [
+                ["td", {}, [["code", {}, `${col.id}`]]],
+                ["td", {}, `${type}`],
+                ["td", {}, `${rel}`]
+            ]]
+        );
+    }
+
+    let $panel = createElement2(
+        ["div", {class: "TREEDB_TOPIC_INFO_CARD content"}, [
+            ["h3", {class: "TREEDB_TOPIC_INFO_TITLE title is-5"}, [
+                ["span", {class: "icon-text"}, [
+                    ["span", {class: "icon"}, [["i", {class: "yi-circle-info"}]]],
+                    ["span", {i18n: `${topic}`}, `${topic}`]
+                ]]
+            ]],
+            ["p", {class: "TREEDB_TOPIC_INFO_PKEY is-size-7 mb-3"}, [
+                ["span", {i18n: "pkey"}, "pkey"],
+                ["span", {}, `: `],
+                ["code", {}, `${pkey}`]
+            ]],
+            ["table", {class: "table is-fullwidth is-striped is-narrow"}, [
+                ["thead", {}, [
+                    ["tr", {}, [
+                        ["th", {i18n: "column"}, "column"],
+                        ["th", {i18n: "type"}, "type"],
+                        ["th", {i18n: "key"}, "key"]
+                    ]]
+                ]],
+                ["tbody", {}, $rows]
+            ]]
+        ]]
+    );
+    $info.appendChild($panel);
 }
 
 /************************************************************
@@ -668,9 +865,13 @@ function process_treedb_descs(gobj)
     if(gobj_read_bool_attr(gobj, "with_cards_landing")) {
         /*  Cards-landing: the grid IS the entry point, so DON'T auto-restore
          *  the persisted topic — only honour an explicit deep-link (a host
-         *  EV_SHOW carrying a `?<topic>` arrived while descs were loading and
-         *  set last_selection). No topic in flight ⇒ land on the grid. */
-        if(href && href.indexOf("?") >= 0) {
+         *  EV_SHOW / EV_SHOW_TOPIC_INFO carrying a topic arrived while descs
+         *  were loading). No topic in flight ⇒ land on the grid. */
+        if(gobj.priv._pending_info) {
+            let ti = gobj.priv._pending_info;
+            gobj.priv._pending_info = null;
+            show_topic_info(gobj, ti);
+        } else if(href && href.indexOf("?") >= 0) {
             gobj_send_event(gobj, "EV_SHOW", {href: href}, gobj);
         } else {
             show_topics_landing(gobj);
@@ -1395,6 +1596,15 @@ function ac_show(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Show the routed topic-info panel (card info icon / .../<topic>/info).
+ ************************************************************/
+function ac_show_topic_info(gobj, event, kw, src)
+{
+    show_topic_info(gobj, kw && kw.topic);
+    return 0;
+}
+
+/************************************************************
  *  Back from a topic to the cards-landing grid (the section index).
  ************************************************************/
 function ac_back_to_topics(gobj, event, kw, src)
@@ -1708,6 +1918,7 @@ function create_gclass(gclass_name)
             ["EV_EXPAND_PATH",          ac_json_expand_path,        null],
             ["EV_JSON_CLOSED",          ac_json_closed,             null],
             ["EV_SHOW",                 ac_show,                    null],
+            ["EV_SHOW_TOPIC_INFO",      ac_show_topic_info,         null],
             ["EV_HIDE",                 ac_hide,                    null],
             ["EV_BACK_TO_TOPICS",       ac_back_to_topics,          null],
             ["EV_TRANSPORT_STATE",      ac_transport_state,         null],
@@ -1730,6 +1941,7 @@ function create_gclass(gclass_name)
         ["EV_EXPAND_PATH",          0],
         ["EV_JSON_CLOSED",          0],
         ["EV_SHOW",                 0],
+        ["EV_SHOW_TOPIC_INFO",      0],
         ["EV_HIDE",                 0],
         ["EV_BACK_TO_TOPICS",       0],
         ["EV_TRANSPORT_STATE",      0],

@@ -7,6 +7,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(treedb): topic cards gain 3 hash-routed actions + a routed info panel.**
+  Building on the cards landing, each topic card can now carry three real
+  `<a href="#…">` icon actions — **info / table / graph** — via the new
+  `card_action_routes` attr on `C_YUI_TREEDB_TOPICS` (host-supplied templates
+  with a `{topic}` placeholder, so the library stays route-agnostic). The
+  **info** action opens a routed, read-only **schema panel** (pkey + columns
+  with type and key relationship, from the topic `desc`); it is deep-linkable
+  (`EV_SHOW_TOPIC_INFO`, replayed once the schema loads on an F5). Absent the
+  attr, the card keeps its single "open the table" behaviour.
+
 - **feat(treedb): optional topic-cards landing (list → detail).**
   `C_YUI_TREEDB_TOPICS` gains `with_cards_landing` (default `false`, so existing
   consumers are unchanged). When on, entering the view shows a grid of topic
