@@ -7,6 +7,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(treedb): a "← topics" button in the graph view.** `C_YUI_TREEDB_GRAPH`
+  gains an optional `back_route` attr; when set (host-supplied), the toolbar
+  shows a real hash-link "← topics" button back to the topics grid — symmetric
+  with the topics view's own back button, for a graph reached from a topic
+  card's graph icon. Empty ⇒ no button (e.g. wattyzer).
+
 - **feat(treedb): graph focuses a topic; info panel shows topic metadata.**
   The topic card's **graph** icon now deep-links to `#/graphs/db/<sel>/<topic>`:
   `C_YUI_TREEDB_GRAPH` forwards the segment (`EV_SET_FOCUS_TOPIC`) to

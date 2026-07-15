@@ -114,6 +114,7 @@ SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to 
 SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote service treedb name"),
 SDATA(data_type_t.DTP_DICT,     "descs",            0,  null,   "Descriptions of topics obtained"),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
+SDATA(data_type_t.DTP_STRING,   "back_route",       0,  "",     "Optional hash route for a '← topics' button back to the topics grid (host-supplied; empty = no button)"),
 SDATA(data_type_t.DTP_DICT,     "records",          0,  "{}",   "Data of topics"),
 SDATA(data_type_t.DTP_LIST,     "topics",           0,  "[]",   "List of topic objects"),
 
@@ -483,6 +484,23 @@ function make_toolbar(gobj)
             }
         }],
     ];
+
+    /*  "← Topics": a real hash link back to the topics grid (host-supplied
+     *  route), shown only when set. Lets a graph reached from a topic card's
+     *  graph icon return to the cards landing — symmetric with the topics
+     *  view's own back button. Absent (e.g. wattyzer) ⇒ no button. */
+    let back_route = gobj_read_attr(gobj, "back_route") || "";
+    if(back_route) {
+        left_items.unshift(
+            ['a', {class: 'button GRAPH_BACK_TOPICS mr-2', href: back_route,
+                   title: t('topics'), 'aria-label': t('topics'),
+                   'data-i18n-title': 'topics', 'data-i18n-aria-label': 'topics'}, [
+                ['span', {class: 'icon'}, [['i', {class: 'yi-arrow-left'}]]],
+                ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;',
+                          i18n: 'topics'}, 'topics']
+            ]]
+        );
+    }
 
     /*
      *  Center, common controls
