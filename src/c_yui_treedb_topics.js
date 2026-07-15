@@ -842,6 +842,18 @@ function open_json_viewer(gobj, mode, topic)
         yui_shell_show_error(yui_shell_of(gobj), "select a topic first", {t: t});
         return;
     }
+    /*  jtree only means something for a hierarchical topic (one with a
+     *  self-referent hook). For a flat topic there is no tree to draw and the
+     *  backend would answer "What hook?" — say so plainly and don't open an
+     *  empty viewer. */
+    if(mode === "jtree") {
+        let descs = gobj_read_attr(gobj, "descs") || {};
+        if(!self_hook_of(descs[topic], topic)) {
+            yui_shell_show_error(yui_shell_of(gobj),
+                `'${topic}' is not hierarchical (no self-referent hook)`, {t: t});
+            return;
+        }
+    }
     priv.json_mode = mode;
 
     /*  Already open: just switch the feed.  */
@@ -1023,6 +1035,36 @@ function request_print_tranger(gobj, path)
 }
 
 /************************************************************
+ *  The self-referent hook of a topic — the link that makes the topic a tree,
+ *  and the `hook` the backend `jtree` command needs. Returns the hook name, or
+ *  "" when the topic is not hierarchical.
+ *
+ *  In a topic descriptor (`desc.cols`, a list of column descriptors) a tree
+ *  shows up as an fkey column pointing back to the SAME topic:
+ *      col.fkey = { <parent_topic>: <hook_name> }
+ *  When the parent topic is this topic, <hook_name> is the hook to traverse.
+ *  (e.g. device_groups.group_parent: fkey {device_groups: "device_groups"}.)
+ ************************************************************/
+function self_hook_of(desc, topic)
+{
+    if(!desc || !Array.isArray(desc.cols) || !topic) {
+        return "";
+    }
+    for(let col of desc.cols) {
+        if(!col.fkey || typeof col.fkey !== "object") {
+            continue;
+        }
+        if(Object.prototype.hasOwnProperty.call(col.fkey, topic)) {
+            let hook = col.fkey[topic];
+            if(hook) {
+                return hook;
+            }
+        }
+    }
+    return "";
+}
+
+/************************************************************
  *  Fetch the logical tree of one topic (jtree, non-collapsed). The viewer
  *  renders it as a client-side collapsible tree (no server drill).
  ************************************************************/
@@ -1034,11 +1076,21 @@ function request_jtree(gobj, topic)
         log_error(`${gobj_short_name(gobj)}: No gobj_remote_yuno defined`);
         return;
     }
+    /*  jtree needs the topic's self-referent hook; without it the backend
+     *  answers "What hook?". open_json_viewer already guarded a non-tree
+     *  topic, so an empty hook here is a real error, not a user miss. */
+    let descs = gobj_read_attr(gobj, "descs") || {};
+    let hook = self_hook_of(descs[topic], topic);
+    if(!hook) {
+        log_error(`${gobj_short_name(gobj)}: topic '${topic}' has no self-referent hook`);
+        return;
+    }
     let ret = gobj_command(remote, "jtree",
         {
             service:     priv.treedb_name,
             treedb_name: priv.treedb_name,
-            topic_name:  topic
+            topic_name:  topic,
+            hook:        hook
         }, gobj);
     if(ret) {
         log_error(ret);

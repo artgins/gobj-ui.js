@@ -18,6 +18,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   window closed nothing reaches the console — that is the literal meaning of
   the choice (default is Both).
 
+- **fix(treedb Tree-JSON): derive and pass the topic's self-referent hook.**
+  The "Tree JSON" button (`C_YUI_TREEDB_TOPICS`) called the backend `jtree`
+  command with only `topic_name` and no `hook`, so every topic answered
+  *"What hook?"*. It now derives the topic's self-referent hook from its
+  schema (`descs`: an fkey column pointing back to the same topic) and passes
+  it. A flat topic has no such hook and no tree to draw — instead of firing a
+  doomed command and opening an empty viewer, it now shows a clear
+  *"'<topic>' is not hierarchical (no self-referent hook)"* and does nothing.
+
 - **fix(treedb JSON viewer): stop the C_YUI_JSON before destroying it.**
   Closing the Raw-JSON / Tree-JSON viewer (in `C_YUI_TREEDB_TOPICS` and
   `C_YUI_TREEDB_GRAPH`) destroyed the still-running viewer gobj directly, so
