@@ -269,11 +269,13 @@ export function yui_shell_show_modal(shell, content, opts)
     maybe_apply_translator($modal, opts);
 
     let closed = false;
-    let close_fn = null;
     let release_focus = null;
     let overlay = null;
+    let escape_handler = null;
 
-    let close = function() {
+    /*  Unconditional teardown. The returned close() maps here: a
+     *  programmatic close always closes, bypassing before_close. */
+    let do_close = function() {
         if(closed) {
             return;
         }
@@ -282,9 +284,9 @@ export function yui_shell_show_modal(shell, content, opts)
             release_focus();
             release_focus = null;
         }
-        if(close_fn) {
-            yui_shell_pop_escape(shell, close_fn);
-            close_fn = null;
+        if(escape_handler) {
+            yui_shell_pop_escape(shell, escape_handler);
+            escape_handler = null;
         }
         if($modal.parentNode) {
             $modal.parentNode.removeChild($modal);
@@ -300,12 +302,50 @@ export function yui_shell_show_modal(shell, content, opts)
             }
         }
     };
-    close_fn = close;
 
-    yui_shell_push_escape(shell, "modal", close);
+    /*  `opts.before_close`: a guard consulted on EVERY user-driven dismiss
+     *  (Escape, backdrop, the X / back-arrow, browser Back). Return false to
+     *  VETO — the modal stays up and the caller takes over (e.g. an
+     *  unsaved-changes prompt that calls close() itself on confirm). Return
+     *  true/undefined to let it close. Absent guard ⇒ always closes, so
+     *  existing callers are unaffected. */
+    let guarded_close = function(on_veto) {
+        if(closed) {
+            return;
+        }
+        let allow = true;
+        if(opts && typeof opts.before_close === "function") {
+            try {
+                allow = opts.before_close();
+            } catch(e) {
+                log_warning(`yui_shell_show_modal: before_close threw: ${e}`);
+                allow = true;
+            }
+        }
+        if(allow === false) {
+            if(typeof on_veto === "function") {
+                on_veto();
+            }
+            return;
+        }
+        do_close();
+    };
+    let request_close = function() {
+        guarded_close(null);
+    };
+    /*  Browser Back already consumed the history entry; if the guard vetoes,
+     *  re-arm a fresh entry so a later Back still targets this modal. */
+    let on_back = function() {
+        guarded_close(function() {
+            overlay = yui_shell_register_overlay(shell, on_back);
+        });
+    };
+
+    escape_handler = request_close;
+    yui_shell_push_escape(shell, "modal", request_close);
     /*  Browser Back closes the top-most modal (see overlay history in
      *  c_yui_shell.js).  Null when history integration is off. */
-    overlay = yui_shell_register_overlay(shell, close);
+    overlay = yui_shell_register_overlay(shell, on_back);
     /*  Trap on $modal (not on .modal-content) so the .modal-close
      *  button — rendered as a SIBLING of .modal-content — is
      *  reachable via Tab.  Without this, Tab/Shift+Tab can only
@@ -314,24 +354,24 @@ export function yui_shell_show_modal(shell, content, opts)
     release_focus = activate_focus_trap_on($modal);
 
     if((opts == null || opts.dismiss_on_background !== false)) {
-        $modal.querySelector(".modal-background").addEventListener("click", close);
+        $modal.querySelector(".modal-background").addEventListener("click", request_close);
     }
     let $close_btn = $modal.querySelector(".modal-close");
     if($close_btn) {
-        $close_btn.addEventListener("click", close);
+        $close_btn.addEventListener("click", request_close);
     }
     if(dialog) {
         let $back = $modal.querySelector(".yui-dialog-back");
         if($back) {
-            $back.addEventListener("click", close);
+            $back.addEventListener("click", request_close);
         }
         let $x = $modal.querySelector(".yui-dialog-x");
         if($x) {
-            $x.addEventListener("click", close);
+            $x.addEventListener("click", request_close);
         }
     }
 
-    return { close };
+    return { close: do_close };
 }
 
 

@@ -56,6 +56,7 @@ import TomSelect from "tom-select"; // Import Tom-Select JS
 import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "./c_yui_form.css";
+import {attach_clear} from "./yui_inputs.js";
 import "./tabulator.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
@@ -1129,6 +1130,13 @@ function create_form_field(
 
             $extend = createElement2(extend);
             $control.appendChild($extend);
+            /*  NORM: every editable free-text field carries the clear (✕).
+             *  Skip readonly fields and the non-text pickers (color swatch,
+             *  datetime-local) where an emptied value makes no sense. The
+             *  synthetic `input` it dispatches re-fires EV_RECORD_CHANGED. */
+            if(!readonly && inputType !== 'color' && inputType !== 'datetime-local') {
+                attach_clear($control, $extend);
+            }
             break;
         }
 
@@ -1421,19 +1429,13 @@ function create_coordinates(gobj, attrs)
     }
 
     let extend = ['div', {class: 'field is-flex is-align-items-center'}, [
-        ['div', {class: 'control has-icons-left has-icons-right'}, [
+        ['div', {class: 'control has-icons-left'}, [
             [
                 'input',
                 {class: 'input', type: 'text', placeholder: t('coordinates') + '...'},
                 '',
                 {
                     'input': function (evt) {
-                        let $btn = this.closest('.control').querySelector('.clear-button');
-                        if (this.value) {
-                            $btn.style.display = 'inline-flex';
-                        } else {
-                            $btn.style.display = 'none';
-                        }
                         gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
                     }
                 }
@@ -1451,29 +1453,16 @@ function create_coordinates(gobj, attrs)
                         getLocation(gobj, $input);
                     }
                 }
-            ],
-            [
-                'span',
-                {
-                    class: 'icon clear-button is-right is-clickable',
-                    style: 'display:none;'
-                },
-                '<i class="yi-xmark"></i>',
-                {
-                    'click': function (evt) {
-                        evt.stopPropagation();
-                        let $input = this.closest('.control').querySelector('input');
-                        $input.value = '';
-                        this.style.display = 'none';
-                        // gobj.config.select_by_name = '';
-                        // gobj_send_event(gobj, "EV_SELECT", {}, gobj);
-                    }
-                }
             ]
         ]]
     ]];
 
-    return createElement2(extend);
+    /*  NORM clear (✕): its synthetic `input` re-fires EV_RECORD_CHANGED, so
+     *  clearing the coordinates updates the record like any hand edit.  */
+    let $extend = createElement2(extend);
+    let $control = $extend.querySelector('.control');
+    attach_clear($control, $control.querySelector('input'));
+    return $extend;
 }
 
 /******************************************************************

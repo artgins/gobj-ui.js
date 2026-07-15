@@ -7,14 +7,37 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
-- **feat(json viewer): clear (×) inside the search box.** `C_YUI_JSON`'s toolbar
-  search now uses the Bulma `has-icons-left`/`has-icons-right` idiom: a
-  magnifier on the left and a `yi-xmark` clear icon (`JSON_SEARCH_CLEAR`) inside
-  the field on the right (same look as the treedb table search). Clicking it
-  fires `EV_CLEAR_SEARCH`, which empties the box, refocuses it and re-renders
-  the tree; the × is hidden while the box is empty (toggled from `ac_search`),
-  so it only appears when there is something to clear. Reuses the existing
-  `clear search` i18n key.
+- **feat(inputs): clear (✕) is now the NORM on every editable free-text
+  field.** Standardized on the existing `attach_clear()` helper
+  (`yui_inputs.js`, Bulma `.delete` that appears only while the field has
+  content, dispatches a synthetic `input` so existing handlers re-run, then
+  refocuses). Wired it into `C_YUI_FORM`'s field factory so **every** form
+  field (text / password / url / tel and the text-backed numerics) carries the
+  ✕ (excluded: color, datetime-local, readonly) — a big help on mobile. Three
+  bespoke one-off clears were replaced with the helper for a single consistent
+  look: `C_YUI_JSON`'s toolbar search (its `EV_CLEAR_SEARCH` event was dropped —
+  the synthetic `input` re-fires `EV_SEARCH`), the `C_YUI_TREEDB_TOPIC_WITH_FORM`
+  table search, and `C_YUI_FORM`'s geolocation field (which now also correctly
+  re-fires `EV_RECORD_CHANGED` on clear — previously it left the record model
+  stale).
+
+- **feat(shell modal): `before_close` guard on `yui_shell_show_modal`.** A new
+  optional `opts.before_close` is consulted on every user-driven dismiss
+  (Escape, backdrop, the X / back-arrow, browser Back); returning `false` vetoes
+  the close so the caller can run its own flow (e.g. an unsaved-changes prompt
+  that closes the modal itself on confirm). On a vetoed browser-Back the history
+  entry is re-armed. Absent guard ⇒ closes exactly as before, so existing
+  callers are unaffected. The returned `close()` still closes unconditionally.
+
+- **refactor(treedb form): edit/create dialog uses the standardized adaptive
+  dialog.** `C_YUI_TREEDB_TOPIC_WITH_FORM` dropped its hand-rolled Bulma
+  `modal-card` (with the old `delete is-large` × and the dead
+  `modal-is-responsive` CSS) for `yui_shell_show_modal({dialog:true})`, matching
+  its sibling treedb views: centered card with the X top-right on desktop, a
+  full-screen sheet with a back arrow on mobile, and Escape / browser Back /
+  backdrop wired by the shell. The unsaved-changes guard is preserved via the
+  new `before_close` hook (`TREEDB_FORM_SHEET`, widened to 50rem on desktop). A
+  shell is now required (as the sibling dialogs already assume).
 
 - **fix(toolbar): stop leaking a ResizeObserver per `yui_toolbar`, and make the
   scroll arrows reliable.** The horizontal toolbar observed `document.body` for

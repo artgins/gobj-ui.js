@@ -25,8 +25,8 @@
  *  stays bounded no matter how large the source document is.
  *
  *  DOM is self-describing (UPPER_SNAKE logical classes): JSON_VIEWER /
- *  JSON_TOOLBAR / JSON_SEARCH / JSON_SEARCH_CLEAR / JSON_TREE / JSON_ROW /
- *  JSON_KEY / JSON_VALUE / JSON_SUMMARY / JSON_COLLAPSED / JSON_TIME.
+ *  JSON_TOOLBAR / JSON_SEARCH / JSON_TREE / JSON_ROW / JSON_KEY /
+ *  JSON_VALUE / JSON_SUMMARY / JSON_COLLAPSED / JSON_TIME.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -64,6 +64,7 @@ import {
 } from "./json_view_helpers.js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {attach_clear} from "./yui_inputs.js";
 
 import {t} from "i18next";
 
@@ -203,7 +204,6 @@ function build_ui(gobj)
     gobj_write_attr(gobj, "$container", $container);
     priv.$tree = $container.querySelector('.JSON_TREE');
     priv.$search = $container.querySelector('.JSON_SEARCH');
-    priv.$search_clear = $container.querySelector('.JSON_SEARCH_CLEAR');
 
     refresh_language($container, t);
 }
@@ -223,7 +223,6 @@ function destroy_ui(gobj)
     }
     priv.$tree = null;
     priv.$search = null;
-    priv.$search_clear = null;
 }
 
 /************************************************************
@@ -240,33 +239,23 @@ function make_toolbar(gobj)
                       style: 'font-weight:600;', 'data-i18n': title}, title]
         );
     }
-    /*  Search box: the magnifier and the clear (×) live INSIDE the field
-     *  (Bulma has-icons-left / has-icons-right). The × is hidden while the box
-     *  is empty (toggled in ac_search) and fires EV_CLEAR_SEARCH through the
-     *  FSM, so it only offers itself when there is something to clear.  */
-    left_items.push(
-        ['div', {class: 'control has-icons-left has-icons-right',
-                 style: 'max-width:22em;'}, [
-            ['input', {class: 'JSON_SEARCH input', type: 'text',
-                       placeholder: t("search")}, [], {
-                input: function(evt) {
-                    gobj_send_event(gobj, "EV_SEARCH", {text: evt.target.value}, gobj);
-                }
-            }],
-            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]],
-            ['span', {class: 'JSON_SEARCH_CLEAR icon is-right is-hidden',
-                      style: 'cursor:pointer; pointer-events:all;',
-                      title: t("clear search"), 'data-i18n-title': 'clear search',
-                      'aria-label': t("clear search"),
-                      'data-i18n-aria-label': 'clear search'},
-                [['i', {class: 'yi-xmark'}]], {
-                click: function(evt) {
-                    evt.stopPropagation();
-                    gobj_send_event(gobj, "EV_CLEAR_SEARCH", {}, gobj);
-                }
-            }]
-        ]]
-    );
+    /*  Search box: a magnifier on the left and the NORM clear (✕) via
+     *  attach_clear on the right. Clearing dispatches a synthetic `input`,
+     *  which re-fires EV_SEARCH with an empty term through the FSM.  */
+    let $search_input = createElement2(
+        ['input', {class: 'JSON_SEARCH input', type: 'text',
+                   placeholder: t("search")}, [], {
+            input: function(evt) {
+                gobj_send_event(gobj, "EV_SEARCH", {text: evt.target.value}, gobj);
+            }
+        }]);
+    let $search_control = createElement2(
+        ['div', {class: 'control has-icons-left', style: 'max-width:22em;'}, [
+            $search_input,
+            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
+        ]]);
+    attach_clear($search_control, $search_input);
+    left_items.push($search_control);
 
     let right_items = [
         icon_button(gobj, "yi-chevron-right",  "EV_EXPAND_ALL",   "expand loaded"),
@@ -718,27 +707,6 @@ function ac_search(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     priv.search = (kw.text || "").trim().toLowerCase();
-    if(priv.$search_clear) {
-        priv.$search_clear.classList.toggle("is-hidden", priv.search.length === 0);
-    }
-    render_tree(gobj);
-    return 0;
-}
-
-/************************************************************
- *   EV_CLEAR_SEARCH — empty the search box and show everything again
- ************************************************************/
-function ac_clear_search(gobj, event, kw, src)
-{
-    let priv = gobj.priv;
-    priv.search = "";
-    if(priv.$search) {
-        priv.$search.value = "";
-        priv.$search.focus();
-    }
-    if(priv.$search_clear) {
-        priv.$search_clear.classList.add("is-hidden");
-    }
     render_tree(gobj);
     return 0;
 }
@@ -898,7 +866,6 @@ function create_gclass(gclass_name)
             ["EV_TOGGLE_NODE",      ac_toggle_node,         null],
             ["EV_EXPAND_COLLAPSED", ac_expand_collapsed,    null],
             ["EV_SEARCH",           ac_search,              null],
-            ["EV_CLEAR_SEARCH",     ac_clear_search,        null],
             ["EV_EXPAND_ALL",       ac_expand_all,          null],
             ["EV_COLLAPSE_ALL",     ac_collapse_all,        null],
             ["EV_COPY_ALL",         ac_copy_all,            null],
@@ -919,7 +886,6 @@ function create_gclass(gclass_name)
         ["EV_TOGGLE_NODE",      0],
         ["EV_EXPAND_COLLAPSED", 0],
         ["EV_SEARCH",           0],
-        ["EV_CLEAR_SEARCH",     0],
         ["EV_EXPAND_ALL",       0],
         ["EV_COLLAPSE_ALL",     0],
         ["EV_COPY_ALL",         0],

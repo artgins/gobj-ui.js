@@ -61,15 +61,15 @@ import {
     yui_shell_confirm_yesnocancel,
     yui_shell_confirm_ok,
     yui_shell_popup_layer,
+    yui_shell_show_modal,
 } from "./shell_modals.js";
 
 import {
     yui_shell_of,
-    yui_shell_push_escape,
-    yui_shell_pop_escape,
 } from "./c_yui_shell.js";
 
 import {register_c_yui_form} from "./c_yui_form.js";
+import {attach_clear} from "./yui_inputs.js";
 
 import {yui_tabulator_lang, yui_tabulator_relocalize} from "./yui_tabulator_i18n.js";
 
@@ -142,10 +142,7 @@ let PRIVATE_DATA = {
     topic_name:         "",
     tabulator:          null,
     form:               null,   // hosted C_YUI_FORM child (while dialog open)
-    $popup:             null,   // dialog DOM element
-    on_keydown:         null,   // document Escape handler (no-shell fallback)
-    escape_shell:       null,   // shell whose Escape chain holds escape_handler
-    escape_handler:     null,   // close handler pushed on the shell chain
+    form_modal:         null,   // { close } handle of the adaptive dialog
 };
 
 let __gclass__ = null;
@@ -474,7 +471,7 @@ function build_ui(gobj)
     if(with_search_button) {
         let search_id = `${toolbar_id}_search`;
         let $search_box = createElement2(
-            ['div', {class: 'control has-icons-left has-icons-right mr-1'}, [
+            ['div', {class: 'control has-icons-left mr-1'}, [
                 ['input', {
                     id: search_id,
                     class: 'input',
@@ -484,20 +481,13 @@ function build_ui(gobj)
                 }],
                 ['span', {class: 'icon is-left'}, [
                     ['i', {class: 'yi-magnifying-glass'}]
-                ]],
-                ['span', {class: 'icon is-right', style: 'cursor:pointer; pointer-events:all;',
-                          title: t('clear search'), 'data-i18n-title': 'clear search'}, [
-                    ['i', {class: 'yi-xmark'}]
-                ], {
-                    'click': (event) => {
-                        event.stopPropagation();
-                        let $input = document.getElementById(search_id);
-                        if($input) { $input.value = ''; $input.dispatchEvent(new Event('input')); }
-                    }
-                }]
+                ]]
             ]]
         );
         let $search_input = $search_box.querySelector(`#${search_id}`);
+        /*  NORM clear (✕): dispatches a synthetic `input`, so the tabulator
+         *  filter below re-runs (empty term → clearFilter).  */
+        attach_clear($search_box, $search_input);
         if($search_input) {
             $search_input.addEventListener('input', (event) => {
                 let searchText = event.target.value.trim().toLowerCase();
@@ -1161,8 +1151,13 @@ function open_form_dialog(gobj, mode, record)
 
     let priv = gobj.priv;
     let desc = gobj_read_attr(gobj, "desc");
-    let popup_id = gobj_read_str_attr(gobj, "popup_id");
     let topic_name = gobj_read_str_attr(gobj, "topic_name");
+
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${gobj_short_name(gobj)}: no shell, cannot open the edit form`);
+        return;
+    }
 
     /*  Title says what you are doing: "new <topic>" on create,
      *  "<topic> — <pkey>" on update. */
@@ -1175,36 +1170,12 @@ function open_form_dialog(gobj, mode, record)
         title = t(topic_name) + (empty_string(rid) ? "" : " — " + rid);
     }
 
-    let $element = createElement2([
-        'div', {id: popup_id, class: 'modal is-active'}, [
-            ['div', {class: 'modal-background'}, ''],
-            ['div', {class: 'modal-card modal-is-responsive'}, [
-                ['header', {class: 'modal-card-head p-3'}, [
-                    ['p', {class: 'modal-card-title', style: 'text-align:center;'}, title],
-                    ['button', {class: 'delete is-large', 'aria-label': 'close'}, '', {
-                        click: function(evt) {
-                            evt.stopPropagation();
-                            request_close_form_dialog(gobj);
-                        }
-                    }]
-                ]],
-                /*  flex column so the hosted form takes the dialog
-                 *  height: fields scroll internally and the form's
-                 *  bottom toolbar stays visible (dialog footer)  */
-                ['section', {
-                    class: 'modal-card-body p-2',
-                    style: 'display:flex; flex-direction:column;'
-                }, []]
-            ]]
-        ], {
-            click: function(evt) {
-                // Capture bubble events
-                evt.stopPropagation();
-            }
-        }
-    ]);
-
-    let $body = $element.querySelector('.modal-card-body');
+    /*  A flex column so the hosted form takes the dialog height: fields
+     *  scroll internally and the form's bottom toolbar stays visible. */
+    let $body = createElement2(
+        ['div', {class: 'TREEDB_FORM_BODY',
+                 style: 'display:flex; flex-direction:column; height:100%;'}, []]
+    );
 
     let form = gobj_create_pure_child(
         "form_" + clean_name(gobj_name(gobj)),
@@ -1222,7 +1193,6 @@ function open_form_dialog(gobj, mode, record)
         gobj
     );
     priv.form = form;
-    priv.$popup = $element;
 
     let $form_container = gobj_read_attr(form, "$container");
     if($form_container) {
@@ -1230,38 +1200,33 @@ function open_form_dialog(gobj, mode, record)
         $form_container.style.minHeight = "0";
     }
 
-    popup_mount_layer(gobj).appendChild($element);
-    refresh_language($element, t);
+    /*  The standardized adaptive dialog, like the sibling treedb views: a
+     *  centered card with the X at the top-right on desktop, a full-screen
+     *  sheet with a back arrow on mobile; Escape / browser Back / backdrop
+     *  are wired by the shell. `before_close` preserves the unsaved-changes
+     *  guard — it vetoes the dismiss and, on confirm, closes the modal
+     *  itself. `on_close` tears the hosted form child down. */
+    priv.form_modal = yui_shell_show_modal(shell, $body, {
+        dialog:        true,
+        logical_class: "TREEDB_FORM_SHEET",
+        title:         title,
+        t:             t,
+        before_close:  function() {
+            return form_may_close(gobj);
+        },
+        on_close:      function() {
+            teardown_form_child(gobj);
+        }
+    });
 
-    /*  Escape closes through the same unsaved-changes guard as the X.
-     *  Under a shell, ride its Escape priority chain — LIFO with the
-     *  shell confirm dialogs, so Escape on an open confirm never
-     *  reaches this dialog and stacks a second one.  Without a shell
-     *  (bare unit tests) fall back to a document listener. */
-    let shell = yui_shell_of(gobj);
-    if(shell) {
-        priv.escape_shell = shell;
-        priv.escape_handler = function() {
-            request_close_form_dialog(gobj);
-        };
-        yui_shell_push_escape(shell, "popup", priv.escape_handler);
-    } else {
-        priv.on_keydown = function(evt) {
-            if(evt.key === "Escape") {
-                evt.stopPropagation();
-                request_close_form_dialog(gobj);
-            }
-        };
-        document.addEventListener("keydown", priv.on_keydown);
-    }
-
-    gobj_start(form);   // mt_start loads `record` into the form
+    gobj_start(form);           // mt_start loads `record` into the form
+    refresh_language($body, t); // translate anything the form emitted on start
 
     /*  Focus the pkey unless the mode made it readonly (update) —
      *  then the first editable field. */
-    let $with_focus = $element.querySelector('.with-focus:not([readonly])');
+    let $with_focus = $body.querySelector('.with-focus:not([readonly])');
     if(!$with_focus) {
-        $with_focus = $element.querySelector(
+        $with_focus = $body.querySelector(
             'input.input:not([readonly]), textarea, select'
         );
     }
@@ -1271,10 +1236,12 @@ function open_form_dialog(gobj, mode, record)
 }
 
 /************************************************************
- *  Close request from the dialog X: if the form carries
- *  unsaved changes ask first (EV_WINDOW_TO_CLOSE contract).
+ *  Unsaved-changes guard for the dialog's `before_close` hook.
+ *  Returns true to allow the dismiss; false to VETO it (the form
+ *  has pending edits) and pop the confirm — which, on "yes",
+ *  closes the modal itself (EV_WINDOW_TO_CLOSE contract).
  ************************************************************/
-function request_close_form_dialog(gobj)
+function form_may_close(gobj)
 {
     let priv = gobj.priv;
     if(priv.form) {
@@ -1286,31 +1253,24 @@ function request_close_form_dialog(gobj)
                 'All changes will be lost. Are you sure?',
                 {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
             ).then(function(answer) {
-                if(answer === "yes") {
-                    close_form_dialog(gobj);
+                if(answer === "yes" && priv.form_modal) {
+                    priv.form_modal.close();
                 }
             });
-            return;
+            return false;
         }
     }
-    close_form_dialog(gobj);
+    return true;
 }
 
 /************************************************************
- *  Destroy the hosted form and remove the dialog DOM.
+ *  Destroy the hosted C_YUI_FORM child. Called from the modal's
+ *  on_close — the shell has already removed the dialog DOM and
+ *  retired its Escape / history entries.
  ************************************************************/
-function close_form_dialog(gobj)
+function teardown_form_child(gobj)
 {
     let priv = gobj.priv;
-    if(priv.escape_handler) {
-        yui_shell_pop_escape(priv.escape_shell, priv.escape_handler);
-        priv.escape_shell = null;
-        priv.escape_handler = null;
-    }
-    if(priv.on_keydown) {
-        document.removeEventListener("keydown", priv.on_keydown);
-        priv.on_keydown = null;
-    }
     if(priv.form) {
         if(gobj_is_running(priv.form)) {
             gobj_stop(priv.form);
@@ -1318,12 +1278,24 @@ function close_form_dialog(gobj)
         gobj_destroy(priv.form);
         priv.form = null;
     }
-    if(priv.$popup) {
-        if(priv.$popup.parentNode) {
-            priv.$popup.parentNode.removeChild(priv.$popup);
-        }
-        priv.$popup = null;
+    priv.form_modal = null;
+}
+
+/************************************************************
+ *  Force the dialog down (bypasses the unsaved guard): used after a
+ *  successful save and on teardown. Closing the modal runs its
+ *  on_close, which tears the form child down.
+ ************************************************************/
+function close_form_dialog(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.form_modal) {
+        let modal = priv.form_modal;
+        priv.form_modal = null;
+        modal.close();          // -> on_close -> teardown_form_child
+        return;
     }
+    teardown_form_child(gobj);
 }
 
 /************************************************************
