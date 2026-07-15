@@ -18,6 +18,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   window closed nothing reaches the console — that is the literal meaning of
   the choice (default is Both).
 
+- **fix(treedb JSON viewer): stop the C_YUI_JSON before destroying it.**
+  Closing the Raw-JSON / Tree-JSON viewer (in `C_YUI_TREEDB_TOPICS` and
+  `C_YUI_TREEDB_GRAPH`) destroyed the still-running viewer gobj directly, so
+  `gobj_destroy()` raised the `destroying` flag before it could stop it —
+  logging *"Destroying a RUNNING gobj"* + *"gobj NULL or DESTROYED"* and
+  skipping the viewer's `mt_stop` — on every close. Now stops first, then
+  destroys (both the dismiss and the teardown paths). Same fix as the Keys
+  picker earlier.
+
 - **feat(dev window): error / warning totals in the status line.** The status
   strip now leads with `✖ N err` and `▲ N warn` — running totals of framework
   errors and warnings since page load (or the last Clear), bold when non-zero.

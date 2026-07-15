@@ -33,6 +33,7 @@ import {
     gobj_read_str_attr,
     gobj_read_bool_attr,
     gobj_start,
+    gobj_stop,
     gobj_create_service,
     gobj_command,
     gobj_match_children,
@@ -978,6 +979,11 @@ function close_json_viewer(gobj)
     }
     if(jv && is_gobj(jv)) {
         try {
+            /*  STOP, then destroy — the viewer was STARTED in open_json_viewer.
+             *  gobj_destroy() raises the `destroying` flag before it can stop a
+             *  running gobj, so destroying it straight logs "Destroying a
+             *  RUNNING gobj" + "gobj NULL or DESTROYED" and skips its mt_stop. */
+            gobj_stop(jv);
             gobj_destroy(jv);
         } catch(e) {
             log_warning(`${gobj_short_name(gobj)}: already gone: ${e}`);
@@ -1481,6 +1487,9 @@ function ac_json_closed(gobj, event, kw, src)
     priv.json_modal = null;
     if(jv && is_gobj(jv)) {
         try {
+            /*  STOP before destroy — the viewer was STARTED in open_json_viewer
+             *  (see close_json_viewer for the full rationale). */
+            gobj_stop(jv);
             gobj_destroy(jv);
         } catch(e) {
             log_warning(`${gobj_short_name(gobj)}: already gone: ${e}`);
