@@ -18,6 +18,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   window closed nothing reaches the console — that is the literal meaning of
   the choice (default is Both).
 
+- **feat(dev window): error / warning totals in the status line.** The status
+  strip now leads with `✖ N err` and `▲ N warn` — running totals of framework
+  errors and warnings since page load (or the last Clear), bold when non-zero.
+  Kept in dedicated counters (not scanned from the traffic buffer) so the
+  600-entry cap can't rotate an error out of the count under a flood of
+  automata/debug lines. Reset by Clear.
+
 - **feat(C_YUI_JSON): lazy JSON tree viewer for large tranger/treedb dumps.** A
   container-agnostic component (`register_c_yui_json`) that renders arbitrarily
   large JSON via server-driven lazy expansion: it understands the kernel's

@@ -37,6 +37,13 @@ let TRAFFIC_LOG = [];               // [{title,event,command,sig,dir,size,ts,kw,
 let TRAFFIC_COUNTS = new Map();     // signature -> occurrences (for periodic detection)
 let SEARCH_TEXT = "";               // session-only free-text filter (not persisted)
 
+/*  Running totals of framework errors/warnings seen since page load (or the
+ *  last Clear). Kept apart from TRAFFIC_LOG so the 600-entry cap can't rotate
+ *  an error out of the count — the whole point of the status-line tally is to
+ *  not lose that signal under a flood of automata/debug lines. */
+let LOG_ERR_COUNT = 0;
+let LOG_WARN_COUNT = 0;
+
 /*  Field names whose numeric value is a Unix timestamp (seconds). */
 const TRAFFIC_TS_FIELDS = {
     "__t__": 1, "__tm__": 1, "tm": 1, "t": 1,
@@ -399,6 +406,8 @@ function ensure_dev_style()
     background: rgba(217,119,6,0.12); color: #b45309; cursor: pointer;
 }
 .YDEV_STAT.s-out { color: #2563eb; } .YDEV_STAT.s-in { color: #059669; } .YDEV_STAT.s-err { color: #dc2626; }
+.YDEV_STAT.s-warn { color: #d97706; }
+.YDEV_STAT.is-strong { font-weight: 700; }
 .YDEV_TITLE { display: flex; align-items: baseline; gap: 8px; }
 .YDEV_TITLE_MAIN { font-weight: 700; }
 .YDEV_TITLE_SUB { opacity: 0.7; font-size: 12px; }
@@ -465,6 +474,7 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 :root[data-theme="dark"] .dir-in .TRAFFIC_ARROW,  :root[data-theme="dark"] .dir-in .TRAFFIC_EVENT { color: #34d399; }
 :root[data-theme="dark"] .dir-err .TRAFFIC_ARROW, :root[data-theme="dark"] .dir-err .TRAFFIC_EVENT { color: #f87171; }
 :root[data-theme="dark"] .YDEV_STAT.s-out { color: #60a5fa; } :root[data-theme="dark"] .YDEV_STAT.s-in { color: #34d399; } :root[data-theme="dark"] .YDEV_STAT.s-err { color: #f87171; }
+:root[data-theme="dark"] .YDEV_STAT.s-warn { color: #fbbf24; }
 :root[data-theme="dark"] .TRAFFIC_VAL.t-num { color: #22d3ee; }
 :root[data-theme="dark"] .TRAFFIC_VAL.t-bool, :root[data-theme="dark"] .TRAFFIC_VAL.t-null { color: #c084fc; }
 :root[data-theme="dark"] .YDEV_CHIP.is-active { background: rgba(96,165,250,0.2); border-color: #60a5fa; color: #93c5fd; }
@@ -772,6 +782,8 @@ function clear_traffic()
 {
     TRAFFIC_LOG.length = 0;
     TRAFFIC_COUNTS.clear();
+    LOG_ERR_COUNT = 0;
+    LOG_WARN_COUNT = 0;
     let logger = document.getElementById('developer-traffic-logger');
     if(logger) {
         logger.replaceChildren();
@@ -838,7 +850,11 @@ function update_stats()
         }
     }
     $s.replaceChildren();
+    /*  Errors/warnings first — the signal you don't want to miss. Session
+     *  totals (see LOG_ERR_COUNT), bold when non-zero so they stand out. */
     let cells = [
+        [`✖ ${LOG_ERR_COUNT} err`, 's-err' + (LOG_ERR_COUNT ? ' is-strong' : '')],
+        [`▲ ${LOG_WARN_COUNT} warn`, 's-warn' + (LOG_WARN_COUNT ? ' is-strong' : '')],
         [`${shown}/${total} shown`, ''],
         [`⇢ ${out}`, 's-out'],
         [`⇠ ${inc}`, 's-in'],
@@ -978,9 +994,19 @@ function info_log(level, msg, hora)
     if(__in_info_log__) {
         return;
     }
+    /*  Tally errors/warnings for the status line, always — before any routing
+     *  or window-open guard, so the count reflects the whole session even
+     *  while the window is closed or output is routed to the console. */
+    if(level === "error") {
+        LOG_ERR_COUNT++;
+    } else if(level === "warning") {
+        LOG_WARN_COUNT++;
+    }
     /*  Routed to the console only: the line already reached the browser
-     *  console (gobj-js gate left on), so don't mirror it into the window. */
+     *  console (gobj-js gate left on), so don't mirror it into the window —
+     *  but keep the status-line tally live if the window is open. */
     if(dev_route() === "console") {
+        update_stats();
         return;
     }
     let logger = document.getElementById('developer-traffic-logger');
