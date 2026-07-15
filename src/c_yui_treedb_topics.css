@@ -22,6 +22,14 @@
     background: var(--bulma-scheme-main, #fff);
     color: var(--bulma-text, inherit);
 }
+.TREEDB_TOPIC_CARD {
+    cursor: pointer;
+}
+/*  Selected (clicked) card: link-coloured border + soft ring. */
+.TREEDB_TOPIC_CARD.is-selected {
+    border-color: var(--bulma-link, #485fc7);
+    box-shadow: 0 0 0 2px var(--bulma-link, #485fc7) inset;
+}
 .TREEDB_TOPIC_CARD .TREEDB_TOPIC_CARD_NAME {
     font-weight: 600;
     text-align: center;

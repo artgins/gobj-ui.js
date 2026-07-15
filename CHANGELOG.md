@@ -26,7 +26,9 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   **info** action opens a routed, read-only **schema panel** (pkey + columns
   with type and key relationship, from the topic `desc`); it is deep-linkable
   (`EV_SHOW_TOPIC_INFO`, replayed once the schema loads on an F5). Absent the
-  attr, the card keeps its single "open the table" behaviour.
+  attr, the card keeps its single "open the table" behaviour. A click anywhere
+  on a card selects it (single-selection highlight, `EV_SELECT_TOPIC_CARD`):
+  clicking outside the icons just selects, clicking an icon selects and enters.
 
 - **feat(treedb): optional topic-cards landing (list → detail).**
   `C_YUI_TREEDB_TOPICS` gains `with_cards_landing` (default `false`, so existing

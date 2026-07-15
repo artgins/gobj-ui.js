@@ -89,6 +89,7 @@ let PRIVATE_DATA = {
     descs:              null,
     _topics_subscribed: {},
     _pending_info:      null,   /*  topic whose info panel to show once descs load  */
+    _selected_card_topic: null, /*  highlighted topic card in the landing grid  */
     json_gobj:          null,   /*  C_YUI_JSON raw-tranger viewer (or null)  */
     json_win:           null,   /*  C_YUI_WINDOW hosting it, desktop (or null)  */
     json_modal:         null,   /*  shell modal hosting it, mobile (or null)  */
@@ -569,6 +570,16 @@ function add_topic_card(gobj, id, text, icon)
             ['div', {class: 'TREEDB_TOPIC_CARD_ACTIONS'}, actions]
         ]]
     );
+    if(gobj.priv._selected_card_topic === topic) {
+        $card.classList.add("is-selected");
+    }
+    /*  A click anywhere on the card selects it (highlight). A click that
+     *  ALSO lands on an icon still runs the icon's hash navigation (we don't
+     *  preventDefault) — "click outside = select, click an icon = select +
+     *  enter". Selection crosses the FSM like every action. */
+    $card.addEventListener("click", function() {
+        gobj_send_event(gobj, "EV_SELECT_TOPIC_CARD", {topic: topic}, gobj);
+    });
     $grid.appendChild($card);
     refresh_language($card, t);
 }
@@ -1637,6 +1648,25 @@ function ac_show_topic_info(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Highlight the clicked topic card in the landing grid (single
+ *  selection). Visual only — navigation, when the click was on an
+ *  icon, is the anchor's own hash routing.
+ ************************************************************/
+function ac_select_topic_card(gobj, event, kw, src)
+{
+    let topic = kw && kw.topic;
+    gobj.priv._selected_card_topic = topic || null;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return 0;
+    }
+    $container.querySelectorAll(".TREEDB_TOPIC_CARD").forEach(function($c) {
+        $c.classList.toggle("is-selected", $c.dataset.topic === topic);
+    });
+    return 0;
+}
+
+/************************************************************
  *  Back from a topic to the cards-landing grid (the section index).
  ************************************************************/
 function ac_back_to_topics(gobj, event, kw, src)
@@ -1951,6 +1981,7 @@ function create_gclass(gclass_name)
             ["EV_JSON_CLOSED",          ac_json_closed,             null],
             ["EV_SHOW",                 ac_show,                    null],
             ["EV_SHOW_TOPIC_INFO",      ac_show_topic_info,         null],
+            ["EV_SELECT_TOPIC_CARD",    ac_select_topic_card,       null],
             ["EV_HIDE",                 ac_hide,                    null],
             ["EV_BACK_TO_TOPICS",       ac_back_to_topics,          null],
             ["EV_TRANSPORT_STATE",      ac_transport_state,         null],
@@ -1974,6 +2005,7 @@ function create_gclass(gclass_name)
         ["EV_JSON_CLOSED",          0],
         ["EV_SHOW",                 0],
         ["EV_SHOW_TOPIC_INFO",      0],
+        ["EV_SELECT_TOPIC_CARD",    0],
         ["EV_HIDE",                 0],
         ["EV_BACK_TO_TOPICS",       0],
         ["EV_TRANSPORT_STATE",      0],
