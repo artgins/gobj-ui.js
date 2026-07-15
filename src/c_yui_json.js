@@ -240,7 +240,7 @@ function make_toolbar(gobj)
     }
     left_items.push(
         ['input', {class: 'JSON_SEARCH input', type: 'search',
-                   style: 'max-width:22em;', placeholder: t("Search")}, [], {
+                   style: 'max-width:22em;', placeholder: t("search")}, [], {
             input: function(evt) {
                 gobj_send_event(gobj, "EV_SEARCH", {text: evt.target.value}, gobj);
             }
@@ -248,9 +248,9 @@ function make_toolbar(gobj)
     );
 
     let right_items = [
-        icon_button(gobj, "yi-plus",           "EV_EXPAND_ALL",   "Expand loaded"),
-        icon_button(gobj, "yi-chevron-right",  "EV_COLLAPSE_ALL", "Collapse all"),
-        icon_button(gobj, "yi-copy",           "EV_COPY_ALL",     "Copy JSON"),
+        icon_button(gobj, "yi-plus",           "EV_EXPAND_ALL",   "expand loaded"),
+        icon_button(gobj, "yi-chevron-right",  "EV_COLLAPSE_ALL", "collapse all"),
+        icon_button(gobj, "yi-copy",           "EV_COPY_ALL",     "copy json"),
     ];
 
     const $toolbar = yui_toolbar({}, [
@@ -301,7 +301,7 @@ function render_tree(gobj)
 
     if(priv.root === null || priv.root === undefined) {
         $tree.appendChild(createElement2(
-            ['div', {class: 'JSON_EMPTY has-text-grey p-3', 'data-i18n': 'No data'}, 'No data']
+            ['div', {class: 'JSON_EMPTY has-text-grey p-3', 'data-i18n': 'no data'}, 'no data']
         ));
         return;
     }
@@ -326,8 +326,8 @@ function render_tree(gobj)
 
     if(ctx.capped) {
         rows.push(['div', {class: 'JSON_CAPPED has-text-warning p-2',
-                           'data-i18n': 'Too many rows; collapse some branches'},
-                   'Too many rows; collapse some branches']);
+                           'data-i18n': 'too many rows; collapse some branches'},
+                   'too many rows; collapse some branches']);
     }
 
     $tree.appendChild(createElement2(['div', {class: 'JSON_ROWS'}, rows]));
@@ -443,8 +443,8 @@ function push_collapsed_row(ctx, value, segments, depth, key, rows)
     }
     children.push(['span', {class: 'JSON_STUB'}, stub_text]);
     children.push(['span', {class: 'JSON_STUB_HINT is-size-7 ml-2',
-                            'data-i18n': is_pending ? 'loading…' : 'click to load'},
-                   is_pending ? 'loading…' : 'click to load']);
+                            'data-i18n': is_pending ? 'loading' : 'click to load'},
+                   is_pending ? 'loading' : 'click to load']);
     if(err) {
         children.push(['span', {class: 'JSON_STUB_ERR has-text-danger is-size-7 ml-2'}, String(err)]);
     }
@@ -771,7 +771,7 @@ function ac_language_changed(gobj, event, kw, src)
     if($container) {
         refresh_language($container, t);
         if(priv.$search) {
-            priv.$search.setAttribute("placeholder", t("Search"));
+            priv.$search.setAttribute("placeholder", t("search"));
         }
     }
     render_tree(gobj);
