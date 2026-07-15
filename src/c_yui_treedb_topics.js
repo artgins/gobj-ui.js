@@ -269,6 +269,28 @@ function build_ui(gobj)
     );
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
+    refresh_jtree_button(gobj);     /*  starts disabled until a tree topic is shown  */
+}
+
+/************************************************************
+ *  Enable the "Tree JSON" button only for a hierarchical topic (one with a
+ *  self-referent hook) — a flat topic has no tree to draw. Called at build
+ *  time and on every tab change. Native `disabled` both dims the button
+ *  (Bulma) and blocks its click, so open_json_viewer's guard is a backstop.
+ ************************************************************/
+function refresh_jtree_button(gobj)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    let $btn = $container.querySelector(".TREEDB_JTREE_BTN");
+    if(!$btn) {
+        return;
+    }
+    let topic = gobj.priv.selected_topic || "";
+    let descs = gobj_read_attr(gobj, "descs") || {};
+    $btn.disabled = !self_hook_of(descs[topic], topic);
 }
 
 /************************************************************
@@ -1297,6 +1319,7 @@ function ac_show(gobj, event, kw, src)
         }
     }
 
+    refresh_jtree_button(gobj);     /*  the new tab may or may not be a tree  */
     return 0;
 }
 

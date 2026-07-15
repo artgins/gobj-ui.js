@@ -26,6 +26,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   it. A flat topic has no such hook and no tree to draw — instead of firing a
   doomed command and opening an empty viewer, it now shows a clear
   *"'<topic>' is not hierarchical (no self-referent hook)"* and does nothing.
+  The button is also **disabled** on flat topics (updated on every tab change),
+  so the impossible action isn't offered in the first place.
 
 - **fix(treedb JSON viewer): stop the C_YUI_JSON before destroying it.**
   Closing the Raw-JSON / Tree-JSON viewer (in `C_YUI_TREEDB_TOPICS` and
