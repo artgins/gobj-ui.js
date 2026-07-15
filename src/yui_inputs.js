@@ -4,7 +4,10 @@
  *      Reusable editable-input helpers.
  *
  *      NORM: every editable text/search input gets a clear (✕) button
- *      that appears only while the field has content. `attach_clear()`
+ *      that appears only while the field has content AND is focused for
+ *      editing (`:focus-within`, see yui_inputs.css) — so a form full of
+ *      pre-filled fields shows the ✕ on the field the user is on, not on
+ *      every populated field at once. `attach_clear()`
  *      wires it onto any Bulma `.control` that wraps an `<input>`:
  *
  *          let $input = createElement2(["input", {class:"input"}, ...]);

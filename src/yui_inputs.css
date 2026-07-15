@@ -4,8 +4,10 @@
  *      Styling for the editable-input helpers in yui_inputs.js.
  *
  *      The clear button itself is Bulma's `.delete`; here we only
- *      position it over the input's right padding and show it only
- *      while the field has content.
+ *      position it over the input's right padding and reveal it only
+ *      while the field has content AND is focused for editing — so a
+ *      form full of pre-filled fields shows the ✕ on just the field the
+ *      user is on, not on every populated one at once.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -27,6 +29,9 @@
     display: none;
     z-index: 4;
 }
-.control.has-clear .yui-input-clear.is-visible {
+/*  `.is-visible` (JS-toggled) means "has content"; the ✕ only actually
+ *  appears while the control also holds focus, so an edit form doesn't
+ *  light up an ✕ on every filled field — only on the one being edited.  */
+.control.has-clear:focus-within .yui-input-clear.is-visible {
     display: inline-block;
 }

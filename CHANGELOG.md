@@ -34,7 +34,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   built `readonly` from the schema but `apply_form_mode` makes it editable in
   "create" mode, so it now gets the ✕ there (and stays without one in "update",
   where it is readonly); loaded values also show the ✕ immediately instead of
-  only after an edit.
+  only after an edit. The ✕ is now gated on `:focus-within` (`yui_inputs.css`):
+  it appears only on the field that currently holds focus for editing, not on
+  every populated field at once — on an edit form full of pre-filled values that
+  otherwise lit up an ✕ on every text field. Content-presence is still tracked
+  in JS (`is-visible`); focus decides whether it actually shows.
 
 - **feat(shell modal): `before_close` guard on `yui_shell_show_modal`.** A new
   optional `opts.before_close` is consulted on every user-driven dismiss
