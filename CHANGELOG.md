@@ -18,29 +18,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   window closed nothing reaches the console — that is the literal meaning of
   the choice (default is Both).
 
-- **feat(treedb views): disable the JSON viewers while disconnected.** The
-  "Raw JSON" button (`C_YUI_TREEDB_TOPICS` + `C_YUI_TREEDB_GRAPH`) and the
-  "Tree JSON" button issue remote commands, so they only make sense with a
-  live backend session — they are now disabled while the session is down and
-  re-enabled on reconnect. The library view can't watch the `C_IEVENT_CLI`
-  itself (subscribing there forwards upstream and breaks the session), so the
-  host forwards the transport edges as a new `EV_TRANSPORT_STATE` event, which
-  a view opts into by declaring it (`gobj_has_event` guard). Initial state is
-  read from the remote's `ST_SESSION` at build.
-
-- **fix(treedb Tree-JSON): derive and pass the topic's self-referent hook.**
-  The "Tree JSON" button (`C_YUI_TREEDB_TOPICS`) called the backend `jtree`
-  command with only `topic_name` and no `hook`, so every topic answered
-  *"What hook?"*. It now derives the topic's self-referent hook from its
-  schema (`descs`: an fkey column pointing back to the same topic) and passes
-  it. A flat topic has no such hook and no tree to draw — instead of firing a
-  doomed command and opening an empty viewer, it now shows a clear
-  *"'<topic>' is not hierarchical (no self-referent hook)"* and does nothing.
-  The button is also **disabled** on flat topics (updated on every tab change),
-  so the impossible action isn't offered in the first place.
+- **feat(treedb views): disable the "Raw JSON" button while disconnected.** The
+  "Raw JSON" button (`C_YUI_TREEDB_TOPICS` + `C_YUI_TREEDB_GRAPH`) issues a
+  remote `print-tranger`, so it only makes sense with a live backend session —
+  it is now disabled while the session is down and re-enabled on reconnect. The
+  library view can't watch the `C_IEVENT_CLI` itself (subscribing there forwards
+  upstream and breaks the session), so the host forwards the transport edges as
+  a new `EV_TRANSPORT_STATE` event, which a view opts into by declaring it
+  (`gobj_has_event` guard). Initial state is read from the remote's
+  `ST_SESSION` at build.
 
 - **fix(treedb JSON viewer): stop the C_YUI_JSON before destroying it.**
-  Closing the Raw-JSON / Tree-JSON viewer (in `C_YUI_TREEDB_TOPICS` and
+  Closing the Raw JSON viewer (in `C_YUI_TREEDB_TOPICS` and
   `C_YUI_TREEDB_GRAPH`) destroyed the still-running viewer gobj directly, so
   `gobj_destroy()` raised the `destroying` flag before it could stop it —
   logging *"Destroying a RUNNING gobj"* + *"gobj NULL or DESTROYED"* and
@@ -66,12 +55,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   to a plain client-side collapsible tree (search / expand / collapse / copy,
   timestamp tagging, i18n). Documented in the README.
 
-- **feat(treedb views): "Raw JSON" / "Tree JSON" buttons over C_YUI_JSON.**
-  `C_YUI_TREEDB_GRAPH` gets a "Raw JSON" toolbar button (the treedb's tranger
-  via C_NODE `print-tranger`, lazy drill). `C_YUI_TREEDB_TOPICS` — which had no
-  toolbar — gets one with "Raw JSON" (whole tranger) plus "Tree JSON" (the
-  selected topic's `jtree`, non-collapsed, client-side tree). Both host the new
-  C_YUI_JSON; a consumer that mounts these views must `register_c_yui_json()`.
+- **feat(treedb views): "Raw JSON" button over C_YUI_JSON.**
+  `C_YUI_TREEDB_GRAPH` and `C_YUI_TREEDB_TOPICS` each get a "Raw JSON" toolbar
+  button that opens the treedb's tranger (via C_NODE `print-tranger`, lazy
+  drill) in the new C_YUI_JSON viewer; a consumer that mounts these views must
+  `register_c_yui_json()`. (An earlier "Tree JSON" button — a per-topic `jtree`
+  view — was dropped before release: it only applied to self-referent tree
+  topics and added little over the raw dump.)
+
+- **style(C_YUI_JSON): larger viewer font (13px → 15px)** for readability of
+  the raw tranger dumps.
 
 - **fix(period): the label is the loudest thing in the navigator again.** It
   is a `.button` INSIDE `.YUI_PERIOD_NAV`, so the three-class rule that sizes

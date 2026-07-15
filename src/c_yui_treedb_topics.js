@@ -81,11 +81,9 @@ let PRIVATE_DATA = {
     gobj_remote_yuno:   null,
     descs:              null,
     _topics_subscribed: {},
-    selected_topic:     "",     /*  the currently shown topic tab (for jtree)  */
-    json_gobj:          null,   /*  C_YUI_JSON viewer (raw tranger / jtree)  */
+    json_gobj:          null,   /*  C_YUI_JSON raw-tranger viewer (or null)  */
     json_win:           null,   /*  C_YUI_WINDOW hosting it, desktop (or null)  */
     json_modal:         null,   /*  shell modal hosting it, mobile (or null)  */
-    json_mode:          "",     /*  "tranger" | "jtree": what the viewer shows  */
 };
 
 let __gclass__ = null;
@@ -246,19 +244,6 @@ function build_ui(gobj)
                             gobj_send_event(gobj, "EV_OPEN_JSON", {}, gobj);
                         }
                     }],
-                    /*  The selected topic's logical tree (jtree, non-collapsed:
-                     *  a client-side collapsible tree, no server drill).  */
-                    ['button', {class: 'button ml-1 TREEDB_JTREE_BTN',
-                                title: t('tree json'), 'aria-label': t('tree json'),
-                                'data-i18n-title': 'tree json', 'data-i18n-aria-label': 'tree json'}, [
-                        ['span', {class: 'icon'}, [['i', {class: 'yi-hexagon-nodes'}]]],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'tree json'}, 'tree json']
-                    ], {
-                        click: (evt) => {
-                            evt.stopPropagation();
-                            gobj_send_event(gobj, "EV_OPEN_JTREE", {}, gobj);
-                        }
-                    }],
                 ]],
                 ['div', {class: `tabs ${gobj_read_attr(gobj, "tabs_style")}`, style: ''}, [
                     ['ul', {}]
@@ -274,9 +259,9 @@ function build_ui(gobj)
 }
 
 /************************************************************
- *  Is the backend session live? Both JSON viewers issue remote commands
- *  (print-tranger / jtree), so they only make sense with a session — the
- *  remote (C_IEVENT_CLI) is in ST_SESSION exactly while connected.
+ *  Is the backend session live? The Raw JSON viewer issues a remote
+ *  print-tranger, so it only makes sense with a session — the remote
+ *  (C_IEVENT_CLI) is in ST_SESSION exactly while connected.
  ************************************************************/
 function is_connected(gobj)
 {
@@ -285,15 +270,12 @@ function is_connected(gobj)
 }
 
 /************************************************************
- *  Enable the toolbar's JSON buttons from the live state:
- *    - "Raw JSON": only when the backend session is up.
- *    - "Tree JSON": only when connected AND the selected topic is
- *      hierarchical (has a self-referent hook) — a flat topic has no tree.
- *  Called at build, on every tab change, and when the host forwards a
- *  transport edge (EV_TRANSPORT_STATE). `connected` defaults to the live
- *  session state; the host passes it explicitly on a transport edge because
- *  the remote's state may not have settled yet. Native `disabled` dims the
- *  button (Bulma) and blocks its click, so the action guards are backstops.
+ *  Enable the "Raw JSON" button only when the backend session is up (it
+ *  issues a remote print-tranger). Called at build, on every tab change, and
+ *  when the host forwards a transport edge (EV_TRANSPORT_STATE). `connected`
+ *  defaults to the live session state; the host passes it explicitly on a
+ *  transport edge because the remote's state may not have settled yet. Native
+ *  `disabled` dims the button (Bulma) and blocks its click.
  ************************************************************/
 function refresh_toolbar_buttons(gobj, connected)
 {
@@ -307,12 +289,6 @@ function refresh_toolbar_buttons(gobj, connected)
     let $raw = $container.querySelector(".TREEDB_JSON_BTN");
     if($raw) {
         $raw.disabled = !connected;
-    }
-    let $tree = $container.querySelector(".TREEDB_JTREE_BTN");
-    if($tree) {
-        let topic = gobj.priv.selected_topic || "";
-        let descs = gobj_read_attr(gobj, "descs") || {};
-        $tree.disabled = !connected || !self_hook_of(descs[topic], topic);
     }
 }
 
@@ -873,37 +849,17 @@ function is_mobile()
 }
 
 /************************************************************
- *  JSON viewer (a single C_YUI_JSON in a window/modal) with two feeds:
- *      mode "tranger" -> print-tranger of the whole service (lazy drill),
- *      mode "jtree"   -> the selected topic's logical tree (one-shot).
- *  Reused across modes: each open sets the mode and re-fetches (EV_SET_JSON
- *  replaces the content). CHILD model: it publishes EV_EXPAND_PATH to us.
+ *  JSON viewer (a single C_YUI_JSON in a window/modal): print-tranger of the
+ *  whole service (lazy drill). CHILD model: the viewer publishes
+ *  EV_EXPAND_PATH to us.
  ************************************************************/
-function open_json_viewer(gobj, mode, topic)
+function open_json_viewer(gobj)
 {
     let priv = gobj.priv;
 
-    if(mode === "jtree" && !topic) {
-        yui_shell_show_error(yui_shell_of(gobj), "select a topic first", {t: t});
-        return;
-    }
-    /*  jtree only means something for a hierarchical topic (one with a
-     *  self-referent hook). For a flat topic there is no tree to draw and the
-     *  backend would answer "What hook?" — say so plainly and don't open an
-     *  empty viewer. */
-    if(mode === "jtree") {
-        let descs = gobj_read_attr(gobj, "descs") || {};
-        if(!self_hook_of(descs[topic], topic)) {
-            yui_shell_show_error(yui_shell_of(gobj),
-                `'${topic}' is not hierarchical (no self-referent hook)`, {t: t});
-            return;
-        }
-    }
-    priv.json_mode = mode;
-
-    /*  Already open: just switch the feed.  */
+    /*  Already open: just re-fetch.  */
     if(priv.json_win || priv.json_modal) {
-        fetch_json(gobj, mode, topic);
+        request_print_tranger(gobj, "");
         return;
     }
 
@@ -991,19 +947,7 @@ function open_json_viewer(gobj, mode, topic)
         }
     }
 
-    fetch_json(gobj, mode, topic);
-}
-
-/************************************************************
- *  Issue the first fetch for a viewer mode.
- ************************************************************/
-function fetch_json(gobj, mode, topic)
-{
-    if(mode === "jtree") {
-        request_jtree(gobj, topic);
-    } else {
-        request_print_tranger(gobj, "");
-    }
+    request_print_tranger(gobj, "");
 }
 
 /************************************************************
@@ -1079,68 +1023,6 @@ function request_print_tranger(gobj, path)
     }
 }
 
-/************************************************************
- *  The self-referent hook of a topic — the link that makes the topic a tree,
- *  and the `hook` the backend `jtree` command needs. Returns the hook name, or
- *  "" when the topic is not hierarchical.
- *
- *  In a topic descriptor (`desc.cols`, a list of column descriptors) a tree
- *  shows up as an fkey column pointing back to the SAME topic:
- *      col.fkey = { <parent_topic>: <hook_name> }
- *  When the parent topic is this topic, <hook_name> is the hook to traverse.
- *  (e.g. device_groups.group_parent: fkey {device_groups: "device_groups"}.)
- ************************************************************/
-function self_hook_of(desc, topic)
-{
-    if(!desc || !Array.isArray(desc.cols) || !topic) {
-        return "";
-    }
-    for(let col of desc.cols) {
-        if(!col.fkey || typeof col.fkey !== "object") {
-            continue;
-        }
-        if(Object.prototype.hasOwnProperty.call(col.fkey, topic)) {
-            let hook = col.fkey[topic];
-            if(hook) {
-                return hook;
-            }
-        }
-    }
-    return "";
-}
-
-/************************************************************
- *  Fetch the logical tree of one topic (jtree, non-collapsed). The viewer
- *  renders it as a client-side collapsible tree (no server drill).
- ************************************************************/
-function request_jtree(gobj, topic)
-{
-    let priv = gobj.priv;
-    let remote = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
-    if(!remote) {
-        log_error(`${gobj_short_name(gobj)}: No gobj_remote_yuno defined`);
-        return;
-    }
-    /*  jtree needs the topic's self-referent hook; without it the backend
-     *  answers "What hook?". open_json_viewer already guarded a non-tree
-     *  topic, so an empty hook here is a real error, not a user miss. */
-    let descs = gobj_read_attr(gobj, "descs") || {};
-    let hook = self_hook_of(descs[topic], topic);
-    if(!hook) {
-        log_error(`${gobj_short_name(gobj)}: topic '${topic}' has no self-referent hook`);
-        return;
-    }
-    let ret = gobj_command(remote, "jtree",
-        {
-            service:     priv.treedb_name,
-            treedb_name: priv.treedb_name,
-            topic_name:  topic,
-            hook:        hook
-        }, gobj);
-    if(ret) {
-        log_error(ret);
-    }
-}
 
 
 
@@ -1178,28 +1060,27 @@ function ac_mt_command_answer(gobj, event, kw, src)
     let kw_command = kw_get_dict(gobj, __command__, "kw", {}, kw_flag_t.KW_REQUIRED);
 
     /*
-     *  The JSON viewer's two feeds: `print-tranger` (whole tranger, lazy drill
-     *  by echoed `path`) and `jtree` (the selected topic's logical tree,
-     *  non-collapsed, one-shot). Handled before the generic error path, which
-     *  returns early.
+     *  The JSON viewer's feed: `print-tranger` (whole tranger, lazy drill by
+     *  echoed `path`). Handled before the generic error path, which returns
+     *  early.
      */
-    if(command === "print-tranger" || command === "jtree") {
+    if(command === "print-tranger") {
         let jv = gobj.priv.json_gobj;
         if(!jv || !is_gobj(jv) || gobj_is_destroying(jv)) {
             return 0;   /*  viewer closed before its answer landed: benign  */
         }
         let path = kw_get_str(gobj, kw_command, "path", "", 0);
         if(result < 0) {
-            if(command === "print-tranger" && path) {
+            if(path) {
                 gobj_send_event(jv, "EV_SUBTREE_ERROR",
                     {path: path, error: comment || "print-tranger failed"}, gobj);
             } else {
                 yui_shell_show_error(yui_shell_of(gobj),
-                    comment || `${command} failed`, {t: t});
+                    comment || "print-tranger failed", {t: t});
             }
             return 0;
         }
-        if(command === "print-tranger" && path) {
+        if(path) {
             gobj_send_event(jv, "EV_SUBTREE_LOADED", {path: path, json: data}, gobj);
         } else {
             gobj_send_event(jv, "EV_SET_JSON", {json: data}, gobj);
@@ -1318,7 +1199,6 @@ function ac_show(gobj, event, kw, src)
     gobj_write_attr(gobj, "last_selection", href);
     if(href && href.indexOf("?") >= 0) {
         let topic = href.split("?")[1];
-        gobj.priv.selected_topic = topic;   /*  for the jtree viewer  */
         try {
             window.localStorage.setItem(
                 `yui_treedb_topics:${gobj_name(gobj)}`, topic
@@ -1563,16 +1443,7 @@ function ac_refresh_topic(gobj, event, kw, src)
  ********************************************/
 function ac_open_json(gobj, event, kw, src)
 {
-    open_json_viewer(gobj, "tranger", null);
-    return 0;
-}
-
-/********************************************
- *  Open the logical-tree (jtree) JSON of the selected topic.
- ********************************************/
-function ac_open_jtree(gobj, event, kw, src)
-{
-    open_json_viewer(gobj, "jtree", gobj.priv.selected_topic || "");
+    open_json_viewer(gobj);
     return 0;
 }
 
@@ -1654,7 +1525,6 @@ function create_gclass(gclass_name)
             ["EV_DELETE_RECORD",        ac_delete_record,           null],
             ["EV_REFRESH_TOPIC",        ac_refresh_topic,           null],
             ["EV_OPEN_JSON",            ac_open_json,               null],
-            ["EV_OPEN_JTREE",           ac_open_jtree,              null],
             ["EV_EXPAND_PATH",          ac_json_expand_path,        null],
             ["EV_JSON_CLOSED",          ac_json_closed,             null],
             ["EV_SHOW",                 ac_show,                    null],
@@ -1676,7 +1546,6 @@ function create_gclass(gclass_name)
         ["EV_DELETE_RECORD",        0],
         ["EV_REFRESH_TOPIC",        0],
         ["EV_OPEN_JSON",            0],
-        ["EV_OPEN_JTREE",           0],
         ["EV_EXPAND_PATH",          0],
         ["EV_JSON_CLOSED",          0],
         ["EV_SHOW",                 0],
