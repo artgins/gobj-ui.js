@@ -248,7 +248,7 @@ function make_toolbar(gobj)
     );
 
     let right_items = [
-        icon_button(gobj, "yi-plus",           "EV_EXPAND_ALL",   "expand loaded"),
+        icon_button(gobj, "yi-chevron-right",  "EV_EXPAND_ALL",   "expand loaded"),
         icon_button(gobj, "yi-chevron-right",  "EV_COLLAPSE_ALL", "collapse all"),
         icon_button(gobj, "yi-copy",           "EV_COPY_ALL",     "copy json"),
     ];

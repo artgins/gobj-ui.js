@@ -45,7 +45,7 @@
 
 .C_YUI_JSON .JSON_TREE {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 15px;
+    font-size: 1em;
     line-height: 1.5;
     padding: 0.25rem 0;
 }
@@ -92,6 +92,13 @@
 }
 
 .C_YUI_JSON .JSON_TOGGLE.is-open i {
+    transform: rotate(90deg);
+}
+
+/*  "Expand all" reuses the chevron (the only one available) rotated to point
+ *  DOWN — the open state — while "collapse all" keeps it pointing right (the
+ *  closed state), mirroring the per-node toggle. */
+.C_YUI_JSON .EV_EXPAND_ALL i {
     transform: rotate(90deg);
 }
 

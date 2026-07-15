@@ -63,8 +63,10 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   view — was dropped before release: it only applied to self-referent tree
   topics and added little over the raw dump.)
 
-- **style(C_YUI_JSON): larger viewer font (13px → 15px)** for readability of
-  the raw tranger dumps.
+- **style(C_YUI_JSON): viewer font set to `1em`** (inherits the host font)
+  for readability of the raw tranger dumps, and the **"expand all"** toolbar
+  icon is now the chevron rotated down (open state) instead of a plus — so it
+  mirrors the per-node toggle and "collapse all" (chevron pointing right).
 
 - **fix(period): the label is the loudest thing in the navigator again.** It
   is a `.button` INSIDE `.YUI_PERIOD_NAV`, so the three-class rule that sizes
