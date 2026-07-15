@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(form): a malformed enum no longer crashes the whole form.**
+  `C_YUI_FORM`'s `select` / `select2` branches assumed `options` was always an
+  array; an `enum` column whose `enum_list` was missing or non-array threw
+  `options.map is not a function` and aborted building the entire record dialog
+  (seen editing a `device_types` row). They now render an empty select and
+  `log_error` the offending field (topic/type/real_type) instead of crashing.
+  Pre-existing since the v2 src move; unrelated to the clear-button/modal work
+  below.
+
 - **feat(inputs): clear (✕) is now the NORM on every editable free-text
   field.** Standardized on the existing `attach_clear()` helper
   (`yui_inputs.js`, Bulma `.delete` that appears only while the field has

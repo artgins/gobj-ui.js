@@ -1164,12 +1164,20 @@ function create_form_field(
         {
             // ["item"]
             // <option value="item" data-i18n:"item"> item </option>
+            let opts = options;
+            if(!Array.isArray(opts)) {
+                log_error(sprintf(
+                    "%s: select field '%s' options not an array (type=%s, real_type=%s); rendering empty",
+                    gobj_short_name(gobj), name, field_desc.type, field_desc.real_type
+                ));
+                opts = [];
+            }
             let extend = ['div', {class: "select" },
                 ["select",
                     {
                         name: name
                     },
-                    options.map(option =>
+                    opts.map(option =>
                         ['option', {value:option, i18n:option}, option]
                     ),
                     {
@@ -1192,13 +1200,24 @@ function create_form_field(
             /*
              *  https://tom-select.js.org/docs/api/
              */
+            /*  A malformed schema (enum without an array `enum_list`) must not
+             *  crash the whole form — render an empty select and name the
+             *  offender.  */
+            let opts = options;
+            if(!Array.isArray(opts)) {
+                log_error(sprintf(
+                    "%s: select2 field '%s' options not an array (type=%s, real_type=%s); rendering empty",
+                    gobj_short_name(gobj), name, field_desc.type, field_desc.real_type
+                ));
+                opts = [];
+            }
             let extend = ["select",
                 {
                     name: name,
                     class: '',
                     multiple: true,
                 },
-                options.map(option =>
+                opts.map(option =>
                     ['option', {value:option, i18n:option}, option]
                 )
             ];
