@@ -148,6 +148,20 @@ function mt_create(gobj)
          *  pushes its close handler when it opens and pops it when
          *  it closes.  Escape calls the top handler only — LIFO. */
         escape_stack:    [],
+        /*  Overlay history integration (Back button ↔ modals/windows).
+         *  Each history-participating overlay (modal, floating window)
+         *  pushes a { id, close } record here when it opens, plus a
+         *  synthetic browser-history entry (pushState).  The browser Back
+         *  button then closes the TOP overlay instead of navigating; and
+         *  an overlay dismissed by any other path (X, Escape, backdrop,
+         *  code) retires its history entry via history.back().  Gated on
+         *  `use_hash` — see push_overlay_history / overlay_dismissed. */
+        overlay_stack:   [],
+        overlay_seq:     0,
+        /*  Count of history.back() calls WE issued to retire a dismissed
+         *  overlay; the popstate they trigger is expected and ignored. */
+        expected_pops:   0,
+        popstate_handler: null,
         /*  Avatar item support — every toolbar item with type:"avatar"
          *  registers its <span> here so refresh_avatars() can repaint
          *  the initials when the host (wattyzer, hidraulia, …) calls
@@ -218,6 +232,33 @@ function mt_start(gobj)
             }
         };
         window.addEventListener("hashchange", priv.hash_handler);
+
+        /*  Back button ↔ overlays.  A synthetic overlay history entry
+         *  keeps the same hash, so Back over it fires popstate WITHOUT a
+         *  hashchange: close the top overlay and consume the event.  A
+         *  real route Back changes the hash and is handled by hash_handler
+         *  above (popstate then finds no overlays and does nothing). */
+        priv.popstate_handler = () => {
+            let p = gobj_read_attr(gobj, "priv");
+            if(!p) {
+                return;
+            }
+            if(p.expected_pops > 0) {
+                /*  A history.back() we issued to retire a dismissed
+                 *  overlay — the teardown already happened. */
+                p.expected_pops--;
+                return;
+            }
+            if(p.overlay_stack.length > 0) {
+                let entry = p.overlay_stack.pop();
+                try {
+                    entry.close();
+                } catch(e) {
+                    log_warning(`C_YUI_SHELL: overlay close on Back failed: ${e}`);
+                }
+            }
+        };
+        window.addEventListener("popstate", priv.popstate_handler);
     }
 
     /*  Global Escape: route to the top handler of the escape stack,
@@ -278,6 +319,10 @@ function mt_stop(gobj)
     if(priv.hash_handler) {
         window.removeEventListener("hashchange", priv.hash_handler);
         priv.hash_handler = null;
+    }
+    if(priv.popstate_handler) {
+        window.removeEventListener("popstate", priv.popstate_handler);
+        priv.popstate_handler = null;
     }
     if(priv.keydown_handler) {
         window.removeEventListener("keydown", priv.keydown_handler);
@@ -1927,6 +1972,76 @@ function pop_escape(gobj, handler)
     }
 }
 
+/************************************************************
+ *  Overlay history integration — Back button ↔ modals/windows.
+ *
+ *  An overlay that wants the browser Back button to close it (modal,
+ *  floating window) registers on open with push_overlay_history and
+ *  calls overlay_dismissed when it closes by ANY other path.
+ *
+ *  On open we push a synthetic history entry that keeps the current
+ *  hash, so routing is untouched.  The two close paths converge on the
+ *  same overlay_stack, and membership in it disambiguates which one ran:
+ *
+ *    - Back pressed  → popstate pops the entry and calls entry.close();
+ *      the browser already dropped the history entry, so the later
+ *      overlay_dismissed finds the entry gone and does nothing.
+ *    - X/Escape/code → the overlay's close runs first (entry still on
+ *      the stack), overlay_dismissed removes it and history.back()s to
+ *      retire the still-present browser entry (that popstate is counted
+ *      in expected_pops and ignored).
+ *
+ *  Gated on `use_hash`: an app that manages its own routing gets no
+ *  synthetic entries — a stray history.back() there could exit it.
+ ************************************************************/
+function push_overlay_history(gobj, close)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.overlay_stack || !gobj_read_attr(gobj, "use_hash")) {
+        return null;
+    }
+    let entry = { id: ++priv.overlay_seq, close: close };
+    priv.overlay_stack.push(entry);
+    try {
+        window.history.pushState({ __yui_overlay__: entry.id }, "");
+    } catch(e) {
+        /*  pushState failed (rare): drop the entry so overlay_dismissed
+         *  won't later history.back() past a real route. */
+        priv.overlay_stack.pop();
+        log_warning(`C_YUI_SHELL: overlay pushState failed: ${e}`);
+        return null;
+    }
+    return entry;
+}
+
+function overlay_dismissed(gobj, entry)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.overlay_stack || !entry) {
+        return;
+    }
+    let idx = priv.overlay_stack.indexOf(entry);
+    if(idx < 0) {
+        /*  Already removed by the popstate handler (closed via Back). */
+        return;
+    }
+    priv.overlay_stack.splice(idx, 1);
+    /*  Only history.back() when this was the TOP entry: a non-LIFO
+     *  dismissal (a lower overlay closed under a higher one) must not
+     *  pop past the higher overlay's still-present entry.  Overlays
+     *  close LIFO in practice; a non-top one just leaves an inert entry
+     *  the next Back will absorb harmlessly. */
+    if(idx === priv.overlay_stack.length) {
+        priv.expected_pops++;
+        try {
+            window.history.back();
+        } catch(e) {
+            priv.expected_pops--;
+            log_warning(`C_YUI_SHELL: overlay history.back() failed: ${e}`);
+        }
+    }
+}
+
 /*  Per-drawer open/close.  The escape-stack entry and the focus-
  *  trap release function are parked on the $drawer DOM element so
  *  any close path (Escape, backdrop click, toolbar action, public
@@ -2489,6 +2604,25 @@ function yui_shell_pop_escape(shell_gobj, handler)
     pop_escape(shell_gobj, handler);
 }
 
+/*  Overlay history integration — public API for overlays the shell does
+ *  not own (modals from shell_modals.js, floating C_YUI_WINDOW popups).
+ *
+ *      let overlay = yui_shell_register_overlay(shell, close_fn);
+ *      // ... when the overlay closes by ANY non-Back path, also call:
+ *      yui_shell_overlay_dismissed(shell, overlay);
+ *
+ *  `close_fn` is what the Back button invokes to tear the overlay down.
+ *  Returns null when history integration is off (no shell / use_hash) —
+ *  callers just skip the paired yui_shell_overlay_dismissed then. */
+function yui_shell_register_overlay(shell_gobj, close_fn)
+{
+    return push_overlay_history(shell_gobj, close_fn);
+}
+function yui_shell_overlay_dismissed(shell_gobj, overlay)
+{
+    overlay_dismissed(shell_gobj, overlay);
+}
+
 /************************************************************
  *  Avatar provider — toolbar items with type:"avatar" call the
  *  registered provider whenever the shell paints initials.  The
@@ -2626,6 +2760,8 @@ export {
     yui_shell_toggle_drawer,
     yui_shell_push_escape,
     yui_shell_pop_escape,
+    yui_shell_register_overlay,
+    yui_shell_overlay_dismissed,
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_translator,

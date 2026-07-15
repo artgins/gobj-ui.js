@@ -552,6 +552,21 @@ Recommended default: `keep_alive`.
   `base` declared route, `subpath` trailing view-owned part, `item`,
   `parent_item`, `stage`, `menu_id`). Navs consume it to mark the
   active item; views subscribe to react to subpath changes.
+- **Back button closes overlays** (`use_hash` only): a modal
+  (`yui_shell_show_modal`), a confirm dialog (`yui_shell_confirm_*`)
+  and a floating `C_YUI_WINDOW` (no dock `manager`) register with the
+  shell on open, which pushes a *synthetic* history entry — same hash,
+  so routing is untouched. The browser Back button then closes the
+  top-most overlay instead of navigating the underlying view; a second
+  Back (no overlay left) is a normal route Back. When an overlay closes
+  by any other path (X, Escape, backdrop, code) it retires its history
+  entry via `history.back()`, so history never drifts and a later Back
+  navigates normally. The mechanism reuses the same LIFO discipline as
+  the Escape chain; dock-managed windows are persistent workspace
+  surfaces and opt out (attr `back_dismissable`, default `true`).
+  Overlays register via `yui_shell_register_overlay(shell, close_fn)`
+  and retire via `yui_shell_overlay_dismissed(shell, handle)` — the
+  built-in modal/window helpers do this for you.
 
 ---
 

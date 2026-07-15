@@ -41,6 +41,8 @@ import {
 import {
     yui_shell_push_escape,
     yui_shell_pop_escape,
+    yui_shell_register_overlay,
+    yui_shell_overlay_dismissed,
 } from "./c_yui_shell.js";
 
 
@@ -269,6 +271,7 @@ export function yui_shell_show_modal(shell, content, opts)
     let closed = false;
     let close_fn = null;
     let release_focus = null;
+    let overlay = null;
 
     let close = function() {
         if(closed) {
@@ -286,6 +289,9 @@ export function yui_shell_show_modal(shell, content, opts)
         if($modal.parentNode) {
             $modal.parentNode.removeChild($modal);
         }
+        /*  Retire the browser-history entry (no-op when Back triggered
+         *  this close — the entry is already gone). */
+        yui_shell_overlay_dismissed(shell, overlay);
         if(opts && typeof opts.on_close === "function") {
             try {
                 opts.on_close();
@@ -297,6 +303,9 @@ export function yui_shell_show_modal(shell, content, opts)
     close_fn = close;
 
     yui_shell_push_escape(shell, "modal", close);
+    /*  Browser Back closes the top-most modal (see overlay history in
+     *  c_yui_shell.js).  Null when history integration is off. */
+    overlay = yui_shell_register_overlay(shell, close);
     /*  Trap on $modal (not on .modal-content) so the .modal-close
      *  button — rendered as a SIBLING of .modal-content — is
      *  reachable via Tab.  Without this, Tab/Shift+Tab can only
@@ -423,6 +432,7 @@ function build_dialog(shell, message, buttons, opts)
         let resolved = false;
         let close_fn = null;
         let release_focus = null;
+        let overlay = null;
 
         let close = function(value) {
             if(resolved) {
@@ -440,11 +450,17 @@ function build_dialog(shell, message, buttons, opts)
             if($modal.parentNode) {
                 $modal.parentNode.removeChild($modal);
             }
+            /*  Retire the browser-history entry (no-op when Back
+             *  triggered this close). */
+            yui_shell_overlay_dismissed(shell, overlay);
             resolve(value);
         };
         close_fn = () => close(dismiss_value);
 
         yui_shell_push_escape(shell, "modal", close_fn);
+        /*  Browser Back dismisses the dialog with the safe-default value,
+         *  exactly like Escape. */
+        overlay = yui_shell_register_overlay(shell, close_fn);
         release_focus = activate_focus_trap_on(
             $modal.querySelector(".modal-card")
         );

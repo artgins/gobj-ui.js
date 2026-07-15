@@ -46,7 +46,11 @@ import {
 import {t} from "i18next";
 
 import {yui_shell_confirm_yesnocancel} from "./shell_modals.js";
-import {yui_shell_of} from "./c_yui_shell.js";
+import {
+    yui_shell_of,
+    yui_shell_register_overlay,
+    yui_shell_overlay_dismissed,
+} from "./c_yui_shell.js";
 
 import "./c_yui_window.css";
 
@@ -101,6 +105,8 @@ SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Dock-chip icon: a y
 SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "Brings focus to the element, can be a number or selector"),
 SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "Enable modal mode"),
 SDATA(data_type_t.DTP_BOOLEAN,  "keyboard",     0,  true,   "Close window on ESC if not modal"),
+SDATA(data_type_t.DTP_BOOLEAN,  "back_dismissable", 0, true, "Browser Back closes this window (floating overlays only; ignored when it has a `manager`)"),
+SDATA(data_type_t.DTP_POINTER,  "back_overlay", 0,  null,   "Internal: overlay-history entry (Back-button integration)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Internal: Window container element"),
 SDATA(data_type_t.DTP_STRING,   "window_id",    0,  "",     "Internal: Window ID"),
 SDATA(data_type_t.DTP_POINTER,  "win_resize_handler", 0, null, "Internal: native window 'resize' listener"),
@@ -162,6 +168,18 @@ function mt_create(gobj)
             title: gobj_read_attr(gobj, "title") || gobj_short_name(gobj),
             icon: gobj_read_attr(gobj, "icon") || "",
         }, gobj);
+    } else if(gobj_read_bool_attr(gobj, "back_dismissable")) {
+        /*  Floating overlay window (no dock manager): the browser Back
+         *  button closes it, like a modal/popup.  Dock-managed windows
+         *  are persistent workspace surfaces and are left out.  Retired
+         *  in mt_destroy (covers every teardown path). */
+        let shell = yui_shell_of(gobj);
+        if(shell) {
+            let overlay = yui_shell_register_overlay(
+                shell, function() { close_window(gobj); }
+            );
+            gobj_write_attr(gobj, "back_overlay", overlay);
+        }
     }
 
     /*  Keep the window inside the viewport on a breakpoint change.
@@ -210,6 +228,17 @@ function mt_destroy(gobj)
     let manager = gobj_read_pointer_attr(gobj, "manager");
     if(manager) {
         gobj_send_event(manager, "EV_UNREGISTER_WINDOW", {window: gobj}, gobj);
+    }
+
+    /*  Retire the overlay-history entry, if this was a Back-dismissable
+     *  floating window (no-op when Back itself triggered the teardown). */
+    let back_overlay = gobj_read_attr(gobj, "back_overlay");
+    if(back_overlay) {
+        let shell = yui_shell_of(gobj);
+        if(shell) {
+            yui_shell_overlay_dismissed(shell, back_overlay);
+        }
+        gobj_write_attr(gobj, "back_overlay", null);
     }
 
     let on_win_resize = gobj_read_attr(gobj, "win_resize_handler");

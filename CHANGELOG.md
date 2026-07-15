@@ -7,6 +7,21 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): browser Back closes modals and floating windows.** Overlays
+  now integrate with browser history. Opening a shell modal
+  (`yui_shell_show_modal`), a confirm dialog (`yui_shell_confirm_*`) or a
+  floating `C_YUI_WINDOW` (one without a dock `manager`) pushes a synthetic
+  history entry (same hash, so routing is untouched); the browser Back button
+  then closes the top-most overlay instead of navigating the underlying view.
+  Closing an overlay by any other path (X, Escape, backdrop, code) retires that
+  history entry via `history.back()`, so a later Back navigates normally with no
+  phantom step. Previously Back was a no-op on overlays and could strand an open
+  modal/window over a changed route. New shell API
+  `yui_shell_register_overlay` / `yui_shell_overlay_dismissed`; new
+  `C_YUI_WINDOW` attr `back_dismissable` (default `true`, ignored for
+  dock-managed windows). Gated on the shell's `use_hash`; dock-managed windows
+  keep their persistent-workspace behavior.
+
 - **feat(dev window): "Output" selector — Window / Console / Both.** The
   developer monitor can now route all its output (inter-event traffic + every
   framework log + the automata/FSM trace) to the dev window only, the browser
