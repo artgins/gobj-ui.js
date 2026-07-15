@@ -96,12 +96,11 @@ sentinels present it degrades to a plain client-side collapsible tree.
 - Paths use the kernel delimiter (backtick) and index arrays numerically, so a
   path emitted by the viewer round-trips through `kw_find_path` on the backend.
 
-**Backend note.** `print-tranger` (`c_tranger.c`) already serves the dict-drill
-path; the array-drill path currently fails because `kw_collapse()` requires a
-dict at the requested path. To view a **treedb's** raw tranger, add an
-equivalent `print-tranger` command to `C_NODE` (it holds `priv->tranger`); the
-node graph itself is reachable through the same viewer via `export-db` / `jtree`
-(non-collapsed, so no lazy drill — the viewer renders them client-side).
+**Backend note.** The Raw JSON feed is `print-tranger`, which serves the tranger
+with both dict- and array-drill (via `kw_collapse()`): `c_tranger.c` for a
+`C_TRANGER` service, and `C_NODE` (it holds `priv->tranger`) for a **treedb**.
+A document that arrives with no `__collapsed__` sentinels is simply rendered
+client-side (no lazy drill).
 
 Logical DOM classes: `JSON_VIEWER`, `JSON_TOOLBAR`, `JSON_SEARCH`, `JSON_TREE`,
 `JSON_ROW`, `JSON_KEY`, `JSON_VALUE`, `JSON_SUMMARY`, `JSON_COLLAPSED`,
