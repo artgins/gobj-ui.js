@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(json viewer): clear button on the search box.** `C_YUI_JSON`'s toolbar
+  search now has a `yi-xmark` clear button (`JSON_SEARCH_CLEAR`) next to the
+  field. It fires `EV_CLEAR_SEARCH`, which empties the box, refocuses it and
+  re-renders the tree; it is hidden while the box is empty (toggled from
+  `ac_search`), so it only appears when there is something to clear. Reliable
+  across browsers where the native `type=search` clear affordance is
+  inconsistent. Reuses the existing `clear search` i18n key.
+
 - **fix(toolbar): stop leaking a ResizeObserver per `yui_toolbar`, and make the
   scroll arrows reliable.** The horizontal toolbar observed `document.body` for
   resizes; because `<body>` lives for the whole page, the observer's callback
