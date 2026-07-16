@@ -7,6 +7,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): search filter in the site-map tree.** A filter box collapses
+  the route tree to matching nodes plus their ancestor path (and a matched
+  node's whole subtree); it matches the visible row text (name + route + event,
+  so it honours the current language), highlights self-matches, and clears via
+  the standard ✕.
+
 - **fix(shell): site map opens in a resizable window; dark-mode event badges
   legible.** The site-map viewer now hosts its tree in a floating, resizable,
   maximisable `C_YUI_WINDOW` (toggles; a modal is the fallback when

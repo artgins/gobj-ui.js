@@ -34,6 +34,7 @@ import {
 
 import {yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {yui_shell_nav_map} from "./c_yui_shell.js";
+import {attach_clear} from "./yui_inputs.js";
 
 import i18next from "i18next";
 
@@ -78,6 +79,39 @@ function render_node(node)
 }
 
 /***************************************************************
+ *  Filter a rendered <li>: visible when its own row matches `q`, when
+ *  an ancestor matched (show the whole subtree of a match), or when a
+ *  descendant matches (keep the ancestor path). Empty `q` shows all.
+ *  Matches against the visible row text (name + route + event), so it
+ *  honours the current translation. Returns whether the <li> is shown.
+ ***************************************************************/
+function filter_li($li, q, ancestor_match)
+{
+    let $row = $li.querySelector(":scope > .ROUTEMAP_ROW");
+    let text = $row ? ($row.textContent || "").toLowerCase() : "";
+    let self_match = q === "" || text.indexOf(q) >= 0;
+    let show_all = ancestor_match || self_match;
+
+    let any_child = false;
+    let $ul = $li.querySelector(":scope > ul");
+    if($ul) {
+        let kids = $ul.children;
+        for(let i = 0; i < kids.length; i++) {
+            if(filter_li(kids[i], q, show_all)) {
+                any_child = true;
+            }
+        }
+    }
+
+    let visible = show_all || any_child;
+    $li.style.display = visible ? "" : "none";
+    if($row) {
+        $row.classList.toggle("ROUTEMAP_MATCH", q !== "" && self_match);
+    }
+    return visible;
+}
+
+/***************************************************************
  *  Build the site-map body (tree + hint + print), and wire the
  *  print button and the link-jump behaviour. `on_jump()` is called
  *  after a link is clicked (to close the host window/modal), then the
@@ -104,11 +138,33 @@ function build_body(shell, t, on_jump)
         ]]
     );
 
+    /*  Search filter: matching nodes plus their ancestor path (and the
+     *  matched node's whole subtree) stay visible; the rest collapse. */
+    let $search = createElement2(
+        ["input", {class: "input is-small ROUTEMAP_SEARCH", type: "text",
+                   placeholder: t("filter", {defaultValue: "Filter…"}),
+                   "data-i18n-placeholder": "filter",
+                   "aria-label": t("filter", {defaultValue: "Filter"}),
+                   "data-i18n-aria-label": "filter"}]
+    );
+    let $search_ctrl = createElement2(
+        ["div", {class: "control ROUTEMAP_SEARCH_CTRL mb-2"}, [$search]]
+    );
+    attach_clear($search_ctrl, $search);
+    $search.addEventListener("input", function() {
+        let q = ($search.value || "").trim().toLowerCase();
+        let $root_li = $tree.querySelector(".ROUTEMAP_ROOT > li");
+        if($root_li) {
+            filter_li($root_li, q, false);
+        }
+    });
+
     let $body = createElement2(
         ["div", {class: "C_YUI_SHELL_ROUTEMAP ROUTEMAP_BODY"}, [
             ["p", {class: "ROUTEMAP_HINT is-size-7 mb-2", i18n: "site map hint"},
                 t("site map hint", {defaultValue:
                     "Every reachable position of the app is a URL. Click to jump."})],
+            $search_ctrl,
             $tree,
             ["div", {class: "ROUTEMAP_ACTIONS"}, [
                 ["button", {class: "button is-small ROUTEMAP_PRINT",

@@ -12,12 +12,31 @@
 .ROUTEMAP_BODY {
     max-width: 44rem;
 }
+.ROUTEMAP_SEARCH_CTRL {
+    max-width: 22rem;
+}
+/*  Highlight a row that itself matches the filter. */
+.ROUTEMAP_MATCH {
+    background: var(--bulma-warning-light, #fff6d9) !important;
+}
+[data-theme="dark"] .ROUTEMAP_MATCH {
+    background: rgba(255, 221, 87, 0.20) !important;
+}
+.ROUTEMAP_MATCH .ROUTEMAP_NAME,
+.ROUTEMAP_MATCH .ROUTEMAP_ROUTE {
+    color: var(--bulma-text-strong, #363636);
+}
+[data-theme="dark"] .ROUTEMAP_MATCH .ROUTEMAP_NAME,
+[data-theme="dark"] .ROUTEMAP_MATCH .ROUTEMAP_ROUTE {
+    color: #1a1a1a;
+}
 .ROUTEMAP_TREE {
     font-family: var(--bulma-family-monospace, monospace);
     font-size: 0.85rem;
     line-height: 1.5;
     overflow: auto;
-    max-height: 65vh;
+    /*  Taller now it lives in a resizable window (grows with it). */
+    max-height: 68vh;
     border: 1px solid var(--bulma-border-weak, #dbdbdb);
     border-radius: 0.375rem;
     padding: 0.75rem 1rem;
