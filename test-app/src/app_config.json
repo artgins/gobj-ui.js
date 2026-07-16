@@ -32,6 +32,14 @@
                 "zone": "center",
                 "default_route": "/tabs"
             }
+        },
+        "routes": {
+            "_sitemap_comment": "Action route (ROUTING.md 7.1): fires EV_OPEN_SITEMAP instead of mounting a view. redirect:'back' because the site map is a floating C_YUI_WINDOW on the overlay stack (no opener-owned URL hook, so 'stay' would leave the URL stale on close).",
+            "/sitemap": {
+                "kind": "action",
+                "event": "EV_OPEN_SITEMAP",
+                "redirect": "back"
+            }
         }
     },
     "toolbar": {
@@ -133,6 +141,15 @@
                         },
                         {
                             "type": "divider"
+                        },
+                        {
+                            "id": "d-sitemap",
+                            "name": "Site map",
+                            "icon": "yi-bars",
+                            "action": {
+                                "type": "navigate",
+                                "route": "/sitemap"
+                            }
                         },
                         {
                             "id": "d-about",

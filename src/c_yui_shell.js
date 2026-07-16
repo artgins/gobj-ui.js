@@ -61,6 +61,7 @@ import {
 } from "./shell_toolbar_helpers.js";
 
 import { resolve_route, normalize_route } from "./route_resolver.js";
+import { build_nav_map } from "./route_map_model.js";
 import {
     section_index_target,
     secondary_nav_renders,
@@ -263,19 +264,27 @@ function mt_start(gobj)
             if(p.overlay_stack.length === 0) {
                 return;
             }
-            /*  Which entry did this popstate land ON?  Synthetic overlay
-             *  entries carry a state marker (push_overlay_history);
-             *  route entries have a null state.  NOTE: fragment
-             *  navigations fire popstate too (null state, new entry), so
-             *  this same branch closes the top overlay when the user
-             *  route-navigates with it open — deliberate: an overlay is
-             *  transient and does not outlive its resting route.
+            /*  A popstate landing on a DIFFERENT hash than the current
+             *  resting route is a route navigation, not an overlay pop
+             *  (fragment pushes fire popstate too, and a traversal that
+             *  changes the hash re-routes): the hashchange handler owns
+             *  it — navigate_to() closes the transient overlays only
+             *  when the RESTING route really changes, so an action
+             *  route or a subpath move keeps them open. */
+            let resting = route_to_hash(
+                gobj_read_attr(gobj, "current_route") || "");
+            if(resting && window.location.hash !== resting) {
+                return;
+            }
+            /*  Same-hash landing = a pop over a synthetic entry.  Which
+             *  entry did it land ON?  Markers ({__yui_overlay__: id})
+             *  tag synthetic entries; route entries have a null state.
              *    - Landing ON the top overlay's OWN entry (an odd
              *      history.go(n) traversal): the overlay is at its home
              *      entry — keep it open.
-             *    - Any other landing (a route entry, a fragment push, or
-             *      a lower overlay's marker) closes the top overlay:
-             *      strict LIFO. */
+             *    - Any other landing (the route entry below, or a lower
+             *      overlay's marker) closes the top overlay: strict
+             *      LIFO. */
             let top = p.overlay_stack[p.overlay_stack.length - 1];
             let st = ev && ev.state;
             if(st && st.__yui_overlay__ === top.id) {
@@ -1118,12 +1127,29 @@ function navigate_to(gobj, route, depth)
      *                later close → back lands on the default instead
      *                of exiting the app.
      *  EV_ROUTE_REQUESTED was already published above, so an auditor
-     *  sees the action route intent too.                              */
+     *  sees the action route intent too.
+     *
+     *  ORDER of event vs URL work is per-flavour and it MATTERS when the
+     *  handler opens a Back-dismissable overlay (its synthetic history
+     *  entry must share the hash it is opened over):
+     *    "stay"          → event FIRST (the URL stays on this route, so
+     *                      the marker lands on this same hash).
+     *    "back"/"none"   → restore the URL FIRST, event after.  The old
+     *                      event-first order left the overlay marker on
+     *                      the ACTION hash and the restore rewrote it,
+     *                      stranding the action's own route entry below:
+     *                      closing the overlay then history.back()ed
+     *                      onto that entry and RE-FIRED the action — the
+     *                      "site-map window won't close" loop.
+     *    "<route>"       → event first (logout-style: the handler may
+     *                      tear the shell down; navigate afterwards).   */
     if(entry.target.kind === "action") {
         let t = entry.target;
-        if(!empty_string(t.event)) {
-            gobj_publish_event(gobj, t.event, t.kw || {});
-        }
+        let publish_action = () => {
+            if(!empty_string(t.event)) {
+                gobj_publish_event(gobj, t.event, t.kw || {});
+            }
+        };
         let config = gobj_read_attr(gobj, "config") || {};
         let prev = (priv.stages && priv.stages.main &&
                     priv.stages.main.active_route) ||
@@ -1133,6 +1159,7 @@ function navigate_to(gobj, route, depth)
                     config.shell.stages.main.default_route) || "/";
         let redirect = t.redirect;
         if(redirect === "stay") {
+            publish_action();
             if(gobj_read_attr(gobj, "use_hash")) {
                 let has_resting = !!(priv.stages && priv.stages.main &&
                                      priv.stages.main.active_route);
@@ -1166,11 +1193,22 @@ function navigate_to(gobj, route, depth)
                     window.location.hash = h;
                 }
             }
+            publish_action();
             return;
         }
         if(redirect === "back") {
-            redirect = prev;
+            /*  Full restore of the previous resting view + its URL (the
+             *  replaceState inside rewrites the action's pushed entry),
+             *  THEN the event: an overlay opened by the handler floats
+             *  above the restored view and its synthetic entry shares
+             *  the restored hash — Back/dismiss stay invisible. */
+            if(prev !== route) {
+                navigate_to(gobj, prev, depth + 1);
+            }
+            publish_action();
+            return;
         }
+        publish_action();
         if(redirect === route) {
             log_error(
                 `C_YUI_SHELL: action route '${route}' redirects to itself`
@@ -1193,6 +1231,21 @@ function navigate_to(gobj, route, depth)
     /*  View instances are keyed by the BASE (declared) route so a
      *  subpath-only change reuses the same view (no rebuild). */
     let prev_route = stage.active_route;
+
+    /*  A change of RESTING route closes every Back-dismissable overlay:
+     *  they are transient (§3) and do not outlive the view they float
+     *  above.  (An action route or a subpath-only move never reaches
+     *  here with a different matched_route, so they keep them open.)
+     *  Their synthetic entries are NOT retired — they are buried under
+     *  the new route's entry; popped BEFORE close, so each close's
+     *  overlay_dismissed finds its entry gone and leaves it inert for a
+     *  later Back to absorb.  Only at depth 0: an internal redirect hop
+     *  (the "stay" deep-link restore) must not close the overlay the
+     *  action's own event just opened. */
+    if(depth === 0 && prev_route && prev_route !== matched_route) {
+        drain_overlays(gobj);
+    }
+
     if(prev_route && prev_route !== matched_route) {
         let prev_gobj = stage.items[prev_route];
         let $prev = null;
@@ -2047,24 +2100,44 @@ function pop_escape(gobj, handler)
  *      retire the still-present browser entry (that popstate is counted
  *      in expected_pops and ignored).
  *
- *  The synthetic entry carries a state marker ({__yui_overlay__: id}).
- *  Note that a FRAGMENT navigation (location.hash = …) fires popstate
- *  too (all engines), so route-navigating with overlays open closes the
- *  TOP one through the same Back path — an overlay is transient and
- *  does not outlive its resting route.  An overlay stacked BELOW the
- *  closed one survives, its entry now BURIED under the new route
- *  entries; the marker keeps that case sound:
- *    - overlay_dismissed only history.back()s when the marker is the
- *      CURRENT history entry (adjacent, so the back() is invisible);
- *      a buried entry is left inert — closing the overlay far from home
- *      must never teleport the user back over real route entries.
- *    - the popstate handler never closes an overlay when the landing
- *      entry IS that overlay's own marker (strict LIFO across odd
- *      history.go(n) traversals).
+ *  The synthetic entry carries a state marker ({__yui_overlay__: id})
+ *  recording which overlay it belongs to.  Route navigation interplay:
+ *    - fragment navigations fire popstate too (all engines), so the
+ *      popstate handler treats only SAME-HASH landings as overlay pops;
+ *      a hash-changing landing is a route move owned by hashchange.
+ *    - navigate_to() drains (closes) every registered overlay when the
+ *      RESTING route changes — overlays are transient and do not
+ *      outlive the view they float above.  An action route or a
+ *      subpath-only move keeps them open.
+ *    - a drained/buried entry is left INERT: overlay_dismissed only
+ *      history.back()s when the marker is the CURRENT history entry
+ *      (adjacent, so the back() is invisible) — never over real route
+ *      entries (that teleported the user).  A later Back absorbs an
+ *      inert entry as a same-hash no-op.
  *
  *  Gated on `use_hash`: an app that manages its own routing gets no
  *  synthetic entries — a stray history.back() there could exit it.
  ************************************************************/
+/*  Close every registered overlay because the resting route changed.
+ *  Pop-then-close (the popstate handler's pattern): the overlay's own
+ *  close path then finds its entry gone in overlay_dismissed and does
+ *  NOT history.back() — the buried synthetic entries stay inert. */
+function drain_overlays(gobj)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.overlay_stack) {
+        return;
+    }
+    while(priv.overlay_stack.length > 0) {
+        let entry = priv.overlay_stack.pop();
+        try {
+            entry.close();
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: overlay close on navigation failed: ${e}`);
+        }
+    }
+}
+
 function push_overlay_history(gobj, close)
 {
     let priv = gobj_read_attr(gobj, "priv");
@@ -2677,150 +2750,24 @@ function yui_shell_navigate(shell_gobj, route, opts)
 }
 
 /************************************************************
- *  One node of the nav map from a declared config item, in
- *  DECLARATION ORDER (never sorted). Recurses into static submenus
- *  and toolbar dropdowns, and merges the LIVE dynamic submenu tabs
- *  (added at runtime via yui_shell_set_submenu) by parent id.
- ************************************************************/
-function nav_node_from_item(it, index)
-{
-    if(!it || it.type === "divider" || it.type === "header") {
-        return null;
-    }
-    let action = it.action || {};
-    let route = it.route ||
-        (action.type === "navigate" ? action.route : "") || "";
-    let event = (action.type === "event") ? action.event : "";
-    /*  Where it is implemented: the view GClass mounted at this route
-     *  (and, for an action route, the event it fires) — from item_index. */
-    let gclass = "";
-    if(route && index[route] && index[route].target) {
-        let tgt = index[route].target;
-        gclass = tgt.gclass || "";
-        if(!event && tgt.kind === "action" && tgt.event) {
-            event = tgt.event;
-        }
-    }
-    let node = {
-        id:       it.id || "",
-        label:    it.name || it.wordmark || it.id || route || "",
-        icon:     it.icon || "",
-        route:    route,
-        event:    event,
-        gclass:   gclass,
-        kind:     it.type || (route ? "route" : (event ? "action" :
-                  (action.type || "item"))),
-        children: []
-    };
-
-    /*  Static submenu (declared) and toolbar dropdown (the account menu). */
-    let sub_items = (it.submenu && Array.isArray(it.submenu.items)) ?
-        it.submenu.items :
-        ((action.type === "dropdown" && Array.isArray(action.items)) ?
-            action.items : null);
-    if(sub_items) {
-        for(let s of sub_items) {
-            let n = nav_node_from_item(s, index);
-            if(n) {
-                node.children.push(n);
-            }
-        }
-    }
-
-    /*  Live dynamic submenu children (runtime tabs) — item_index entries
-     *  whose parent is this item, in item_index (insertion) order, minus
-     *  any already added statically. */
-    if(it.id && index) {
-        for(let r of Object.keys(index)) {
-            let e = index[r];
-            if(e && e.parent_item && e.parent_item.id === it.id &&
-                    !node.children.some((c) => c.route === r)) {
-                node.children.push({
-                    id:       (e.item && e.item.id) || "",
-                    label:    (e.item && e.item.name) || r,
-                    icon:     (e.item && e.item.icon) || "",
-                    route:    r,
-                    event:    "",
-                    gclass:   (e.target && e.target.gclass) || "",
-                    kind:     "route",
-                    children: []
-                });
-            }
-        }
-    }
-    return node;
-}
-
-/************************************************************
- *  Nav map — the WHOLE navigation surface as an ordered tree, for a
- *  "site map" / documentation viewer: the toolbar (incl. the account
- *  dropdown) and the primary menu (incl. live dynamic tabs), in
- *  declaration order (never alphabetised). Returns:
- *      { brand:{label,route}, toolbar:[node…], nav:[node…] }
- *  where a node is {id,label,icon,route,event,gclass,kind,children[]}.
- *  `route` is a navigable hash (or ""); `event` is the action it fires;
- *  `gclass` is the view GClass mounted at that route (where it is
- *  implemented). NOTE: view-owned deep levels (a topic, /info, /schema) are
- *  subpaths a view owns, not declared routes, so they are not listed
- *  — this is the navigable skeleton.
+ *  Nav map — the WHOLE navigation surface as an ordered tree, for
+ *  the "site map" / documentation viewer.  The heavy lifting is the
+ *  pure builder in route_map_model.js (unit-tested there): toolbar
+ *  (incl. the account dropdown), every declared menu (incl. live
+ *  dynamic tabs), each view's contributed sub-routes, the routes
+ *  declared only in the route table (`other`), and the "you are
+ *  here" marker.  Returns {brand, toolbar, nav, other}.
  ************************************************************/
 function yui_shell_nav_map(shell_gobj)
 {
     let priv = gobj_read_attr(shell_gobj, "priv");
-    let index = (priv && priv.item_index) || {};
-    let config = gobj_read_attr(shell_gobj, "config") || {};
-
-    let brand = {label: "", route: ""};
-    let toolbar = [];
-    let tb = config.toolbar && Array.isArray(config.toolbar.items) ?
-        config.toolbar.items : [];
-    for(let it of tb) {
-        if(it && it.type === "brand") {
-            let a = it.action || {};
-            brand = {
-                label: it.wordmark || it.alt || it.id || "",
-                route: it.route || (a.type === "navigate" ? a.route : "") || ""
-            };
-            continue;
-        }
-        let n = nav_node_from_item(it, index);
-        if(n) {
-            toolbar.push(n);
-        }
-    }
-
-    let nav = [];
-    let prim = config.menu && config.menu.primary &&
-        Array.isArray(config.menu.primary.items) ?
-        config.menu.primary.items : [];
-    for(let it of prim) {
-        let n = nav_node_from_item(it, index);
-        if(n) {
-            nav.push(n);
-        }
-    }
-
-    /*  Enrich the tree: merge each mounted view's declared sub-routes into
-     *  its base-route node, and stamp the handler gclass on action-event
-     *  nodes (where the action is implemented). */
-    let sub = (priv && priv.sub_routes) || {};
-    let handlers = (priv && priv.event_handlers) || {};
-    let enrich = (node) => {
-        if(node.route && Array.isArray(sub[node.route]) && sub[node.route].length) {
-            node.children = (node.children || []).concat(sub[node.route]);
-        }
-        if(node.event && !node.gclass &&
-                Array.isArray(handlers[node.event]) && handlers[node.event].length) {
-            node.gclass = handlers[node.event].join(", ");
-        }
-        if(Array.isArray(node.children)) {
-            node.children.forEach(enrich);
-        }
-    };
-    toolbar.forEach(enrich);
-    nav.forEach(enrich);
-
-    return {brand: brand, toolbar: toolbar, nav: nav};
+    return build_nav_map({
+        config:         gobj_read_attr(shell_gobj, "config") || {},
+        item_index:     (priv && priv.item_index) || {},
+        sub_routes:     (priv && priv.sub_routes) || {},
+        event_handlers: (priv && priv.event_handlers) || {},
+        current_route:  gobj_read_attr(shell_gobj, "current_route") || ""
+    });
 }
 
 /************************************************************

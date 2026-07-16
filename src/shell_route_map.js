@@ -40,6 +40,20 @@ import i18next from "i18next";
 
 const WIN_NAME = "shell-route-map-window";
 
+/*  Modal fallback currently open (the window flavour is a service and
+ *  is found by name; the modal is not, so it is tracked here to make
+ *  the second call a TOGGLE for both flavours). */
+let __open_modal__ = null;
+
+/*  Bring the "you are here" row into view once the map is mounted. */
+function scroll_to_current($body)
+{
+    let $cur = $body.querySelector(".ROUTEMAP_CURRENT");
+    if($cur && typeof $cur.scrollIntoView === "function") {
+        $cur.scrollIntoView({block: "center"});
+    }
+}
+
 
 /***************************************************************
  *  Render one nav node as an <li> (with a nested <ul> for children),
@@ -66,15 +80,23 @@ function render_node(node)
     if(node.event) {
         row.push(["span", {class: "ROUTEMAP_EVENT"}, node.event]);
     }
+    /*  "You are here" — the node whose route best matches the current
+     *  one (marked by the model; at most one). */
+    if(node.current) {
+        row.push(["span", {class: "ROUTEMAP_HERE", i18n: "you are here"},
+            "you are here"]);
+    }
 
+    let row_class = node.current ? " ROUTEMAP_CURRENT" : "";
     let $row;
     if(node.route) {
         $row = createElement2(
-            ["a", {class: "ROUTEMAP_LINK ROUTEMAP_ROW", href: "#" + node.route,
+            ["a", {class: "ROUTEMAP_LINK ROUTEMAP_ROW" + row_class,
+                   href: "#" + node.route,
                    title: node.route}, row]);
     } else {
         $row = createElement2(
-            ["span", {class: "ROUTEMAP_ROW ROUTEMAP_STRUCT"}, row]);
+            ["span", {class: "ROUTEMAP_ROW ROUTEMAP_STRUCT" + row_class}, row]);
     }
 
     let kids = (node.children && node.children.length)
@@ -119,22 +141,31 @@ function filter_li($li, q, ancestor_match)
 
 /***************************************************************
  *  Build the site-map body (tree + hint + print), and wire the
- *  print button and the link-jump behaviour. `on_jump()` is called
- *  after a link is clicked (to close the host window/modal), then the
- *  hash navigation runs on the next tick.
+ *  print button and the link-jump behaviour.  Links navigate
+ *  natively; the shell's transient-overlay drain closes the host
+ *  on a resting-route change.  `on_jump()` closes the host for the
+ *  one click that navigates nowhere (the current route).
  ***************************************************************/
 function build_body(shell, t, on_jump)
 {
     let map = yui_shell_nav_map(shell);
+    let children = [
+        {label: "toolbar", icon: "", route: "", event: "",
+         kind: "group", children: map.toolbar}
+    ].concat(map.nav);
+    /*  Routes declared only in the route table (config.shell.routes)
+     *  that no menu/toolbar item points at — root "/", URL-only action
+     *  routes.  Rendered last, as their own group. */
+    if(Array.isArray(map.other) && map.other.length) {
+        children.push({label: "other routes", icon: "", route: "", event: "",
+            kind: "group", children: map.other});
+    }
     let root = {
         label:    map.brand.label || "app",
         icon:     "",
         route:    map.brand.route || "",
         event:    "",
-        children: [
-            {label: "toolbar", icon: "", route: "", event: "",
-             kind: "group", children: map.toolbar}
-        ].concat(map.nav)
+        children: children
     };
 
     let $tree = createElement2(
@@ -218,24 +249,27 @@ function build_body(shell, t, on_jump)
         });
     }
 
-    /*  A route link jumps there: close the host first (retires its Back
-     *  entry cleanly), then navigate on the next tick. Action nodes (no
-     *  route) are documentation only and do not fire. */
+    /*  A route link jumps there NATIVELY (browser push + hashchange —
+     *  no preventDefault): a resting-route change then closes this
+     *  window/modal through the shell's transient-overlay drain, which
+     *  is deterministic (the old close-then-deferred-navigate raced the
+     *  dismissal's history.back() and could land back where it
+     *  started).  A subpath or action-route jump keeps the map open —
+     *  it doubles as a navigation panel.  Clicking the route the user
+     *  is ALREADY on navigates nowhere: close the host instead.
+     *  Action nodes (no route) are documentation only and do not fire. */
     $body.addEventListener("click", function(ev) {
         let $link = ev.target && ev.target.closest &&
             ev.target.closest(".ROUTEMAP_LINK");
         if(!$link) {
             return;
         }
-        ev.preventDefault();
         let href = $link.getAttribute("href");
-        if(typeof on_jump === "function") {
+        if(href && typeof window !== "undefined" &&
+                window.location.hash === href &&
+                typeof on_jump === "function") {
+            ev.preventDefault();
             on_jump();
-        }
-        if(href && typeof window !== "undefined") {
-            setTimeout(function() {
-                window.location.hash = href;
-            }, 0);
         }
     });
 
@@ -251,10 +285,18 @@ export function yui_shell_show_route_map(shell, opts)
 {
     let t = (opts && opts.t) || i18next.t.bind(i18next);
 
-    /*  Toggle: an open site-map window → close it. */
+    /*  Toggle: an open site-map window/modal → close it. */
     let existing = gobj_find_service(WIN_NAME, false);
     if(existing && is_gobj(existing)) {
         gobj_send_event(existing, "EV_CLOSE_WINDOW", {}, shell);
+        return null;
+    }
+    if(__open_modal__) {
+        let m = __open_modal__;
+        __open_modal__ = null;
+        if(typeof m.close === "function") {
+            m.close();
+        }
         return null;
     }
 
@@ -302,6 +344,7 @@ export function yui_shell_show_route_map(shell, opts)
         }
         win_ref.gobj = win;
         gobj_start(win);
+        scroll_to_current($body);
         return win;
     }
 
@@ -316,7 +359,10 @@ export function yui_shell_show_route_map(shell, opts)
         dialog:        true,
         logical_class: "ROUTEMAP_SHEET",
         title:         t("site map", {defaultValue: "Site map"}),
-        t:             t
+        t:             t,
+        on_close:      function() { __open_modal__ = null; }
     });
+    __open_modal__ = modal_ref.modal;
+    scroll_to_current($body);
     return modal_ref.modal;
 }

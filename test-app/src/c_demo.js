@@ -37,6 +37,8 @@ import {
 
 import {yui_shell_show_modal} from "@yuneta/gobj-ui/index.js";
 
+import {yui_shell_show_route_map} from "@yuneta/gobj-ui/src/shell_route_map.js";
+
 import {setup_dev, dev_window_was_open} from "@yuneta/gobj-ui/src/yui_dev.js";
 
 import {t} from "i18next";
@@ -97,6 +99,7 @@ function mt_create(gobj)
     gobj_subscribe_event(shell, "EV_TOGGLE_THEME",    {}, gobj);
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
+    gobj_subscribe_event(shell, "EV_OPEN_SITEMAP",    {}, gobj);
     gobj_subscribe_event(shell, "EV_ABOUT",           {}, gobj);
 
     /*  The shell never reads a user model; it asks this provider for
@@ -230,6 +233,20 @@ function ac_open_devtools(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  Account-menu "Site map" entry — an ACTION ROUTE (/sitemap,
+ *  redirect:"back", see app_config shell.routes + ROUTING.md §7.1):
+ *  the shell restores the resting view/URL and publishes
+ *  EV_OPEN_SITEMAP; this handler opens the route-map window
+ *  (a Back-dismissable floating C_YUI_WINDOW). Toggle built in.
+ ***************************************************************/
+function ac_open_sitemap(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    yui_shell_show_route_map(priv.shell, {t: t});
+    return 0;
+}
+
+/***************************************************************
  *  Account-menu "About" entry (action:event EV_ABOUT). Shows a
  *  modal with the demo / gobj-ui / bundled-JSON-editor versions
  *  (injected by vite `define` from the respective package.json).
@@ -297,6 +314,7 @@ function create_gclass(gclass_name)
             ["EV_TOGGLE_THEME",     ac_toggle_theme,     null],
             ["EV_TOGGLE_LANGUAGE",  ac_toggle_language,  null],
             ["EV_OPEN_DEVTOOLS",    ac_open_devtools,    null],
+            ["EV_OPEN_SITEMAP",     ac_open_sitemap,     null],
             ["EV_ABOUT",            ac_about,            null]
         ]]
     ];
@@ -308,6 +326,7 @@ function create_gclass(gclass_name)
         ["EV_TOGGLE_THEME",     0],
         ["EV_TOGGLE_LANGUAGE",  0],
         ["EV_OPEN_DEVTOOLS",    0],
+        ["EV_OPEN_SITEMAP",     0],
         ["EV_ABOUT",            0]
     ];
 

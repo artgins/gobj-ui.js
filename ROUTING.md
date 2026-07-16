@@ -161,15 +161,15 @@ same hash) and an **overlay stack**:
 - Escape is a separate LIFO (`yui_shell_push_escape` / `pop_escape`) so the
   top-most overlay closes first.
 - **Navigating with a non-modal overlay open** (a floating window — modals
-  can't co-occur with nav clicks): a fragment navigation fires `popstate` too
-  (all engines), so the **top** overlay closes through the same Back path the
-  moment the user moves elsewhere — an overlay is *transient* (§3) and does
-  not outlive its resting route. An overlay stacked **below** another one
-  survives that close, with its synthetic entry now **buried** under the new
-  route entries; the entry's state marker keeps the bookkeeping sound:
-  dismissing a buried overlay leaves its entry **inert** — it never
+  can't co-occur with nav clicks): a change of **resting route** closes every
+  registered overlay — an overlay is *transient* (§3) and does not outlive
+  the view it floats above. A **transient action route** (§7.1) or a
+  **subpath-only** move keeps them open (the site map exploits this: it stays
+  up while you drill subpaths). The bookkeeping stays sound through the
+  synthetic entries' state markers: a closed overlay's entry is left
+  **inert** when it is not the current one — dismissal never
   `history.back()`s over real route entries (doing so used to teleport the
-  user back to the pre-overlay route) — and a later Back absorbs the inert
+  user back to the pre-overlay route) — and a later Back absorbs an inert
   entry as a same-hash no-op.
 
 Use this for every modal/popup. Never encode an overlay as a route (a
@@ -225,10 +225,17 @@ reads as an accident.
 
 | `redirect` | What the shell does | Use for |
 |---|---|---|
-| `"back"` | Navigate to the **previous resting view route**. The URL never lingers on the action route. | A **floating window / panel** the app opens itself (`/devtools`, `/sitemap`). |
-| `"stay"` | **Keep the URL on this route** so it is deep-linkable. The URL is *not* restored. | A **modal the app closes through a helper that puts the URL back** (see the trap below). |
-| `"<route>"` | Navigate to that route afterwards. | `logout → "/"`. |
-| `"none"` / `""` | No navigation; just `replaceState` the URL back to the previous resting route. The app takes over. | The app tears the shell down itself (logout). |
+| `"back"` | Restore the **previous resting view route** (URL included), **then** fire the event. The URL never lingers on the action route. | A **floating window / panel** the app opens itself (`/devtools`, `/sitemap`). |
+| `"stay"` | Fire the event first and **keep the URL on this route** so it is deep-linkable. The URL is *not* restored. | A **modal the app closes through a helper that puts the URL back** (see the trap below). |
+| `"<route>"` | Fire the event, then navigate to that route. | `logout → "/"`. |
+| `"none"` / `""` | `replaceState` the URL back to the previous resting route, **then** fire the event. The app takes over. | The app tears the shell down itself (logout). |
+
+> **Ordering matters** for `back`/`none`: the URL is restored **before** the
+> event fires, so an overlay opened by the handler registers its synthetic
+> history entry on the *restored* hash. (Event-first left the entry on the
+> action hash; closing the overlay then `history.back()`ed onto the action's
+> own stranded route entry and **re-fired it** — the "site-map window won't
+> close" loop.)
 
 > **The `stay` trap — this is the one that bites.** `stay` does **not** restore
 > the URL: *"the app's overlay close path is responsible for `history.back()`"*
@@ -306,11 +313,19 @@ nav-click → `location.hash` push path) implements this contract.
    under §3 (they are *preferences*), recorded here as a deliberate decision.
 
 A **site-map viewer** (`shell_route_map.js`, `yui_shell_show_route_map`, on
-`yui_shell_nav_map`) renders the WHOLE navigation surface (§4) — toolbar + account
-menu + primary nav + dynamic tabs, in declaration order — as a printable,
-clickable map that doubles as the app's basic documentation. Views that use the
-sub-route contributor protocol (§5.4) also appear with their deep levels
-(topics, `/info`, `/schema`, focus topics), so the map is the *complete* tree.
+`yui_shell_nav_map` — pure builder in `route_map_model.js`, unit-tested)
+renders the WHOLE navigation surface (§4) — toolbar + account menu + **every**
+declared menu + dynamic tabs, in declaration order — as a printable,
+clickable, filterable map that doubles as the app's basic documentation.
+Views that use the sub-route contributor protocol (§5.4) also appear with
+their deep levels (topics, `/info`, `/schema`, focus topics); routes declared
+**only in the route table** (root `/`, URL-only action routes) get their own
+"other routes" group, so the map is the *complete* tree and an orphan route is
+visible instead of silently unreachable. The row of the route the user is on
+is marked **"you are here"** and scrolled into view. Clicking a route
+navigates natively: a resting-route change closes the map through the
+overlay drain (§6), a subpath/action jump keeps it open as a navigation
+panel, and clicking the current route just closes it.
 
 ---
 

@@ -7,25 +7,57 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
-- **fix(shell): overlay↔history bookkeeping survives navigating with stacked
+- **fix(shell): overlay↔history bookkeeping survives navigating with
   overlays open.** The old bookkeeping assumed an overlay's synthetic history
-  entry was always ADJACENT to the current one. It isn't when the user
-  route-navigates with more than one Back-dismissable overlay open: the
-  fragment navigation's own `popstate` closes the top overlay, but a
-  still-open overlay UNDER it keeps a synthetic entry now **buried** beneath
-  the new route entries — and dismissing it (X / Escape / code) blindly
-  `history.back()`ed over a REAL route entry, **teleporting the user** to the
-  pre-overlay route. The synthetic entry's state marker
+  entry was always ADJACENT to the current one. It isn't once the user
+  route-navigates with Back-dismissable overlays open: their entries get
+  **buried** beneath the new route entries — and dismissing one (X / Escape /
+  code) blindly `history.back()`ed over a REAL route entry, **teleporting the
+  user** to the pre-overlay route. The synthetic entry's state marker
   (`{__yui_overlay__: id}`) is now the authority everywhere:
   `overlay_dismissed` only retires the entry when its marker is the *current*
   history entry (adjacent → the back() is invisible), leaving buried entries
   inert (a later Back absorbs them as a same-hash no-op); the popstate handler
-  only closes the top overlay when the landing entry is NOT that overlay's own
-  marker (strict LIFO across odd `history.go(n)` traversals); and the shell's
-  silent `replaceState` URL fix-ups preserve `history.state` so they can't
-  wipe a live marker. Verified end-to-end (Playwright/Firefox on the
-  test-app): classic open→Back-close, X-close in place, stacked overlays +
-  navigate + dismiss-buried (no teleport), Back absorbing inert entries.
+  treats only **same-hash** landings as overlay pops (fragment navigations
+  fire popstate too — hash-changing landings belong to the hashchange
+  routing); and the shell's silent `replaceState` URL fix-ups preserve
+  `history.state` so they can't wipe a live marker. The route side of the
+  rule: **`navigate_to` closes every registered overlay when the RESTING
+  route changes** (overlays are transient, ROUTING.md §3/§6) — a transient
+  action route or a subpath-only move keeps them open. Verified end-to-end
+  (Playwright/Firefox on the test-app): classic open→Back-close, X-close in
+  place, stacked overlays + navigate (both close, dismissing the buried one
+  does not teleport), Back absorbing inert entries.
+
+- **fix(shell): action-route `redirect:"back"`/`"none"` restore the URL
+  BEFORE firing the event.** Event-first let a handler-opened overlay
+  register its synthetic entry on the ACTION hash; the restore then rewrote
+  that entry, stranding the action's own route entry below it — closing the
+  overlay `history.back()`ed onto that entry and **re-fired the action**:
+  wattyzer's site-map window closed and instantly reopened ("the X does
+  nothing"). With the restore first (`back` = full re-mount of the previous
+  resting view, `none` = `replaceState`), the overlay's entry lands on the
+  restored hash and every close path (X / Escape / Back / toggle) is
+  invisible. `stay` keeps event-first (the URL must remain on the action
+  route); an explicit `"<route>"` keeps event-first too (logout-style
+  teardown). ROUTING.md §7.1 documents the ordering.
+
+- **feat(site map): complete tree, "you are here", sound toggling.** The nav
+  map builder moved to `route_map_model.js` (pure, unit-tested) and now
+  covers the WHOLE surface: **every** declared menu (not just `primary`;
+  extra menus render as labelled groups) and an **"other routes"** group for
+  routes declared only in the route table (root `/`, URL-only action routes)
+  that no menu item points at — an orphan route is now visible instead of
+  silently unreachable. The viewer marks the current route's row **"you are
+  here"** (auto-scrolled into view), toggles correctly in the modal fallback
+  too, and jumps **natively**: clicking a route lets the browser navigate and
+  the resting-route drain closes the window (the old close-then-deferred-
+  navigate raced the dismissal's `history.back()` and could land back where
+  it started); a subpath/action jump keeps the map open as a navigation
+  panel; clicking the current route closes it. The test-app account menu now
+  ships a "Site map" entry wired as a `/sitemap` action route
+  (`redirect:"back"`, the wattyzer idiom) — the offline QA surface for this
+  whole flow (`_qa_sitemap.mjs`).
 
 - **fix(shell): route normalization.** Hashes come from the outside world —
   typed URLs, shared links, old bookmarks. `#/a/b/` (trailing slash) missed the
