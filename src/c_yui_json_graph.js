@@ -59,7 +59,7 @@ import {
 } from '@antv/g6';
 
 import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
-import { yui_theme_now, yui_watch_theme } from "./yui_theme.js";
+import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
 
 /***************************************************************
  *              Constants
@@ -113,10 +113,54 @@ const TYPE_COLORS = {
     dict:    "#4C0099",     // purple
 };
 
+/***************************************************************
+ *  Group (card) colours. `fill` is the light-theme card; `tint`
+ *  is the hue that fill hints at, used to derive the dark card —
+ *  dict and list share a stroke, so the tint is what keeps them
+ *  apart at a glance (with the dashed/solid border).
+ ***************************************************************/
 const GROUP_COLORS = {
-    dict: {fill: "#FBFBFB", stroke: "#006658"},
-    list: {fill: "#fffbd1", stroke: "#006658"},
+    dict: {fill: "#FBFBFB", tint: "#006658", stroke: "#006658"},
+    list: {fill: "#fffbd1", tint: "#ffd54a", stroke: "#006658"},
 };
+
+/***************************************************************
+ *  Soft, theme-aware card palette, same visual language as the
+ *  gobj-tree's role_card_style(): tinted fill + group-colour
+ *  border, lifted off the near-black canvas on dark (a faint tint
+ *  on the canvas colour makes the cards invisible).
+ *
+ *  The header bar is always the border colour, so its text flips:
+ *  white on the dark-teal light bar, near-black on the brightened
+ *  dark one.
+ ***************************************************************/
+function json_card_style(group, dark)
+{
+    return {
+        bg: dark
+            ? `color-mix(in srgb, ${group.tint} 30%, #2c3542)`
+            : group.fill,
+        border: dark
+            ? `color-mix(in srgb, ${group.stroke} 85%, #ffffff)`
+            : group.stroke,
+        header_fg: dark ? "#12181f" : "#ffffff",
+        key: dark ? "#c9cfd8" : "#1A1A1A",
+    };
+}
+
+/***************************************************************
+ *  A scalar's colour by type. The palette is tuned for a light
+ *  card; on a dark one every one of them (dark green #006000,
+ *  blue #475ED0, …) sinks into the background, so brighten it.
+ ***************************************************************/
+function type_color(type, dark)
+{
+    let color = TYPE_COLORS[type] || (dark ? "#e8eaed" : "black");
+    if(!dark) {
+        return color;
+    }
+    return `color-mix(in srgb, ${color} 55%, #ffffff)`;
+}
 
 
 
@@ -395,9 +439,10 @@ function build_graph(gobj)
 /************************************************************
  *  Build cell value HTML (matching old mx_json_viewer colors)
  ************************************************************/
-function build_cell_html(key, value, type)
+function build_cell_html(key, value, type, dark)
 {
-    let color = TYPE_COLORS[type] || "black";
+    let color = type_color(type, dark);
+    let key_color = json_card_style(GROUP_COLORS.dict, dark).key;
     let display_value = "";
 
     switch(type) {
@@ -424,7 +469,7 @@ function build_cell_html(key, value, type)
             break;
     }
 
-    return `<span style="color:#1A1A1A">• ${escapeHtml(String(key))}: </span><span style="color:${color}">${display_value}</span>`;
+    return `<span style="color:${key_color}">• ${escapeHtml(String(key))}: </span><span style="color:${color}">${display_value}</span>`;
 }
 
 /************************************************************
@@ -491,8 +536,11 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
     }
 
     /*
-     *  Build HTML content for this group
+     *  Build HTML content for this group.
+     *  The theme is read live as the card is drawn (like the gobj-tree's
+     *  cards): ac_theme rebuilds on a switch, so this is always current.
      */
+    let dark = yui_is_dark();
     let lines = [];
     let pending_complex = [];
 
@@ -500,7 +548,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
 
     for(let [key, value] of entries) {
         let type = get_json_type(value);
-        let html = build_cell_html(key, value, type);
+        let html = build_cell_html(key, value, type, dark);
         lines.push(html);
 
         if((is_object(value) && json_object_size(value) > 0) ||
@@ -510,7 +558,9 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
     }
 
     let label = get_group_label(path) || (is_dict ? "{}" : "[]");
-    let colors = is_dict ? GROUP_COLORS.dict : GROUP_COLORS.list;
+    let colors = json_card_style(
+        is_dict ? GROUP_COLORS.dict : GROUP_COLORS.list, dark
+    );
 
     /*
      *  Build node HTML content
@@ -524,15 +574,15 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
     let node_html = `
 <div style="
     min-width: ${min_width}px;
-    background: ${colors.fill};
-    border: 1px ${is_dict ? 'dashed' : 'solid'} ${colors.stroke};
+    background: ${colors.bg};
+    border: 1px ${is_dict ? 'dashed' : 'solid'} ${colors.border};
     border-radius: ${is_dict ? '6px' : '0'};
     opacity: 0.9;
     overflow: hidden;
 ">
     <div style="
-        background: ${colors.stroke};
-        color: white;
+        background: ${colors.border};
+        color: ${colors.header_fg};
         font-weight: bold;
         font-size: 12px;
         padding: 3px 8px;
@@ -565,7 +615,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
             source: parent_id,
             target: group_id,
             style: {
-                stroke: colors.stroke,
+                stroke: colors.border,
                 lineWidth: 1,
             }
         });

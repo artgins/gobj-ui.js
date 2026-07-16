@@ -33,9 +33,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   reads at field-build time and the hosting dialog rebuilds it on every open,
   so re-rendering under the user mid-edit would throw away what they typed. **Migration:** an app registering a `__yui_main__` service
   for gobj-ui's benefit can drop it; set `<html data-theme>` instead (the shell
-  toggle already does). *Known gap:* `C_YUI_JSON_GRAPH`'s node cards have no
-  dark palette (its canvas follows the theme, the cards stay light) — unlike
-  `C_YUI_GOBJ_TREE_JS`'s `role_card_style()`.
+  toggle already does).
+- **fix(json-graph): dark palette for the cards.** Its canvas followed the
+  theme but the cards did not: fill, key text and the by-type scalar colours
+  were hardcoded for a light card, so on dark they were cream rectangles with a
+  dark-green/blue palette sinking into them. New `json_card_style(group, dark)`
+  + `type_color(type, dark)`, same visual language as the gobj-tree's
+  `role_card_style()` — tinted fill + group-colour border, brightened on dark.
+  dict and list share a stroke, so each keeps a `tint` (teal / yellow) to stay
+  apart at a glance alongside the dashed/solid border; the light theme renders
+  exactly as before. Fixes an edge that drew with `colors.stroke` where the
+  palette object no longer had one.
+
 - **BREAKING(window, map, treedb-graph): the legacy `__yui_main__`/`EV_RESIZE`
   path is retired; every window is STARTED.** Windows were created with
   `gobj_create_service` and never started — `c_yuno`'s `mt_play` only starts the
