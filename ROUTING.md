@@ -154,9 +154,10 @@ rare exception — see the shell's action-route handling).
   pushes on click; the shell routes on `hashchange`. Deep-linkable and
   Back-friendly for free. Prefer these for in-content navigation.
 - **Programmatic** — from a controller that decides to move the user:
-  `yui_shell_navigate(shell, route)`. Treat this as a **push** (a real move). For
-  a **replace** (redirect / normalize / restore), use the replace variant / an
-  explicit `{replace:true}` option so no bogus Back entry is created.
+  `yui_shell_navigate(shell, route, {push:true})` for a genuine **move** (creates
+  a Back entry via the hash). Without `{push}` (the historical default) it
+  **replaces** — use that for redirects / normalizations / F5-restores. Be
+  explicit at every call site (see §9.1 for the migration state).
 - **Back/Forward** need no code: they change the hash, the shell re-routes
   through the same path, views react to `EV_ROUTE_CHANGED` (including an empty
   `subpath` → view home).
@@ -180,32 +181,34 @@ rare exception — see the shell's action-route handling).
 
 ---
 
-## 9. Current conformance debt
+## 9. Conformance status
 
 The shell's engine (route index, resolution, `subpath`, overlay stack, the
-nav-click → `location.hash` push path) already implements this contract. The
-following are known **non-conformances** to fix *against* this document; each
-names the norm it breaks.
+nav-click → `location.hash` push path) implements this contract.
 
-1. **`yui_shell_navigate` uses `replaceState`, not push** (breaks §2/§7).
-   Programmatic navigations (a topic-tab selection routed through the host, etc.)
-   don't create a Back entry, so Back can't traverse them — while raw-anchor
-   navigations (card icons) do. Fix: `yui_shell_navigate` pushes (route through
-   `location.hash` like nav clicks); add a `yui_shell_redirect` / `{replace}` for
-   the redirect/restore call sites, and audit every existing caller across
-   consumers.
-2. **Position tracked in a side-channel that excludes the picker** (breaks §3
-   corollary). `active_tabs` records only `/<ws>/db/<sel>`, never
-   `/<ws>/connections`, so re-entering a workspace skips the Connections tab.
-   Fix: the URL is the authority for the resting tab (picker included);
-   `active_tabs` may only mirror it.
-3. **The Topics "Schema" landing is in-view state with no route** (breaks §1/§3).
-   `EV_TOGGLE_LANDING_VIEW` flips a `priv` flag only. Fix: route it as
-   `/topics/db/<sel>/schema`; the toggle becomes a push navigation, `apply_seg`
-   maps `schema`, F5/Back work.
+1. **push vs replace on programmatic navigation** — mechanism **landed**:
+   `yui_shell_navigate(shell, route, {push:true})` pushes; the default still
+   replaces (so untouched callers are unchanged). **Migration is per-caller and
+   ongoing:** gui_treedb's user-move sites (topic/mode select, ← topics, "manage
+   connections") now pass `{push:true}`; **gui_agent** (all redirects — correct
+   as-is) and **wattyzer** (has user-moves that should adopt `{push:true}`) are
+   **not yet migrated**. The long-term goal is to flip the default to push once
+   all consumers are explicit.
+2. **Connections tab as a remembered position** — **fixed** (gui_treedb): the
+   picker is recorded as a first-class active position (`CONNECTIONS_TAB`
+   sentinel), so re-entering a workspace returns to it; `active_tabs` now mirrors
+   the URL instead of excluding the picker.
+3. **Topics "Schema" landing is a route** — **fixed**:
+   `/topics/db/<sel>/schema`; the toggle is a push navigation (host-supplied
+   `landing_routes`), `apply_seg` maps `schema` → `EV_SET_LANDING_VIEW`, the bare
+   tab route resets to cards, so F5/Back/deep-link all work.
 4. Graph `operation_mode` / `layout` live in localStorage only — **acceptable**
-   under §3 (they are *preferences*), listed only to record the deliberate
-   decision.
+   under §3 (they are *preferences*), recorded here as a deliberate decision.
+
+A **site-map viewer** (`shell_route_map.js`, `yui_shell_show_route_map`) renders
+the registered route tree (§4) as a printable, clickable map — a live view of
+this contract. It lists the navigable skeleton (declared + dynamic-submenu
+routes), not the view-owned deep levels (topics/info/schema subpaths).
 
 ---
 

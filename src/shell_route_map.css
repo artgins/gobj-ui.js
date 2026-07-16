@@ -1,0 +1,84 @@
+/***********************************************************************
+ *          shell_route_map.css
+ *
+ *      Styling for the site-map (route-tree) viewer in shell_route_map.js.
+ *      A monospaced, indented tree; theme-aware via Bulma variables;
+ *      and @media print rules (scoped by body.routemap-printing) so the
+ *      Print button prints only the tree.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+.ROUTEMAP_BODY {
+    max-width: 44rem;
+}
+.ROUTEMAP_TREE {
+    font-family: var(--bulma-family-monospace, monospace);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    overflow: auto;
+    max-height: 65vh;
+    border: 1px solid var(--bulma-border-weak, #dbdbdb);
+    border-radius: 0.375rem;
+    padding: 0.75rem 1rem;
+    background: var(--bulma-scheme-main, #fff);
+}
+.ROUTEMAP_UL {
+    list-style: none;
+    margin: 0;
+    padding-left: 1.1rem;
+    border-left: 1px dotted var(--bulma-border, #b5b5b5);
+}
+.ROUTEMAP_ROOT {
+    padding-left: 0;
+    border-left: none;
+}
+.ROUTEMAP_LI {
+    margin: 0.05rem 0;
+}
+.ROUTEMAP_LINK {
+    text-decoration: none;
+    color: var(--bulma-link, #485fc7);
+}
+.ROUTEMAP_LINK:hover {
+    text-decoration: underline;
+}
+.ROUTEMAP_SEG {
+    font-weight: 600;
+}
+.ROUTEMAP_NAME {
+    color: var(--bulma-text-weak, #7a7a7a);
+    margin-left: 0.5rem;
+}
+.ROUTEMAP_STRUCT {
+    color: var(--bulma-text-weak, #7a7a7a);
+}
+.ROUTEMAP_HINT {
+    color: var(--bulma-text-weak, #7a7a7a);
+}
+.ROUTEMAP_ACTIONS {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+}
+
+/*  Print only the tree. The button sets body.routemap-printing; hide
+ *  everything except the modal's route-map body, and show it plainly. */
+@media print {
+    body.routemap-printing > *:not(.yui-shell-modal-layer):not(#top-layer) {
+        display: none !important;
+    }
+    body.routemap-printing .ROUTEMAP_TREE {
+        max-height: none;
+        border: none;
+        overflow: visible;
+    }
+    body.routemap-printing .ROUTEMAP_ACTIONS,
+    body.routemap-printing .ROUTEMAP_HINT {
+        display: none !important;
+    }
+    body.routemap-printing .ROUTEMAP_LINK {
+        color: #000 !important;
+        text-decoration: none;
+    }
+}

@@ -77,6 +77,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system t
 SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth", "Bulma tab styling"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_cards_landing",0, false,  "Land on a grid of topic cards (list->detail): a card opens its table, with the tabs bar + a back-to-grid button. Off = tabs only (legacy)."),
 SDATA(data_type_t.DTP_JSON,     "card_action_routes",0, null,   "Per-card hash-route templates {info, table, graph} with a {topic} placeholder (host-supplied, route-agnostic). Present ⇒ cards show 3 icon actions; absent ⇒ a single card that opens the table."),
+SDATA(data_type_t.DTP_JSON,     "landing_routes",   0,  null,   "Host-supplied hashes for the two landing sub-views {cards, schema}; the toggle navigates to them so the landing is URL-addressable (ROUTING.md). Absent ⇒ toggle flips in-view only (legacy)."),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Root HTML element, show/hide managed by external routing"),
 SDATA(data_type_t.DTP_POINTER,  "$current_item",    0,  null,   "Currently selected item"),
 SDATA(data_type_t.DTP_STRING,   "last_selection",   0,  null,   "Last href selection"),
@@ -635,12 +636,12 @@ function show_topics_landing(gobj)
     if($back) {
         $back.classList.add("is-hidden");
     }
-    if($toggle) {
-        $toggle.classList.remove("is-hidden");   /*  the toggle lives on the landing  */
-    }
-
     /*  Cards grid vs schema graph — the two landing sub-views. */
     let schema_mode = gobj.priv._landing_view === "schema";
+    if($toggle) {
+        $toggle.classList.remove("is-hidden");   /*  the toggle lives on the landing  */
+        $toggle.classList.toggle("is-primary", schema_mode);
+    }
     if(schema_mode) {
         if($landing) {
             $landing.classList.add("is-hidden");
@@ -687,6 +688,13 @@ function build_schema_child(gobj)
 {
     let priv = gobj.priv;
     if(priv.schema_gobj) {
+        return;
+    }
+    /*  Wait for the schema: on a deep-link/F5 to `.../schema` the route
+     *  arrives before `descs` load. Building now would render an empty
+     *  graph that never refreshes; process_treedb_descs re-shows the
+     *  landing once descs arrive, which calls us again. */
+    if(!is_object(gobj_read_attr(gobj, "descs"))) {
         return;
     }
     if(gclass_find_by_name("C_YUI_TREEDB_SCHEMA") === null) {
@@ -1662,9 +1670,13 @@ function ac_show(gobj, event, kw, src)
     let href = kw.href;
 
     /*  Cards-landing: a show without a concrete `?<topic>` means "enter the
-     *  workspace" — land on the grid instead of auto-opening the first tab. */
+     *  workspace" — land on the grid instead of auto-opening the first tab.
+     *  The bare tab route is always the CARDS sub-view (schema has its own
+     *  `.../schema` route), so reset it here — this is what makes Back from
+     *  the schema landing return to the cards. */
     if(gobj_read_bool_attr(gobj, "with_cards_landing") &&
             (!href || href.indexOf("?") < 0)) {
+        gobj.priv._landing_view = "cards";
         show_topics_landing(gobj);
         refresh_toolbar_buttons(gobj);
         return 0;
@@ -1779,17 +1791,43 @@ function ac_select_topic_card(gobj, event, kw, src)
 
 /************************************************************
  *  Toggle the landing between the cards grid and the schema graph.
+ *  The landing is a POSITION, so this NAVIGATES (a real hash push via
+ *  the host-supplied `landing_routes`) rather than mutating in-view
+ *  state — the route change then drives the switch (EV_SET_LANDING_VIEW),
+ *  so it is URL-addressable, F5-safe and Back-friendly (ROUTING.md §3).
+ *  Falls back to an in-view flip only when no routes were supplied.
  ************************************************************/
 function ac_toggle_landing_view(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    priv._landing_view = (priv._landing_view === "schema") ? "cards" : "schema";
-    let $container = gobj_read_attr(gobj, "$container");
-    let $toggle = $container && $container.querySelector(".TREEDB_LANDING_TOGGLE");
-    if($toggle) {
-        $toggle.classList.toggle("is-primary", priv._landing_view === "schema");
+    let target = (priv._landing_view === "schema") ? "cards" : "schema";
+    let routes = gobj_read_attr(gobj, "landing_routes");
+    let href = is_object(routes) ? routes[target] : null;
+    if(href && typeof window !== "undefined") {
+        window.location.hash = href;   /*  push; route drives the switch  */
+        return 0;
     }
-    show_topics_landing(gobj);
+    /*  Legacy: no routes → flip in-view (not URL-addressable). */
+    set_landing_view(gobj, target);
+    return 0;
+}
+
+/************************************************************
+ *  Set the landing sub-view ("cards" | "schema") and render it.
+ *  Driven by the route (EV_SET_LANDING_VIEW) or the legacy toggle.
+ ************************************************************/
+function set_landing_view(gobj, view)
+{
+    gobj.priv._landing_view = (view === "schema") ? "schema" : "cards";
+    show_topics_landing(gobj);   /*  syncs the toggle + shows the pane  */
+}
+
+/************************************************************
+ *  Route → landing sub-view (.../db/<sel>/schema or bare tab).
+ ************************************************************/
+function ac_set_landing_view(gobj, event, kw, src)
+{
+    set_landing_view(gobj, kw && kw.view);
     return 0;
 }
 
@@ -2110,6 +2148,7 @@ function create_gclass(gclass_name)
             ["EV_SHOW_TOPIC_INFO",      ac_show_topic_info,         null],
             ["EV_SELECT_TOPIC_CARD",    ac_select_topic_card,       null],
             ["EV_TOGGLE_LANDING_VIEW",  ac_toggle_landing_view,     null],
+            ["EV_SET_LANDING_VIEW",     ac_set_landing_view,        null],
             ["EV_HIDE",                 ac_hide,                    null],
             ["EV_BACK_TO_TOPICS",       ac_back_to_topics,          null],
             ["EV_TRANSPORT_STATE",      ac_transport_state,         null],
@@ -2135,6 +2174,7 @@ function create_gclass(gclass_name)
         ["EV_SHOW_TOPIC_INFO",      0],
         ["EV_SELECT_TOPIC_CARD",    0],
         ["EV_TOGGLE_LANDING_VIEW",  0],
+        ["EV_SET_LANDING_VIEW",     0],
         ["EV_HIDE",                 0],
         ["EV_BACK_TO_TOPICS",       0],
         ["EV_TRANSPORT_STATE",      0],

@@ -7,6 +7,20 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): push/replace navigation, a site-map viewer, and a routed
+  treedb schema landing (ROUTING.md).** Landed the routing contract's mechanics
+  (see `ROUTING.md`): `yui_shell_navigate(shell, route, {push:true})` now creates
+  a real browser Back entry (routes through `location.hash`); without `{push}` it
+  replaces as before, so existing callers are unchanged. New
+  `yui_shell_route_map(shell)` exposes the registered route tree, and
+  `shell_route_map.js` / `yui_shell_show_route_map` render it as a **printable,
+  clickable site map** (the filesystem-like map of every reachable position).
+  `C_YUI_TREEDB_TOPICS`'s schema landing is now URL-addressable: a new
+  `landing_routes` attr makes the cards↔schema toggle a push navigation
+  (`.../db/<sel>/schema`), driven by `EV_SET_LANDING_VIEW`; the bare tab resets to
+  cards, so F5/Back/deep-link work. `build_schema_child` waits for `descs` (F5 to
+  `/schema` no longer renders an empty graph).
+
 - **feat(treedb): schema-graph landing (prototype).** New gclass
   `C_YUI_TREEDB_SCHEMA` draws the treedb as a **graph of topics** — one G6 node
   per topic, one edge per `hook`/`fkey` relationship — from the schema `descs`

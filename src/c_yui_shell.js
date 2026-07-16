@@ -2569,11 +2569,61 @@ function yui_shell_of(gobj)
 }
 
 /************************************************************
- *  Programmatic navigation (bypass hash).
+ *  Programmatic navigation.
+ *
+ *  `opts.push:true` — the user MOVED somewhere new: change the URL via
+ *  the hash so the browser records a Back entry (routed through the same
+ *  hashchange path as a nav click). Use for genuine navigations
+ *  (selecting a tab/topic, opening a section) so Back/Forward traverse
+ *  them.
+ *
+ *  Default (no opts / `opts.replace`) — REPLACE: sync the URL without a
+ *  Back entry. Use for redirects, normalizations and F5-restores. This
+ *  is the historical behaviour, so existing callers are unchanged; new
+ *  code should be explicit (see ROUTING.md §2/§7).
  ************************************************************/
-function yui_shell_navigate(shell_gobj, route)
+function yui_shell_navigate(shell_gobj, route, opts)
 {
+    if(opts && opts.push && gobj_read_attr(shell_gobj, "use_hash")) {
+        let target_hash = route_to_hash(route);
+        if(window.location.hash !== target_hash) {
+            /*  Push a real history entry; the hashchange handler mounts. */
+            window.location.hash = target_hash;
+            return;
+        }
+        /*  Same hash — hashchange won't fire; fall through to mount. */
+    }
     navigate_to(shell_gobj, route);
+}
+
+/************************************************************
+ *  Route map — the current registered route tree (declared nav +
+ *  dynamic submenus), for a "site map" viewer. Returns a flat list
+ *  of {route, label, target, menu_id} sorted by route; the caller
+ *  builds the tree from the path segments. `target:true` means a
+ *  real resting route (a mounts-a-view / action entry); `false` is a
+ *  structural parent (e.g. a submenu with no target of its own).
+ *  NOTE: view-owned deep levels (a topic, /info, /schema — subpaths
+ *  a view owns, not declared routes) are NOT in the index and so are
+ *  not listed; this is the navigable skeleton, not every leaf.
+ ************************************************************/
+function yui_shell_route_map(shell_gobj)
+{
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    let index = (priv && priv.item_index) || {};
+    let out = [];
+    for(let route of Object.keys(index)) {
+        let e = index[route];
+        let item = e && e.item;
+        out.push({
+            route:   route,
+            label:   (item && item.name) || route,
+            target:  !!(e && e.target),
+            menu_id: (e && e.menu_id) || ""
+        });
+    }
+    out.sort((a, b) => (a.route < b.route ? -1 : (a.route > b.route ? 1 : 0)));
+    return out;
 }
 
 /*  Drawer helpers — toggle the off-canvas nav from the outside
@@ -2755,6 +2805,7 @@ export {
     register_c_yui_shell,
     yui_shell_of,
     yui_shell_navigate,
+    yui_shell_route_map,
     yui_shell_open_drawer,
     yui_shell_close_drawer,
     yui_shell_toggle_drawer,
