@@ -73,6 +73,22 @@ validate and before publishing a v1 release.
 
 ## Components
 
+### Site map — `yui_shell_show_route_map`
+
+Every declarative-shell app can render its WHOLE navigation surface —
+toolbar + account menu + every declared menu + live dynamic tabs + each
+view's contributed sub-routes + the routes declared only in the route table —
+as a printable, filterable, clickable tree (a floating `C_YUI_WINDOW`, modal
+fallback) that doubles as the app's basic documentation. The current route is
+marked "you are here". Wire it from an account-menu entry
+(`type:"event"` → `EV_OPEN_SITEMAP`, or a deep-linkable `/sitemap` action
+route with `redirect:"back"`) and call
+`yui_shell_show_route_map(shell, {t})` from the handler; a second call
+toggles it closed. The tree model is `yui_shell_nav_map()` /
+`route_map_model.js` (pure, unit-tested). Semantics and the contributor
+protocols (`yui_shell_set_sub_routes`, `yui_shell_register_event_handler`)
+live in [`ROUTING.md`](ROUTING.md).
+
 ### C_YUI_JSON — lazy JSON tree viewer
 
 A container-agnostic viewer (like `C_YUI_PAGER`): it owns only a toolbar +
