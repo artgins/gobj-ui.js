@@ -136,7 +136,7 @@ The shell emits two events (both carry the full picture):
    calls `yui_shell_set_sub_routes(shell, base_route, nodes)` when they become
    known (e.g. after its schema loads), and clears them on `mt_stop`
    (`…, null`). `nodes` is an ordered `[{route, label, icon?, children?}]`
-   (full hashless routes). The site map (§site map) then shows the *complete*
+   (full hashless routes). The site-map viewer (§9) then shows the *complete*
    tree, not just the declared skeleton. It is a **pull-at-render registry**:
    the map reads it live, so an unmounted view's children vanish automatically.
    The view still stays route-agnostic — it builds the full routes from its
@@ -240,39 +240,49 @@ reads as an accident.
 | `redirect` | What the shell does | Use for |
 |---|---|---|
 | `"back"` | Restore the **previous resting view route** (URL included), **then** fire the event. The URL never lingers on the action route. | A **floating window / panel** the app opens itself (`/devtools`, `/sitemap`). |
-| `"stay"` | Fire the event first and **keep the URL on this route** so it is deep-linkable. The URL is *not* restored. | A **modal the app closes through a helper that puts the URL back** (see the trap below). |
+| `"stay"` | Fire the event and **keep the URL on this route** so it is deep-linkable. The URL is *not* restored. (On a deep-link/reload the shell first mounts the default view underneath and re-pushes the hash — see below.) | A **modal the app closes through `yui_shell_unpark_route`** (see the trap below). |
 | `"<route>"` | Fire the event, then navigate to that route. | `logout → "/"`. |
 | `"none"` / `""` | `replaceState` the URL back to the previous resting route, **then** fire the event. The app takes over. | The app tears the shell down itself (logout). |
 
-> **Ordering matters** for `back`/`none`: the URL is restored **before** the
-> event fires, so an overlay opened by the handler registers its synthetic
-> history entry on the *restored* hash. (Event-first left the entry on the
-> action hash; closing the overlay then `history.back()`ed onto the action's
-> own stranded route entry and **re-fired it** — the "site-map window won't
-> close" loop.)
+> **Ordering matters** whenever a restore happens: the URL is restored
+> **before** the event fires, so an overlay opened by the handler registers its
+> synthetic history entry on the *restored* hash. This is why `back`/`none`
+> restore first (event-first left the entry on the action hash; closing the
+> overlay then `history.back()`ed onto the action's own stranded route entry
+> and **re-fired it** — the "site-map window won't close" loop), and why the
+> `stay` **deep-link fix-up** also mounts + re-pushes before firing (see
+> below): the marker must always sit ABOVE the action hash.
 
 > **The `stay` trap — this is the one that bites.** `stay` does **not** restore
-> the URL: *"the app's overlay close path is responsible for `history.back()`"*
-> (`c_yui_shell.js`). So `stay` is only correct when whatever opens the overlay
-> also takes the URL back off the route on close. wattyzer's `open_route_modal`
-> does exactly that (its `on_close` calls `history.back()`), which is why
-> `/about` and `/user/preference` are `stay`. A view opened by a plain helper —
+> the URL: the app's overlay close path owns it. So `stay` is only correct when
+> whatever opens the overlay also takes the URL back off the route on close —
+> and it must do so **guarded**: call `yui_shell_unpark_route(route)`, which
+> `history.back()`s only while the URL still sits on the route. A blind
+> `history.back()` breaks when the shell's overlay **drain** closes the modal
+> (the user navigated to another resting route while it was open): the URL has
+> already moved, so the back() lands on the stranded action entries and
+> **re-fires the action** — the modal reopens and the navigation is hijacked.
+> A view opened by a plain helper —
 > e.g. `yui_shell_show_route_map`, which just builds a `C_YUI_WINDOW` and
 > registers it on the overlay stack (§6) — has **no such hook**: with `stay` the
 > window closes and the URL sits on `/sitemap` forever, pointing at nothing.
 > Use `back` for those. **Rule of thumb: `stay` only if the opener owns the
-> URL on close; otherwise `back`.**
+> URL on close (via `yui_shell_unpark_route`); otherwise `back`.**
 
 Browser **Back still closes a `stay` overlay** (§6): the shell matches the
 overlay marker's own hash, so the URL sitting off the resting route — the
 whole point of `stay` — does not blind it. The test-app's `/prefs` entry is
-the reference wiring (`redirect:"stay"` + an `on_close` that `history.back()`s
-off the route, wattyzer's `open_route_modal` idiom); `_qa_prefs.mjs` drives
+the reference wiring (`redirect:"stay"` + an `on_close` that calls
+`yui_shell_unpark_route("/prefs")`; wattyzer's `open_route_modal` adds the
+same hash guard before its deferred back); `_qa_prefs.mjs` drives
 open / Back / X / Escape / deep-link against it.
 
 Deep-linking straight onto a `stay` route (or reloading on it) is handled: the
-shell mounts the default view underneath first, then re-pushes the hash on top,
-so a later close → Back lands on the default instead of exiting the app.
+shell mounts the default view underneath (rewriting the initial entry),
+re-pushes the hash on top, and **then** fires the event — restore-then-event,
+like `back`/`none` — so the history ends up with the exact shape of the click
+path (`[resting, action, marker]`): one Back closes the overlay, and the close
+→ unpark lands on the resting view instead of exiting the app.
 
 The rest of the configuration vocabulary — `zones`, `stages`, `menu`, `toolbar`,
 `items[]`, `lifecycle` (`eager` / `keep_alive` / `lazy_destroy`), the
@@ -351,6 +361,7 @@ panel, and clicking the current route just closes it.
 ---
 
 *Home of this contract: `kernel/js/gobj-ui/ROUTING.md` — this file **is** the
-published chapter (doc.yuneta.io/routing includes it from here, so there is no
-copy to drift), alongside [`SHELL.md`](SHELL.md) at doc.yuneta.io/shell. Keep it
+published chapter ([`https://doc.yuneta.io/routing`](https://doc.yuneta.io/routing)
+includes it from here, so there is no copy to drift), alongside
+[`SHELL.md`](SHELL.md) at [`https://doc.yuneta.io/shell`](https://doc.yuneta.io/shell). Keep it
 in sync with the shell: an edit here ships on the next `docs/doc.yuneta.io/deploy.sh`.*

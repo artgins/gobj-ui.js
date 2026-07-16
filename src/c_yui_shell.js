@@ -738,6 +738,11 @@ function build_item_index(gobj, config)
         let items = (menu && menu.items) || [];
         for(let item of items) {
             if(item.route) {
+                /*  Index by the CANONICAL form: requests are normalized
+                 *  (hash_to_route / navigate_to), so a key declared with
+                 *  a trailing or doubled slash would never match its own
+                 *  clicks otherwise. */
+                let item_route = normalize_route(item.route);
                 /*  Section-index landing (submenu.index): the section
                  *  route gets a synthesized target — the submenu itself
                  *  rendered as a "cards" C_YUI_NAV in the stage — so it
@@ -753,9 +758,9 @@ function build_item_index(gobj, config)
                  *  the common case where a `quick` drawer just reuses
                  *  routes declared (with target) in `primary.submenu`.
                  *  Rule: prefer the first entry with a target. */
-                let prev = priv.item_index[item.route];
+                let prev = priv.item_index[item_route];
                 if(!prev || (!prev.target && target)) {
-                    priv.item_index[item.route] = {
+                    priv.item_index[item_route] = {
                         item: item,
                         parent_item: null,
                         stage: target && target.stage || null,
@@ -768,9 +773,10 @@ function build_item_index(gobj, config)
             if(sub && is_array(sub.items)) {
                 for(let sub_item of sub.items) {
                     if(sub_item.route) {
-                        let prev = priv.item_index[sub_item.route];
+                        let sub_route = normalize_route(sub_item.route);
+                        let prev = priv.item_index[sub_route];
                         if(!prev || (!prev.target && sub_item.target)) {
-                            priv.item_index[sub_item.route] = {
+                            priv.item_index[sub_route] = {
                                 item: sub_item,
                                 parent_item: item,
                                 stage: sub_item.target && sub_item.target.stage || null,
@@ -804,8 +810,20 @@ function build_item_index(gobj, config)
     let routes = (config.shell && config.shell.routes) || {};
     for(let route in routes) {
         if(route.charAt(0) !== "/") {
+            /*  String values are the comment idiom and stay silent;
+             *  an OBJECT under a slash-less key can only be a route
+             *  target whose key lost its "/" — dropping it silently
+             *  left the app with a menu entry that "doesn't work". */
+            if(routes[route] !== null && typeof routes[route] === "object") {
+                log_error(
+                    `C_YUI_SHELL: route key '${route}' holds a route ` +
+                    `target but does not start with '/' — ignored ` +
+                    `(a route key is a path)`
+                );
+            }
             continue;
         }
+        let route_key = normalize_route(route);
         let t = routes[route] || null;
         if(t !== null && typeof t !== "object") {
             log_error(
@@ -814,9 +832,9 @@ function build_item_index(gobj, config)
             );
             continue;
         }
-        let prev = priv.item_index[route];
+        let prev = priv.item_index[route_key];
         if(!prev || (!prev.target && t)) {
-            priv.item_index[route] = {
+            priv.item_index[route_key] = {
                 item: (prev && prev.item) || null,
                 parent_item: (prev && prev.parent_item) || null,
                 stage: (t && t.stage) || null,
@@ -1162,11 +1180,14 @@ function navigate_to(gobj, route, depth, no_drain)
      *  EV_ROUTE_REQUESTED was already published above, so an auditor
      *  sees the action route intent too.
      *
-     *  ORDER of event vs URL work is per-flavour and it MATTERS when the
-     *  handler opens a Back-dismissable overlay (its synthetic history
-     *  entry must share the hash it is opened over):
-     *    "stay"          → event FIRST (the URL stays on this route, so
-     *                      the marker lands on this same hash).
+     *  ORDER of event vs URL work: whenever URL work happens, it happens
+     *  BEFORE the event — the overlay a handler opens must register its
+     *  synthetic history entry over the hash it will live on:
+     *    "stay"          → no URL work on a click (the URL stays where
+     *                      the click pushed it; the marker lands on this
+     *                      same hash).  The DEEP-LINK fix-up does do URL
+     *                      work (mount underneath + re-push), so there
+     *                      it runs first and the event fires after.
      *    "back"/"none"   → restore the URL FIRST, event after.  The old
      *                      event-first order left the overlay marker on
      *                      the ACTION hash and the restore rewrote it,
@@ -1192,18 +1213,27 @@ function navigate_to(gobj, route, depth, no_drain)
                     config.shell.stages.main.default_route) || "/";
         let redirect = t.redirect;
         if(redirect === "stay") {
-            publish_action();
             if(gobj_read_attr(gobj, "use_hash")) {
                 let has_resting = !!(priv.stages && priv.stages.main &&
                                      priv.stages.main.active_route);
                 if(!has_resting && prev && prev !== route) {
                     /*  Deep-link / reload straight onto the overlay
-                     *  route: bring up the default view underneath,
-                     *  then push this hash back on top so close→back
-                     *  returns to the default.  Event-first above, so
-                     *  no_drain (nothing to drain yet in practice — no
-                     *  resting view is mounted — but the rule is the
-                     *  rule). */
+                     *  route: bring up the default view underneath
+                     *  (rewriting this initial entry), push this hash
+                     *  back on top, and only THEN fire the event — the
+                     *  same restore-then-event rule as `back`/`none`,
+                     *  for the same reason: the overlay the handler
+                     *  opens must register its synthetic entry ABOVE
+                     *  the action hash, giving the history the exact
+                     *  shape of the click path ([resting, action,
+                     *  marker]) so ONE Back closes it.  Event-first
+                     *  here buried the marker (rewritten to the resting
+                     *  hash) UNDER the re-pushed action hash: Back #1
+                     *  landed ON the marker — own-entry check, overlay
+                     *  kept open — while the URL flipped underneath,
+                     *  and Back #2 re-fired the action off the initial
+                     *  entry.  no_drain: internal fix-up hop, not a
+                     *  resting navigation. */
                     navigate_to(gobj, prev, depth + 1, true);
                     let h = route_to_hash(route);
                     try {
@@ -1213,8 +1243,11 @@ function navigate_to(gobj, route, depth, no_drain)
                     }
                 }
                 /*  else: reached via a click that already pushed this
-                 *  hash — leave the URL exactly as the user sees it. */
+                 *  hash — the URL stays where the user sees it, and
+                 *  nothing was restored, so there is no ordering to
+                 *  keep: the event just fires. */
             }
+            publish_action();
             return;
         }
         if(empty_string(redirect) || redirect === "none") {
@@ -1778,13 +1811,40 @@ function find_toolbar_zone(config)
     return "top";
 }
 
+/************************************************************
+ *  True when a click on `route` resolves to an action route whose
+ *  flavour RESTORES the previous resting URL by rewriting the
+ *  current history entry ("back", "none"/"").  Pushing the action
+ *  hash first would leave that rewritten entry as an exact
+ *  duplicate of the resting entry below it — one dead Back press
+ *  per click.  The click entry points navigate those directly
+ *  instead of going through the hash.  ("stay" and "<route>" keep
+ *  the push: their URL genuinely moves.)
+ ************************************************************/
+function route_restores_url(gobj, route)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.item_index) {
+        return false;
+    }
+    let r = resolve_route(priv.item_index, normalize_route(route));
+    let target = r && r.entry && r.entry.target;
+    if(!target || target.kind !== "action") {
+        return false;
+    }
+    return target.redirect === "back" ||
+           target.redirect === "none" ||
+           empty_string(target.redirect);
+}
+
 function handle_toolbar_action(gobj, item, $trigger)
 {
     let action = (item && item.action) || {};
     switch(action.type) {
         case "navigate":
             if(!empty_string(action.route)) {
-                if(gobj_read_attr(gobj, "use_hash")) {
+                if(gobj_read_attr(gobj, "use_hash") &&
+                        !route_restores_url(gobj, action.route)) {
                     let h = route_to_hash(action.route);
                     if(window.location.hash !== h) {
                         window.location.hash = h;   /*  fires hashchange  */
@@ -2474,8 +2534,10 @@ function ac_nav_clicked(gobj, event, kw, src)
 
     /*  When hash routing is on, let the hash drive navigate_to() — that
      *  way back/forward buttons and programmatic hash changes all flow
-     *  through the same code path.  Otherwise call navigate_to directly. */
-    if(gobj_read_attr(gobj, "use_hash")) {
+     *  through the same code path.  Otherwise call navigate_to directly.
+     *  Exception: URL-restoring action routes skip the push — see
+     *  route_restores_url. */
+    if(gobj_read_attr(gobj, "use_hash") && !route_restores_url(gobj, route)) {
         let target_hash = route_to_hash(route);
         if(window.location.hash !== target_hash) {
             window.location.hash = target_hash;  /*  fires hashchange */
@@ -2622,8 +2684,11 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
     let new_set = {};
     for(let it of items) {
         if(it && it.route) {
-            new_routes.push(it.route);
-            new_set[it.route] = true;
+            /*  Same canonical form as build_item_index: requests are
+             *  normalized, so raw keys would never match their clicks. */
+            let it_route = normalize_route(it.route);
+            new_routes.push(it_route);
+            new_set[it_route] = true;
         }
     }
     for(let route of prev_routes) {
@@ -2637,7 +2702,7 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
         if(!it || !it.route) {
             continue;
         }
-        priv.item_index[it.route] = {
+        priv.item_index[normalize_route(it.route)] = {
             item: it,
             parent_item: parent_item,
             stage: (it.target && it.target.stage) || null,
@@ -2930,6 +2995,26 @@ function yui_shell_overlay_dismissed(shell_gobj, overlay)
 }
 
 /************************************************************
+ *  Take the URL back off an action route the app parked it on
+ *  (`redirect:"stay"`), from the overlay's close path — the
+ *  reference `stay` wiring (ROUTING.md §7.1).
+ *
+ *  Guarded on purpose: when the close came from the shell's
+ *  overlay drain (the user navigated to another resting route
+ *  while the overlay was open), the URL has ALREADY moved off
+ *  the route — a blind history.back() there lands on the
+ *  stranded action entries and RE-FIRES the action, reopening
+ *  the overlay and hijacking the navigation the user asked
+ *  for.  Only back() while the URL still sits on the route.
+ ************************************************************/
+function yui_shell_unpark_route(route)
+{
+    if(window.location.hash === route_to_hash(normalize_route(route))) {
+        window.history.back();
+    }
+}
+
+/************************************************************
  *  Avatar provider — toolbar items with type:"avatar" call the
  *  registered provider whenever the shell paints initials.  The
  *  provider is a free-form () => string callback owned by the
@@ -3071,6 +3156,7 @@ export {
     yui_shell_pop_escape,
     yui_shell_register_overlay,
     yui_shell_overlay_dismissed,
+    yui_shell_unpark_route,
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_translator,

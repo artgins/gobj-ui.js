@@ -33,6 +33,7 @@ import {
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
     yui_shell_language_changed,
+    yui_shell_unpark_route,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
 import {yui_shell_show_modal} from "@yuneta/gobj-ui/index.js";
@@ -280,10 +281,12 @@ function ac_open_sitemap(gobj, event, kw, src)
  *  resting view underneath.
  *
  *  `stay` does not restore the URL — the OPENER owns it on close
- *  (the trap in ROUTING.md §7.1) — so on_close history.back()s off
- *  /prefs. This is wattyzer's open_route_modal idiom, reproduced
- *  here so the overlay/history bookkeeping has an offline QA
- *  surface for it (_qa_prefs.mjs).
+ *  (the trap in ROUTING.md §7.1) — so on_close unparks /prefs via
+ *  yui_shell_unpark_route (a GUARDED history.back(): when the close
+ *  came from the navigation drain the URL already moved, and a
+ *  blind back() would re-fire the action route). This is the
+ *  reference `stay` wiring, reproduced here so the overlay/history
+ *  bookkeeping has an offline QA surface for it (_qa_prefs.mjs).
  ***************************************************************/
 function ac_open_prefs(gobj, event, kw, src)
 {
@@ -313,8 +316,9 @@ function ac_open_prefs(gobj, event, kw, src)
         on_close: function() {
             priv.prefs_open = null;
             /*  `stay` parked the URL on /prefs: take it back off, or the
-             *  hash points at nothing once the modal is gone. */
-            window.history.back();
+             *  hash points at nothing once the modal is gone.  Guarded —
+             *  see yui_shell_unpark_route. */
+            yui_shell_unpark_route("/prefs");
         }
     });
     refresh_language($content, t);
