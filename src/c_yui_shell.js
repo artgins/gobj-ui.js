@@ -104,11 +104,73 @@ SDATA(data_type_t.DTP_BOOLEAN,  "use_hash",       0,  true,  "Bind navigation to
 SDATA(data_type_t.DTP_POINTER,  "mount_element",  0,  null,  "HTMLElement to mount shell into (default: document.body)"),
 
 SDATA(data_type_t.DTP_POINTER,  "$container",     0,  null,  "Root HTMLElement of the shell"),
-SDATA(data_type_t.DTP_POINTER,  "priv",           0,  null,  "Private runtime state (zones/layers/stages/navs)"),
 SDATA_END()
 ];
 
-let PRIVATE_DATA = {};
+let PRIVATE_DATA = {
+    zones:           {},
+    layers:          {},
+    stages:          {},
+    navs:            [],
+    item_index:      {},
+    /*  Sub-route contributor registry (ROUTING.md): a mounted view
+     *  declares the deep, view-owned children of its base route
+     *  (topics, /info, /schema, focus topics — subpaths that are NOT
+     *  declared routes) so the site map can show the full tree. Keyed
+     *  by base route → ordered [{route,label,icon,children?}]. */
+    sub_routes:      {},
+    /*  Event → handler GClass(es) registry (ROUTING.md): a gclass that
+     *  handles a toolbar/account action event self-declares so the site
+     *  map can show WHERE the action is implemented. Keyed by event name
+     *  → array of gclass names. */
+    event_handlers:  {},
+    hash_handler:    null,
+    keydown_handler: null,
+    /*  Escape priority chain: array of { layer, handler }.  Each
+     *  interactive overlay (drawer today, modal/popup tomorrow)
+     *  pushes its close handler when it opens and pops it when
+     *  it closes.  Escape calls the top handler only — LIFO. */
+    escape_stack:    [],
+    /*  Overlay history integration (Back button ↔ modals/windows).
+     *  Each history-participating overlay (modal, floating window)
+     *  pushes a { id, close } record here when it opens, plus a
+     *  synthetic browser-history entry (pushState).  The browser Back
+     *  button then closes the TOP overlay instead of navigating; and
+     *  an overlay dismissed by any other path (X, Escape, backdrop,
+     *  code) retires its history entry via history.back().  Gated on
+     *  `use_hash` — see push_overlay_history / overlay_dismissed. */
+    overlay_stack:   [],
+    overlay_seq:     0,
+    /*  Count of history.back() calls WE issued to retire a dismissed
+     *  overlay; the popstate they trigger is expected and ignored. */
+    expected_pops:   0,
+    popstate_handler: null,
+    /*  Avatar item support — every toolbar item with type:"avatar"
+     *  registers its <span> here so refresh_avatars() can repaint
+     *  the initials when the host (wattyzer, hidraulia, …) calls
+     *  yui_shell_set_avatar_provider() / yui_shell_refresh_avatars().
+     *  The provider is a () => string callback owned by the host. */
+    avatar_provider: null,
+    avatar_nodes:    [],
+    /*  Optional i18n translator (t-function) the host registers via
+     *  yui_shell_set_translator().  The host translates the static
+     *  shell tree by calling refresh_language($container, t) once,
+     *  but LAZILY-built DOM (the toolbar dropdown panel) is mounted
+     *  on the popup layer, OUTSIDE $container, AFTER that call — so
+     *  it would never be translated.  When a translator is set the
+     *  shell re-applies it to each freshly built panel. */
+    translator:      null,
+    /*  Connection-indicator support — every toolbar item with
+     *  type:"connection" registers its dot <span> here so
+     *  yui_shell_set_connection_state(shell, bool) can repaint the
+     *  backend-connected state.  State is host/event-driven (unlike
+     *  the avatar provider it is a setter, not a pull callback). */
+    conn_nodes:      [],
+    /*  Currently open toolbar dropdown panel, if any.  Tracked here
+     *  so a second click on any trigger (or programmatic close) can
+     *  tear down the previous one through the same code path. */
+    active_dropdown: null
+};
 
 let __gclass__ = null;
 
@@ -135,72 +197,6 @@ function mt_create(gobj)
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
 
-    /*  Per-instance private state (avoid the gclass-level PRIVATE_DATA). */
-    gobj_write_attr(gobj, "priv", {
-        zones:           {},
-        layers:          {},
-        stages:          {},
-        navs:            [],
-        item_index:      {},
-        /*  Sub-route contributor registry (ROUTING.md): a mounted view
-         *  declares the deep, view-owned children of its base route
-         *  (topics, /info, /schema, focus topics — subpaths that are NOT
-         *  declared routes) so the site map can show the full tree. Keyed
-         *  by base route → ordered [{route,label,icon,children?}]. */
-        sub_routes:      {},
-        /*  Event → handler GClass(es) registry (ROUTING.md): a gclass that
-         *  handles a toolbar/account action event self-declares so the site
-         *  map can show WHERE the action is implemented. Keyed by event name
-         *  → array of gclass names. */
-        event_handlers:  {},
-        hash_handler:    null,
-        keydown_handler: null,
-        /*  Escape priority chain: array of { layer, handler }.  Each
-         *  interactive overlay (drawer today, modal/popup tomorrow)
-         *  pushes its close handler when it opens and pops it when
-         *  it closes.  Escape calls the top handler only — LIFO. */
-        escape_stack:    [],
-        /*  Overlay history integration (Back button ↔ modals/windows).
-         *  Each history-participating overlay (modal, floating window)
-         *  pushes a { id, close } record here when it opens, plus a
-         *  synthetic browser-history entry (pushState).  The browser Back
-         *  button then closes the TOP overlay instead of navigating; and
-         *  an overlay dismissed by any other path (X, Escape, backdrop,
-         *  code) retires its history entry via history.back().  Gated on
-         *  `use_hash` — see push_overlay_history / overlay_dismissed. */
-        overlay_stack:   [],
-        overlay_seq:     0,
-        /*  Count of history.back() calls WE issued to retire a dismissed
-         *  overlay; the popstate they trigger is expected and ignored. */
-        expected_pops:   0,
-        popstate_handler: null,
-        /*  Avatar item support — every toolbar item with type:"avatar"
-         *  registers its <span> here so refresh_avatars() can repaint
-         *  the initials when the host (wattyzer, hidraulia, …) calls
-         *  yui_shell_set_avatar_provider() / yui_shell_refresh_avatars().
-         *  The provider is a () => string callback owned by the host. */
-        avatar_provider: null,
-        avatar_nodes:    [],
-        /*  Optional i18n translator (t-function) the host registers via
-         *  yui_shell_set_translator().  The host translates the static
-         *  shell tree by calling refresh_language($container, t) once,
-         *  but LAZILY-built DOM (the toolbar dropdown panel) is mounted
-         *  on the popup layer, OUTSIDE $container, AFTER that call — so
-         *  it would never be translated.  When a translator is set the
-         *  shell re-applies it to each freshly built panel. */
-        translator:      null,
-        /*  Connection-indicator support — every toolbar item with
-         *  type:"connection" registers its dot <span> here so
-         *  yui_shell_set_connection_state(shell, bool) can repaint the
-         *  backend-connected state.  State is host/event-driven (unlike
-         *  the avatar provider it is a setter, not a pull callback). */
-        conn_nodes:      [],
-        /*  Currently open toolbar dropdown panel, if any.  Tracked here
-         *  so a second click on any trigger (or programmatic close) can
-         *  tear down the previous one through the same code path. */
-        active_dropdown: null
-    });
-
     __last_shell__ = gobj;
 
     build_ui(gobj);
@@ -212,7 +208,7 @@ function mt_create(gobj)
 function mt_start(gobj)
 {
     let config = gobj_read_attr(gobj, "config") || {};
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
 
     /*  Validate the declarative config before anything reads it. This is a
      *  system boundary (app-supplied JSON); validation makes shape errors
@@ -251,7 +247,7 @@ function mt_start(gobj)
          *  real route Back changes the hash and is handled by hash_handler
          *  above. */
         priv.popstate_handler = (ev) => {
-            let p = gobj_read_attr(gobj, "priv");
+            let p = gobj.priv;
             if(!p) {
                 return;
             }
@@ -354,7 +350,7 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv) {
         return;
     }
@@ -421,7 +417,6 @@ function mt_destroy(gobj)
         $container.parentNode.removeChild($container);
     }
     gobj_write_attr(gobj, "$container", null);
-    gobj_write_attr(gobj, "priv", null);
 
     if(__last_shell__ === gobj) {
         __last_shell__ = null;
@@ -608,7 +603,7 @@ function check_route_unique(route_owner, item, menu_id)
  ************************************************************/
 function build_ui(gobj)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let config = gobj_read_attr(gobj, "config") || {};
     let shell_cfg = config.shell || {};
 
@@ -729,7 +724,7 @@ function apply_show_on($el, expr)
  ************************************************************/
 function build_item_index(gobj, config)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     priv.item_index = {};
 
     let menus = (config.menu) || {};
@@ -851,7 +846,7 @@ function build_item_index(gobj, config)
  ************************************************************/
 function instantiate_menus(gobj, config)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let zones_cfg = (config.shell && config.shell.zones) || {};
     let menus = config.menu || {};
 
@@ -966,7 +961,7 @@ function render_to_obj(layout)
 
 function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level, nav_label)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let render_cfg = (menu.render && (menu.render[zone_id] || menu.render["*"])) ||
                      { layout: "vertical" };
     if(is_string(render_cfg)) {
@@ -1069,7 +1064,7 @@ const MAX_REDIRECT_DEPTH = 8;
 
 function navigate_to(gobj, route, depth, no_drain)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     depth = depth || 0;
     route = normalize_route(route);
 
@@ -1464,7 +1459,7 @@ function build_view_gobj(gobj, entry, route, stage)
      *  (synthesized "cards" C_YUI_NAV) is SHELL-owned DOM built after
      *  the host's one-shot refresh_language — apply the registered
      *  translator, same policy as lazily-built dropdown panels. */
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(priv && typeof priv.translator === "function" &&
             target.gclass === "C_YUI_NAV") {
         refresh_language($view, priv.translator);
@@ -1504,7 +1499,7 @@ function build_toolbar(gobj, config)
         return;
     }
 
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let zone_id = tb.zone || find_toolbar_zone(config);
     let $zone = priv.zones[zone_id];
     if(!$zone) {
@@ -1679,7 +1674,7 @@ function build_toolbar_brand_item(gobj, it)
  ************************************************************/
 function build_toolbar_avatar_item(gobj, it)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let aria_key = it.aria_label || it.name || it.id || "User menu";
     let i18n_aria = it.aria_label || it.name || "User menu";
     let action_type = (it.action && it.action.type) || "";
@@ -1734,7 +1729,7 @@ function paint_avatar(priv, $node)
 
 function refresh_avatars(gobj)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !is_array(priv.avatar_nodes)) {
         return;
     }
@@ -1770,7 +1765,7 @@ function attach_context_action(gobj, $item, it)
  ************************************************************/
 function build_toolbar_connection_item(gobj, it)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let aria_key  = it.aria_label || it.name || it.id || "backend connection";
     let i18n_aria = it.aria_label || it.name || "backend connection";
     let attrs = {
@@ -1823,7 +1818,7 @@ function find_toolbar_zone(config)
  ************************************************************/
 function route_restores_url(gobj, route)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !priv.item_index) {
         return false;
     }
@@ -1902,7 +1897,7 @@ function handle_toolbar_action(gobj, item, $trigger)
  ************************************************************/
 function toggle_toolbar_dropdown(gobj, item, action, $trigger)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv) {
         return;
     }
@@ -1917,7 +1912,7 @@ function toggle_toolbar_dropdown(gobj, item, action, $trigger)
 
 function open_toolbar_dropdown(gobj, item, action, $trigger)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !priv.layers || !priv.layers.popup) {
         return;
     }
@@ -2017,7 +2012,7 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
 
 function close_toolbar_dropdown(gobj)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv) {
         return;
     }
@@ -2112,7 +2107,7 @@ function build_dropdown_row(gobj, sub, idx)
  ************************************************************/
 function preinstantiate_eager_views(gobj)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     for(let route in priv.item_index) {
         let entry = priv.item_index[route];
         let t = entry.target;
@@ -2147,7 +2142,7 @@ function preinstantiate_eager_views(gobj)
  ************************************************************/
 function drawers(gobj, menu_id)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let out = [];
     for(let nav of priv.navs) {
         if(gobj_read_attr(nav, "layout") !== "drawer") {
@@ -2173,7 +2168,7 @@ function drawers(gobj, menu_id)
  ************************************************************/
 function push_escape(gobj, layer, handler)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !priv.escape_stack) {
         return;
     }
@@ -2182,7 +2177,7 @@ function push_escape(gobj, layer, handler)
 
 function pop_escape(gobj, handler)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !priv.escape_stack) {
         return;
     }
@@ -2235,7 +2230,7 @@ function pop_escape(gobj, handler)
  *  NOT history.back() — the buried synthetic entries stay inert. */
 function drain_overlays(gobj)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !priv.overlay_stack) {
         return;
     }
@@ -2254,7 +2249,7 @@ function drain_overlays(gobj)
  *  handler's authority and must not drift from the entry it describes. */
 function retag_overlay_hash(gobj, st, hash)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !priv.overlay_stack || !st || !st.__yui_overlay__) {
         return;
     }
@@ -2266,7 +2261,7 @@ function retag_overlay_hash(gobj, st, hash)
 
 function push_overlay_history(gobj, close)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !priv.overlay_stack || !gobj_read_attr(gobj, "use_hash")) {
         return null;
     }
@@ -2292,7 +2287,7 @@ function push_overlay_history(gobj, close)
 
 function overlay_dismissed(gobj, entry)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv || !priv.overlay_stack || !entry) {
         return;
     }
@@ -2388,7 +2383,7 @@ function toggle_drawer(gobj, menu_id)
 
 function close_all_drawers(gobj)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if(!priv) {
         return;
     }
@@ -2410,7 +2405,7 @@ function close_all_drawers(gobj)
  ************************************************************/
 function show_stage_placeholder(gobj, stage_name, message)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let stage = priv.stages[stage_name];
     if(!stage || !stage.el) {
         return;
@@ -2426,7 +2421,7 @@ function show_stage_placeholder(gobj, stage_name, message)
 
 function clear_stage_placeholder(gobj, stage_name)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     let stage = priv.stages[stage_name];
     if(!stage || !stage.el) {
         return;
@@ -2439,7 +2434,7 @@ function clear_stage_placeholder(gobj, stage_name)
 
 function update_secondary_nav_visibility(gobj, entry)
 {
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     /*  shell.routes entries (root, forms, action routes) have no menu
      *  item — entry.item / entry.parent_item are null.  No active
      *  primary then: the secondary zone collapses (has_secondary
@@ -2627,7 +2622,7 @@ function find_primary_item(shell_gobj, menu_id, item_id)
 /*  Drop a route from the index and destroy any mounted view for it. */
 function prune_route(shell_gobj, route)
 {
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     delete priv.item_index[route];
     for(let stage_name in priv.stages) {
         let stage = priv.stages[stage_name];
@@ -2654,7 +2649,7 @@ function prune_route(shell_gobj, route)
 
 function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
 {
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     if(!priv) {
         return -1;
     }
@@ -2897,7 +2892,7 @@ function yui_shell_navigate(shell_gobj, route, opts)
  ************************************************************/
 function yui_shell_nav_map(shell_gobj)
 {
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     return build_nav_map({
         config:         gobj_read_attr(shell_gobj, "config") || {},
         item_index:     (priv && priv.item_index) || {},
@@ -2917,7 +2912,7 @@ function yui_shell_nav_map(shell_gobj)
  ************************************************************/
 function yui_shell_set_sub_routes(shell_gobj, base_route, nodes)
 {
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     if(!priv || !priv.sub_routes || empty_string(base_route)) {
         return;
     }
@@ -2937,7 +2932,7 @@ function yui_shell_set_sub_routes(shell_gobj, base_route, nodes)
  ************************************************************/
 function yui_shell_register_event_handler(shell_gobj, event, gclass)
 {
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     if(!priv || !priv.event_handlers || empty_string(event) || empty_string(gclass)) {
         return;
     }
@@ -3026,7 +3021,7 @@ function yui_shell_unpark_route(route)
  ************************************************************/
 function yui_shell_set_avatar_provider(shell_gobj, provider)
 {
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     if(!priv) {
         return;
     }
@@ -3050,7 +3045,7 @@ function yui_shell_refresh_avatars(shell_gobj)
  ************************************************************/
 function yui_shell_set_translator(shell_gobj, t)
 {
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     if(!priv) {
         return;
     }
@@ -3072,7 +3067,7 @@ function yui_shell_language_changed(shell_gobj)
     if(!shell_gobj || !is_gobj(shell_gobj)) {
         return;
     }
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     if(priv && typeof priv.translator === "function") {
         refresh_language(document.body, priv.translator);
     }
@@ -3088,7 +3083,7 @@ function yui_shell_language_changed(shell_gobj)
  ************************************************************/
 function yui_shell_set_connection_state(shell_gobj, connected)
 {
-    let priv = gobj_read_attr(shell_gobj, "priv");
+    let priv = shell_gobj.priv;
     if(!priv || !is_array(priv.conn_nodes)) {
         return;
     }

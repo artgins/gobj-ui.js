@@ -7,6 +7,24 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(shell, nav): private state stops being a public attribute.**
+  `C_YUI_SHELL` and `C_YUI_NAV` declared `SDATA(DTP_POINTER, "priv", …)` and
+  reached it with `gobj_read_attr(gobj, "priv")` — a category error: attributes
+  are the gclass's PUBLIC interface, so the two gclasses were publishing their
+  own private state (anyone could `gobj_write_attr(gobj, "priv", …)`, and
+  `gobj_read_attrs(gobj, -1)` dumped it). They were the only two gclasses in
+  the codebase doing it; every other one uses `gobj.priv`.
+  The root cause was a misreading recorded in the code itself — *"Per-instance
+  private state (avoid the gclass-level PRIVATE_DATA)"*: `PRIVATE_DATA` is
+  **not** shared between instances, `gobj_create` does
+  `this.priv = json_deep_copy(gclass.priv)`, exactly like C's `PRIVATE_DATA`
+  struct. The state moves back to `PRIVATE_DATA`, the `priv` attr is **gone**
+  from both attr tables, and every access is the canonical
+  `let priv = gobj.priv;` (44 sites, incl. `shell_modals.js`). The `|| {}`
+  fallbacks went with it: `gobj.priv` is always an object.
+  **BREAKING** only for code reading `gobj_read_attr(shell, "priv")` — that was
+  never a supported interface (a gclass `.h`/module exposes attrs, commands,
+  events, local methods and stats; private state is none of those).
 - **fix(shell): the `stay` contract could re-fire its own action route — new
   `yui_shell_unpark_route(route)` + restore-then-event on deep-link.** Two
   review findings on the same contract. (1) The reference `stay` wiring (an

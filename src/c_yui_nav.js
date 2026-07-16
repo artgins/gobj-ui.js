@@ -107,14 +107,15 @@ SDATA(data_type_t.DTP_STRING,   "back_route",    0,  "",           "backbar layo
 SDATA(data_type_t.DTP_POINTER,  "shell",         0,  null,         "C_YUI_SHELL gobj (for navigation calls)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",    0,  null,         "Root HTMLElement of this nav"),
 SDATA(data_type_t.DTP_STRING,   "active_route",  0,  "",           "Currently active route"),
-SDATA(data_type_t.DTP_POINTER,  "priv",          0,  null,         "Private runtime state (click listener, etc.)"),
 SDATA_END()
 ];
 
 /*  Monotonic id generator for ARIA pairs (aria-controls etc.). */
 let __nav_aria_seq__ = 0;
 
-let PRIVATE_DATA = {};
+let PRIVATE_DATA = {
+    click_handler: null
+};
 let __gclass__ = null;
 
 
@@ -141,9 +142,6 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    gobj_write_attr(gobj, "priv", {
-        click_handler: null
-    });
     build_ui(gobj);
 }
 
@@ -177,7 +175,7 @@ function mt_stop(gobj)
 function mt_destroy(gobj)
 {
     let $c = gobj_read_attr(gobj, "$container");
-    let priv = gobj_read_attr(gobj, "priv");
+    let priv = gobj.priv;
     if($c && priv && priv.click_handler) {
         $c.removeEventListener("click", priv.click_handler);
     }
@@ -185,7 +183,6 @@ function mt_destroy(gobj)
         $c.parentNode.removeChild($c);
     }
     gobj_write_attr(gobj, "$container", null);
-    gobj_write_attr(gobj, "priv", null);
 }
 
 
@@ -267,7 +264,7 @@ function build_ui(gobj)
 function rebuild(gobj)
 {
     let $old = gobj_read_attr(gobj, "$container");
-    let priv = gobj_read_attr(gobj, "priv") || {};
+    let priv = gobj.priv;
     let parent = $old ? $old.parentNode : null;
     let next = $old ? $old.nextSibling : null;
     let was_hidden = !!($old && $old.classList.contains("is-hidden"));
@@ -718,7 +715,7 @@ function item_iconbar(gobj, it, opts)
 
 function wire_clicks(gobj, $container)
 {
-    let priv = gobj_read_attr(gobj, "priv") || {};
+    let priv = gobj.priv;
 
     let handler = ev => {
         let target = ev.target;

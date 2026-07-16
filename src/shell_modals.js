@@ -54,7 +54,7 @@ function notification_layer(shell)
     if(!shell) {
         return null;
     }
-    let priv = gobj_read_attr(shell, "priv");
+    let priv = shell.priv;
     return priv && priv.layers && priv.layers.notification;
 }
 
@@ -63,7 +63,7 @@ function modal_layer(shell)
     if(!shell) {
         return null;
     }
-    let priv = gobj_read_attr(shell, "priv");
+    let priv = shell.priv;
     return priv && priv.layers && priv.layers.modal;
 }
 
@@ -77,7 +77,7 @@ export function yui_shell_popup_layer(shell)
     if(!shell) {
         return null;
     }
-    let priv = gobj_read_attr(shell, "priv");
+    let priv = shell.priv;
     return (priv && priv.layers && priv.layers.popup) || null;
 }
 
