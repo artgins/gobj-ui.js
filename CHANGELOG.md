@@ -34,6 +34,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   so re-rendering under the user mid-edit would throw away what they typed. **Migration:** an app registering a `__yui_main__` service
   for gobj-ui's benefit can drop it; set `<html data-theme>` instead (the shell
   toggle already does).
+- **fix(gobj-tree): the popover's text was invisible on dark.** Its chrome
+  used Bulma scheme vars (so the card went near-black on dark) but the rows it
+  renders hardcoded `color:#1A1A1A` for the value and `#6B7280` for the label —
+  near-black text on a near-black card, luminance 26 vs 22. The rows now use
+  `var(--bulma-text-strong)` / `var(--bulma-text-weak)` like the chrome around
+  them, so the popover follows the theme with no redraw (CSS vars flip with
+  `<html data-theme>`).
+
 - **fix(json-graph): dark palette for the cards.** Its canvas followed the
   theme but the cards did not: fill, key text and the by-type scalar colours
   were hardcoded for a light card, so on dark they were cream rectangles with a

@@ -1264,10 +1264,14 @@ function render_popover_body(gobj, node_data)
 
     let rows = get_node_info_rows(node_data);
 
+    /*  Bulma scheme vars, like the popover chrome around it (build_popover):
+     *  they flip with <html data-theme>, so the popover follows the theme
+     *  with no redraw. Hardcoding them is what made the value near-black
+     *  (#1A1A1A) on the near-black dark card background — invisible. */
     let rows_html = rows.map(([label, value]) => `
         <div style="display:grid; grid-template-columns: 90px 1fr; column-gap:10px; padding: 2px 0;">
-            <span style="color:#6B7280; font-weight:500;">${escapeHtml(String(label))}</span>
-            <span style="color:#1A1A1A; word-break:break-all;">${escapeHtml(String(value))}</span>
+            <span style="color:var(--bulma-text-weak, #6B7280); font-weight:500;">${escapeHtml(String(label))}</span>
+            <span style="color:var(--bulma-text-strong, #1A1A1A); word-break:break-all;">${escapeHtml(String(value))}</span>
         </div>
     `).join("");
 
