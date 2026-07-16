@@ -8,6 +8,11 @@ this line in `3.0.0` — the frozen v1 npm line still ships it.
 
 Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://github.com/artgins/gobj-js).
 
+> **Routing & navigation:** every navigable state is a URL. Before adding any
+> view or navigable element, read **[`ROUTING.md`](ROUTING.md)** — the shell's
+> routing contract (URL = source of truth, push/replace history, the
+> position/preference/transient litmus).
+
 ## Two maintained lines
 
 This repository carries **two parallel lines** with different layouts and
