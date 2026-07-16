@@ -164,6 +164,12 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    /*  Fill the cell instead of hugging the label: the active item paints a
+     *  background, and a box shrink-wrapped to the text reads as glued to it
+     *  — worst on the longest label, whose own width is what caps the
+     *  padding. Filling decouples the two: the label gets visual room from
+     *  the free space in its cell, and NO label is ever narrowed. */
+    width: 100%;
     padding: 0.25rem 0.5rem;
     gap: 0.125rem;
     min-width: 0;

@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(nav): the icon-bar item fills its cell instead of hugging its label.**
+  The active item paints a background, and a box shrink-wrapped to the text read
+  as glued to it. Raising the padding could not fix it: the LONGEST label is what
+  caps the padding (in wattyzer, Spanish "Administración" already filled 85 of
+  its 89px cell, so any extra padding ellipsized it). Filling the cell decouples
+  the two — each label gets visual room from the free space in its own cell, and
+  no label is ever narrowed. Affects every app with a mobile icon-bar
+  (wattyzer, gui_agent, gui_treedb); verified none truncates.
+
 - **fix(gobj-tree): lower-case its i18n keys.** `c_yui_gobj_tree_js` was the
   only module asking i18next for capitalised keys (`t("Close")`, `t("GClass")`,
   `t("Status")`, …). Keys are lower-case by convention, so **no consumer could
