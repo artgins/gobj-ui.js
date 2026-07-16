@@ -88,7 +88,9 @@ const es_translation = {
     "prefs hint": "Un modal enlazable: la URL se queda en /prefs (redirect:'stay').",
     "compact mode": "Modo compacto",
     "Site map": "Mapa del sitio",
+    "Frontend view": "Vista frontend",
     "site map": "Mapa del sitio",
+    "frontend view": "Vista frontend",
     "site map hint": "Cada posición alcanzable de la app es una URL. Pulsa para saltar.",
     "you are here": "Estás aquí",
     "other routes": "Otras rutas",
@@ -217,6 +219,7 @@ const es_translation = {
  *  as "Q3 2026" — so unlike the demo's own keys they need an `en` bundle.
  */
 const en_translation = {
+    "frontend view": "Frontend view",
     "span": "All",
     "custom": "Custom",
     "hour": "Hour",

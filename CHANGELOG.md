@@ -7,6 +7,29 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(dev): `setup_frontend_view(self)` — the gobj tree in a floating
+  window, peer of the developer window.** `C_YUI_GOBJ_TREE_JS` (the live gobj
+  tree of the own yuno) already existed, but every app had to host it itself,
+  and the only in-tree consumer mounted it as a full stage view behind an admin
+  menu. The new helper (`src/yui_frontend_view.js`, exported from `index.js`)
+  builds it the way `setup_dev` builds the developer monitor: a non-modal
+  `C_YUI_WINDOW` named **`Frontend-View-Window`** (title bar + maximize +
+  close + resize, `auto_save_size_and_position`, `logical_class`
+  `FRONTEND_VIEW_WINDOW`), opting into the dock/taskbar when the app has a
+  window manager. Hosts toggle it exactly like the developer window
+  (`gobj_find_service("Frontend-View-Window", false)` → destroy, else
+  `setup_frontend_view(gobj)`). The tree is created as a **pure child of the
+  window**, so every teardown path — the ✕, or the host destroying the window
+  to toggle the entry off — takes it down with it; the window body is a
+  placeholder because `C_YUI_WINDOW` builds its UI in `mt_create` and cannot be
+  handed a gobj that does not exist yet. The window title carries its `i18n`
+  key (`"frontend view"`), so it re-translates on a language change; apps
+  mounting it must define that key **and** `C_YUI_GOBJ_TREE_JS`'s own keys
+  (`layout`, `gclass`, `full name`, `name`, `status`, `state`, `parent`,
+  `children`, `(collapsed)`) — the library translates through the app's
+  i18next. Wired into the test-app's account menu ("Frontend view", below
+  "Developer window").
+
 - **fix(shell): overlay↔history bookkeeping survives navigating with
   overlays open.** The old bookkeeping assumed an overlay's synthetic history
   entry was always ADJACENT to the current one. It isn't once the user
