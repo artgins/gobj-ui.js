@@ -205,6 +205,10 @@ function ensure_dock_style()
 .yui-dock-icon svg { width: 14px; height: 14px; display: block; }
 .yui-dock-icon i { line-height: 1; }
 .yui-dock-label { flex: 0 0 auto; }
+/*  Split label halves (prefix = DATA, kind = translatable). The
+ *  separator is CSS, never a text node — same rule as the window
+ *  title bar (createElement2 trims text nodes). */
+.yui-dock-label .yui-dock-label-prefix + .yui-dock-label-kind::before { content: " \\00b7 "; }
 .yui-dock-close {
     width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
     padding: 0; margin-left: 1px; border: 0; border-radius: 4px;
@@ -428,7 +432,15 @@ function on_chip_click(gobj, entry)
 
 
 /************************************************************
- *   EV_REGISTER_WINDOW { window, title }
+ *   EV_REGISTER_WINDOW { window, title, title_key,
+ *                        title_kind_text, title_prefix, icon }
+ *
+ *   `title` is the composed, already-translated fallback (also the
+ *   tooltip).  The label itself renders the SPLIT halves so it can
+ *   change language: `title_prefix` (DATA, plain text) + the KIND
+ *   half carrying `title_key` as data-i18n, born as
+ *   `title_kind_text` (the manager has no translator of its own —
+ *   the app's refresh_language() re-translates the key later).
  ************************************************************/
 function ac_register_window(gobj, event, kw, src)
 {
@@ -442,16 +454,38 @@ function ac_register_window(gobj, event, kw, src)
     apply_placement(gobj);
 
     let title = kw.title || gobj_name(win) || "window";
+    let title_key = kw.title_key || "";
+    let kind_text = kw.title_kind_text || "";
+    let prefix = kw.title_prefix || "";
+    let label_items = [];
+    if(prefix) {
+        label_items.push(['span', {class: 'yui-dock-label-prefix'}, prefix]);
+    }
+    if(title_key) {
+        label_items.push(
+            ['span', {class: 'yui-dock-label-kind', i18n: title_key},
+             kind_text || title_key]
+        );
+    }
+    if(label_items.length === 0) {
+        /*  No split halves supplied (legacy caller): plain text. */
+        label_items.push(['span', {class: 'yui-dock-label-kind'}, title]);
+    }
 
     let entry = {gobj: win, $chip: null, minimized: false};
     /*  A div (not a button) so it can hold the close button — a
      *  button inside a button is invalid. The chip toggles; the ✕
      *  closes the window (EV_CLOSE_WINDOW → the window's own teardown
-     *  → EV_UNREGISTER_WINDOW removes this chip). */
+     *  → EV_UNREGISTER_WINDOW removes this chip).
+     *  Tooltip: the composed string; when there is no DATA half it
+     *  carries the key as data-i18n-title so it re-translates too. */
     let $chip = createElement2(
-        ['div', {class: 'yui-dock-chip', role: 'button', tabindex: '0', title: title}, [
+        ['div', Object.assign(
+            {class: 'yui-dock-chip', role: 'button', tabindex: '0', title: title},
+            (!prefix && title_key) ? {'data-i18n-title': title_key} : {}
+        ), [
             chip_lead(kw.icon),
-            ['span', {class: 'yui-dock-label'}, title],
+            ['span', {class: 'yui-dock-label'}, label_items],
             ['button', {class: 'yui-dock-close', type: 'button', 'aria-label': 'close'}, WC_X, {
                 click: (evt) => {
                     evt.stopPropagation();

@@ -164,12 +164,20 @@ function mt_create(gobj)
                 }
             }, true);
         }
-        /*  The chip paints its label as plain text (no data-i18n), so it
-         *  needs the title already translated and joined.  */
+        /*  The chip gets the SPLIT halves so its label re-translates
+         *  like the title bar: `title_key` is the i18n KEY (the chip
+         *  renders it with data-i18n, so refresh_language reaches it),
+         *  `title` the translated fallback text so the chip is born in
+         *  the current language (the manager has no translator of its
+         *  own), `title_prefix` the DATA half, never translated. */
         let chip_title = composed_title(gobj);
         gobj_send_event(manager, "EV_REGISTER_WINDOW", {
             window: gobj,
             title: chip_title ? chip_title : gobj_short_name(gobj),
+            title_key: gobj_read_str_attr(gobj, "title") || "",
+            title_kind_text: empty_string(gobj_read_str_attr(gobj, "title"))
+                ? "" : t(gobj_read_str_attr(gobj, "title")),
+            title_prefix: gobj_read_str_attr(gobj, "title_prefix") || "",
             icon: gobj_read_attr(gobj, "icon") || "",
         }, gobj);
     } else if(gobj_read_bool_attr(gobj, "back_dismissable")) {

@@ -74,7 +74,8 @@ function render_node(node)
         row.push(["code", {class: "ROUTEMAP_ROUTE"}, node.route]);
     }
     if(node.gclass) {
-        row.push(["span", {class: "ROUTEMAP_GCLASS", title: "gclass"},
+        row.push(["span", {class: "ROUTEMAP_GCLASS",
+            title: "gclass", "data-i18n-title": "gclass"},
             node.gclass]);
     }
     if(node.event) {
@@ -349,7 +350,10 @@ export function yui_shell_show_route_map(shell, opts)
     modal_ref.modal = yui_shell_show_modal(shell, $body, {
         dialog:        true,
         logical_class: "ROUTEMAP_SHEET",
-        title:         t("site map", {defaultValue: "Site map"}),
+        /*  The KEY, not t(key): the modal renders `title` with
+         *  data-i18n, so a pre-translated string would become the
+         *  "key" and never re-translate. */
+        title:         "site map",
         t:             t,
         on_close:      function() { __open_modal__ = null; }
     });

@@ -43,6 +43,10 @@ export {
     yui_shell_set_toolbar_item_icon,
     yui_shell_close_dropdown,
     yui_shell_register_event_handler,
+    yui_shell_set_sub_routes,
+    yui_shell_register_overlay,
+    yui_shell_overlay_dismissed,
+    yui_shell_unpark_route,
 } from "./src/c_yui_shell.js";
 export { register_c_yui_nav } from "./src/c_yui_nav.js";
 /*
