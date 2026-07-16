@@ -39,6 +39,12 @@
                 "kind": "action",
                 "event": "EV_OPEN_SITEMAP",
                 "redirect": "back"
+            },
+            "_prefs_comment": "The OTHER action-route flavour, and the reason it is here: redirect:'stay' keeps the URL on /prefs so the modal is deep-linkable, which means current_route stays on the resting view while the URL sits off it. That divergence is what the overlay/history bookkeeping has to survive (Back must still close the modal), and 'back' does not exercise it. Per ROUTING.md 7.1 'stay' is only correct when the opener owns the URL on close: ac_open_prefs' on_close does the history.back(), wattyzer's open_route_modal idiom.",
+            "/prefs": {
+                "kind": "action",
+                "event": "EV_OPEN_PREFS",
+                "redirect": "stay"
             }
         }
     },
@@ -149,6 +155,15 @@
                             "action": {
                                 "type": "navigate",
                                 "route": "/sitemap"
+                            }
+                        },
+                        {
+                            "id": "d-prefs",
+                            "name": "Preferences",
+                            "icon": "yi-gear",
+                            "action": {
+                                "type": "navigate",
+                                "route": "/prefs"
                             }
                         },
                         {

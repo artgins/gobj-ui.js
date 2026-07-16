@@ -18,16 +18,41 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   `overlay_dismissed` only retires the entry when its marker is the *current*
   history entry (adjacent → the back() is invisible), leaving buried entries
   inert (a later Back absorbs them as a same-hash no-op); the popstate handler
-  treats only **same-hash** landings as overlay pops (fragment navigations
-  fire popstate too — hash-changing landings belong to the hashchange
-  routing); and the shell's silent `replaceState` URL fix-ups preserve
-  `history.state` so they can't wipe a live marker. The route side of the
+  treats only landings on **the marker's own hash** as overlay pops (fragment
+  navigations fire popstate too — landings on any other hash belong to the
+  hashchange routing); and the shell's silent `replaceState` URL fix-ups
+  preserve `history.state` so they can't wipe a live marker (and re-tag the
+  marker's recorded hash, which they just rewrote). The route side of the
   rule: **`navigate_to` closes every registered overlay when the RESTING
   route changes** (overlays are transient, ROUTING.md §3/§6) — a transient
   action route or a subpath-only move keeps them open. Verified end-to-end
-  (Playwright/Firefox on the test-app): classic open→Back-close, X-close in
-  place, stacked overlays + navigate (both close, dismissing the buried one
-  does not teleport), Back absorbing inert entries.
+  (Playwright/Firefox on the test-app, `_qa_routing.mjs` / `_qa_prefs.mjs`):
+  classic open→Back-close, X-close in place, stacked overlays + navigate
+  (both close, dismissing the buried one does not teleport), Back absorbing
+  inert entries, and both action-route flavours (`back` and `stay`).
+
+  Two follow-ups to that pass, each a user-visible break in wattyzer (the
+  only consumer with action routes — gui_agent/gui_treedb declare none, which
+  is why neither the unit suite nor the test-app caught them):
+
+  - **Back could not close a `redirect:"stay"` modal.** The popstate guard
+    matched the hash of the **resting route**, but `stay` is precisely the
+    flavour that parks the URL *off* it (`current_route` stays on the view
+    underneath, ROUTING.md §7.1) — so every Back over a `stay` modal's marker
+    was misread as a route traversal and ignored, leaving the modal
+    unclosable by Back (wattyzer's `/about`, `/user/preference`,
+    `/connection`). The marker now records the hash it was pushed on and that
+    is what the guard compares: stepping off a marker always lands on the
+    marker's hash, whatever the resting route is.
+  - **The overlay drain skipped every redirect.** It was gated on redirect
+    depth 0, so the identical click drained or not depending on whether the
+    target redirected: with the site map open, a direct route closed it but a
+    submenu default (`/devices` → `/devices/inventory`), an unknown-route
+    default or an action's `"<route>"` redirect did not — contradicting the
+    rule stated right above. The drain now runs at every depth. The one
+    exception is about ORDER, not depth, and is explicit (`no_drain`): a hop
+    continuing an action route whose event already fired must not kill the
+    overlay that event just opened.
 
 - **fix(shell): action-route `redirect:"back"`/`"none"` restore the URL
   BEFORE firing the event.** Event-first let a handler-opened overlay

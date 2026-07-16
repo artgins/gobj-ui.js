@@ -165,12 +165,20 @@ same hash) and an **overlay stack**:
   registered overlay — an overlay is *transient* (§3) and does not outlive
   the view it floats above. A **transient action route** (§7.1) or a
   **subpath-only** move keeps them open (the site map exploits this: it stays
-  up while you drill subpaths). The bookkeeping stays sound through the
+  up while you drill subpaths). This holds **however the shell got there** —
+  a submenu default, an unknown-route default and an action's `"<route>"`
+  redirect land the user on a different resting view just as a direct route
+  does, so they drain too. The bookkeeping stays sound through the
   synthetic entries' state markers: a closed overlay's entry is left
   **inert** when it is not the current one — dismissal never
   `history.back()`s over real route entries (doing so used to teleport the
   user back to the pre-overlay route) — and a later Back absorbs an inert
   entry as a same-hash no-op.
+- **What counts as "Back over an overlay"** is the **marker's own hash**, not
+  the resting route's. A marker is pushed with the same hash as the entry
+  below it, so stepping off it always lands on that hash — while an action
+  route (§7.1) can legitimately park the URL *off* the resting route, which
+  is why matching on the resting route left `stay` modals unclosable by Back.
 
 Use this for every modal/popup. Never encode an overlay as a route (a
 deep-linkable modal is an *action route* with `redirect:"stay"`, a deliberate,
@@ -248,6 +256,13 @@ reads as an accident.
 > window closes and the URL sits on `/sitemap` forever, pointing at nothing.
 > Use `back` for those. **Rule of thumb: `stay` only if the opener owns the
 > URL on close; otherwise `back`.**
+
+Browser **Back still closes a `stay` overlay** (§6): the shell matches the
+overlay marker's own hash, so the URL sitting off the resting route — the
+whole point of `stay` — does not blind it. The test-app's `/prefs` entry is
+the reference wiring (`redirect:"stay"` + an `on_close` that `history.back()`s
+off the route, wattyzer's `open_route_modal` idiom); `_qa_prefs.mjs` drives
+open / Back / X / Escape / deep-link against it.
 
 Deep-linking straight onto a `stay` route (or reloading on it) is handled: the
 shell mounts the default view underneath first, then re-pushes the hash on top,

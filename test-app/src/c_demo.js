@@ -100,6 +100,7 @@ function mt_create(gobj)
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_SITEMAP",    {}, gobj);
+    gobj_subscribe_event(shell, "EV_OPEN_PREFS",      {}, gobj);
     gobj_subscribe_event(shell, "EV_ABOUT",           {}, gobj);
 
     /*  The shell never reads a user model; it asks this provider for
@@ -247,6 +248,55 @@ function ac_open_sitemap(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  Account-menu "Preferences" entry — the `redirect:"stay"` action
+ *  route (/prefs, see app_config shell.routes + ROUTING.md §7.1),
+ *  and the only place the demo exercises that flavour: the URL
+ *  STAYS on /prefs (deep-linkable) while current_route stays on the
+ *  resting view underneath.
+ *
+ *  `stay` does not restore the URL — the OPENER owns it on close
+ *  (the trap in ROUTING.md §7.1) — so on_close history.back()s off
+ *  /prefs. This is wattyzer's open_route_modal idiom, reproduced
+ *  here so the overlay/history bookkeeping has an offline QA
+ *  surface for it (_qa_prefs.mjs).
+ ***************************************************************/
+function ac_open_prefs(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.prefs_open) {                        /*  toggle: close  */
+        priv.prefs_open.close();
+        return 0;
+    }
+
+    let $content = createElement2(
+        ["div", {class: "DEMO_PREFS content", style: "min-width:16rem;"}, [
+            ["p", {class: "is-size-6 mb-3 has-text-grey", i18n: "prefs hint"},
+                "prefs hint"],
+            ["div", {class: "DEMO_PREFS_ROW field"}, [
+                ["label", {class: "checkbox"}, [
+                    ["input", {type: "checkbox", class: "DEMO_PREFS_COMPACT mr-2"}],
+                    ["span", {i18n: "compact mode"}, "compact mode"]
+                ]]
+            ]]
+        ]]
+    );
+
+    priv.prefs_open = yui_shell_show_modal(priv.shell, $content, {
+        dialog: true,
+        title: "preferences",
+        t: t,
+        on_close: function() {
+            priv.prefs_open = null;
+            /*  `stay` parked the URL on /prefs: take it back off, or the
+             *  hash points at nothing once the modal is gone. */
+            window.history.back();
+        }
+    });
+    refresh_language($content, t);
+    return 0;
+}
+
+/***************************************************************
  *  Account-menu "About" entry (action:event EV_ABOUT). Shows a
  *  modal with the demo / gobj-ui / bundled-JSON-editor versions
  *  (injected by vite `define` from the respective package.json).
@@ -315,6 +365,7 @@ function create_gclass(gclass_name)
             ["EV_TOGGLE_LANGUAGE",  ac_toggle_language,  null],
             ["EV_OPEN_DEVTOOLS",    ac_open_devtools,    null],
             ["EV_OPEN_SITEMAP",     ac_open_sitemap,     null],
+            ["EV_OPEN_PREFS",       ac_open_prefs,       null],
             ["EV_ABOUT",            ac_about,            null]
         ]]
     ];
@@ -327,6 +378,7 @@ function create_gclass(gclass_name)
         ["EV_TOGGLE_LANGUAGE",  0],
         ["EV_OPEN_DEVTOOLS",    0],
         ["EV_OPEN_SITEMAP",     0],
+        ["EV_OPEN_PREFS",       0],
         ["EV_ABOUT",            0]
     ];
 

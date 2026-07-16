@@ -264,28 +264,37 @@ function mt_start(gobj)
             if(p.overlay_stack.length === 0) {
                 return;
             }
-            /*  A popstate landing on a DIFFERENT hash than the current
-             *  resting route is a route navigation, not an overlay pop
-             *  (fragment pushes fire popstate too, and a traversal that
-             *  changes the hash re-routes): the hashchange handler owns
-             *  it — navigate_to() closes the transient overlays only
-             *  when the RESTING route really changes, so an action
-             *  route or a subpath move keeps them open. */
-            let resting = route_to_hash(
-                gobj_read_attr(gobj, "current_route") || "");
-            if(resting && window.location.hash !== resting) {
+            let top = p.overlay_stack[p.overlay_stack.length - 1];
+            /*  Did this traversal step OFF the top overlay's marker?
+             *  That is the only landing that closes it, and the marker's
+             *  OWN hash is what says so: pushState() with no URL keeps
+             *  the current one, so stepping off a marker always lands on
+             *  the marker's hash.  A landing on any OTHER hash is a route
+             *  traversal (fragment pushes fire popstate too) and belongs
+             *  to the hashchange handler — navigate_to() closes the
+             *  transient overlays when the RESTING route changes, so a
+             *  subpath move keeps them open.
+             *
+             *  Compare against the MARKER's hash, never against the
+             *  resting route's: an action route (ROUTING.md §7.1) is
+             *  transient — `current_route` stays on the underlying
+             *  resting view while the URL sits on the action route — so
+             *  a `stay` modal's marker legitimately lives on a hash that
+             *  is NOT the resting one, and matching on the resting route
+             *  left Back unable to close it. */
+            if(window.location.hash !== top.hash) {
                 return;
             }
-            /*  Same-hash landing = a pop over a synthetic entry.  Which
-             *  entry did it land ON?  Markers ({__yui_overlay__: id})
-             *  tag synthetic entries; route entries have a null state.
-             *    - Landing ON the top overlay's OWN entry (an odd
-             *      history.go(n) traversal): the overlay is at its home
-             *      entry — keep it open.
+            /*  Which entry did it land ON?  Markers ({__yui_overlay__:
+             *  id}) tag synthetic entries; route entries have a null
+             *  state.
+             *    - Landing ON the top overlay's OWN entry (a Back from a
+             *      subpath entry pushed above it, or an odd
+             *      history.go(n)): the overlay is at its home entry —
+             *      keep it open.
              *    - Any other landing (the route entry below, or a lower
              *      overlay's marker) closes the top overlay: strict
              *      LIFO. */
-            let top = p.overlay_stack[p.overlay_stack.length - 1];
             let st = ev && ev.state;
             if(st && st.__yui_overlay__ === top.id) {
                 return;
@@ -1010,13 +1019,18 @@ function route_to_hash(route)
 }
 
 /************************************************************
- *  Navigate: make `route` active.  `depth` is internal — the
- *  redirect-recursion counter (submenu default, unknown-route
- *  default, action redirects); external callers omit it.
+ *  Navigate: make `route` active.  Both trailing args are internal;
+ *  external callers omit them.
+ *      depth    — the redirect-recursion counter (submenu default,
+ *                 unknown-route default, action redirects).
+ *      no_drain — this hop continues an action route whose event has
+ *                 ALREADY fired, so an overlay on the stack may be the
+ *                 one that event just opened, meant to float above the
+ *                 route we are moving to.  Draining would kill it.
  ************************************************************/
 const MAX_REDIRECT_DEPTH = 8;
 
-function navigate_to(gobj, route, depth)
+function navigate_to(gobj, route, depth, no_drain)
 {
     let priv = gobj_read_attr(gobj, "priv");
     depth = depth || 0;
@@ -1167,8 +1181,11 @@ function navigate_to(gobj, route, depth)
                     /*  Deep-link / reload straight onto the overlay
                      *  route: bring up the default view underneath,
                      *  then push this hash back on top so close→back
-                     *  returns to the default. */
-                    navigate_to(gobj, prev, depth + 1);
+                     *  returns to the default.  Event-first above, so
+                     *  no_drain (nothing to drain yet in practice — no
+                     *  resting view is mounted — but the rule is the
+                     *  rule). */
+                    navigate_to(gobj, prev, depth + 1, true);
                     let h = route_to_hash(route);
                     try {
                         window.history.pushState(null, "", h);
@@ -1215,7 +1232,11 @@ function navigate_to(gobj, route, depth)
             );
             return;
         }
-        return navigate_to(gobj, redirect, depth + 1);
+        /*  Event-first (logout-style: the handler may tear the shell down),
+         *  so anything the handler just put on the overlay stack belongs to
+         *  the route we are about to mount, not to the one we are leaving —
+         *  no_drain. */
+        return navigate_to(gobj, redirect, depth + 1, true);
     }
 
     /*  A fresh navigation clears any placeholder shown earlier. */
@@ -1239,10 +1260,15 @@ function navigate_to(gobj, route, depth)
      *  Their synthetic entries are NOT retired — they are buried under
      *  the new route's entry; popped BEFORE close, so each close's
      *  overlay_dismissed finds its entry gone and leaves it inert for a
-     *  later Back to absorb.  Only at depth 0: an internal redirect hop
-     *  (the "stay" deep-link restore) must not close the overlay the
-     *  action's own event just opened. */
-    if(depth === 0 && prev_route && prev_route !== matched_route) {
+     *  later Back to absorb.
+     *
+     *  This holds at EVERY redirect depth — a submenu default, an
+     *  unknown-route default and an action's `"<route>"` redirect all
+     *  land the user on a different resting view, and gating the drain
+     *  on depth 0 made the very same click drain or not depending on
+     *  whether the target redirected.  `no_drain` is the one exception,
+     *  and it is about ORDER, not depth: see the `"<route>"` hop. */
+    if(!no_drain && prev_route && prev_route !== matched_route) {
         drain_overlays(gobj);
     }
 
@@ -1315,6 +1341,12 @@ function navigate_to(gobj, route, depth)
              *  its Back/dismiss bookkeeping. */
             try {
                 window.history.replaceState(window.history.state, "", target_hash);
+                /*  This rewrote the hash of the CURRENT entry.  When that
+                 *  entry is a live marker (a replace-navigation issued
+                 *  with an overlay open), its recorded hash just went
+                 *  stale — and a stale hash makes the popstate handler
+                 *  miss the Back that steps off it. */
+                retag_overlay_hash(gobj, window.history.state, target_hash);
             } catch(e) {
                 window.location.hash = target_hash;
             }
@@ -2138,13 +2170,34 @@ function drain_overlays(gobj)
     }
 }
 
+/*  A URL rewrite moved the entry `st` tags to `hash`.  When `st` is a live
+ *  overlay marker, follow it: its entry's recorded hash is the popstate
+ *  handler's authority and must not drift from the entry it describes. */
+function retag_overlay_hash(gobj, st, hash)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.overlay_stack || !st || !st.__yui_overlay__) {
+        return;
+    }
+    let entry = priv.overlay_stack.find(e => e.id === st.__yui_overlay__);
+    if(entry) {
+        entry.hash = hash;
+    }
+}
+
 function push_overlay_history(gobj, close)
 {
     let priv = gobj_read_attr(gobj, "priv");
     if(!priv || !priv.overlay_stack || !gobj_read_attr(gobj, "use_hash")) {
         return null;
     }
-    let entry = { id: ++priv.overlay_seq, close: close };
+    /*  `hash` = the hash the marker entry lives on (pushState with no URL
+     *  keeps the current one).  The popstate handler needs it to tell a
+     *  step OFF this marker from a route traversal; it is NOT the resting
+     *  route (a `stay` action route parks the URL off it).  Kept in sync
+     *  by the silent replaceState fix-up in navigate_to(). */
+    let entry = { id: ++priv.overlay_seq, close: close,
+                  hash: window.location.hash };
     priv.overlay_stack.push(entry);
     try {
         window.history.pushState({ __yui_overlay__: entry.id }, "");
