@@ -80,7 +80,11 @@ Corollaries:
   (`priv.item_index`, keyed by route):
   1. the static nav tree (`config.menu`) — primary items and submenu children;
   2. the explicit route table (`config.shell.routes`) — action routes, root `/`,
-     toolbar-only forms;
+     toolbar-only forms. **A route key is a path: only `"/…"` keys are
+     indexed.** JSON has no comments, so these configs annotate the table with
+     sibling `_name_comment` string keys (the established idiom) — they are
+     skipped, not turned into routes. A non-object target under a `"/…"` key
+     is a config error and says so;
   3. **dynamic submenus** (`yui_shell_set_submenu`) — runtime tabs (e.g. one per
      open treedb), added/pruned as state changes.
 - **Resolution is longest-declared-prefix** (`route_resolver.js`): a request for
@@ -136,7 +140,9 @@ The shell emits two events (both carry the full picture):
    tree, not just the declared skeleton. It is a **pull-at-render registry**:
    the map reads it live, so an unmounted view's children vanish automatically.
    The view still stays route-agnostic — it builds the full routes from its
-   host-supplied `base_route`.
+   host-supplied `base_route`. The registry holds the caller's array **by
+   reference**, but the map builder copies those nodes before rendering, so
+   the view's own objects are never written to — they are input, not state.
 5. **Declare who handles an action event** (optional): a gclass that handles a
    toolbar/account action event calls `yui_shell_register_event_handler(shell,
    event, gclass)` once (next to its `gobj_subscribe_event`), so the site map
