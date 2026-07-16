@@ -2617,12 +2617,23 @@ function nav_node_from_item(it, index)
     let route = it.route ||
         (action.type === "navigate" ? action.route : "") || "";
     let event = (action.type === "event") ? action.event : "";
+    /*  Where it is implemented: the view GClass mounted at this route
+     *  (and, for an action route, the event it fires) — from item_index. */
+    let gclass = "";
+    if(route && index[route] && index[route].target) {
+        let tgt = index[route].target;
+        gclass = tgt.gclass || "";
+        if(!event && tgt.kind === "action" && tgt.event) {
+            event = tgt.event;
+        }
+    }
     let node = {
         id:       it.id || "",
         label:    it.name || it.wordmark || it.id || route || "",
         icon:     it.icon || "",
         route:    route,
         event:    event,
+        gclass:   gclass,
         kind:     it.type || (route ? "route" : (event ? "action" :
                   (action.type || "item"))),
         children: []
@@ -2656,6 +2667,7 @@ function nav_node_from_item(it, index)
                     icon:     (e.item && e.item.icon) || "",
                     route:    r,
                     event:    "",
+                    gclass:   (e.target && e.target.gclass) || "",
                     kind:     "route",
                     children: []
                 });
@@ -2671,9 +2683,10 @@ function nav_node_from_item(it, index)
  *  dropdown) and the primary menu (incl. live dynamic tabs), in
  *  declaration order (never alphabetised). Returns:
  *      { brand:{label,route}, toolbar:[node…], nav:[node…] }
- *  where a node is {id,label,icon,route,event,kind,children[]}.
- *  `route` is a navigable hash (or ""); `event` is the action it
- *  fires. NOTE: view-owned deep levels (a topic, /info, /schema) are
+ *  where a node is {id,label,icon,route,event,gclass,kind,children[]}.
+ *  `route` is a navigable hash (or ""); `event` is the action it fires;
+ *  `gclass` is the view GClass mounted at that route (where it is
+ *  implemented). NOTE: view-owned deep levels (a topic, /info, /schema) are
  *  subpaths a view owns, not declared routes, so they are not listed
  *  — this is the navigable skeleton.
  ************************************************************/

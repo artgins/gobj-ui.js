@@ -118,6 +118,22 @@ a.ROUTEMAP_LINK .ROUTEMAP_NAME {
     padding: 0;
     font-size: 0.8rem;
 }
+/*  Implementing GClass pill (teal) — distinct from route (blue) and
+ *  event (grey). */
+.ROUTEMAP_GCLASS {
+    font-family: var(--bulma-family-monospace, monospace);
+    font-size: 0.7rem;
+    padding: 0.02rem 0.35rem;
+    border-radius: 0.25rem;
+    background: var(--bulma-link-light, #eff1fa);
+    color: var(--bulma-link-dark, #3850b7);
+    white-space: nowrap;
+}
+[data-theme="dark"] .ROUTEMAP_GCLASS {
+    background: rgba(120, 150, 255, 0.16);
+    color: #aab8ff;
+}
+
 /*  Action event badge — explicit colours (not Bulma's is-light tag) so it
  *  stays legible in dark mode. */
 .ROUTEMAP_EVENT {

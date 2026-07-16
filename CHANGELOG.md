@@ -7,6 +7,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): site-map rows show route + gclass + event.** Every item now
+  documents where it is implemented — its hash route, the view **GClass** mounted
+  there (resolved from the route index; contributed sub-routes carry their own),
+  and the action **event** it fires — as distinct pills. The filter matches these
+  too (search by gclass name).
+
 - **feat(shell): site-map match counter + window title.** The filter shows a live
   match count beside it, and the site-map window now has a title bar (icon +
   "Site map") — `C_YUI_WINDOW`'s `title` attr is only the dock-chip label, so the

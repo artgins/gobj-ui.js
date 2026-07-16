@@ -1097,7 +1097,7 @@ function register_sub_routes(gobj)
                 continue;
             }
             nodes.push({route: base + "/" + topic, label: topic,
-                        icon: "yi-hexagon-nodes"});
+                        icon: "yi-hexagon-nodes", gclass: GCLASS_NAME});
         }
     }
     yui_shell_set_sub_routes(shell, base, nodes);

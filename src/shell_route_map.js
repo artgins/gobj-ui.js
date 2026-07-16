@@ -55,9 +55,15 @@ function render_node(node)
             [["i", {class: node.icon}]]]);
     }
     row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label}, node.label]);
+    /*  Documentation columns: route + implementing gclass + action event. */
     if(node.route) {
         row.push(["code", {class: "ROUTEMAP_ROUTE"}, node.route]);
-    } else if(node.event) {
+    }
+    if(node.gclass) {
+        row.push(["span", {class: "ROUTEMAP_GCLASS", title: "gclass"},
+            node.gclass]);
+    }
+    if(node.event) {
         row.push(["span", {class: "ROUTEMAP_EVENT"}, node.event]);
     }
 

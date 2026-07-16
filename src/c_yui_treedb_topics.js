@@ -1106,7 +1106,7 @@ function register_sub_routes(gobj)
     let nodes = [];
     if(is_object(gobj_read_attr(gobj, "landing_routes"))) {
         nodes.push({route: base + "/schema", label: "schema",
-                    icon: "yi-hexagon-nodes"});
+                    icon: "yi-hexagon-nodes", gclass: "C_YUI_TREEDB_SCHEMA"});
     }
     if(is_object(descs)) {
         for(let topic of Object.keys(descs)) {
@@ -1117,9 +1117,10 @@ function register_sub_routes(gobj)
                 route:    base + "/" + topic,
                 label:    topic,
                 icon:     "yi-table",
+                gclass:   GCLASS_NAME,
                 children: [
                     {route: base + "/" + topic + "/info", label: "info",
-                     icon: "yi-circle-info"}
+                     icon: "yi-circle-info", gclass: GCLASS_NAME}
                 ]
             });
         }
