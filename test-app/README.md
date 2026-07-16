@@ -55,14 +55,13 @@ component publishes events) declares them.
 | **Pager** (`/pager`) | `C_YUI_PAGER` | A drill-down page stack ("← title" header). Push pages with the button, pop with "←"; publishes `EV_PAGE_SHOWN` / `EV_PAGE_DISCARD` / `EV_PAGER_EXIT`. Offline. |
 | **Map** (`/map`) | `C_YUI_MAP` (MapLibre) | A basemap with Spanish-city markers. Differs from the others: it renders into an external pre-sized `$map` (no `$container`). **Needs network** for the basemap tiles (`tiles.openfreemap.org`); offline it degrades to a blank map with controls. |
 | **Treedb** (`/treedb`) | `C_YUI_TREEDB_TOPIC_WITH_FORM` | The real treedb topic table + its hosted `C_YUI_FORM` edit dialog, against an **in-memory backend**: the wrapper plays the `C_YUI_TREEDB_TOPICS` role (feeds `EV_LOAD_NODES`, answers `get_topic_data` for fkey options, applies and echoes the published `EV_CREATE/UPDATE/DELETE_RECORD`). Pkey follows the `form_mode` contract, fkeys are TomSelects fed with sibling-topic rows, the dict col edits as raw JSON. Offline. |
-| **Modals** (`/modals`) | `c_yui_main.js` helpers | The volatil-modal helpers, one button each: blocking questions (`get_yesnocancel` / `get_yesno` / `get_ok` — Enter answers yes, Escape cancels/dismisses without stacking) and typed messages (`display_info/warning/error_message`, tinted round icon + accent-colored accept). Answers are echoed below the buttons. Offline. |
+| **Modals** (`/modals`) | `shell_modals.js` helpers | The shell modal helpers, one button each: Promise-based icon-centric confirms (`yui_shell_confirm_ok/yesno/yesnocancel` — Enter answers the primary, Escape dismisses with the safe default) and auto-dismiss notifications (`yui_shell_show_info/warning/error`). Answers are echoed below the buttons. Offline. |
 | **Windows** (`/windows`) | `C_YUI_WINDOW` + `C_YUI_WINDOW_MANAGER` | Floating windows (drag / resize / maximize / minimize) opted into the dock via their `manager` attr (`__window_manager__` service, created in `main.js`). The dock mounts **inline** into the card's `DEMO_WINDOWS_DOCK` strip (floating fallback while the strip isn't in the DOM). Open windows float over the other chapters; on mobile a window becomes a full-screen sheet. Offline. |
 
-`C_YUI_MAP` (and other legacy components) look up a `__yui_main__`
-service to subscribe to its `EV_RESIZE`. The declarative shell doesn't
-provide one, so `c_demo_main.js` registers a minimal `__yui_main__`
-(`C_DEMO_MAIN`) that publishes `EV_RESIZE` on window resize — this both
-gives the map real reflow and silences the "service not found" log.
+Components are self-contained: they follow the theme through
+`yui_theme.js` (`<html data-theme>`, no service to ask) and reflow via
+their own `ResizeObserver`. The legacy `__yui_main__` service those
+paths used to require is gone from v2 — do not register one.
 
 Not demoed (need a live backend/treedb, out of scope here):
 `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` / `C_G6_NODES_TREE`.
@@ -128,9 +127,8 @@ the view routes them by setting the hash — exactly what the shell does.
 | `src/c_demo_pager.js` | the **Pager** chapter — hosts `C_YUI_PAGER` |
 | `src/c_demo_map.js` | the **Map** chapter — hosts `C_YUI_MAP` (MapLibre) |
 | `src/c_demo_treedb.js` | the **Treedb** chapter — hosts `C_YUI_TREEDB_TOPIC_WITH_FORM` over an in-memory backend |
-| `src/c_demo_modals.js` | the **Modals** chapter — the `c_yui_main.js` volatil-modal helpers |
+| `src/c_demo_modals.js` | the **Modals** chapter — the `shell_modals.js` confirms + notifications |
 | `src/c_demo_windows.js` | the **Windows** chapter — `C_YUI_WINDOW`s + the `C_YUI_WINDOW_MANAGER` dock |
-| `src/c_demo_main.js` | minimal `__yui_main__` service (EV_RESIZE) for the map |
 | `src/locales.js` | i18next setup + the `es` translation bundle (en/es toggle) |
 | `src/demo.css` | app-owned styling for the view cards + table dark theme (never shell chrome) |
 | `vite.config.js` | resolves `@yuneta/gobj-js` and `@yuneta/gobj-ui` to local source |

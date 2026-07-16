@@ -668,23 +668,34 @@ function load_json(gobj)
 
     build_json_nodes(gobj, path, json, nodes, edges, null);
 
+    let preserve_view = !!priv.pending_preserve_view;
+    priv.pending_preserve_view = false;
+
     if(nodes.length > 0) {
         graph.setData({nodes: nodes, edges: edges});
         graph.render().then(() => {
-            graph.fitView();
+            if(!preserve_view) {
+                graph.fitView();
+            }
         });
     }
 }
 
 /************************************************************
- *  Clear and reload
+ *  Clear and reload.
+ *      {preserve_view: true}
+ *          keep the current zoom and translate (no fitView) —
+ *          a restyle (theme change) must not move the camera.
+ *  Default: fit the whole graph to the viewport.
  ************************************************************/
-function refresh_json(gobj)
+function refresh_json(gobj, opts)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
+    opts = opts || {};
 
     if(graph) {
+        priv.pending_preserve_view = !!opts.preserve_view;
         graph.clear();
         load_json(gobj);
     }
@@ -860,7 +871,8 @@ function ac_theme(gobj, event, kw, src)
     if(priv.graph) {
         priv.graph.setTheme(priv.theme);
     }
-    refresh_json(gobj);
+    /*  A restyle, not new data: keep the user's zoom/pan. */
+    refresh_json(gobj, {preserve_view: true});
 
     return 0;
 }

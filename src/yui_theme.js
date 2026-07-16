@@ -74,7 +74,13 @@ function yui_is_dark()
  *           priv.theme_observer = null;
  *       }
  *
- *   Returns the MutationObserver, or null where there is no DOM.
+ *   Watches BOTH sources: <html data-theme> (a MutationObserver)
+ *   and the OS preference (matchMedia prefers-color-scheme, which
+ *   is the live source while the attribute is absent — the
+ *   "system" theme).
+ *
+ *   Returns a handle with disconnect(), or null where there is
+ *   no DOM.
  ************************************************************/
 function yui_watch_theme(gobj, event = "EV_THEME")
 {
@@ -85,7 +91,7 @@ function yui_watch_theme(gobj, event = "EV_THEME")
     let $html = document.documentElement;
     let last = yui_theme_now();
 
-    let mo = new MutationObserver(function() {
+    let notify = function() {
         let theme = yui_theme_now();
         /*  data-theme can be rewritten with the same value (a re-render,
          *  another observer); only a real change is an event. */
@@ -97,10 +103,40 @@ function yui_watch_theme(gobj, event = "EV_THEME")
             return;
         }
         gobj_send_event(gobj, event, {theme: theme}, gobj);
-    });
+    };
+
+    let mo = new MutationObserver(notify);
     mo.observe($html, {attributes: true, attributeFilter: ["data-theme"]});
 
-    return mo;
+    /*  The "system" theme: with data-theme ABSENT, yui_theme_now()
+     *  answers from the OS preference (and Bulma follows it via
+     *  prefers-color-scheme), so an OS auto-switch (sunset) IS a theme
+     *  change — without this listener the CSS would flip while every
+     *  canvas kept its old palette, the exact bug class the attribute
+     *  observer kills.  notify() dedupes, so when the app pins
+     *  data-theme this listener never fires an event (the attribute
+     *  wins inside yui_theme_now). */
+    let mql = null;
+    if(typeof window !== "undefined" && window.matchMedia) {
+        mql = window.matchMedia("(prefers-color-scheme: dark)");
+        if(typeof mql.addEventListener === "function") {
+            mql.addEventListener("change", notify);
+        } else {
+            mql = null;
+        }
+    }
+
+    /*  One handle, one disconnect() — same contract as a bare
+     *  MutationObserver, covering both sources. */
+    return {
+        disconnect: function() {
+            mo.disconnect();
+            if(mql) {
+                mql.removeEventListener("change", notify);
+                mql = null;
+            }
+        }
+    };
 }
 
 

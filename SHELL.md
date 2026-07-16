@@ -560,8 +560,11 @@ Recommended default: `keep_alive`.
   top-most overlay instead of navigating the underlying view; a second
   Back (no overlay left) is a normal route Back. When an overlay closes
   by any other path (X, Escape, backdrop, code) it retires its history
-  entry via `history.back()`, so history never drifts and a later Back
-  navigates normally. The mechanism reuses the same LIFO discipline as
+  entry via `history.back()` **only while that entry is the current
+  one** — a marker buried under newer route entries (the user navigated
+  with the overlay open, which also drains it) is left *inert*: a later
+  Back absorbs it as a same-hash no-op instead of teleporting across
+  real routes. The mechanism reuses the same LIFO discipline as
   the Escape chain; dock-managed windows are persistent workspace
   surfaces and opt out (attr `back_dismissable`, default `true`).
   Overlays register via `yui_shell_register_overlay(shell, close_fn)`
@@ -590,7 +593,8 @@ Published events:
   auditor see every navigation intent — including rerouted submenu
   defaults and routes that ultimately fail. Subscribers are
   optional (the event carries `EVF_NO_WARN_SUBS`).
-- `EV_ROUTE_CHANGED` — `{ route, item, parent_item, stage }`. The
+- `EV_ROUTE_CHANGED` — `{ route, base, subpath, item, parent_item,
+  stage, menu_id }`. The
   fact event, published after a navigation has fully succeeded:
   the previous view is hidden, the new view is mounted/shown, the
   stage's `active_route` is updated.
@@ -640,12 +644,19 @@ yui_shell_show_error(shell,   "Boom");
 /*  Non-blocking modal (Bulma .modal-content + .box).  Click on
  *  background, the close button or Escape close it.  `content` may
  *  be an HTMLElement (mounted as-is).  opts: { dismiss_on_background,
- *  with_close_button, on_close }.  with_close_button:false omits the
- *  external floating Bulma `.modal-close` (for content that provides
- *  its own in-box close, e.g. a C_YUI_PAGER header); Escape and the
- *  backdrop still close.  on_close() fires once after the modal is
- *  removed by ANY path (programmatic, Escape, backdrop, X) — use it
- *  to destroy a gobj you mounted inside. */
+ *  with_close_button, before_close, on_close, dialog, title,
+ *  title_prefix, t, logical_class }.  with_close_button:false omits
+ *  the external floating Bulma `.modal-close` (for content that
+ *  provides its own in-box close, e.g. a C_YUI_PAGER header); Escape
+ *  and the backdrop still close.  before_close() may veto a close;
+ *  on_close() fires once after the modal is removed by ANY path
+ *  (programmatic, Escape, backdrop, X) — use it to destroy a gobj you
+ *  mounted inside.  dialog:true is the V2 adaptive dialog standard: a
+ *  centered card with the X top-right on desktop, a full-screen sheet
+ *  with a back arrow on mobile.  `title` is an i18n KEY (rendered with
+ *  data-i18n so it re-translates); `title_prefix` is the optional DATA
+ *  half (a topic/service name), shown before it and never translated.
+ *  `t` supplies the translator for the first paint. */
 let { close } = yui_shell_show_modal(shell, $el, { on_close: cleanup });
 
 /*  Blocking dialogs.  Escape, the close button, and click on the
@@ -899,9 +910,11 @@ counter so `keep_alive` vs `lazy_destroy` is observable.
 A concrete instance of the §2 model on the shipping
 `test-app/src/app_config.json` — a pure 2-level menu with inline
 `target`s and toolbar actions of type `navigate` / `event` / `drawer` /
-`dropdown` (no `shell.routes`, no `target.kind` — those are not part of
-this engine; see the wattyzer routing-contract doc for the extended
-variant). One primary menu renders **vertical** in `left` (desktop) and
+`dropdown`. (The config shown here declares no `shell.routes` table and
+no `kind:"action"` targets, but both ARE part of this engine — see
+[`ROUTING.md`](ROUTING.md) §7.1; the test-app exercises them on
+`/prefs` and `/sitemap`.) One primary menu renders
+**vertical** in `left` (desktop) and
 **icon-bar** in `bottom` (mobile); each chapter demonstrates one
 secondary layout.
 

@@ -20,6 +20,23 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > unmigrated only leaves a spurious Back entry; the default is the
 > failure-tolerant direction, since a forgotten `{push}` silently broke Back.
 > See ROUTING.md §7/§9.1.
+>
+> **BREAKING (unreleased):** the legacy `__yui_main__` theme/resize service is
+> **gone from v2**. Components are self-contained: the theme lives in
+> `<html data-theme>` and gclasses follow it through **`src/yui_theme.js`**
+> (`yui_theme_now()` / `yui_is_dark()` / `yui_watch_theme(gobj)`, all
+> barrel-exported — the watcher translates the DOM mutation *and* the OS
+> `prefers-color-scheme` flip into `EV_THEME`); reflow uses each component's
+> own `ResizeObserver`. An app that registered a `__yui_main__` service for
+> gobj-ui's benefit can delete it; do not re-add one.
+>
+> **BREAKING (unreleased):** a window/modal **`title` is now an i18n KEY**,
+> rendered with `data-i18n` so it re-translates on language change. Pass the
+> key, never `t(key)`, and never compose data into it — the DATA half (a
+> topic/service/marker name) travels in the new **`title_prefix`** attr/opt,
+> shown before the title and never translated (`C_YUI_WINDOW`,
+> `yui_shell_show_modal`, the dock chip). The old `title_fn`/`retitle_modal`
+> hooks are removed.
 
 ## Two maintained lines
 
@@ -279,9 +296,12 @@ they **may** double as real CSS hooks; styling them is fine when useful.
 
 The library's own chrome carries its block names — a window is tagged
 `WINDOW_HEADER` / `WINDOW_CONTROLS` / `WINDOW_MIN` / `WINDOW_MAX` /
-`WINDOW_CLOSE` / `WINDOW_BODY` / `WINDOW_FOOTER` / `WINDOW_RESIZE`, a modal
+`WINDOW_CLOSE` / `WINDOW_BODY` / `WINDOW_FOOTER` / `WINDOW_RESIZE` and its
+default title bar `WINDOW_TITLE` / `WINDOW_TITLE_PREFIX` / `WINDOW_TITLE_KIND`,
+a modal
 `MODAL` / `MODAL_BACKDROP` / `MODAL_CONTENT` / `MODAL_HEADER` / `MODAL_BACK` /
-`MODAL_TITLE` / `MODAL_CLOSE` / `MODAL_BODY`, a confirm `CONFIRM*` and a toast
+`MODAL_TITLE` (+ `MODAL_TITLE_PREFIX` / `MODAL_TITLE_KIND`) / `MODAL_CLOSE` /
+`MODAL_BODY`, a confirm `CONFIRM*` and a toast
 `TOAST*`.
 
 Those names identify the *kind* of block, not the *instance*: every window in

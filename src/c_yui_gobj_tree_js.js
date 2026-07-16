@@ -1726,7 +1726,8 @@ function ac_theme(gobj, event, kw, src)
     if(priv.graph) {
         priv.graph.setTheme(priv.theme);
     }
-    refresh_tree(gobj);
+    /*  A restyle, not new data: keep the user's zoom/pan. */
+    refresh_tree(gobj, {preserve_view: true});
 
     return 0;
 }

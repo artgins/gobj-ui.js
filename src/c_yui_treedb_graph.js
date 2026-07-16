@@ -58,6 +58,7 @@ import {
     json_object_update_missing,
     gobj_start,
     gobj_stop,
+    gobj_is_running,
     gobj_current_state,
     is_gobj,
     gobj_is_destroying,
@@ -680,6 +681,14 @@ function close_json_viewer(gobj)
 
     if(win && is_gobj(win)) {
         try {
+            /*  STOP, then destroy — same rule as the viewer below: the
+             *  window was STARTED on open, and gobj_destroy() raises the
+             *  `destroying` flag before it can stop a running gobj, so
+             *  destroying it straight logs two errors and skips mt_stop.
+             *  The ✕ path already stopped it (close_window) — guard. */
+            if(gobj_is_running(win)) {
+                gobj_stop(win);
+            }
             gobj_destroy(win);
         } catch(e) {
             log_warning(`${gobj_short_name(gobj)}: already gone: ${e}`);

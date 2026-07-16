@@ -7,6 +7,79 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(shell): the `stay` contract could re-fire its own action route — new
+  `yui_shell_unpark_route(route)` + restore-then-event on deep-link.** Two
+  review findings on the same contract. (1) The reference `stay` wiring (an
+  unconditional `history.back()` in the modal's `on_close`) broke when the
+  shell's overlay DRAIN closed the modal during a navigation: the URL had
+  already moved, so the back() landed on the stranded action entries and
+  re-fired the action — the modal reopened and the navigation was hijacked.
+  `yui_shell_unpark_route(route)` (barrel-exported) is the guarded
+  replacement: it back()s only while the URL still sits on the route; the
+  test-app's `/prefs` adopts it and ROUTING.md §7.1 now prescribes it.
+  (2) Deep-linking/reloading onto a `stay` route fired the event BEFORE the
+  underneath-mount fix-up, burying the overlay marker (rewritten to the
+  resting hash) under the re-pushed action hash: the first Back kept the
+  modal open while the URL flipped underneath, and the second re-fired the
+  action. The fix-up now runs restore-then-event, like `back`/`none`, so the
+  history gets the exact click shape (`[resting, action, marker]`) and ONE
+  Back closes the modal. `_qa_prefs.mjs` grew both scenarios
+  (back-after-deep-link, drain-no-refire).
+- **fix(shell): a `back`/`none` action-route click no longer leaves a
+  duplicate history entry.** The click pushed the action hash and the restore
+  then `replaceState`d that entry to the previous resting route — two
+  adjacent identical entries, one dead Back press per click. The click entry
+  points (toolbar + nav) now detect URL-restoring action routes
+  (`route_restores_url`) and navigate directly, skipping the push;
+  `_qa_prefs.mjs` asserts the history grows by exactly the overlay marker.
+- **fix(shell): declared route keys are normalized at index time.** Requests
+  were normalized (`hash_to_route` / `navigate_to`) but the index keys were
+  not, so a route declared `"/reports/"` (trailing/doubled slash) never
+  matched its own clicks and the menu item was unnavigable. `build_item_index`
+  and `yui_shell_set_submenu` now index the canonical form.
+- **fix(shell): a route-table key holding an OBJECT but missing its leading
+  `/` now logs instead of being silently dropped** (the silent path made a
+  mistyped key read as "the menu entry doesn't work"). The `_name_comment`
+  string idiom stays silent as designed.
+- **fix(window-manager): the dock chip label re-translates.** The chip was
+  painted once with the composed, already-translated title, so it kept the
+  registration language for its whole life (the one gap left by
+  `title_prefix`). `EV_REGISTER_WINDOW` now carries the split halves
+  (`title_key`/`title_kind_text`/`title_prefix`); the chip renders the DATA
+  half plain and the KIND half with `data-i18n` (CSS `·` separator, like the
+  title bar), and the tooltip carries `data-i18n-title` when there is no
+  DATA half. Needs gobj-js ≥ the `data-i18n-placeholder` release for the
+  route-map filter (see below) but degrades gracefully.
+- **fix(gobj-tree, json-graph): a theme change keeps the camera.** `ac_theme`
+  rebuilt with the default fit-whole-view, throwing away the user's zoom/pan
+  mid-inspection; both now refresh with `{preserve_view: true}`
+  (`refresh_json` learned the option, mirroring `refresh_tree`).
+- **fix(theme): `yui_watch_theme` also watches the OS preference.** With
+  `data-theme` absent (the "system" theme, declared by the `color-scheme`
+  matrix), an OS auto-switch flipped the CSS but fired no `EV_THEME`, leaving
+  every canvas on the old palette — the exact bug class the watcher exists to
+  kill. It now listens to `matchMedia("(prefers-color-scheme: dark)")` too
+  (deduped, so a pinned attribute never double-fires) and returns a single
+  handle whose `disconnect()` tears down both sources.
+- **fix(site map): the fallback sheet title re-translates** (it passed
+  `t("site map")` — the translation — as the modal's `title`, so the
+  data-i18n key was a translated string that never re-translated); the
+  `gclass` column tooltip gained `data-i18n-title`; the filter placeholder
+  re-translates via gobj-js's new `data-i18n-placeholder` support.
+- **fix(map): the marker window title is DATA** — the marker's name now
+  travels as `title_prefix` (never translated) instead of `title`, where a
+  marker named like a locale key ("status") would have rendered translated.
+- **fix(treedb-topics, treedb-graph): the JSON-viewer window is STOPPED
+  before destroy** in the programmatic close path (topic switch / teardown),
+  like the viewer beside it — destroying a running gobj logs two errors and
+  skips `mt_stop`.
+- **chore(index): barrel-export `yui_shell_set_sub_routes` (README documented
+  it as the contributor protocol's other half), `yui_shell_register_overlay` /
+  `yui_shell_overlay_dismissed` (ROUTING.md §6 documents them) and
+  `yui_shell_unpark_route`.**
+- **docs(changelog): backfill — the site-map tree fills its window with flex
+  instead of a fixed 68vh** (CSS-only follow-up of the site-map viewer that
+  had no bullet).
 - **BREAKING(theme): the legacy `__yui_main__` theme path is retired; graphs
   follow the theme LIVE. New `src/yui_theme.js`.** The three G6 components
   asked a legacy C_YUI_MAIN `__yui_main__` service for the theme — read its
