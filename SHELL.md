@@ -951,10 +951,8 @@ What this example demonstrates that the generic §2 picture only states:
   tiles) — showing what goes *inside* a stage, not only how navs render.
   Each is wrapped by a tiny `C_DEMO_*` gclass. `main.js` initialises the
   shared i18next instance (deduped in `vite.config.js`) so `C_YUI_FORM`'s
-  module-level `t()` doesn't render blank; a minimal `__yui_main__`
-  service (`c_demo_main.js`) supplies the `EV_RESIZE` the map's legacy
-  lineage expects. (TreeDB component views are not demoed — they need a
-  live treedb backend.)
+  module-level `t()` doesn't render blank. (TreeDB component views are not
+  demoed — they need a live treedb backend.)
 - **Localisation (es/en)**: the toolbar `ES/EN` button publishes
   `EV_TOGGLE_LANGUAGE`; `C_DEMO` flips i18next and repaints every
   `[data-i18n]` node via `refresh_language(document.body, t)`. English

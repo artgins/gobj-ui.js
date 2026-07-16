@@ -20,7 +20,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   white canvas on a dark app. `C_YUI_JSON_GRAPH` also looked the service up
   with `verbose=true`, logging *"gobj service not found: __yui_main__"* on
   every mount under C_YUI_SHELL. Now: one `yui_theme.js` (`yui_theme_now()`,
-  `yui_is_dark()`, `yui_watch_theme()`), `<html data-theme>` as the single
+  `yui_is_dark()`, `yui_watch_theme()`, exported from the `index.js` barrel),
+  `<html data-theme>` as the single
   source, and the DOM mutation translated into `EV_THEME` so the gclass
   restyles in its ACTION. `C_YUI_GOBJ_TREE_JS` and `C_YUI_JSON_GRAPH` gained
   `EV_THEME` + `ac_theme`; `C_YUI_GOBJ_TREE_JS`'s private `gt_is_dark()` is now
