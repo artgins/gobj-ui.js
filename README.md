@@ -12,6 +12,14 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > view or navigable element, read **[`ROUTING.md`](ROUTING.md)** — the shell's
 > routing contract (URL = source of truth, push/replace history, the
 > position/preference/transient litmus).
+>
+> **BREAKING (unreleased):** `yui_shell_navigate(shell, route)` now **pushes** a
+> history entry by default; pass `{replace:true}` for a redirect / normalization
+> / F5-restore — anything *code* decided rather than the user. It used to replace
+> unless given `{push:true}` (still accepted, now redundant). A call left
+> unmigrated only leaves a spurious Back entry; the default is the
+> failure-tolerant direction, since a forgotten `{push}` silently broke Back.
+> See ROUTING.md §7/§9.1.
 
 ## Two maintained lines
 
