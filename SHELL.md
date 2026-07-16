@@ -970,9 +970,13 @@ What this example demonstrates that the generic §2 picture only states:
   (a fresh instance each time).
 - **Toolbar action vocabulary**: `navigate` (brand), `event`
   (theme — no route, no index entry), `drawer` (burger) and `dropdown`
-  (avatar). (This is the engine's built-in set; the wattyzer doc's
-  `kind:"action"` is a *different*, vendored extension that turns a
-  *route* into transient event wiring — do not conflate them.)
+  (avatar). Do not confuse an item's `action.type:"event"` with a
+  **route** whose target is `kind:"action"`: the first is a command with
+  no URL, the second gives the action its own deep-linkable route and
+  fires the event from there. `kind:"action"` is part of the engine (it
+  is no longer the vendored wattyzer extension this note used to call it);
+  both idioms, and the `redirect` values that decide what the URL does
+  afterwards, are documented in [`ROUTING.md`](ROUTING.md) §7.1.
 - **`menu.quick` route reuse**: the drawer items carry only a `route`
   and no `target`; they resolve to the same index entries as the
   primary menu, so the existing instance is reused — no duplicate gobj.

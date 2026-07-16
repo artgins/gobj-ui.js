@@ -182,6 +182,60 @@ rare exception — see the shell's action-route handling).
   through the same path, views react to `EV_ROUTE_CHANGED` (including an empty
   `subpath` → view home).
 
+### 7.1 Action routes — a route that *fires an event* instead of mounting a view
+
+A route whose target is `{"kind": "action", "event": "EV_…", "redirect": "…"}`
+(declared in `config.shell.routes`, or as an item's `target`) makes the shell
+**publish that event** instead of mounting a view. The route is **transient**:
+no view is mounted and `current_route` stays on the underlying resting view.
+
+**Two ways to wire an action, and they are not interchangeable:**
+
+| | `action: {type:"event", event:"EV_…"}` on the item | an **action route** + `action: {type:"navigate", route:"/…"}` |
+|---|---|---|
+| Has a URL | no | **yes** |
+| Deep-linkable / bookmarkable | no | **yes** (the user can type the hash) |
+| Appears in the site map as a route | no (only as an event) | yes |
+| Use it for | a pure command with nothing to link to (toggle theme, toggle language) | an action a user may want to *reach by URL* (About, Preferences, a dev panel) |
+
+Both are supported. **Pick one idiom per app and keep the menu consistent** —
+gui_agent and gui_treedb wire their account menus with `type:"event"`; wattyzer
+routes everything (`/about`, `/devtools`, `/sitemap`). A menu that mixes them
+reads as an accident.
+
+**`redirect` — what the URL does after the event fires:**
+
+| `redirect` | What the shell does | Use for |
+|---|---|---|
+| `"back"` | Navigate to the **previous resting view route**. The URL never lingers on the action route. | A **floating window / panel** the app opens itself (`/devtools`, `/sitemap`). |
+| `"stay"` | **Keep the URL on this route** so it is deep-linkable. The URL is *not* restored. | A **modal the app closes through a helper that puts the URL back** (see the trap below). |
+| `"<route>"` | Navigate to that route afterwards. | `logout → "/"`. |
+| `"none"` / `""` | No navigation; just `replaceState` the URL back to the previous resting route. The app takes over. | The app tears the shell down itself (logout). |
+
+> **The `stay` trap — this is the one that bites.** `stay` does **not** restore
+> the URL: *"the app's overlay close path is responsible for `history.back()`"*
+> (`c_yui_shell.js`). So `stay` is only correct when whatever opens the overlay
+> also takes the URL back off the route on close. wattyzer's `open_route_modal`
+> does exactly that (its `on_close` calls `history.back()`), which is why
+> `/about` and `/user/preference` are `stay`. A view opened by a plain helper —
+> e.g. `yui_shell_show_route_map`, which just builds a `C_YUI_WINDOW` and
+> registers it on the overlay stack (§6) — has **no such hook**: with `stay` the
+> window closes and the URL sits on `/sitemap` forever, pointing at nothing.
+> Use `back` for those. **Rule of thumb: `stay` only if the opener owns the
+> URL on close; otherwise `back`.**
+
+Deep-linking straight onto a `stay` route (or reloading on it) is handled: the
+shell mounts the default view underneath first, then re-pushes the hash on top,
+so a later close → Back lands on the default instead of exiting the app.
+
+The rest of the configuration vocabulary — `zones`, `stages`, `menu`, `toolbar`,
+`items[]`, `lifecycle` (`eager` / `keep_alive` / `lazy_destroy`), the
+`submenu.index` / `submenu.default` pair — is **not** repeated here: it lives in
+[`SHELL.md`](SHELL.md) §3. Read it before adding a route. In particular
+`submenu.index` decides whether a primary's own route is a real resting page or
+**redirects** to a child, which is the difference between `/system` (index: it
+stays) and `/devices` (no index: it redirects to its first child).
+
 ---
 
 ## 8. Implementer checklist (every new visual element)
@@ -242,5 +296,7 @@ sub-route contributor protocol (§5.4) also appear with their deep levels
 
 ---
 
-*Home of this contract: `kernel/js/gobj-ui/ROUTING.md`. Keep it in sync with the
-shell and publish the chapter to doc.yuneta.io when the debt in §9 is paid.*
+*Home of this contract: `kernel/js/gobj-ui/ROUTING.md` — this file **is** the
+published chapter (doc.yuneta.io/routing includes it from here, so there is no
+copy to drift), alongside [`SHELL.md`](SHELL.md) at doc.yuneta.io/shell. Keep it
+in sync with the shell: an edit here ships on the next `docs/doc.yuneta.io/deploy.sh`.*
