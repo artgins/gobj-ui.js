@@ -147,6 +147,11 @@ function mt_create(gobj)
          *  declared routes) so the site map can show the full tree. Keyed
          *  by base route → ordered [{route,label,icon,children?}]. */
         sub_routes:      {},
+        /*  Event → handler GClass(es) registry (ROUTING.md): a gclass that
+         *  handles a toolbar/account action event self-declares so the site
+         *  map can show WHERE the action is implemented. Keyed by event name
+         *  → array of gclass names. */
+        event_handlers:  {},
         hash_handler:    null,
         keydown_handler: null,
         /*  Escape priority chain: array of { layer, handler }.  Each
@@ -2726,19 +2731,25 @@ function yui_shell_nav_map(shell_gobj)
         }
     }
 
-    /*  Merge each mounted view's declared sub-routes into its base-route
-     *  node, so the map shows the view-owned deep levels too. */
+    /*  Enrich the tree: merge each mounted view's declared sub-routes into
+     *  its base-route node, and stamp the handler gclass on action-event
+     *  nodes (where the action is implemented). */
     let sub = (priv && priv.sub_routes) || {};
-    let merge_sub = (node) => {
+    let handlers = (priv && priv.event_handlers) || {};
+    let enrich = (node) => {
         if(node.route && Array.isArray(sub[node.route]) && sub[node.route].length) {
             node.children = (node.children || []).concat(sub[node.route]);
         }
+        if(node.event && !node.gclass &&
+                Array.isArray(handlers[node.event]) && handlers[node.event].length) {
+            node.gclass = handlers[node.event].join(", ");
+        }
         if(Array.isArray(node.children)) {
-            node.children.forEach(merge_sub);
+            node.children.forEach(enrich);
         }
     };
-    toolbar.forEach(merge_sub);
-    nav.forEach(merge_sub);
+    toolbar.forEach(enrich);
+    nav.forEach(enrich);
 
     return {brand: brand, toolbar: toolbar, nav: nav};
 }
@@ -2761,6 +2772,25 @@ function yui_shell_set_sub_routes(shell_gobj, base_route, nodes)
         priv.sub_routes[base_route] = nodes;
     } else {
         delete priv.sub_routes[base_route];
+    }
+}
+
+/************************************************************
+ *  Event-handler registry (ROUTING.md): a gclass that HANDLES a
+ *  toolbar/account action event self-declares, so the site map can
+ *  show where the action is implemented. Call once (e.g. in mt_start,
+ *  next to the matching `gobj_subscribe_event`). Idempotent per
+ *  (event, gclass); several gclasses may handle the same event.
+ ************************************************************/
+function yui_shell_register_event_handler(shell_gobj, event, gclass)
+{
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    if(!priv || !priv.event_handlers || empty_string(event) || empty_string(gclass)) {
+        return;
+    }
+    let list = priv.event_handlers[event] || (priv.event_handlers[event] = []);
+    if(list.indexOf(gclass) < 0) {
+        list.push(gclass);
     }
 }
 
@@ -2945,6 +2975,7 @@ export {
     yui_shell_navigate,
     yui_shell_nav_map,
     yui_shell_set_sub_routes,
+    yui_shell_register_event_handler,
     yui_shell_open_drawer,
     yui_shell_close_drawer,
     yui_shell_toggle_drawer,

@@ -7,6 +7,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): event → handler-gclass registry for the site map.** New
+  `yui_shell_register_event_handler(shell, event, gclass)`: a gclass that handles
+  a toolbar/account action event self-declares, so the site map stamps the
+  handler gclass on action-event nodes too (the shell can't know the runtime
+  subscriber statically). gui_treedb's `C_TREEDB_APP` registers its account/
+  toolbar events, so those rows now show `C_TREEDB_APP`.
+
 - **feat(shell): site-map rows show route + gclass + event.** Every item now
   documents where it is implemented — its hash route, the view **GClass** mounted
   there (resolved from the route index; contributed sub-routes carry their own),

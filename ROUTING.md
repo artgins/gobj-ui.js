@@ -130,6 +130,12 @@ The shell emits two events (both carry the full picture):
    the map reads it live, so an unmounted view's children vanish automatically.
    The view still stays route-agnostic — it builds the full routes from its
    host-supplied `base_route`.
+5. **Declare who handles an action event** (optional): a gclass that handles a
+   toolbar/account action event calls `yui_shell_register_event_handler(shell,
+   event, gclass)` once (next to its `gobj_subscribe_event`), so the site map
+   shows *where* the action is implemented. Same pull-at-render registry idea as
+   §5.4 — the shell can't know the runtime subscriber statically, so the handler
+   self-declares.
 
 ---
 
