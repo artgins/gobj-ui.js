@@ -148,14 +148,31 @@ function build_body(shell, t, on_jump)
                    "data-i18n-aria-label": "filter"}]
     );
     let $search_ctrl = createElement2(
-        ["div", {class: "control ROUTEMAP_SEARCH_CTRL mb-2"}, [$search]]
+        ["div", {class: "control ROUTEMAP_SEARCH_CTRL"}, [$search]]
     );
     attach_clear($search_ctrl, $search);
+
+    /*  Live match counter next to the filter. */
+    let $count_n = createElement2(["span", {class: "ROUTEMAP_COUNT_N"}, ""]);
+    let $count = createElement2(
+        ["span", {class: "ROUTEMAP_COUNT is-size-7 has-text-grey is-hidden"},
+            [$count_n, ["span", {i18n: "matches"}, "matches"]]]
+    );
+    let $search_row = createElement2(
+        ["div", {class: "ROUTEMAP_SEARCH_ROW mb-2"}, [$search_ctrl, $count]]
+    );
+
     $search.addEventListener("input", function() {
         let q = ($search.value || "").trim().toLowerCase();
         let $root_li = $tree.querySelector(".ROUTEMAP_ROOT > li");
         if($root_li) {
             filter_li($root_li, q, false);
+        }
+        if(q === "") {
+            $count.classList.add("is-hidden");
+        } else {
+            $count_n.textContent = $tree.querySelectorAll(".ROUTEMAP_MATCH").length;
+            $count.classList.remove("is-hidden");
         }
     });
 
@@ -164,7 +181,7 @@ function build_body(shell, t, on_jump)
             ["p", {class: "ROUTEMAP_HINT is-size-7 mb-2", i18n: "site map hint"},
                 t("site map hint", {defaultValue:
                     "Every reachable position of the app is a URL. Click to jump."})],
-            $search_ctrl,
+            $search_row,
             $tree,
             ["div", {class: "ROUTEMAP_ACTIONS"}, [
                 ["button", {class: "button is-small ROUTEMAP_PRINT",
@@ -246,6 +263,15 @@ export function yui_shell_show_route_map(shell, opts)
         let $parent = yui_shell_popup_layer(shell) ||
             (typeof document !== "undefined" &&
                 document.getElementById("top-layer")) || null;
+        /*  Header shown in the window title bar (the `title` attr is only
+         *  the dock-chip label). */
+        let $header = createElement2(
+            ["span", {class: "ROUTEMAP_WIN_TITLE icon-text ml-1"}, [
+                ["span", {class: "icon"}, [["i", {class: "yi-bars"}]]],
+                ["span", {class: "has-text-weight-semibold", i18n: "site map"},
+                    t("site map", {defaultValue: "Site map"})]
+            ]]
+        );
         let win = gobj_create_service(WIN_NAME, "C_YUI_WINDOW", {
             $parent:    $parent,
             subscriber: null,
@@ -260,6 +286,7 @@ export function yui_shell_show_route_map(shell, opts)
             logical_class: "ROUTEMAP_WINDOW",
             title:      t("site map", {defaultValue: "Site map"}),
             icon:       "yi-bars",
+            header:     $header,
             body:       $body,
             manager:    null
         }, shell);

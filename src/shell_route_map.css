@@ -20,8 +20,23 @@
 .yui-window-body .ROUTEMAP_BODY {
     height: 100%;
 }
+.ROUTEMAP_SEARCH_ROW {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
 .ROUTEMAP_SEARCH_CTRL {
     max-width: 22rem;
+    flex: 1 1 auto;
+}
+.ROUTEMAP_COUNT {
+    display: inline-flex;
+    gap: 0.25rem;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+.ROUTEMAP_COUNT_N {
+    font-weight: 600;
 }
 /*  Highlight a row that itself matches the filter. */
 .ROUTEMAP_MATCH {

@@ -7,6 +7,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): site-map match counter + window title.** The filter shows a live
+  match count beside it, and the site-map window now has a title bar (icon +
+  "Site map") — `C_YUI_WINDOW`'s `title` attr is only the dock-chip label, so the
+  header content is passed explicitly.
+
 - **feat(shell): search filter in the site-map tree.** A filter box collapses
   the route tree to matching nodes plus their ancestor path (and a matched
   node's whole subtree); it matches the visible row text (name + route + event,
