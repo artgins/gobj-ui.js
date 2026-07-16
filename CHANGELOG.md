@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): sub-route contributor protocol — the site map shows view-owned
+  deep levels.** New `yui_shell_set_sub_routes(shell, base_route, nodes)`: a
+  mounted view declares the dynamic children of its base route (topics, `/info`,
+  `/schema`, focus topics — subpaths that are not declared routes) into a shell
+  registry the site map merges at render time (pull-at-render, so an unmounted
+  view's children vanish automatically). `C_YUI_TREEDB_TOPICS` and
+  `C_YUI_TREEDB_GRAPH` contribute theirs (host-supplied `base_route`, cleared on
+  `mt_stop`), so the map is now the *complete* tree. See ROUTING.md §5.4.
+
 - **feat(shell): push/replace navigation, a site-map viewer, and a routed
   treedb schema landing (ROUTING.md).** Landed the routing contract's mechanics
   (see `ROUTING.md`): `yui_shell_navigate(shell, route, {push:true})` now creates

@@ -120,6 +120,16 @@ The shell emits two events (both carry the full picture):
 3. Stay **route-agnostic** if you are a reusable library gclass: take
    host-supplied hash templates (e.g. `card_action_routes`, `back_route`) or
    publish an intent; let the host own the concrete paths.
+4. **Declare your deep sub-routes to the site map** (optional but encouraged): a
+   view that owns dynamic subpaths (topics, `/info`, `/schema`, focus topics)
+   calls `yui_shell_set_sub_routes(shell, base_route, nodes)` when they become
+   known (e.g. after its schema loads), and clears them on `mt_stop`
+   (`…, null`). `nodes` is an ordered `[{route, label, icon?, children?}]`
+   (full hashless routes). The site map (§site map) then shows the *complete*
+   tree, not just the declared skeleton. It is a **pull-at-render registry**:
+   the map reads it live, so an unmounted view's children vanish automatically.
+   The view still stays route-agnostic — it builds the full routes from its
+   host-supplied `base_route`.
 
 ---
 
@@ -205,10 +215,12 @@ nav-click → `location.hash` push path) implements this contract.
 4. Graph `operation_mode` / `layout` live in localStorage only — **acceptable**
    under §3 (they are *preferences*), recorded here as a deliberate decision.
 
-A **site-map viewer** (`shell_route_map.js`, `yui_shell_show_route_map`) renders
-the registered route tree (§4) as a printable, clickable map — a live view of
-this contract. It lists the navigable skeleton (declared + dynamic-submenu
-routes), not the view-owned deep levels (topics/info/schema subpaths).
+A **site-map viewer** (`shell_route_map.js`, `yui_shell_show_route_map`, on
+`yui_shell_nav_map`) renders the WHOLE navigation surface (§4) — toolbar + account
+menu + primary nav + dynamic tabs, in declaration order — as a printable,
+clickable map that doubles as the app's basic documentation. Views that use the
+sub-route contributor protocol (§5.4) also appear with their deep levels
+(topics, `/info`, `/schema`, focus topics), so the map is the *complete* tree.
 
 ---
 

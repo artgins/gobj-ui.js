@@ -56,7 +56,7 @@ import {
 import "./c_yui_treedb_topics.css";
 
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
-import {yui_shell_of} from "./c_yui_shell.js";
+import {yui_shell_of, yui_shell_set_sub_routes} from "./c_yui_shell.js";
 
 import {t} from "i18next";
 
@@ -78,6 +78,7 @@ SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth"
 SDATA(data_type_t.DTP_BOOLEAN,  "with_cards_landing",0, false,  "Land on a grid of topic cards (list->detail): a card opens its table, with the tabs bar + a back-to-grid button. Off = tabs only (legacy)."),
 SDATA(data_type_t.DTP_JSON,     "card_action_routes",0, null,   "Per-card hash-route templates {info, table, graph} with a {topic} placeholder (host-supplied, route-agnostic). Present ⇒ cards show 3 icon actions; absent ⇒ a single card that opens the table."),
 SDATA(data_type_t.DTP_JSON,     "landing_routes",   0,  null,   "Host-supplied hashes for the two landing sub-views {cards, schema}; the toggle navigates to them so the landing is URL-addressable (ROUTING.md). Absent ⇒ toggle flips in-view only (legacy)."),
+SDATA(data_type_t.DTP_STRING,   "base_route",       0,  "",     "This view's base route (host-supplied); used to declare its sub-routes (topics / info / schema) to the site map (ROUTING.md contributor)."),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Root HTML element, show/hide managed by external routing"),
 SDATA(data_type_t.DTP_POINTER,  "$current_item",    0,  null,   "Currently selected item"),
 SDATA(data_type_t.DTP_STRING,   "last_selection",   0,  null,   "Last href selection"),
@@ -141,6 +142,12 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    /*  Retire our site-map sub-routes so a torn-down view leaves no
+     *  stale children in the map (ROUTING.md contributor). */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        yui_shell_set_sub_routes(shell, gobj_read_str_attr(gobj, "base_route"), null);
+    }
     close_json_viewer(gobj);
     gobj_stop_children(gobj);
 }
@@ -1076,6 +1083,48 @@ function process_treedb_descs(gobj)
         let topic_name = gobj_read_attr(kid, "topic_name");
         get_nodes(gobj, topic_name);
     }
+
+    /*  Declare our view-owned sub-routes to the site map now the schema
+     *  is known (ROUTING.md contributor). */
+    register_sub_routes(gobj);
+}
+
+/************************************************************
+ *  Declare this view's deep, view-owned sub-routes to the site map:
+ *  the schema landing, and per-topic table + info. Route-agnostic
+ *  except for the host-supplied `base_route`. Cleared on stop.
+ ************************************************************/
+function register_sub_routes(gobj)
+{
+    let shell = yui_shell_of(gobj);
+    let base = gobj_read_str_attr(gobj, "base_route");
+    if(!shell || empty_string(base)) {
+        return;
+    }
+    let system = gobj_read_bool_attr(gobj, "system");
+    let descs = gobj_read_attr(gobj, "descs");
+    let nodes = [];
+    if(is_object(gobj_read_attr(gobj, "landing_routes"))) {
+        nodes.push({route: base + "/schema", label: "schema",
+                    icon: "yi-hexagon-nodes"});
+    }
+    if(is_object(descs)) {
+        for(let topic of Object.keys(descs)) {
+            if(!system && topic.substring(0, 2) === "__") {
+                continue;
+            }
+            nodes.push({
+                route:    base + "/" + topic,
+                label:    topic,
+                icon:     "yi-table",
+                children: [
+                    {route: base + "/" + topic + "/info", label: "info",
+                     icon: "yi-circle-info"}
+                ]
+            });
+        }
+    }
+    yui_shell_set_sub_routes(shell, base, nodes);
 }
 
 /************************************************************

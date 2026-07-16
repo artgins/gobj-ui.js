@@ -85,7 +85,7 @@ import {
     set_active_state,
 } from "./lib_graph.js";
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
-import {yui_shell_of} from "./c_yui_shell.js";
+import {yui_shell_of, yui_shell_set_sub_routes} from "./c_yui_shell.js";
 
 import {t} from "i18next";
 
@@ -115,6 +115,7 @@ SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote service 
 SDATA(data_type_t.DTP_DICT,     "descs",            0,  null,   "Descriptions of topics obtained"),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
 SDATA(data_type_t.DTP_STRING,   "back_route",       0,  "",     "Optional hash route for a '← topics' button back to the topics grid (host-supplied; empty = no button)"),
+SDATA(data_type_t.DTP_STRING,   "base_route",       0,  "",     "This view's base route (host-supplied); used to declare its per-topic focus sub-routes to the site map (ROUTING.md contributor)."),
 SDATA(data_type_t.DTP_DICT,     "records",          0,  "{}",   "Data of topics"),
 SDATA(data_type_t.DTP_LIST,     "topics",           0,  "[]",   "List of topic objects"),
 
@@ -293,6 +294,10 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        yui_shell_set_sub_routes(shell, gobj_read_str_attr(gobj, "base_route"), null);
+    }
     close_json_viewer(gobj);
     gobj_stop_children(gobj);
 }
@@ -1066,6 +1071,36 @@ function process_treedb_descs(gobj, descs)
         //create_combo(gobj, desc);
         get_nodes(gobj, topic_name);
     }
+
+    /*  Declare per-topic focus sub-routes to the site map (ROUTING.md). */
+    register_sub_routes(gobj);
+}
+
+/************************************************************
+ *  Declare this graph's per-topic focus sub-routes to the site map.
+ *  Route-agnostic except for the host-supplied `base_route`. Cleared
+ *  on stop.
+ ************************************************************/
+function register_sub_routes(gobj)
+{
+    let shell = yui_shell_of(gobj);
+    let base = gobj_read_str_attr(gobj, "base_route");
+    if(!shell || !base) {
+        return;
+    }
+    let descs = gobj_read_attr(gobj, "descs");
+    let system = gobj_read_bool_attr(gobj, "system");
+    let nodes = [];
+    if(descs) {
+        for(const topic of Object.keys(descs)) {
+            if(!system && topic.substring(0, 2) === "__") {
+                continue;
+            }
+            nodes.push({route: base + "/" + topic, label: topic,
+                        icon: "yi-hexagon-nodes"});
+        }
+    }
+    yui_shell_set_sub_routes(shell, base, nodes);
 }
 
 /************************************************************

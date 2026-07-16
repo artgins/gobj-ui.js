@@ -141,6 +141,12 @@ function mt_create(gobj)
         stages:          {},
         navs:            [],
         item_index:      {},
+        /*  Sub-route contributor registry (ROUTING.md): a mounted view
+         *  declares the deep, view-owned children of its base route
+         *  (topics, /info, /schema, focus topics — subpaths that are NOT
+         *  declared routes) so the site map can show the full tree. Keyed
+         *  by base route → ordered [{route,label,icon,children?}]. */
+        sub_routes:      {},
         hash_handler:    null,
         keydown_handler: null,
         /*  Escape priority chain: array of { layer, handler }.  Each
@@ -2707,7 +2713,42 @@ function yui_shell_nav_map(shell_gobj)
         }
     }
 
+    /*  Merge each mounted view's declared sub-routes into its base-route
+     *  node, so the map shows the view-owned deep levels too. */
+    let sub = (priv && priv.sub_routes) || {};
+    let merge_sub = (node) => {
+        if(node.route && Array.isArray(sub[node.route]) && sub[node.route].length) {
+            node.children = (node.children || []).concat(sub[node.route]);
+        }
+        if(Array.isArray(node.children)) {
+            node.children.forEach(merge_sub);
+        }
+    };
+    toolbar.forEach(merge_sub);
+    nav.forEach(merge_sub);
+
     return {brand: brand, toolbar: toolbar, nav: nav};
+}
+
+/************************************************************
+ *  Sub-route contributor protocol (ROUTING.md): a mounted view
+ *  declares the deep, view-owned children of its base route for the
+ *  site map. `nodes` is an ordered array of
+ *  {route, label, icon?, children?} (full hashless routes); pass
+ *  null/[] to clear (call on the view's stop/teardown so the map
+ *  never shows a torn-down view's children).
+ ************************************************************/
+function yui_shell_set_sub_routes(shell_gobj, base_route, nodes)
+{
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    if(!priv || !priv.sub_routes || empty_string(base_route)) {
+        return;
+    }
+    if(nodes && nodes.length) {
+        priv.sub_routes[base_route] = nodes;
+    } else {
+        delete priv.sub_routes[base_route];
+    }
 }
 
 /*  Drawer helpers — toggle the off-canvas nav from the outside
@@ -2890,6 +2931,7 @@ export {
     yui_shell_of,
     yui_shell_navigate,
     yui_shell_nav_map,
+    yui_shell_set_sub_routes,
     yui_shell_open_drawer,
     yui_shell_close_drawer,
     yui_shell_toggle_drawer,
