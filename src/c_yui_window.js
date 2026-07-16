@@ -41,6 +41,7 @@ import {
     gobj_is_running,
     gobj_is_destroying,
     refresh_language,
+    empty_string,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
@@ -83,7 +84,7 @@ SDATA(data_type_t.DTP_INTEGER,  "y",            0,  "100",  "Y position"),
 SDATA(data_type_t.DTP_INTEGER,  "width",        0,  "700",  "Width of the window"),
 SDATA(data_type_t.DTP_INTEGER,  "height",       0,  "500",  "Height of the window"),
 SDATA(data_type_t.DTP_BOOLEAN,  "auto_save_size_and_position", 0, false, "Automatically save size and position"),
-SDATA(data_type_t.DTP_POINTER,  "header",       0,  null,   "Can be a gobj with $container or any createElement2() 'content' parameter"),
+SDATA(data_type_t.DTP_POINTER,  "header",       0,  null,   "Title-bar content, overriding the default `icon`+`title` strip: a gobj with $container or any createElement2() 'content' parameter. Only for a bar that is more than a title (e.g. a toolbar)"),
 SDATA(data_type_t.DTP_POINTER,  "body",         0,  null,   "Can be a gobj with $container or any createElement2() 'content' parameter"),
 SDATA(data_type_t.DTP_POINTER, "footer",       0,  null,   "Can be a gobj with $container or any createElement2() 'content' parameter"),
 SDATA(data_type_t.DTP_BOOLEAN,  "center",       0,  true,   "Center the window"),
@@ -99,8 +100,8 @@ SDATA(data_type_t.DTP_JSON,     "window_style", 0,  "{}",   "Override window sty
 SDATA(data_type_t.DTP_POINTER,  "on_close",     0,  null,   "Callback on destroy"),
 SDATA(data_type_t.DTP_POINTER,  "manager",      0,  null,   "Optional C_YUI_WINDOW_MANAGER (gobj or service name) for dock/taskbar"),
 SDATA(data_type_t.DTP_STRING,   "logical_class",0,  "",     "Logical UPPER_SNAKE class(es) added to the window root, so the app can target THIS window exactly (e.g. 'TRANGER_KEYS_WINDOW')"),
-SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, shown on the dock chip"),
-SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Dock-chip icon: a yi-* class name or inline SVG (by window type)"),
+SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, an i18n KEY: painted in the title bar (unless `header` overrides it) and on the dock chip. Pass the key, not t(key), or it cannot re-translate"),
+SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Window icon (by window type), leading the title bar and the dock chip: a yi-* class name or inline SVG"),
 // TODO pendiente focus modal keyboard
 SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "Brings focus to the element, can be a number or selector"),
 SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "Enable modal mode"),
@@ -163,9 +164,14 @@ function mt_create(gobj)
                 }
             }, true);
         }
+        /*  The chip paints its label as plain text (no data-i18n), so it
+         *  needs the title already translated. `title` travels as an i18n
+         *  key; a composed one (`${topic} · ${t("keys")}`) is not a key and
+         *  i18next answers it with itself, unchanged.  */
+        let chip_title = gobj_read_str_attr(gobj, "title");
         gobj_send_event(manager, "EV_REGISTER_WINDOW", {
             window: gobj,
-            title: gobj_read_attr(gobj, "title") || gobj_short_name(gobj),
+            title: chip_title ? t(chip_title) : gobj_short_name(gobj),
             icon: gobj_read_attr(gobj, "icon") || "",
         }, gobj);
     } else if(gobj_read_bool_attr(gobj, "back_dismissable")) {
@@ -276,6 +282,9 @@ function ensure_window_style()
     -webkit-user-select: none; user-select: none;
 }
 .yui-window-titlebar-controls { display: flex; align-items: center; gap: 2px; padding-left: 6px; }
+.yui-window-title { white-space: nowrap; }
+.yui-window-title .icon { flex: 0 0 auto; }
+.yui-window-title svg { width: 14px; height: 14px; display: block; }
 .yui-wc {
     width: 30px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
     padding: 0; border: 0; background: transparent; color: var(--bulma-text); cursor: pointer;
@@ -298,6 +307,46 @@ function ensure_window_style()
     $style.id = 'yui-window-style';
     $style.textContent = css;
     document.head.appendChild($style);
+}
+
+/************************************************************
+ *   The title bar's default content: `icon` + `title`, used when
+ *   the caller supplies no `header`. Until this existed, `title`
+ *   only reached the dock chip, so a window without a hand-rolled
+ *   header painted an EMPTY bar — every caller that wanted a title
+ *   built the same icon+text strip itself, and the ones that didn't
+ *   (Keys, Raw JSON) ended up anonymous or titled inside their body.
+ *
+ *   `icon` follows the dock chip's convention: inline SVG when it
+ *   starts with '<', otherwise a yi-* class name. The text carries
+ *   its i18n key (like the modal's MODAL_TITLE, which renders the
+ *   same string on mobile) so a host refresh_language() re-translates
+ *   it; a composed title (`${topic} · ${t("keys")}`) is not a key and
+ *   stays as built, same as the dock chip and the modal.
+ ************************************************************/
+function build_default_header(gobj)
+{
+    let title = gobj_read_str_attr(gobj, "title");
+    if(empty_string(title)) {
+        return null;
+    }
+
+    let icon = gobj_read_str_attr(gobj, "icon");
+    let items = [];
+    if(!empty_string(icon)) {
+        if(icon.charAt(0) === '<') {
+            items.push(['span', {class: 'icon'}, icon]);
+        } else {
+            items.push(['span', {class: 'icon'}, [['i', {class: icon}]]]);
+        }
+    }
+    items.push(
+        ['span', {class: 'has-text-weight-semibold', i18n: title}, title]
+    );
+
+    return createElement2(
+        ['span', {class: 'WINDOW_TITLE yui-window-title icon-text ml-1'}, items]
+    );
 }
 
 /************************************************************
@@ -352,6 +401,9 @@ function build_ui(gobj)
     let header = gobj_read_attr(gobj, "header");
     if(is_gobj(header)) {
         header = gobj_read_attr(header, "$container");
+    }
+    if(!header) {
+        header = build_default_header(gobj);
     }
     let body = gobj_read_attr(gobj, "body");
     if(is_gobj(body)) {

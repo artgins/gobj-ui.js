@@ -7,6 +7,41 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **BREAKING(window): `C_YUI_WINDOW` paints its `title` in the title bar, and
+  `title` is now an i18n KEY.** `title` only ever reached the dock chip, so a
+  window without a hand-rolled `header` painted an EMPTY title bar: the Keys
+  picker was anonymous, and the Raw JSON windows looked titled only because
+  `C_YUI_JSON` re-titled itself INSIDE the body (doubling the title on mobile,
+  where the host dialog draws its own header). The title bar now falls back to
+  an `icon`+`title` strip (`WINDOW_TITLE`) when no `header` is given; `header`
+  still wins, and stays the way to put more than a title up there (the dev
+  monitor's toolbar, its two-line title). Callers that hand-rolled the same
+  icon+text strip dropped it (`yui_frontend_view`, the site-map window), and
+  the treedb/tranger viewers stopped passing `title` to `C_YUI_JSON` — the
+  host titles it. **Migration:** pass `title: "some key"`, not
+  `title: t("some key")` — the bar carries the key in `data-i18n` so it
+  re-translates on a language change, and the dock chip translates it at
+  registration. A composed title (`` `${topic} · ${t("keys")}` ``) is not a key,
+  i18next answers it with itself, and it renders unchanged — as before.
+- **fix(treedb-graph): "← topics" is pinned outside the scrolling toolbar.**
+  It was `unshift`ed into `yui_toolbar()`'s left items, i.e. into the
+  horizontally SCROLLING container it shares with layout / operation mode /
+  refresh / raw json — so on a narrow viewport the only control that LEAVES the
+  view could scroll out of reach. It is now a sibling of the toolbar, pinned
+  first in the row (`GRAPH_TOOLBAR_ROW`), like the topics view's back button,
+  whose plain non-scrolling strip never moves.
+- **fix(treedb-graph): logical DOM class names.** Only the root carried one.
+  Added `GRAPH_TOOLBAR_ROW` / `GRAPH_BODY` / `GRAPH_CANVAS` /
+  `GRAPH_LAYOUT_LABEL` / `GRAPH_LAYOUT_SELECT` / `GRAPH_MODE_LABEL` /
+  `GRAPH_MODE_SELECT` / `GRAPH_MODE_BUTTONS` / `GRAPH_REFRESH` /
+  `GRAPH_LOAD_ERROR`, per the repo's uppercase-is-logical convention. This
+  renames the lowercase logical names that were doubling as selectors
+  (`graph_layout`, `graph_operation_mode`, `mode_buttons`, `treedb-load-error`)
+  and the refresh button's `EV_REFRESH_TREEDB` class (an EVENT name used as a
+  class); all of them were queried only from within this gclass. The dead
+  `toolbar_yui_treedb_graph` (no CSS rule anywhere) is gone, and
+  `graph-container` stays — it is a real styling hook (`lib_graph.css`
+  `:fullscreen`).
 - **feat(dev): `setup_frontend_view(self)` — the gobj tree in a floating
   window, peer of the developer window.** `C_YUI_GOBJ_TREE_JS` (the live gobj
   tree of the own yuno) already existed, but every app had to host it itself,

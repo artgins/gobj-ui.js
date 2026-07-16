@@ -312,15 +312,6 @@ export function yui_shell_show_route_map(shell, opts)
         let $parent = yui_shell_popup_layer(shell) ||
             (typeof document !== "undefined" &&
                 document.getElementById("top-layer")) || null;
-        /*  Header shown in the window title bar (the `title` attr is only
-         *  the dock-chip label). */
-        let $header = createElement2(
-            ["span", {class: "ROUTEMAP_WIN_TITLE icon-text ml-1"}, [
-                ["span", {class: "icon"}, [["i", {class: "yi-bars"}]]],
-                ["span", {class: "has-text-weight-semibold", i18n: "site map"},
-                    t("site map", {defaultValue: "Site map"})]
-            ]]
-        );
         let win = gobj_create_service(WIN_NAME, "C_YUI_WINDOW", {
             $parent:    $parent,
             subscriber: null,
@@ -333,9 +324,8 @@ export function yui_shell_show_route_map(shell, opts)
             width:      780,
             height:     640,
             logical_class: "ROUTEMAP_WINDOW",
-            title:      t("site map", {defaultValue: "Site map"}),
+            title:      "site map",
             icon:       "yi-bars",
-            header:     $header,
             body:       $body,
             manager:    null
         }, shell);

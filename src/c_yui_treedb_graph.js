@@ -333,12 +333,17 @@ function build_ui(gobj)
     let padding = gobj_read_attr(gobj, "padding");
     let $toolbar = make_toolbar(gobj);
 
+    /*  The back link is pinned in the row, BEFORE the toolbar, so the
+     *  toolbar's horizontal scroll never carries it off-screen. */
+    let $back = make_back_to_topics(gobj);
+    let row_items = $back ? [$back, $toolbar] : [$toolbar];
+
     let $container = createElement2(
         // Don't use is-flex, don't work well with is-hidden
         ['div', {class: 'C_YUI_TREEDB_GRAPH', style: `height:100%; display:flex; flex-direction:column;`}, [
-            ['div', {class: 'is-flex-grow-0 is-flex is-align-items-center toolbar_yui_treedb_graph'}, $toolbar],
-            ['div', {class: `is-flex-grow-1 ${padding}`, style: 'height:100%; min-height:0; overflow:hidden;'}, [
-                ['div', {id: priv.canvas_id, class: `graph-container`, style: 'height:100%; min-height:0;border: 1px solid var(--bulma-border-weak);border-radius:0.2rem;'}, [
+            ['div', {class: 'GRAPH_TOOLBAR_ROW is-flex-grow-0 is-flex is-align-items-center'}, row_items],
+            ['div', {class: `GRAPH_BODY is-flex-grow-1 ${padding}`, style: 'height:100%; min-height:0; overflow:hidden;'}, [
+                ['div', {id: priv.canvas_id, class: `GRAPH_CANVAS graph-container`, style: 'height:100%; min-height:0;border: 1px solid var(--bulma-border-weak);border-radius:0.2rem;'}, [
                 ]]
             ]]
         ]]
@@ -400,10 +405,10 @@ function show_load_error(gobj, message)
     if(!$container) {
         return;
     }
-    let $err = $container.querySelector(".treedb-load-error");
+    let $err = $container.querySelector(".GRAPH_LOAD_ERROR");
     if(!$err) {
         $err = createElement2(
-            ["div", {class: "notification is-danger is-light m-3 treedb-load-error"}, []]
+            ["div", {class: "GRAPH_LOAD_ERROR notification is-danger is-light m-3"}, []]
         );
         $container.insertBefore($err, $container.firstChild);
     }
@@ -444,9 +449,9 @@ function make_toolbar(gobj)
      *  via populate_nodes_tree_options()
      */
     let left_items = [
-        ['span', {class: 'is-hidden-mobile', style: 'padding-right:5px;', i18n: 'layout'}, 'layout'],
+        ['span', {class: 'GRAPH_LAYOUT_LABEL is-hidden-mobile', style: 'padding-right:5px;', i18n: 'layout'}, 'layout'],
         ['div', {class: 'select'}, [
-            ['select', {class: 'graph_layout'}]
+            ['select', {class: 'GRAPH_LAYOUT_SELECT'}]
         ], {
             change: (evt) => {
                 evt.stopPropagation();
@@ -454,9 +459,9 @@ function make_toolbar(gobj)
             }
         }],
 
-        ['span', {class: 'is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;', i18n: 'operation mode'}, 'operation mode'],
+        ['span', {class: 'GRAPH_MODE_LABEL is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;', i18n: 'operation mode'}, 'operation mode'],
         ['div', {class: 'select'}, [
-            ['select', {class: 'graph_operation_mode'}, mode_options]
+            ['select', {class: 'GRAPH_MODE_SELECT'}, mode_options]
         ], {
             change: (evt) => {
                 evt.stopPropagation();
@@ -464,7 +469,7 @@ function make_toolbar(gobj)
             }
         }],
 
-        ['button', {class: 'button EV_REFRESH_TREEDB'}, [
+        ['button', {class: 'GRAPH_REFRESH button'}, [
             ['i', {class: 'yi-arrows-rotate'}],
             ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'refresh'}, 'refresh']
         ], {
@@ -490,23 +495,6 @@ function make_toolbar(gobj)
         }],
     ];
 
-    /*  "← Topics": a real hash link back to the topics grid (host-supplied
-     *  route), shown only when set. Lets a graph reached from a topic card's
-     *  graph icon return to the cards landing — symmetric with the topics
-     *  view's own back button. Absent (e.g. wattyzer) ⇒ no button. */
-    let back_route = gobj_read_attr(gobj, "back_route") || "";
-    if(back_route) {
-        left_items.unshift(
-            ['a', {class: 'button GRAPH_BACK_TOPICS mr-2', href: back_route,
-                   title: t('topics'), 'aria-label': t('topics'),
-                   'data-i18n-title': 'topics', 'data-i18n-aria-label': 'topics'}, [
-                ['span', {class: 'icon'}, [['i', {class: 'yi-arrow-left'}]]],
-                ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;',
-                          i18n: 'topics'}, 'topics']
-            ]]
-        );
-    }
-
     /*
      *  Center, common controls
      */
@@ -521,12 +509,47 @@ function make_toolbar(gobj)
     const $toolbar_header = yui_toolbar({}, [
         ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],
         ['div', {class: 'yui-horizontal-toolbar-section center'}, center_items],
-        ['div', {class: 'yui-horizontal-toolbar-section right mode_buttons'}, right_items]
+        ['div', {class: 'GRAPH_MODE_BUTTONS yui-horizontal-toolbar-section right'}, right_items]
     ]);
 
     refresh_language($toolbar_header, t);
 
     return $toolbar_header;
+}
+
+/************************************************************
+ *  "← topics": a real hash link back to the topics grid (host-supplied
+ *  `back_route`), shown only when set. Lets a graph reached from a topic
+ *  card's graph icon return to the cards landing — symmetric with the
+ *  topics view's own back button. Absent (e.g. wattyzer) ⇒ no button.
+ *
+ *  It is deliberately NOT a toolbar item: yui_toolbar() lays its items in
+ *  a horizontally SCROLLING container, and this is the only control here
+ *  that leaves the view instead of acting on the graph — a way out cannot
+ *  depend on where the toolbar happens to be scrolled. It sits pinned
+ *  ahead of the toolbar, on the same row (see build_ui), like the topics
+ *  view's back button, whose plain non-scrolling strip never moves.
+ ************************************************************/
+function make_back_to_topics(gobj)
+{
+    let back_route = gobj_read_attr(gobj, "back_route") || "";
+    if(!back_route) {
+        return null;
+    }
+
+    let $back = createElement2(
+        ['a', {class: 'GRAPH_BACK_TOPICS button ml-1 mr-1 is-flex-shrink-0',
+               href: back_route,
+               title: t('topics'), 'aria-label': t('topics'),
+               'data-i18n-title': 'topics', 'data-i18n-aria-label': 'topics'}, [
+            ['span', {class: 'icon'}, [['i', {class: 'yi-arrow-left'}]]],
+            ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;',
+                      i18n: 'topics'}, 'topics']
+        ]]
+    );
+    refresh_language($back, t);
+
+    return $back;
 }
 
 /************************************************************
@@ -570,8 +593,10 @@ function open_json_viewer(gobj)
         `treedb-json-${clean_name(gobj_name(gobj))}`,
         "C_YUI_JSON",
         {
-            subscriber: gobj,       /*  publishes EV_EXPAND_PATH to us  */
-            title:      "raw json"
+            /*  No `title`: the host titles it — the window's title bar on
+             *  desktop, the dialog's header on mobile. The viewer's own
+             *  title would land INSIDE that host, doubling it.  */
+            subscriber: gobj        /*  publishes EV_EXPAND_PATH to us  */
         },
         gobj
     );
@@ -726,7 +751,7 @@ function populate_nodes_tree_options(gobj)
     let $container = priv.$container;
 
     let layout_names = gobj_read_attr(priv.gobj_nodes_tree, "layout_names");
-    let $layout_select = $container.querySelector('.graph_layout');
+    let $layout_select = $container.querySelector('.GRAPH_LAYOUT_SELECT');
     if($layout_select && layout_names) {
         for(let name of layout_names) {
             let option = document.createElement('option');
@@ -742,7 +767,7 @@ function populate_nodes_tree_options(gobj)
     }
 
     // Restore persisted operation_mode selection
-    let $operation_mode_select = $container.querySelector('.graph_operation_mode');
+    let $operation_mode_select = $container.querySelector('.GRAPH_MODE_SELECT');
     $operation_mode_select.value = priv.operation_mode;
 }
 
@@ -1950,7 +1975,7 @@ function ac_set_layout(gobj, event, kw, src)
     gobj_write_str_attr(gobj, "layout", layout);
     gobj_save_persistent_attrs(gobj, "layout");
 
-    let $layout_select = priv.$container.querySelector('.graph_layout');
+    let $layout_select = priv.$container.querySelector('.GRAPH_LAYOUT_SELECT');
     $layout_select.value = priv.layout;
 
     gobj_send_event(
@@ -1976,7 +2001,7 @@ function ac_set_operation_mode(gobj, event, kw, src)
     gobj_write_str_attr(gobj, "operation_mode", operation_mode);
     gobj_save_persistent_attrs(gobj, "operation_mode");
 
-    let $operation_mode_select = priv.$container.querySelector('.graph_operation_mode');
+    let $operation_mode_select = priv.$container.querySelector('.GRAPH_MODE_SELECT');
     $operation_mode_select.value = priv.operation_mode;
 
     gobj_send_event(

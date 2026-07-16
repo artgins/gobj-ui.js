@@ -1454,8 +1454,10 @@ function open_json_viewer(gobj)
         `treedb-topics-json-${clean_name(gobj_name(gobj))}`,
         "C_YUI_JSON",
         {
-            subscriber: gobj,       /*  publishes EV_EXPAND_PATH to us  */
-            title:      "raw json"
+            /*  No `title`: the host titles it — the window's title bar on
+             *  desktop, the dialog's header on mobile. The viewer's own
+             *  title would land INSIDE that host, doubling it.  */
+            subscriber: gobj        /*  publishes EV_EXPAND_PATH to us  */
         },
         gobj
     );

@@ -17,8 +17,6 @@ import {
     log_error,
 } from "@yuneta/gobj-js";
 
-import i18next from "i18next";
-
 /*  Service name of the window. The host toggles the entry by looking
  *  it up, exactly as it does with "Developer-Window". */
 const WIN_NAME = "Frontend-View-Window";
@@ -47,19 +45,6 @@ function setup_frontend_view(self)
         return null;
     }
 
-    let t = i18next.t.bind(i18next);
-
-    /*  Header shown in the title bar (the `title` attr is only the
-     *  dock-chip label). It carries its i18n key so the host's
-     *  refresh_language() re-translates it on a language change. */
-    let $header = createElement2(
-        ["span", {class: "YFRONT_WIN_TITLE icon-text ml-1"}, [
-            ["span", {class: "icon"}, [["i", {class: "yi-hexagon-nodes"}]]],
-            ["span", {class: "has-text-weight-semibold", i18n: "frontend view"},
-                t("frontend view", {defaultValue: "Frontend view"})]
-        ]]
-    );
-
     /*  The tree is created AFTER the window, as a pure child of it, so
      *  every teardown path (the ✕, or the host destroying the window to
      *  toggle the entry off) takes the tree down with it. That is why
@@ -86,9 +71,8 @@ function setup_frontend_view(self)
             width: 900,
             height: 640,
             logical_class: "FRONTEND_VIEW_WINDOW",
-            title: t("frontend view", {defaultValue: "Frontend view"}),
+            title: "frontend view",
             icon: "yi-hexagon-nodes",
-            header: $header,
             body: $body,
             /*  Opt into the dock/taskbar if the app provides one. `|| null`
              *  because gobj_find_service returns undefined when absent, and
