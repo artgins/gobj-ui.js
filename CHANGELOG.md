@@ -7,6 +7,30 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **BREAKING(theme): the legacy `__yui_main__` theme path is retired; graphs
+  follow the theme LIVE. New `src/yui_theme.js`.** The three G6 components
+  asked a legacy C_YUI_MAIN `__yui_main__` service for the theme — read its
+  `theme` attr, subscribe to its `EV_THEME`. Nothing ever *wrote* that attr, so
+  it answered `"light"` for the life of the app, and no shell published
+  `EV_THEME`. Worse, in `C_G6_NODES_TREE` the working mechanism (a
+  MutationObserver on `<html data-theme>`) sat in the ELSE of that lookup, so
+  merely *having* such a service swapped a live observer for a dead path; and
+  `C_YUI_GOBJ_TREE_JS` / `C_YUI_JSON_GRAPH` never watched the theme at all —
+  they read it once at build, so toggling to dark with the view open left a
+  white canvas on a dark app. `C_YUI_JSON_GRAPH` also looked the service up
+  with `verbose=true`, logging *"gobj service not found: __yui_main__"* on
+  every mount under C_YUI_SHELL. Now: one `yui_theme.js` (`yui_theme_now()`,
+  `yui_is_dark()`, `yui_watch_theme()`), `<html data-theme>` as the single
+  source, and the DOM mutation translated into `EV_THEME` so the gclass
+  restyles in its ACTION. `C_YUI_GOBJ_TREE_JS` and `C_YUI_JSON_GRAPH` gained
+  `EV_THEME` + `ac_theme`; `C_YUI_GOBJ_TREE_JS`'s private `gt_is_dark()` is now
+  `yui_is_dark()`. With that, `__yui_main__` has no consumer left in the
+  library and the test-app's `C_DEMO_MAIN` is **deleted** — the legacy service
+  is gone from v2. **Migration:** an app registering a `__yui_main__` service
+  for gobj-ui's benefit can drop it; set `<html data-theme>` instead (the shell
+  toggle already does). *Known gap:* `C_YUI_JSON_GRAPH`'s node cards have no
+  dark palette (its canvas follows the theme, the cards stay light) — unlike
+  `C_YUI_GOBJ_TREE_JS`'s `role_card_style()`.
 - **BREAKING(window, map, treedb-graph): the legacy `__yui_main__`/`EV_RESIZE`
   path is retired; every window is STARTED.** Windows were created with
   `gobj_create_service` and never started — `c_yuno`'s `mt_play` only starts the

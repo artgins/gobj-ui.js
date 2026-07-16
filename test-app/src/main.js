@@ -43,7 +43,6 @@ import {register_c_yui_treedb_topic_with_form}
     from "@yuneta/gobj-ui/src/c_yui_treedb_topic_with_form.js";
 
 import {register_c_demo}        from "./c_demo.js";
-import {register_c_demo_main}   from "./c_demo_main.js";
 import {register_c_test_view}   from "./c_test_view.js";
 import {register_c_demo_form}   from "./c_demo_form.js";
 import {register_c_demo_table}  from "./c_demo_table.js";
@@ -102,7 +101,6 @@ function main()
     register_c_yui_window_manager(); // dock/taskbar for windows (Windows chapter)
 
     register_c_demo();
-    register_c_demo_main();
     register_c_test_view();
     register_c_demo_form();
     register_c_demo_table();
@@ -154,12 +152,6 @@ function main()
         },
         yuno
     );
-
-    /*  Minimal "__yui_main__" service: legacy components look it up to read
-     *  its `theme` attr. A registered service satisfies the lookup (no
-     *  "service not found" log). It used to publish EV_RESIZE too; that
-     *  path was retired — components take the browser's resize directly. */
-    gobj_start(gobj_create_service("__yui_main__", "C_DEMO_MAIN", {}, yuno));
 
     /*  Window manager (dock/taskbar). A named service so C_YUI_WINDOW
      *  hosts (the Windows chapter, the Developer window) opt in via

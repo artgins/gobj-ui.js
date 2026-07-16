@@ -59,6 +59,7 @@ import {
 } from '@antv/g6';
 
 import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
+import { yui_theme_now, yui_watch_theme } from "./yui_theme.js";
 
 /***************************************************************
  *              Constants
@@ -91,6 +92,7 @@ let PRIVATE_DATA = {
     graph: null,
     node_counter: 0,
     theme: null,
+    theme_observer: null,   // MutationObserver on <html data-theme>
     resize_observer: null,  // ResizeObserver on the canvas mount element
     _resize_raf: 0,         // rAF id debouncing resize -> EV_RESIZE
 };
@@ -146,10 +148,14 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    let __yui_main__ = gobj_find_service("__yui_main__", true);
-    if(__yui_main__) {
-        priv.theme = gobj_read_str_attr(__yui_main__, "theme");
-    }
+    /*  Follow the app theme. This used to read a legacy C_YUI_MAIN
+     *  "__yui_main__" service's `theme` attr — and looked it up with
+     *  verbose=true, so under C_YUI_SHELL (which has no such service) it
+     *  logged "gobj service not found: __yui_main__" on every mount. It
+     *  never watched either, so the theme was read once. Watch
+     *  <html data-theme> and restyle in ac_theme. */
+    priv.theme = yui_theme_now();
+    priv.theme_observer = yui_watch_theme(gobj);
 
     build_ui(gobj);
 
@@ -184,6 +190,10 @@ function mt_destroy(gobj)
 {
     let priv = gobj.priv;
 
+    if(priv.theme_observer) {
+        priv.theme_observer.disconnect();
+        priv.theme_observer = null;
+    }
     if(priv.resize_observer) {
         priv.resize_observer.disconnect();
         priv.resize_observer = null;
@@ -790,6 +800,22 @@ function ac_refresh(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  {theme: "dark"|"light"} — the app switched theme.
+ ************************************************************/
+function ac_theme(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    priv.theme = kw.theme || yui_theme_now();
+    if(priv.graph) {
+        priv.graph.setTheme(priv.theme);
+    }
+    refresh_json(gobj);
+
+    return 0;
+}
+
+/************************************************************
  *
  ************************************************************/
 function ac_zoom_in(gobj, event, kw, src)
@@ -965,6 +991,7 @@ function create_gclass(gclass_name)
         ["ST_IDLE", [
             ["EV_LOAD_DATA",            ac_load_data,           null],
             ["EV_REFRESH",              ac_refresh,             null],
+            ["EV_THEME",                ac_theme,               null],
             ["EV_ZOOM_IN",              ac_zoom_in,             null],
             ["EV_ZOOM_OUT",             ac_zoom_out,            null],
             ["EV_ZOOM_RESET",           ac_zoom_reset,          null],
@@ -982,6 +1009,7 @@ function create_gclass(gclass_name)
     const event_types = [
         ["EV_LOAD_DATA",            0],
         ["EV_REFRESH",              0],
+        ["EV_THEME",                0],
         ["EV_ZOOM_IN",              0],
         ["EV_ZOOM_OUT",             0],
         ["EV_ZOOM_RESET",           0],

@@ -39,7 +39,6 @@ import {
     gobj_subscribe_event,
     gobj_publish_event,
     gobj_send_event,
-    gobj_find_service,
     gobj_save_persistent_attrs,
     clean_name,
     sprintf,
@@ -97,6 +96,7 @@ import i18next, {t} from "i18next";
 
 import {inject_svg_icons} from "./lib_icons.js";
 import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
+import {yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -308,39 +308,20 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    /*  Optional legacy integration: EV_THEME from C_YUI_MAIN
-     *  (old shell).  Under the new C_YUI_SHELL there is no
-     *  __yui_main__ — look it up SILENTLY (no verbose) so its
-     *  absence is not logged as an error every mount. */
-    let __yui_main__ = gobj_find_service("__yui_main__");
-    if(__yui_main__) {
-        gobj_subscribe_event(__yui_main__, "EV_THEME", {}, gobj);
-        gobj_write_attr(gobj, "theme", gobj_read_str_attr(__yui_main__, "theme"));
-    } else {
-        /*  New C_YUI_SHELL: no __yui_main__, no EV_THEME broadcast.
-         *  Read the theme from <html data-theme> (the Bulma/wz_theme
-         *  convention) and react to changes with a MutationObserver,
-         *  re-using ac_theme via EV_THEME.  Without this priv.theme
-         *  stays "light" and the grid-line uses the light colour
-         *  (#EEEEEE) → glaring white grid on the dark canvas. */
-        let $html = document.documentElement;
-        let dt = $html.getAttribute("data-theme");
-        if(dt === "dark" || dt === "light") {
-            gobj_write_attr(gobj, "theme", dt);
-        }
-        if(typeof MutationObserver !== "undefined") {
-            let mo = new MutationObserver(() => {
-                let nt = $html.getAttribute("data-theme");
-                if(nt === "dark" || nt === "light") {
-                    gobj_send_event(gobj, "EV_THEME", {theme: nt}, gobj);
-                }
-            });
-            mo.observe($html, {
-                attributes: true, attributeFilter: ["data-theme"]
-            });
-            gobj.priv.theme_observer = mo;
-        }
-    }
+    /*  The theme is <html data-theme> (the Bulma/wz_theme convention) and
+     *  the DOM mutation IS the notification: translate it into EV_THEME so
+     *  ac_theme does the work inside the machine.  Without this priv.theme
+     *  stays "light" and the grid-line uses the light colour (#EEEEEE) →
+     *  glaring white grid on the dark canvas.
+     *
+     *  This used to be the ELSE of "did the app register a legacy
+     *  C_YUI_MAIN __yui_main__ service?", whose `theme` attr we read and
+     *  whose EV_THEME we subscribed to.  That branch was retired: nothing
+     *  ever WROTE that attr (it stayed at its "light" default for the life
+     *  of the app) and no shell published EV_THEME, so merely having such a
+     *  service swapped this working observer for a dead path. */
+    gobj_write_attr(gobj, "theme", yui_theme_now());
+    gobj.priv.theme_observer = yui_watch_theme(gobj);
 
     build_ui(gobj);
     register_layouts(gobj);
@@ -5811,7 +5792,7 @@ function ac_resize(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Theme change (subscribed from __yui_main__)
+ *  Theme change (<html data-theme>, via yui_watch_theme)
  ************************************************************/
 function ac_theme(gobj, event, kw, src)
 {

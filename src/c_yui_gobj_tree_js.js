@@ -21,7 +21,6 @@ import {
     gobj_read_attr,
     gobj_write_attr,
     gobj_send_event,
-    gobj_find_service,
     gobj_write_str_attr,
     gobj_read_str_attr,
     gobj_publish_event,
@@ -54,6 +53,7 @@ import {
 } from '@antv/g6';
 
 import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
+import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
 
 /***************************************************************
  *              Constants
@@ -84,6 +84,7 @@ let PRIVATE_DATA = {
     graph: null,
     node_counter: 0,
     theme: null,
+    theme_observer: null,    // MutationObserver on <html data-theme>
     $layout_select: null,
     $popover: null,
     $popover_title: null,
@@ -138,15 +139,6 @@ const NODE_SIZES = {
 const GT_FONT =
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, " +
     "Helvetica, Arial, sans-serif";
-
-/***************************************************************
- *  True when the app is in dark theme (<html data-theme>).
- ***************************************************************/
-function gt_is_dark()
-{
-    return (typeof document !== "undefined") &&
-        document.documentElement.getAttribute("data-theme") === "dark";
-}
 
 /***************************************************************
  *  Soft, theme-aware card palette derived from the role colour
@@ -294,16 +286,15 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    /*  Optional legacy integration with the old C_YUI_MAIN shell.
-     *  Under the new C_YUI_SHELL there is no __yui_main__ — look it
-     *  up SILENTLY (no verbose) so its absence is not logged as an
-     *  error, and fall back to the <html data-theme> convention. */
-    let __yui_main__ = gobj_find_service("__yui_main__");
-    if(__yui_main__) {
-        priv.theme = gobj_read_str_attr(__yui_main__, "theme");
-    } else {
-        priv.theme = gt_is_dark() ? "dark" : "light";
-    }
+    /*  Follow the app theme. This used to read a legacy C_YUI_MAIN
+     *  "__yui_main__" service's `theme` attr when one existed, falling
+     *  back to <html data-theme> otherwise — but nothing ever WROTE that
+     *  attr, so the service branch answered "light" for the life of the
+     *  app. And neither branch WATCHED: the theme was read once, so
+     *  toggling to dark with the view open left a white canvas on a dark
+     *  app. Watch it, and restyle in ac_theme. */
+    priv.theme = yui_theme_now();
+    priv.theme_observer = yui_watch_theme(gobj);
 
     build_ui(gobj);
 
@@ -341,6 +332,10 @@ function mt_destroy(gobj)
 {
     let priv = gobj.priv;
 
+    if(priv.theme_observer) {
+        priv.theme_observer.disconnect();
+        priv.theme_observer = null;
+    }
     if(priv.resize_observer) {
         priv.resize_observer.disconnect();
         priv.resize_observer = null;
@@ -638,7 +633,7 @@ function build_graph(gobj)
         edge: {
             type: layout_cfg.edge_type,
             style: {
-                stroke: gt_is_dark() ? '#8b94a3' : '#6b7280',
+                stroke: yui_is_dark() ? '#8b94a3' : '#6b7280',
                 lineWidth: 1,
                 endArrow: true,
             },
@@ -711,7 +706,7 @@ function apply_layout(gobj)
         edge: {
             type: layout_cfg.edge_type,
             style: {
-                stroke: gt_is_dark() ? '#8b94a3' : '#6b7280',
+                stroke: yui_is_dark() ? '#8b94a3' : '#6b7280',
                 lineWidth: 1,
                 endArrow: true,
             },
@@ -838,7 +833,7 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
     let state = gobj_current_state(target_gobj) || "";
     let full_name = gobj_full_name(target_gobj);
     let colors = get_role_colors(target_gobj, is_root);
-    let dark = gt_is_dark();
+    let dark = yui_is_dark();
     let cs = role_card_style(colors.stroke, dark);
     let state_color = get_state_color(target_gobj);
 
@@ -1713,6 +1708,26 @@ function ac_refresh(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  {theme: "dark"|"light"} — the app switched theme.
+ *
+ *  G6 gets the new theme, and the tree is rebuilt: the node/edge
+ *  colours are picked from yui_is_dark() as they are drawn, so only a
+ *  redraw actually repaints them.
+ ************************************************************/
+function ac_theme(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    priv.theme = kw.theme || yui_theme_now();
+    if(priv.graph) {
+        priv.graph.setTheme(priv.theme);
+    }
+    refresh_tree(gobj);
+
+    return 0;
+}
+
+/************************************************************
  *  {layout: "<key>"}
  ************************************************************/
 function ac_change_layout(gobj, event, kw, src)
@@ -2040,6 +2055,7 @@ function create_gclass(gclass_name)
     const states = [
         ["ST_IDLE", [
             ["EV_REFRESH",              ac_refresh,             null],
+            ["EV_THEME",                ac_theme,               null],
             ["EV_CHANGE_LAYOUT",        ac_change_layout,       null],
             ["EV_TOGGLE_COLLAPSE",      ac_toggle_collapse,     null],
             ["EV_EXPAND_ALL",           ac_expand_all,          null],
@@ -2060,6 +2076,7 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const event_types = [
         ["EV_REFRESH",              0],
+        ["EV_THEME",                0],
         ["EV_CHANGE_LAYOUT",        0],
         ["EV_TOGGLE_COLLAPSE",      0],
         ["EV_EXPAND_ALL",           0],
