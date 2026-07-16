@@ -381,10 +381,10 @@ function show_load_error(gobj, message)
     if(!$container) {
         return;
     }
-    let $err = $container.querySelector(".treedb-load-error");
+    let $err = $container.querySelector(".TOPICS_LOAD_ERROR");
     if(!$err) {
         $err = createElement2(
-            ["div", {class: "notification is-danger is-light m-3 treedb-load-error"}, []]
+            ["div", {class: "TOPICS_LOAD_ERROR notification is-danger is-light m-3"}, []]
         );
         $container.insertBefore($err, $container.firstChild);
     }
@@ -1478,7 +1478,8 @@ function open_json_viewer(gobj)
         priv.json_modal = yui_shell_show_modal(shell, $box, {
             dialog:        true,
             logical_class: "TREEDB_JSON_SHEET",
-            title:         `${priv.treedb_name} · ${t("raw json")}`,
+            title_prefix: priv.treedb_name,
+            title:         "raw json",
             t:             t,
             on_close: () => {
                 if(gobj_is_destroying(gobj)) {
@@ -1507,7 +1508,8 @@ function open_json_viewer(gobj)
                 width:      640,
                 height:     620,
                 logical_class: "TREEDB_JSON_WINDOW",
-                title:      `${priv.treedb_name} · ${t("raw json")}`,
+                title_prefix: priv.treedb_name,
+                title:      "raw json",
                 icon:       "yi-eye",
                 body:       $box,
                 manager:    null,

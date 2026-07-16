@@ -617,7 +617,8 @@ function open_json_viewer(gobj)
         priv.json_modal = yui_shell_show_modal(shell, $box, {
             dialog:        true,
             logical_class: "TREEDB_JSON_SHEET",
-            title:         `${priv.treedb_name} · ${t("raw json")}`,
+            title_prefix: priv.treedb_name,
+            title:         "raw json",
             t:             t,
             on_close: () => {
                 if(gobj_is_destroying(gobj)) {
@@ -646,7 +647,8 @@ function open_json_viewer(gobj)
                 width:      640,
                 height:     620,
                 logical_class: "TREEDB_JSON_WINDOW",
-                title:      `${priv.treedb_name} · ${t("raw json")}`,
+                title_prefix: priv.treedb_name,
+                title:      "raw json",
                 icon:       "yi-eye",
                 body:       $box,
                 manager:    null,

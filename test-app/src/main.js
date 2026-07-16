@@ -166,7 +166,10 @@ function main()
      *  into the Windows chapter's DEMO_WINDOWS_DOCK strip; while that
      *  strip is not in the DOM it falls back to a floating bar
      *  (bottom-left) by the manager's own contract. */
-    gobj_create_service(
+    /*  Started here on purpose: c_yuno's mt_play only starts the DEFAULT
+     *  service, so every other service is the creator's to start — an
+     *  unstarted one shows up in every trace line as `!!<gclass>^<name>`. */
+    gobj_start(gobj_create_service(
         "__window_manager__",
         "C_YUI_WINDOW_MANAGER",
         {
@@ -174,7 +177,7 @@ function main()
             inline_selector: ".DEMO_WINDOWS_DOCK"
         },
         yuno
-    );
+    ));
 
     gobj_start(yuno);
     gobj_play(yuno);

@@ -146,24 +146,24 @@
                             }
                         },
                         {
-                            "id": "d-theme",
-                            "name": "Toggle theme",
-                            "icon": "yi-moon",
-                            "action": {
-                                "type": "event",
-                                "event": "EV_TOGGLE_THEME"
-                            }
-                        },
-                        {
-                            "type": "divider"
-                        },
-                        {
                             "id": "d-sitemap",
                             "name": "Site map",
                             "icon": "yi-bars",
                             "action": {
                                 "type": "navigate",
                                 "route": "/sitemap"
+                            }
+                        },
+                        {
+                            "type": "divider"
+                        },
+                        {
+                            "id": "d-theme",
+                            "name": "Toggle theme",
+                            "icon": "yi-moon",
+                            "action": {
+                                "type": "event",
+                                "event": "EV_TOGGLE_THEME"
                             }
                         },
                         {
@@ -613,7 +613,7 @@
                 },
                 {
                     "id": "tree",
-                    "name": "Gobj tree",
+                    "name": "Frontend view",
                     "icon": "yi-hexagon-nodes",
                     "tooltip": "The live gobj tree of this very yuno (G6)",
                     "route": "/tree",
@@ -622,7 +622,7 @@
                         "gclass": "C_DEMO_TREE",
                         "lifecycle": "keep_alive",
                         "kw": {
-                            "title": "Gobj tree",
+                            "title": "Frontend view",
                             "lead": "C_YUI_GOBJ_TREE_JS introspects the running yuno and draws its live gobj tree with G6 — self-referential: you see the yuno, this view and the tree component itself. Use the toolbar to zoom, center, and expand/collapse. No data, no backend."
                         }
                     }
@@ -797,7 +797,7 @@
                 },
                 {
                     "id": "q-tree",
-                    "name": "Gobj tree",
+                    "name": "Frontend view",
                     "icon": "yi-hexagon-nodes",
                     "route": "/tree"
                 },

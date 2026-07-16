@@ -7,6 +7,29 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(window, modal): `title_prefix` — the data half of a title, so titles
+  can change language.** Window and dialog titles are nearly always
+  "<what> · <kind>" (`raw_tracks · keys`), and every caller composed that into
+  one string: `` `${topic} · ${t("keys")}` ``. The result is not an i18n key, so
+  i18next answers it with itself and the title stays in the language it was
+  built in for the life of the window — the exact trap
+  `feedback_i18n_must_be_retranslatable` describes. `title_prefix` (data, never
+  translated) now carries the "what", `title` stays the KEY for the "kind", and
+  the two render as separate text nodes (`WINDOW_TITLE_PREFIX` +
+  `WINDOW_TITLE_KIND`, `MODAL_TITLE_PREFIX` + `MODAL_TITLE_KIND`) so a
+  `refresh_language()` re-translates just the kind half. The separator is a CSS
+  `::before`, never a text node — `createElement2` trims text nodes and would
+  eat the spaces around it. The dock chip joins both halves itself (it paints
+  plain text, no `data-i18n`). Migrated: the Keys picker and every Raw JSON
+  window/sheet (treedb graph, treedb topics, tranger view).
+- **fix(map): the marker window is titled.** `c_yui_map`'s popup window passed
+  neither `title` nor `header`, so its bar was empty — and several markers can
+  be open at once, with nothing saying which is which. It now carries the
+  marker's service name (`title_prefix`), a `yi-location-dot` icon and
+  `logical_class: "MAP_MARKER_WINDOW"`.
+- **fix(treedb-topics): `TOPICS_LOAD_ERROR` logical class.** The error banner
+  was `treedb-load-error` — a logical name in lowercase, which the DOM
+  convention reserves for styling. Same fix as the graph's `GRAPH_LOAD_ERROR`.
 - **BREAKING(window): `C_YUI_WINDOW` paints its `title` in the title bar, and
   `title` is now an i18n KEY.** `title` only ever reached the dock chip, so a
   window without a hand-rolled `header` painted an EMPTY title bar: the Keys

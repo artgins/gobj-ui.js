@@ -590,6 +590,13 @@ function onClick(gobj, e)
                 center: true,
                 showMax: false,
                 content_size: true,
+                /*  The marker's own name: this window is one marker's
+                 *  detail, and several can be open at once, so the bar
+                 *  must say WHICH. It is data, not an i18n key — i18next
+                 *  answers it with itself and it renders unchanged. */
+                title: gobj_name(gobj_service),
+                icon: "yi-location-dot",
+                logical_class: "MAP_MARKER_WINDOW",
                 body: popupContent
             },
             gobj

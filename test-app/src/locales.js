@@ -139,7 +139,6 @@ const es_translation = {
     "Gamma": "Gamma",
     "Delta": "Delta",
     "Chart": "Gráfica",
-    "Gobj tree": "Árbol de gobjs",
     "JSON graph": "Grafo JSON",
     "Wizard": "Asistente",
     "Pager": "Paginador",

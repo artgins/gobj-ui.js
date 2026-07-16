@@ -590,6 +590,14 @@
     white-space: nowrap;
     font-weight: 600;
 }
+/*  Separator between the data half and the translated kind half. CSS,
+ *  not a text node: createElement2 trims text nodes and eats the spaces. */
+.MODAL_TITLE_PREFIX + .MODAL_TITLE_KIND::before {
+    content: "·";
+    padding: 0 0.4em;
+    color: var(--bulma-text-weak);
+    font-weight: 400;
+}
 .yui-dialog-back,
 .yui-dialog-x {
     flex: 0 0 auto;

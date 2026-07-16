@@ -100,6 +100,7 @@ SDATA(data_type_t.DTP_JSON,     "window_style", 0,  "{}",   "Override window sty
 SDATA(data_type_t.DTP_POINTER,  "on_close",     0,  null,   "Callback on destroy"),
 SDATA(data_type_t.DTP_POINTER,  "manager",      0,  null,   "Optional C_YUI_WINDOW_MANAGER (gobj or service name) for dock/taskbar"),
 SDATA(data_type_t.DTP_STRING,   "logical_class",0,  "",     "Logical UPPER_SNAKE class(es) added to the window root, so the app can target THIS window exactly (e.g. 'TRANGER_KEYS_WINDOW')"),
+SDATA(data_type_t.DTP_STRING,   "title_prefix", 0,  "",     "Optional DATA half of the title (a topic/service/marker name), shown before `title` and never translated. Use it instead of composing `${name} · ${t(key)}` into `title`, which cannot re-translate"),
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, an i18n KEY: painted in the title bar (unless `header` overrides it) and on the dock chip. Pass the key, not t(key), or it cannot re-translate"),
 SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Window icon (by window type), leading the title bar and the dock chip: a yi-* class name or inline SVG"),
 // TODO pendiente focus modal keyboard
@@ -165,13 +166,11 @@ function mt_create(gobj)
             }, true);
         }
         /*  The chip paints its label as plain text (no data-i18n), so it
-         *  needs the title already translated. `title` travels as an i18n
-         *  key; a composed one (`${topic} · ${t("keys")}`) is not a key and
-         *  i18next answers it with itself, unchanged.  */
-        let chip_title = gobj_read_str_attr(gobj, "title");
+         *  needs the title already translated and joined.  */
+        let chip_title = composed_title(gobj);
         gobj_send_event(manager, "EV_REGISTER_WINDOW", {
             window: gobj,
-            title: chip_title ? t(chip_title) : gobj_short_name(gobj),
+            title: chip_title ? chip_title : gobj_short_name(gobj),
             icon: gobj_read_attr(gobj, "icon") || "",
         }, gobj);
     } else if(gobj_read_bool_attr(gobj, "back_dismissable")) {
@@ -285,6 +284,13 @@ function ensure_window_style()
 .yui-window-title { white-space: nowrap; }
 .yui-window-title .icon { flex: 0 0 auto; }
 .yui-window-title svg { width: 14px; height: 14px; display: block; }
+/*  Separator between the data half and the translated kind half. CSS,
+ *  not a text node: createElement2 trims text nodes and eats the spaces. */
+.WINDOW_TITLE_PREFIX + .WINDOW_TITLE_KIND::before {
+    content: "·";
+    padding: 0 0.4em;
+    color: var(--bulma-text-weak);
+}
 .yui-wc {
     width: 30px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
     padding: 0; border: 0; background: transparent; color: var(--bulma-text); cursor: pointer;
@@ -310,24 +316,33 @@ function ensure_window_style()
 }
 
 /************************************************************
- *   The title bar's default content: `icon` + `title`, used when
- *   the caller supplies no `header`. Until this existed, `title`
- *   only reached the dock chip, so a window without a hand-rolled
- *   header painted an EMPTY bar — every caller that wanted a title
- *   built the same icon+text strip itself, and the ones that didn't
- *   (Keys, Raw JSON) ended up anonymous or titled inside their body.
+ *   The title bar's default content: `icon` + `title_prefix` +
+ *   `title`, used when the caller supplies no `header`. Until this
+ *   existed, `title` only reached the dock chip, so a window without
+ *   a hand-rolled header painted an EMPTY bar — every caller that
+ *   wanted a title built the same icon+text strip itself, and the
+ *   ones that didn't (Keys, Raw JSON) ended up anonymous or titled
+ *   inside their body.
  *
  *   `icon` follows the dock chip's convention: inline SVG when it
- *   starts with '<', otherwise a yi-* class name. The text carries
- *   its i18n key (like the modal's MODAL_TITLE, which renders the
- *   same string on mobile) so a host refresh_language() re-translates
- *   it; a composed title (`${topic} · ${t("keys")}`) is not a key and
- *   stays as built, same as the dock chip and the modal.
+ *   starts with '<', otherwise a yi-* class name.
+ *
+ *   The two halves are separate text nodes on purpose. Titles here are
+ *   nearly always "<what> · <kind>" — `raw_tracks · keys` — and
+ *   composing that into one string is what makes a title untranslatable:
+ *   `${topic} · ${t("keys")}` is not an i18n key, so i18next answers it
+ *   with itself and it stays in the language it was built in for the
+ *   life of the window. Split, the DATA half (`title_prefix`) is left
+ *   alone and the KIND half carries its key, so a host
+ *   refresh_language() re-translates just that one. The separator is
+ *   CSS (::before), never a text node: createElement2 TRIMS text nodes
+ *   and would eat the spaces around it.
  ************************************************************/
 function build_default_header(gobj)
 {
     let title = gobj_read_str_attr(gobj, "title");
-    if(empty_string(title)) {
+    let prefix = gobj_read_str_attr(gobj, "title_prefix");
+    if(empty_string(title) && empty_string(prefix)) {
         return null;
     }
 
@@ -340,13 +355,39 @@ function build_default_header(gobj)
             items.push(['span', {class: 'icon'}, [['i', {class: icon}]]]);
         }
     }
-    items.push(
-        ['span', {class: 'has-text-weight-semibold', i18n: title}, title]
-    );
+    if(!empty_string(prefix)) {
+        items.push(
+            ['span', {class: 'WINDOW_TITLE_PREFIX has-text-weight-semibold'},
+             prefix]
+        );
+    }
+    if(!empty_string(title)) {
+        items.push(
+            ['span', {class: 'WINDOW_TITLE_KIND has-text-weight-semibold',
+                      i18n: title}, title]
+        );
+    }
 
     return createElement2(
         ['span', {class: 'WINDOW_TITLE yui-window-title icon-text ml-1'}, items]
     );
+}
+
+/************************************************************
+ *   The window's title as ONE plain string, for consumers that
+ *   cannot hold markup: the dock chip's label and its `title`
+ *   tooltip. Same two halves as the bar, joined here.
+ ************************************************************/
+function composed_title(gobj)
+{
+    let title = gobj_read_str_attr(gobj, "title");
+    let prefix = gobj_read_str_attr(gobj, "title_prefix");
+    let kind = empty_string(title) ? "" : t(title);
+
+    if(!empty_string(prefix) && !empty_string(kind)) {
+        return `${prefix} · ${kind}`;
+    }
+    return empty_string(prefix) ? kind : prefix;
 }
 
 /************************************************************

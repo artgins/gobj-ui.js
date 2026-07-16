@@ -207,6 +207,14 @@ export function yui_shell_show_modal(shell, content, opts)
      *  history.back()), so gobj-ui stays routing-agnostic. */
     let dialog = !!(opts && opts.dialog);
     let title = (opts && opts.title) || "";
+    /*  Optional DATA half of the title (a topic/service name), never
+     *  translated, shown before `title`. Same contract as C_YUI_WINDOW's
+     *  `title_prefix`, and for the same reason: composing
+     *  `${topic} · ${t("keys")}` into `title` yields a string that is not
+     *  an i18n key, so it never re-translates. Split, only the kind half
+     *  carries a key. The separator is CSS — createElement2 trims text
+     *  nodes and would eat the spaces around it. */
+    let title_prefix = (opts && opts.title_prefix) || "";
 
     /*  The external Bulma `.modal-close is-large` sits at the
      *  top-right of the viewport, outside the content box.  Callers
@@ -219,7 +227,11 @@ export function yui_shell_show_modal(shell, content, opts)
         let header = ["div", {class: "MODAL_HEADER yui-dialog-header"}, [
             ["button", {class: "MODAL_BACK yui-dialog-back", type: "button", "aria-label": "back"},
                 [["i", {class: "yi-arrow-left"}]]],
-            ["span", {class: "MODAL_TITLE yui-dialog-title", i18n: title}, title],
+            ["span", {class: "MODAL_TITLE yui-dialog-title"},
+                (title_prefix ? [["span", {class: "MODAL_TITLE_PREFIX"}, title_prefix]] : [])
+                    .concat(title
+                        ? [["span", {class: "MODAL_TITLE_KIND", i18n: title}, title]]
+                        : [])],
             ["button", {class: "MODAL_CLOSE yui-dialog-x", type: "button", "aria-label": "close"},
                 [["i", {class: "yi-xmark"}]]],
         ]];

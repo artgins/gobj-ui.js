@@ -40,7 +40,7 @@ let __instance_counter__ = 0;
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
 
-SDATA(data_type_t.DTP_STRING,   "title",        0,  "Gobj tree", "Card title"),
+SDATA(data_type_t.DTP_STRING,   "title",        0,  "Frontend view", "Card title"),
 SDATA(data_type_t.DTP_STRING,   "lead",         0,  "",     "Explanatory paragraph"),
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Root HTMLElement (shell contract)"),
 SDATA_END()
@@ -137,7 +137,7 @@ function mt_destroy(gobj)
  ***************************************************************/
 function build_ui(gobj)
 {
-    let title = gobj_read_attr(gobj, "title") || "Gobj tree";
+    let title = gobj_read_attr(gobj, "title") || "Frontend view";
     let lead  = gobj_read_attr(gobj, "lead")  || "";
 
     let head = [
