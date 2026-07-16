@@ -7,7 +7,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
-import { resolve_route } from "./route_resolver.js";
+import { resolve_route, normalize_route } from "./route_resolver.js";
 
 /*  Minimal route table shaped like C_YUI_SHELL.priv.item_index. */
 function make_index() {
@@ -78,5 +78,44 @@ describe("resolve_route", () => {
         expect(r.subpath).toBe("");
         expect(r.entry.target).toBeNull();
         expect(r.entry.item.submenu).toBeTruthy();
+    });
+});
+
+describe("normalize_route", () => {
+    test("already canonical → unchanged", () => {
+        expect(normalize_route("/a/b")).toBe("/a/b");
+    });
+
+    test("trailing slash stripped", () => {
+        expect(normalize_route("/a/b/")).toBe("/a/b");
+    });
+
+    test("multiple trailing slashes stripped", () => {
+        expect(normalize_route("/a/b///")).toBe("/a/b");
+    });
+
+    test("duplicate inner slashes collapsed", () => {
+        expect(normalize_route("//a///b")).toBe("/a/b");
+    });
+
+    test("missing leading slash added", () => {
+        expect(normalize_route("a/b")).toBe("/a/b");
+    });
+
+    test("root stays root", () => {
+        expect(normalize_route("/")).toBe("/");
+        expect(normalize_route("///")).toBe("/");
+    });
+
+    test("empty stays empty (caller decides the error)", () => {
+        expect(normalize_route("")).toBe("");
+        expect(normalize_route(null)).toBe("");
+    });
+
+    test("normalized trailing-slash route resolves like the clean one", () => {
+        const idx = make_index();
+        const r = resolve_route(idx, normalize_route("/monitoring/realtime/"));
+        expect(r.matched_route).toBe("/monitoring/realtime");
+        expect(r.subpath).toBe("");
     });
 });

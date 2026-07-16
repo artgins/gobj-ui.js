@@ -60,7 +60,7 @@ import {
     validate_toolbar_item,
 } from "./shell_toolbar_helpers.js";
 
-import { resolve_route } from "./route_resolver.js";
+import { resolve_route, normalize_route } from "./route_resolver.js";
 import {
     section_index_target,
     secondary_nav_renders,
@@ -248,8 +248,8 @@ function mt_start(gobj)
          *  keeps the same hash, so Back over it fires popstate WITHOUT a
          *  hashchange: close the top overlay and consume the event.  A
          *  real route Back changes the hash and is handled by hash_handler
-         *  above (popstate then finds no overlays and does nothing). */
-        priv.popstate_handler = () => {
+         *  above. */
+        priv.popstate_handler = (ev) => {
             let p = gobj_read_attr(gobj, "priv");
             if(!p) {
                 return;
@@ -260,13 +260,32 @@ function mt_start(gobj)
                 p.expected_pops--;
                 return;
             }
-            if(p.overlay_stack.length > 0) {
-                let entry = p.overlay_stack.pop();
-                try {
-                    entry.close();
-                } catch(e) {
-                    log_warning(`C_YUI_SHELL: overlay close on Back failed: ${e}`);
-                }
+            if(p.overlay_stack.length === 0) {
+                return;
+            }
+            /*  Which entry did this popstate land ON?  Synthetic overlay
+             *  entries carry a state marker (push_overlay_history);
+             *  route entries have a null state.  NOTE: fragment
+             *  navigations fire popstate too (null state, new entry), so
+             *  this same branch closes the top overlay when the user
+             *  route-navigates with it open — deliberate: an overlay is
+             *  transient and does not outlive its resting route.
+             *    - Landing ON the top overlay's OWN entry (an odd
+             *      history.go(n) traversal): the overlay is at its home
+             *      entry — keep it open.
+             *    - Any other landing (a route entry, a fragment push, or
+             *      a lower overlay's marker) closes the top overlay:
+             *      strict LIFO. */
+            let top = p.overlay_stack[p.overlay_stack.length - 1];
+            let st = ev && ev.state;
+            if(st && st.__yui_overlay__ === top.id) {
+                return;
+            }
+            p.overlay_stack.pop();
+            try {
+                top.close();
+            } catch(e) {
+                log_warning(`C_YUI_SHELL: overlay close on Back failed: ${e}`);
             }
         };
         window.addEventListener("popstate", priv.popstate_handler);
@@ -967,11 +986,9 @@ function hash_to_route(hash)
     if(!hash) {
         return "";
     }
-    let s = String(hash).replace(/^#/, "");
-    if(s.charAt(0) !== "/") {
-        s = "/" + s;
-    }
-    return s;
+    /*  Hashes come from the outside world (typed URLs, shared links):
+     *  normalize so "#/a/b/" hits the same index entry as "#/a/b". */
+    return normalize_route(String(hash).replace(/^#/, ""));
 }
 
 function route_to_hash(route)
@@ -984,11 +1001,33 @@ function route_to_hash(route)
 }
 
 /************************************************************
- *  Navigate: make `route` active
+ *  Navigate: make `route` active.  `depth` is internal — the
+ *  redirect-recursion counter (submenu default, unknown-route
+ *  default, action redirects); external callers omit it.
  ************************************************************/
-function navigate_to(gobj, route)
+const MAX_REDIRECT_DEPTH = 8;
+
+function navigate_to(gobj, route, depth)
 {
     let priv = gobj_read_attr(gobj, "priv");
+    depth = depth || 0;
+    route = normalize_route(route);
+
+    /*  A redirect cycle (submenu default → unknown → default → …) is a
+     *  config error; without a cap it recurses to a stack overflow that
+     *  kills the app with a mute RangeError.  Fail loudly instead. */
+    if(depth > MAX_REDIRECT_DEPTH) {
+        log_error(
+            `C_YUI_SHELL: redirect loop navigating to '${route}' ` +
+            `(depth > ${MAX_REDIRECT_DEPTH}) — check submenu defaults, ` +
+            `default_route and action redirects for a cycle`
+        );
+        show_stage_placeholder(
+            gobj, "main",
+            `C_YUI_SHELL: redirect loop at route '${route}'`
+        );
+        return;
+    }
 
     /*  Audit witness: publish the navigation intent FIRST, before any
      *  validation or DOM work. This guarantees that the FSM trace and
@@ -1015,7 +1054,7 @@ function navigate_to(gobj, route)
         let first_routable = sub.items && sub.items.find(it => it && it.route);
         let default_sub = sub.default || (first_routable && first_routable.route);
         if(default_sub) {
-            return navigate_to(gobj, default_sub);
+            return navigate_to(gobj, default_sub, depth + 1);
         }
     }
 
@@ -1045,7 +1084,7 @@ function navigate_to(gobj, route)
                 `C_YUI_SHELL: unknown route '${route}', ` +
                 `redirecting to default '${def}'`
             );
-            return navigate_to(gobj, def);
+            return navigate_to(gobj, def, depth + 1);
         }
         log_error(`C_YUI_SHELL: no target for route '${route}'`);
         show_stage_placeholder(
@@ -1102,7 +1141,7 @@ function navigate_to(gobj, route)
                      *  route: bring up the default view underneath,
                      *  then push this hash back on top so close→back
                      *  returns to the default. */
-                    navigate_to(gobj, prev);
+                    navigate_to(gobj, prev, depth + 1);
                     let h = route_to_hash(route);
                     try {
                         window.history.pushState(null, "", h);
@@ -1119,7 +1158,10 @@ function navigate_to(gobj, route)
             if(gobj_read_attr(gobj, "use_hash")) {
                 let h = route_to_hash(prev);
                 try {
-                    window.history.replaceState(null, "", h);
+                    /*  Keep the current entry's state: if it is an
+                     *  overlay's synthetic entry, nulling the marker
+                     *  would break its Back/dismiss bookkeeping. */
+                    window.history.replaceState(window.history.state, "", h);
                 } catch(e) {
                     window.location.hash = h;
                 }
@@ -1135,7 +1177,7 @@ function navigate_to(gobj, route)
             );
             return;
         }
-        return navigate_to(gobj, redirect);
+        return navigate_to(gobj, redirect, depth + 1);
     }
 
     /*  A fresh navigation clears any placeholder shown earlier. */
@@ -1214,9 +1256,12 @@ function navigate_to(gobj, route)
     if(gobj_read_attr(gobj, "use_hash")) {
         let target_hash = route_to_hash(route);
         if(window.location.hash !== target_hash) {
-            /*  Using history.replaceState avoids extra hashchange fire. */
+            /*  Using history.replaceState avoids extra hashchange fire.
+             *  The current entry's state is preserved: if it is an
+             *  overlay's synthetic entry, nulling the marker would break
+             *  its Back/dismiss bookkeeping. */
             try {
-                window.history.replaceState(null, "", target_hash);
+                window.history.replaceState(window.history.state, "", target_hash);
             } catch(e) {
                 window.location.hash = target_hash;
             }
@@ -2002,6 +2047,21 @@ function pop_escape(gobj, handler)
  *      retire the still-present browser entry (that popstate is counted
  *      in expected_pops and ignored).
  *
+ *  The synthetic entry carries a state marker ({__yui_overlay__: id}).
+ *  Note that a FRAGMENT navigation (location.hash = …) fires popstate
+ *  too (all engines), so route-navigating with overlays open closes the
+ *  TOP one through the same Back path — an overlay is transient and
+ *  does not outlive its resting route.  An overlay stacked BELOW the
+ *  closed one survives, its entry now BURIED under the new route
+ *  entries; the marker keeps that case sound:
+ *    - overlay_dismissed only history.back()s when the marker is the
+ *      CURRENT history entry (adjacent, so the back() is invisible);
+ *      a buried entry is left inert — closing the overlay far from home
+ *      must never teleport the user back over real route entries.
+ *    - the popstate handler never closes an overlay when the landing
+ *      entry IS that overlay's own marker (strict LIFO across odd
+ *      history.go(n) traversals).
+ *
  *  Gated on `use_hash`: an app that manages its own routing gets no
  *  synthetic entries — a stray history.back() there could exit it.
  ************************************************************/
@@ -2037,12 +2097,19 @@ function overlay_dismissed(gobj, entry)
         return;
     }
     priv.overlay_stack.splice(idx, 1);
-    /*  Only history.back() when this was the TOP entry: a non-LIFO
-     *  dismissal (a lower overlay closed under a higher one) must not
-     *  pop past the higher overlay's still-present entry.  Overlays
-     *  close LIFO in practice; a non-top one just leaves an inert entry
-     *  the next Back will absorb harmlessly. */
-    if(idx === priv.overlay_stack.length) {
+    /*  Retire the synthetic browser entry ONLY when it is the CURRENT
+     *  one — its state marker is live — so history.back() steps off it
+     *  invisibly (same hash, no route change).  In every other case the
+     *  entry is NOT adjacent and a back() would traverse REAL entries:
+     *    - the user route-navigated after opening the overlay (the
+     *      marker sits buried under newer route entries) — a back()
+     *      here would teleport them to the pre-overlay route;
+     *    - a non-LIFO dismissal (a lower overlay closed under a higher
+     *      one) — a back() would pop past the higher overlay's entry.
+     *  Leave the entry inert instead: a later Back lands on it with the
+     *  same hash and is absorbed harmlessly. */
+    let st = window.history.state;
+    if(st && st.__yui_overlay__ === entry.id) {
         priv.expected_pops++;
         try {
             window.history.back();

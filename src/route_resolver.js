@@ -24,6 +24,29 @@
  *   - nothing matched                  → entry as found (may be
  *     null or a targetless submenu parent), subpath "".
  ************************************************************/
+/************************************************************
+ *  normalize_route — canonical form of a route: leading "/",
+ *  duplicate slashes collapsed, trailing slashes stripped
+ *  (root "/" stays "/").  Routes arrive from the outside
+ *  world (typed URLs, shared links, old bookmarks): "#/a/b/"
+ *  must resolve like "#/a/b" instead of missing the index
+ *  and falling into the unknown-route redirect.
+ ************************************************************/
+function normalize_route(route)
+{
+    if(!route) {
+        return "";
+    }
+    let s = String(route).replace(/\/{2,}/g, "/");
+    if(s.charAt(0) !== "/") {
+        s = "/" + s;
+    }
+    if(s.length > 1) {
+        s = s.replace(/\/+$/, "");
+    }
+    return s;
+}
+
 function resolve_route(item_index, route)
 {
     let entry = item_index[route];
@@ -50,4 +73,4 @@ function resolve_route(item_index, route)
     return { entry: entry, matched_route: matched_route, subpath: subpath };
 }
 
-export { resolve_route };
+export { resolve_route, normalize_route };

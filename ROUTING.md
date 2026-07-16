@@ -87,6 +87,13 @@ Corollaries:
   `/a/b/c/d` mounts the view declared at the deepest matching ancestor (say
   `/a/b`) and hands it the trailing **`subpath`** (`c/d`). Root `/` matches only
   exactly, never as a catch-all.
+- **Routes are normalized before resolution** (`normalize_route`): leading `/`
+  ensured, duplicate slashes collapsed, trailing slashes stripped (root `/`
+  kept). Hashes come from the outside world — a shared link typed as `#/a/b/`
+  resolves like `#/a/b`, and the URL is rewritten to the canonical form.
+  Redirect recursion (submenu default → unknown → default → …) is capped: a
+  config cycle logs an error and shows a placeholder instead of overflowing
+  the stack.
 - A **view owns its dynamic deeper levels via the `subpath`**, not via declared
   routes. The shell does NOT inject the subpath into the view's `kw` (strict
   SDATA validation). Instead it broadcasts it (§5), and the view maps
@@ -153,6 +160,17 @@ same hash) and an **overlay stack**:
   synthetic entry.
 - Escape is a separate LIFO (`yui_shell_push_escape` / `pop_escape`) so the
   top-most overlay closes first.
+- **Navigating with a non-modal overlay open** (a floating window — modals
+  can't co-occur with nav clicks): a fragment navigation fires `popstate` too
+  (all engines), so the **top** overlay closes through the same Back path the
+  moment the user moves elsewhere — an overlay is *transient* (§3) and does
+  not outlive its resting route. An overlay stacked **below** another one
+  survives that close, with its synthetic entry now **buried** under the new
+  route entries; the entry's state marker keeps the bookkeeping sound:
+  dismissing a buried overlay leaves its entry **inert** — it never
+  `history.back()`s over real route entries (doing so used to teleport the
+  user back to the pre-overlay route) — and a later Back absorbs the inert
+  entry as a same-hash no-op.
 
 Use this for every modal/popup. Never encode an overlay as a route (a
 deep-linkable modal is an *action route* with `redirect:"stay"`, a deliberate,

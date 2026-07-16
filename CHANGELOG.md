@@ -7,6 +7,40 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(shell): overlay↔history bookkeeping survives navigating with stacked
+  overlays open.** The old bookkeeping assumed an overlay's synthetic history
+  entry was always ADJACENT to the current one. It isn't when the user
+  route-navigates with more than one Back-dismissable overlay open: the
+  fragment navigation's own `popstate` closes the top overlay, but a
+  still-open overlay UNDER it keeps a synthetic entry now **buried** beneath
+  the new route entries — and dismissing it (X / Escape / code) blindly
+  `history.back()`ed over a REAL route entry, **teleporting the user** to the
+  pre-overlay route. The synthetic entry's state marker
+  (`{__yui_overlay__: id}`) is now the authority everywhere:
+  `overlay_dismissed` only retires the entry when its marker is the *current*
+  history entry (adjacent → the back() is invisible), leaving buried entries
+  inert (a later Back absorbs them as a same-hash no-op); the popstate handler
+  only closes the top overlay when the landing entry is NOT that overlay's own
+  marker (strict LIFO across odd `history.go(n)` traversals); and the shell's
+  silent `replaceState` URL fix-ups preserve `history.state` so they can't
+  wipe a live marker. Verified end-to-end (Playwright/Firefox on the
+  test-app): classic open→Back-close, X-close in place, stacked overlays +
+  navigate + dismiss-buried (no teleport), Back absorbing inert entries.
+
+- **fix(shell): route normalization.** Hashes come from the outside world —
+  typed URLs, shared links, old bookmarks. `#/a/b/` (trailing slash) missed the
+  route index entirely (the ancestor walk pops a real segment first), silently
+  landing on the unknown-route default instead of `/a/b`. Every route entering
+  the shell is now canonicalized (`normalize_route` in `route_resolver.js`:
+  leading `/`, duplicate slashes collapsed, trailing slashes stripped, root
+  kept) before resolution, and the URL is rewritten to the canonical form.
+
+- **fix(shell): redirect loops fail loudly.** A config cycle (submenu default →
+  unknown route → default route → …) recursed `navigate_to` to a stack
+  overflow, killing the app with a mute `RangeError`. Redirect recursion is now
+  capped (depth 8): the loop logs the offending route and shows the stage
+  placeholder instead.
+
 - **fix(gobj-tree): lower-case its i18n keys.** `c_yui_gobj_tree_js` was the
   only module asking i18next for capitalised keys (`t("Close")`, `t("GClass")`,
   `t("Status")`, …). Keys are lower-case by convention, so **no consumer could
