@@ -36,22 +36,47 @@
 .ROUTEMAP_LI {
     margin: 0.05rem 0;
 }
-.ROUTEMAP_LINK {
+.ROUTEMAP_ROW {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.05rem 0.25rem;
+    border-radius: 0.25rem;
+}
+.ROUTEMAP_ICON {
+    font-size: 0.95rem;
+    color: var(--bulma-text-weak, #7a7a7a);
+}
+a.ROUTEMAP_LINK {
     text-decoration: none;
-    color: var(--bulma-link, #485fc7);
+    color: inherit;
 }
-.ROUTEMAP_LINK:hover {
-    text-decoration: underline;
+a.ROUTEMAP_LINK:hover {
+    background: var(--bulma-background, #f5f5f5);
 }
-.ROUTEMAP_SEG {
+a.ROUTEMAP_LINK .ROUTEMAP_NAME {
     font-weight: 600;
+    color: var(--bulma-text, inherit);
 }
 .ROUTEMAP_NAME {
-    color: var(--bulma-text-weak, #7a7a7a);
-    margin-left: 0.5rem;
+    color: var(--bulma-text, inherit);
 }
-.ROUTEMAP_STRUCT {
+.ROUTEMAP_ROUTE {
+    background: transparent;
+    color: var(--bulma-link, #485fc7);
+    padding: 0;
+    font-size: 0.8rem;
+}
+.ROUTEMAP_EVENT {
+    font-family: var(--bulma-family-monospace, monospace);
+    font-size: 0.7rem;
+}
+.ROUTEMAP_STRUCT .ROUTEMAP_NAME {
     color: var(--bulma-text-weak, #7a7a7a);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.78rem;
+    font-weight: 700;
 }
 .ROUTEMAP_HINT {
     color: var(--bulma-text-weak, #7a7a7a);

@@ -1,11 +1,13 @@
 /***********************************************************************
  *          shell_route_map.js
  *
- *      "Site map" viewer for a C_YUI_SHELL app: renders the current
- *      registered route tree (declared nav + dynamic submenus) as a
- *      printable, clickable tree — the filesystem-like map of the SPA
- *      (see ROUTING.md). Every leaf is a real hash link, so the map
- *      doubles as a jump table. A Print button prints just the tree.
+ *      "Site map" viewer for a C_YUI_SHELL app: renders the WHOLE
+ *      navigation surface — the toolbar (including the account menu),
+ *      the primary menu and its live dynamic tabs — as a printable,
+ *      clickable tree, in DECLARATION order (see ROUTING.md). It is
+ *      meant to double as the app's basic documentation: each entry
+ *      shows its icon, name, the hash route it navigates to (a live
+ *      link) or the action event it fires.
  *
  *      Usage (e.g. from an "Account → Site map" menu action):
  *          import {yui_shell_show_route_map} from
@@ -20,76 +22,47 @@ import "./shell_route_map.css";
 import {createElement2, refresh_language} from "@yuneta/gobj-js";
 
 import {yui_shell_show_modal} from "./shell_modals.js";
-import {yui_shell_route_map} from "./c_yui_shell.js";
+import {yui_shell_nav_map} from "./c_yui_shell.js";
 
 import i18next from "i18next";
 
 
 /***************************************************************
- *  Build a nested tree from the flat route list. Each node:
- *  {seg, route, label, registered, target, children:{seg:node}}.
- *  Intermediate path segments with no registered route of their
- *  own become structural nodes (no link).
- ***************************************************************/
-function build_route_tree(routes)
-{
-    let root = {seg: "", route: "/", label: "/", registered: false, children: {}};
-    for(let r of routes) {
-        if(r.route === "/") {
-            root.registered = true;
-            root.target = r.target;
-            root.label = r.label;
-            continue;
-        }
-        let parts = r.route.split("/").filter((s) => s.length > 0);
-        let node = root;
-        let acc = "";
-        for(let p of parts) {
-            acc += "/" + p;
-            if(!node.children[p]) {
-                node.children[p] = {
-                    seg: p, route: acc, label: p, registered: false, children: {}
-                };
-            }
-            node = node.children[p];
-        }
-        node.registered = true;
-        node.target = r.target;
-        node.label = r.label;
-    }
-    return root;
-}
-
-/***************************************************************
- *  Render one tree node as an <li> (with a nested <ul> for children).
- *  A registered route is a real hash link; a structural node is plain.
+ *  Render one nav node as an <li> (with a nested <ul> for children),
+ *  preserving the given order. A node with a `route` is a live hash
+ *  link; a node with an `event` is an action (shown, not fired); a
+ *  structural/group node is plain text.
  ***************************************************************/
 function render_node(node)
 {
-    let children = Object.keys(node.children)
-        .sort()
-        .map((k) => render_node(node.children[k]));
-
-    let $label;
-    let seg_text = node.seg || "/";
-    if(node.registered) {
-        $label = createElement2(
-            ["a", {class: "ROUTEMAP_LINK", href: "#" + node.route,
-                   title: node.route}, [
-                ["span", {class: "ROUTEMAP_SEG"}, seg_text],
-                ["span", {class: "ROUTEMAP_NAME", i18n: node.label}, node.label]
-            ]]
-        );
-    } else {
-        $label = createElement2(
-            ["span", {class: "ROUTEMAP_STRUCT"}, seg_text]
-        );
+    let row = [];
+    if(node.icon && /^yi-[a-z0-9-]+$/.test(node.icon)) {
+        row.push(["span", {class: "icon ROUTEMAP_ICON"},
+            [["i", {class: node.icon}]]]);
+    }
+    row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label}, node.label]);
+    if(node.route) {
+        row.push(["code", {class: "ROUTEMAP_ROUTE"}, node.route]);
+    } else if(node.event) {
+        row.push(["span", {class: "ROUTEMAP_EVENT tag is-light is-small"},
+            node.event]);
     }
 
-    let kids = children.length
-        ? [createElement2(["ul", {class: "ROUTEMAP_UL"}, children])]
+    let $row;
+    if(node.route) {
+        $row = createElement2(
+            ["a", {class: "ROUTEMAP_LINK ROUTEMAP_ROW", href: "#" + node.route,
+                   title: node.route}, row]);
+    } else {
+        $row = createElement2(
+            ["span", {class: "ROUTEMAP_ROW ROUTEMAP_STRUCT"}, row]);
+    }
+
+    let kids = (node.children && node.children.length)
+        ? [createElement2(["ul", {class: "ROUTEMAP_UL"},
+            node.children.map(render_node)])]
         : [];
-    return createElement2(["li", {class: "ROUTEMAP_LI"}, [$label].concat(kids)]);
+    return createElement2(["li", {class: "ROUTEMAP_LI"}, [$row].concat(kids)]);
 }
 
 
@@ -99,13 +72,26 @@ function render_node(node)
 export function yui_shell_show_route_map(shell, opts)
 {
     let t = (opts && opts.t) || i18next.t.bind(i18next);
-    let routes = yui_shell_route_map(shell);
-    let tree = build_route_tree(routes);
+    let map = yui_shell_nav_map(shell);
+
+    /*  A synthetic root: the app (brand), then the Toolbar branch
+     *  (account menu included) and the primary-nav branches — all in
+     *  declaration order. */
+    let root = {
+        label:    map.brand.label || "app",
+        icon:     "",
+        route:    map.brand.route || "",
+        event:    "",
+        children: [
+            {label: "toolbar", icon: "", route: "", event: "",
+             kind: "group", children: map.toolbar}
+        ].concat(map.nav)
+    };
 
     let $tree = createElement2(
         ["div", {class: "ROUTEMAP_TREE"}, [
             createElement2(["ul", {class: "ROUTEMAP_UL ROUTEMAP_ROOT"},
-                [render_node(tree)]])
+                [render_node(root)]])
         ]]
     );
 
@@ -129,8 +115,7 @@ export function yui_shell_show_route_map(shell, opts)
         t:             t
     });
 
-    /*  Print just the tree: a body class scopes the @media print rules
-     *  in shell_route_map.css to hide everything else. */
+    /*  Print just the tree (a body class scopes the @media print rules). */
     let $print = $body.querySelector(".ROUTEMAP_PRINT");
     if($print) {
         $print.addEventListener("click", function() {
@@ -142,10 +127,12 @@ export function yui_shell_show_route_map(shell, opts)
             }
         });
     }
-    /*  A link click jumps to that route. Close the modal FIRST (so its
-     *  overlay history entry is retired cleanly while it is still the top
-     *  entry), then navigate on the next tick — pushing the route on top of
-     *  a settled history, not tangled with the overlay's synthetic entry. */
+
+    /*  A route link jumps there. Close the modal FIRST (retires its
+     *  overlay history entry while it is the top entry), then navigate on
+     *  the next tick — so the route is pushed onto settled history, not
+     *  tangled with the overlay's synthetic entry. Action nodes (no route)
+     *  are documentation only and do not fire. */
     $body.addEventListener("click", function(ev) {
         let $link = ev.target && ev.target.closest &&
             ev.target.closest(".ROUTEMAP_LINK");

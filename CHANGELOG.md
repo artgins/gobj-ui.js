@@ -12,9 +12,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   (see `ROUTING.md`): `yui_shell_navigate(shell, route, {push:true})` now creates
   a real browser Back entry (routes through `location.hash`); without `{push}` it
   replaces as before, so existing callers are unchanged. New
-  `yui_shell_route_map(shell)` exposes the registered route tree, and
+  `yui_shell_nav_map(shell)` exposes the **whole navigation surface** — the
+  toolbar (incl. the account dropdown), the primary menu and its live dynamic
+  tabs — as an ordered tree (declaration order, never alphabetised); each node
+  carries its icon, name, hash route or action event.
   `shell_route_map.js` / `yui_shell_show_route_map` render it as a **printable,
-  clickable site map** (the filesystem-like map of every reachable position).
+  clickable site map** meant to double as the app's basic documentation.
   `C_YUI_TREEDB_TOPICS`'s schema landing is now URL-addressable: a new
   `landing_routes` attr makes the cards↔schema toggle a push navigation
   (`.../db/<sel>/schema`), driven by `EV_SET_LANDING_VIEW`; the bare tab resets to

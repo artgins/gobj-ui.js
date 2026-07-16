@@ -2597,33 +2597,117 @@ function yui_shell_navigate(shell_gobj, route, opts)
 }
 
 /************************************************************
- *  Route map — the current registered route tree (declared nav +
- *  dynamic submenus), for a "site map" viewer. Returns a flat list
- *  of {route, label, target, menu_id} sorted by route; the caller
- *  builds the tree from the path segments. `target:true` means a
- *  real resting route (a mounts-a-view / action entry); `false` is a
- *  structural parent (e.g. a submenu with no target of its own).
- *  NOTE: view-owned deep levels (a topic, /info, /schema — subpaths
- *  a view owns, not declared routes) are NOT in the index and so are
- *  not listed; this is the navigable skeleton, not every leaf.
+ *  One node of the nav map from a declared config item, in
+ *  DECLARATION ORDER (never sorted). Recurses into static submenus
+ *  and toolbar dropdowns, and merges the LIVE dynamic submenu tabs
+ *  (added at runtime via yui_shell_set_submenu) by parent id.
  ************************************************************/
-function yui_shell_route_map(shell_gobj)
+function nav_node_from_item(it, index)
+{
+    if(!it || it.type === "divider" || it.type === "header") {
+        return null;
+    }
+    let action = it.action || {};
+    let route = it.route ||
+        (action.type === "navigate" ? action.route : "") || "";
+    let event = (action.type === "event") ? action.event : "";
+    let node = {
+        id:       it.id || "",
+        label:    it.name || it.wordmark || it.id || route || "",
+        icon:     it.icon || "",
+        route:    route,
+        event:    event,
+        kind:     it.type || (route ? "route" : (event ? "action" :
+                  (action.type || "item"))),
+        children: []
+    };
+
+    /*  Static submenu (declared) and toolbar dropdown (the account menu). */
+    let sub_items = (it.submenu && Array.isArray(it.submenu.items)) ?
+        it.submenu.items :
+        ((action.type === "dropdown" && Array.isArray(action.items)) ?
+            action.items : null);
+    if(sub_items) {
+        for(let s of sub_items) {
+            let n = nav_node_from_item(s, index);
+            if(n) {
+                node.children.push(n);
+            }
+        }
+    }
+
+    /*  Live dynamic submenu children (runtime tabs) — item_index entries
+     *  whose parent is this item, in item_index (insertion) order, minus
+     *  any already added statically. */
+    if(it.id && index) {
+        for(let r of Object.keys(index)) {
+            let e = index[r];
+            if(e && e.parent_item && e.parent_item.id === it.id &&
+                    !node.children.some((c) => c.route === r)) {
+                node.children.push({
+                    id:       (e.item && e.item.id) || "",
+                    label:    (e.item && e.item.name) || r,
+                    icon:     (e.item && e.item.icon) || "",
+                    route:    r,
+                    event:    "",
+                    kind:     "route",
+                    children: []
+                });
+            }
+        }
+    }
+    return node;
+}
+
+/************************************************************
+ *  Nav map — the WHOLE navigation surface as an ordered tree, for a
+ *  "site map" / documentation viewer: the toolbar (incl. the account
+ *  dropdown) and the primary menu (incl. live dynamic tabs), in
+ *  declaration order (never alphabetised). Returns:
+ *      { brand:{label,route}, toolbar:[node…], nav:[node…] }
+ *  where a node is {id,label,icon,route,event,kind,children[]}.
+ *  `route` is a navigable hash (or ""); `event` is the action it
+ *  fires. NOTE: view-owned deep levels (a topic, /info, /schema) are
+ *  subpaths a view owns, not declared routes, so they are not listed
+ *  — this is the navigable skeleton.
+ ************************************************************/
+function yui_shell_nav_map(shell_gobj)
 {
     let priv = gobj_read_attr(shell_gobj, "priv");
     let index = (priv && priv.item_index) || {};
-    let out = [];
-    for(let route of Object.keys(index)) {
-        let e = index[route];
-        let item = e && e.item;
-        out.push({
-            route:   route,
-            label:   (item && item.name) || route,
-            target:  !!(e && e.target),
-            menu_id: (e && e.menu_id) || ""
-        });
+    let config = gobj_read_attr(shell_gobj, "config") || {};
+
+    let brand = {label: "", route: ""};
+    let toolbar = [];
+    let tb = config.toolbar && Array.isArray(config.toolbar.items) ?
+        config.toolbar.items : [];
+    for(let it of tb) {
+        if(it && it.type === "brand") {
+            let a = it.action || {};
+            brand = {
+                label: it.wordmark || it.alt || it.id || "",
+                route: it.route || (a.type === "navigate" ? a.route : "") || ""
+            };
+            continue;
+        }
+        let n = nav_node_from_item(it, index);
+        if(n) {
+            toolbar.push(n);
+        }
     }
-    out.sort((a, b) => (a.route < b.route ? -1 : (a.route > b.route ? 1 : 0)));
-    return out;
+
+    let nav = [];
+    let prim = config.menu && config.menu.primary &&
+        Array.isArray(config.menu.primary.items) ?
+        config.menu.primary.items : [];
+    for(let it of prim) {
+        let n = nav_node_from_item(it, index);
+        if(n) {
+            nav.push(n);
+        }
+    }
+
+    return {brand: brand, toolbar: toolbar, nav: nav};
 }
 
 /*  Drawer helpers — toggle the off-canvas nav from the outside
@@ -2805,7 +2889,7 @@ export {
     register_c_yui_shell,
     yui_shell_of,
     yui_shell_navigate,
-    yui_shell_route_map,
+    yui_shell_nav_map,
     yui_shell_open_drawer,
     yui_shell_close_drawer,
     yui_shell_toggle_drawer,
