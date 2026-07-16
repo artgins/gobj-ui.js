@@ -165,6 +165,7 @@ function build_body(shell, t, on_jump)
         icon:     "",
         route:    map.brand.route || "",
         event:    "",
+        current:  !!map.brand.current,
         children: children
     };
 

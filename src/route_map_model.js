@@ -94,6 +94,32 @@ function nav_node_from_item(it, index)
 }
 
 /************************************************************
+ *  Deep-copy contributed sub-route nodes.
+ *
+ *  yui_shell_set_sub_routes() stores the CALLER's array by
+ *  reference — those objects belong to the mounted view and
+ *  outlive this build.  Splicing them into the tree as-is made
+ *  build_nav_map() a mutator of its own input: mark_current()
+ *  stamped `current: true` on a view-owned object and nothing
+ *  ever cleared it, so every later build kept the stale mark and
+ *  the map grew a second "you are here" per visited sub-route.
+ ************************************************************/
+function clone_nodes(nodes)
+{
+    let out = [];
+    for(let n of nodes) {
+        if(!n) {
+            continue;
+        }
+        let c = Object.assign({}, n);
+        c.children = Array.isArray(n.children) ? clone_nodes(n.children) : [];
+        delete c.current;
+        out.push(c);
+    }
+    return out;
+}
+
+/************************************************************
  *  Collect every route reachable from the given nodes (recursing
  *  into children, sub-route contributions included).
  ************************************************************/
@@ -151,7 +177,7 @@ function mark_current(groups, current_route)
 /************************************************************
  *  build_nav_map({config, item_index, sub_routes, event_handlers,
  *                 current_route}) →
- *      { brand:{label,route}, toolbar:[node…], nav:[node…],
+ *      { brand:{label,route,current?}, toolbar:[node…], nav:[node…],
  *        other:[node…] }
  *  where a node is {id,label,icon,route,event,gclass,kind,
  *  children[], current?}.  `route` is a navigable hash (or "");
@@ -167,7 +193,13 @@ function mark_current(groups, current_route)
  *    URL-only action routes, toolbar-less forms.  Brand-covered
  *    and menu-covered routes are excluded.
  *  - the node whose route best matches `current_route` is marked
- *    `current: true` ("you are here").
+ *    `current: true` ("you are here") — the brand included, since it
+ *    renders as the tree's root row.
+ *
+ *  PURE: the returned tree is built fresh every call, contributed
+ *  sub-route nodes included (they are cloned, never spliced in by
+ *  reference — see clone_nodes).  Nothing the caller passed in is
+ *  mutated, so repeated builds cannot accumulate state.
  ************************************************************/
 function build_nav_map(input)
 {
@@ -228,7 +260,8 @@ function build_nav_map(input)
      *  nodes (where the action is implemented). */
     let enrich = (node) => {
         if(node.route && Array.isArray(sub[node.route]) && sub[node.route].length) {
-            node.children = (node.children || []).concat(sub[node.route]);
+            node.children = (node.children || []).concat(
+                clone_nodes(sub[node.route]));
         }
         if(node.event && !node.gclass &&
                 Array.isArray(handlers[node.event]) && handlers[node.event].length) {
@@ -270,7 +303,13 @@ function build_nav_map(input)
     }
     other.forEach(enrich);
 
-    mark_current([toolbar, nav, other], current_route);
+    /*  The brand is rendered as the tree's ROOT row (shell_route_map),
+     *  so it is markable like any other route — and it is the only
+     *  rendered node in neither group, which left an app whose brand
+     *  routes home unable to show "you are here" at all.  Marked LAST:
+     *  a menu item declaring the same route is the more useful hit, and
+     *  the first exact match wins.                                      */
+    mark_current([toolbar, nav, other, [brand]], current_route);
 
     return {brand: brand, toolbar: toolbar, nav: nav, other: other};
 }

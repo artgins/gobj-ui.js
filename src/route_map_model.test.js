@@ -144,6 +144,54 @@ describe("build_nav_map", () => {
         expect(m.nav[0].current).toBeUndefined();
     });
 
+    test("current: the brand's own route is markable (it renders as root)", () => {
+        const m = build_nav_map(make_input({ current_route: "/" }));
+        expect(m.brand.current).toBe(true);
+    });
+
+    test("current: a menu item beats the brand on the same route", () => {
+        const input = make_input({ current_route: "/" });
+        input.config.menu.primary.items.push(
+            { id: "home", name: "home", route: "/" });
+        const m = build_nav_map(input);
+        expect(m.nav.find(n => n.id === "home").current).toBe(true);
+        expect(m.brand.current).toBeUndefined();
+    });
+
+    /*  yui_shell_set_sub_routes stores the view's array BY REFERENCE, so a
+     *  builder that splices those objects in and stamps `current` on one
+     *  leaves the mark on a view-owned object forever: the next build shows
+     *  a second "you are here" and the viewer scrolls to the stale one. */
+    test("sub-route contributions are cloned, never marked in place", () => {
+        const sub_routes = { "/reports": [
+            { id: "", label: "a", icon: "", route: "/reports/topic",
+              event: "", gclass: "C_TOPIC", kind: "route", children: [] }
+        ] };
+        const marked = (m) => {
+            const out = [];
+            const visit = (n) => {
+                if(n.current) {
+                    out.push(n.route);
+                }
+                (n.children || []).forEach(visit);
+            };
+            m.toolbar.forEach(visit);
+            m.nav.forEach(visit);
+            m.other.forEach(visit);
+            return out;
+        };
+
+        const first = build_nav_map(
+            make_input({ sub_routes: sub_routes, current_route: "/reports/topic" }));
+        expect(marked(first)).toEqual(["/reports/topic"]);
+        /*  the caller's own object was never touched  */
+        expect(sub_routes["/reports"][0].current).toBeUndefined();
+
+        const second = build_nav_map(
+            make_input({ sub_routes: sub_routes, current_route: "/form" }));
+        expect(marked(second)).toEqual(["/form"]);
+    });
+
     test("current: at most one node, none when nothing matches", () => {
         const m = build_nav_map(make_input({ current_route: "/nope" }));
         const marked = [];

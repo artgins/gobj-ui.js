@@ -791,10 +791,29 @@ function build_item_index(gobj, config)
      *  route}; their TARGET (view gclass, or kind:"action" event +
      *  redirect) lives here so the route resolves by URL on reload /
      *  deep-link.  Same precedence as menus: only fill or upgrade an
-     *  entry without a target — never clobber a menu's own target.   */
+     *  entry without a target — never clobber a menu's own target.
+     *
+     *  A route IS a path, so only "/…" keys are indexed.  JSON has no
+     *  comments and these configs annotate themselves with sibling
+     *  `_name_comment` string keys (the established idiom — see
+     *  app_config.json); indexing one built a route entry whose target
+     *  was the comment TEXT, which the site map then rendered as a
+     *  clickable row leading nowhere, and which resolve_route would
+     *  happily match.  Anything else under a "/…" key is malformed and
+     *  says so.                                                        */
     let routes = (config.shell && config.shell.routes) || {};
     for(let route in routes) {
+        if(route.charAt(0) !== "/") {
+            continue;
+        }
         let t = routes[route] || null;
+        if(t !== null && typeof t !== "object") {
+            log_error(
+                `C_YUI_SHELL: route '${route}' target is not an object ` +
+                `(${typeof t}) — ignored`
+            );
+            continue;
+        }
         let prev = priv.item_index[route];
         if(!prev || (!prev.target && t)) {
             priv.item_index[route] = {

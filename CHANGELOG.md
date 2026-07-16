@@ -84,6 +84,29 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   (`redirect:"back"`, the wattyzer idiom) — the offline QA surface for this
   whole flow (`_qa_sitemap.mjs`).
 
+- **fix(site map): config comments are not routes; "you are here" is
+  singular; the brand can hold it.** Three defects in the new map, all found
+  reviewing it:
+  - JSON has no comments, so these configs annotate `shell.routes` with
+    sibling `_name_comment` **string** keys (the established idiom, used by
+    the test-app and wattyzer). The shell indexed **every** key of the table,
+    building a route entry whose target was the comment TEXT — harmless while
+    nothing enumerated the index, but the map's new "other routes" group
+    rendered it as a clickable row that redirects to the default, and
+    `resolve_route` would have matched it. A route **is** a path: only `"/…"`
+    keys are indexed now, and a non-object target under one is an error, not
+    a silent skip.
+  - `yui_shell_set_sub_routes` stores the **caller's** node objects by
+    reference, and the builder spliced them straight in — so marking the
+    current node **mutated a view-owned object that nothing ever cleared**.
+    Every later build kept the stale mark: two `ROUTEMAP_HERE` badges, and
+    `scroll_to_current` scrolling to the wrong one. Contributed nodes are
+    cloned; `build_nav_map` is pure again, as documented.
+  - the **brand** was the one rendered node in neither `toolbar`, `nav` nor
+    `other`, so an app whose brand routes home (`/`) could never show "you
+    are here" at all. It is marked last, so a menu item on the same route
+    still wins.
+
 - **fix(shell): route normalization.** Hashes come from the outside world —
   typed URLs, shared links, old bookmarks. `#/a/b/` (trailing slash) missed the
   route index entirely (the ancestor walk pops a real segment first), silently
