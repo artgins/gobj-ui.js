@@ -15,6 +15,7 @@ import {
     gobj_write_attr,
     gobj_create_service,
     gobj_find_service,
+    gobj_start,
     set_log_callback,
     set_console_log_enabled,
     gobj_set_trace_machine_format,
@@ -1526,7 +1527,7 @@ function setup_dev(self, show)
     if(show) {
         ensure_dev_style();
 
-        gobj_create_service(
+        let win = gobj_create_service(
             "Developer-Window",
             "C_YUI_WINDOW",
             {
@@ -1552,6 +1553,10 @@ function setup_dev(self, show)
             },
             self
         );
+        /*  c_yuno's mt_play only starts the DEFAULT service, so a service
+         *  created here is ours to start; unstarted, it shows up in every
+         *  trace line as `!!C_YUI_WINDOW^Developer-Window`. */
+        gobj_start(win);
 
         kw_set_local_storage_value("open_developer_window", 1);
 

@@ -2,22 +2,24 @@
  *          c_demo_main.js
  *
  *      C_DEMO_MAIN — a minimal stand-in for the legacy "__yui_main__"
- *      service. Some legacy components (e.g. C_YUI_MAP) look up
- *      gobj_find_service("__yui_main__") to subscribe to its EV_RESIZE
- *      and reflow on window resize. The declarative shell does not
- *      provide it, so this tiny service does: it publishes EV_RESIZE on
- *      window `resize`. Registering a "__yui_main__" service also
- *      silences the "gobj service not found: __yui_main__" log those
- *      components emit when it is absent.
+ *      service. Some legacy components look it up with
+ *      gobj_find_service("__yui_main__") and read its `theme` attr to
+ *      pick a light/dark variant; the declarative shell provides no such
+ *      service, so this tiny one does. Registering it also silences the
+ *      "gobj service not found: __yui_main__" log those components emit
+ *      when it is absent.
+ *
+ *      It used to publish EV_RESIZE on window `resize` for components to
+ *      subscribe to. That path is gone: every one of them (C_YUI_WINDOW,
+ *      C_YUI_MAP, the graph) now takes the browser's resize/ResizeObserver
+ *      directly — start-independent, and one mechanism instead of two.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
     SDATA, SDATA_END, data_type_t,
-    event_flag_t,
     gclass_create, log_error,
-    gobj_publish_event,
 } from "@yuneta/gobj-js";
 
 
@@ -38,7 +40,6 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
-    on_resize: null,
 };
 
 let __gclass__ = null;
@@ -53,34 +54,8 @@ let __gclass__ = null;
 
 
 
-/***************************************************************
- *          Framework Method: Start
- ***************************************************************/
-function mt_start(gobj)
-{
-    let priv = gobj.priv;
-
-    priv.on_resize = function() {
-        gobj_publish_event(gobj, "EV_RESIZE", {
-            width:  window.innerWidth,
-            height: window.innerHeight
-        });
-    };
-    window.addEventListener("resize", priv.on_resize);
-}
-
-/***************************************************************
- *          Framework Method: Stop
- ***************************************************************/
-function mt_stop(gobj)
-{
-    let priv = gobj.priv;
-
-    if(priv.on_resize) {
-        window.removeEventListener("resize", priv.on_resize);
-        priv.on_resize = null;
-    }
-}
+/*  No framework methods: this service is a `theme` attr holder, nothing
+ *  more. */
 
 
 
@@ -96,8 +71,6 @@ function mt_stop(gobj)
  *              FSM
  ***************************************************************/
 const gmt = {
-    mt_start:  mt_start,
-    mt_stop:   mt_stop
 };
 
 /***************************************************************
@@ -114,10 +87,7 @@ function create_gclass(gclass_name)
         ["ST_IDLE", []]
     ];
 
-    /*  EV_RESIZE is an optional-subscriber output event (the map may or
-     *  may not be mounted), so tag it NO_WARN_SUBS. */
     const event_types = [
-        ["EV_RESIZE",  event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
     __gclass__ = gclass_create(

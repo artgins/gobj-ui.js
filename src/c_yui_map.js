@@ -27,6 +27,7 @@ import {
     gobj_read_bool_attr,
     gobj_find_service,
     gobj_create_service,
+    gobj_start,
     gobj_name,
 } from "@yuneta/gobj-js";
 
@@ -203,24 +204,6 @@ function mt_create(gobj)
         // Observe the element
         resizeObserver.observe($map.parentNode);
     }
-}
-
-/***************************************************************
- *          Framework Method: Start
- ***************************************************************/
-function mt_start(gobj)
-{
-    let __yui_main__ = gobj_find_service("__yui_main__", true);
-    if(__yui_main__) {
-        gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
-    }
-}
-
-/***************************************************************
- *          Framework Method: Stop
- ***************************************************************/
-function mt_stop(gobj)
-{
 }
 
 /***************************************************************
@@ -601,6 +584,11 @@ function onClick(gobj, e)
             },
             gobj
         );
+        if(!gobj_window) {
+            log_error(`${gobj_name(gobj)}: cannot create the marker window`);
+            return;
+        }
+        gobj_start(gobj_window);
 
     } else {
         // Initialize a popup
@@ -830,18 +818,6 @@ function ac_hide(gobj, event, kw, src)
     return 0;
 }
 
-/************************************************************
- *
- ************************************************************/
-function ac_resize(gobj, event, kw, src)
-{
-    if(!gobj_read_bool_attr(gobj, "dimensions_with_parent_observer")) {
-        // TODO
-    }
-
-    return 0;
-}
-
 
 
 
@@ -857,8 +833,6 @@ function ac_resize(gobj, event, kw, src)
  *---------------------------------------------*/
 const gmt = {
     mt_create:  mt_create,
-    mt_start:   mt_start,
-    mt_stop:    mt_stop,
     mt_destroy: mt_destroy
 };
 
@@ -883,8 +857,7 @@ function create_gclass(gclass_name)
             ["EV_REFRESH",                  ac_refresh,             null],
             ["EV_SELECT",                   ac_select,              null],
             ["EV_SHOW",                     ac_show,                null],
-            ["EV_HIDE",                     ac_hide,                null],
-            ["EV_RESIZE",                   ac_resize,              null]
+            ["EV_HIDE",                     ac_hide,                null]
         ]]
     ];
 
@@ -898,8 +871,7 @@ function create_gclass(gclass_name)
         ["EV_REFRESH",                  0],
         ["EV_SELECT",                   0],
         ["EV_SHOW",                     0],
-        ["EV_HIDE",                     0],
-        ["EV_RESIZE",                   0]
+        ["EV_HIDE",                     0]
     ];
 
     __gclass__ = gclass_create(

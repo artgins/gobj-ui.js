@@ -1527,6 +1527,7 @@ function open_json_viewer(gobj)
             close_json_viewer(gobj);
             return;
         }
+        gobj_start(priv.json_win);
     }
 
     request_print_tranger(gobj, "");

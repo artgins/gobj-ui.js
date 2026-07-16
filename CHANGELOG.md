@@ -7,6 +7,26 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **BREAKING(window, map, treedb-graph): the legacy `__yui_main__`/`EV_RESIZE`
+  path is retired; every window is STARTED.** Windows were created with
+  `gobj_create_service` and never started — `c_yuno`'s `mt_play` only starts the
+  DEFAULT service, so each one showed up in every trace line as
+  `!!C_YUI_WINDOW^<name>`, which is the framework saying the gobj is not
+  running. The reason they were never started was circular: `mt_start`
+  subscribed to `EV_RESIZE` from a legacy C_YUI_MAIN `__yui_main__` service, so
+  `C_YUI_WINDOW` wired its resize natively in `mt_create` to be
+  start-independent and nobody bothered starting them. That legacy path is now
+  gone — C_YUI_SHELL provides no `__yui_main__`, so it never fired under v2, and
+  where an app did provide one it just duplicated the native listener. Every
+  window (`setup_dev`, the treedb graph/topics Raw JSON, the map marker, the
+  tranger Keys/Raw JSON) is started at its creation site. Removed with it:
+  `C_YUI_WINDOW`'s `mt_start`/`mt_stop` (now empty) and its `EV_RESIZE`
+  action/event, `C_YUI_MAP`'s (whose `ac_resize` was an empty `// TODO` — the
+  real mechanism is its `ResizeObserver`), and `C_YUI_TREEDB_GRAPH`'s (whose
+  `ac_resize` only forwarded to `C_G6_NODES_TREE`, which already observes its
+  own container). **Migration:** an app that publishes `EV_RESIZE` from a
+  `__yui_main__` service can stop — nothing subscribes any more. Reading
+  `__yui_main__.theme` is unaffected.
 - **feat(window, modal): `title_prefix` — the data half of a title, so titles
   can change language.** Window and dialog titles are nearly always
   "<what> · <kind>" (`raw_tracks · keys`), and every caller composed that into

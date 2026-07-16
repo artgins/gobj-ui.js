@@ -155,10 +155,11 @@ function main()
         yuno
     );
 
-    /*  Minimal "__yui_main__" service: legacy components (C_YUI_MAP) look
-     *  it up to subscribe to EV_RESIZE. A registered service satisfies the
-     *  lookup (no "service not found" log) and gives the map real reflow. */
-    gobj_create_service("__yui_main__", "C_DEMO_MAIN", {}, yuno);
+    /*  Minimal "__yui_main__" service: legacy components look it up to read
+     *  its `theme` attr. A registered service satisfies the lookup (no
+     *  "service not found" log). It used to publish EV_RESIZE too; that
+     *  path was retired — components take the browser's resize directly. */
+    gobj_start(gobj_create_service("__yui_main__", "C_DEMO_MAIN", {}, yuno));
 
     /*  Window manager (dock/taskbar). A named service so C_YUI_WINDOW
      *  hosts (the Windows chapter, the Developer window) opt in via

@@ -35,7 +35,6 @@ import {
     gobj_destroy,
     gobj_write_bool_attr,
     gobj_write_integer_attr,
-    gobj_unsubscribe_event,
     gobj_stop,
     gobj_stop_children,
     gobj_is_running,
@@ -188,41 +187,18 @@ function mt_create(gobj)
     }
 
     /*  Keep the window inside the viewport on a breakpoint change.
-     *  Wired in mt_create (NOT mt_start) on purpose: windows are
-     *  often created via gobj_create_service WITHOUT being started
-     *  (e.g. setup_dev, the connection-info window), so mt_start
-     *  never runs — the legacy __yui_main__/EV_RESIZE path is dead
-     *  under C_YUI_SHELL too.  A native 'resize' listener is
-     *  start-independent and reuses handleResize() (clamp-to-screen
-     *  + optional re-center).  Detached in mt_destroy. */
+     *  The browser's own 'resize' is the source: this IS the OS
+     *  notification, and handleResize() clamps to screen (+ optional
+     *  re-center).  The legacy path — subscribing to EV_RESIZE from a
+     *  C_YUI_MAIN "__yui_main__" service — was retired: C_YUI_SHELL has
+     *  no such service, so it never fired under v2, and it duplicated
+     *  this listener wherever an app did provide one.  Detached in
+     *  mt_destroy. */
     let on_win_resize = function() {
         handleResize(gobj);
     };
     gobj_write_attr(gobj, "win_resize_handler", on_win_resize);
     window.addEventListener("resize", on_win_resize);
-}
-
-/***************************************************************
- *          Framework Method: Start
- ***************************************************************/
-function mt_start(gobj)
-{
-    let __yui_main__ = gobj_find_service("__yui_main__", false);
-    if(__yui_main__) {
-        gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
-    }
-}
-
-/***************************************************************
- *          Framework Method: Stop
- ***************************************************************/
-function mt_stop(gobj)
-{
-    // TODO quita esto para chequear el fallo dl_subscribings not implemented
-    let __yui_main__ = gobj_find_service("__yui_main__", false);
-    if(__yui_main__) {
-        gobj_unsubscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
-    }
 }
 
 /***************************************************************
@@ -1166,15 +1142,6 @@ function handleResize(gobj)
 /************************************************************
  *
  ************************************************************/
-function ac_resize(gobj, event, kw, src)
-{
-    handleResize(gobj);
-    return 0;
-}
-
-/************************************************************
- *
- ************************************************************/
 function ac_refresh(gobj, event, kw, src)
 {
     return 0;
@@ -1222,8 +1189,6 @@ function ac_close(gobj, event, kw, src)
  *---------------------------------------------*/
 const gmt = {
     mt_create:  mt_create,
-    mt_start:   mt_start,
-    mt_stop:    mt_stop,
     mt_destroy: mt_destroy
 };
 
@@ -1242,7 +1207,6 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
-            ["EV_RESIZE",       ac_resize,      null],
             ["EV_REFRESH",      ac_refresh,     null],
             ["EV_SHOW",         ac_show,        null],
             ["EV_HIDE",         ac_hide,        null],
@@ -1257,7 +1221,6 @@ function create_gclass(gclass_name)
         ["EV_WINDOW_TO_CLOSE",  event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_WINDOW_MOVED",     event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_WINDOW_RESIZED",   event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
-        ["EV_RESIZE",           0],
         ["EV_REFRESH",          0],
         ["EV_SHOW",             0],
         ["EV_HIDE",             0],

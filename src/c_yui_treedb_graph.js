@@ -192,15 +192,6 @@ function mt_create(gobj)
         log_error(`${gobj_name(gobj)} -> treedb_name not configured`);
     }
 
-    /*  Optional legacy integration: EV_RESIZE from C_YUI_MAIN
-     *  (old shell).  Under the new C_YUI_SHELL there is no
-     *  __yui_main__ — look it up SILENTLY (no verbose) so its
-     *  absence is not logged as an error every mount. */
-    let __yui_main__ = gobj_find_service("__yui_main__");
-    if(__yui_main__) {
-        gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
-    }
-
     /*
      *  set canvas_id, before build_ui()
      */
@@ -666,6 +657,7 @@ function open_json_viewer(gobj)
             close_json_viewer(gobj);
             return;
         }
+        gobj_start(priv.json_win);
     }
 
     request_print_tranger(gobj, "");    /*  first fetch: whole tranger, collapsed  */
@@ -2071,15 +2063,6 @@ function ac_hide(gobj, event, kw, src)
     return gobj_send_event(priv.gobj_nodes_tree, event, kw, gobj);
 }
 
-/************************************************************
- *  we are subscribed to EV_RESIZE from __yui_main__
- ************************************************************/
-function ac_resize(gobj, event, kw, src)
-{
-    let priv = gobj.priv;
-    return gobj_send_event(priv.gobj_nodes_tree, event, kw, gobj);
-}
-
 
 
 
@@ -2142,7 +2125,6 @@ function create_gclass(gclass_name)
             ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
-            ["EV_RESIZE",                   ac_resize,                  null],
             ["EV_TRANSPORT_STATE",          ac_transport_state,         null],
         ]]
     ];
@@ -2179,7 +2161,6 @@ function create_gclass(gclass_name)
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
-        ["EV_RESIZE",                   0],
         ["EV_TRANSPORT_STATE",          0],
     ];
 
