@@ -32,6 +32,8 @@ import {
 
 import {Graph, NodeEvent} from "@antv/g6";
 
+import {yui_is_dark, yui_watch_theme} from "./yui_theme.js";
+
 import {t} from "i18next";
 
 /***************************************************************
@@ -54,6 +56,7 @@ SDATA_END()
 let PRIVATE_DATA = {
     $container:     null,
     graph:          null,
+    theme_observer: null,   // MutationObserver on <html data-theme>
 };
 
 let __gclass__ = null;
@@ -84,11 +87,22 @@ function mt_create(gobj)
 
 function mt_start(gobj)
 {
+    /*  The graph picks its colours from the theme as it is BUILT, so a
+     *  theme switch only lands with a rebuild. Translate the DOM mutation
+     *  into EV_THEME and let the action rebuild. */
+    gobj.priv.theme_observer = yui_watch_theme(gobj);
+
     build_graph(gobj);
 }
 
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
+    if(priv.theme_observer) {
+        priv.theme_observer.disconnect();
+        priv.theme_observer = null;
+    }
     destroy_graph(gobj);
 }
 
@@ -121,19 +135,6 @@ function build_ui(gobj)
                  style: 'position:relative; height:100%; min-height:0;'}, []]
     );
     gobj_write_attr(gobj, "$container", $container);
-}
-
-/************************************************************
- *   True on <html data-theme="dark"> (or OS dark when unset).
- ************************************************************/
-function is_dark_theme()
-{
-    let attr = document.documentElement.getAttribute("data-theme");
-    if(attr) {
-        return attr === "dark";
-    }
-    return typeof window !== "undefined" && window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 /************************************************************
@@ -221,7 +222,7 @@ function build_graph(gobj)
         return;
     }
 
-    let dark = is_dark_theme();
+    let dark = yui_is_dark();
     let graph;
     try {
         graph = new Graph({
@@ -349,6 +350,16 @@ function ac_show(gobj, event, kw, src)
 }
 
 /************************************************************
+ *   {theme: "dark"|"light"} — the app switched theme.
+ *   The colours are picked as the graph is built, so rebuild.
+ ************************************************************/
+function ac_theme(gobj, event, kw, src)
+{
+    build_graph(gobj);
+    return 0;
+}
+
+/************************************************************
  *   Rebuild from a fresh schema (descs arrived / changed).
  ************************************************************/
 function ac_rebuild(gobj, event, kw, src)
@@ -388,6 +399,7 @@ function create_gclass(gclass_name)
         ["ST_IDLE", [
             ["EV_NODE_CLICK",   ac_node_click,  null],
             ["EV_SHOW",         ac_show,        null],
+            ["EV_THEME",        ac_theme,       null],
             ["EV_REBUILD",      ac_rebuild,     null],
         ]]
     ];
@@ -395,6 +407,7 @@ function create_gclass(gclass_name)
     const event_types = [
         ["EV_NODE_CLICK",   0],
         ["EV_SHOW",         0],
+        ["EV_THEME",        0],
         ["EV_REBUILD",      0],
     ];
 

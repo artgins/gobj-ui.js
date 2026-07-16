@@ -57,6 +57,10 @@ import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "./c_yui_form.css";
 import {attach_clear, refresh_clear} from "./yui_inputs.js";
+/*  Read at field-build time only — deliberately NOT watched: the hosting
+ *  dialog rebuilds the form on every open, and re-rendering a form under
+ *  the user mid-edit would throw away what they typed. */
+import {yui_is_dark} from "./yui_theme.js";
 import "./tabulator.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
@@ -858,23 +862,6 @@ function apply_form_mode(gobj, $form)
 }
 
 /******************************************************************
- *  True when the app renders dark: explicit <html data-theme>, or
- *  the OS scheme when the attribute is absent ("system" theme
- *  removes it — see themes.js). Read at field-build time; the
- *  hosting dialog rebuilds the form on every open.
- ******************************************************************/
-function form_is_dark_theme()
-{
-    let attr = document.documentElement.getAttribute("data-theme");
-    if(attr) {
-        return attr === "dark";
-    }
-    return typeof window !== "undefined" &&
-        window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
-
-/******************************************************************
  *  With html field conf builds an html element,
  *  ready to add to the form
  *
@@ -1309,7 +1296,7 @@ function create_form_field(
         case "jsoneditor":
         {
             let attrs = {
-                class: 'jsoneditor' + (form_is_dark_theme() ? ' jse-theme-dark' : ''),
+                class: 'jsoneditor' + (yui_is_dark() ? ' jse-theme-dark' : ''),
                 name: name,
                 style: ''
             };

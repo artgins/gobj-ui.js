@@ -26,7 +26,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   `EV_THEME` + `ac_theme`; `C_YUI_GOBJ_TREE_JS`'s private `gt_is_dark()` is now
   `yui_is_dark()`. With that, `__yui_main__` has no consumer left in the
   library and the test-app's `C_DEMO_MAIN` is **deleted** — the legacy service
-  is gone from v2. **Migration:** an app registering a `__yui_main__` service
+  is gone from v2. `C_YUI_FORM` and `C_YUI_TREEDB_SCHEMA` dropped their own
+  hand-rolled copies of the is-dark helper for `yui_is_dark()` (there were
+  four); the schema graph, which also read the theme only at build time, now
+  watches it and rebuilds. `C_YUI_FORM` deliberately does **not** watch: it
+  reads at field-build time and the hosting dialog rebuilds it on every open,
+  so re-rendering under the user mid-edit would throw away what they typed. **Migration:** an app registering a `__yui_main__` service
   for gobj-ui's benefit can drop it; set `<html data-theme>` instead (the shell
   toggle already does). *Known gap:* `C_YUI_JSON_GRAPH`'s node cards have no
   dark palette (its canvas follows the theme, the cards stay light) — unlike
