@@ -13,7 +13,7 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > routing contract (URL = source of truth, push/replace history, the
 > position/preference/transient litmus).
 >
-> **BREAKING (unreleased):** `yui_shell_navigate(shell, route)` now **pushes** a
+> **BREAKING (4.0.0):** `yui_shell_navigate(shell, route)` now **pushes** a
 > history entry by default; pass `{replace:true}` for a redirect / normalization
 > / F5-restore — anything *code* decided rather than the user. It used to replace
 > unless given `{push:true}` (still accepted, now redundant). A call left
@@ -21,7 +21,7 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > failure-tolerant direction, since a forgotten `{push}` silently broke Back.
 > See ROUTING.md §7/§9.1.
 >
-> **BREAKING (unreleased):** the legacy `__yui_main__` theme/resize service is
+> **BREAKING (4.0.0):** the legacy `__yui_main__` theme/resize service is
 > **gone from v2**. Components are self-contained: the theme lives in
 > `<html data-theme>` and gclasses follow it through **`src/yui_theme.js`**
 > (`yui_theme_now()` / `yui_is_dark()` / `yui_watch_theme(gobj)`, all
@@ -30,13 +30,22 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > own `ResizeObserver`. An app that registered a `__yui_main__` service for
 > gobj-ui's benefit can delete it; do not re-add one.
 >
-> **BREAKING (unreleased):** a window/modal **`title` is now an i18n KEY**,
+> **BREAKING (4.0.0):** a window/modal **`title` is now an i18n KEY**,
 > rendered with `data-i18n` so it re-translates on language change. Pass the
 > key, never `t(key)`, and never compose data into it — the DATA half (a
 > topic/service/marker name) travels in the new **`title_prefix`** attr/opt,
 > shown before the title and never translated (`C_YUI_WINDOW`,
 > `yui_shell_show_modal`, the dock chip). The old `title_fn`/`retitle_modal`
 > hooks are removed.
+>
+> **BREAKING (4.0.0):** **minimize requires a window manager.**
+> `C_YUI_WINDOW` paints its minimize button only when the window has a
+> `manager` (`C_YUI_WINDOW_MANAGER`): minimize means "send to the dock", and
+> without a manager there is nowhere to send it — so `showMin` is now **ignored**
+> when there is no manager, and a manager-less window shows only
+> maximize/restore + close. The self-contained **"shade"** fallback (roll up to
+> the title bar in place) and its `is-shaded` CSS are **removed**; an app that
+> relied on shading needs to register a manager.
 
 ## Two maintained lines
 
@@ -45,15 +54,17 @@ consumers. They are independent snapshots (no shared git ancestry):
 
 | Line | Branch | Tag | Layout | Consumed by | How | Status |
 |------|--------|-----|--------|-------------|-----|--------|
-| **v2** | `main` | `2.0.0`+ | `src/` subdir | **wattyzer** | local `file:` dep on the yunetas submodule | active development |
-| **v1** | `v1` | `1.0.0` | `src/` subdir | **estadodelaire**, **hidraulia** | published npm `@yuneta/gobj-ui@^1.0.0` | frozen, maintenance-only |
+| **v2** | `main` | `2.0.0`+ | `src/` subdir | **wattyzer**, **gui_agent**, **gui_treedb** | local `file:` dep on the yunetas submodule | active development |
+| **v1** | `v1` | `1.0.1` | `src/` subdir | **estadodelaire**, **hidraulia** | published npm `@yuneta/gobj-ui@^1.0.1` (dist-tag `legacy`) | frozen, maintenance-only |
 
 - **v2 / `main`** is the active development line: the declarative shell
   (legacy-stack-free since `3.0.0`). It is embedded as a git submodule in **yunetas** at
-  `kernel/js/gobj-ui`, and **wattyzer** consumes that checkout as a `file:`
-  dependency (`@yuneta/gobj-ui` → `../../../yunetas/kernel/js/gobj-ui`),
-  importing by package specifier (`@yuneta/gobj-ui/src/*.js`, exports map
-  `"./src/*"`; the `index.js` barrel and the vite plugin stay at the package root).
+  `kernel/js/gobj-ui`, and **wattyzer** plus the in-repo JS yunos
+  (**`yunos/js/gui_agent`**, **`yunos/js/gui_treedb`**) consume that checkout as a
+  `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui` from a
+  yuno; `../../../yunetas/kernel/js/gobj-ui` from wattyzer), importing by package
+  specifier (`@yuneta/gobj-ui/src/*.js`, exports map `"./src/*"`; the `index.js`
+  barrel and the vite plugin stay at the package root).
 - **v1 / `v1`** is the frozen legacy-only stack (the declarative shell is not on
   this line). It is **published to npm**; estadodelaire and hidraulia depend on
   `@yuneta/gobj-ui@^1.0.0` from the registry. Land only maintenance fixes here,
@@ -151,6 +162,56 @@ client-side (no lazy drill).
 Logical DOM classes: `JSON_VIEWER`, `JSON_TOOLBAR`, `JSON_SEARCH`, `JSON_TREE`,
 `JSON_ROW`, `JSON_KEY`, `JSON_VALUE`, `JSON_SUMMARY`, `JSON_COLLAPSED`,
 `JSON_TIME`. The gclass imports its own `c_yui_json.css`.
+
+### C_YUI_TREEDB_SCHEMA — the treedb as a graph of topics (prototype)
+
+A landing view that draws a treedb as a **graph of topics** — one node per
+topic, one edge per hook/fkey relationship — built from the schema `descs`
+**alone**: no data, no backend calls. It is the "every treedb is a graph" rule
+applied to the schema itself, and an alternate landing to the topic cards. A
+node click opens that topic's table through a real hash navigation, so the
+graph is a navigation surface rather than a picture.
+
+**Contract:**
+
+- Attributes: `subscriber`, `descs` (`{topic_name: desc}`, the schema),
+  `node_route` (a hash-route template carrying a `{topic}` placeholder, e.g.
+  `#/topics/db/<sel>/{topic}` — a node click resolves it and navigates),
+  `system` (include the `__*__` system topics too, default `false`),
+  `$container` (mounted by the parent).
+- Events: `EV_SHOW`, `EV_REBUILD`, `EV_THEME` (restyle — it repaints the G6
+  graph in place, preserving the user's zoom/pan), plus the internal
+  `EV_NODE_CLICK` a node click sends into the FSM.
+
+Marked a **prototype**: it is barrel-exported and public from 4.0.0, but its
+shape may still move. Renders with `@antv/g6` (no CSS of its own).
+
+### Frontend view — `setup_frontend_view`
+
+`setup_frontend_view(self)` opens the **gobj tree of the app's own yuno** in a
+floating `C_YUI_WINDOW` — the browser-side peer of the Developer window
+(`setup_dev` / `build_dev_panel` / `apply_dev_traces` / `dev_window_was_open`,
+`yui_dev.js`), and the JS answer to `view-gobj-tree` on a C yuno. Wire it to an
+account-menu entry. It returns `null` when the window is already open, so the
+host can use it to toggle. The tree is a **pure child of the window**, so every
+teardown path (the ✕, or the host destroying the window to toggle the entry
+off) takes it down too.
+
+### Modals — `yui_shell_show_modal` and the `before_close` veto
+
+`yui_shell_show_modal(shell, $box, opts)` is the standard popup: pass
+`{dialog:true}` for the adaptive dialog (centered card with the X top-right on
+desktop, full-screen sheet with a back arrow on mobile), and the shell wires
+Escape / backdrop / browser Back for you. It returns a `close()`.
+
+**`opts.before_close`** guards the dismiss. It is consulted on every
+*user-driven* close — Escape, backdrop, the X / back-arrow, browser Back — and
+returning **`false` vetoes** it, so the caller can run its own flow instead (the
+canonical case is an unsaved-changes prompt that closes the modal itself once
+confirmed). On a vetoed browser-Back the history entry is re-armed, so Back
+keeps working afterwards. With no guard a modal closes exactly as it always
+did, and the returned `close()` always closes **unconditionally** — the veto is
+for the user's dismiss, not for the code's.
 
 ## Conventions
 
@@ -263,6 +324,31 @@ forwards the event anyway just repaints it twice, harmlessly. All Intl
 formatting (month names, weekday initials, the parked-bucket label) follows
 i18next's ACTIVE language, not `navigator.language` — the calendar never mixes
 scripts with the UI around it.
+
+### Inputs: a clear (✕) is the norm on free-text fields
+
+Every editable free-text field carries a clear button — a big help on mobile,
+and `C_YUI_FORM` wires it into its field factory automatically (text / password
+/ url / tel and the text-backed numerics; excluded: color, datetime-local,
+readonly). Build a bespoke one-off clear and it will look different from every
+other one, so use the helper:
+
+```js
+import {attach_clear, refresh_clear} from "@yuneta/gobj-ui";
+
+attach_clear($control, $input, on_clear);   // Bulma .delete inside the control
+```
+
+`attach_clear($control, $input, on_clear)` appends a Bulma `.delete` that is
+visible only while the field has content, hides itself while the input is
+`readonly`/`disabled`, dispatches a **synthetic `input` event** so existing
+handlers re-run on their own (which is why a component rarely needs a dedicated
+"cleared" event), then refocuses. Its tooltip carries `data-i18n-title` /
+`data-i18n-aria-label`, so it re-translates on a language change.
+
+`refresh_clear($input)` re-syncs the button's visibility after a change that
+fires **no** `input` event — a value loaded into the form, or `readonly` toggled
+by the form mode. No-op on an input that never got a clear.
 
 ### Logical class names on important DOM blocks
 

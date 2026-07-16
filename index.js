@@ -71,6 +71,7 @@ export {
 export { register_c_yui_treedb_topics } from "./src/c_yui_treedb_topics.js";
 export { register_c_yui_treedb_topic_with_form } from "./src/c_yui_treedb_topic_with_form.js";
 export { register_c_yui_treedb_graph } from "./src/c_yui_treedb_graph.js";
+export { register_c_yui_treedb_schema } from "./src/c_yui_treedb_schema.js";
 export { register_c_g6_nodes_tree } from "./src/c_g6_nodes_tree.js";
 
 /*

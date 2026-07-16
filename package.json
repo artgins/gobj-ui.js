@@ -1,6 +1,6 @@
 {
     "name": "@yuneta/gobj-ui",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "type": "module",
     "main": "dist/gobj-ui.cjs.js",
     "module": "dist/gobj-ui.es.js",
@@ -20,7 +20,7 @@
         "src/",
         "vite-plugin-yuneta-html.js"
     ],
-    "description": "Yuneta UI Library — v2 (active development) declarative shell (C_YUI_SHELL+NAV+PAGER+WIZARD) + legacy GClass GUI stack (C_YUI_MAIN/WINDOW/TABS/ROUTING + TreeDB editors + charts/maps).  Consumed by wattyzer.  The frozen legacy-only line lives on the v1 branch (consumed by estadodelaire and hidraulia).",
+    "description": "Yuneta UI Library — the active line: declarative shell (C_YUI_SHELL+NAV+PAGER+WIZARD) + windows, TreeDB views, forms, charts and maps.  Consumed by wattyzer and the yunetas JS yunos (gui_agent, gui_treedb).  The frozen legacy GClass GUI stack (C_YUI_MAIN/TABS/ROUTING) lives on the v1 branch, npm dist-tag 'legacy' (consumed by estadodelaire and hidraulia).",
     "scripts": {
         "build": "vite build",
         "test": "vitest run",
@@ -29,13 +29,13 @@
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",
         "@vitest/coverage-v8": "^4.1.6",
-        "@yuneta/gobj-js": "^7.7.0",
+        "@yuneta/gobj-js": "^7.8.0",
         "vite": "^8.0.10",
         "vitest": "^4.1.6"
     },
     "peerDependencies": {
         "@antv/g6": "^5.1.0",
-        "@yuneta/gobj-js": "^7.7.0",
+        "@yuneta/gobj-js": "^7.8.0",
         "bulma": "^1.0.4",
         "i18next": "^26.0.7",
         "maplibre-gl": "^5.24.0",

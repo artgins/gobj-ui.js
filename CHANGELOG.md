@@ -7,6 +7,31 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 4.0.0
+
+**BREAKING — five contract changes in one major.** Read the five `BREAKING`
+bullets below before upgrading; the headline is that `yui_shell_navigate()` now
+**pushes** history by default. Requires `@yuneta/gobj-js` **>= 7.8.0** (the
+site-map filter's placeholder re-translates through its new
+`data-i18n-placeholder` support). `C_YUI_TREEDB_SCHEMA` is barrel-exported from
+this release (still marked a prototype — its shape may move).
+
+- **feat(treedb-schema): `C_YUI_TREEDB_SCHEMA` is barrel-exported.** The
+  schema-graph landing was reachable only by its deep module path, so it was the
+  one component absent from `index.js` and from the README. It is public contract
+  from this major (documented with its attrs and events), while staying marked a
+  **prototype**: it is new, and its shape may still move. Apps that import it by
+  deep path — `gui_treedb` does, deliberately, like every other component it
+  loads, to keep the barrel's `uplot` import out of its bundle — are unaffected.
+
+- **docs(readme): the public surface that shipped undocumented.** The
+  `minimize`-needs-a-manager BREAKING had no README callout (4 of the 5 did);
+  `yui_shell_show_modal`'s new `before_close` veto, `setup_frontend_view`, and
+  the `attach_clear()` / `refresh_clear()` clear-(✕) norm were documented only in
+  this changelog. The npm `description` still advertised the legacy GClass stack
+  that `3.0.0` **removed**, and the consumer table listed only wattyzer for v2
+  (the in-repo `gui_agent` / `gui_treedb` consume it the same way).
+
 - **fix(shell, nav): private state stops being a public attribute.**
   `C_YUI_SHELL` and `C_YUI_NAV` declared `SDATA(DTP_POINTER, "priv", …)` and
   reached it with `gobj_read_attr(gobj, "priv")` — a category error: attributes
