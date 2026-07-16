@@ -2496,7 +2496,13 @@ function create_popover_base(left, top, className, borderColor, minWidth)
         'position:absolute;' +
         'left:' + left + 'px;' +
         'top:' + top + 'px;' +
-        'background:#fff;border:1px solid ' + borderColor + ';border-radius:6px;' +
+        /*  Bulma scheme vars, not #fff: the labels inside inherit their
+         *  colour, so a hardcoded white card turned into light-on-white —
+         *  invisible — the moment the app went dark. The vars flip with
+         *  <html data-theme>, so these follow the theme with no redraw. */
+        'background:var(--bulma-scheme-main, #fff);' +
+        'color:var(--bulma-text-strong, #1A1A1A);' +
+        'border:1px solid ' + borderColor + ';border-radius:6px;' +
         'padding:12px;z-index:100;pointer-events:all;' +
         'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
         'min-width:' + minWidth + 'px;font-size:13px;';
@@ -2563,7 +2569,9 @@ function create_form_select(parent, options, marginBottom)
 }
 
 const BTN_STYLE_CANCEL =
-    'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+    'flex:1;padding:6px;background:var(--bulma-scheme-main-bis, #fff);' +
+    'color:var(--bulma-text-strong, #333);' +
+    'border:1px solid var(--bulma-border-weak, #d9d9d9);' +
     'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
 
 function create_form_button_row(parent, buttons)

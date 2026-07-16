@@ -42,6 +42,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   them, so the popover follows the theme with no redraw (CSS vars flip with
   `<html data-theme>`).
 
+- **fix(treedb-graph): the edition popovers were light-on-white on dark.**
+  `create_popover_base()` (the shell behind the node/edge/create/confirm
+  popovers) hardcoded `background:#fff` and set no text colour, while the
+  labels inside inherit theirs — so once the app went dark the card stayed
+  white and its text turned light: invisible. Same for the Cancel button
+  (`background:#fff;color:#333`). Both now use Bulma scheme vars. Only reachable
+  in `edition` operation mode, which is why the read-only detail popover (a
+  different, already theme-aware path) looked fine. *Known gap:* the native
+  number input and select inside those popovers keep their light chrome — dark
+  text on white, readable but light-themed.
+
 - **fix(json-graph): dark palette for the cards.** Its canvas followed the
   theme but the cards did not: fill, key text and the by-type scalar colours
   were hardcoded for a light card, so on dark they were cream rectangles with a
