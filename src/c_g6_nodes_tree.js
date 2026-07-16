@@ -2526,7 +2526,8 @@ function create_form_color_input(parent, value, onInput)
     input.type = 'color';
     input.value = value;
     input.style.cssText =
-        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'width:100%;height:30px;padding:0;' +
+        'border:1px solid var(--bulma-border-weak, #d9d9d9);border-radius:4px;' +
         'cursor:pointer;margin-bottom:10px;';
     if(onInput) {
         input.addEventListener('input', onInput);
@@ -2542,8 +2543,15 @@ function create_form_number_input(parent, value, min, max, onInput)
     input.min = String(min);
     input.max = String(max);
     input.value = value;
+    /*  Set the colours explicitly: a native control with only a border
+     *  styled falls back to the BROWSER default (white + black), which is
+     *  what kept it light inside a dark popover. The spinner arrows are
+     *  OS-drawn and follow `color-scheme` (see c_yui_shell.css), not this. */
     input.style.cssText =
-        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'width:100%;padding:4px 6px;' +
+        'background:var(--bulma-scheme-main-bis, #fff);' +
+        'color:var(--bulma-text-strong, #333);' +
+        'border:1px solid var(--bulma-border-weak, #d9d9d9);border-radius:4px;' +
         'box-sizing:border-box;margin-bottom:10px;';
     if(onInput) {
         input.addEventListener('input', onInput);
@@ -2556,7 +2564,10 @@ function create_form_select(parent, options, marginBottom)
 {
     let select = document.createElement('select');
     select.style.cssText =
-        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'width:100%;padding:4px 6px;' +
+        'background:var(--bulma-scheme-main-bis, #fff);' +
+        'color:var(--bulma-text-strong, #333);' +
+        'border:1px solid var(--bulma-border-weak, #d9d9d9);border-radius:4px;' +
         'box-sizing:border-box;margin-bottom:' + (marginBottom || '12px') + ';';
     for(let opt of options) {
         let o = document.createElement('option');

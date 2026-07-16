@@ -5,6 +5,31 @@
  ***********************************************************************/
 
 /*============================================================
+ *      Native control scheme
+ *
+ *      The browser draws the ornaments of native controls itself —
+ *      number-input spinners, the select chevron, scrollbars, the
+ *      date picker — and picks their colours from `color-scheme`,
+ *      NOT from the background/color we set. Nobody declared it, so
+ *      they rendered light in a dark app whatever the CSS said.
+ *      Bulma flips its palette on [data-theme]; this makes the
+ *      browser's own chrome follow the same switch.
+ *============================================================*/
+/*  No [data-theme] is the "system" theme: Bulma renders per
+ *  prefers-color-scheme, so `light dark` — "supports both, follow the
+ *  OS" — is what tracks it. Pinning `light` here would force light
+ *  controls inside a system-dark app: the very bug this fixes. */
+:root {
+    color-scheme: light dark;
+}
+:root[data-theme="light"] {
+    color-scheme: light;
+}
+:root[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+/*============================================================
  *      Root + layers
  *============================================================*/
 .yui-shell {

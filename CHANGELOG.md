@@ -49,9 +49,20 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   white and its text turned light: invisible. Same for the Cancel button
   (`background:#fff;color:#333`). Both now use Bulma scheme vars. Only reachable
   in `edition` operation mode, which is why the read-only detail popover (a
-  different, already theme-aware path) looked fine. *Known gap:* the native
-  number input and select inside those popovers keep their light chrome — dark
-  text on white, readable but light-themed.
+  different, already theme-aware path) looked fine.
+
+- **fix(shell, treedb-graph): native controls follow the theme —
+  `color-scheme` at `:root`.** The number input and select inside the graph's
+  edition popovers styled only their border, so they fell back to the browser
+  default (white + black) and stayed light inside a dark popover; they now take
+  Bulma scheme vars. But their ORNAMENTS — spinner arrows, the select chevron,
+  scrollbars — are drawn by the browser from `color-scheme`, never from
+  background/color, and nothing declared it. `c_yui_shell.css` now does, keyed
+  off the same `[data-theme]` Bulma switches on: `light` / `dark` explicitly,
+  and `light dark` (follow the OS) when the attribute is absent — the "system"
+  theme, where Bulma renders per `prefers-color-scheme`; pinning `light` there
+  would force light controls inside a system-dark app. This reaches every
+  native control in an app importing `c_yui_shell.css`, which is the point.
 
 - **fix(json-graph): dark palette for the cards.** Its canvas followed the
   theme but the cards did not: fill, key text and the by-type scalar colours
