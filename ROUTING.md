@@ -170,10 +170,14 @@ rare exception — see the shell's action-route handling).
   pushes on click; the shell routes on `hashchange`. Deep-linkable and
   Back-friendly for free. Prefer these for in-content navigation.
 - **Programmatic** — from a controller that decides to move the user:
-  `yui_shell_navigate(shell, route, {push:true})` for a genuine **move** (creates
-  a Back entry via the hash). Without `{push}` (the historical default) it
-  **replaces** — use that for redirects / normalizations / F5-restores. Be
-  explicit at every call site (see §9.1 for the migration state).
+  `yui_shell_navigate(shell, route)` **pushes** (creates a Back entry via the
+  hash). That is the default because it is the safe one: a forgotten `{push}`
+  used to silently break Back, whereas a forgotten `{replace}` merely leaves one
+  extra history entry. Pass `{replace:true}` when **code** decided the move —
+  redirects, normalizations, submenu-parent → default child, F5-restores.
+  `{push:true}` is redundant but still accepted, so a call site may state its
+  intent explicitly. **Rule of thumb (§2): a human chose it → default; code
+  chose it → `{replace:true}`.**
 - **Back/Forward** need no code: they change the hash, the shell re-routes
   through the same path, views react to `EV_ROUTE_CHANGED` (including an empty
   `subpath` → view home).
@@ -202,14 +206,22 @@ rare exception — see the shell's action-route handling).
 The shell's engine (route index, resolution, `subpath`, overlay stack, the
 nav-click → `location.hash` push path) implements this contract.
 
-1. **push vs replace on programmatic navigation** — mechanism **landed**:
-   `yui_shell_navigate(shell, route, {push:true})` pushes; the default still
-   replaces (so untouched callers are unchanged). **Migration is per-caller and
-   ongoing:** gui_treedb's user-move sites (topic/mode select, ← topics, "manage
-   connections") now pass `{push:true}`; **gui_agent** (all redirects — correct
-   as-is) and **wattyzer** (has user-moves that should adopt `{push:true}`) are
-   **not yet migrated**. The long-term goal is to flip the default to push once
-   all consumers are explicit.
+1. **push vs replace on programmatic navigation** — **done**. Every consumer is
+   explicit and the default is now **push**; `{replace:true}` marks the
+   code-decided moves. Per consumer:
+   - **gui_treedb** — user moves (topic/mode select, ← topics, "manage
+     connections") push; its four `c_app.js` fix-ups (deselected tab, F5
+     re-land, deep-link auto-open, workspace → first tab) are `{replace:true}`.
+   - **gui_agent** — audited: it has no programmatic user moves at all (its
+     moves are nav clicks, which push through the shell). All three sites are
+     redirects and carry `{replace:true}`.
+   - **wattyzer** — user moves (device/monitoring card → history, history ←
+     realtime, treedb topic/mode select) push; `nav_back_or_default()`'s
+     root fallback is `{replace:true}`.
+
+   Note the asymmetry that justifies the default: a forgotten `{push}` silently
+   broke Back (the bug this debt was about), while a forgotten `{replace}` only
+   leaves a redundant history entry. The default is the failure-tolerant one.
 2. **Connections tab as a remembered position** — **fixed** (gui_treedb): the
    picker is recorded as a first-class active position (`CONNECTIONS_TAB`
    sentinel), so re-entering a workspace returns to it; `active_tabs` now mirrors

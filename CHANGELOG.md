@@ -7,6 +7,25 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(treedb-topics): readable toolbar on mobile.** The toolbar never holds
+  more than two buttons at once (back|schema-toggle left, raw-json right), so
+  the labels now stay on mobile instead of collapsing to bare icons — `←` and
+  `👁` side by side read as the same control. The raw-json button also moved
+  last with `margin-left:auto`, so it sits flush right, away from the back
+  arrow, in both the landing and topic states. A deliberate exception to the
+  icon-only-on-mobile rule, noted in the code; the graph toolbar has many more
+  controls and keeps `is-hidden-mobile`.
+
+- **BREAKING(shell): `yui_shell_navigate()` now PUSHES by default.** It used to
+  replace unless the caller passed `{push:true}`; it now creates a Back entry
+  unless the caller passes `{replace:true}`. `{push:true}` stays accepted (now
+  redundant) so migrated call sites keep documenting their intent. **Migration:**
+  any call that is a redirect / normalization / F5-restore — anything CODE
+  decided rather than the user — must add `{replace:true}`, otherwise it leaves
+  a spurious Back entry. Calls that are genuine user moves need no change and
+  gain working Back/Forward. In-tree consumers (gui_treedb, gui_agent, wattyzer)
+  are migrated. Rationale and the per-caller inventory: `ROUTING.md` §7/§9.1.
+
 - **feat(shell): event → handler-gclass registry for the site map.** New
   `yui_shell_register_event_handler(shell, event, gclass)`: a gclass that handles
   a toolbar/account action event self-declares, so the site map stamps the

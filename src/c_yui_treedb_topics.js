@@ -251,30 +251,24 @@ function build_ui(gobj)
             ['div', {class: 'is-flex-grow-0'}, [
                 ['div', {class: 'is-flex is-align-items-center TREEDB_TOPICS_TOOLBAR',
                          style: 'gap:.25rem; padding:.25rem .25rem;'}, [
+                    /*  This toolbar never holds more than TWO buttons at once
+                     *  (back|toggle on the left, json on the right), so the
+                     *  labels stay on mobile — a deliberate exception to the
+                     *  icon-only-on-mobile rule: two bare squares side by side
+                     *  read as the same control. The graph's toolbar has many
+                     *  more, so it keeps is-hidden-mobile. */
+
                     /*  Back to the topic-cards grid (cards-landing mode only);
                      *  hidden until a topic is open. */
                     ['button', {class: 'button TREEDB_TOPICS_BACK is-hidden',
                                 title: t('topics'), 'aria-label': t('topics'),
                                 'data-i18n-title': 'topics', 'data-i18n-aria-label': 'topics'}, [
                         ['span', {class: 'icon'}, [['i', {class: 'yi-arrow-left'}]]],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'topics'}, 'topics']
+                        ['span', {i18n: 'topics'}, 'topics']
                     ], {
                         click: (evt) => {
                             evt.stopPropagation();
                             gobj_send_event(gobj, "EV_BACK_TO_TOPICS", {}, gobj);
-                        }
-                    }],
-                    /*  Inspect the treedb's raw tranger json (whole service,
-                     *  print-tranger, lazy drill).  */
-                    ['button', {class: 'button TREEDB_JSON_BTN',
-                                title: t('raw json'), 'aria-label': t('raw json'),
-                                'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
-                        ['span', {class: 'icon'}, [['i', {class: 'yi-eye'}]]],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'raw json'}, 'raw json']
-                    ], {
-                        click: (evt) => {
-                            evt.stopPropagation();
-                            gobj_send_event(gobj, "EV_OPEN_JSON", {}, gobj);
                         }
                     }],
                     /*  Landing view toggle: cards grid <-> schema graph
@@ -284,11 +278,26 @@ function build_ui(gobj)
                                 'data-i18n-title': 'schema graph',
                                 'data-i18n-aria-label': 'schema graph'}, [
                         ['span', {class: 'icon'}, [['i', {class: 'yi-hexagon-nodes'}]]],
-                        ['span', {class: 'is-hidden-mobile', i18n: 'schema'}, 'schema']
+                        ['span', {i18n: 'schema'}, 'schema']
                     ], {
                         click: (evt) => {
                             evt.stopPropagation();
                             gobj_send_event(gobj, "EV_TOGGLE_LANDING_VIEW", {}, gobj);
+                        }
+                    }],
+                    /*  Inspect the treedb's raw tranger json (whole service,
+                     *  print-tranger, lazy drill). Last + margin-left:auto:
+                     *  flush right, away from the back arrow it sat next to. */
+                    ['button', {class: 'button TREEDB_JSON_BTN',
+                                style: 'margin-left:auto;',
+                                title: t('raw json'), 'aria-label': t('raw json'),
+                                'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
+                        ['span', {class: 'icon'}, [['i', {class: 'yi-eye'}]]],
+                        ['span', {i18n: 'raw json'}, 'raw json']
+                    ], {
+                        click: (evt) => {
+                            evt.stopPropagation();
+                            gobj_send_event(gobj, "EV_OPEN_JSON", {}, gobj);
                         }
                     }],
                 ]],

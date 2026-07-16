@@ -2582,20 +2582,22 @@ function yui_shell_of(gobj)
 /************************************************************
  *  Programmatic navigation.
  *
- *  `opts.push:true` — the user MOVED somewhere new: change the URL via
- *  the hash so the browser records a Back entry (routed through the same
- *  hashchange path as a nav click). Use for genuine navigations
- *  (selecting a tab/topic, opening a section) so Back/Forward traverse
- *  them.
+ *  Default — PUSH: the user MOVED somewhere new, so change the URL via
+ *  the hash and let the browser record a Back entry (routed through the
+ *  same hashchange path as a nav click). This is the common case and the
+ *  safe default: a human deliberately chose to go there, so Back must
+ *  return them.
  *
- *  Default (no opts / `opts.replace`) — REPLACE: sync the URL without a
- *  Back entry. Use for redirects, normalizations and F5-restores. This
- *  is the historical behaviour, so existing callers are unchanged; new
- *  code should be explicit (see ROUTING.md §2/§7).
+ *  `opts.replace:true` — REPLACE: sync the URL WITHOUT a Back entry. Use
+ *  when CODE decided the move for the user: redirects, normalizations,
+ *  submenu-parent → default child, F5-restores (see ROUTING.md §2/§7).
+ *
+ *  `opts.push:true` is redundant now (it IS the default) but stays valid,
+ *  so migrated call sites keep documenting their intent explicitly.
  ************************************************************/
 function yui_shell_navigate(shell_gobj, route, opts)
 {
-    if(opts && opts.push && gobj_read_attr(shell_gobj, "use_hash")) {
+    if(!(opts && opts.replace) && gobj_read_attr(shell_gobj, "use_hash")) {
         let target_hash = route_to_hash(route);
         if(window.location.hash !== target_hash) {
             /*  Push a real history entry; the hashchange handler mounts. */
