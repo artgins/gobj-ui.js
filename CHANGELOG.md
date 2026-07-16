@@ -54,6 +54,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   rebuilt with the default fit-whole-view, throwing away the user's zoom/pan
   mid-inspection; both now refresh with `{preserve_view: true}`
   (`refresh_json` learned the option, mirroring `refresh_tree`).
+- **fix(treedb-schema): a theme change keeps the camera here too.** The last
+  canvas still doing the whole-rebuild-on-restyle: `ac_theme` called
+  `build_graph`, which destroys the G6 instance and ends on
+  `render().then(fitView)` — with `zoom-canvas`/`drag-canvas` on, the user
+  lost zoom, pan and every dragged node. The theme-dependent styles moved to
+  `node_style(dark)`/`edge_style(dark)` (one place, used at build AND on
+  switch) and `ac_theme` now restyles the LIVE graph
+  (`setTheme` + `setNode` + `setEdge` + `draw()`), rebuilding only when there
+  is no graph to restyle (the "no topics" empty state). `EV_REBUILD` (fresh
+  schema = new data) still rebuilds.
 - **fix(theme): `yui_watch_theme` also watches the OS preference.** With
   `data-theme` absent (the "system" theme, declared by the `color-scheme`
   matrix), an OS auto-switch flipped the CSS but fired no `EV_THEME`, leaving

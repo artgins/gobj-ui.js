@@ -87,9 +87,9 @@ function mt_create(gobj)
 
 function mt_start(gobj)
 {
-    /*  The graph picks its colours from the theme as it is BUILT, so a
-     *  theme switch only lands with a rebuild. Translate the DOM mutation
-     *  into EV_THEME and let the action rebuild. */
+    /*  The graph picks its colours from the theme. Translate the DOM
+     *  mutation into EV_THEME and let the action restyle the live graph
+     *  (ac_theme) — a rebuild would reset the camera. */
     gobj.priv.theme_observer = yui_watch_theme(gobj);
 
     build_graph(gobj);
@@ -201,6 +201,34 @@ function schema_to_graph(gobj)
 }
 
 /************************************************************
+ *   The theme-dependent styles, in ONE place: they are applied
+ *   as the graph is built and re-applied on a theme switch
+ *   (ac_theme), which restyles the LIVE graph — rebuilding it
+ *   would drop the user's zoom/pan and any dragged node.
+ ************************************************************/
+function node_style(dark)
+{
+    return {
+        size:           40,
+        fill:           "#5B8FF9",
+        labelText:      (d) => d.id,
+        labelPlacement: "bottom",
+        labelFill:      dark ? "#e6e6e6" : "#333333",
+        labelBackground: true,
+        labelBackgroundFill: dark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.7)",
+        cursor:         "pointer",
+    };
+}
+
+function edge_style(dark)
+{
+    return {
+        stroke:   dark ? "#666666" : "#bbbbbb",
+        endArrow: true,
+    };
+}
+
+/************************************************************
  *   Build the G6 schema graph.
  ************************************************************/
 function build_graph(gobj)
@@ -230,22 +258,10 @@ function build_graph(gobj)
             autoResize: true,
             data:       data,
             node: {
-                style: {
-                    size:           40,
-                    fill:           "#5B8FF9",
-                    labelText:      (d) => d.id,
-                    labelPlacement: "bottom",
-                    labelFill:      dark ? "#e6e6e6" : "#333333",
-                    labelBackground: true,
-                    labelBackgroundFill: dark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.7)",
-                    cursor:         "pointer",
-                },
+                style: node_style(dark),
             },
             edge: {
-                style: {
-                    stroke:   dark ? "#666666" : "#bbbbbb",
-                    endArrow: true,
-                },
+                style: edge_style(dark),
             },
             layout: {
                 type:    "antv-dagre",
@@ -351,11 +367,33 @@ function ac_show(gobj, event, kw, src)
 
 /************************************************************
  *   {theme: "dark"|"light"} — the app switched theme.
- *   The colours are picked as the graph is built, so rebuild.
+ *   A restyle, not new data: repaint the LIVE graph and redraw,
+ *   so the user's zoom/pan and dragged nodes survive.  A rebuild
+ *   is only right when there is no graph to restyle — the "no
+ *   topics" empty state, whose message is built, not drawn.
  ************************************************************/
 function ac_theme(gobj, event, kw, src)
 {
-    build_graph(gobj);
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph) {
+        build_graph(gobj);
+        return 0;
+    }
+
+    let dark = (kw && kw.theme) ? (kw.theme === "dark") : yui_is_dark();
+    try {
+        graph.setTheme(dark ? "dark" : "light");
+        graph.setNode({style: node_style(dark)});
+        graph.setEdge({style: edge_style(dark)});
+        graph.draw().catch((e) => {
+            log_error(`${gobj_short_name(gobj)}: schema graph redraw failed: ${e}`);
+        });
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: schema graph restyle failed: ${e}`);
+    }
+
     return 0;
 }
 
