@@ -481,7 +481,7 @@ function build_popover(gobj, $container)
     let $close = document.createElement("button");
     $close.type = "button";
     $close.textContent = "×";
-    $close.title = t("Close");
+    $close.title = t("close");
     $close.style.cssText = `
         background: transparent;
         border: none;
@@ -591,7 +591,7 @@ function make_toolbar(gobj)
         ['select', {
                 class: 'select',
                 style: {height: toolbar_wide, "margin-left": "0.5em"},
-                title: t("Layout"),
+                title: t("layout"),
             },
             options,
             {
@@ -1208,11 +1208,11 @@ function get_node_info_rows(node_data)
 {
     let rows = [];
 
-    rows.push([t("GClass"),   node_data.gclass || "—"]);
-    rows.push([t("Name"),     node_data.name   || "—"]);
+    rows.push([t("gclass"),   node_data.gclass || "—"]);
+    rows.push([t("name"),     node_data.name   || "—"]);
 
     if(node_data.full_name && node_data.full_name !== node_data.short_name) {
-        rows.push([t("Full name"), node_data.full_name]);
+        rows.push([t("full name"), node_data.full_name]);
     }
 
     let role;
@@ -1227,7 +1227,7 @@ function get_node_info_rows(node_data)
     } else {
         role = "child";
     }
-    rows.push([t("Role"), role]);
+    rows.push([t("role"), role]);
 
     let status;
     if(!node_data.is_running) {
@@ -1237,19 +1237,19 @@ function get_node_info_rows(node_data)
     } else {
         status = "running";
     }
-    rows.push([t("Status"), status]);
-    rows.push([t("State"),  node_data.state || "—"]);
+    rows.push([t("status"), status]);
+    rows.push([t("state"),  node_data.state || "—"]);
 
     if(node_data.parent_short_name) {
-        rows.push([t("Parent"), node_data.parent_short_name]);
+        rows.push([t("parent"), node_data.parent_short_name]);
     }
 
     if(typeof node_data.num_children === "number") {
         let kids = node_data.num_children;
         if(kids > 0 && node_data.is_collapsed) {
-            rows.push([t("Children"), kids + " " + t("(collapsed)")]);
+            rows.push([t("children"), kids + " " + t("(collapsed)")]);
         } else if(kids > 0) {
-            rows.push([t("Children"), String(kids)]);
+            rows.push([t("children"), String(kids)]);
         }
     }
 

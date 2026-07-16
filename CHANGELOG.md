@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(gobj-tree): lower-case its i18n keys.** `c_yui_gobj_tree_js` was the
+  only module asking i18next for capitalised keys (`t("Close")`, `t("GClass")`,
+  `t("Status")`, …). Keys are lower-case by convention, so **no consumer could
+  define them without failing its own locale validator** — they rendered raw, in
+  every language. Now `close` / `gclass` / `status` / …, which every app already
+  defines for the common ones. No consumer defined the capitalised forms, so
+  nothing breaks; an app mounting this view must define `gclass`, `full name`,
+  `parent`, `children`, `(collapsed)` and `layout`.
+
 - **feat(index): export the site-map API from the barrel.**
   `yui_shell_show_route_map` and `yui_shell_register_event_handler` were only
   reachable via deep `./src/…` imports, so a consumer of the `index.js` barrel
