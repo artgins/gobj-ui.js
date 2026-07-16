@@ -7,6 +7,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(index): export the site-map API from the barrel.**
+  `yui_shell_show_route_map` and `yui_shell_register_event_handler` were only
+  reachable via deep `./src/…` imports, so a consumer of the `index.js` barrel
+  (wattyzer) could not mount the site map at all. Both are part of the public
+  surface now.
+
 - **fix(treedb-topics): readable toolbar on mobile.** The toolbar never holds
   more than two buttons at once (back|schema-toggle left, raw-json right), so
   the labels now stay on mobile instead of collapsing to bare icons — `←` and

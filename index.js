@@ -42,8 +42,15 @@ export {
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,
     yui_shell_close_dropdown,
+    yui_shell_register_event_handler,
 } from "./src/c_yui_shell.js";
 export { register_c_yui_nav } from "./src/c_yui_nav.js";
+/*
+ *  Site map: the whole navigation surface (toolbar + account menu +
+ *  nav + dynamic tabs + view-contributed sub-routes) as a clickable,
+ *  printable tree — the app's basic documentation (ROUTING.md).
+ */
+export { yui_shell_show_route_map } from "./src/shell_route_map.js";
 export {
     yui_shell_show_info,
     yui_shell_show_warning,
