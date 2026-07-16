@@ -67,9 +67,29 @@ a.ROUTEMAP_LINK .ROUTEMAP_NAME {
     padding: 0;
     font-size: 0.8rem;
 }
+/*  Action event badge — explicit colours (not Bulma's is-light tag) so it
+ *  stays legible in dark mode. */
 .ROUTEMAP_EVENT {
     font-family: var(--bulma-family-monospace, monospace);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
+    padding: 0.02rem 0.4rem;
+    border-radius: 0.25rem;
+    background: var(--bulma-background, #f0f0f0);
+    color: var(--bulma-text-strong, #363636);
+    border: 1px solid var(--bulma-border-weak, #dbdbdb);
+    white-space: nowrap;
+}
+[data-theme="dark"] .ROUTEMAP_EVENT {
+    background: rgba(255, 255, 255, 0.10);
+    color: #e6e6e6;
+    border-color: rgba(255, 255, 255, 0.20);
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .ROUTEMAP_EVENT {
+        background: rgba(255, 255, 255, 0.10);
+        color: #e6e6e6;
+        border-color: rgba(255, 255, 255, 0.20);
+    }
 }
 .ROUTEMAP_STRUCT .ROUTEMAP_NAME {
     color: var(--bulma-text-weak, #7a7a7a);
@@ -87,23 +107,32 @@ a.ROUTEMAP_LINK .ROUTEMAP_NAME {
     margin-top: 0.75rem;
 }
 
-/*  Print only the tree. The button sets body.routemap-printing; hide
- *  everything except the modal's route-map body, and show it plainly. */
+/*  Print only the tree. On print the button clones the tree into
+ *  `.routemap-print-area` (off-screen) and sets body.routemap-printing;
+ *  everything else is hidden regardless of where the window/modal lives. */
+.routemap-print-area {
+    display: none;
+}
 @media print {
-    body.routemap-printing > *:not(.yui-shell-modal-layer):not(#top-layer) {
+    body.routemap-printing > *:not(.routemap-print-area) {
         display: none !important;
     }
-    body.routemap-printing .ROUTEMAP_TREE {
+    body.routemap-printing .routemap-print-area {
+        display: block !important;
+    }
+    .routemap-print-area .ROUTEMAP_TREE {
         max-height: none;
         border: none;
         overflow: visible;
+        font-size: 10pt;
     }
-    body.routemap-printing .ROUTEMAP_ACTIONS,
-    body.routemap-printing .ROUTEMAP_HINT {
-        display: none !important;
-    }
-    body.routemap-printing .ROUTEMAP_LINK {
+    .routemap-print-area .ROUTEMAP_ROUTE,
+    .routemap-print-area .ROUTEMAP_NAME {
         color: #000 !important;
-        text-decoration: none;
+    }
+    .routemap-print-area .ROUTEMAP_EVENT {
+        background: transparent !important;
+        color: #000 !important;
+        border-color: #999 !important;
     }
 }

@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(shell): site map opens in a resizable window; dark-mode event badges
+  legible.** The site-map viewer now hosts its tree in a floating, resizable,
+  maximisable `C_YUI_WINDOW` (toggles; a modal is the fallback when
+  `C_YUI_WINDOW` isn't registered) so it can be viewed larger; Print clones the
+  tree off-screen so it prints alone. The action-event badges no longer use
+  Bulma's `is-light` tag — explicit theme-aware colours keep them readable in
+  dark mode.
+
 - **feat(shell): sub-route contributor protocol — the site map shows view-owned
   deep levels.** New `yui_shell_set_sub_routes(shell, base_route, nodes)`: a
   mounted view declares the dynamic children of its base route (topics, `/info`,
