@@ -10,7 +10,15 @@
  *          All Rights Reserved.
  ***********************************************************************/
 .ROUTEMAP_BODY {
-    max-width: 44rem;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;
+}
+/*  In the resizable window, fill the window body so the tree grows/shrinks
+ *  with it (the WINDOW_BODY is is-flex-grow-1 with a definite height). */
+.yui-window-body .ROUTEMAP_BODY {
+    height: 100%;
 }
 .ROUTEMAP_SEARCH_CTRL {
     max-width: 22rem;
@@ -35,12 +43,21 @@
     font-size: 0.85rem;
     line-height: 1.5;
     overflow: auto;
-    /*  Taller now it lives in a resizable window (grows with it). */
+    min-height: 6rem;
+    /*  Modal fallback: cap and scroll. In the window the rule below
+     *  makes it flex-fill instead. */
+    flex: 0 1 auto;
     max-height: 68vh;
     border: 1px solid var(--bulma-border-weak, #dbdbdb);
     border-radius: 0.375rem;
     padding: 0.75rem 1rem;
     background: var(--bulma-scheme-main, #fff);
+}
+/*  In the window: grow to fill the remaining height (after the filter
+ *  and print row) and scroll internally. */
+.yui-window-body .ROUTEMAP_TREE {
+    flex: 1 1 auto;
+    max-height: none;
 }
 .ROUTEMAP_UL {
     list-style: none;
