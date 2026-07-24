@@ -32,7 +32,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import "maplibre-gl/dist/maplibre-gl.css"; // Import MapLibre styles
-import maplibregl from "maplibre-gl"; // Import MapLibre JavaScript
+import * as maplibregl from "maplibre-gl"; // MapLibre GL JS 6 is ESM-only, no default export
 
 import {
     EditControl,

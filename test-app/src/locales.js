@@ -83,6 +83,7 @@ const es_translation = {
     "update": "actualizar",
     "create": "crear",
     "About": "Acerca de",
+    "Packages and versions": "Paquetes y versiones",
     "Preferences": "Preferencias",
     "preferences": "Preferencias",
     "prefs hint": "Un modal enlazable: la URL se queda en /prefs (redirect:'stay').",

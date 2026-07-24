@@ -327,29 +327,28 @@ function ac_open_prefs(gobj, event, kw, src)
 
 /***************************************************************
  *  Account-menu "About" entry (action:event EV_ABOUT). Shows a
- *  modal with the demo / gobj-ui / bundled-JSON-editor versions
- *  (injected by vite `define` from the respective package.json).
+ *  modal listing every package the demo uses and its installed
+ *  version (__PKG_VERSIONS__ is injected by vite `define`, read
+ *  from each package.json at build time). Package names are DATA,
+ *  not translatable — only the heading carries an i18n key.
  ***************************************************************/
 function ac_about(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    let row = (label, value) => ["tr", {}, [
-        ["td", {class: "has-text-grey pr-4", i18n: label, style: "white-space:nowrap;"}, label],
+    /*  A package name is DATA (no i18n key); the version is monospaced. */
+    let row = (name, version) => ["tr", {}, [
+        ["td", {class: "has-text-grey pr-4", style: "white-space:nowrap;"}, name],
         ["td", {class: "has-text-weight-medium"},
-            [["code", {}, value]]]
+            [["code", {}, version]]]
     ]];
 
     let $content = createElement2(
         ["div", {class: "DEMO_ABOUT content", style: "min-width:16rem;"}, [
-            ["p", {class: "is-size-6 mb-3 has-text-grey", i18n: "gobj-ui demo"},
-                "gobj-ui demo"],
+            ["p", {class: "is-size-6 mb-3 has-text-grey", i18n: "Packages and versions"},
+                "Packages and versions"],
             ["table", {class: "table is-narrow"}, [
-                ["tbody", {}, [
-                    row("gobj-ui", __GOBJ_UI_VERSION__),
-                    row("App", __APP_VERSION__),
-                    row("JSON editor", "vanilla-jsoneditor " + __JSONEDITOR_VERSION__)
-                ]]
+                ["tbody", {}, __PKG_VERSIONS__.map((pkg) => row(pkg.name, pkg.version))]
             ]]
         ]]
     );

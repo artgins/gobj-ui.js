@@ -7,6 +7,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **BREAKING(deps): `maplibre-gl` peerDependency bumped to `^6.0.0`.** v6 is
+  ESM-only with no default export, so consumers must `import * as maplibregl`.
+  `C_YUI_MAP` migrated accordingly; the map API surface it uses (`Map`,
+  `NavigationControl`, `GeolocateControl`, `LngLatBounds`, `Popup`, `Marker`,
+  single-arg `GeoJSONSource.setData`, awaited `getClusterExpansionZoom`) is
+  unchanged. A consumer that bundles the map with Vite 8 must also emit
+  maplibre's worker + shared chunk itself and point `setWorkerUrl()` at them —
+  Vite/rolldown cannot statically follow v6's dynamic
+  `new Worker(new URL(<variable>, import.meta.url))`, and a `.mjs` worker is
+  refused by browsers when the static host serves it as
+  `application/octet-stream`. The test-app's `vite.config.js`
+  (`maplibre_worker_assets`) + `src/main.js` are the reference wiring.
+
 ## 4.0.0
 
 **BREAKING — five contract changes in one major.** Read the five `BREAKING`

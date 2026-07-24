@@ -33,13 +33,93 @@ const read_version = (rel) => {
     }
 };
 
+/*
+ *  Resolve the INSTALLED version of a dependency (not the semver range), so
+ *  the About dialog reports what actually shipped. gobj-ui bundles its own
+ *  copy of the shared libs, so a package may live in either node_modules —
+ *  prefer the test-app's, fall back to gobj-ui's.
+ */
+const dep_version = (name) => {
+    for(const base of ["node_modules", "../node_modules"]) {
+        const v = read_version(`${base}/${name}/package.json`);
+        if(v !== "?") {
+            return v;
+        }
+    }
+    return "?";
+};
+
+/*
+ *  Full package list for the About dialog: the app, the gobj framework, then
+ *  every third-party runtime library the demo (and the gobj-ui components it
+ *  mounts) pull in, plus the build tool. Read at build time so it stays in
+ *  lockstep with what is installed.
+ */
+const pkg_versions = [
+    {name: "App (test-app)",     version: read_version("package.json")},
+    {name: "@yuneta/gobj-js",    version: read_version("../../gobj-js/package.json")},
+    {name: "@yuneta/gobj-ui",    version: read_version("../package.json")},
+    {name: "@antv/g6",           version: dep_version("@antv/g6")},
+    {name: "bulma",              version: dep_version("bulma")},
+    {name: "i18next",            version: dep_version("i18next")},
+    {name: "luxon",              version: dep_version("luxon")},
+    {name: "maplibre-gl",        version: dep_version("maplibre-gl")},
+    {name: "tabulator-tables",   version: dep_version("tabulator-tables")},
+    {name: "tom-select",         version: dep_version("tom-select")},
+    {name: "uplot",              version: dep_version("uplot")},
+    {name: "vanilla-jsoneditor", version: dep_version("vanilla-jsoneditor")},
+    {name: "vite (build)",       version: dep_version("vite")},
+];
+
+/*
+ *  maplibre-gl 6 loads its Web Worker at run time with
+ *  `new Worker(new URL(`./${workerFile}`, import.meta.url), {type:'module'})`,
+ *  where `workerFile` is a VARIABLE (dev/prod ternary). Vite/rolldown (Vite 8)
+ *  can only auto-emit a worker when that `new URL()` first argument is a static
+ *  string literal, so with v6 the worker is NOT emitted into the production
+ *  bundle — dev works only because node_modules is served as-is. Left alone,
+ *  the built app requests the worker and it is missing.
+ *
+ *  So we emit the worker AND the shared chunk it imports at build time (read
+ *  from node_modules, kept in lockstep with the installed version). Two twists:
+ *
+ *    - Rename .mjs -> .js. Static hosts (the target nginx) serve .mjs as
+ *      application/octet-stream, and browsers refuse a module worker / module
+ *      import without a JS MIME type (verified: Firefox blocks the .mjs worker).
+ *      .js is served as text/javascript everywhere. The worker's own
+ *      `import "./maplibre-gl-shared.mjs"` is rewritten to match.
+ *    - Point maplibre at the .js worker via setWorkerUrl() in src/main.js
+ *      (prod only), since maplibre's built-in resolver hardcodes the .mjs name.
+ */
+const maplibre_worker_assets = () => {
+    const dist = path.resolve(__dirname, "../node_modules/maplibre-gl/dist");
+    return {
+        name: "maplibre-worker-assets",
+        apply: "build",
+        generateBundle() {
+            const worker = readFileSync(path.join(dist, "maplibre-gl-worker.mjs"), "utf8")
+                .replaceAll("maplibre-gl-shared.mjs", "maplibre-gl-shared.js")
+                .replace(/\n?\/\/# sourceMappingURL=.*$/, "");
+            const shared = readFileSync(path.join(dist, "maplibre-gl-shared.mjs"), "utf8")
+                .replace(/\n?\/\/# sourceMappingURL=.*$/, "");
+            this.emitFile({
+                type: "asset",
+                fileName: "assets/maplibre-gl-worker.js",
+                source: worker,
+            });
+            this.emitFile({
+                type: "asset",
+                fileName: "assets/maplibre-gl-shared.js",
+                source: shared,
+            });
+        },
+    };
+};
+
 export default defineConfig({
+    plugins: [maplibre_worker_assets()],
     define: {
-        __APP_VERSION__:        JSON.stringify(read_version("package.json")),
-        __GOBJ_UI_VERSION__:    JSON.stringify(read_version("../package.json")),
-        __JSONEDITOR_VERSION__: JSON.stringify(
-            read_version("../node_modules/vanilla-jsoneditor/package.json")
-        ),
+        __PKG_VERSIONS__: JSON.stringify(pkg_versions),
     },
     resolve: {
         preserveSymlinks: true,
@@ -72,21 +152,14 @@ export default defineConfig({
                 replacement: path.resolve(__dirname, "..") + "/",
             },
             /*
-             *  maplibre-gl ships its worker as a giant inline-blob STRING
-             *  inside the default build. When rolldown (Vite 8) re-serialises
-             *  that literal the worker breaks in Firefox ("PL is not defined")
-             *  — dev is fine, only the production bundle fails. The CSP build
-             *  keeps the worker as a separate real file loaded via
-             *  setWorkerUrl() (wired in src/main.js), so the bundler never
-             *  touches worker code. Exact match only: keep the /dist/*.css and
-             *  /dist/*-worker?url specifiers resolving to the same package.
+             *  maplibre-gl 6 is ESM-only. The old v5 CSP-build alias +
+             *  setWorkerUrl() workaround is gone (the `-csp` bundles it aliased
+             *  to no longer exist). v6 no longer inlines the worker as a blob
+             *  string; it loads a separate real file at run time via
+             *  `new URL(<variable>, import.meta.url)` — see the
+             *  maplibre_worker_assets() plugin below for why that still needs
+             *  help under Vite 8.
              */
-            {
-                find: /^maplibre-gl$/,
-                replacement: path.resolve(
-                    __dirname, "../node_modules/maplibre-gl/dist/maplibre-gl-csp.js"
-                ),
-            },
         ],
     },
     server: {

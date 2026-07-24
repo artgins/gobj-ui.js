@@ -59,12 +59,7 @@ import {register_c_demo_windows} from "./c_demo_windows.js";
 
 import {setup_locale} from "./locales.js";
 
-/*  maplibre-gl: the vite.config alias routes "maplibre-gl" to the CSP build,
- *  whose worker is a separate real file (not an inline-blob string the bundler
- *  would re-serialise and break in Firefox). Point the singleton at the
- *  emitted worker asset once, before any C_YUI_MAP is created. */
-import maplibregl from "maplibre-gl";
-import maplibre_worker_url from "maplibre-gl/dist/maplibre-gl-csp-worker.js?url";
+import * as maplibregl from "maplibre-gl";
 
 import "bulma/css/bulma.css";
 import "@yuneta/gobj-ui/src/c_yui_shell.css";
@@ -79,8 +74,20 @@ import app_config from "./app_config.json";
  ***************************************************************/
 function main()
 {
-    /*  CSP build needs its worker URL before the first map is created */
-    maplibregl.setWorkerUrl(maplibre_worker_url);
+    /*  maplibre-gl 6: in the production bundle the worker + its shared chunk
+     *  are emitted as assets/maplibre-gl-worker.js (see vite.config
+     *  maplibre_worker_assets — .js so the static host serves a JS MIME type).
+     *  maplibre's built-in resolver would request the .mjs name, so point it at
+     *  the emitted .js explicitly. setWorkerUrl() resolves its value against
+     *  location.href (the page, e.g. /#/map), NOT the bundle, so pass an
+     *  absolute URL built from import.meta.url — the entry chunk in /assets/,
+     *  right where the worker sits. Dev keeps maplibre's own node_modules
+     *  resolution. */
+    if(import.meta.env.PROD) {
+        maplibregl.setWorkerUrl(
+            new URL(/* @vite-ignore */ "maplibre-gl-worker.js", import.meta.url).href
+        );
+    }
 
     /*  Register gclasses  */
     register_c_yuno();
