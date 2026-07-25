@@ -176,6 +176,34 @@
     color: var(--bulma-text) !important;
 }
 
+/* ====================================================================
+ *  The CELL EDITOR — typography and box, in EVERY theme.
+ *
+ *  Tabulator hands the editor a bare <input>, and a bare form control does
+ *  not inherit typography: the browser gives it its own default (13.33px
+ *  Arial), so the value visibly SHRINKS and changes face the moment the cell
+ *  enters edit mode. The theme also drops the editing cell's padding
+ *  (`.tabulator-editing {padding: 0}`) and the control brings its own, so
+ *  the text jumps sideways too. Inherit the font and restore the cell's 4px
+ *  so entering edit mode changes nothing but the caret.
+ * ==================================================================== */
+.tabulator-row .tabulator-cell.tabulator-editing input,
+.tabulator-row .tabulator-cell.tabulator-editing select,
+.tabulator-row .tabulator-cell.tabulator-editing textarea,
+.tabulator .tabulator-header .tabulator-header-filter input,
+.tabulator .tabulator-header .tabulator-header-filter select {
+    font-family: inherit;
+    font-size: inherit;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0 4px;
+}
+
+.tabulator-row .tabulator-cell.tabulator-editing input,
+.tabulator-row .tabulator-cell.tabulator-editing select {
+    height: 100%;
+}
+
 /*
  *  The CELL EDITOR in dark theme.
  *
@@ -183,16 +211,22 @@
  *  browser default: BLACK text on the dark cell — the value disappears the
  *  moment you click into it, and comes back when the field loses focus. Same
  *  for a header-filter input and for a <select>.
+ *
+ *  `--bulma-body-color` is the DIMMED body text; on the near-black editor
+ *  wash it reads washed out just when the eye needs it most (you are typing
+ *  into it). The editing state gets `--bulma-text-strong` plus a wash one
+ *  step lighter than the row and a link-coloured border, so the open field
+ *  is the brightest thing in the table.
  */
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing input,
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing select,
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing textarea,
 [data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input,
 [data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter select {
-    background-color: var(--bulma-scheme-main, #16181d);
-    color: var(--bulma-body-color, #e6e6e6) !important;
-    caret-color: var(--bulma-body-color, #e6e6e6);
-    border-color: var(--bulma-border);
+    background-color: var(--bulma-grey-darker, #2b2f38);
+    color: var(--bulma-text-strong, #f5f6f7) !important;
+    caret-color: var(--bulma-text-strong, #f5f6f7);
+    border-color: var(--bulma-link, #4a9eff);
 }
 
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
@@ -275,6 +309,21 @@
             .tabulator-row.tabulator-row-even.tabulator-selectable:not(.tabulator-selected):hover {
         background-color: var(--bulma-background) !important;
         color: var(--bulma-body-color) !important;
+    }
+    /*  same editor fix as [data-theme=dark] above  */
+    [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing input,
+    [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing select,
+    [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing textarea,
+    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input,
+    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter select {
+        background-color: var(--bulma-grey-darker, #2b2f38);
+        color: var(--bulma-text-strong, #f5f6f7) !important;
+        caret-color: var(--bulma-text-strong, #f5f6f7);
+        border-color: var(--bulma-link, #4a9eff);
+    }
+    [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
+    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input::placeholder {
+        color: var(--bulma-text-weak, #8a8f98);
     }
     [data-theme=system] .tabulator-row.tabulator-selected {
         background-color: var(--bulma-link) !important;
