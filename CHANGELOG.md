@@ -7,6 +7,25 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 5.0.1
+
+- **fix(tabulator): the cell editor is legible again — it was shrinking and
+  dimming on edit.** Two independent causes, both in `src/tabulator.css`:
+  Tabulator builds its editor as a bare `<input>`, which inherits no
+  typography from the cell, so the browser default (13.33px Arial) took over
+  and the value visibly shrank and changed face the moment the cell entered
+  edit mode (the theme's `.tabulator-editing {padding: 0}` shifted it
+  sideways too). The editor controls — and the header-filter ones — now
+  inherit `font-family`/`font-size` and restore the cell's 4px padding,
+  filling the cell box. In dark theme the editor painted
+  `--bulma-body-color`, the *dimmed* body text (l:71%), over a near-black
+  wash; it now uses `--bulma-text-strong` (l:93%) over an elevated
+  `--bulma-grey-darker` field with a link-coloured border, so the open field
+  stands out from both row parities (l:9% odd / l:14% even). The
+  `[data-theme=system]` block carried no editor rules at all — an app on the
+  system theme with a dark OS got black-on-dark — and now mirrors the dark
+  ones.
+
 - **docs: wattyzer now consumes this line from the npm registry**, not as a
   `file:` dep on the yunetas submodule (`@yuneta/gobj-ui@^5.0.0`). The v2 line
   therefore has two consumption modes: the in-repo yunos (`gui_agent`,
