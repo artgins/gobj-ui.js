@@ -7,6 +7,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(icons): `yi-upload`.** The set had `download` but not its pair, so an
+  import/upload control had to borrow another glyph (`gui_treedb`'s Settings
+  wore the same `yi-plus` on "Add connection" and "Import" — two buttons that
+  become indistinguishable once the labels drop on mobile).
+
 ## 5.1.0
 
 - **feat(icons): `yi-chevron-down` and `yi-chevron-up`.** The set only had
