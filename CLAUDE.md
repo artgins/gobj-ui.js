@@ -18,9 +18,13 @@ gobj-ui-specific layer on top.
 
 - Two maintained lines: **`main`/v2** (declarative shell
   `C_YUI_SHELL/NAV/PAGER/WIZARD` — all new work lands here; consumed locally
-  by `file:` from wattyzer and `yunos/js/*`) and **`v1`** (frozen legacy stack,
-  maintenance-only; estadodelaire/hidraulia consume the published npm
-  `@yuneta/gobj-ui@^1.x`).
+  by `file:` from `yunos/js/*`, and from the **npm registry** by wattyzer
+  since 2026-07-25) and **`v1`** (frozen legacy stack, maintenance-only;
+  estadodelaire/hidraulia consume the published npm `@yuneta/gobj-ui@^1.x`).
+  So a local edit here reaches `yunos/js/*` immediately and wattyzer only
+  after `npm publish` + a range bump there — and the **tarball** (`files:`
+  must keep shipping `src/`, `index.js`, the vite plugin) is now on a
+  consumer's critical path, not just `dist/`.
 - The yunetas submodule tracks `main`/v2. To ship: commit on the right branch
   here, `npm publish` when releasing, then **bump the `kernel/js/gobj-ui`
   submodule pointer in yunetas** (v2 only).

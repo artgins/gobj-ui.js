@@ -7,6 +7,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **docs: wattyzer now consumes this line from the npm registry**, not as a
+  `file:` dep on the yunetas submodule (`@yuneta/gobj-ui@^5.0.0`). The v2 line
+  therefore has two consumption modes: the in-repo yunos (`gui_agent`,
+  `gui_treedb`) still resolve the checkout, so library work reaches them
+  immediately, while wattyzer only sees it after a publish. Practical
+  consequence recorded in `README.md` / `CLAUDE.md`: the **published tarball**
+  is on a consumer's critical path now, so `files:` must keep shipping `src/`,
+  `index.js` and `vite-plugin-yuneta-html.js` — a change that only works from
+  the checkout is a broken release.
+
 ## 5.0.0
 
 **BREAKING — a dependency-only major.** No component API moved in this release:

@@ -65,17 +65,23 @@ consumers. They are independent snapshots (no shared git ancestry):
 
 | Line | Branch | Tag | Layout | Consumed by | How | Status |
 |------|--------|-----|--------|-------------|-----|--------|
-| **v2** | `main` | `2.0.0`+ | `src/` subdir | **wattyzer**, **gui_agent**, **gui_treedb** | local `file:` dep on the yunetas submodule | active development |
+| **v2** | `main` | `2.0.0`+ | `src/` subdir | **gui_agent**, **gui_treedb** | local `file:` dep on the yunetas submodule | active development |
+| **v2** | `main` | `2.0.0`+ | `src/` subdir | **wattyzer** | published npm `@yuneta/gobj-ui@^5.0.0` (dist-tag `latest`) | active development |
 | **v1** | `v1` | `1.0.1` | `src/` subdir | **estadodelaire**, **hidraulia** | published npm `@yuneta/gobj-ui@^1.0.1` (dist-tag `legacy`) | frozen, maintenance-only |
 
 - **v2 / `main`** is the active development line: the declarative shell
   (legacy-stack-free since `3.0.0`). It is embedded as a git submodule in **yunetas** at
-  `kernel/js/gobj-ui`, and **wattyzer** plus the in-repo JS yunos
+  `kernel/js/gobj-ui`, and the in-repo JS yunos
   (**`yunos/js/gui_agent`**, **`yunos/js/gui_treedb`**) consume that checkout as a
-  `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui` from a
-  yuno; `../../../yunetas/kernel/js/gobj-ui` from wattyzer), importing by package
-  specifier (`@yuneta/gobj-ui/src/*.js`, exports map `"./src/*"`; the `index.js`
-  barrel and the vite plugin stay at the package root).
+  `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui`), importing
+  by package specifier (`@yuneta/gobj-ui/src/*.js`, exports map `"./src/*"`; the
+  `index.js` barrel and the vite plugin stay at the package root).
+  **wattyzer takes the same line from the registry** (since 2026-07-25): the
+  published tarball ships `src/`, `index.js` and the vite plugin, so the import
+  specifiers are identical — but library work only reaches it after a
+  `npm publish` and a range bump on its side. Two consequences worth knowing:
+  a fix cannot be validated in wattyzer before it is released, and wattyzer is
+  the consumer that proves the **tarball** is complete, not just the checkout.
 - **v1 / `v1`** is the frozen legacy-only stack (the declarative shell is not on
   this line). It is **published to npm**; estadodelaire and hidraulia depend on
   `@yuneta/gobj-ui@^1.0.0` from the registry. Land only maintenance fixes here,
@@ -86,9 +92,12 @@ All new feature work lands on `main`/v2.
 ## Usage
 
 ```bash
-# v2 (active): clone yunetas with submodules; wattyzer picks it up via file:
+# v2 (active): clone yunetas with submodules; the in-repo yunos pick it up via file:
 git clone --recurse-submodules <yunetas>
 git submodule update --init kernel/js/gobj-ui      # yunetas tracks main/v2
+
+# v2 from the registry (wattyzer, and any out-of-tree consumer)
+npm install @yuneta/gobj-ui@^5.0.0
 
 # v1 (frozen): consumers just install the published package
 npm install @yuneta/gobj-ui@^1.0.0
@@ -107,8 +116,9 @@ npm test           # vitest (v2/main only; v1 has no test target)
 ```
 
 `dist/` is gitignored. v1 consumers get `dist/` from the **published** npm
-tarball; v2 (wattyzer) imports source files by specifier. Rebuild `dist/` to
-validate and before publishing a v1 release.
+tarball; v2 consumers import source files by specifier, whether they resolve
+them from the checkout or from the tarball's `src/`. Rebuild `dist/` to
+validate and before publishing a release.
 
 ## Components
 
