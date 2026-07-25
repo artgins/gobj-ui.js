@@ -7,6 +7,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(icons): `yi-chevron-down` and `yi-chevron-up`.** The set only had
+  `chevron-left` / `chevron-right`, and a `yi-*` class with no mask rule
+  renders as a solid black square — so a disclosure control (folded `>` /
+  unfolded `v`) had no icon to point at. Added as deliberate mask rules next
+  to the other chevrons. First consumer: the fold/unfold chevron of the
+  connections table in `gui_treedb`'s Settings.
+
 ## 5.0.1
 
 - **fix(tabulator): the cell editor is legible again — it was shrinking and
