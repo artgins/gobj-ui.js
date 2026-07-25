@@ -7,6 +7,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 5.1.0
+
 - **feat(icons): `yi-chevron-down` and `yi-chevron-up`.** The set only had
   `chevron-left` / `chevron-right`, and a `yi-*` class with no mask rule
   renders as a solid black square — so a disclosure control (folded `>` /
