@@ -7,6 +7,24 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 5.0.0
+
+**BREAKING — a dependency-only major.** No component API moved in this release:
+both bullets below are peer-range changes, headlined by `maplibre-gl` going
+ESM-only in v6. A consumer already on the 4.0.0 contract only has to raise its
+own dependency floors.
+
+- **BREAKING(deps): the remaining peer floors move to the versions this release
+  is built and tested against** — `@yuneta/gobj-js` `^7.8.0` → `^7.8.7`,
+  `i18next` `^26.0.7` → `^26.3.6`, `tom-select` `^2.6.0` → `^2.6.2`,
+  `vanilla-jsoneditor` `^3.12.0` → `^3.13.0`. The floors were trailing what is
+  actually in use: the in-repo yunos (`gui_agent`, `gui_treedb`) already sit at
+  these versions, and because consumers must `resolve.dedupe` this list, the
+  consumer's copy **is** the library's copy — so the declared floor has to name
+  the version the suite ran against, not the oldest one that once worked. No
+  API surface moved in any of the four. The test-app follows on `playwright`
+  `^1.62.0` and `vite` `^8.1.5`.
+
 - **BREAKING(deps): `maplibre-gl` peerDependency bumped to `^6.0.0`.** v6 is
   ESM-only with no default export, so consumers must `import * as maplibregl`.
   `C_YUI_MAP` migrated accordingly; the map API surface it uses (`Map`,

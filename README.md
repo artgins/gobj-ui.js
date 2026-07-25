@@ -13,6 +13,17 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > routing contract (URL = source of truth, push/replace history, the
 > position/preference/transient litmus).
 >
+> **BREAKING (5.0.0):** a **dependency-only major** — no component API moved.
+> The peer floors are now `maplibre-gl` `^6.0.0`, `@yuneta/gobj-js` `^7.8.7`,
+> `i18next` `^26.3.6`, `tom-select` `^2.6.2`, `vanilla-jsoneditor` `^3.13.0`.
+> maplibre v6 is ESM-only with no default export, so a consumer imports it as
+> `import * as maplibregl`; bundling the map with Vite 8 also means emitting
+> maplibre's worker + shared chunk yourself and pointing `setWorkerUrl()` at
+> them (Vite cannot statically follow v6's dynamic worker URL, and a `.mjs`
+> worker is refused when the host serves it as `application/octet-stream`).
+> The test-app's `vite.config.js` (`maplibre_worker_assets`) + `src/main.js`
+> are the reference wiring.
+>
 > **BREAKING (4.0.0):** `yui_shell_navigate(shell, route)` now **pushes** a
 > history entry by default; pass `{replace:true}` for a redirect / normalization
 > / F5-restore — anything *code* decided rather than the user. It used to replace
