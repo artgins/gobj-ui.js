@@ -394,6 +394,29 @@ menu label.
     toolbar items. The panel is dismissed by Escape, click outside
     the panel, navigation, or by activating any sub-item; programmatic
     close is also available via `yui_shell_close_dropdown(shell)`.
+
+    Sub-items also accept, since `5.2.0`:
+
+    - `selected: true` — marks the ACTIVE option: the row gets
+      `is-selected`, `aria-checked="true"` and a trailing check, and the
+      row's `role` is `menuitemradio`. Use it for a dropdown that
+      *chooses* something (theme, language) rather than one that fires
+      unrelated commands. The check element is always rendered and only
+      hidden by CSS, so moving the selection never changes a row's width.
+
+      The panel is rebuilt on **every open** from the live config object,
+      so the app marks the active option by setting `selected` on the
+      config it passed to the shell — no DOM poking, and the change shows
+      the next time the panel opens.
+
+    - `image: "<url or data: URI>"` — a leading glyph the icon set cannot
+      express, a flag per language being the motivating case: `yi-*`
+      icons are CSS masks and therefore strictly **monochrome**. Rendered
+      as `<img src>`, deliberately **not** as markup — an SVG loaded
+      through `<img>` cannot run script, so the field stays safe even if
+      a caller later feeds it a value that came from a backend. An item
+      declaring both `icon` and `image` warns at validation; `image` wins.
+
 - `items[].show_on` — Bulma breakpoint expression (same syntax as
   `shell.zones[id].show_on`). Hides individual items per breakpoint
   without needing a separate zone. Also valid on dropdown sub-items.

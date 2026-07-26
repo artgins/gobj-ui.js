@@ -528,6 +528,40 @@
 .yui-toolbar-dropdown-item:hover {
     background-color: var(--bulma-scheme-main-bis, rgba(0, 0, 0, 0.06));
 }
+/*  Label takes the slack so the trailing check sits flush right.  */
+.yui-toolbar-dropdown-label {
+    flex: 1;
+}
+/*  Image glyph (flags): boxed to the icon size so rows stay aligned
+ *  whether an item uses an icon class or an image.  */
+.yui-toolbar-dropdown-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    flex: 0 0 auto;
+}
+.yui-toolbar-dropdown-glyph img {
+    width: 1.15rem;
+    height: auto;
+    display: block;
+    border-radius: 2px;
+}
+/*  The check is always in the DOM and only hidden, so selecting a
+ *  different option does not change any row's width.  */
+.yui-toolbar-dropdown-check {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    visibility: hidden;
+    color: var(--bulma-link, #485fc7);
+}
+.yui-toolbar-dropdown-item.is-selected .yui-toolbar-dropdown-check {
+    visibility: visible;
+}
+.yui-toolbar-dropdown-item.is-selected .yui-toolbar-dropdown-label {
+    font-weight: 600;
+}
 .yui-toolbar-dropdown-item:focus-visible {
     outline: 2px solid var(--bulma-link, #485fc7);
     outline-offset: -2px;

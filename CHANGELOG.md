@@ -7,6 +7,34 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 5.2.0
+
+- **feat(shell): toolbar dropdown items can mark the ACTIVE option
+  (`selected`).** A dropdown that *chooses* something — theme, language — had
+  no way to show what is currently chosen: the panel rendered a flat list, so
+  the user had to change the value to find out what it already was. Items now
+  accept `selected: true`, which adds `is-selected`, `aria-checked="true"`, a
+  trailing check, and switches the row's `role` to `menuitemradio`.
+
+  The check element is always rendered and only hidden by CSS, so moving the
+  selection never changes a row's width and the list does not jump.
+
+  No new API to keep it in sync: the panel is rebuilt from the live config
+  object on **every open**, so an app marks the active option by setting the
+  flag on the config it already passed to the shell.
+
+- **feat(shell): dropdown items accept an `image` glyph.** The `yi-*` set is
+  CSS masks and therefore strictly **monochrome**, which cannot express a flag
+  per language. `image` takes a URL or a `data:` URI and renders as `<img src>`
+  — deliberately **not** as markup: an SVG loaded through `<img>` cannot run
+  script, so the field stays safe even if a caller later feeds it a value that
+  came from a backend. An API that took markup would be one refactor away from
+  an XSS. Declaring both `icon` and `image` warns at validation; `image` wins.
+
+- **feat(icons): `yi-check`.** The set only had `yi-square-check` (a boxed
+  check), which reads as a checkbox rather than as "this is the one". Needed
+  for the selection mark above.
+
 - **feat(icons): `yi-upload`.** The set had `download` but not its pair, so an
   import/upload control had to borrow another glyph (`gui_treedb`'s Settings
   wore the same `yi-plus` on "Add connection" and "Import" — two buttons that

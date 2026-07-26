@@ -202,6 +202,19 @@ export function validate_dropdown_action(action, owner_id)
             );
             continue;
         }
+        /*  A row draws ONE leading glyph.  Declaring both is not fatal
+         *  (image wins) but it is always a mistake worth surfacing. */
+        if(it.icon && it.image) {
+            warnings.push(
+                `dropdown item ${where} declares both icon and image — ` +
+                `image wins, drop one`
+            );
+        }
+        if(it.selected !== undefined && typeof it.selected !== "boolean") {
+            warnings.push(
+                `dropdown item ${where} has non-boolean 'selected'`
+            );
+        }
         let nested = validate_action(it.action, where);
         for(let w of nested) {
             warnings.push(w);

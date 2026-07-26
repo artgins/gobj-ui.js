@@ -205,3 +205,44 @@ test("kinds + action-type constants are exposed", () => {
     expect(TOOLBAR_ITEM_KINDS).toEqual(["brand", "avatar", "connection", "action"]);
     expect(TOOLBAR_ACTION_TYPES).toEqual(["navigate", "drawer", "event", "dropdown"]);
 });
+
+
+/*============================================================
+ *      dropdown items: selected + image  (5.2.0)
+ *============================================================*/
+test("dropdown: 'selected' and 'image' are accepted", () => {
+    let r = validate_dropdown_action({
+        type: "dropdown",
+        items: [
+            { id: "es", name: "spanish", image: "data:image/svg+xml,%3Csvg/%3E",
+              selected: true, action: { type: "navigate", route: "/language/set/es" } },
+            { id: "en", name: "english", image: "data:image/svg+xml,%3Csvg/%3E",
+              selected: false, action: { type: "navigate", route: "/language/set/en" } },
+        ],
+    }, "language");
+    expect(r).toEqual([]);
+});
+
+test("dropdown: declaring both icon and image warns", () => {
+    let r = validate_dropdown_action({
+        type: "dropdown",
+        items: [
+            { id: "es", name: "spanish", icon: "yi-language", image: "/es.svg",
+              action: { type: "navigate", route: "/language/set/es" } },
+        ],
+    }, "language");
+    expect(r.length).toBe(1);
+    expect(r[0]).toContain("both icon and image");
+});
+
+test("dropdown: non-boolean 'selected' warns", () => {
+    let r = validate_dropdown_action({
+        type: "dropdown",
+        items: [
+            { id: "es", name: "spanish", selected: "yes",
+              action: { type: "navigate", route: "/language/set/es" } },
+        ],
+    }, "language");
+    expect(r.length).toBe(1);
+    expect(r[0]).toContain("non-boolean");
+});

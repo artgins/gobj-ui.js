@@ -2068,7 +2068,20 @@ function build_dropdown_row(gobj, sub, idx)
         return null;
     }
     let children = [];
-    if(!empty_string(sub.icon)) {
+    /*  Leading glyph: either an icon CLASS or an IMAGE.
+     *
+     *  `image` (a URL or a data: URI) exists for what the icon set
+     *  cannot express: the icons are CSS masks, so they are strictly
+     *  MONOCHROME, and a flag per language — the motivating case — is
+     *  not.  It is deliberately an <img src> and NOT raw markup: an
+     *  SVG loaded through <img> cannot run script, so this stays safe
+     *  even if a caller ever feeds it a value that came from a
+     *  backend.  An API that took markup would be one refactor away
+     *  from an XSS. */
+    if(!empty_string(sub.image)) {
+        children.push(["span", {class: "yui-toolbar-dropdown-glyph"},
+            ["img", {src: sub.image, alt: "", "aria-hidden": "true"}]]);
+    } else if(!empty_string(sub.icon)) {
         children.push(["span", {class: "icon"},
             ["i", {class: sub.icon, "aria-hidden": "true"}]]);
     }
@@ -2076,12 +2089,19 @@ function build_dropdown_row(gobj, sub, idx)
         children.push(["span", {class: "yui-toolbar-dropdown-label",
                                 i18n: sub.name}, sub.name]);
     }
+    /*  Trailing check for the ACTIVE option.  The element is always
+     *  rendered and hidden by CSS when not selected, so every row keeps
+     *  the same width and the list does not jump as the choice moves. */
+    children.push(["span", {class: "yui-toolbar-dropdown-check"},
+        ["i", {class: "yi-check", "aria-hidden": "true"}]]);
+
     let aria_key = sub.aria_label || sub.name || sub.id || "";
     let i18n_aria = sub.aria_label || sub.name;
     let attrs = {
-        class: "yui-toolbar-dropdown-item",
+        class: "yui-toolbar-dropdown-item" + (sub.selected ? " is-selected" : ""),
         type: "button",
-        role: "menuitem",
+        role: "menuitemradio",
+        "aria-checked": sub.selected ? "true" : "false",
         "data-dropdown-item-id": sub.id || "",
         "aria-label": aria_key
     };
