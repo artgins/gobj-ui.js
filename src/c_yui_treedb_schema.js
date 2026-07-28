@@ -20,6 +20,7 @@ import {
     log_error,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
+    gobj_send_event,
     gobj_parent,
     gobj_read_attr,
     createElement2,

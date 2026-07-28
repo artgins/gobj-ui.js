@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+
+## 5.2.1
+
+- **`C_YUI_TREEDB_SCHEMA`: clicking a node threw `ReferenceError:
+  gobj_send_event is not defined`.** The module calls it to publish
+  `EV_NODE_CLICK`, but never imported it, so the schema-graph landing broke on
+  the first click on a topic node — in every consumer, the reference
+  `gui_treedb` included. It was the only such omission in the package.
+
 ## 5.2.0
 
 - **feat(shell): toolbar dropdown items can mark the ACTIVE option
