@@ -49,6 +49,13 @@
     overflow-y: auto;
 }
 
+/*  A node whose index projection targets a ZONE (the root, painting
+ *  the rail) leaves this empty — an empty flex child would still eat
+ *  the body's height. */
+.NODE_INDEX:empty {
+    display: none;
+}
+
 /*  A node with BOTH content and children: the content keeps its
  *  natural height and the projection sits under it. */
 .NODE_CONTENT + .NODE_INDEX {

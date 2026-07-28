@@ -838,6 +838,76 @@ function build_item_index(gobj, config)
             };
         }
     }
+
+    index_node_tree(gobj, config);
+}
+
+/************************************************************
+ *  config.shell.tree — the navigation is a TREE OF NODES and
+ *  its root is where the shell's own root used to be.
+ *
+ *  The shell keeps what it is good at, the SPACE: zones, layers,
+ *  stages, toolbar, overlays, theme, breakpoints.  It stops being
+ *  the owner of the menu: the root C_YUI_NODE holds the primary
+ *  options as its children and projects them into zones (a left
+ *  rail, a bottom bar) exactly as `menu.primary.render` used to
+ *  say — a per-zone projection is still a projection.
+ *
+ *  All this does is synthesize ONE route entry.  `owns_subtree`
+ *  lets it match as the ancestor of everything (route_resolver),
+ *  so the whole url space below it is the tree's `subpath` and no
+ *  route table grows.  The unknown-route diagnostic is not lost:
+ *  it moves to the node that knows the names of its children.
+ *
+ *  `menu` and `tree` are not exclusive — an app may declare both
+ *  while it migrates — but a tree at "/" owns every route no
+ *  other entry claims, which is the point.
+ ************************************************************/
+function index_node_tree(gobj, config)
+{
+    let priv = gobj.priv;
+    let tree = (config.shell && config.shell.tree) || null;
+
+    if(!tree) {
+        return;
+    }
+    if(!is_object(tree)) {
+        log_error("C_YUI_SHELL: config.shell.tree must be an object");
+        return;
+    }
+
+    let base_route = normalize_route(tree.base_route || "/");
+
+    /*  JSON has no comments and these configs annotate themselves with
+     *  sibling `_name_comment` keys (the established idiom — see
+     *  app_config.json).  They are documentation, not attrs: handing
+     *  them to gobj_create is an "Attribute NOT FOUND" per comment. */
+    let kw = {};
+    for(let key of Object.keys(tree)) {
+        if(key.charAt(0) === "_" || key === "stage") {
+            continue;
+        }
+        kw[key] = tree[key];
+    }
+    kw.base_route = base_route;
+    if(!kw.node_id) {
+        kw.node_id = "root";
+    }
+
+    let prev = priv.item_index[base_route];
+    priv.item_index[base_route] = {
+        item:        (prev && prev.item) || null,
+        parent_item: (prev && prev.parent_item) || null,
+        stage:       tree.stage || "main",
+        menu_id:     (prev && prev.menu_id) || "",
+        target: {
+            stage:        tree.stage || "main",
+            gclass:       "C_YUI_NODE",
+            lifecycle:    "keep_alive",
+            owns_subtree: true,
+            kw:           kw
+        }
+    };
 }
 
 /************************************************************
@@ -2872,6 +2942,29 @@ function yui_shell_of(gobj)
 }
 
 /************************************************************
+ *  The DOM of a zone, for whoever projects into the space.
+ *
+ *  The shell owns the space; a root C_YUI_NODE that projects its
+ *  children into a left rail or a bottom bar needs the element to
+ *  mount them in.  Null (and a warning) for an unknown zone —
+ *  silently projecting into nowhere is how a menu disappears with
+ *  no explanation.
+ ************************************************************/
+function yui_shell_zone(shell_gobj, zone_id)
+{
+    if(!shell_gobj || !shell_gobj.priv || !shell_gobj.priv.zones) {
+        log_warning(`C_YUI_SHELL: yui_shell_zone — no shell`);
+        return null;
+    }
+    let $zone = shell_gobj.priv.zones[zone_id];
+    if(!$zone) {
+        log_warning(`C_YUI_SHELL: yui_shell_zone — unknown zone '${zone_id}'`);
+        return null;
+    }
+    return $zone;
+}
+
+/************************************************************
  *  Programmatic navigation.
  *
  *  Default — PUSH: the user MOVED somewhere new, so change the URL via
@@ -3160,6 +3253,7 @@ function yui_shell_close_dropdown(shell_gobj)
 export {
     register_c_yui_shell,
     yui_shell_of,
+    yui_shell_zone,
     yui_shell_navigate,
     yui_shell_nav_map,
     yui_shell_set_sub_routes,

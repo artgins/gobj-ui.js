@@ -1,0 +1,292 @@
+{
+    "_comment": "THE ROOT IS A NODE. There is no `menu` in this config at all: the shell contributes the SPACE (zones, layers, stages, toolbar, overlays, theme) and nothing else. Every navigable position, starting with the primary options in the left rail, is a C_YUI_NODE — the root's children, projected into zones. `menu.primary.render` always was a per-zone projection; now it has an owner that can hold it. One route entry ('/') owns the whole url space, so nothing below is declared anywhere.",
+    "shell": {
+        "_zones_comment": "Note what is NOT here: no zone declares `host: menu.<id>`. The rail and the bottom bar have no menu to host — the ROOT NODE projects its children into them (projection.zone + yui_shell_zone). The shell still owns the space: it builds the zones, applies their breakpoints and hosts the stage.",
+        "zones": {
+            "top": {
+                "host": "toolbar",
+                "show_on": "*"
+            },
+            "left": {
+                "show_on": ">=desktop"
+            },
+            "bottom": {
+                "show_on": "<desktop"
+            },
+            "center": {
+                "host": "stage.main"
+            }
+        },
+        "stages": {
+            "main": {
+                "zone": "center",
+                "default_route": "/"
+            }
+        },
+        "tree": {
+            "base_route": "/",
+            "stage": "main",
+            "node_id": "root",
+            "label": "Home",
+            "tree_version": "1.0.0",
+            "_projection_comment": "The root projects its children into ZONES of the space: a vertical rail on desktop, an icon bar at the bottom on mobile. index and chrome are the same here because the rail is standing chrome — it does not come and go with the position.",
+            "projection": {
+                "index": [
+                    {
+                        "zone": "left",
+                        "layout": "vertical",
+                        "icon_pos": "left",
+                        "show_label": true
+                    },
+                    {
+                        "zone": "bottom",
+                        "layout": "icon-bar",
+                        "icon_pos": "top",
+                        "show_label": true
+                    }
+                ],
+                "chrome": [
+                    {
+                        "zone": "left",
+                        "layout": "vertical",
+                        "icon_pos": "left",
+                        "show_label": true
+                    },
+                    {
+                        "zone": "bottom",
+                        "layout": "icon-bar",
+                        "icon_pos": "top",
+                        "show_label": true
+                    }
+                ]
+            },
+            "content": {
+                "gclass": "C_TEST_VIEW",
+                "kw": {
+                    "title": "The root is a node",
+                    "lead": "This app declares no menu. The rail on the left is the ROOT node projecting its children into a zone; walk into any of them and the same gclass keeps projecting, at any depth. The url is the path of node ids from here down, and the shell knows exactly one route: /",
+                    "badges": [
+                        "no menu declared",
+                        "one route entry",
+                        "root = node"
+                    ]
+                }
+            },
+            "children": [
+                {
+                    "id": "energy",
+                    "label": "Energy",
+                    "icon": "yi-bolt",
+                    "projection": {
+                        "index": {
+                            "layout": "cards"
+                        },
+                        "chrome": [
+                            {
+                                "layout": "tabs",
+                                "show_on": ">=tablet"
+                            },
+                            {
+                                "layout": "backbar",
+                                "show_on": "<tablet"
+                            }
+                        ]
+                    },
+                    "children": [
+                        {
+                            "id": "north",
+                            "label": "North hall",
+                            "icon": "yi-table",
+                            "projection": {
+                                "index": {
+                                    "layout": "cards"
+                                },
+                                "chrome": [
+                                    {
+                                        "layout": "tabs",
+                                        "show_on": ">=tablet"
+                                    },
+                                    {
+                                        "layout": "backbar",
+                                        "show_on": "<tablet"
+                                    }
+                                ]
+                            },
+                            "children": [
+                                {
+                                    "id": "m1",
+                                    "label": "Meter 1",
+                                    "icon": "yi-plug",
+                                    "link": {
+                                        "kind": "tranger",
+                                        "gclass": "C_DEMO_TRANGER_LINK",
+                                        "kw": {
+                                            "topic": "meters^north^m1",
+                                            "records": 3418772
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "m2",
+                                    "label": "Meter 2",
+                                    "icon": "yi-plug",
+                                    "link": {
+                                        "kind": "tranger",
+                                        "gclass": "C_DEMO_TRANGER_LINK",
+                                        "kw": {
+                                            "topic": "meters^north^m2",
+                                            "records": 2904331
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "id": "south",
+                            "label": "South hall",
+                            "icon": "yi-table",
+                            "projection": {
+                                "index": {
+                                    "layout": "cards"
+                                },
+                                "chrome": [
+                                    {
+                                        "layout": "tabs",
+                                        "show_on": ">=tablet"
+                                    },
+                                    {
+                                        "layout": "backbar",
+                                        "show_on": "<tablet"
+                                    }
+                                ]
+                            },
+                            "chrome_depth": 1,
+                            "children": [
+                                {
+                                    "id": "m3",
+                                    "label": "Meter 3",
+                                    "icon": "yi-plug",
+                                    "link": {
+                                        "kind": "tranger",
+                                        "gclass": "C_DEMO_TRANGER_LINK",
+                                        "kw": {
+                                            "topic": "meters^south^m3",
+                                            "records": 1755410
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "id": "water",
+                    "label": "Water",
+                    "icon": "yi-droplet",
+                    "projection": {
+                        "index": {
+                            "layout": "cards"
+                        },
+                        "chrome": [
+                            {
+                                "layout": "tabs",
+                                "show_on": ">=tablet"
+                            },
+                            {
+                                "layout": "backbar",
+                                "show_on": "<tablet"
+                            }
+                        ]
+                    },
+                    "children": [
+                        {
+                            "id": "tank1",
+                            "label": "Tank 1",
+                            "icon": "yi-plug",
+                            "link": {
+                                "kind": "tranger",
+                                "gclass": "C_DEMO_TRANGER_LINK",
+                                "kw": {
+                                    "topic": "tanks^t1",
+                                    "records": 902144
+                                }
+                            }
+                        },
+                        {
+                            "id": "tank2",
+                            "label": "Tank 2",
+                            "icon": "yi-plug",
+                            "link": {
+                                "kind": "tranger",
+                                "gclass": "C_DEMO_TRANGER_LINK",
+                                "kw": {
+                                    "topic": "tanks^t2",
+                                    "records": 811097
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "alarms",
+                    "label": "Alarms",
+                    "icon": "yi-triangle-exclamation",
+                    "content": {
+                        "gclass": "C_TEST_VIEW",
+                        "kw": {
+                            "title": "Alarms",
+                            "lead": "A primary option with no children: content straight away. In the old model this was a menu item with a target; here it is a node that happens to be a leaf.",
+                            "badges": [
+                                "root child",
+                                "leaf"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "admin",
+                    "label": "Admin",
+                    "icon": "yi-gear",
+                    "content": {
+                        "gclass": "C_TEST_VIEW",
+                        "kw": {
+                            "title": "Admin",
+                            "lead": "The case that motivated all this: a section that wants sub-sections. Give it children and they nest, instead of being flattened into one tab strip beside their siblings.",
+                            "badges": [
+                                "root child",
+                                "can nest freely"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "toolbar": {
+        "items": [
+            {
+                "id": "brand",
+                "type": "brand",
+                "logo": "/yuneta-mark.svg",
+                "wordmark": "gobj-ui · root is a node",
+                "alt": "gobj-ui root-is-a-node demo",
+                "aria_label": "Home",
+                "action": {
+                    "type": "navigate",
+                    "route": "/"
+                }
+            },
+            {
+                "id": "shortcut",
+                "type": "action",
+                "name": "Go to Meter 1 · series",
+                "icon": "yi-plug",
+                "_comment": "A shortcut: a non-structural edge straight to a canonical path, four levels into the tree and one into the data space.",
+                "action": {
+                    "type": "navigate",
+                    "route": "/energy/north/m1/series"
+                }
+            }
+        ]
+    }
+}

@@ -56,6 +56,24 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   `submenu.index` (what wattyzer `/reports` runs today) is untouched and keeps
   its own demo at `/sectionindex`: while the model settles, the two coexist —
   there is no converter and no migration of the five consumers.
+- **feat(shell): `config.shell.tree` — the ROOT can be a node, and then the
+  shell is only the space.** The menu was the last thing the shell owned that
+  the model says belongs to the tree: an app's primary options are just the
+  root's children, and `menu.primary.render` (a layout per zone) always was a
+  projection without an owner that could hold it. Declared as `shell.tree`, the
+  root C_YUI_NODE projects its children into ZONES through the new
+  `yui_shell_zone()` — a render config may carry `zone`, and such a projection
+  PERSISTS (the rail is standing chrome: built once, then told where the user
+  is, never rebuilt per navigation). The shell keeps what it is good at: zones,
+  layers, stages, toolbar, overlays, theme, breakpoints. It synthesizes exactly
+  one route entry for the tree, flagged `owns_subtree` — the single opt-in case
+  where root `/` may match as an ancestor (`route_resolver.js`), so an app can
+  have ONE declared route and unbounded depth. That does not lose the
+  unknown-route diagnostic, it moves it to the node that knows its children's
+  names. Comment keys (`_name_comment`, the established JSON idiom) are
+  stripped before the tree block becomes a gobj's kw. Runnable reference:
+  `test-app/tree.html` + `_qa_root.mjs`, served beside `index.html` so both
+  navigation models can be compared in one browser.
 - **fix(nav): a `C_YUI_NAV` created already knowing its active route never
   highlighted it.** `apply_active_route()` ran only from `rebuild()`, so the
   `active_route` passed at creation was ignored; the shell never noticed

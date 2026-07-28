@@ -81,6 +81,21 @@ Driven by `_qa_nodetree.mjs` (drill-down, Back, deep link, dead path, the
 runtime API and the projection swap) and `_qa_extra.mjs` (`chrome_depth` and
 aliases) and `_qa_link.mjs` (the data-space boundary).
 
+### `tree.html` — the root is a node
+
+A second entry point, same bundle, served beside `index.html`. Its
+`app_config_tree.json` declares **no `menu` at all**: the shell contributes the
+space and `shell.tree` puts a `C_YUI_NODE` where the shell's own root used to
+be. The left rail (desktop) and the bottom bar (mobile) are the root
+projecting its children into zones; walk into any of them and the same gclass
+keeps projecting, at any depth, down to a `link` and its data space.
+
+The shell knows exactly one route, `/`. Everything else —
+`#/energy/north/m2/kv/voltage_l1` — is subpath. Driven by `_qa_root.mjs`.
+
+Keep both: while the model settles, the two navigation models must be
+comparable in the same browser.
+
 ### Component views
 
 Beyond the nav-layout chapters, several chapters mount real gobj-ui

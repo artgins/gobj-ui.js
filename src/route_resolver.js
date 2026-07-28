@@ -21,6 +21,11 @@
  *   - root `/` is NEVER an ancestor catch-all (it only matches
  *     exactly): otherwise every typo route would silently mount
  *     the home view and the unknown-route diagnostic would die.
+ *     ONE exception, opt-in: an entry whose target declares
+ *     `owns_subtree` is a view that resolves the tail ITSELF and
+ *     says so when a segment names nothing — a C_YUI_NODE tree
+ *     rooted at `/`.  The diagnostic is not lost there, it moves
+ *     one layer down to whoever actually knows the names.
  *   - nothing matched                  → entry as found (may be
  *     null or a targetless submenu parent), subpath "".
  ************************************************************/
@@ -59,6 +64,12 @@ function resolve_route(item_index, route)
             parts.pop();
             let cand = "/" + parts.join("/");
             if(cand === "/") {
+                let root = item_index["/"];
+                if(root && root.target && root.target.owns_subtree) {
+                    entry = root;
+                    matched_route = "/";
+                    subpath = route.replace(/^\/+/, "");
+                }
                 break;
             }
             let e = item_index[cand];

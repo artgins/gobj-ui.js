@@ -162,6 +162,21 @@ export default defineConfig({
              */
         ],
     },
+    /*  Two entry points, two navigation models, one bundle set:
+     *      index.html — the shell owns the menu (submenu.index & co).
+     *      tree.html  — the root IS a node (config.shell.tree); the
+     *                   shell contributes only the space.
+     *  Kept side by side on purpose: while the model settles, the two
+     *  must be comparable in the same browser. */
+    build: {
+        rollupOptions: {
+            input: {
+                main: path.resolve(__dirname, "index.html"),
+                tree: path.resolve(__dirname, "tree.html")
+            }
+        }
+    },
+
     server: {
         watch: {
             usePolling: true,

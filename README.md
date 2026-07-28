@@ -202,6 +202,44 @@ Every move goes through the URL: a projection click publishes
 `EV_ROUTE_CHANGED` walks back down the tree as `EV_ACTIVATE`. Back, Forward,
 F5 and deep links are therefore correct by construction.
 
+**The root can be a node too** — `config.shell.tree`. Declared there, the
+shell stops owning the menu and keeps only the **space** (zones, layers,
+stages, toolbar, overlays, theme, breakpoints): the root node's children are
+the app's primary options, and it projects them into zones instead of into its
+own body.
+
+```json
+"shell": {
+    "zones": {"top": {"host": "toolbar"}, "left": {"show_on": ">=desktop"},
+              "bottom": {"show_on": "<desktop"}, "center": {"host": "stage.main"}},
+    "stages": {"main": {"zone": "center", "default_route": "/"}},
+    "tree": {
+        "base_route": "/", "stage": "main",
+        "projection": {
+            "index":  [{"zone": "left", "layout": "vertical"},
+                       {"zone": "bottom", "layout": "icon-bar"}],
+            "chrome": [{"zone": "left", "layout": "vertical"},
+                       {"zone": "bottom", "layout": "icon-bar"}]
+        },
+        "children": [ /* the primary options, and everything under them */ ]
+    }
+}
+```
+
+Note what is NOT there: no zone declares `host: "menu.<id>"`, and there is no
+`menu` block at all. A render config with a `zone` mounts through
+`yui_shell_zone()` and **persists** — the rail is standing chrome, so it is
+built once and told where the user is, not rebuilt per navigation.
+`menu.primary.render` always was a per-zone projection; this just gives it an
+owner that can hold it.
+
+`shell.tree` synthesizes exactly ONE route entry, flagged `owns_subtree`, which
+is the only case where root `/` may match as an ancestor (`route_resolver.js`).
+The unknown-route diagnostic is not lost by that: it moves to the node that
+actually knows the names of its children. Runnable reference:
+`test-app/tree.html` (`_qa_root.mjs`), served beside `index.html` so the two
+navigation models can be compared in one browser.
+
 **Where the tree ends.** One gobj per structural node is right; one gobj per
 meter reading is not. A node marks the boundary with `link` — a pointer into a
 data space (a timeranger: millions of raw records, series/time, key/value) plus

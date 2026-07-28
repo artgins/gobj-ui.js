@@ -37,6 +37,18 @@
  *      API cannot, that would be an API bug, not a difference between
  *      "config" and "runtime".
  *
+ *      THE ROOT
+ *      --------
+ *      The root node is where the shell's own root used to be: its
+ *      children are the app's primary options, and it projects them
+ *      into ZONES of the space (a left rail, a bottom bar) instead of
+ *      into its own body — a render config with a `zone` is mounted
+ *      through yui_shell_zone().  That is the only asymmetry in the
+ *      model, and it is not an exception to it: `menu.primary.render`
+ *      always was a per-zone projection, it just had no owner that
+ *      could hold it.  Declared as `config.shell.tree`, which
+ *      synthesizes ONE route entry owning the whole url space.
+ *
  *      WHERE THE TREE ENDS
  *      -------------------
  *      One gobj per structural node is right; one gobj per meter
@@ -115,6 +127,7 @@ import {
 
 import {
     yui_shell_of,
+    yui_shell_zone,
     yui_shell_navigate,
     yui_shell_set_sub_routes,
 } from "./c_yui_shell.js";
@@ -160,7 +173,9 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     children:       null,   /*  child NODE gobjs, in order              */
-    navs:           null,   /*  live C_YUI_NAV gobjs of the projection  */
+    navs:           null,   /*  live C_YUI_NAV gobjs inside my own body  */
+    zone_navs:      null,   /*  navs projected into the SPACE, by key     */
+    zone_sig:       null,   /*  their last item signature                 */
     content_gobj:   null,
     active_child:   null,   /*  child NODE gobj currently on the path    */
     chrome_depth:   null,   /*  effective for the active path (null = all) */
@@ -200,6 +215,8 @@ function mt_create(gobj)
 
     priv.children = [];
     priv.navs = [];
+    priv.zone_navs = {};
+    priv.zone_sig = {};
 
     let parent = gobj_parent(gobj);
     priv.is_root = !parent || gobj_gclass_name(parent) !== GCLASS_NAME;
@@ -284,6 +301,12 @@ function mt_stop(gobj)
     if(priv.content_gobj && gobj_is_running(priv.content_gobj)) {
         gobj_stop(priv.content_gobj);
     }
+    for(let key of Object.keys(priv.zone_navs)) {
+        let nav = priv.zone_navs[key];
+        if(gobj_is_running(nav)) {
+            gobj_stop(nav);
+        }
+    }
     for(let child of priv.children) {
         if(gobj_is_running(child)) {
             gobj_stop(child);
@@ -304,6 +327,8 @@ function mt_destroy(gobj)
      *  references and own nothing but the DOM. */
     priv.content_gobj = null;
     priv.navs = [];
+    priv.zone_navs = {};
+    priv.zone_sig = {};
     priv.active_child = null;
 
     let $c = gobj_read_attr(gobj, "$container");
@@ -537,7 +562,7 @@ function clear_navs(gobj)
  *      "index"  — I am the tip: the projection is the page.
  *      "chrome" — a child is showing: the projection is its chrome.
  ************************************************************/
-function render_projection(gobj, mode, $where, active_route)
+function render_projection(gobj, mode, $where, active_route, active_id, zones_only)
 {
     let priv = gobj.priv;
 
@@ -565,6 +590,21 @@ function render_projection(gobj, mode, $where, active_route)
 
     let i = 0;
     for(let render of renders) {
+        /*  A projection with a `zone` goes into the SPACE (the root
+         *  rail/bar), not into this node's body — and it PERSISTS.  It
+         *  is the app's standing chrome: rebuilding it on every
+         *  navigation would throw away its scroll and blink the rail,
+         *  so it is created once and told where the user is. */
+        if(render.zone) {
+            project_into_zone(gobj, render, items, active_route, active_id);
+            i++;
+            continue;
+        }
+        if(zones_only) {
+            i++;
+            continue;
+        }
+        let $target = $where;
         let nav = gobj_create_pure_child(
             `${NAV_PREFIX}${mode}_${i}__`,
             "C_YUI_NAV",
@@ -573,10 +613,11 @@ function render_projection(gobj, mode, $where, active_route)
                 nav_label:    gobj_read_attr(gobj, "label") || gobj_read_attr(gobj, "node_id"),
                 menu_items:   items,
                 layout:       render.layout,
+                zone:         render.zone || "",
                 icon_pos:     render.icon_pos || "top",
                 show_label:   render.show_label !== false,
                 show_on:      render.show_on || "",
-                level:        "secondary",
+                level:        render.zone ? "primary" : "secondary",
                 /*  A backbar goes UP: back to this node's own index. */
                 back_route:   (render.layout === "backbar") ? my_route : "",
                 active_route: active_route || ""
@@ -586,11 +627,66 @@ function render_projection(gobj, mode, $where, active_route)
         gobj_start(nav);
         let $nav = gobj_read_attr(nav, "$container");
         if($nav) {
-            $where.appendChild($nav);
+            $target.appendChild($nav);
         }
         priv.navs.push(nav);
         i++;
     }
+}
+
+/************************************************************
+ *  Project into a zone of the SPACE, once, and keep it.
+ *
+ *  Rebuilt only when the children actually changed (the runtime
+ *  API added or removed one); otherwise the nav is just told the
+ *  new position, which is what C_YUI_NAV's EV_ROUTE_CHANGED is
+ *  for.  Unknown zone: nothing is built rather than mounted
+ *  nowhere — a menu that silently vanishes is the worse failure.
+ ************************************************************/
+function project_into_zone(gobj, render, items, active_route, active_id)
+{
+    let priv = gobj.priv;
+    let key = `${render.zone}|${render.layout}|${render.show_on || ""}`;
+    let sig = items.map((it) => it.id).join(",");
+    let nav = priv.zone_navs[key];
+
+    if(!nav) {
+        let $zone = yui_shell_zone(yui_shell_of(gobj), render.zone);
+        if(!$zone) {
+            return;   /*  Error already logged  */
+        }
+        nav = gobj_create_pure_child(
+            `${NAV_PREFIX}zone_${render.zone}_${render.layout}__`,
+            "C_YUI_NAV",
+            {
+                menu_id:     `node.${route_of(gobj)}`,
+                nav_label:   gobj_read_attr(gobj, "label") || gobj_read_attr(gobj, "node_id"),
+                menu_items:  items,
+                zone:        render.zone,
+                layout:      render.layout,
+                icon_pos:    render.icon_pos || "left",
+                show_label:  render.show_label !== false,
+                show_on:     render.show_on || "",
+                level:       "primary"
+            },
+            gobj
+        );
+        gobj_start(nav);
+        let $nav = gobj_read_attr(nav, "$container");
+        if($nav) {
+            $zone.appendChild($nav);
+        }
+        priv.zone_navs[key] = nav;
+        priv.zone_sig[key] = sig;
+    } else if(priv.zone_sig[key] !== sig) {
+        gobj_send_event(nav, "EV_SET_ITEMS", {items: items}, gobj);
+        priv.zone_sig[key] = sig;
+    }
+
+    gobj_send_event(nav, "EV_ROUTE_CHANGED", {
+        route: active_route || "",
+        item:  {id: active_id || ""}
+    }, gobj);
 }
 
 /************************************************************
@@ -667,7 +763,13 @@ function render_self(gobj)
     if(priv.children.length) {
         let $index = createElement2(["div", {class: "NODE_INDEX"}]);
         priv.$body.appendChild($index);
-        render_projection(gobj, "index", $index, "");
+        render_projection(gobj, "index", $index, "", "");
+        /*  The zone projection is standing chrome: it lives across states,
+         *  so its chrome renders must be refreshed here too or the rail
+         *  would keep highlighting the child we just left.  ZONES ONLY —
+         *  a body-bound chrome render drawn next to the index would be
+         *  the same children listed twice on one screen. */
+        render_projection(gobj, "chrome", $index, "", "", true);
         return;
     }
 
@@ -694,7 +796,8 @@ function render_child(gobj, child)
      *  level.  `chrome_depth` is how a node caps that for its corner
      *  of the tree (see resolve_chrome_depth). */
     if(chrome_visible(priv.distance, priv.chrome_depth)) {
-        render_projection(gobj, "chrome", priv.$chrome, route_of(child));
+        render_projection(gobj, "chrome", priv.$chrome, route_of(child),
+            gobj_read_attr(child, "node_id"));
     }
 
     let $slot = createElement2(["div", {class: "NODE_CHILD"}]);
