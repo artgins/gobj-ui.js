@@ -28,6 +28,7 @@ import {
 
 import {register_c_yui_shell}        from "@yuneta/gobj-ui/src/c_yui_shell.js";
 import {register_c_yui_nav}          from "@yuneta/gobj-ui/src/c_yui_nav.js";
+import {register_c_yui_node}         from "@yuneta/gobj-ui/src/c_yui_node.js";
 import {register_c_yui_form}         from "@yuneta/gobj-ui/src/c_yui_form.js";
 import {register_c_yui_uplot}        from "@yuneta/gobj-ui/src/c_yui_uplot.js";
 import {register_c_yui_gobj_tree_js} from "@yuneta/gobj-ui/src/c_yui_gobj_tree_js.js";
@@ -56,6 +57,8 @@ import {register_c_demo_period} from "./c_demo_period.js";
 import {register_c_demo_map}    from "./c_demo_map.js";
 import {register_c_demo_modals} from "./c_demo_modals.js";
 import {register_c_demo_windows} from "./c_demo_windows.js";
+import {register_c_demo_node_lab} from "./c_demo_node_lab.js";
+import {register_c_demo_tranger_link} from "./c_demo_tranger_link.js";
 
 import {setup_locale} from "./locales.js";
 
@@ -106,6 +109,7 @@ function main()
     register_c_yui_map();
     register_c_yui_window();     // host for the developer window (account menu)
     register_c_yui_window_manager(); // dock/taskbar for windows (Windows chapter)
+    register_c_yui_node();       // node tree: the Cards chapter is a tree of these
 
     register_c_demo();
     register_c_test_view();
@@ -121,6 +125,8 @@ function main()
     register_c_demo_map();
     register_c_demo_modals();
     register_c_demo_windows();
+    register_c_demo_node_lab();
+    register_c_demo_tranger_link();
 
     /*  i18n (en/es). C_YUI_FORM, the shell and the views translate their
      *  DOM through i18next's module-level t(); this inits the shared

@@ -363,8 +363,294 @@
                     "id": "cards",
                     "name": "Cards",
                     "icon": "yi-square",
-                    "tooltip": "Section-index landing: a grid of tappable cards",
+                    "tooltip": "A tree of node gobjs: cards inside cards, any depth",
                     "route": "/cards",
+                    "_comment": "PROTOTYPE of the node-tree model (C_YUI_NODE). ONE declared route: the shell resolves /cards and hands the tree everything below as a subpath, so depth is unbounded and no route table grows. A node is a gobj, the gobj tree IS the navigation tree, and each node holds HOW IT WANTS ITS CHILDREN SEEN (projection). The declared `children` below are not a privileged path: mt_create feeds them to the same EV_ADD_NODE the runtime API uses — see the buttons in the panel at /cards.",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_YUI_NODE",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "node_id": "cards",
+                            "label": "Cards",
+                            "base_route": "/cards",
+                            "tree_version": "1.0.0",
+                            "projection": {
+                                "index": {
+                                    "layout": "cards"
+                                },
+                                "chrome": [
+                                    {
+                                        "layout": "tabs",
+                                        "show_on": ">=tablet"
+                                    },
+                                    {
+                                        "layout": "backbar",
+                                        "show_on": "<tablet"
+                                    }
+                                ]
+                            },
+                            "content": {
+                                "gclass": "C_DEMO_NODE_LAB",
+                                "kw": {
+                                    "title": "Node tree",
+                                    "lead": "The cards below are child NODES, each a gobj. Walk in: Energy → North hall → Meter 1 is four levels deep on one declared route. The buttons reshape the LIVE tree through the same API the config used at boot."
+                                }
+                            },
+                            "children": [
+                                {
+                                    "id": "alpha",
+                                    "label": "Alpha",
+                                    "icon": "yi-eye",
+                                    "content": {
+                                        "gclass": "C_TEST_VIEW",
+                                        "kw": {
+                                            "title": "Cards — Alpha",
+                                            "lead": "A leaf directly under the root: a node with content and no children. The route #/cards/alpha is unchanged from the old section-index demo.",
+                                            "badges": [
+                                                "level 2",
+                                                "content, no children"
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "beta",
+                                    "label": "Beta",
+                                    "icon": "yi-cog",
+                                    "projection": {
+                                        "index": {
+                                            "layout": "cards"
+                                        },
+                                        "chrome": [
+                                            {
+                                                "layout": "tabs",
+                                                "show_on": ">=tablet"
+                                            },
+                                            {
+                                                "layout": "backbar",
+                                                "show_on": "<tablet"
+                                            }
+                                        ]
+                                    },
+                                    "content": {
+                                        "gclass": "C_TEST_VIEW",
+                                        "kw": {
+                                            "title": "Cards — Beta",
+                                            "lead": "This node has CONTENT and CHILDREN at the same time: the content is the page, the children are projected under it. One node, not two concepts.",
+                                            "badges": [
+                                                "content + children",
+                                                "level 2"
+                                            ]
+                                        }
+                                    },
+                                    "children": [
+                                        {
+                                            "id": "one",
+                                            "label": "Beta one",
+                                            "icon": "yi-square",
+                                            "content": {
+                                                "gclass": "C_TEST_VIEW",
+                                                "kw": {
+                                                    "title": "Beta one",
+                                                    "lead": "Reached from a card under Beta's own content.",
+                                                    "badges": [
+                                                        "level 3"
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "id": "two",
+                                            "label": "Beta two",
+                                            "icon": "yi-square",
+                                            "content": {
+                                                "gclass": "C_TEST_VIEW",
+                                                "kw": {
+                                                    "title": "Beta two",
+                                                    "lead": "Back returns to Beta, which shows its content again.",
+                                                    "badges": [
+                                                        "level 3"
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "id": "energy",
+                                    "label": "Energy",
+                                    "icon": "yi-bolt",
+                                    "projection": {
+                                        "index": {
+                                            "layout": "cards"
+                                        },
+                                        "chrome": [
+                                            {
+                                                "layout": "tabs",
+                                                "show_on": ">=tablet"
+                                            },
+                                            {
+                                                "layout": "backbar",
+                                                "show_on": "<tablet"
+                                            }
+                                        ]
+                                    },
+                                    "children": [
+                                        {
+                                            "id": "north",
+                                            "label": "North hall",
+                                            "icon": "yi-table",
+                                            "projection": {
+                                                "index": {
+                                                    "layout": "cards"
+                                                },
+                                                "chrome": [
+                                                    {
+                                                        "layout": "tabs",
+                                                        "show_on": ">=tablet"
+                                                    },
+                                                    {
+                                                        "layout": "backbar",
+                                                        "show_on": "<tablet"
+                                                    }
+                                                ]
+                                            },
+                                            "children": [
+                                                {
+                                                    "id": "m1",
+                                                    "label": "Meter 1",
+                                                    "icon": "yi-plug",
+                                                    "_link_comment": "WHERE THE TREE ENDS. This node does not branch: it LINKS to a data space (a timeranger: millions of raw records, series/time, key/value) and mounts the viewer suited to it. Everything below in the url — #/cards/energy/north/m1/series/kwh_total — is handed to that viewer as EV_ROUTE_CHANGED {base, subpath}, the same contract the shell gives a view. One gobj per structural node is right; one gobj per record is not.",
+                                                    "link": {
+                                                        "kind": "tranger",
+                                                        "gclass": "C_DEMO_TRANGER_LINK",
+                                                        "kw": {
+                                                            "topic": "meters^north^m1",
+                                                            "records": 3418772
+                                                        }
+                                                    }
+                                                },
+                                                {
+                                                    "id": "m2",
+                                                    "label": "Meter 2",
+                                                    "icon": "yi-plug",
+                                                    "_link_comment": "WHERE THE TREE ENDS. This node does not branch: it LINKS to a data space (a timeranger: millions of raw records, series/time, key/value) and mounts the viewer suited to it. Everything below in the url — #/cards/energy/north/m1/series/kwh_total — is handed to that viewer as EV_ROUTE_CHANGED {base, subpath}, the same contract the shell gives a view. One gobj per structural node is right; one gobj per record is not.",
+                                                    "link": {
+                                                        "kind": "tranger",
+                                                        "gclass": "C_DEMO_TRANGER_LINK",
+                                                        "kw": {
+                                                            "topic": "meters^north^m2",
+                                                            "records": 2904331
+                                                        }
+                                                    }
+                                                }
+                                            ],
+                                            "aliases": [
+                                                "hall1"
+                                            ],
+                                            "_aliases_comment": "This node used to be called 'hall1'. The tree's paths are a CONTRACT — urls a client may hold — so the id was not rewritten in place: #/cards/energy/hall1/m1 still resolves and is rewritten (replace) to the canonical spelling. That is what a version bump migrates through; there is no reparent API on purpose."
+                                        },
+                                        {
+                                            "id": "south",
+                                            "label": "South hall",
+                                            "icon": "yi-table",
+                                            "projection": {
+                                                "index": {
+                                                    "layout": "cards"
+                                                },
+                                                "chrome": [
+                                                    {
+                                                        "layout": "tabs",
+                                                        "show_on": ">=tablet"
+                                                    },
+                                                    {
+                                                        "layout": "backbar",
+                                                        "show_on": "<tablet"
+                                                    }
+                                                ]
+                                            },
+                                            "children": [
+                                                {
+                                                    "id": "m3",
+                                                    "label": "Meter 3",
+                                                    "icon": "yi-plug",
+                                                    "content": {
+                                                        "gclass": "C_TEST_VIEW",
+                                                        "kw": {
+                                                            "title": "Meter 3",
+                                                            "lead": "Same depth as Meter 1, but this branch declares chrome_depth: 1, so only ONE chrome strip is painted instead of one per ancestor. How much chrome a corner of the tree deserves is a property of the tree, not of the renderer.",
+                                                            "badges": [
+                                                                "level 4",
+                                                                "chrome_depth: 1",
+                                                                "deep-linkable"
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            ],
+                                            "chrome_depth": 1,
+                                            "_chrome_depth_comment": "Cap the stacked chrome for THIS branch: only the strip nearest the tip is painted, instead of one per ancestor. The deepest declaration on the path wins, so an intermediate node whose only job is to hold this number is a legitimate node. Compare #/cards/energy/south/m3 (one strip) with #/cards/energy/north/m1 (three)."
+                                        }
+                                    ]
+                                },
+                                {
+                                    "id": "water",
+                                    "label": "Water",
+                                    "icon": "yi-droplet",
+                                    "projection": {
+                                        "index": {
+                                            "layout": "vertical"
+                                        },
+                                        "chrome": {
+                                            "layout": "vertical"
+                                        }
+                                    },
+                                    "children": [
+                                        {
+                                            "id": "tank1",
+                                            "label": "Tank 1",
+                                            "icon": "yi-droplet",
+                                            "content": {
+                                                "gclass": "C_TEST_VIEW",
+                                                "kw": {
+                                                    "title": "Tank 1",
+                                                    "lead": "Its parent projects its children as a VERTICAL list instead of cards. Same tree, same URLs — a projection is HOW you see the children, not WHERE you are.",
+                                                    "badges": [
+                                                        "projection: vertical",
+                                                        "level 3"
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "id": "tank2",
+                                            "label": "Tank 2",
+                                            "icon": "yi-droplet",
+                                            "content": {
+                                                "gclass": "C_TEST_VIEW",
+                                                "kw": {
+                                                    "title": "Tank 2",
+                                                    "lead": "Change the projection from the panel at /cards and watch the shape change without the URL moving.",
+                                                    "badges": [
+                                                        "projection: vertical",
+                                                        "level 3"
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "sectionindex",
+                    "name": "Section index",
+                    "icon": "yi-table",
+                    "tooltip": "The shell's own submenu.index landing (two levels)",
+                    "route": "/sectionindex",
                     "submenu": {
                         "_comment": "index:true turns /cards into a real, deep-linkable landing rendered as a CARDS grid (a synthesized C_YUI_NAV, layout:\"cards\"). Tabs and cards never coexist: the tab strip defaults to >=tablet, and on mobile a BACKBAR (< Cards) replaces it inside each child view.",
                         "render": {
@@ -376,19 +662,17 @@
                                 "id": "alpha",
                                 "name": "Alpha",
                                 "icon": "yi-eye",
-                                "route": "/cards/alpha",
+                                "route": "/sectionindex/alpha",
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_TEST_VIEW",
                                     "lifecycle": "keep_alive",
                                     "kw": {
-                                        "title": "Cards — Alpha",
-                                        "lead": "You reached this from the CARDS landing at /cards (layout \"cards\": a grid of tappable cards, one per item). On desktop a tab strip is available on top; on mobile a \"< Cards\" backbar replaces it.",
+                                        "title": "Section index — Alpha",
+                                        "lead": "The SHELL synthesized this landing from submenu.index: one card per submenu item, capped at two levels (primary nav + submenu). Compare with the Cards chapter, where the same look comes from a recursive tree of node gobjs.",
                                         "badges": [
-                                            "left: vertical",
-                                            "landing: cards",
-                                            "top-sub: tabs (>=tablet)",
-                                            "backbar (<tablet)"
+                                            "shell: submenu.index",
+                                            "2 levels (capped)"
                                         ]
                                     }
                                 }
@@ -397,19 +681,17 @@
                                 "id": "beta",
                                 "name": "Beta",
                                 "icon": "yi-cog",
-                                "route": "/cards/beta",
+                                "route": "/sectionindex/beta",
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_TEST_VIEW",
                                     "lifecycle": "keep_alive",
                                     "kw": {
-                                        "title": "Cards — Beta",
-                                        "lead": "Navigate back to /cards (brand → then the Cards item, or the backbar on mobile) to see the card grid landing itself.",
+                                        "title": "Section index — Beta",
+                                        "lead": "submenu.index is the shipped mechanism wattyzer uses for /reports. It stays here because it is what five apps run in production today.",
                                         "badges": [
-                                            "left: vertical",
-                                            "landing: cards",
-                                            "top-sub: tabs (>=tablet)",
-                                            "backbar (<tablet)"
+                                            "shell: submenu.index",
+                                            "2 levels (capped)"
                                         ]
                                     }
                                 }
@@ -418,17 +700,17 @@
                                 "id": "gamma",
                                 "name": "Gamma",
                                 "icon": "yi-user",
-                                "route": "/cards/gamma",
+                                "route": "/sectionindex/gamma",
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_TEST_VIEW",
                                     "lifecycle": "keep_alive",
                                     "kw": {
-                                        "title": "Cards — Gamma",
-                                        "lead": "The cards landing is a resting, deep-linkable route (unlike Tabs/Submenu, whose bare parent route redirects to the first child).",
+                                        "title": "Section index — Gamma",
+                                        "lead": "Two levels is all this mechanism has: a submenu item cannot declare a submenu of its own.",
                                         "badges": [
-                                            "left: vertical",
-                                            "landing: cards"
+                                            "shell: submenu.index",
+                                            "2 levels (capped)"
                                         ]
                                     }
                                 }
@@ -437,17 +719,17 @@
                                 "id": "delta",
                                 "name": "Delta",
                                 "icon": "yi-lock",
-                                "route": "/cards/delta",
+                                "route": "/sectionindex/delta",
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_TEST_VIEW",
                                     "lifecycle": "keep_alive",
                                     "kw": {
-                                        "title": "Cards — Delta",
-                                        "lead": "Four cards, four leaves. Add a fifth item to submenu.items and the grid grows automatically.",
+                                        "title": "Section index — Delta",
+                                        "lead": "For arbitrary depth, see the Cards chapter (C_YUI_NODE).",
                                         "badges": [
-                                            "left: vertical",
-                                            "landing: cards"
+                                            "shell: submenu.index",
+                                            "2 levels (capped)"
                                         ]
                                     }
                                 }

@@ -254,6 +254,13 @@ function build_ui(gobj)
     wire_clicks(gobj, $container);
 
     gobj_write_attr(gobj, "$container", $container);
+
+    /*  A nav can be CREATED already knowing which item is active (a
+     *  C_YUI_NODE builds its chrome for the child it is about to show).
+     *  Applying the highlight only on rebuild lost it for every such
+     *  nav — the shell never noticed because it always follows creation
+     *  with an EV_ROUTE_CHANGED. */
+    apply_active_route(gobj);
 }
 
 /************************************************************
@@ -286,8 +293,6 @@ function rebuild(gobj)
     if($old && $old.parentNode) {
         $old.parentNode.removeChild($old);
     }
-
-    apply_active_route(gobj);
 }
 
 /************************************************************

@@ -7,6 +7,66 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat: `C_YUI_NODE` — a navigable position as a gobj, and navigation as a
+  tree of them (PROTOTYPE).** The shell's menu tree is capped at two levels
+  (`build_item_index` walks `item` + `item.submenu.items` and stops), which is
+  why a section with sub-sections has to flatten its options into one tab
+  strip. `C_YUI_NODE` models the other shape: *the gobj tree IS the navigation
+  tree*, the URL is the path of node ids below a single declared
+  `base_route`, and each node holds **how it wants its children seen**
+  (`projection`, a `C_YUI_NAV` render config in two modes — `index` when the
+  node is the tip, `chrome` when a child is showing). There is no
+  primary/secondary nav any more, only a parent projecting its children,
+  recursively, at any depth. A node may carry `content`, `children` or both.
+  The declared `children` attr is **not** a privileged path: `mt_create` feeds
+  it to the same `EV_ADD_NODE` the runtime API uses, so declarative and
+  dynamic are the same code — `yui_node_add` / `yui_node_remove` /
+  `yui_node_set_projection` / `yui_node_set_content` reshape a live tree, and
+  a node added at 3pm is deep-linkable like one declared at boot. Routing
+  stays inside the ROUTING.md contract: clicks publish `EV_NAV_CLICKED` and
+  become a URL push, the shell's `EV_ROUTE_CHANGED` walks back down as
+  `EV_ACTIVATE`, and the tree contributes its whole shape to the site map
+  (`yui_shell_set_sub_routes`). A path segment naming no living child logs and
+  rewrites the URL (replace) to the deepest living ancestor — with a dynamic
+  tree the ground really can disappear under a bookmark. The shell is
+  **untouched**: this rides on one declared route and its `subpath`.
+  Demonstrated in the test-app's **Cards** chapter (four levels + a panel that
+  mutates the live tree), driven by `_qa_nodetree.mjs` / `_qa_extra.mjs`.
+  Two consequences of the model are wired in from the start:
+    - **`chrome_depth`** — every ancestor painting its own chrome stacks one
+      strip per level, which at depth 4 is three strips. A node declares how
+      many its corner of the tree deserves (`0` none, omit = all) and the
+      DEEPEST declaration on the path wins, so an intermediate node whose only
+      job is to hold that number is a legitimate node.
+    - **`link` — where the structural tree ends.** One gobj per structural
+      node is right; one gobj per meter reading is not. A node declares a
+      `link` ({kind, gclass, kw}) into a data space — a timeranger: millions
+      of raw records, series/time, key/value — and mounts the viewer suited
+      to that shape. It is then always the tip of the structure: the url
+      keeps going, but its tail reaches the viewer as `EV_ROUTE_CHANGED
+      {base, subpath}`, the same contract the shell gives a view, so a viewer
+      is agnostic about being inside a tree. `link` + `children` (or
+      `content`) is a config error. Without this the tree would answer a data
+      url by rewriting it away as a dead path.
+    - **the tree is a CONTRACT, so there is no reparent API.** A published
+      path is a url a client may hold; the shape is versioned
+      (`tree_version` + `yui_node_tree_version()`) and a rename migrates
+      through `aliases` — the former id still resolves and the URL is
+      rewritten (replace) to the canonical spelling, like an HTTP 301.
+  `submenu.index` (what wattyzer `/reports` runs today) is untouched and keeps
+  its own demo at `/sectionindex`: while the model settles, the two coexist —
+  there is no converter and no migration of the five consumers.
+- **fix(nav): a `C_YUI_NAV` created already knowing its active route never
+  highlighted it.** `apply_active_route()` ran only from `rebuild()`, so the
+  `active_route` passed at creation was ignored; the shell never noticed
+  because it always follows creation with an `EV_ROUTE_CHANGED` that
+  re-applies it. Any other host — a `C_YUI_NODE` building the chrome for the
+  child it is about to show — got an unmarked strip. It is applied at the end
+  of `build_ui()` now (and dropped from `rebuild()`, which calls `build_ui`).
+- **feat(icons): `yi-bolt` and `yi-droplet`.** Two more mask rules in
+  `yui_icons.css`. Energy and water are two of the meter families the AMR
+  apps read, and an undefined `yi-*` renders as a solid black square.
+
 
 ## 5.2.1
 

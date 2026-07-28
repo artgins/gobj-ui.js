@@ -138,6 +138,103 @@ toggles it closed. The tree model is `yui_shell_nav_map()` /
 protocols (`yui_shell_set_sub_routes`, `yui_shell_register_event_handler`)
 live in [`ROUTING.md`](ROUTING.md).
 
+### C_YUI_NODE — navigation as a tree of gobjs (prototype)
+
+`C_YUI_SHELL`'s menu tree is **two levels** (a primary item and its
+`submenu.items`); a submenu item cannot declare a submenu of its own, so a
+section with sub-sections has to flatten everything into one tab strip.
+
+`C_YUI_NODE` is the prototype of the other model: **the gobj tree IS the
+navigation tree.** A node is a gobj, the URL is the path of node ids under a
+single declared `base_route`, and a parent holds *how it wants its children
+seen*:
+
+```json
+{
+    "gclass": "C_YUI_NODE",
+    "kw": {
+        "node_id": "cards", "base_route": "/cards",
+        "projection": {
+            "index":  {"layout": "cards"},
+            "chrome": [{"layout": "tabs", "show_on": ">=tablet"},
+                       {"layout": "backbar", "show_on": "<tablet"}]
+        },
+        "content":  {"gclass": "C_MY_LANDING", "kw": {}},
+        "children": [
+            {"id": "energy", "label": "Energy", "icon": "yi-bolt",
+             "projection": {"index": {"layout": "cards"}},
+             "children": [ /* … any depth … */ ]}
+        ]
+    }
+}
+```
+
+- **`projection`** is a `C_YUI_NAV` render config (so cards/tabs/vertical/
+  icon-bar/backbar and `show_on` all work unchanged) in two modes: `index`
+  when the node is the tip of the path — the projection IS the page — and
+  `chrome` when a child is showing — the projection is the strip around it.
+- **`content` and `children` are not exclusive**: a section with its own page
+  and sub-pages is one node.
+- **The route table does not grow.** The host declares ONE route; everything
+  below arrives as the shell's `subpath` (ROUTING.md §4), and the tree
+  contributes its full shape to the site map via `yui_shell_set_sub_routes`.
+- **`chrome_depth`** caps the stacked chrome: with every ancestor painting its
+  own strip, depth N shows N-1 of them. A node declares how many its corner of
+  the tree deserves (`0` = none, omit = all), the **deepest declaration on the
+  path wins, and an intermediate node whose only job is to hold that number is
+  a legitimate node.
+- **Declarative and dynamic are the same code.** The declared `children` attr
+  is fed to the same `EV_ADD_NODE` the runtime API uses:
+
+  ```js
+  yui_node_add(node, spec, index)      yui_node_remove(node, node_id)
+  yui_node_set_projection(node, proj)  yui_node_set_content(node, content)
+  yui_node_find(node, "energy/north")  yui_node_route(node)
+  ```
+
+  A node added at runtime is deep-linkable like one declared at boot. Removing
+  the branch the user is standing on moves them to the nearest living ancestor
+  (`replace`, logged) — with a live tree the ground can disappear under a
+  bookmark.
+
+Every move goes through the URL: a projection click publishes
+`EV_NAV_CLICKED`, the node turns it into a push navigation, and the shell's
+`EV_ROUTE_CHANGED` walks back down the tree as `EV_ACTIVATE`. Back, Forward,
+F5 and deep links are therefore correct by construction.
+
+**Where the tree ends.** One gobj per structural node is right; one gobj per
+meter reading is not. A node marks the boundary with `link` — a pointer into a
+data space (a timeranger: millions of raw records, series/time, key/value) plus
+the viewer suited to that shape:
+
+```json
+{"id": "m1", "label": "Meter 1",
+ "link": {"kind": "tranger", "gclass": "C_MY_TRANGER_VIEW",
+          "kw": {"topic": "meters^north^m1"}}}
+```
+
+A link node is always the **tip of the structure**: the url keeps going, but
+its tail is handed to the viewer as `EV_ROUTE_CHANGED {base, subpath}` — the
+same contract the shell gives a view (ROUTING.md §5), so a viewer cannot tell
+whether the shell mounted it at a declared route or a node did, deep in a tree.
+`base` is the node's canonical route, which is what the viewer builds its own
+deep links from. An empty subpath means the viewer's home, which is what makes
+Back out of a deep data position land on it. Below a link there are no nodes:
+`link` + `children` (or `link` + `content`) is a config error, because a silent
+winner in "who owns the subpath" would be the worst outcome.
+
+**The tree is a contract, not runtime state.** Once published, a node's path
+is a url a client may have bookmarked, scripted, or been sold as another door
+into the system. So there is deliberately **no reparent/move API**: the shape
+is versioned (`tree_version` on the root, `yui_node_tree_version()`), and a
+rename migrates through `aliases` — the former id keeps resolving and the URL
+is rewritten (replace) to the canonical spelling, the same shape as an HTTP
+301. Anything a version bump cannot cover is a new tree, declared as such.
+
+Runnable reference: the **Cards** chapter of `test-app` (four levels plus a
+panel that mutates the live tree), driven by `test-app/_qa_nodetree.mjs` and
+`test-app/_qa_extra.mjs`.
+
 ### C_YUI_JSON — lazy JSON tree viewer
 
 A container-agnostic viewer (like `C_YUI_PAGER`): it owns only a toolbar +

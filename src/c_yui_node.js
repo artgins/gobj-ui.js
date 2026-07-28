@@ -1,0 +1,1343 @@
+/***********************************************************************
+ *          c_yui_node.js
+ *
+ *      C_YUI_NODE — a navigable position, and the whole navigation
+ *      model in one recursive gclass.
+ *
+ *      THE MODEL
+ *      ---------
+ *      A node is a gobj.  Nodes form a TREE (the gobj tree IS the
+ *      navigation tree — no parallel structure), and the URL is the
+ *      path of node ids from the tree's `base_route` down:
+ *
+ *          #/cards/energy/north/m1
+ *           \____/\____________/
+ *            base   node ids
+ *
+ *      Every node holds HOW IT WANTS ITS CHILDREN SEEN — the
+ *      `projection` (cards, tabs, vertical, backbar…, per breakpoint).
+ *      That is the piece that removes "two levels of menu" as a
+ *      concept: there is no primary/secondary nav, there is a parent
+ *      projecting its children, recursively, at any depth.  Rendering
+ *      is DRY: a projection IS a C_YUI_NAV render config, so every
+ *      level reuses the same renderer, the same item contract, the
+ *      same i18n and the same click event as the shell's own menus.
+ *
+ *      A node may have CONTENT (a gclass to mount), CHILDREN, or both:
+ *      a section with its own page and sub-pages is one node with
+ *      both, not two concepts.
+ *
+ *      DECLARATIVE == DYNAMIC
+ *      ----------------------
+ *      The runtime API is the contract; the declared `children` attr
+ *      is only its first caller.  mt_create does not build the tree
+ *      by a private path — it sends itself one EV_ADD_NODE per
+ *      declared child, exactly what yui_node_add() does at 3pm with
+ *      the app running.  If the boot path could build something the
+ *      API cannot, that would be an API bug, not a difference between
+ *      "config" and "runtime".
+ *
+ *      WHERE THE TREE ENDS
+ *      -------------------
+ *      One gobj per structural node is right; one gobj per meter
+ *      reading is not.  A node marks the boundary with `link`: a
+ *      pointer into a data space (a timeranger — millions of raw
+ *      records, series/time, key/value) plus the viewer suited to that
+ *      shape.  A link node is ALWAYS the tip of the structural path:
+ *      the url keeps going, but the tail is handed to the viewer as
+ *      `EV_ROUTE_CHANGED {base, subpath}` — the SAME contract the shell
+ *      gives a view (ROUTING.md §5), so a viewer cannot tell whether it
+ *      was mounted by the shell at a declared route or by a node deep
+ *      in a tree.  Below a link there are no nodes, and declaring
+ *      `children` there is a config error.
+ *
+ *      ROUTING (see ROUTING.md)
+ *      ------------------------
+ *      The tree owns everything below `base_route` through the
+ *      shell's `subpath`: ONE declared route, arbitrary depth.  Clicks
+ *      never mutate the view — a projection click publishes
+ *      EV_NAV_CLICKED, the node turns it into a URL change (push), and
+ *      the shell's EV_ROUTE_CHANGED walks back down the tree as
+ *      EV_ACTIVATE.  Intent → URL → view, so Back/Forward, F5 and deep
+ *      links are correct by construction.
+ *
+ *      Only the ROOT node (the one whose parent is not a C_YUI_NODE)
+ *      talks to the shell: it subscribes to EV_ROUTE_CHANGED, resolves
+ *      the subpath and activates the branch.  Inner nodes only ever
+ *      hear their parent.
+ *
+ *      A path segment that names no living child is not silently
+ *      swallowed: it logs and the URL is rewritten (replace) to the
+ *      deepest living ancestor — the tree is dynamic, so the ground
+ *      CAN disappear under a bookmark.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+import {
+    SDATA,
+    SDATA_END,
+    data_type_t,
+    event_flag_t,
+    gclass_create,
+    gclass_find_by_name,
+    log_error,
+    log_warning,
+    gobj_create_pure_child,
+    gobj_destroy,
+    gobj_start,
+    gobj_stop,
+    gobj_is_running,
+    gobj_parent,
+    gobj_gclass_name,
+    gobj_read_attr,
+    gobj_read_pointer_attr,
+    gobj_write_attr,
+    gobj_subscribe_event,
+    gobj_unsubscribe_event,
+    gobj_send_event,
+    gobj_change_state,
+    gobj_current_state,
+    createElement2,
+    empty_string,
+    is_array,
+} from "@yuneta/gobj-js";
+
+import {
+    split_subpath,
+    head_tail,
+    join_route,
+    projection_renders,
+    child_nav_items,
+    chrome_visible,
+    normalize_spec,
+} from "./node_tree_model.js";
+
+import {
+    yui_shell_of,
+    yui_shell_navigate,
+    yui_shell_set_sub_routes,
+} from "./c_yui_shell.js";
+
+import "./c_yui_node.css";
+
+
+/***************************************************************
+ *              Constants
+ ***************************************************************/
+const GCLASS_NAME = "C_YUI_NODE";
+
+/*  Internal children are named apart from node children, whose gobj
+ *  name IS their node id (so the `machine` trace reads like the URL). */
+const CONTENT_NAME = "__content__";
+const NAV_PREFIX   = "__nav_";
+
+
+/***************************************************************
+ *              Attrs
+ ***************************************************************/
+const attrs_table = [
+SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
+
+SDATA(data_type_t.DTP_STRING,   "node_id",      0,  "",     "Id of this node — it IS its url segment (immutable)"),
+SDATA(data_type_t.DTP_STRING,   "label",        0,  "",     "Human label (i18n key); falls back to node_id"),
+SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Icon css class"),
+SDATA(data_type_t.DTP_STRING,   "tooltip",      0,  "",     "Tooltip/aria label (i18n key)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "disabled",     0,  false,  "Rendered but not navigable"),
+SDATA(data_type_t.DTP_INTEGER,  "chrome_depth", 0,  -1,     "Chrome strips painted above the tip; -1 = inherit, 0 = none"),
+SDATA(data_type_t.DTP_JSON,     "aliases",      0,  null,   "Former ids of this node — old urls keep resolving (rewritten)"),
+SDATA(data_type_t.DTP_JSON,     "projection",   0,  null,   "How this node shows its children: layout | {index,chrome}"),
+SDATA(data_type_t.DTP_JSON,     "content",      0,  null,   "{gclass, kw} mounted when this node is the tip of the path"),
+SDATA(data_type_t.DTP_JSON,     "link",         0,  null,   "{kind, gclass, kw} — structure ends here; the viewer owns the subpath"),
+SDATA(data_type_t.DTP_JSON,     "children",     0,  null,   "Declared child specs — the first caller of the runtime API"),
+
+SDATA(data_type_t.DTP_STRING,   "base_route",   0,  "",     "ROOT only: the declared route the whole tree hangs from"),
+SDATA(data_type_t.DTP_STRING,   "tree_version", 0,  "",     "ROOT only: version of the tree CONTRACT (its paths are public urls)"),
+
+SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Root HTMLElement (shell view contract)"),
+SDATA_END()
+];
+
+let PRIVATE_DATA = {
+    children:       null,   /*  child NODE gobjs, in order              */
+    navs:           null,   /*  live C_YUI_NAV gobjs of the projection  */
+    content_gobj:   null,
+    active_child:   null,   /*  child NODE gobj currently on the path    */
+    chrome_depth:   null,   /*  effective for the active path (null = all) */
+    distance:       0,      /*  segments from me down to the tip           */
+    is_root:        false,
+    $chrome:        null,
+    $body:          null
+};
+
+let __gclass__ = null;
+
+
+
+
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
+
+
+
+
+/***************************************************************
+ *          Framework Method: Create
+ ***************************************************************/
+function mt_create(gobj)
+{
+    let priv = gobj.priv;
+
+    /*
+     *  CHILD subscription model
+     */
+    let subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+    if(!subscriber) {
+        subscriber = gobj_parent(gobj);
+    }
+    gobj_subscribe_event(gobj, null, {}, subscriber);
+
+    priv.children = [];
+    priv.navs = [];
+
+    let parent = gobj_parent(gobj);
+    priv.is_root = !parent || gobj_gclass_name(parent) !== GCLASS_NAME;
+
+    if(empty_string(gobj_read_attr(gobj, "node_id"))) {
+        log_error(`${GCLASS_NAME}: created without 'node_id' — the id IS the url segment`);
+    }
+    if(priv.is_root && empty_string(gobj_read_attr(gobj, "base_route"))) {
+        log_error(`${GCLASS_NAME}: root node created without 'base_route'`);
+    }
+
+    build_ui(gobj);
+
+    /*
+     *  The declared tree is not a privileged path: it is a caller of
+     *  the same runtime API, one EV_ADD_NODE per child.
+     */
+    let declared = gobj_read_attr(gobj, "children");
+    if(declared !== null && declared !== undefined) {
+        if(!is_array(declared)) {
+            log_error(`${GCLASS_NAME} '${node_path_str(gobj)}': 'children' must be an array`);
+        } else {
+            for(let spec of declared) {
+                gobj_send_event(gobj, "EV_ADD_NODE", {spec: spec}, gobj);
+            }
+        }
+    }
+}
+
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
+function mt_start(gobj)
+{
+    let priv = gobj.priv;
+
+    for(let child of priv.children) {
+        if(!gobj_is_running(child)) {
+            gobj_start(child);
+        }
+    }
+
+    if(!priv.is_root) {
+        return;
+    }
+
+    /*
+     *  Only the root talks to the shell.  Subscribing in mt_start keeps
+     *  it symmetric with the unsubscribe in mt_stop; the shell mounts a
+     *  view (create → appendChild → start) and only THEN broadcasts
+     *  EV_ROUTE_CHANGED, so this still precedes the first broadcast.
+     */
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${GCLASS_NAME}: no shell — the tree cannot route`);
+        return;
+    }
+    gobj_subscribe_event(shell, "EV_ROUTE_CHANGED", {}, gobj);
+    publish_sub_routes(gobj);
+}
+
+/***************************************************************
+ *          Framework Method: Stop
+ ***************************************************************/
+function mt_stop(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.is_root) {
+        let shell = yui_shell_of(gobj);
+        if(shell) {
+            gobj_unsubscribe_event(shell, "EV_ROUTE_CHANGED", {}, gobj);
+            yui_shell_set_sub_routes(shell, gobj_read_attr(gobj, "base_route"), null);
+        }
+    }
+
+    deactivate(gobj);
+
+    /*  Symmetric with mt_start: what this node started, it stops —
+     *  the framework destroys children, and destroying a RUNNING gobj
+     *  is an error. */
+    if(priv.content_gobj && gobj_is_running(priv.content_gobj)) {
+        gobj_stop(priv.content_gobj);
+    }
+    for(let child of priv.children) {
+        if(gobj_is_running(child)) {
+            gobj_stop(child);
+        }
+    }
+}
+
+/***************************************************************
+ *          Framework Method: Destroy
+ ***************************************************************/
+function mt_destroy(gobj)
+{
+    let priv = gobj.priv;
+
+    /*  gobj_destroy() destroys the children BEFORE calling mt_destroy,
+     *  so the content and the projection navs are already gone: reaching
+     *  for them here only logs "gobj NULL or DESTROYED".  Drop the
+     *  references and own nothing but the DOM. */
+    priv.content_gobj = null;
+    priv.navs = [];
+    priv.active_child = null;
+
+    let $c = gobj_read_attr(gobj, "$container");
+    if($c && $c.parentNode) {
+        $c.parentNode.removeChild($c);
+    }
+    gobj_write_attr(gobj, "$container", null);
+}
+
+
+
+
+                    /***************************
+                     *      Local Methods
+                     ***************************/
+
+
+
+
+/************************************************************
+ *  Build the (empty) DOM skeleton.  Inner DOM is built when the
+ *  node is activated and torn down when it leaves the path, so
+ *  an inactive branch costs one empty <div>.
+ ************************************************************/
+function build_ui(gobj)
+{
+    let priv = gobj.priv;
+    let node_id = gobj_read_attr(gobj, "node_id");
+
+    let $container = createElement2(
+        ["div", {class: `${GCLASS_NAME} NODE_VIEW`, "data-node-id": node_id}, [
+            ["div", {class: "NODE_CHROME"}],
+            ["div", {class: "NODE_BODY"}]
+        ]]
+    );
+    priv.$chrome = $container.querySelector(".NODE_CHROME");
+    priv.$body   = $container.querySelector(".NODE_BODY");
+
+    gobj_write_attr(gobj, "$container", $container);
+}
+
+/************************************************************
+ *  The tree's root node (the one whose parent is not a node).
+ ************************************************************/
+function tree_root_of(gobj)
+{
+    let g = gobj;
+    while(true) {
+        let parent = gobj_parent(g);
+        if(!parent || gobj_gclass_name(parent) !== GCLASS_NAME) {
+            return g;
+        }
+        g = parent;
+    }
+}
+
+/************************************************************
+ *  Node ids from the root DOWN TO this node, root excluded
+ *  (the root's own segment is already inside base_route).
+ ************************************************************/
+function node_ids(gobj)
+{
+    let ids = [];
+    let g = gobj;
+    while(true) {
+        let parent = gobj_parent(g);
+        if(!parent || gobj_gclass_name(parent) !== GCLASS_NAME) {
+            break;
+        }
+        ids.unshift(gobj_read_attr(g, "node_id"));
+        g = parent;
+    }
+    return ids;
+}
+
+/************************************************************
+ *  Canonical route of a node — the URL that lands exactly here.
+ ************************************************************/
+function route_of(gobj)
+{
+    let root = tree_root_of(gobj);
+    return join_route(gobj_read_attr(root, "base_route"), node_ids(gobj));
+}
+
+/************************************************************
+ *  Human path for logs: "<base>/a/b".
+ ************************************************************/
+function node_path_str(gobj)
+{
+    return route_of(gobj);
+}
+
+/************************************************************
+ *  Child node by id, or null.
+ ************************************************************/
+function find_child(gobj, node_id)
+{
+    for(let child of gobj.priv.children) {
+        if(gobj_read_attr(child, "node_id") === node_id) {
+            return child;
+        }
+    }
+    return null;
+}
+
+/************************************************************
+ *  Child node whose FORMER id is `node_id`, or null.
+ *
+ *  The tree's paths are a contract — a url a client may have
+ *  bookmarked, scripted or been sold as a door into the system.
+ *  So an id is never rewritten in place: a rename ships the old
+ *  id in `aliases`, the old url keeps resolving, and the shell
+ *  rewrites it to the canonical one.  That is what makes a
+ *  version bump migratable instead of breaking.
+ ************************************************************/
+function find_child_by_alias(gobj, node_id)
+{
+    for(let child of gobj.priv.children) {
+        let aliases = gobj_read_attr(child, "aliases");
+        if(is_array(aliases) && aliases.indexOf(node_id) >= 0) {
+            return child;
+        }
+    }
+    return null;
+}
+
+/************************************************************
+ *  Is this node the boundary between structure and data?
+ ************************************************************/
+function has_link(gobj)
+{
+    let link = gobj_read_attr(gobj, "link");
+    return !!(link && link.gclass);
+}
+
+/************************************************************
+ *  What this node mounts when it is the tip: its link's viewer
+ *  (the data case) or its content (the structural case).
+ ************************************************************/
+function view_spec(gobj)
+{
+    let link = gobj_read_attr(gobj, "link");
+    if(link && link.gclass) {
+        return link;
+    }
+    return gobj_read_attr(gobj, "content");
+}
+
+/************************************************************
+ *  Effective chrome depth for the active path: the DEEPEST
+ *  declaration wins (a node close to the leaf knows better how
+ *  much chrome its corner deserves than the root does), falling
+ *  back to what the parent handed down, then to unlimited.
+ *
+ *  This is why an intermediate node may exist for no other
+ *  reason than to hold this number.
+ ************************************************************/
+function resolve_path_info(gobj, subpath, inherited)
+{
+    let effective = (typeof inherited === "number") ? inherited : null;
+
+    let own = gobj_read_attr(gobj, "chrome_depth");
+    if(typeof own === "number" && own >= 0) {
+        effective = own;
+    }
+    if(has_link(gobj)) {
+        return {distance: 0, chrome_depth: effective};
+    }
+
+    /*  Distance is counted in STRUCTURAL segments: the tail a viewer
+     *  owns below a link is url, not tree, and counting it would push
+     *  every ancestor out of a chrome_depth budget it never spent. */
+    let distance = 0;
+    let g = gobj;
+    for(let seg of split_subpath(subpath)) {
+        let child = find_child(g, seg) || find_child_by_alias(g, seg);
+        if(!child) {
+            break;
+        }
+        distance++;
+        let declared = gobj_read_attr(child, "chrome_depth");
+        if(typeof declared === "number" && declared >= 0) {
+            effective = declared;
+        }
+        g = child;
+        if(has_link(child)) {
+            break;
+        }
+    }
+    return {distance: distance, chrome_depth: effective};
+}
+
+/************************************************************
+ *  Resolve a path of ids ("a/b/c") from `node` downwards.
+ *  Returns the deepest LIVING node plus the segments that did
+ *  not resolve — the caller decides what a dead tail means.
+ ************************************************************/
+function walk_path(node, path)
+{
+    let segs = split_subpath(path);
+    let g = node;
+    let i = 0;
+    while(i < segs.length) {
+        let next = find_child(g, segs[i]);
+        if(!next) {
+            break;
+        }
+        g = next;
+        i++;
+    }
+    return {node: g, missing: segs.slice(i)};
+}
+
+/************************************************************
+ *  Destroy the C_YUI_NAV gobjs rendering this node's projection.
+ ************************************************************/
+function clear_navs(gobj)
+{
+    let priv = gobj.priv;
+    for(let nav of priv.navs) {
+        if(gobj_is_running(nav)) {
+            gobj_stop(nav);
+        }
+        gobj_destroy(nav);
+    }
+    priv.navs = [];
+}
+
+/************************************************************
+ *  Render this node's projection of its children, in one mode:
+ *      "index"  — I am the tip: the projection is the page.
+ *      "chrome" — a child is showing: the projection is its chrome.
+ ************************************************************/
+function render_projection(gobj, mode, $where, active_route)
+{
+    let priv = gobj.priv;
+
+    if(!priv.children.length) {
+        return;
+    }
+    let renders = projection_renders(gobj_read_attr(gobj, "projection"), mode);
+    if(!renders.length) {
+        return;
+    }
+
+    let my_route = route_of(gobj);
+    let base = my_route === "/" ? "" : my_route;
+    let specs = [];
+    for(let child of priv.children) {
+        specs.push({
+            id:       gobj_read_attr(child, "node_id"),
+            label:    gobj_read_attr(child, "label"),
+            icon:     gobj_read_attr(child, "icon"),
+            tooltip:  gobj_read_attr(child, "tooltip"),
+            disabled: gobj_read_attr(child, "disabled")
+        });
+    }
+    let items = child_nav_items(specs, (id) => `${base}/${id}`);
+
+    let i = 0;
+    for(let render of renders) {
+        let nav = gobj_create_pure_child(
+            `${NAV_PREFIX}${mode}_${i}__`,
+            "C_YUI_NAV",
+            {
+                menu_id:      `node.${my_route}`,
+                nav_label:    gobj_read_attr(gobj, "label") || gobj_read_attr(gobj, "node_id"),
+                menu_items:   items,
+                layout:       render.layout,
+                icon_pos:     render.icon_pos || "top",
+                show_label:   render.show_label !== false,
+                show_on:      render.show_on || "",
+                level:        "secondary",
+                /*  A backbar goes UP: back to this node's own index. */
+                back_route:   (render.layout === "backbar") ? my_route : "",
+                active_route: active_route || ""
+            },
+            gobj
+        );
+        gobj_start(nav);
+        let $nav = gobj_read_attr(nav, "$container");
+        if($nav) {
+            $where.appendChild($nav);
+        }
+        priv.navs.push(nav);
+        i++;
+    }
+}
+
+/************************************************************
+ *  Mount this node's own content (lazily, once).  A node with
+ *  content AND children shows the content first and projects
+ *  its children under it.
+ ************************************************************/
+function mount_content(gobj)
+{
+    let priv = gobj.priv;
+    let content = view_spec(gobj);
+
+    if(!content || !content.gclass) {
+        return null;
+    }
+    if(priv.content_gobj) {
+        return priv.content_gobj;
+    }
+    if(!gclass_find_by_name(content.gclass)) {
+        log_error(
+            `${GCLASS_NAME} '${node_path_str(gobj)}': content gclass ` +
+            `'${content.gclass}' is not registered`
+        );
+        return null;
+    }
+
+    let view = gobj_create_pure_child(
+        CONTENT_NAME, content.gclass, content.kw || {}, gobj
+    );
+    gobj_start(view);
+    priv.content_gobj = view;
+    return view;
+}
+
+/************************************************************
+ *  Tear down the mounted content, orderly: a RUNNING gobj must
+ *  be stopped before it is destroyed.
+ ************************************************************/
+function destroy_content(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv.content_gobj) {
+        return;
+    }
+    if(gobj_is_running(priv.content_gobj)) {
+        gobj_stop(priv.content_gobj);
+    }
+    gobj_destroy(priv.content_gobj);
+    priv.content_gobj = null;
+}
+
+/************************************************************
+ *  Paint state ST_SELF: I am the tip of the path.
+ ************************************************************/
+function render_self(gobj)
+{
+    let priv = gobj.priv;
+
+    clear_navs(gobj);
+    priv.$chrome.replaceChildren();
+    priv.$body.replaceChildren();
+
+    let view = mount_content(gobj);
+    if(view) {
+        let $v = gobj_read_attr(view, "$container");
+        if($v) {
+            let $slot = createElement2(["div", {class: "NODE_CONTENT"}]);
+            $slot.appendChild($v);
+            priv.$body.appendChild($slot);
+        }
+    }
+
+    if(priv.children.length) {
+        let $index = createElement2(["div", {class: "NODE_INDEX"}]);
+        priv.$body.appendChild($index);
+        render_projection(gobj, "index", $index, "");
+        return;
+    }
+
+    if(!view) {
+        priv.$body.appendChild(createElement2(
+            ["div", {class: "NODE_EMPTY", i18n: "nothing here yet"},
+                "Nothing here yet."]
+        ));
+    }
+}
+
+/************************************************************
+ *  Paint state ST_CHILD: a child of mine is on the path.
+ ************************************************************/
+function render_child(gobj, child)
+{
+    let priv = gobj.priv;
+
+    clear_navs(gobj);
+    priv.$chrome.replaceChildren();
+    priv.$body.replaceChildren();
+
+    /*  Every ancestor painting its own chrome stacks one strip per
+     *  level.  `chrome_depth` is how a node caps that for its corner
+     *  of the tree (see resolve_chrome_depth). */
+    if(chrome_visible(priv.distance, priv.chrome_depth)) {
+        render_projection(gobj, "chrome", priv.$chrome, route_of(child));
+    }
+
+    let $slot = createElement2(["div", {class: "NODE_CHILD"}]);
+    let $child = gobj_read_attr(child, "$container");
+    if($child) {
+        $slot.appendChild($child);
+    }
+    priv.$body.appendChild($slot);
+}
+
+/************************************************************
+ *  Leave the path: tear down my rendering and my active child's.
+ ************************************************************/
+function deactivate(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.active_child) {
+        gobj_send_event(priv.active_child, "EV_DEACTIVATE", {}, gobj);
+        priv.active_child = null;
+    }
+    clear_navs(gobj);
+    if(priv.$chrome) {
+        priv.$chrome.replaceChildren();
+    }
+    if(priv.$body) {
+        priv.$body.replaceChildren();
+    }
+}
+
+/************************************************************
+ *  Enter (or re-enter) the path with `subpath` as my tail.
+ *  Returns the new state name.
+ ************************************************************/
+function activate(gobj, subpath, inherited_depth)
+{
+    let priv = gobj.priv;
+    let {head, tail} = head_tail(subpath);
+
+    let info = resolve_path_info(gobj, subpath, inherited_depth);
+    priv.distance = info.distance;
+    priv.chrome_depth = info.chrome_depth;
+
+    /*  Structure ends here: whatever is left of the url is data, and it
+     *  belongs to the viewer.  Re-render only the first time — paging
+     *  through data must not rebuild the DOM under the viewer. */
+    if(has_link(gobj)) {
+        if(!priv.content_gobj || gobj_current_state(gobj) !== "ST_SELF") {
+            if(priv.active_child) {
+                gobj_send_event(priv.active_child, "EV_DEACTIVATE", {}, gobj);
+                priv.active_child = null;
+            }
+            render_self(gobj);
+        }
+        forward_subpath(gobj, subpath);
+        return "ST_SELF";
+    }
+
+    if(!head) {
+        if(priv.active_child) {
+            gobj_send_event(priv.active_child, "EV_DEACTIVATE", {}, gobj);
+            priv.active_child = null;
+        }
+        render_self(gobj);
+        return "ST_SELF";
+    }
+
+    let child = find_child(gobj, head);
+    if(!child) {
+        /*  A FORMER id: the url is still part of the contract, it just
+         *  is not the canonical spelling any more.  Rewrite it (replace
+         *  — code decided) and carry on; the route change that follows
+         *  re-enters here on the canonical path. */
+        let renamed = find_child_by_alias(gobj, head);
+        if(renamed) {
+            let shell = yui_shell_of(gobj);
+            if(shell) {
+                let canonical = tail ?
+                    `${route_of(renamed)}/${tail}` : route_of(renamed);
+                yui_shell_navigate(shell, canonical, {replace: true});
+            }
+            child = renamed;
+        }
+    }
+    if(!child) {
+        /*  The ground moved under a bookmark (or a typo): land on the
+         *  deepest living ancestor — me — and say so.  CODE decided the
+         *  move, so it is a replace (ROUTING.md §2). */
+        log_warning(
+            `${GCLASS_NAME} '${node_path_str(gobj)}': no child '${head}' — ` +
+            `falling back to this node`
+        );
+        let shell = yui_shell_of(gobj);
+        if(shell) {
+            yui_shell_navigate(shell, route_of(gobj), {replace: true});
+        }
+        if(priv.active_child) {
+            gobj_send_event(priv.active_child, "EV_DEACTIVATE", {}, gobj);
+            priv.active_child = null;
+        }
+        render_self(gobj);
+        return "ST_SELF";
+    }
+
+    if(priv.active_child && priv.active_child !== child) {
+        gobj_send_event(priv.active_child, "EV_DEACTIVATE", {}, gobj);
+    }
+    priv.active_child = child;
+    render_child(gobj, child);
+    gobj_send_event(child, "EV_ACTIVATE", {
+        subpath: tail,
+        chrome_depth: priv.chrome_depth
+    }, gobj);
+    return "ST_CHILD";
+}
+
+/************************************************************
+ *  Hand the data tail to the viewer, in the SAME shape the shell
+ *  gives a view (ROUTING.md §5): `base` is this node's canonical
+ *  route — what the viewer builds its own deep links from — and
+ *  `subpath` is its tail, empty meaning "the viewer's home".
+ *
+ *  A viewer behind a link therefore cannot tell whether the shell
+ *  mounted it at a declared route or a node did, deep in a tree.
+ *  It MUST declare EV_ROUTE_CHANGED: a data space with no
+ *  addressable position inside it would not need a link at all.
+ ************************************************************/
+function forward_subpath(gobj, subpath)
+{
+    let priv = gobj.priv;
+
+    if(!priv.content_gobj) {
+        return;   /*  Error already logged by mount_content()  */
+    }
+    let base = route_of(gobj);
+    gobj_send_event(priv.content_gobj, "EV_ROUTE_CHANGED", {
+        route:   subpath ? `${base}/${subpath}` : base,
+        base:    base,
+        subpath: subpath || ""
+    }, gobj);
+}
+
+/************************************************************
+ *  Repaint after the tree changed under me, without moving the
+ *  user: same state, fresh projection.
+ ************************************************************/
+function repaint(gobj)
+{
+    let priv = gobj.priv;
+    let state = gobj_current_state(gobj);
+
+    if(state === "ST_SELF") {
+        render_self(gobj);
+        return;
+    }
+    if(state === "ST_CHILD" && priv.active_child) {
+        render_child(gobj, priv.active_child);
+    }
+}
+
+/************************************************************
+ *  Contribute the whole tree to the shell's site map (ROUTING
+ *  §5.4) — a pull-at-render registry, so the map shows every
+ *  level instead of one declared route.
+ ************************************************************/
+function publish_sub_routes(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv.is_root) {
+        return;
+    }
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        return;
+    }
+    yui_shell_set_sub_routes(
+        shell, gobj_read_attr(gobj, "base_route"), sub_route_nodes(gobj)
+    );
+}
+
+function sub_route_nodes(gobj)
+{
+    let nodes = [];
+    for(let child of gobj.priv.children) {
+        nodes.push({
+            route:    route_of(child),
+            label:    gobj_read_attr(child, "label") || gobj_read_attr(child, "node_id"),
+            icon:     gobj_read_attr(child, "icon") || "",
+            children: sub_route_nodes(child)
+        });
+    }
+    return nodes;
+}
+
+/************************************************************
+ *  Tell the root the shape changed (site map + any host), by
+ *  bubbling one event up the gobj tree.  Sent, not published:
+ *  the root's parent is the SHELL, whose FSM must not receive
+ *  events of a gclass it does not know about.
+ ************************************************************/
+function notify_tree_changed(gobj)
+{
+    let parent = gobj_parent(gobj);
+    if(parent && gobj_gclass_name(parent) === GCLASS_NAME) {
+        gobj_send_event(parent, "EV_NODE_TREE_CHANGED", {}, gobj);
+        return;
+    }
+    publish_sub_routes(gobj);
+}
+
+
+
+
+                    /***************************
+                     *      Actions
+                     ***************************/
+
+
+
+
+/************************************************************
+ *  The shell moved the URL (root only).
+ ************************************************************/
+function ac_route_changed(gobj, event, kw, src)
+{
+    let base = kw.base || "";
+    let my_base = gobj_read_attr(gobj, "base_route");
+
+    if(base !== my_base) {
+        /*  Another view owns the URL now.  A keep_alive tree stays
+         *  created but must not keep painting a stale branch. */
+        deactivate(gobj);
+        gobj_change_state(gobj, "ST_OFF");
+        return 0;
+    }
+
+    gobj_change_state(gobj, activate(gobj, kw.subpath || "", null));
+    return 0;
+}
+
+/************************************************************
+ *  My parent put me on the path.
+ ************************************************************/
+function ac_activate(gobj, event, kw, src)
+{
+    gobj_change_state(gobj, activate(gobj, kw.subpath || "", kw.chrome_depth));
+    return 0;
+}
+
+/************************************************************
+ *  My parent took me off the path.
+ ************************************************************/
+function ac_deactivate(gobj, event, kw, src)
+{
+    deactivate(gobj);
+    gobj_change_state(gobj, "ST_OFF");
+    return 0;
+}
+
+/************************************************************
+ *  A projection was clicked.  The node never navigates itself
+ *  by mutating state: it changes the URL and lets the route
+ *  come back down (ROUTING.md §1.3).
+ ************************************************************/
+function ac_nav_clicked(gobj, event, kw, src)
+{
+    let route = kw.route || "";
+
+    if(empty_string(route)) {
+        log_error(`${GCLASS_NAME} '${node_path_str(gobj)}': EV_NAV_CLICKED without route`);
+        return -1;
+    }
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${GCLASS_NAME} '${node_path_str(gobj)}': no shell to navigate to '${route}'`);
+        return -1;
+    }
+    yui_shell_navigate(shell, route);
+    return 0;
+}
+
+/************************************************************
+ *  Runtime API: add a child.  Same path the declared tree takes.
+ ************************************************************/
+function ac_add_node(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let errors = [];
+    let spec = normalize_spec(kw.spec, errors, `${node_path_str(gobj)}/`);
+
+    if(!spec) {
+        for(let e of errors) {
+            log_error(`${GCLASS_NAME}: ${e}`);
+        }
+        return -1;
+    }
+    if(find_child(gobj, spec.id)) {
+        log_error(
+            `${GCLASS_NAME} '${node_path_str(gobj)}': child '${spec.id}' ` +
+            `already exists — sibling ids are url segments`
+        );
+        return -1;
+    }
+
+    /*  A DTP_JSON attr rejects null (json2data FAILED), so a node
+     *  without projection/content simply does not declare them. */
+    let kw_child = {
+        node_id:  spec.id,
+        label:    spec.label,
+        icon:     spec.icon,
+        tooltip:  spec.tooltip,
+        disabled: spec.disabled,
+        chrome_depth: spec.chrome_depth,
+        children: spec.children
+    };
+    if(spec.aliases && spec.aliases.length) {
+        kw_child.aliases = spec.aliases;
+    }
+    if(spec.projection) {
+        kw_child.projection = spec.projection;
+    }
+    if(spec.content) {
+        kw_child.content = spec.content;
+    }
+    if(spec.link) {
+        kw_child.link = spec.link;
+    }
+    let child = gobj_create_pure_child(spec.id, GCLASS_NAME, kw_child, gobj);
+
+    let index = (typeof kw.index === "number") ? kw.index : priv.children.length;
+    if(index < 0) {
+        index = 0;
+    }
+    if(index > priv.children.length) {
+        index = priv.children.length;
+    }
+    priv.children.splice(index, 0, child);
+
+    if(gobj_is_running(gobj)) {
+        gobj_start(child);
+    }
+    repaint(gobj);
+    notify_tree_changed(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  Runtime API: remove a child (and its whole subtree).
+ ************************************************************/
+function ac_remove_node(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let node_id = kw.node_id || "";
+    let child = find_child(gobj, node_id);
+
+    if(!child) {
+        log_error(
+            `${GCLASS_NAME} '${node_path_str(gobj)}': cannot remove '${node_id}' — no such child`
+        );
+        return -1;
+    }
+
+    /*  Removing the branch the user is standing on: move them to the
+     *  nearest living ancestor (me) BEFORE the gobj dies. */
+    let was_active = (priv.active_child === child);
+    if(was_active) {
+        gobj_send_event(child, "EV_DEACTIVATE", {}, gobj);
+        priv.active_child = null;
+    }
+
+    let idx = priv.children.indexOf(child);
+    priv.children.splice(idx, 1);
+    if(gobj_is_running(child)) {
+        gobj_stop(child);
+    }
+    gobj_destroy(child);
+
+    if(was_active) {
+        let shell = yui_shell_of(gobj);
+        if(shell) {
+            yui_shell_navigate(shell, route_of(gobj), {replace: true});
+        }
+        gobj_change_state(gobj, "ST_SELF");
+        render_self(gobj);
+    } else {
+        repaint(gobj);
+    }
+    notify_tree_changed(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  Runtime API: change how I show my children.
+ ************************************************************/
+function ac_set_projection(gobj, event, kw, src)
+{
+    let errors = [];
+    /*  Validate through the same door as a whole spec: a projection
+     *  swap must not be the one path that accepts garbage. */
+    let probe = normalize_spec(
+        {id: gobj_read_attr(gobj, "node_id"), projection: kw.projection},
+        errors, `${node_path_str(gobj)}`
+    );
+    if(!probe) {
+        for(let e of errors) {
+            log_error(`${GCLASS_NAME}: ${e}`);
+        }
+        return -1;
+    }
+
+    gobj_write_attr(gobj, "projection", kw.projection || {});
+    repaint(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  Runtime API: change (or set) my content.
+ ************************************************************/
+function ac_set_content(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let errors = [];
+    let probe = normalize_spec(
+        {id: gobj_read_attr(gobj, "node_id"), content: kw.content},
+        errors, `${node_path_str(gobj)}`
+    );
+    if(!probe) {
+        for(let e of errors) {
+            log_error(`${GCLASS_NAME}: ${e}`);
+        }
+        return -1;
+    }
+
+    destroy_content(gobj);
+    gobj_write_attr(gobj, "content", probe.content || {});
+    repaint(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  A descendant changed shape; keep bubbling to the root, which
+ *  owns the site-map contribution.
+ ************************************************************/
+function ac_tree_changed(gobj, event, kw, src)
+{
+    notify_tree_changed(gobj);
+    return 0;
+}
+
+
+
+
+                    /***************************
+                     *      Public API
+                     ***************************/
+
+
+
+
+/************************************************************
+ *  The runtime API.  Every call is an event: the machine trace
+ *  IS the audit log of how the tree got its shape.
+ ************************************************************/
+function yui_node_add(node, spec, index)
+{
+    return gobj_send_event(node, "EV_ADD_NODE", {spec: spec, index: index}, node);
+}
+
+function yui_node_remove(node, node_id)
+{
+    return gobj_send_event(node, "EV_REMOVE_NODE", {node_id: node_id}, node);
+}
+
+function yui_node_set_projection(node, projection)
+{
+    return gobj_send_event(node, "EV_SET_PROJECTION", {projection: projection}, node);
+}
+
+function yui_node_set_content(node, content)
+{
+    return gobj_send_event(node, "EV_SET_CONTENT", {content: content}, node);
+}
+
+/************************************************************
+ *  Resolve a path of ids from a node ("" = the node itself).
+ *  Returns null when any segment is missing — callers that mean
+ *  "the deepest living one" must say so.
+ ************************************************************/
+function yui_node_find(node, path)
+{
+    let r = walk_path(node, path);
+    if(r.missing.length) {
+        return null;
+    }
+    return r.node;
+}
+
+/************************************************************
+ *  Canonical route of a node — for a host building shortcuts
+ *  (toolbar quick links) without hardcoding paths.
+ ************************************************************/
+function yui_node_route(node)
+{
+    return route_of(node);
+}
+
+/************************************************************
+ *  Version of the tree CONTRACT this node belongs to.
+ *
+ *  There is deliberately NO reparent/move API: once published, a
+ *  node's path is a url someone may depend on, so the shape is a
+ *  versioned contract, not runtime state.  Renames migrate
+ *  through `aliases`; anything a version bump cannot cover is a
+ *  new tree, declared as such.
+ ************************************************************/
+function yui_node_tree_version(node)
+{
+    return gobj_read_attr(tree_root_of(node), "tree_version") || "";
+}
+
+
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+const gmt = {
+    mt_create:  mt_create,
+    mt_start:   mt_start,
+    mt_stop:    mt_stop,
+    mt_destroy: mt_destroy
+};
+
+/***************************************************************
+ *          Create the GClass
+ ***************************************************************/
+function create_gclass(gclass_name)
+{
+    if(__gclass__) {
+        log_error(`GClass ALREADY created: ${gclass_name}`);
+        return -1;
+    }
+
+    /*---------------------------------------------*
+     *          States
+     *
+     *  ST_OFF   — not on the active path (nothing painted).
+     *  ST_SELF  — I am the tip: my content and/or my index
+     *             projection of my children.
+     *  ST_CHILD — a child of mine is on the path: my chrome
+     *             projection plus that child's body.
+     *
+     *  The mutation events are legal in every state on purpose:
+     *  the tree is dynamic, so a node can gain or lose children
+     *  while nobody is looking at it.
+     *---------------------------------------------*/
+    const states = [
+        ["ST_OFF", [
+            ["EV_ROUTE_CHANGED",        ac_route_changed,       null],
+            ["EV_ACTIVATE",             ac_activate,            null],
+            ["EV_ADD_NODE",             ac_add_node,            null],
+            ["EV_REMOVE_NODE",          ac_remove_node,         null],
+            ["EV_SET_PROJECTION",       ac_set_projection,      null],
+            ["EV_SET_CONTENT",          ac_set_content,         null],
+            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
+        ]],
+        ["ST_SELF", [
+            ["EV_ROUTE_CHANGED",        ac_route_changed,       null],
+            ["EV_ACTIVATE",             ac_activate,            null],
+            ["EV_DEACTIVATE",           ac_deactivate,          null],
+            ["EV_NAV_CLICKED",          ac_nav_clicked,         null],
+            ["EV_ADD_NODE",             ac_add_node,            null],
+            ["EV_REMOVE_NODE",          ac_remove_node,         null],
+            ["EV_SET_PROJECTION",       ac_set_projection,      null],
+            ["EV_SET_CONTENT",          ac_set_content,         null],
+            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
+        ]],
+        ["ST_CHILD", [
+            ["EV_ROUTE_CHANGED",        ac_route_changed,       null],
+            ["EV_ACTIVATE",             ac_activate,            null],
+            ["EV_DEACTIVATE",           ac_deactivate,          null],
+            ["EV_NAV_CLICKED",          ac_nav_clicked,         null],
+            ["EV_ADD_NODE",             ac_add_node,            null],
+            ["EV_REMOVE_NODE",          ac_remove_node,         null],
+            ["EV_SET_PROJECTION",       ac_set_projection,      null],
+            ["EV_SET_CONTENT",          ac_set_content,         null],
+            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
+        ]]
+    ];
+
+    /*---------------------------------------------*
+     *          Events
+     *---------------------------------------------*/
+    const event_types = [
+        ["EV_ROUTE_CHANGED",        0],
+        ["EV_ACTIVATE",             0],
+        ["EV_DEACTIVATE",           0],
+        ["EV_NAV_CLICKED",          0],
+        ["EV_ADD_NODE",             0],
+        ["EV_REMOVE_NODE",          0],
+        ["EV_SET_PROJECTION",       0],
+        ["EV_SET_CONTENT",          0],
+        ["EV_NODE_TREE_CHANGED",    0]
+    ];
+
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        gmt,
+        0,  // lmt,
+        attrs_table,
+        PRIVATE_DATA,
+        0,  // authz_table,
+        0,  // command_table,
+        0,  // s_user_trace_level
+        0   // gclass_flag
+    );
+
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************
+ *          Register GClass
+ ***************************************************************/
+function register_c_yui_node()
+{
+    return create_gclass(GCLASS_NAME);
+}
+
+export {
+    register_c_yui_node,
+    yui_node_add,
+    yui_node_remove,
+    yui_node_set_projection,
+    yui_node_set_content,
+    yui_node_find,
+    yui_node_route,
+    yui_node_tree_version
+};

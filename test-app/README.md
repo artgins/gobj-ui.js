@@ -31,10 +31,55 @@ hash routing.
 | **icon-bar** | bottom bar on mobile (narrow the window) | `menu.primary.render.bottom = {layout:"icon-bar"}` |
 | **tabs** | top strip in the **Tabs** chapter | `submenu.render = {"top-sub":"tabs"}` |
 | **submenu** | titled list on the right in **Side submenu** | `submenu.render = {"right":"submenu"}` |
-| **cards** | grid landing at `/cards` (the **Cards** chapter) | `submenu.index = true` (synthesizes a `layout:"cards"` nav) |
-| **backbar** | `← Cards` on mobile inside a card leaf | auto-added by `submenu.index` for `<tablet` |
+| **cards** | every level of the **Cards** chapter (`/cards`) | a node's `projection.index` (see the node tree below) |
+| **backbar** | `← <level>` on mobile inside any card leaf | a node's `projection.chrome` for `<tablet` |
+| **cards** (shell) | grid landing at `/sectionindex` (**Section index**) | `submenu.index = true` (synthesizes a `layout:"cards"` nav) |
 | **drawer** | off-canvas panel from the toolbar burger | `menu.quick.render = {"overlay":"drawer"}` |
 | **accordion** | live embedded nav in the **Accordion** chapter | a `C_YUI_NAV` with `layout:"accordion"` built inside `C_TEST_VIEW` |
+
+### The node tree (`/cards`) — prototype
+
+The **Cards** chapter is not a menu: it is a tree of `C_YUI_NODE` gobjs,
+the prototype of the model where *the gobj tree IS the navigation tree*.
+
+- **One declared route.** `app_config.json` declares `/cards` and nothing
+  else; the shell resolves it and hands the tree everything below as a
+  `subpath`, so `#/cards/energy/north/m1` is four levels deep on a route
+  table that never grew. Depth is unbounded — compare with the
+  **Section index** chapter, which is the shell's own `submenu.index`
+  and stops at two levels by construction.
+- **A parent holds how it wants its children seen.** `projection` is a
+  `C_YUI_NAV` render config, in two modes: `index` (I am the tip — the
+  projection is the page) and `chrome` (a child is showing — the
+  projection is the strip around it). Energy projects cards + tabs;
+  Water projects a vertical list. Same tree, same URLs.
+- **A node may have content AND children** (see *Beta*): the content is
+  the page, the children are projected under it. One node, not two
+  concepts.
+- **`chrome_depth` caps the stacked chrome.** Every ancestor paints its own
+  strip, so depth 4 shows three of them (on mobile they read as a vertical
+  breadcrumb of backbars). `energy/north` leaves them stacked;
+  `energy/south` declares `chrome_depth: 1` and shows one — compare
+  `#/cards/energy/north/m1` with `#/cards/energy/south/m3`.
+- **The tree ends at a `link`.** `energy/north`'s meters do not branch:
+  they link to a (fake) timeranger and mount `C_DEMO_TRANGER_LINK`, which
+  owns the url below them — `#/cards/energy/north/m1/series/kwh_total` is
+  three levels of tree and two of data. Back walks out of the data space
+  position by position before it walks up the tree.
+- **The tree is a contract.** There is no reparent API on purpose: a published
+  path is a url. `north` carries `aliases: ["hall1"]`, so
+  `#/cards/energy/hall1/m1` still resolves and is rewritten to the canonical
+  spelling; the root carries `tree_version`.
+- **Declarative == dynamic.** The panel at `/cards` adds, removes and
+  re-projects nodes on the LIVE tree through the same runtime API
+  (`yui_node_add` / `yui_node_remove` / `yui_node_set_projection`) that
+  `mt_create` feeds the declared `children` into. A node added at
+  runtime is deep-linkable like any other, and removing the branch you
+  are standing on lands you on the nearest living ancestor.
+
+Driven by `_qa_nodetree.mjs` (drill-down, Back, deep link, dead path, the
+runtime API and the projection swap) and `_qa_extra.mjs` (`chrome_depth` and
+aliases) and `_qa_link.mjs` (the data-space boundary).
 
 ### Component views
 

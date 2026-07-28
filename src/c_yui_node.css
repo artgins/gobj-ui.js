@@ -1,0 +1,70 @@
+/***********************************************************************
+ *          c_yui_node.css
+ *
+ *      Layout of C_YUI_NODE — deliberately thin: the projections are
+ *      C_YUI_NAV renders and bring their own styling (cards, tabs,
+ *      backbar…), so all this file owns is the vertical stack
+ *      chrome / body and the nesting that lets a deep branch scroll.
+ *
+ *      No colours beyond Bulma variables, and no transitions (house
+ *      rule): a level change appears instantly.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+.NODE_VIEW {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+}
+
+/*--- chrome: the parent's projection while a child is showing ---*/
+.NODE_CHROME {
+    flex: 0 0 auto;
+}
+.NODE_CHROME:empty {
+    display: none;
+}
+
+/*--- body: content, index projection, or the active child ---*/
+.NODE_BODY {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.NODE_CONTENT {
+    flex: 0 0 auto;
+}
+
+/*  The index projection (a card grid, a list…) is the page when this
+ *  node is the tip: it takes the remaining height and scrolls. */
+.NODE_INDEX {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/*  A node with BOTH content and children: the content keeps its
+ *  natural height and the projection sits under it. */
+.NODE_CONTENT + .NODE_INDEX {
+    border-top: 1px solid var(--bulma-border-weak, #dbdbdb);
+}
+
+/*  The active child's own NODE_VIEW nests here — min-height:0 all the
+ *  way down or an inner overflow-y never gets a bounded height. */
+.NODE_CHILD {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.NODE_EMPTY {
+    padding: 1rem;
+    color: var(--bulma-text-weak, #7a7a7a);
+}
