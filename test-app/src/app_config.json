@@ -125,6 +125,15 @@
                             }
                         },
                         {
+                            "id": "d-meter",
+                            "name": "Go to Meter 1 · series",
+                            "_comment": "A SHORTCUT: a non-structural edge that simply navigates to a canonical path. It reaches four levels into the node tree AND two into the data space below the link, with no declaration of those levels anywhere — the url is the whole contract. Note what a shortcut is NOT: it does not know whether its target still exists, so if that node is removed the tree lands the user on the nearest living ancestor and logs it.",
+                            "action": {
+                                "type": "navigate",
+                                "route": "/cards/energy/north/m1/series"
+                            }
+                        },
+                        {
                             "type": "divider"
                         },
                         {

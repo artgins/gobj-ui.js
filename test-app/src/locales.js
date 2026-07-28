@@ -178,6 +178,7 @@ const es_translation = {
     "key/value": "clave/valor",
     "raw records": "registros crudos",
     "pick how to read this topic": "elige cómo leer este topic",
+    "Go to Meter 1 · series": "Ir a Contador 1 · serie",
     "Section index": "Índice de sección",
     "Section index — Alpha": "Índice de sección — Alfa",
     "Section index — Beta": "Índice de sección — Beta",
