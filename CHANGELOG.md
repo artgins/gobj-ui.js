@@ -8,6 +8,23 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 ## Unreleased
 
 
+## 5.3.1
+
+- **fix: the site map closed on navigation in any app without a window
+  manager, and logged an error on every open.** `gobj_find_service()` answers
+  **undefined** for an absent service, not null. Handing that to a
+  DTP_POINTER attr fails the whole kw — so `manager: undefined` did not just
+  print "attr undefined: manager", it took `keep_on_navigate` down with it:
+  the window registered as a plain transient overlay and the resting-route
+  drain closed it on the first row click. One cause, both symptoms.
+  `yui_dev.js` already documented this exact trap and guarded with `|| null`;
+  the site map does the same now.
+- **fix(dev window): a monitor is watched WHILE navigating.** The developer
+  window closed on every route change, which made it useless for the one job
+  it has. It declares `keep_on_navigate` now — the behaviour a dock-managed
+  window already had, for apps with no dock.
+
+
 ## 5.3.0
 
 - **feat(shell): `remember_section_position` — a menu click returns to where
