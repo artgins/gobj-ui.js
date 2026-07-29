@@ -8,6 +8,35 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 ## Unreleased
 
 
+## 5.3.3
+
+- **fix(`C_YUI_NODE`): a `link` node's viewer was given a box sized by its own
+  content, not by the body.** `.NODE_CONTENT` is `flex: 0 0 auto` — right for
+  a plain `content`, which is a header above the index projection and keeps
+  its natural height, and wrong for a `link`, whose viewer IS the page. Sized
+  by content it overflows its host instead of shrinking, which breaks the
+  whole promise of a link: *a viewer cannot tell whether the shell mounted it
+  at a declared route or a node did*. It could tell — the shell's stage bounds
+  the height and the node did not.
+
+  What made it more than a cosmetic overflow is what a viewer does with that
+  box. `C_G6_NODES_TREE` MEASURES its own container to size its canvas, and
+  documents the invariant it relies on: *"setSize does not change the observed
+  box, so there is no feedback loop"*. That is true exactly while somebody
+  bounds the height — under a link, nobody did, so the canvas grew the box it
+  had just measured, the `ResizeObserver` saw the change and measured again,
+  larger. The graph rendered slowly and appeared to expand without end, with
+  the content pushed into a corner of a canvas hundreds of pixels taller than
+  the viewport.
+
+  A link's slot now carries `NODE_CONTENT_LINK` (`flex: 1 1 auto;
+  min-height: 0`), the same box the stage gives a shell-mounted view. Verified
+  in a real browser rather than in jsdom, which has no layout: before, the
+  canvas was 1058px tall inside a 762px body and every ancestor's `scrollHeight`
+  exceeded its box; after, the canvas is 714px and `box === scroll` at every
+  level.
+
+
 ## 5.3.2
 
 - **fix: `keep_on_navigate` never reached the overlay stack.**

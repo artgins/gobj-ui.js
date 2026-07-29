@@ -41,6 +41,25 @@
     flex: 0 0 auto;
 }
 
+/*  A LINK node is the other case: its viewer IS the page, so it takes
+ *  the remaining height and is BOUNDED by it — the box the stage gives
+ *  a view the shell mounts, which is the whole promise of a link ("a
+ *  viewer cannot tell whether the shell mounted it or a node did").
+ *
+ *  Sized by content, as above, it overflows its host instead of
+ *  shrinking, and a viewer that MEASURES its own box to size a canvas
+ *  (C_G6_NODES_TREE and its ResizeObserver) then grows the box it just
+ *  measured: observe → setSize → bigger box → observe. That gclass
+ *  documents "setSize does not change the observed box, so there is no
+ *  feedback loop", and it is right — as long as somebody bounds the
+ *  height. Under a link, that somebody is this rule. */
+.NODE_CONTENT_LINK {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
 /*  The index projection (a card grid, a list…) is the page when this
  *  node is the tip: it takes the remaining height and scrolls. */
 .NODE_INDEX {

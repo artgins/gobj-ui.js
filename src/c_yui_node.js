@@ -760,7 +760,11 @@ function render_self(gobj)
     if(view) {
         let $v = gobj_read_attr(view, "$container");
         if($v) {
-            let $slot = createElement2(["div", {class: "NODE_CONTENT"}]);
+            /*  A LINK's viewer IS the page and must be BOUNDED by the
+             *  body; a plain content is a header above the index and
+             *  keeps its natural height.  Two boxes, so two classes. */
+            let $slot = createElement2(["div", {class: has_link(gobj)
+                ? "NODE_CONTENT NODE_CONTENT_LINK" : "NODE_CONTENT"}]);
             $slot.appendChild($v);
             priv.$body.appendChild($slot);
         }
