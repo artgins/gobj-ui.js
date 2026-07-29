@@ -35,6 +35,8 @@ import {
 
 import {register_c_yui_json} from "@yuneta/gobj-ui/src/c_yui_json.js";
 
+import {lead_block} from "./demo_lead.js";
+
 
 /***************************************************************
  *              Constants
@@ -127,7 +129,7 @@ function mt_create(gobj)
     let $container = createElement2(
         ["div", {class: `${GCLASS_NAME} JSONTREE_CARD p-4`}, [
             ["h1", {class: "title is-5 JSONTREE_TITLE", i18n: title}, title],
-            ["p", {class: "JSONTREE_LEAD mb-3", i18n: lead}, lead],
+            ...lead_block(lead, "JSONTREE_LEAD mb-3"),
             $slot
         ]]
     );

@@ -19,6 +19,8 @@ import {
     gobj_read_attr, gobj_write_attr,
     gobj_create_pure_child,
     gobj_subscribe_event,
+    gobj_send_event,
+    gobj_stop_children,
     gobj_start_tree,
     gobj_find_service,
     gobj_is_running,
@@ -37,6 +39,8 @@ import {
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
 import {yui_shell_show_modal} from "@yuneta/gobj-ui/index.js";
+
+import {LEAD_INFO_CLASS, lead_keys_of} from "./demo_lead.js";
 
 import {yui_shell_show_route_map} from "@yuneta/gobj-ui/src/shell_route_map.js";
 
@@ -64,6 +68,7 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     shell: null,
+    lead_handler: null,
 };
 
 let __gclass__ = null;
@@ -98,6 +103,25 @@ function mt_create(gobj)
 
     /*  Opt in to the toolbar-published events we act on (not
      *  subscriber=ALL, so we never receive events we don't declare). */
+    /*  The chapters' ⓘ buttons (mobile): ONE delegated listener for all
+     *  of them, so ten wrappers do not each grow an event, an action and
+     *  a state for the same affordance.  The listener only translates
+     *  the DOM click into an event — the work is in the action. */
+    let $shell = gobj_read_attr(shell, "$container");
+    if($shell) {
+        priv.lead_handler = function(ev) {
+            let $btn = ev.target && ev.target.closest &&
+                ev.target.closest("." + LEAD_INFO_CLASS);
+            if(!$btn) {
+                return;
+            }
+            ev.preventDefault();
+            gobj_send_event(gobj, "EV_SHOW_LEAD",
+                {keys: lead_keys_of($btn)}, gobj);
+        };
+        $shell.addEventListener("click", priv.lead_handler);
+    }
+
     gobj_subscribe_event(shell, "EV_TOGGLE_THEME",    {}, gobj);
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
@@ -142,6 +166,18 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
+    /*  Detach what mt_create attached: the listener outlives the gobj
+     *  otherwise, and its handler closes over it. */
+    if(priv.lead_handler && priv.shell) {
+        let $shell = gobj_read_attr(priv.shell, "$container");
+        if($shell) {
+            $shell.removeEventListener("click", priv.lead_handler);
+        }
+        priv.lead_handler = null;
+    }
+    gobj_stop_children(gobj);
 }
 
 /***************************************************************
@@ -186,6 +222,41 @@ function apply_theme(theme)
 
 
 
+
+/***************************************************************
+ *  A chapter's ⓘ (mobile): show its lead in the standard adaptive
+ *  dialog — a centered card on desktop, a full-screen sheet on a
+ *  phone, which is where this button exists at all.
+ *
+ *  The kw carries KEYS, not text: translating at open time is what
+ *  keeps the dialog honest after a language change.
+ ***************************************************************/
+function ac_show_lead(gobj, event, kw, src)
+{
+    let keys = (kw && kw.keys) || [];
+
+    if(!keys.length) {
+        log_error("C_DEMO: EV_SHOW_LEAD without keys");
+        return -1;
+    }
+    let priv = gobj.priv;
+    if(!priv.shell) {
+        log_error("C_DEMO: EV_SHOW_LEAD — no shell to host the dialog");
+        return -1;
+    }
+
+    let $body = createElement2(
+        ["div", {class: "content DEMO_LEAD_DIALOG"},
+            keys.map((k) => ["p", {i18n: k}, t(k)])]
+    );
+    yui_shell_show_modal(priv.shell, $body, {
+        dialog: true,
+        logical_class: "DEMO_LEAD_SHEET",
+        title:  "about this chapter",
+        t:      t
+    });
+    return 0;
+}
 
 /***************************************************************
  *  Toolbar theme button (action:event EV_TOGGLE_THEME).
@@ -389,6 +460,7 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
+            ["EV_SHOW_LEAD",        ac_show_lead,        null],
             ["EV_TOGGLE_THEME",     ac_toggle_theme,     null],
             ["EV_TOGGLE_LANGUAGE",  ac_toggle_language,  null],
             ["EV_OPEN_DEVTOOLS",    ac_open_devtools,    null],
@@ -403,6 +475,7 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
+        ["EV_SHOW_LEAD",        0],
         ["EV_TOGGLE_THEME",     0],
         ["EV_TOGGLE_LANGUAGE",  0],
         ["EV_OPEN_DEVTOOLS",    0],

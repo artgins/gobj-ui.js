@@ -34,6 +34,8 @@ import {
     createElement2,
 } from "@yuneta/gobj-js";
 
+import {lead_block} from "./demo_lead.js";
+
 import {
     yui_node_add,
     yui_node_remove,
@@ -218,7 +220,7 @@ function build_ui(gobj)
     let $container = createElement2(
         ["div", {class: `${GCLASS_NAME} LAB_CARD p-4`}, [
             ["h1", {class: "title is-5 LAB_TITLE", i18n: title}, title],
-            ["p", {class: "LAB_LEAD mb-3", i18n: lead}, lead],
+            ...lead_block(lead, "LAB_LEAD mb-3"),
             ["div", {class: "LAB_ACTIONS buttons"}, [
                 button_descriptor("LAB_ADD", "yi-plus", "add node"),
                 button_descriptor("LAB_REMOVE", "yi-trash", "remove last added"),

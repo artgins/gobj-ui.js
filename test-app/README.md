@@ -105,6 +105,20 @@ The shell knows exactly one route, `/`. Everything else —
 Keep both: while the model settles, the two navigation models must be
 comparable in the same browser.
 
+### A chapter's lead on a phone
+
+The explanatory paragraph every chapter carries is three or four lines: free on
+a desktop, the whole fold on a 360px screen — the reader would scroll past an
+explanation to reach the thing it explains. `demo_lead.js` builds it as prose
+from tablet up and an **ⓘ button** on mobile, which opens the standard adaptive
+dialog (a sheet on a phone).
+
+The button carries the i18n **key**, not the translated text, so the dialog
+translates at open time and follows a language change. And the click is
+delegated **once**, by `C_DEMO`: the affordance is app chrome, not a
+per-chapter behaviour, so a dozen wrappers stay free of an event, an action and
+a state apiece. Driven by `_qa_lead.mjs` in both viewports.
+
 ### Leaving a chapter is tested too
 
 Every `C_DEMO_*` wrapper creates and starts a component as a pure child, so

@@ -19,6 +19,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   there is what you come back to; a remembered route that no longer resolves is
   dropped; and only a MENU CLICK consults it — typed urls, deep links,
   Back/Forward and `yui_shell_navigate` are untouched.
+- **demo(test-app): a chapter's lead becomes an ⓘ button on mobile.** Three or
+  four lines of explanation cost nothing on a desktop and cost the fold on a
+  phone — the reader scrolled past the explanation to reach what it explains.
+  Prose from tablet up, a button below it, opening the standard adaptive dialog.
+  The button carries the i18n KEY so the dialog translates at open time, and the
+  click is delegated ONCE by the app's root service instead of giving a dozen
+  wrappers an event, an action and a state apiece for the same affordance.
 - **feat(`C_YUI_NODE`): `yui_node_set_chrome_depth()`.** `chrome_depth` was
   declarable but not reachable at runtime, which broke the rule the tree is
   built on — whatever the config can say, the API must be able to change. With

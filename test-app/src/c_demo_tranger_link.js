@@ -38,6 +38,8 @@ import {
     createElement2,
 } from "@yuneta/gobj-js";
 
+import {lead_block} from "./demo_lead.js";
+
 import {
     yui_shell_of,
     yui_shell_navigate,
@@ -210,18 +212,12 @@ function render(gobj)
         ["div", {}, [
             ["h1", {class: "title is-5 TRANGER_TITLE"}, topic],
             /*  Two keys, not one composed string: each half must be able
-             *  to change language on its own.  createElement2 TRIMS text
-             *  nodes, so the gap between them is CSS (ml-1), never a
-             *  literal space. */
-            ["p", {class: "TRANGER_LEAD"}, [
-                ["span", {i18n: "the structural tree stops here"},
-                    "The structural tree stops here."],
-                ["span", {class: "ml-1",
-                          i18n: "below this node there are no gobjs: it is a data space with a viewer, and the url keeps addressing positions inside it"},
-                    "Below this node there are no gobjs: it is a data space " +
-                    "with a viewer, and the url keeps addressing positions " +
-                    "inside it."]
-            ]],
+             *  to change language on its own.  lead_block keeps them apart
+             *  and hands both to the mobile dialog. */
+            ...lead_block([
+                "the structural tree stops here",
+                "below this node there are no gobjs: it is a data space with a viewer, and the url keeps addressing positions inside it"
+            ], "TRANGER_LEAD"),
             ["p", {class: "TRANGER_STATS is-size-7 mt-2"},
                 `${records.toLocaleString("en")} records · base ${priv.base} · ` +
                 `subpath "${[priv.mode, priv.key].filter(Boolean).join("/")}"`]

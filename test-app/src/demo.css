@@ -78,3 +78,22 @@
 [data-theme="dark"] .C_DEMO_TABLE .tabulator-row .tabulator-cell {
     border-color: var(--bulma-border, #363a41);
 }
+
+
+/*
+ *  A chapter's lead: prose from tablet up, an ⓘ button on a phone.
+ *  Three or four lines of explanation are free on a desktop and cost
+ *  the fold on a 360px screen — the reader would scroll past the
+ *  explanation to reach the thing it explains.  Built by demo_lead.js;
+ *  the click is delegated once by C_DEMO.
+ */
+.DEMO_LEAD_INFO {
+    padding-left: 0;
+    text-decoration: none;
+}
+.DEMO_LEAD_INFO .icon {
+    margin-right: 0.25rem;
+}
+.DEMO_LEAD_DIALOG p {
+    max-width: none;
+}

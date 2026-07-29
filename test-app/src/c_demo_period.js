@@ -32,6 +32,8 @@ import {
     gobj_stop_children,
 } from "@yuneta/gobj-js";
 
+import {lead_block} from "./demo_lead.js";
+
 import {fmt_epoch} from "@yuneta/gobj-ui/src/yui_time.js";
 import {yui_shell_of} from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
@@ -234,7 +236,7 @@ function build_ui(gobj)
         ["div", {class: `${GCLASS_NAME} DEMO_PERIOD view-card`},
             [
                 ["h2", {class: "title is-4 DEMO_PERIOD_TITLE"}, gobj_read_attr(gobj, "title")],
-                ["p", {class: "mb-4 DEMO_PERIOD_LEAD"}, gobj_read_attr(gobj, "lead")],
+                ...lead_block(gobj_read_attr(gobj, "lead"), "mb-4 DEMO_PERIOD_LEAD"),
                 ["div", {class: "columns is-multiline DEMO_PERIOD_PICKERS"}, [$left, $right]],
                 ["p", {class: "label mt-4 mb-1 DEMO_PERIOD_ECHO_LABEL"},
                     t("what the query builder receives")],

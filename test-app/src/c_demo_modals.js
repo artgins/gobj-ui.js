@@ -35,6 +35,8 @@ import {
 
 import {yui_shell_of} from "@yuneta/gobj-ui/src/c_yui_shell.js";
 
+import {lead_block} from "./demo_lead.js";
+
 import {t} from "i18next";
 
 
@@ -203,7 +205,7 @@ function build_ui(gobj)
         ["h1", {class: "DEMO_TITLE title is-3 mb-2", i18n: title}, title]
     ];
     if(lead) {
-        head.push(["p", {class: "DEMO_LEAD content", i18n: lead, style: "max-width:60ch;"}, lead]);
+        head.push(...lead_block(lead));
     }
 
     const trigger_buttons = (triggers) => {
