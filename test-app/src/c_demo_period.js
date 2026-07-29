@@ -29,6 +29,7 @@ import {
     gobj_create_pure_child, gobj_start, gobj_send_event, gobj_name,
     createElement2,
     refresh_language,
+    gobj_stop_children,
 } from "@yuneta/gobj-js";
 
 import {fmt_epoch} from "@yuneta/gobj-ui/src/yui_time.js";
@@ -118,6 +119,11 @@ function mt_stop(gobj)
     if(shell) {
         gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
     }
+    /*  What this wrapper started, it stops.  gobj_destroy() destroys the
+     *  children BEFORE mt_destroy, and destroying a RUNNING gobj is an
+     *  error — invisible while a chapter is keep_alive, loud the moment
+     *  it becomes lazy_destroy. */
+    gobj_stop_children(gobj);
 }
 
 /***************************************************************

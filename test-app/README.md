@@ -96,6 +96,16 @@ The shell knows exactly one route, `/`. Everything else —
 Keep both: while the model settles, the two navigation models must be
 comparable in the same browser.
 
+### Leaving a chapter is tested too
+
+Every `C_DEMO_*` wrapper creates and starts a component as a pure child, so
+every one of them must stop it in `mt_stop`: `gobj_destroy()` destroys the
+children BEFORE `mt_destroy`, and destroying a RUNNING gobj is an error. That
+stayed invisible while every chapter was `keep_alive` — the views were never
+destroyed. The first `lazy_destroy` chapter (`/jsontree`) surfaced it at once.
+`_qa_teardown.mjs` walks in and out of every chapter twice, so the way OUT is
+covered as well as the way in.
+
 ### Component views
 
 Beyond the nav-layout chapters, several chapters mount real gobj-ui

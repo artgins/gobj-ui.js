@@ -30,6 +30,7 @@ import {
     gobj_start,
     gobj_send_event,
     createElement2,
+    gobj_stop_children,
 } from "@yuneta/gobj-js";
 
 import {register_c_yui_json} from "@yuneta/gobj-ui/src/c_yui_json.js";
@@ -168,6 +169,11 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    /*  What this wrapper started, it stops.  gobj_destroy() destroys the
+     *  children BEFORE mt_destroy, and destroying a RUNNING gobj is an
+     *  error — invisible while a chapter is keep_alive, loud the moment
+     *  it becomes lazy_destroy. */
+    gobj_stop_children(gobj);
 }
 
 /***************************************************************
