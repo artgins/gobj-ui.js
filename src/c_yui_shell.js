@@ -2304,7 +2304,11 @@ function pop_escape(gobj, handler)
  *    - navigate_to() drains (closes) every registered overlay when the
  *      RESTING route changes — overlays are transient and do not
  *      outlive the view they float above.  An action route or a
- *      subpath-only move keeps them open.
+ *      subpath-only move keeps them open.  An overlay registered with
+ *      `keep_on_navigate` opts OUT of the drain: it is a NAVIGATION
+ *      PANEL, not a thing floating above one view — the site map is
+ *      the reference case, where every row click is meant to move the
+ *      user with the panel still up.
  *    - a drained/buried entry is left INERT: overlay_dismissed only
  *      history.back()s when the marker is the CURRENT history entry
  *      (adjacent, so the back() is invisible) — never over real route
@@ -2324,13 +2328,24 @@ function drain_overlays(gobj)
     if(!priv || !priv.overlay_stack) {
         return;
     }
+    /*  Survivors keep their relative order: the stack is a LIFO and a
+     *  panel that outlives the drain must stay where it was, or Escape
+     *  would start closing overlays in an order the user never built. */
+    let kept = [];
     while(priv.overlay_stack.length > 0) {
         let entry = priv.overlay_stack.pop();
+        if(entry.keep_on_navigate) {
+            kept.unshift(entry);
+            continue;
+        }
         try {
             entry.close();
         } catch(e) {
             log_warning(`C_YUI_SHELL: overlay close on navigation failed: ${e}`);
         }
+    }
+    for(let entry of kept) {
+        priv.overlay_stack.push(entry);
     }
 }
 
@@ -2349,7 +2364,7 @@ function retag_overlay_hash(gobj, st, hash)
     }
 }
 
-function push_overlay_history(gobj, close)
+function push_overlay_history(gobj, close, opts)
 {
     let priv = gobj.priv;
     if(!priv || !priv.overlay_stack || !gobj_read_attr(gobj, "use_hash")) {
@@ -3093,9 +3108,13 @@ function yui_shell_pop_escape(shell_gobj, handler)
  *  `close_fn` is what the Back button invokes to tear the overlay down.
  *  Returns null when history integration is off (no shell / use_hash) —
  *  callers just skip the paired yui_shell_overlay_dismissed then. */
-function yui_shell_register_overlay(shell_gobj, close_fn)
+/*  `opts.keep_on_navigate` — this overlay is a navigation PANEL and
+ *  survives a resting-route change (see drain_overlays).  Default off:
+ *  an overlay is transient, and outliving the view it floats above is
+ *  the exception that has to be asked for. */
+function yui_shell_register_overlay(shell_gobj, close_fn, opts)
 {
-    return push_overlay_history(shell_gobj, close_fn);
+    return push_overlay_history(shell_gobj, close_fn, opts);
 }
 function yui_shell_overlay_dismissed(shell_gobj, overlay)
 {

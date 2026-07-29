@@ -147,7 +147,7 @@ function filter_li($li, q, ancestor_match)
  *  on a resting-route change.  `on_jump()` closes the host for the
  *  one click that navigates nowhere (the current route).
  ***************************************************************/
-function build_body(shell, t, on_jump)
+function build_body(shell, t)
 {
     let map = yui_shell_nav_map(shell);
     let children = [
@@ -251,32 +251,83 @@ function build_body(shell, t, on_jump)
         });
     }
 
-    /*  A route link jumps there NATIVELY (browser push + hashchange —
-     *  no preventDefault): a resting-route change then closes this
-     *  window/modal through the shell's transient-overlay drain, which
-     *  is deterministic (the old close-then-deferred-navigate raced the
-     *  dismissal's history.back() and could land back where it
-     *  started).  A subpath or action-route jump keeps the map open —
-     *  it doubles as a navigation panel.  Clicking the route the user
-     *  is ALREADY on navigates nowhere: close the host instead.
+    /*  A route link jumps there NATIVELY (browser push + hashchange, no
+     *  preventDefault) and the map STAYS OPEN — every row, not just the
+     *  subpath ones.  It is a navigation panel: the user opens it to
+     *  move around, and having half the rows close it under them made
+     *  the same gesture mean two different things.  The window is
+     *  either dock-managed or registered with `keep_on_navigate`, so
+     *  the shell's transient-overlay drain leaves it alone.
      *  Action nodes (no route) are documentation only and do not fire. */
-    $body.addEventListener("click", function(ev) {
-        let $link = ev.target && ev.target.closest &&
-            ev.target.closest(".ROUTEMAP_LINK");
-        if(!$link) {
+
+    /*  "You are here" has to follow the url now that the panel outlives
+     *  the navigation, or it would keep pointing at where the user was
+     *  when they opened it.  Self-detaching: the panel's DOM is owned by
+     *  the window/modal that hosts it, and this helper has no hook into
+     *  their teardown — once the body leaves the document the listener
+     *  retires itself instead of leaking one per open. */
+    let on_hash = function() {
+        if(typeof document === "undefined" || !$body.isConnected) {
+            if(typeof window !== "undefined") {
+                window.removeEventListener("hashchange", on_hash);
+            }
             return;
         }
-        let href = $link.getAttribute("href");
-        if(href && typeof window !== "undefined" &&
-                window.location.hash === href &&
-                typeof on_jump === "function") {
-            ev.preventDefault();
-            on_jump();
-        }
-    });
+        mark_current_row($body, window.location.hash, t);
+    };
+    if(typeof window !== "undefined") {
+        window.addEventListener("hashchange", on_hash);
+    }
 
     refresh_language($body, t);
     return $body;
+}
+
+/***************************************************************
+ *  Move the "you are here" mark to the row that best matches
+ *  `hash`: an exact route wins, else the LONGEST declared route
+ *  that is a path-prefix of it (the base view of a deep subpath
+ *  position).  Same rule as the model's mark_current(), applied
+ *  to the rendered rows so the open panel stays truthful.
+ ***************************************************************/
+function mark_current_row($body, hash, t)
+{
+    let route = String(hash || "").replace(/^#/, "");
+    let $best = null;
+    let best_len = -1;
+
+    for(let $a of $body.querySelectorAll(".ROUTEMAP_LINK")) {
+        let r = String($a.getAttribute("href") || "").replace(/^#/, "");
+        if(!r) {
+            continue;
+        }
+        if(r === route) {
+            $best = $a;
+            break;
+        }
+        if(route.indexOf(r + "/") === 0 && r.length > best_len) {
+            $best = $a;
+            best_len = r.length;
+        }
+    }
+
+    for(let $marked of $body.querySelectorAll(".ROUTEMAP_CURRENT")) {
+        $marked.classList.remove("ROUTEMAP_CURRENT");
+    }
+    if(!$best) {
+        return;
+    }
+    $best.classList.add("ROUTEMAP_CURRENT");
+
+    /*  One badge, moved — never a second one left behind on the row the
+     *  user came from. */
+    let $badge = $body.querySelector(".ROUTEMAP_HERE");
+    if(!$badge) {
+        $badge = createElement2(
+            ["span", {class: "ROUTEMAP_HERE", i18n: "you are here"},
+                t ? t("you are here") : "you are here"]);
+    }
+    $best.appendChild($badge);
 }
 
 
@@ -305,11 +356,7 @@ export function yui_shell_show_route_map(shell, opts)
     /*  Preferred: a resizable, maximisable floating window. */
     if(gclass_find_by_name("C_YUI_WINDOW") !== null) {
         let win_ref = {gobj: null};
-        let $body = build_body(shell, t, function() {
-            if(win_ref.gobj && is_gobj(win_ref.gobj)) {
-                gobj_send_event(win_ref.gobj, "EV_CLOSE_WINDOW", {}, shell);
-            }
-        });
+        let $body = build_body(shell, t);
         let $parent = yui_shell_popup_layer(shell) ||
             (typeof document !== "undefined" &&
                 document.getElementById("top-layer")) || null;
@@ -328,7 +375,13 @@ export function yui_shell_show_route_map(shell, opts)
             title:      "site map",
             icon:       "yi-bars",
             body:       $body,
-            manager:    null
+            /*  A workspace surface, not a thing floating over one view:
+             *  it joins the dock when the app has one (minimise, restore,
+             *  focus like any other window).  Without a dock it stays a
+             *  floating overlay, and `keep_on_navigate` gives it the same
+             *  survives-navigation behaviour there. */
+            manager:    gobj_find_service("__window_manager__", false),
+            keep_on_navigate: true
         }, shell);
         if(!win) {
             log_error("C_YUI_SHELL: cannot create the site-map window");
@@ -342,11 +395,7 @@ export function yui_shell_show_route_map(shell, opts)
 
     /*  Fallback: a modal (no C_YUI_WINDOW registered). */
     let modal_ref = {modal: null};
-    let $body = build_body(shell, t, function() {
-        if(modal_ref.modal && typeof modal_ref.modal.close === "function") {
-            modal_ref.modal.close();
-        }
-    });
+    let $body = build_body(shell, t);
     modal_ref.modal = yui_shell_show_modal(shell, $body, {
         dialog:        true,
         logical_class: "ROUTEMAP_SHEET",

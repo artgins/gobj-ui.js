@@ -169,7 +169,13 @@ same hash) and an **overlay stack**:
 - **Navigating with a non-modal overlay open** (a floating window — modals
   can't co-occur with nav clicks): a change of **resting route** closes every
   registered overlay — an overlay is *transient* (§3) and does not outlive
-  the view it floats above. A **transient action route** (§7.1) or a
+  the view it floats above. **Opt-out:** an overlay registered with
+  `yui_shell_register_overlay(shell, close_fn, {keep_on_navigate: true})` —
+  or a `C_YUI_WINDOW` with `keep_on_navigate` — is a **navigation panel**,
+  not a thing floating above one view, and survives the drain. A window that
+  opts into the **dock** (`manager`) is a workspace surface and is already
+  outside this: it registers no back-overlay at all, so Back navigates
+  instead of closing it. The site map (§9) is the reference case for both. A **transient action route** (§7.1) or a
   **subpath-only** move keeps them open (the site map exploits this: it stays
   up while you drill subpaths). This holds **however the shell got there** —
   a submenu default, an unknown-route default and an action's `"<route>"`
@@ -352,11 +358,18 @@ Views that use the sub-route contributor protocol (§5.4) also appear with
 their deep levels (topics, `/info`, `/schema`, focus topics); routes declared
 **only in the route table** (root `/`, URL-only action routes) get their own
 "other routes" group, so the map is the *complete* tree and an orphan route is
-visible instead of silently unreachable. The row of the route the user is on
-is marked **"you are here"** and scrolled into view. Clicking a route
-navigates natively: a resting-route change closes the map through the
-overlay drain (§6), a subpath/action jump keeps it open as a navigation
-panel, and clicking the current route just closes it.
+visible instead of silently unreachable.
+
+The map is a **navigation panel**: it joins the dock when the app has a
+`C_YUI_WINDOW_MANAGER`, and declares `keep_on_navigate` so it survives the
+overlay drain (§6) when it does not. **Every** row click behaves the same —
+navigate natively, panel stays up — including a resting-route change and the
+row the user is already on. (It used to close on those two, so the same
+gesture meant two different things depending on which row you hit.) The
+**"you are here"** mark follows the URL while the panel is open, by the same
+exact-then-longest-prefix rule the model uses, and is scrolled into view on
+open. It closes through the X, the dock, or the toggle (hitting `/sitemap`
+again).
 
 ---
 

@@ -107,6 +107,7 @@ SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "Brings focus to the
 SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "Enable modal mode"),
 SDATA(data_type_t.DTP_BOOLEAN,  "keyboard",     0,  true,   "Close window on ESC if not modal"),
 SDATA(data_type_t.DTP_BOOLEAN,  "back_dismissable", 0, true, "Browser Back closes this window (floating overlays only; ignored when it has a `manager`)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "keep_on_navigate", 0, false, "This window is a navigation PANEL: a route change does not close it"),
 SDATA(data_type_t.DTP_POINTER,  "back_overlay", 0,  null,   "Internal: overlay-history entry (Back-button integration)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Internal: Window container element"),
 SDATA(data_type_t.DTP_STRING,   "window_id",    0,  "",     "Internal: Window ID"),
@@ -183,12 +184,16 @@ function mt_create(gobj)
     } else if(gobj_read_bool_attr(gobj, "back_dismissable")) {
         /*  Floating overlay window (no dock manager): the browser Back
          *  button closes it, like a modal/popup.  Dock-managed windows
-         *  are persistent workspace surfaces and are left out.  Retired
-         *  in mt_destroy (covers every teardown path). */
+         *  are persistent workspace surfaces and are left out — which
+         *  is also why a navigation panel prefers a manager, and falls
+         *  back to `keep_on_navigate` when the app has no dock.
+         *  Retired in mt_destroy (covers every teardown path). */
         let shell = yui_shell_of(gobj);
         if(shell) {
             let overlay = yui_shell_register_overlay(
-                shell, function() { close_window(gobj); }
+                shell,
+                function() { close_window(gobj); },
+                {keep_on_navigate: gobj_read_bool_attr(gobj, "keep_on_navigate")}
             );
             gobj_write_attr(gobj, "back_overlay", overlay);
         }

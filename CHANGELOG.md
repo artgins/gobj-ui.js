@@ -7,6 +7,25 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): the site map is a NAVIGATION PANEL — every row click keeps it
+  open, and it joins the dock.** Half its rows closed the window and half did
+  not: a resting-route change was drained as a transient overlay (§6), while a
+  subpath or action jump left it up. The same gesture meant two different
+  things depending on which row you hit, and the useful behaviour was the
+  accidental one. The map now opts into `C_YUI_WINDOW_MANAGER` when the app
+  has one (minimise, restore and focus it like any other window), and declares
+  the new `keep_on_navigate` when it does not — a window/overlay flag that
+  opts OUT of the resting-route drain because it is a panel, not something
+  floating above one view. `yui_shell_register_overlay()` takes the flag in an
+  `opts` argument; the drain keeps survivors in their stack order so Escape
+  still closes overlays in the order the user built them. Clicking the row you
+  are already on no longer closes the panel either. **"You are here" follows
+  the URL** while the panel is open (same exact-then-longest-prefix rule as
+  the model), instead of pointing at wherever the user was when they opened
+  it. Consequence of the dock, and deliberate: a dock-managed window registers
+  no back-overlay, so **browser Back navigates instead of closing the map** —
+  it is a workspace surface now, closed by the X, the dock or the toggle.
+
 - **feat: `C_YUI_NODE` — a navigable position as a gobj, and navigation as a
   tree of them (PROTOTYPE).** The shell's menu tree is capped at two levels
   (`build_item_index` walks `item` + `item.submenu.items` and stops), which is
