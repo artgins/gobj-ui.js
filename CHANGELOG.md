@@ -7,6 +7,25 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): the site map hides its reference rows behind a toggle.** With
+  one subtree per route, the second and third place a route is reachable from
+  render as references carrying no structure — a third of the map in an app
+  with a drawer and an account menu. They are hidden by default now (`show
+  references` next to the filter, remembered for the page session): 71 rows
+  down to 53 in the test-app. A reference stays hidden inside a matched
+  subtree too — an ancestor match must not smuggle it back — and a GROUP is
+  only ever shown by what it contains, so a drawer whose entries all repeat
+  the primary nav collapses with them instead of rendering an empty heading.
+  While a search is running a matching group heading still shows: a query that
+  finds a name must not come back empty.
+- **Indentation is four spaces, everywhere structure is shown as
+  indentation.** The site map's tree and `C_YUI_JSON` indented in `rem` and
+  dumped JSON with two; the raw view behind the same viewer disagreed with the
+  tree in front of it. Now `JSON.stringify(v, null, 4)` throughout (viewer,
+  dev panel, demos) and rendered trees indent in **`ch`** — four characters of
+  the row's own monospace font, so the guides stay lined up with the text they
+  belong to at any zoom. Written down in the README's conventions.
+
 - **fix(shell): the site map leads with the STRUCTURE.** The toolbar group
   rendered before the nav, which put a shortcut ("Go to Cards", an
   account-menu entry) above the section it points at. Once each subtree is

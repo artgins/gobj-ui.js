@@ -506,6 +506,19 @@ handlers re-run on their own (which is why a component rarely needs a dedicated
 fires **no** `input` event — a value loaded into the form, or `readonly` toggled
 by the form mode. No-op on an input that never got a clear.
 
+### Indentation is always FOUR spaces
+
+Anywhere structure is shown as indentation — the site map's tree, `C_YUI_JSON`
+and the raw dump behind it, any `JSON.stringify` a view puts on screen — one
+level is **four** characters. Not two here and four there: the reader is using
+the indentation to see the shape, and a shape that changes width between two
+panels of the same app is one more thing to decode.
+
+- `JSON.stringify(value, null, 4)` — never `2`.
+- Rendered trees indent in **`ch`** (`padding-left: 4ch`), not `rem`: it
+  follows the row's own monospace font, so the guides stay lined up with the
+  text they belong to instead of drifting at some zoom level.
+
 ### Logical class names on important DOM blocks
 
 When a gclass builds DOM, tag its elements so the tree is self-describing in

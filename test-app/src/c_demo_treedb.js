@@ -303,7 +303,7 @@ function echo_event(gobj, event, kw)
     if($c) {
         let $json = $c.querySelector(".DEMO_TREEDB_JSON");
         if($json) {
-            $json.textContent = event + " " + JSON.stringify(kw || {}, null, 2);
+            $json.textContent = event + " " + JSON.stringify(kw || {}, null, 4);
         }
     }
 }

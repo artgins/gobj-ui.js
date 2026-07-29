@@ -548,11 +548,20 @@ function leaf_row(key, value, depth)
 }
 
 /************************************************************
- *   Depth indentation (inline style keeps it CSS-framework free)
+ *   Depth indentation (inline style keeps it CSS-framework free).
+ *
+ *   FOUR characters per level, house rule: structure is read as
+ *   indentation, and it has to be the same four everywhere — this
+ *   viewer, the raw dump behind it, the site map's tree.  `ch` is
+ *   the character width of the row's own font, so the rows line up
+ *   with the monospace text they carry instead of drifting from it
+ *   at some zoom level.
  ************************************************************/
+const INDENT_CH = 4;
+
 function row_indent(depth)
 {
-    return 'padding-left:' + (0.4 + depth * 1.1) + 'em;';
+    return 'padding-left:' + (0.4 + depth * INDENT_CH) + 'ch;';
 }
 
 /************************************************************
@@ -760,7 +769,7 @@ function ac_copy_all(gobj, event, kw, src)
     if(priv.root === null || priv.root === undefined) {
         return 0;
     }
-    let text = JSON.stringify(priv.root, null, 2);
+    let text = JSON.stringify(priv.root, null, 4);
     if(navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).catch(function(e) {
             log_error(`${GCLASS_NAME}: clipboard write failed: ${e}`);

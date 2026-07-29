@@ -715,7 +715,7 @@ function render_full(e)
     let payload = full_sections(e.kw ? e.kw : e.jn);
     let text;
     try {
-        text = JSON.stringify(payload, null, 2);
+        text = JSON.stringify(payload, null, 4);
     } catch(err) {
         text = String(payload);
     }
@@ -1021,7 +1021,7 @@ function info_log(level, msg, hora)
         let text;
         if(lvl === "json") {
             try {
-                text = JSON.stringify(msg, null, 2);
+                text = JSON.stringify(msg, null, 4);
             } catch(e) {
                 text = String(msg);
             }
@@ -1248,7 +1248,7 @@ function traffic_to_text()
         out.push(head);
         let payload = e.kw ? e.kw : e.jn;
         try {
-            out.push(JSON.stringify(payload, null, 2));
+            out.push(JSON.stringify(payload, null, 4));
         } catch(err) {
             out.push(String(payload));
         }

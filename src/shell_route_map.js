@@ -40,6 +40,10 @@ import i18next from "i18next";
 
 const WIN_NAME = "shell-route-map-window";
 
+/*  Reference rows (a route's second and third entry point) start
+ *  hidden; the toggle remembers the reader's choice for this page. */
+let __show_refs__ = false;
+
 /*  Modal fallback currently open (the window flavour is a service and
  *  is found by name; the modal is not, so it is tracked here to make
  *  the second call a TOGGLE for both flavours). */
@@ -124,29 +128,49 @@ function render_node(node)
  *  descendant matches (keep the ancestor path). Empty `q` shows all.
  *  Matches against the visible row text (name + route + event), so it
  *  honours the current translation. Returns whether the <li> is shown.
+ *
+ *  `show_refs` off hides the reference rows — the second and third
+ *  place a route is reachable from, which carry no structure. They are
+ *  hidden by DEFAULT: in an app with a drawer and an account menu they
+ *  are a third of the map, and what a reader comes here for is the
+ *  structure. A ref stays hidden even inside a matched subtree — an
+ *  ancestor match must not smuggle it back in — and a group left with
+ *  nothing but refs collapses with them, since a group is only ever
+ *  shown by what it contains.
  ***************************************************************/
-function filter_li($li, q, ancestor_match)
+function filter_li($li, q, ancestor_match, show_refs)
 {
     let $row = $li.querySelector(":scope > .ROUTEMAP_ROW");
     let text = $row ? ($row.textContent || "").toLowerCase() : "";
+    let hidden_ref = !show_refs &&
+        !!($row && $row.classList.contains("ROUTEMAP_IS_REF"));
     let self_match = q === "" || text.indexOf(q) >= 0;
-    let show_all = ancestor_match || self_match;
+    let show_all = (ancestor_match || self_match) && !hidden_ref;
 
     let any_child = false;
     let $ul = $li.querySelector(":scope > ul");
     if($ul) {
         let kids = $ul.children;
         for(let i = 0; i < kids.length; i++) {
-            if(filter_li(kids[i], q, show_all)) {
+            if(filter_li(kids[i], q, show_all, show_refs)) {
                 any_child = true;
             }
         }
     }
 
-    let visible = show_all || any_child;
+    /*  A GROUP is only ever shown by what it contains: a whole menu
+     *  whose entries are all references (a drawer that just repeats the
+     *  primary nav) would otherwise render as a heading with nothing
+     *  under it.  While a search is running its own heading may still
+     *  match — a query that finds a name must not come back empty. */
+    let is_group = !!($row && $row.classList.contains("ROUTEMAP_STRUCT"));
+    let had_children = !!($ul && $ul.children.length);
+    let visible = (is_group && had_children)
+        ? (any_child || (q !== "" && self_match))
+        : ((show_all || any_child) && !hidden_ref);
     $li.style.display = visible ? "" : "none";
     if($row) {
-        $row.classList.toggle("ROUTEMAP_MATCH", q !== "" && self_match);
+        $row.classList.toggle("ROUTEMAP_MATCH", q !== "" && self_match && visible);
     }
     return visible;
 }
@@ -218,15 +242,33 @@ function build_body(shell, t)
         ["span", {class: "ROUTEMAP_COUNT is-size-7 has-text-grey is-hidden"},
             [$count_n, ["span", {i18n: "matches"}, "matches"]]]
     );
-    let $search_row = createElement2(
-        ["div", {class: "ROUTEMAP_SEARCH_ROW mb-2"}, [$search_ctrl, $count]]
+    /*  References are hidden by default and revealed by this toggle.
+     *  Remembered for the page session (not localStorage): it is a
+     *  reading preference of the panel, not a position (ROUTING.md §3),
+     *  and it costs nothing to be back at the useful default tomorrow. */
+    let $refs_input = createElement2(
+        ["input", {class: "ROUTEMAP_REFS_INPUT", type: "checkbox"}]
+    );
+    if(__show_refs__) {
+        $refs_input.checked = true;
+    }
+    let $refs_toggle = createElement2(
+        ["label", {class: "checkbox is-size-7 ROUTEMAP_REFS_TOGGLE",
+                   title: "show references", "data-i18n-title": "show references"},
+            [$refs_input, ["span", {class: "ml-1", i18n: "show references"},
+                "show references"]]]
     );
 
-    $search.addEventListener("input", function() {
+    let $search_row = createElement2(
+        ["div", {class: "ROUTEMAP_SEARCH_ROW mb-2"},
+            [$search_ctrl, $count, $refs_toggle]]
+    );
+
+    let apply_filter = function() {
         let q = ($search.value || "").trim().toLowerCase();
         let $root_li = $tree.querySelector(".ROUTEMAP_ROOT > li");
         if($root_li) {
-            filter_li($root_li, q, false);
+            filter_li($root_li, q, false, __show_refs__);
         }
         if(q === "") {
             $count.classList.add("is-hidden");
@@ -234,7 +276,23 @@ function build_body(shell, t)
             $count_n.textContent = $tree.querySelectorAll(".ROUTEMAP_MATCH").length;
             $count.classList.remove("is-hidden");
         }
+    };
+
+    $search.addEventListener("input", apply_filter);
+    $refs_input.addEventListener("change", function() {
+        __show_refs__ = !!$refs_input.checked;
+        apply_filter();
     });
+
+    /*  Nothing to toggle in an app where every route is reachable from
+     *  exactly one place. */
+    if($tree.querySelectorAll(".ROUTEMAP_IS_REF").length === 0) {
+        $refs_toggle.classList.add("is-hidden");
+    }
+
+    /*  Apply the default (references hidden) before the panel is shown,
+     *  so it is never painted once with them and once without. */
+    apply_filter();
 
     let $body = createElement2(
         ["div", {class: "C_YUI_SHELL_ROUTEMAP ROUTEMAP_BODY"}, [

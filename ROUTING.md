@@ -371,7 +371,9 @@ only ONE of them carries its children — the first occurrence in the nav, then
 toolbar entry pointing at the same route is a shortcut, and hanging the tree
 off it would bury the structure inside the account menu. The other rows render
 as *references* (live links, marked "shown above"), and **"you are here" never
-lands on one** — it marks the occurrence that owns the structure.
+lands on one** — it marks the occurrence that owns the structure. References
+are **hidden by default**, behind a `show references` toggle next to the
+filter; a group left with nothing but references collapses with them.
 
 The map is a **navigation panel**: it joins the dock when the app has a
 `C_YUI_WINDOW_MANAGER`, and declares `keep_on_navigate` so it survives the

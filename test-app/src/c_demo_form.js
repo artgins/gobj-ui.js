@@ -357,7 +357,7 @@ function ac_save_record(gobj, event, kw, src)
     if($c) {
         let $json = $c.querySelector(".DEMO_FORM_JSON");
         if($json) {
-            $json.textContent = JSON.stringify(kw || {}, null, 2);
+            $json.textContent = JSON.stringify(kw || {}, null, 4);
         }
     }
     return 0;
