@@ -161,10 +161,20 @@ function filter_li($li, q, ancestor_match)
 function build_body(shell, t)
 {
     let map = yui_shell_nav_map(shell);
-    let children = [
-        {label: "toolbar", icon: "", route: "", event: "",
-         kind: "group", children: map.toolbar}
-    ].concat(map.nav);
+
+    /*  STRUCTURE FIRST.  The nav leads, then the toolbar, then the
+     *  route-table leftovers.  The toolbar used to come first, which
+     *  put a shortcut ("Go to Cards", an account-menu entry) above the
+     *  section it points at: with one subtree per route the shortcut
+     *  renders as a reference, so the first /cards a reader met had no
+     *  tree under it and the real one was thirty rows down.  It also
+     *  made the reference's own "shown above" a lie — the owner was
+     *  BELOW it.  Leading with the structure fixes both. */
+    let children = [].concat(map.nav);
+    if(Array.isArray(map.toolbar) && map.toolbar.length) {
+        children.push({label: "toolbar", icon: "", route: "", event: "",
+            kind: "group", children: map.toolbar});
+    }
     /*  Routes declared only in the route table (config.shell.routes)
      *  that no menu/toolbar item points at — root "/", URL-only action
      *  routes.  Rendered last, as their own group. */

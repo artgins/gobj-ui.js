@@ -7,6 +7,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(shell): the site map leads with the STRUCTURE.** The toolbar group
+  rendered before the nav, which put a shortcut ("Go to Cards", an
+  account-menu entry) above the section it points at. Once each subtree is
+  drawn once, that shortcut is a reference — so the FIRST `/cards` a reader
+  met had no tree under it and the real one was thirty rows down. It also made
+  the reference's own "shown above" a lie, since the owner was below it.
+  Order is now nav → toolbar → other routes.
 - **fix(shell): the site map drew a route's whole subtree once per surface.**
   A route reachable from the primary menu, a drawer and the account dropdown
   got three rows — and each repeated its entire branch. Bearable when a section

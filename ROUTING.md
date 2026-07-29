@@ -360,6 +360,10 @@ their deep levels (topics, `/info`, `/schema`, focus topics); routes declared
 "other routes" group, so the map is the *complete* tree and an orphan route is
 visible instead of silently unreachable.
 
+The map **leads with the structure**: the nav first, then the toolbar, then
+the route-table leftovers — a shortcut must not render above the section it
+points at.
+
 **One subtree per route.** A route reachable from several surfaces (the
 primary menu, a drawer, an account dropdown) still shows a row on each, but
 only ONE of them carries its children — the first occurrence in the nav, then
