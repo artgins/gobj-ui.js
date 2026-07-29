@@ -1547,6 +1547,11 @@ function setup_dev(self, show)
                  *  an undefined attr value logs "attr undefined: manager" (apps
                  *  without a window manager, e.g. wattyzer). null = no dock. */
                 manager: gobj_find_service("__window_manager__", false) || null,
+                /*  A monitor is watched WHILE navigating: closing it on every
+                 *  route change made it useless for the one job it has.  A
+                 *  dock-managed window is outside the drain already; this is
+                 *  the same for an app with no dock. */
+                keep_on_navigate: true,
                 on_close: function() {
                     kw_set_local_storage_value("open_developer_window", 0);
                 }
