@@ -3003,6 +3003,17 @@ function remembered_position(gobj, route)
     if(!gobj_read_attr(gobj, "remember_section_position")) {
         return route;
     }
+
+    /*  Only a click that ENTERS the section from outside it restores a
+     *  position.  From INSIDE — a backbar going up to the index, a tab
+     *  strip, the rail item of the section you are already in — the
+     *  click means the route it names and nothing else.  Without this,
+     *  "← Section index" put the user back on the leaf they were
+     *  leaving and the control looked dead. */
+    let current = gobj_read_attr(gobj, "current_route") || "";
+    if(current === route || current.indexOf(route + "/") === 0) {
+        return route;
+    }
     let last = priv.section_pos[route];
     if(!last || last === route) {
         return route;

@@ -222,9 +222,13 @@ rare exception — see the shell's action-route handling).
   *which* spot inside was decided for them. The memory **mirrors** the URL and
   never commands it (§3): it lives for the page, not on disk; the section's own
   root counts as a position, so resting there is what you return to; a
-  remembered route that no longer resolves is dropped; and **only a menu click
-  consults it** — a typed URL, a deep link, Back/Forward and
-  `yui_shell_navigate` all land exactly where they say.
+  remembered route that no longer resolves is dropped; and only a menu click
+  consults it — a typed URL, a deep link, Back/Forward and
+  `yui_shell_navigate` all land exactly where they say. And **only a click
+  that ENTERS the section from outside**: from inside it (a backbar going up
+  to the index, the rail item of the section you are already in) the click
+  means the route it names, or "← section" would put you back on the leaf you
+  were leaving.
 - **Back/Forward** need no code: they change the hash, the shell re-routes
   through the same path, views react to `EV_ROUTE_CHANGED` (including an empty
   `subpath` → view home).

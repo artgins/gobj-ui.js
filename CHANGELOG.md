@@ -18,7 +18,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   localStorage; the section root counts as a position, so deliberately resting
   there is what you come back to; a remembered route that no longer resolves is
   dropped; and only a MENU CLICK consults it — typed urls, deep links,
-  Back/Forward and `yui_shell_navigate` are untouched.
+  Back/Forward and `yui_shell_navigate` are untouched — and only a click that
+  ENTERS the section from OUTSIDE it. From inside, the click means the route it
+  names: the mobile backbar of a `submenu.index` section ("← Section index")
+  was being sent straight back to the leaf it was leaving, so the control
+  looked dead.
 - **demo(test-app): a chapter's lead becomes an ⓘ button on mobile.** Three or
   four lines of explanation cost nothing on a desktop and cost the fold on a
   phone — the reader scrolled past the explanation to reach what it explains.
