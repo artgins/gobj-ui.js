@@ -18,6 +18,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   the primary nav collapses with them instead of rendering an empty heading.
   While a search is running a matching group heading still shows: a query that
   finds a name must not come back empty.
+- **fix(shell): the site map's indentation guides were nearly invisible.**
+  `1px dotted` in the weak border colour disappeared against the panel, which
+  is a problem now that the map is four and five levels deep: at that depth
+  the eye follows the guide, not the offset. Solid, in the stronger border
+  shade — still chrome, but followable. Both are Bulma vars, so it re-shades
+  itself in the dark theme instead of turning into a black hairline.
 - **Indentation is four spaces, everywhere structure is shown as
   indentation.** The site map's tree and `C_YUI_JSON` indented in `rem` and
   dumped JSON with two; the raw view behind the same viewer disagreed with the

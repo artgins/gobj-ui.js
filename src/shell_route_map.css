@@ -82,7 +82,13 @@
     list-style: none;
     margin: 0;
     padding-left: 4ch;
-    border-left: 1px dotted var(--bulma-border, #b5b5b5);
+    /*  The guide is what makes the depth READABLE — at four levels the
+     *  eye follows the line, not the offset.  Dotted at 1px in the weak
+     *  border colour was almost invisible against the panel; solid, in
+     *  the stronger border shade, still reads as chrome but can be
+     *  followed.  Both shades are Bulma vars, so it re-shades itself in
+     *  the dark theme instead of turning into a black hairline. */
+    border-left: 1px solid var(--bulma-border-hover, #8c8c8c);
 }
 .ROUTEMAP_ROOT {
     padding-left: 0;
