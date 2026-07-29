@@ -207,3 +207,73 @@ describe("build_nav_map", () => {
         expect(marked).toEqual([]);
     });
 });
+
+
+/***************************************************************
+ *      one subtree per route
+ ***************************************************************/
+test("a route reachable from several surfaces keeps ONE subtree", () => {
+    let config = {
+        toolbar: {items: [
+            {id: "user", type: "action", action: {type: "dropdown", items: [
+                {id: "d-cards", name: "Go to Cards",
+                 action: {type: "navigate", route: "/cards"}}
+            ]}}
+        ]},
+        menu: {
+            primary: {items: [
+                {id: "cards", name: "Cards", route: "/cards", target: {gclass: "C_X"}}
+            ]},
+            quick: {items: [
+                {id: "cards", name: "Cards", route: "/cards"}
+            ]}
+        }
+    };
+    let map = build_nav_map({
+        config: config,
+        item_index: {"/cards": {item: {id: "cards"}, target: {gclass: "C_X"}}},
+        sub_routes: {"/cards": [
+            {route: "/cards/energy", label: "Energy", children: [
+                {route: "/cards/energy/north", label: "North", children: []}
+            ]}
+        ]},
+    });
+
+    /*  The NAV owns it: primary is the first occurrence there.  */
+    let primary = map.nav.find((n) => n.route === "/cards");
+    expect(primary.ref).toBeUndefined();
+    expect(primary.children.length).toBe(1);
+    expect(primary.children[0].children.length).toBe(1);
+
+    /*  The drawer copy (a group inside nav) and the account entry are
+     *  references: live routes, no repeated branch.  */
+    let quick = map.nav.find((n) => n.kind === "group" && n.id === "quick");
+    expect(quick.children[0].route).toBe("/cards");
+    expect(quick.children[0].ref).toBe(true);
+    expect(quick.children[0].children).toEqual([]);
+
+    let dropdown = map.toolbar[0].children[0];
+    expect(dropdown.route).toBe("/cards");
+    expect(dropdown.ref).toBe(true);
+    expect(dropdown.children).toEqual([]);
+});
+
+test("'you are here' lands on the owner, never on a reference", () => {
+    let config = {
+        toolbar: {items: [
+            {id: "user", type: "action", action: {type: "dropdown", items: [
+                {id: "d-cards", action: {type: "navigate", route: "/cards"}}
+            ]}}
+        ]},
+        menu: {primary: {items: [
+            {id: "cards", name: "Cards", route: "/cards", target: {gclass: "C_X"}}
+        ]}}
+    };
+    let map = build_nav_map({
+        config: config,
+        item_index: {"/cards": {item: {id: "cards"}, target: {gclass: "C_X"}}},
+        current_route: "/cards",
+    });
+    expect(map.nav.find((n) => n.route === "/cards").current).toBe(true);
+    expect(map.toolbar[0].children[0].current).toBeUndefined();
+});

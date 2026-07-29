@@ -139,6 +139,45 @@ function collect_routes(nodes, into)
 }
 
 /************************************************************
+ *  A route can be reached from more than one surface: the primary
+ *  menu, a drawer, an account dropdown.  Each occurrence rendered
+ *  its whole SUBTREE, so a branch reachable three ways was drawn
+ *  three times — bearable when a section had four children, noise
+ *  once a node tree hangs there with fourteen.
+ *
+ *  Exactly one occurrence owns the subtree; the others become
+ *  references (`ref: true`, no children) — still real, clickable
+ *  routes, just not repeated structure.
+ *
+ *  Who owns it: the first occurrence in the NAV, then in `other`,
+ *  then in the toolbar.  The nav is where the app's structure
+ *  lives; a toolbar entry pointing at the same route is a
+ *  shortcut — a non-structural edge — and hanging the tree off it
+ *  would bury the whole structure inside the account menu.
+ ************************************************************/
+function dedupe_subtrees(groups)
+{
+    let owner = {};
+    let visit = (node) => {
+        if(node.route) {
+            if(owner[node.route] === undefined) {
+                owner[node.route] = node;
+            } else if(owner[node.route] !== node) {
+                node.ref = true;
+                node.children = [];
+                return;   /*  a reference has no subtree to walk  */
+            }
+        }
+        if(Array.isArray(node.children)) {
+            node.children.forEach(visit);
+        }
+    };
+    for(let group of groups) {
+        group.forEach(visit);
+    }
+}
+
+/************************************************************
  *  Mark "you are here": the node whose route best matches
  *  current_route — exact hit wins, else the LONGEST declared
  *  route that is a path-prefix of it (the base view of a deep
@@ -151,6 +190,11 @@ function mark_current(groups, current_route)
     }
     let best = null;
     let visit = (n) => {
+        /*  Never on a reference: the mark belongs on the occurrence
+         *  that carries the structure, not on a shortcut to it. */
+        if(n.ref) {
+            return;
+        }
         if(n.route) {
             if(n.route === current_route) {
                 if(!best || best.node.route !== current_route) {
@@ -302,6 +346,10 @@ function build_nav_map(input)
         });
     }
     other.forEach(enrich);
+
+    /*  One subtree, one place.  Before marking "you are here", so the
+     *  mark lands on the occurrence that kept its children. */
+    dedupe_subtrees([nav, other, toolbar]);
 
     /*  The brand is rendered as the tree's ROOT row (shell_route_map),
      *  so it is markable like any other route — and it is the only

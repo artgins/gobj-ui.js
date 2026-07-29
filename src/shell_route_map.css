@@ -167,6 +167,23 @@ a.ROUTEMAP_LINK .ROUTEMAP_NAME {
     background: rgba(120, 150, 255, 0.16) !important;
     outline-color: rgba(120, 150, 255, 0.55);
 }
+/*--- reference row: this route's subtree is drawn where the nav owns
+ *    it, so the copy reachable from a drawer or the account menu is a
+ *    live link without the repeated branch.  Quiet on purpose: it is a
+ *    footnote, not a second structure. ---*/
+.ROUTEMAP_REF {
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    padding: 0.02rem 0.4rem;
+    border-radius: 0.25rem;
+    border: 1px solid var(--bulma-border-weak, #dbdbdb);
+    color: var(--bulma-text-weak, #7a7a7a);
+    white-space: nowrap;
+}
+.ROUTEMAP_ROW.ROUTEMAP_IS_REF .ROUTEMAP_NAME {
+    font-weight: 400;
+}
+
 .ROUTEMAP_HERE {
     font-size: 0.68rem;
     font-weight: 700;

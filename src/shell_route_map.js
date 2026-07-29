@@ -81,6 +81,16 @@ function render_node(node)
     if(node.event) {
         row.push(["span", {class: "ROUTEMAP_EVENT"}, node.event]);
     }
+    /*  A reference: this route's structure is drawn under whichever
+     *  surface owns it (the model's dedupe keeps one subtree per
+     *  route).  Still a live link — it just does not repeat the
+     *  branch. */
+    if(node.ref) {
+        row.push(["span", {class: "ROUTEMAP_REF", i18n: "shown above",
+            title: "shown above", "data-i18n-title": "shown above"},
+            "shown above"]);
+    }
+
     /*  "You are here" — the node whose route best matches the current
      *  one (marked by the model; at most one). */
     if(node.current) {
@@ -88,7 +98,8 @@ function render_node(node)
             "you are here"]);
     }
 
-    let row_class = node.current ? " ROUTEMAP_CURRENT" : "";
+    let row_class = (node.current ? " ROUTEMAP_CURRENT" : "") +
+                    (node.ref ? " ROUTEMAP_IS_REF" : "");
     let $row;
     if(node.route) {
         $row = createElement2(

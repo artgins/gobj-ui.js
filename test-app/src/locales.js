@@ -179,6 +179,7 @@ const es_translation = {
     "raw records": "registros crudos",
     "pick how to read this topic": "elige cómo leer este topic",
     "Go to Meter 1 · series": "Ir a Contador 1 · serie",
+    "shown above": "mostrado arriba",
     "Section index": "Índice de sección",
     "Section index — Alpha": "Índice de sección — Alfa",
     "Section index — Beta": "Índice de sección — Beta",

@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(shell): the site map drew a route's whole subtree once per surface.**
+  A route reachable from the primary menu, a drawer and the account dropdown
+  got three rows — and each repeated its entire branch. Bearable when a section
+  had four children; noise once a `C_YUI_NODE` tree hangs there with fourteen,
+  three times over. Every surface still shows its row, but only ONE carries the
+  children: the first occurrence in the nav, then `other`, then the toolbar —
+  the nav is where the structure lives, and hanging the tree off a toolbar
+  shortcut would bury it inside the account menu. The rest render as
+  references (live links marked "shown above", no branch), and **"you are
+  here" never lands on a reference** — it marks the occurrence that owns the
+  structure, which is also what stopped it appearing inside the account menu.
 - **feat(shell): the site map is a NAVIGATION PANEL — every row click keeps it
   open, and it joins the dock.** Half its rows closed the window and half did
   not: a resting-route change was drained as a transient overlay (§6), while a
