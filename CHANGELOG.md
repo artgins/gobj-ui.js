@@ -8,6 +8,22 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 ## Unreleased
 
 
+## 5.3.2
+
+- **fix: `keep_on_navigate` never reached the overlay stack.**
+  `push_overlay_history()` was given the option and dropped it on the floor,
+  so the entry never carried the flag and `drain_overlays()` closed every
+  panel anyway. The site map still closed on the first row click in an app
+  with no window manager — 5.3.1 fixed a different bug on the same line and
+  left this one standing.
+  It shipped twice unrun for one reason worth writing down: the only app that
+  opens the site map has a **window manager**, and a dock-managed window
+  registers no overlay at all. The feature was verified in the one
+  configuration where it is not used. `_qa_routing` now drives the shell
+  contract directly — a panel and a plain overlay, one navigation, one closed
+  and one not.
+
+
 ## 5.3.1
 
 - **fix: the site map closed on navigation in any app without a window

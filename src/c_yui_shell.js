@@ -2389,7 +2389,13 @@ function push_overlay_history(gobj, close, opts)
      *  route (a `stay` action route parks the URL off it).  Kept in sync
      *  by the silent replaceState fix-up in navigate_to(). */
     let entry = { id: ++priv.overlay_seq, close: close,
-                  hash: window.location.hash };
+                  hash: window.location.hash,
+                  /*  Read by drain_overlays: a navigation PANEL survives a
+                   *  resting-route change.  Dropping it here left the whole
+                   *  opt-out dead for overlays — invisible while the only
+                   *  app exercising it had a window manager, because a
+                   *  dock-managed window registers no overlay at all. */
+                  keep_on_navigate: !!(opts && opts.keep_on_navigate) };
     priv.overlay_stack.push(entry);
     try {
         window.history.pushState({ __yui_overlay__: entry.id }, "");
