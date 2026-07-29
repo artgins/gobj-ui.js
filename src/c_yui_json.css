@@ -16,6 +16,7 @@
     --json-null: #475ed0;
     --json-key: var(--bulma-text-strong, #1a1a1a);
     --json-row-hover: rgba(0, 0, 0, 0.05);
+    --json-guide: #b5b5b5;
 }
 
 :root[data-theme="dark"] .C_YUI_JSON,
@@ -26,6 +27,7 @@
     --json-null: #90a4f4;
     --json-key: var(--bulma-text-strong, #e6e6e6);
     --json-row-hover: rgba(255, 255, 255, 0.06);
+    --json-guide: #5a5a5a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,6 +38,7 @@
         --json-null: #90a4f4;
         --json-key: var(--bulma-text-strong, #e6e6e6);
         --json-row-hover: rgba(255, 255, 255, 0.06);
+        --json-guide: #5a5a5a;
     }
 }
 
@@ -55,10 +58,27 @@
     align-items: flex-start;
     white-space: pre;
     padding-right: 0.5rem;
+    /*  Depth guides.  The rows are SIBLINGS with growing padding, not
+     *  nested boxes, so there is no element to hang a border-left on:
+     *  the guides are painted as a repeating gradient across the row's
+     *  own indentation, one line per ancestor level.  The tile is
+     *  parked at the first level's column and its WIDTH is set per row
+     *  (row_indent), so a row only ever draws the levels above it.
+     *  Four characters, like every other indentation. */
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--json-guide) 0 1px,
+        transparent 1px 4ch
+    );
+    background-position: 0.4ch 0;
+    background-repeat: no-repeat;
 }
 
+/*  background-COLOR, never the `background` shorthand: the shorthand
+ *  resets background-image and the depth guides vanish under the
+ *  cursor, on the one row the reader is looking at. */
 .C_YUI_JSON .JSON_ROW:hover {
-    background: var(--json-row-hover);
+    background-color: var(--json-row-hover);
 }
 
 .C_YUI_JSON .JSON_ROW_BODY {

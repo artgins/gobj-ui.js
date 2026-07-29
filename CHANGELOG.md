@@ -18,6 +18,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   the primary nav collapses with them instead of rendering an empty heading.
   While a search is running a matching group heading still shows: a query that
   finds a name must not come back empty.
+- **feat(`C_YUI_JSON`): depth guides, like the site map's.** Four characters
+  of indentation carry the structure but stop being followable past level two
+  without a line to follow. The viewer's rows are SIBLINGS with growing
+  padding, not nested boxes, so there is no element to hang a `border-left`
+  on: the guides are a repeating gradient bounded per row by
+  `background-size`, one line per ancestor level, in a `--json-guide` variable
+  shaded for both themes. The hover rule had to move from the `background`
+  shorthand to `background-color` — the shorthand resets `background-image`,
+  which would have wiped the guides on the one row the reader is pointing at.
+  Demoed at `/jsontree` in the test-app: the component had no demo anywhere,
+  which is a poor place to leave something whose whole job is to be read.
 - **fix(shell): the site map's indentation guides were nearly invisible.**
   `1px dotted` in the weak border colour disappeared against the panel, which
   is a problem now that the map is four and five levels deep: at that depth

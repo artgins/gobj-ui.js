@@ -275,6 +275,13 @@ panel that mutates the live tree), driven by `test-app/_qa_nodetree.mjs` and
 
 ### C_YUI_JSON — lazy JSON tree viewer
 
+Indentation follows the house rule: four characters per level, plus a **guide
+line per ancestor**. The rows are siblings with growing padding rather than
+nested boxes, so the guides are painted as a repeating gradient bounded to
+each row's own indentation (`background-size` set per row) — which is why the
+hover state must set `background-color`, never the `background` shorthand, or
+the guides vanish under the cursor.
+
 A container-agnostic viewer (like `C_YUI_PAGER`): it owns only a toolbar +
 scrollable tree body and exposes a `$container` the parent mounts wherever it
 wants (a `C_YUI_WINDOW` body, a `yui_shell_show_modal` card, or inline). It is

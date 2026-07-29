@@ -558,10 +558,15 @@ function leaf_row(key, value, depth)
  *   at some zoom level.
  ************************************************************/
 const INDENT_CH = 4;
+const INDENT_PAD = 0.4;
 
 function row_indent(depth)
 {
-    return 'padding-left:' + (0.4 + depth * INDENT_CH) + 'ch;';
+    /*  `background-size` bounds the depth guides painted by the CSS to
+     *  this row's own indentation: one vertical line per ancestor
+     *  level, none across the content. */
+    return 'padding-left:' + (INDENT_PAD + depth * INDENT_CH) + 'ch;' +
+           'background-size:' + (depth * INDENT_CH) + 'ch 100%;';
 }
 
 /************************************************************

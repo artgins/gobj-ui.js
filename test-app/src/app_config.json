@@ -935,6 +935,22 @@
                     }
                 },
                 {
+                    "id": "jsontree",
+                    "name": "JSON tree",
+                    "icon": "yi-square-js",
+                    "tooltip": "C_YUI_JSON: the lazy JSON tree viewer",
+                    "route": "/jsontree",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_DEMO_JSONTREE",
+                        "lifecycle": "lazy_destroy",
+                        "kw": {
+                            "title": "JSON tree",
+                            "lead": "C_YUI_JSON renders a value as a lazily expanded tree. Indentation is four characters per level and each ancestor draws a guide line, the same as the site map: past level two the eye follows the guide, not the offset."
+                        }
+                    }
+                },
+                {
                     "id": "wizard",
                     "name": "Wizard",
                     "icon": "yi-cog",

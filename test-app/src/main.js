@@ -51,6 +51,7 @@ import {register_c_demo_treedb} from "./c_demo_treedb.js";
 import {register_c_demo_chart}  from "./c_demo_chart.js";
 import {register_c_demo_tree}   from "./c_demo_tree.js";
 import {register_c_demo_json}   from "./c_demo_json.js";
+import {register_c_demo_jsontree} from "./c_demo_jsontree.js";
 import {register_c_demo_wizard} from "./c_demo_wizard.js";
 import {register_c_demo_pager}  from "./c_demo_pager.js";
 import {register_c_demo_period} from "./c_demo_period.js";
@@ -119,6 +120,7 @@ function main()
     register_c_demo_chart();
     register_c_demo_tree();
     register_c_demo_json();
+    register_c_demo_jsontree();
     register_c_demo_wizard();
     register_c_demo_pager();
     register_c_demo_period();
