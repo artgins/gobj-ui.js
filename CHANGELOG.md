@@ -7,6 +7,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(shell): `remember_section_position` — a menu click returns to where
+  you were in that section.** Walking four levels into a section and then
+  visiting another one lost the position: coming back landed on the section
+  root, because that is what its menu item points at. Opt-in
+  (`shell.remember_section_position`, default off — five apps ship on the
+  current behaviour). The restore is a PUSH: the user chose to go there, only
+  which spot inside was decided for them, so Back undoes it. The memory
+  MIRRORS the url and never commands it (ROUTING §3): page-lifetime, not
+  localStorage; the section root counts as a position, so deliberately resting
+  there is what you come back to; a remembered route that no longer resolves is
+  dropped; and only a MENU CLICK consults it — typed urls, deep links,
+  Back/Forward and `yui_shell_navigate` are untouched.
 - **feat: `projection.path` — a breadcrumb, the second way to show depth.**
   Every ancestor painting its own chrome stacks one strip per level: fine at
   three, a wall at five, and a branch that caps the stacking (`chrome_depth`)

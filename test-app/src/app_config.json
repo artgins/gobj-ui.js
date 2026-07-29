@@ -1,6 +1,8 @@
 {
     "_comment": "gobj-ui declarative-shell demo. One primary menu (menu.primary) rendered as a VERTICAL rail on desktop (left) and an ICON-BAR on mobile (bottom) — that single pair already shows the per-zone responsive model. Each primary item is a chapter that demonstrates one SECONDARY layout in the content column: TABS (top-sub), SIDE SUBMENU (right), CARDS section-index + mobile BACKBAR, and a right-zone VERTICAL submenu. The toolbar burger opens a DRAWER (off-canvas vertical). The Accordion chapter has a direct target whose view embeds a live accordion nav (accordion is a primary-zone layout: its section bodies are the routable 2nd-level items, so it can't be a 3rd-level submenu). Every leaf mounts C_TEST_VIEW, which names on screen exactly which layout(s) are visible and where.",
     "shell": {
+        "_remember_comment": "A click on a menu item returns to the last position visited inside that section instead of its root. The memory MIRRORS the url and never commands it (ROUTING §3): it lives for the page, not on disk, and only a menu click consults it — a typed url, a deep link, Back/Forward and programmatic navigation all land exactly where they say.",
+        "remember_section_position": true,
         "breakpoints": "bulma",
         "zones": {
             "top": {

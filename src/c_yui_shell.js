@@ -100,6 +100,7 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",     0,  null,  "Subscriber of outp
 SDATA(data_type_t.DTP_JSON,     "config",         0,  null,  "Shell declarative config (zones, menu, stages, toolbar)"),
 SDATA(data_type_t.DTP_STRING,   "default_route",  0,  "",    "Fallback route if hash is empty"),
 SDATA(data_type_t.DTP_STRING,   "current_route",  0,  "",    "Current active route"),
+SDATA(data_type_t.DTP_BOOLEAN,  "remember_section_position", 0, false, "A menu click returns to the last position visited inside that section"),
 SDATA(data_type_t.DTP_BOOLEAN,  "use_hash",       0,  true,  "Bind navigation to window.location.hash"),
 SDATA(data_type_t.DTP_POINTER,  "mount_element",  0,  null,  "HTMLElement to mount shell into (default: document.body)"),
 
@@ -113,6 +114,9 @@ let PRIVATE_DATA = {
     stages:          {},
     navs:            [],
     item_index:      {},
+    /*  Section route -> last position visited inside it.  Mirrors the
+     *  url for the duration of the page; see remember_position(). */
+    section_pos:     {},
     /*  Sub-route contributor registry (ROUTING.md): a mounted view
      *  declares the deep, view-owned children of its base route
      *  (topics, /info, /schema, focus topics — subpaths that are NOT
@@ -223,6 +227,14 @@ function mt_start(gobj)
             ));
         }
         return;
+    }
+
+    /*  Declarative sugar over the attr, which stays the runtime truth:
+     *  an app can flip it later without rebuilding the shell. */
+    let shell_cfg = config.shell || {};
+    if(typeof shell_cfg.remember_section_position === "boolean") {
+        gobj_write_attr(gobj, "remember_section_position",
+            shell_cfg.remember_section_position);
     }
 
     build_item_index(gobj, config);
@@ -1435,6 +1447,7 @@ function navigate_to(gobj, route, depth, no_drain)
 
     stage.active_route = matched_route;
     gobj_write_attr(gobj, "current_route", route);
+    remember_position(gobj, route);
 
     /*  Show/hide secondary navs according to parent item */
     update_secondary_nav_visibility(gobj, entry);
@@ -2632,6 +2645,11 @@ function ac_nav_clicked(gobj, event, kw, src)
         return 0;
     }
 
+    /*  A click on a section returns to where the user was inside it.
+     *  It stays a PUSH: they chose to go there, so Back must bring them
+     *  back — only WHICH spot inside was decided for them. */
+    route = remembered_position(gobj, route);
+
     /*  When hash routing is on, let the hash drive navigate_to() — that
      *  way back/forward buttons and programmatic hash changes all flow
      *  through the same code path.  Otherwise call navigate_to directly.
@@ -2936,6 +2954,66 @@ function register_c_yui_shell()
  *  Not gclass methods, no banner needed; left grouped at the
  *  bottom of the file to keep the skeleton layout intact.
  ***************************************************************/
+
+/************************************************************
+ *  Last position inside each section — the routes a MENU CLICK
+ *  returns to (`remember_section_position`).
+ *
+ *  A section is a menu item's route; anything under it is a
+ *  position inside it.  The memory MIRRORS the url and is never
+ *  the authority for it (ROUTING.md §3): it lives for the page,
+ *  not on disk, and only a click on the section's own menu item
+ *  consults it.  Typing the url, a deep link, Back/Forward and
+ *  programmatic navigation all land exactly where they say —
+ *  which is the property that would be lost if this were stored
+ *  and applied everywhere.
+ ************************************************************/
+function remember_position(gobj, route)
+{
+    let priv = gobj.priv;
+
+    if(!gobj_read_attr(gobj, "remember_section_position")) {
+        return;
+    }
+    for(let section of Object.keys(priv.item_index)) {
+        if(section === "/") {
+            continue;
+        }
+        /*  The section's own root IS a position inside it.  Recording it
+         *  is what keeps the memory a MIRROR: after deliberately resting
+         *  at /cards, a click on Cards must land there, not teleport
+         *  back into the deep spot visited before. */
+        if(route === section || route.indexOf(section + "/") === 0) {
+            priv.section_pos[section] = route;
+        }
+    }
+}
+
+/************************************************************
+ *  Where a click on `route` should actually land: the last
+ *  position inside it, when there is one and it still resolves.
+ *  A remembered route whose node has since disappeared is
+ *  dropped rather than followed — the tree is allowed to change
+ *  under a memory.
+ ************************************************************/
+function remembered_position(gobj, route)
+{
+    let priv = gobj.priv;
+
+    if(!gobj_read_attr(gobj, "remember_section_position")) {
+        return route;
+    }
+    let last = priv.section_pos[route];
+    if(!last || last === route) {
+        return route;
+    }
+    let r = resolve_route(priv.item_index, last);
+    if(!r || !r.entry || !r.entry.target) {
+        delete priv.section_pos[route];
+        return route;
+    }
+    return last;
+}
 
 /************************************************************
  *  Resolve the shell that governs `gobj`: the nearest

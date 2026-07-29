@@ -216,6 +216,15 @@ rare exception — see the shell's action-route handling).
   `{push:true}` is redundant but still accepted, so a call site may state its
   intent explicitly. **Rule of thumb (§2): a human chose it → default; code
   chose it → `{replace:true}`.**
+- **Section memory** (`shell.remember_section_position`, opt-in): a click on a
+  menu item returns to the **last position visited inside that section**
+  instead of its root. It stays a push — the user chose to go there, only
+  *which* spot inside was decided for them. The memory **mirrors** the URL and
+  never commands it (§3): it lives for the page, not on disk; the section's own
+  root counts as a position, so resting there is what you return to; a
+  remembered route that no longer resolves is dropped; and **only a menu click
+  consults it** — a typed URL, a deep link, Back/Forward and
+  `yui_shell_navigate` all land exactly where they say.
 - **Back/Forward** need no code: they change the hash, the shell re-routes
   through the same path, views react to `EV_ROUTE_CHANGED` (including an empty
   `subpath` → view home).
