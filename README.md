@@ -198,6 +198,7 @@ seen*:
   ```js
   yui_node_add(node, spec, index)      yui_node_remove(node, node_id)
   yui_node_set_projection(node, proj)  yui_node_set_content(node, content)
+  yui_node_set_chrome_depth(node, n)   yui_node_tree_version(node)
   yui_node_find(node, "energy/north")  yui_node_route(node)
   ```
 

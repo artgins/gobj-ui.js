@@ -271,6 +271,38 @@ A stage is inferred automatically when a zone declares
 `"host": "stage.<name>"`, so `shell.stages` may be omitted when there
 is only one main stage named `main` in `center`.
 
+### 3.2.1 `shell.tree` — the navigation as a tree of nodes
+
+An alternative to `menu` for the whole navigable surface: the root is a
+`C_YUI_NODE` and the shell keeps only the **space**. See the README's
+*C_YUI_NODE* section for the model and `test-app/tree.html` for a running app
+that declares no `menu` at all.
+
+```json
+"tree": {
+  "base_route": "/", "stage": "main",
+  "projection": { "index": [{"zone": "left", "layout": "vertical"}] },
+  "children": [ /* the primary options, and everything under them */ ]
+}
+```
+
+It synthesizes exactly ONE route entry, flagged `owns_subtree`, so everything
+below `base_route` is that tree's `subpath` and the route table never grows.
+`menu` and `tree` are not exclusive — an app may declare both while it
+migrates.
+
+### 3.2.2 `shell.remember_section_position`
+
+```json
+"shell": { "remember_section_position": true }
+```
+
+Off by default. A click on a menu item returns to the **last position visited
+inside that section** instead of its root. It mirrors the URL and never
+commands it — page-lifetime, consulted only by a menu click, and only by one
+that *enters* the section from outside. Full rules in
+[`ROUTING.md`](ROUTING.md) §7.
+
 ### 3.3 `menu.<id>`
 
 ```json
@@ -520,6 +552,7 @@ purely visual chunking inside the secondary nav.
 | `drawer`     | `overlay` (off-canvas)| yes (delegates to vertical) | Toggled by toolbar burger.        |
 | `accordion`  | `left`               | yes (in inner items)    | Collapsible groups; first-level entries are sections, not decorations. |
 | `tabs`       | `top-sub`            | no — silently dropped   | Horizontal strip; no room for labels.   |
+| `breadcrumb` | anywhere (`C_YUI_NODE`'s `projection.path`) | no | The trail to here as one line; its items are the PATH, not a node's children. |
 | `icon-bar`   | `bottom`             | no — silently dropped   | Mobile primary; one slot per icon.      |
 
 ---

@@ -7,6 +7,9 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+
+## 5.3.0
+
 - **feat(shell): `remember_section_position` — a menu click returns to where
   you were in that section.** Walking four levels into a section and then
   visiting another one lost the position: coming back landed on the section
