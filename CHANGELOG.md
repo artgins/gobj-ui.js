@@ -52,17 +52,20 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   modes sit side by side in the test-app: `/cards/energy/north` stacks strips,
   `/cards/energy/south` shows a breadcrumb, same tree and same URLs.
 
-- **feat(shell): the site map hides its reference rows behind a toggle.** With
-  one subtree per route, the second and third place a route is reachable from
-  render as references carrying no structure — a third of the map in an app
-  with a drawer and an account menu. They are hidden by default now (`show
-  references` next to the filter, remembered for the page session): 71 rows
-  down to 53 in the test-app. A reference stays hidden inside a matched
-  subtree too — an ancestor match must not smuggle it back — and a GROUP is
-  only ever shown by what it contains, so a drawer whose entries all repeat
-  the primary nav collapses with them instead of rendering an empty heading.
-  While a search is running a matching group heading still shows: a query that
-  finds a name must not come back empty.
+- **feat(shell): the site map can hide its reference rows, and never hides a
+  navigation surface.** With one subtree per route, the second and third place
+  a route is reachable from render as references carrying no structure. A
+  `show references` toggle sits next to the filter (remembered for the page
+  session) for reading the bare structure. It is **on by default**: a drawer
+  entry and a toolbar shortcut are one line each, and they are exactly what
+  someone auditing the navigation came for — what was ever noisy is the
+  repeated SUBTREE, and that is gone for good rather than switched off. Two
+  rules keep it honest: a reference stays hidden inside a matched subtree (an
+  ancestor match must not smuggle it back), and hiding never EMPTIES a menu —
+  a drawer whose entries all repeat the primary nav keeps its rows, or the map
+  would quietly lie about what the app has. While a search is running a
+  matching group heading still shows: a query that finds a name must not come
+  back empty.
 - **feat(`C_YUI_JSON`): depth guides, like the site map's.** Four characters
   of indentation carry the structure but stop being followable past level two
   without a line to follow. The viewer's rows are SIBLINGS with growing

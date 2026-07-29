@@ -378,11 +378,15 @@ primary menu, a drawer, an account dropdown) still shows a row on each, but
 only ONE of them carries its children — the first occurrence in the nav, then
 `other`, then the toolbar. The nav is where the app's structure lives; a
 toolbar entry pointing at the same route is a shortcut, and hanging the tree
-off it would bury the structure inside the account menu. The other rows render
-as *references* (live links, marked "shown above"), and **"you are here" never
-lands on one** — it marks the occurrence that owns the structure. References
-are **hidden by default**, behind a `show references` toggle next to the
-filter; a group left with nothing but references collapses with them.
+off it would bury the structure inside the account menu. The other rows render as *references* (live links, marked "shown above"), and
+**"you are here" never lands on one** — it marks the occurrence that owns the
+structure. References are **shown**: a drawer entry and a toolbar shortcut are
+one line each, and they are what someone auditing the navigation came for
+("which quick links does this app define?"). A `show references` toggle next to
+the filter hides them for reading the bare structure — but **never at the cost
+of a whole surface**: a menu whose entries are *all* references (a drawer that
+reaches the same routes as the primary nav) keeps its rows, or the map would be
+quietly lying about what the app has.
 
 The map is a **navigation panel**: it joins the dock when the app has a
 `C_YUI_WINDOW_MANAGER`, and declares `keep_on_navigate` so it survives the

@@ -40,9 +40,15 @@ import i18next from "i18next";
 
 const WIN_NAME = "shell-route-map-window";
 
-/*  Reference rows (a route's second and third entry point) start
- *  hidden; the toggle remembers the reader's choice for this page. */
-let __show_refs__ = false;
+/*  Reference rows — a route's second and third entry point: a drawer
+ *  entry, a toolbar SHORTCUT.  Shown by default: they are one line
+ *  each, and they are exactly what someone auditing the navigation
+ *  came to see ("which quick links does this app define?").  What was
+ *  ever noisy is the repeated SUBTREE, and that is gone for good
+ *  (dedupe_subtrees) rather than hidden behind a switch.  The toggle
+ *  stays for reading the bare structure, and remembers the choice for
+ *  this page. */
+let __show_refs__ = true;
 
 /*  Modal fallback currently open (the window flavour is a service and
  *  is found by name; the modal is not, so it is tracked here to make
@@ -158,13 +164,28 @@ function filter_li($li, q, ancestor_match, show_refs)
         }
     }
 
-    /*  A GROUP is only ever shown by what it contains: a whole menu
-     *  whose entries are all references (a drawer that just repeats the
-     *  primary nav) would otherwise render as a heading with nothing
-     *  under it.  While a search is running its own heading may still
-     *  match — a query that finds a name must not come back empty. */
     let is_group = !!($row && $row.classList.contains("ROUTEMAP_STRUCT"));
     let had_children = !!($ul && $ul.children.length);
+
+    /*  Hiding references removes NOISE, never a navigation surface.  A
+     *  whole menu whose entries are all references — a drawer that
+     *  reaches the same routes as the primary nav — would otherwise
+     *  vanish heading and all, and the map would be quietly lying about
+     *  what the app has.  So when hiding would empty a group, its
+     *  entries are shown anyway: one line each, still without the
+     *  repeated subtree, which is the part that was actually noisy. */
+    if(is_group && had_children && !any_child && !show_refs) {
+        let kids = $ul.children;
+        for(let i = 0; i < kids.length; i++) {
+            if(filter_li(kids[i], q, show_all, true)) {
+                any_child = true;
+            }
+        }
+    }
+
+    /*  A group is only ever shown by what it contains.  While a search
+     *  is running its own heading may still match — a query that finds
+     *  a name must not come back empty. */
     let visible = (is_group && had_children)
         ? (any_child || (q !== "" && self_match))
         : ((show_all || any_child) && !hidden_ref);
