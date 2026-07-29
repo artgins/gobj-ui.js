@@ -178,6 +178,15 @@ seen*:
 - **The route table does not grow.** The host declares ONE route; everything
   below arrives as the shell's `subpath` (ROUTING.md §4), and the tree
   contributes its full shape to the site map via `yui_shell_set_sub_routes`.
+- **Two ways to show depth.** Stacked chrome — one strip per ancestor —
+  reads well at three levels and eats the screen at five. The other way is
+  **`projection.path`**: the trail down to the user as ONE line
+  (`{"layout": "breadcrumb"}`), drawn from the tree root whichever node
+  declares it, each crumb a link to that level. Declared per branch, so a
+  deep corner can trade its strips for a breadcrumb (`chrome_depth: 0` +
+  `projection.path`) while the rest of the tree keeps its tabs. Note the
+  asymmetry that makes it a third mode and not a layout: `index` and `chrome`
+  project a node's CHILDREN; `path` projects the way in.
 - **`chrome_depth`** caps the stacked chrome: with every ancestor painting its
   own strip, depth N shows N-1 of them. A node declares how many its corner of
   the tree deserves (`0` = none, omit = all), the **deepest declaration on the

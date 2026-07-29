@@ -36,7 +36,7 @@
  *  than a fallback surprise three levels deep in the tree. */
 const VALID_LAYOUTS = [
     "vertical", "icon-bar", "tabs", "drawer", "submenu", "accordion", "cards",
-    "backbar"
+    "backbar", "breadcrumb"
 ];
 
 /*  A node with no declared projection shows its children as cards: the
@@ -103,6 +103,12 @@ export function join_route(base_route, ids)
  *                 the page (a card grid, a list…).
  *      "chrome" — a child of mine is showing: the projection is
  *                 the chrome around it (a tab strip, a backbar).
+ *      "path"   — a child of mine is showing: the TRAIL down to
+ *                 where the user is, as one line (a breadcrumb).
+ *                 The other two project a node's CHILDREN; this one
+ *                 projects the path, which is why it is the answer
+ *                 when the stacked strips cost more vertical room
+ *                 than they are worth.
  *
  *  Accepted shapes of `projection`:
  *      "cards"                        → index cards, no chrome
@@ -129,7 +135,8 @@ export function projection_renders(projection, mode)
         return [];
     }
 
-    let has_modes = ("index" in projection) || ("chrome" in projection);
+    let has_modes = ("index" in projection) || ("chrome" in projection) ||
+                    ("path" in projection);
     if(!has_modes) {
         if(mode === "index") {
             return [Object.assign({}, projection)];
@@ -407,7 +414,8 @@ function validate_projection(projection, at)
         return errors;
     }
 
-    let has_modes = ("index" in projection) || ("chrome" in projection);
+    let has_modes = ("index" in projection) || ("chrome" in projection) ||
+                    ("path" in projection);
     if(!has_modes) {
         check_render(projection, at, "projection", errors);
         return errors;

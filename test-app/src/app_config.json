@@ -568,16 +568,9 @@
                                                 "index": {
                                                     "layout": "cards"
                                                 },
-                                                "chrome": [
-                                                    {
-                                                        "layout": "tabs",
-                                                        "show_on": ">=tablet"
-                                                    },
-                                                    {
-                                                        "layout": "backbar",
-                                                        "show_on": "<tablet"
-                                                    }
-                                                ]
+                                                "path": {
+                                                    "layout": "breadcrumb"
+                                                }
                                             },
                                             "children": [
                                                 {
@@ -588,18 +581,18 @@
                                                         "gclass": "C_TEST_VIEW",
                                                         "kw": {
                                                             "title": "Meter 3",
-                                                            "lead": "Same depth as Meter 1, but this branch declares chrome_depth: 1, so only ONE chrome strip is painted instead of one per ancestor. How much chrome a corner of the tree deserves is a property of the tree, not of the renderer.",
+                                                            "lead": "Same depth as Meter 1, and the same tree — but this branch shows the way in as a BREADCRUMB instead of stacking one chrome strip per level (chrome_depth: 0 + projection.path). Two ways to show depth, declared per branch: compare with #/cards/energy/north/m1.",
                                                             "badges": [
                                                                 "level 4",
-                                                                "chrome_depth: 1",
-                                                                "deep-linkable"
+                                                                "projection.path",
+                                                                "chrome_depth: 0"
                                                             ]
                                                         }
                                                     }
                                                 }
                                             ],
-                                            "chrome_depth": 1,
-                                            "_chrome_depth_comment": "Cap the stacked chrome for THIS branch: only the strip nearest the tip is painted, instead of one per ancestor. The deepest declaration on the path wins, so an intermediate node whose only job is to hold this number is a legitimate node. Compare #/cards/energy/south/m3 (one strip) with #/cards/energy/north/m1 (three)."
+                                            "chrome_depth": 0,
+                                            "_chrome_depth_comment": "THE SECOND WAY TO SHOW DEPTH. North hall stacks one chrome strip per level; this branch declares chrome_depth: 0 (no strips at all) and projection.path instead, so the trail is one breadcrumb line. Same tree, same urls — compare #/cards/energy/north/m1 with #/cards/energy/south/m3."
                                         }
                                     ]
                                 },

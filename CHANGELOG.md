@@ -7,6 +7,22 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat: `projection.path` — a breadcrumb, the second way to show depth.**
+  Every ancestor painting its own chrome stacks one strip per level: fine at
+  three, a wall at five, and a branch that caps the stacking (`chrome_depth`)
+  then has nothing left saying where the user is — the URL knows, the screen
+  does not. A node can now declare `projection.path` (`{"layout":
+  "breadcrumb"}`) and get the trail as one line instead. It is a THIRD
+  projection mode, not another layout, because of what it projects: `index`
+  and `chrome` show a node's CHILDREN, `path` shows the way in — drawn from
+  the tree ROOT down to the tip whichever node declares it, since a trail that
+  starts halfway answers half the question. Each crumb is a live link to that
+  level, with the tip marked, and `C_YUI_NAV` grew a `breadcrumb` layout
+  (Bulma's markup, the same item/click/i18n contract as every other layout) so
+  the node reuses the one renderer like it does for cards and tabs. The two
+  modes sit side by side in the test-app: `/cards/energy/north` stacks strips,
+  `/cards/energy/south` shows a breadcrumb, same tree and same URLs.
+
 - **feat(shell): the site map hides its reference rows behind a toggle.** With
   one subtree per route, the second and third place a route is reachable from
   render as references carrying no structure — a third of the map in an app

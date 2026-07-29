@@ -15,6 +15,13 @@
  *          "cards"      — grid of tappable cards (section-index landing;
  *                         mounted as a stage view by C_YUI_SHELL when a
  *                         primary item declares submenu.index)
+ *          "breadcrumb" — the PATH as one line ("Cards › Energy › South
+ *                         hall › Meter 3"), each crumb a link to that
+ *                         level.  Unlike every other layout its items
+ *                         are not a node's children but the trail down
+ *                         to where the user is: the second way to show
+ *                         depth, for when stacking one strip per level
+ *                         costs more vertical room than it is worth.
  *          "backbar"    — single "← <section>" link back to the section
  *                         index; the mobile replacement of the tab strip
  *                         for submenu.index sections (the shell collapses
@@ -76,7 +83,7 @@ const GCLASS_NAME = "C_YUI_NAV";
 
 const SUPPORTED_LAYOUTS = [
     "vertical", "icon-bar", "tabs", "drawer", "submenu", "accordion", "cards",
-    "backbar"
+    "backbar", "breadcrumb"
 ];
 
 /*  Decorative items have no `route` and never participate in
@@ -220,6 +227,7 @@ function build_ui(gobj)
         case "accordion":  $container = render_accordion(gobj, items); break;
         case "cards":      $container = render_cards(gobj, items);    break;
         case "backbar":    $container = render_backbar(gobj);         break;
+        case "breadcrumb": $container = render_breadcrumb(gobj, items); break;
         default:           $container = render_vertical(gobj, items);
     }
     $container.setAttribute("data-nav-zone", zone);
@@ -437,6 +445,53 @@ function render_cards(gobj, items)
  *  collapses the whole secondary zone (tabs and cards never
  *  coexist), so the bar needs no self-hiding logic.
  ************************************************************/
+/************************************************************
+ *  breadcrumb: the trail to here, one line.
+ *
+ *  Bulma's own markup (nav.breadcrumb > ul > li, separators drawn by
+ *  CSS), with the SAME data-route/data-item-id contract as every
+ *  other layout — so the delegated click handler and the active
+ *  highlight work unchanged, and the last crumb marks itself through
+ *  `active_route` like a tab does.
+ ************************************************************/
+function render_breadcrumb(gobj, items)
+{
+    let show_label = gobj_read_attr(gobj, "show_label");
+    let lis = [];
+
+    for(let it of (items || [])) {
+        if(is_decorative(it)) {
+            continue;
+        }
+        let children = [];
+        if(it.icon) {
+            children.push(["span", {class: "icon is-small"},
+                ["i", {class: it.icon, "aria-hidden": "true"}]]);
+        }
+        if(show_label !== false) {
+            let label = it.name || it.id || "";
+            children.push(["span", {class: "yui-nav-label", i18n: label}, label]);
+        }
+        let a_attrs = {
+            class: "yui-nav-item yui-nav-crumb",
+            href: it.route ? "#" + it.route : "#",
+            "data-item-id": it.id,
+            "data-route": it.route || "",
+            "data-disabled": it.disabled ? "1" : "0"
+        };
+        if(it.name) {
+            a_attrs["aria-label"] = it.name;
+            a_attrs["data-i18n-aria-label"] = it.name;
+        }
+        lis.push(["li", {}, [["a", a_attrs, children]]]);
+    }
+
+    return createElement2(
+        ["nav", {class: "breadcrumb is-small", "aria-label": "breadcrumbs"},
+            [["ul", {}, lis]]]
+    );
+}
+
 function render_backbar(gobj)
 {
     let back_route = gobj_read_attr(gobj, "back_route") || "";

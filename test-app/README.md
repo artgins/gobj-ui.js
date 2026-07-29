@@ -56,6 +56,11 @@ the prototype of the model where *the gobj tree IS the navigation tree*.
 - **A node may have content AND children** (see *Beta*): the content is
   the page, the children are projected under it. One node, not two
   concepts.
+- **Two ways to show depth, side by side.** `energy/north` stacks one chrome
+  strip per ancestor; `energy/south` declares `chrome_depth: 0` plus
+  `projection.path`, so the way in is a single breadcrumb line drawn from the
+  tree root. Compare `#/cards/energy/north/m1` with
+  `#/cards/energy/south/m3` — same tree, same URLs, same depth.
 - **`chrome_depth` caps the stacked chrome.** Every ancestor paints its own
   strip, so depth 4 shows three of them (on mobile they read as a vertical
   breadcrumb of backbars). `energy/north` leaves them stacked;

@@ -271,6 +271,24 @@
     opacity: 0.5;
 }
 
+/*--- breadcrumb: the path as one line (C_YUI_NODE's `projection.path`) ---*/
+.yui-nav-breadcrumb {
+    padding: 0.35rem 0.75rem;
+}
+.yui-nav-breadcrumb .yui-nav-crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+/*  Bulma marks the last crumb with li.is-active and greys it; the
+ *  active_route highlight lands there, so "where I am" reads as the end
+ *  of the trail instead of as one more link. */
+.yui-nav-breadcrumb li.is-active > a {
+    color: var(--bulma-text-strong, #363636);
+    font-weight: 600;
+    pointer-events: none;
+}
+
 /*--- backbar (mobile "← <section>" back-to-index, submenu.index) ---*/
 .yui-nav-backbar {
     display: flex;

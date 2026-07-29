@@ -15,7 +15,10 @@
  *            base   node ids
  *
  *      Every node holds HOW IT WANTS ITS CHILDREN SEEN — the
- *      `projection` (cards, tabs, vertical, backbar…, per breakpoint).
+ *      `projection` (cards, tabs, vertical, backbar…, per breakpoint),
+ *      and how it wants the WAY IN shown: `projection.path` draws the
+ *      trail down to the user as one breadcrumb line, the alternative
+ *      to stacking one chrome strip per level.
  *      That is the piece that removes "two levels of menu" as a
  *      concept: there is no primary/secondary nav, there is a parent
  *      projecting its children, recursively, at any depth.  Rendering
@@ -180,6 +183,7 @@ let PRIVATE_DATA = {
     active_child:   null,   /*  child NODE gobj currently on the path    */
     chrome_depth:   null,   /*  effective for the active path (null = all) */
     distance:       0,      /*  segments from me down to the tip           */
+    chain:          null,   /*  nodes from my child down to the tip        */
     is_root:        false,
     $chrome:        null,
     $body:          null
@@ -495,13 +499,14 @@ function resolve_path_info(gobj, subpath, inherited)
         effective = own;
     }
     if(has_link(gobj)) {
-        return {distance: 0, chrome_depth: effective};
+        return {distance: 0, chrome_depth: effective, chain: []};
     }
 
     /*  Distance is counted in STRUCTURAL segments: the tail a viewer
      *  owns below a link is url, not tree, and counting it would push
      *  every ancestor out of a chrome_depth budget it never spent. */
     let distance = 0;
+    let chain = [];
     let g = gobj;
     for(let seg of split_subpath(subpath)) {
         let child = find_child(g, seg) || find_child_by_alias(g, seg);
@@ -509,6 +514,7 @@ function resolve_path_info(gobj, subpath, inherited)
             break;
         }
         distance++;
+        chain.push(child);
         let declared = gobj_read_attr(child, "chrome_depth");
         if(typeof declared === "number" && declared >= 0) {
             effective = declared;
@@ -518,7 +524,7 @@ function resolve_path_info(gobj, subpath, inherited)
             break;
         }
     }
-    return {distance: distance, chrome_depth: effective};
+    return {distance: distance, chrome_depth: effective, chain: chain};
 }
 
 /************************************************************
@@ -760,6 +766,8 @@ function render_self(gobj)
         }
     }
 
+    render_path(gobj, priv.$chrome);
+
     if(priv.children.length) {
         let $index = createElement2(["div", {class: "NODE_INDEX"}]);
         priv.$body.appendChild($index);
@@ -799,6 +807,7 @@ function render_child(gobj, child)
         render_projection(gobj, "chrome", priv.$chrome, route_of(child),
             gobj_read_attr(child, "node_id"));
     }
+    render_path(gobj, priv.$chrome);
 
     let $slot = createElement2(["div", {class: "NODE_CHILD"}]);
     let $child = gobj_read_attr(child, "$container");
@@ -806,6 +815,72 @@ function render_child(gobj, child)
         $slot.appendChild($child);
     }
     priv.$body.appendChild($slot);
+}
+
+/************************************************************
+ *  Render the trail down to where the user is, as one line.
+ *
+ *  The other two projections show a node's CHILDREN; this one shows
+ *  the PATH, so its items are me plus the chain below me — which is
+ *  why it is rendered by ONE node (whoever declares it) instead of
+ *  by every ancestor.  Same item contract as any other nav, so the
+ *  crumbs click and translate like everything else.
+ ************************************************************/
+function render_path(gobj, $where)
+{
+    let priv = gobj.priv;
+    let renders = projection_renders(gobj_read_attr(gobj, "projection"), "path");
+
+    if(!renders.length) {
+        return;
+    }
+
+    /*  From the TREE ROOT down to the tip, not from here: a trail that
+     *  starts halfway ("South hall › Meter 3") answers the question it
+     *  was drawn to answer only by half.  The declaring node decides
+     *  HOW its corner shows the way in; it does not decide where the
+     *  way in starts. */
+    let path = [];
+    let g = gobj;
+    while(g) {
+        path.unshift(g);
+        let parent = gobj_parent(g);
+        g = (parent && gobj_gclass_name(parent) === GCLASS_NAME) ? parent : null;
+    }
+    let items = path.concat(priv.chain || []).map((node) => ({
+        id:    gobj_read_attr(node, "node_id"),
+        name:  gobj_read_attr(node, "label") || gobj_read_attr(node, "node_id"),
+        icon:  gobj_read_attr(node, "icon") || "",
+        route: route_of(node)
+    }));
+    let tip = items[items.length - 1];
+
+    let i = 0;
+    for(let render of renders) {
+        let nav = gobj_create_pure_child(
+            `${NAV_PREFIX}path_${i}__`,
+            "C_YUI_NAV",
+            {
+                menu_id:      `node.path.${route_of(gobj)}`,
+                nav_label:    gobj_read_attr(gobj, "label") || "",
+                menu_items:   items,
+                layout:       render.layout,
+                icon_pos:     render.icon_pos || "left",
+                show_label:   render.show_label !== false,
+                show_on:      render.show_on || "",
+                level:        "secondary",
+                active_route: tip.route
+            },
+            gobj
+        );
+        gobj_start(nav);
+        let $nav = gobj_read_attr(nav, "$container");
+        if($nav) {
+            $where.appendChild($nav);
+        }
+        priv.navs.push(nav);
+        i++;
+    }
 }
 
 /************************************************************
@@ -840,6 +915,7 @@ function activate(gobj, subpath, inherited_depth)
     let info = resolve_path_info(gobj, subpath, inherited_depth);
     priv.distance = info.distance;
     priv.chrome_depth = info.chrome_depth;
+    priv.chain = info.chain;
 
     /*  Structure ends here: whatever is left of the url is data, and it
      *  belongs to the viewer.  Re-render only the first time — paging
