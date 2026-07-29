@@ -37,7 +37,7 @@ hash routing.
 | **drawer** | off-canvas panel from the toolbar burger | `menu.quick.render = {"overlay":"drawer"}` |
 | **accordion** | live embedded nav in the **Accordion** chapter | a `C_YUI_NAV` with `layout:"accordion"` built inside `C_TEST_VIEW` |
 
-### The node tree (`/cards`) — prototype
+### The node tree — two chapters, one tree (`/cards`, `/crumbs`)
 
 The **Cards** chapter is not a menu: it is a tree of `C_YUI_NODE` gobjs,
 the prototype of the model where *the gobj tree IS the navigation tree*.
@@ -56,11 +56,15 @@ the prototype of the model where *the gobj tree IS the navigation tree*.
 - **A node may have content AND children** (see *Beta*): the content is
   the page, the children are projected under it. One node, not two
   concepts.
-- **Two ways to show depth, side by side.** `energy/north` stacks one chrome
-  strip per ancestor; `energy/south` declares `chrome_depth: 0` plus
-  `projection.path`, so the way in is a single breadcrumb line drawn from the
-  tree root. Compare `#/cards/energy/north/m1` with
-  `#/cards/energy/south/m3` — same tree, same URLs, same depth.
+- **Two ways to show depth, one per chapter.** **Cards** (`/cards`) stacks one
+  chrome strip per ancestor; **Breadcrumb** (`/crumbs`) carries the *same tree
+  at the same depths* and declares `chrome_depth: 0` + `projection.path`, so
+  the way in is a single line drawn from the tree root. They were one chapter
+  with both modes in different branches, which read as inconsistency rather
+  than as a choice. Only the ROOT's knob differs between them — which is why
+  the panel's **tabs or breadcrumb** button can flip a live tree between the
+  two with `yui_node_set_projection` + `yui_node_set_chrome_depth` on a single
+  node.
 - **`chrome_depth` caps the stacked chrome.** Every ancestor paints its own
   strip, so depth 4 shows three of them (on mobile they read as a vertical
   breadcrumb of backbars). `energy/north` leaves them stacked;

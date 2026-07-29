@@ -19,6 +19,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   there is what you come back to; a remembered route that no longer resolves is
   dropped; and only a MENU CLICK consults it — typed urls, deep links,
   Back/Forward and `yui_shell_navigate` are untouched.
+- **feat(`C_YUI_NODE`): `yui_node_set_chrome_depth()`.** `chrome_depth` was
+  declarable but not reachable at runtime, which broke the rule the tree is
+  built on — whatever the config can say, the API must be able to change. With
+  `yui_node_set_projection` it is what lets an app offer "stacked tabs or
+  breadcrumb" as a live choice, and it is TWO calls on ONE node: `path` draws
+  from the tree root whoever declares it, and `chrome_depth: 0` there caps the
+  strips of the whole subtree. Re-renders through the shell (a replace to the
+  current route) because the depth is resolved along the active PATH —
+  repainting only from the changed node would leave the ancestors' strips
+  behind.
 - **feat: `projection.path` — a breadcrumb, the second way to show depth.**
   Every ancestor painting its own chrome stacks one strip per level: fine at
   three, a wall at five, and a branch that caps the stacking (`chrome_depth`)

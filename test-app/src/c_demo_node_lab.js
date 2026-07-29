@@ -38,6 +38,7 @@ import {
     yui_node_add,
     yui_node_remove,
     yui_node_set_projection,
+    yui_node_set_chrome_depth,
 } from "@yuneta/gobj-ui/src/c_yui_node.js";
 
 
@@ -45,6 +46,34 @@ import {
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_DEMO_NODE_LAB";
+
+/*  The two ways of showing depth, as a live choice.  Both are ONE
+ *  knob on the ROOT node: `path` draws the trail from the tree root
+ *  whoever declares it, and chrome_depth 0 there caps the stacked
+ *  strips of the WHOLE subtree (the deepest declaration on the path
+ *  wins, and no child declares one).  So switching the whole tree's
+ *  navigation is two calls on a single node. */
+const NAV_MODES = [
+    {
+        id: "cards + tabs",
+        chrome_depth: -1,
+        projection: {
+            index: {layout: "cards"},
+            chrome: [
+                {layout: "tabs", show_on: ">=tablet"},
+                {layout: "backbar", show_on: "<tablet"}
+            ]
+        }
+    },
+    {
+        id: "breadcrumb",
+        chrome_depth: 0,
+        projection: {
+            index: {layout: "cards"},
+            path: {layout: "breadcrumb"}
+        }
+    }
+];
 
 /*  The projections the demo cycles through, in order. */
 const PROJECTIONS = [
@@ -90,7 +119,8 @@ SDATA_END()
 let PRIVATE_DATA = {
     dyn_seq:    0,      /*  monotonic id source for added nodes     */
     dyn_ids:    null,   /*  ids this panel added, in order          */
-    proj_idx:   0
+    proj_idx:   0,
+    nav_idx:    0
 };
 
 let __gclass__ = null;
@@ -192,7 +222,8 @@ function build_ui(gobj)
             ["div", {class: "LAB_ACTIONS buttons"}, [
                 button_descriptor("LAB_ADD", "yi-plus", "add node"),
                 button_descriptor("LAB_REMOVE", "yi-trash", "remove last added"),
-                button_descriptor("LAB_PROJECTION", "yi-table", "cycle projection")
+                button_descriptor("LAB_PROJECTION", "yi-table", "cycle projection"),
+                button_descriptor("LAB_NAV_MODE", "yi-arrows-rotate", "tabs or breadcrumb")
             ]],
             ["p", {class: "LAB_STATUS is-size-7"}, ""]
         ]]
@@ -217,7 +248,8 @@ function button_descriptor(logical_class, icon, label)
     let action = {
         LAB_ADD:        "EV_ADD_CLICKED",
         LAB_REMOVE:     "EV_REMOVE_CLICKED",
-        LAB_PROJECTION: "EV_PROJECTION_CLICKED"
+        LAB_PROJECTION: "EV_PROJECTION_CLICKED",
+        LAB_NAV_MODE:   "EV_NAV_MODE_CLICKED"
     }[logical_class];
 
     return ["button", {
@@ -337,6 +369,29 @@ function ac_projection_clicked(gobj, event, kw, src)
 }
 
 
+/************************************************************
+ *  Switch the whole subtree between stacked chrome and a
+ *  breadcrumb — the same two declarations the two chapters ship
+ *  statically, applied to the live tree.
+ ************************************************************/
+function ac_nav_mode_clicked(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let node = host_node(gobj);
+
+    if(!node) {
+        return -1;   /*  Error already logged  */
+    }
+
+    priv.nav_idx = (priv.nav_idx + 1) % NAV_MODES.length;
+    let mode = NAV_MODES[priv.nav_idx];
+    yui_node_set_projection(node, mode.projection);
+    yui_node_set_chrome_depth(node, mode.chrome_depth);
+    set_status(gobj, `navigation: ${mode.id}`);
+    return 0;
+}
+
+
 /***************************************************************
  *              FSM
  ***************************************************************/
@@ -367,7 +422,8 @@ function create_gclass(gclass_name)
         ["ST_IDLE", [
             ["EV_ADD_CLICKED",          ac_add_clicked,         null],
             ["EV_REMOVE_CLICKED",       ac_remove_clicked,      null],
-            ["EV_PROJECTION_CLICKED",   ac_projection_clicked,  null]
+            ["EV_PROJECTION_CLICKED",   ac_projection_clicked,  null],
+            ["EV_NAV_MODE_CLICKED",     ac_nav_mode_clicked,    null]
         ]]
     ];
 
@@ -377,7 +433,8 @@ function create_gclass(gclass_name)
     const event_types = [
         ["EV_ADD_CLICKED",          0],
         ["EV_REMOVE_CLICKED",       0],
-        ["EV_PROJECTION_CLICKED",   0]
+        ["EV_PROJECTION_CLICKED",   0],
+        ["EV_NAV_MODE_CLICKED",     0]
     ];
 
     __gclass__ = gclass_create(

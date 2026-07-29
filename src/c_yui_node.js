@@ -1291,6 +1291,40 @@ function ac_set_projection(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Runtime API: change how much stacked chrome my corner shows.
+ *
+ *  Declarative == dynamic: `chrome_depth` is how a branch trades
+ *  stacked strips for something else, so it has to be reachable
+ *  at runtime like every other part of the shape.  Paired with
+ *  EV_SET_PROJECTION this is what lets an app offer "tabs or
+ *  breadcrumb" as a live choice.
+ ************************************************************/
+function ac_set_chrome_depth(gobj, event, kw, src)
+{
+    let depth = kw.chrome_depth;
+
+    if(typeof depth !== "number" || depth < -1 || Math.floor(depth) !== depth) {
+        log_error(
+            `${GCLASS_NAME} '${node_path_str(gobj)}': chrome_depth must be an ` +
+            `integer >= 0 (or -1 to inherit) — got '${depth}'`
+        );
+        return -1;
+    }
+    gobj_write_attr(gobj, "chrome_depth", depth);
+
+    /*  The depth is resolved along the ACTIVE PATH, so the node that
+     *  re-renders it is the one the shell is talking to: ask the tree
+     *  root to re-apply the current route rather than repainting only
+     *  from here, which would leave the ancestors' strips behind. */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        yui_shell_navigate(shell, gobj_read_attr(shell, "current_route") ||
+            route_of(gobj), {replace: true});
+    }
+    return 0;
+}
+
+/************************************************************
  *  Runtime API: change (or set) my content.
  ************************************************************/
 function ac_set_content(gobj, event, kw, src)
@@ -1356,6 +1390,12 @@ function yui_node_set_projection(node, projection)
 function yui_node_set_content(node, content)
 {
     return gobj_send_event(node, "EV_SET_CONTENT", {content: content}, node);
+}
+
+function yui_node_set_chrome_depth(node, depth)
+{
+    return gobj_send_event(node, "EV_SET_CHROME_DEPTH",
+        {chrome_depth: depth}, node);
 }
 
 /************************************************************
@@ -1439,6 +1479,7 @@ function create_gclass(gclass_name)
             ["EV_ADD_NODE",             ac_add_node,            null],
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
+            ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
         ]],
@@ -1450,6 +1491,7 @@ function create_gclass(gclass_name)
             ["EV_ADD_NODE",             ac_add_node,            null],
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
+            ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
         ]],
@@ -1461,6 +1503,7 @@ function create_gclass(gclass_name)
             ["EV_ADD_NODE",             ac_add_node,            null],
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
+            ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
         ]]
@@ -1477,6 +1520,7 @@ function create_gclass(gclass_name)
         ["EV_ADD_NODE",             0],
         ["EV_REMOVE_NODE",          0],
         ["EV_SET_PROJECTION",       0],
+        ["EV_SET_CHROME_DEPTH",     0],
         ["EV_SET_CONTENT",          0],
         ["EV_NODE_TREE_CHANGED",    0]
     ];
@@ -1516,6 +1560,7 @@ export {
     yui_node_remove,
     yui_node_set_projection,
     yui_node_set_content,
+    yui_node_set_chrome_depth,
     yui_node_find,
     yui_node_route,
     yui_node_tree_version

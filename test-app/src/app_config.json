@@ -374,9 +374,9 @@
                     "id": "cards",
                     "name": "Cards",
                     "icon": "yi-square",
-                    "tooltip": "A tree of node gobjs: cards inside cards, any depth",
+                    "tooltip": "A tree of node gobjs shown with cards and stacked tabs",
                     "route": "/cards",
-                    "_comment": "PROTOTYPE of the node-tree model (C_YUI_NODE). ONE declared route: the shell resolves /cards and hands the tree everything below as a subpath, so depth is unbounded and no route table grows. A node is a gobj, the gobj tree IS the navigation tree, and each node holds HOW IT WANTS ITS CHILDREN SEEN (projection). The declared `children` below are not a privileged path: mt_create feeds them to the same EV_ADD_NODE the runtime API uses — see the buttons in the panel at /cards.",
+                    "_comment": "A tree of C_YUI_NODE gobjs on ONE declared route: the shell resolves it and hands everything below as a subpath, so depth is unbounded. The two chapters carry the SAME tree; only the root's knob differs, which is what the panel's 'tabs or breadcrumb' button flips at runtime. Here: cards for the index, one tab strip per ancestor.",
                     "target": {
                         "stage": "main",
                         "gclass": "C_YUI_NODE",
@@ -404,8 +404,8 @@
                             "content": {
                                 "gclass": "C_DEMO_NODE_LAB",
                                 "kw": {
-                                    "title": "Node tree",
-                                    "lead": "The cards below are child NODES, each a gobj. Walk in: Energy → North hall → Meter 1 is four levels deep on one declared route. The buttons reshape the LIVE tree through the same API the config used at boot."
+                                    "title": "Cards",
+                                    "lead": "The cards below are child NODES, each a gobj. Walk in: Energy → North hall → Meter 1 is four levels deep. This chapter shows the way in as STACKED TABS — one strip per ancestor. The buttons reshape the live tree; the last one switches this chapter to a breadcrumb."
                                 }
                             },
                             "children": [
@@ -416,8 +416,8 @@
                                     "content": {
                                         "gclass": "C_TEST_VIEW",
                                         "kw": {
-                                            "title": "Cards — Alpha",
-                                            "lead": "A leaf directly under the root: a node with content and no children. The route #/cards/alpha is unchanged from the old section-index demo.",
+                                            "title": "Alpha",
+                                            "lead": "A leaf directly under the root: content, no children.",
                                             "badges": [
                                                 "level 2",
                                                 "content, no children"
@@ -447,7 +447,7 @@
                                     "content": {
                                         "gclass": "C_TEST_VIEW",
                                         "kw": {
-                                            "title": "Cards — Beta",
+                                            "title": "Beta",
                                             "lead": "This node has CONTENT and CHILDREN at the same time: the content is the page, the children are projected under it. One node, not two concepts.",
                                             "badges": [
                                                 "content + children",
@@ -532,7 +532,6 @@
                                                     "id": "m1",
                                                     "label": "Meter 1",
                                                     "icon": "yi-plug",
-                                                    "_link_comment": "WHERE THE TREE ENDS. This node does not branch: it LINKS to a data space (a timeranger: millions of raw records, series/time, key/value) and mounts the viewer suited to it. Everything below in the url — #/cards/energy/north/m1/series/kwh_total — is handed to that viewer as EV_ROUTE_CHANGED {base, subpath}, the same contract the shell gives a view. One gobj per structural node is right; one gobj per record is not.",
                                                     "link": {
                                                         "kind": "tranger",
                                                         "gclass": "C_DEMO_TRANGER_LINK",
@@ -546,7 +545,6 @@
                                                     "id": "m2",
                                                     "label": "Meter 2",
                                                     "icon": "yi-plug",
-                                                    "_link_comment": "WHERE THE TREE ENDS. This node does not branch: it LINKS to a data space (a timeranger: millions of raw records, series/time, key/value) and mounts the viewer suited to it. Everything below in the url — #/cards/energy/north/m1/series/kwh_total — is handed to that viewer as EV_ROUTE_CHANGED {base, subpath}, the same contract the shell gives a view. One gobj per structural node is right; one gobj per record is not.",
                                                     "link": {
                                                         "kind": "tranger",
                                                         "gclass": "C_DEMO_TRANGER_LINK",
@@ -560,7 +558,7 @@
                                             "aliases": [
                                                 "hall1"
                                             ],
-                                            "_aliases_comment": "This node used to be called 'hall1'. The tree's paths are a CONTRACT — urls a client may hold — so the id was not rewritten in place: #/cards/energy/hall1/m1 still resolves and is rewritten (replace) to the canonical spelling. That is what a version bump migrates through; there is no reparent API on purpose."
+                                            "_aliases_comment": "This node used to be called 'hall1'. The tree's paths are a CONTRACT, so the id was not rewritten in place: #/cards/energy/hall1/m1 still resolves and is rewritten to the canonical spelling."
                                         },
                                         {
                                             "id": "south",
@@ -570,9 +568,16 @@
                                                 "index": {
                                                     "layout": "cards"
                                                 },
-                                                "path": {
-                                                    "layout": "breadcrumb"
-                                                }
+                                                "chrome": [
+                                                    {
+                                                        "layout": "tabs",
+                                                        "show_on": ">=tablet"
+                                                    },
+                                                    {
+                                                        "layout": "backbar",
+                                                        "show_on": "<tablet"
+                                                    }
+                                                ]
                                             },
                                             "children": [
                                                 {
@@ -583,18 +588,15 @@
                                                         "gclass": "C_TEST_VIEW",
                                                         "kw": {
                                                             "title": "Meter 3",
-                                                            "lead": "Same depth as Meter 1, and the same tree — but this branch shows the way in as a BREADCRUMB instead of stacking one chrome strip per level (chrome_depth: 0 + projection.path). Two ways to show depth, declared per branch: compare with #/cards/energy/north/m1.",
+                                                            "lead": "Level 4 on one declared route. Everything below /cards is subpath: the shell's route table never grew.",
                                                             "badges": [
                                                                 "level 4",
-                                                                "projection.path",
-                                                                "chrome_depth: 0"
+                                                                "one declared route"
                                                             ]
                                                         }
                                                     }
                                                 }
-                                            ],
-                                            "chrome_depth": 0,
-                                            "_chrome_depth_comment": "THE SECOND WAY TO SHOW DEPTH. North hall stacks one chrome strip per level; this branch declares chrome_depth: 0 (no strips at all) and projection.path instead, so the trail is one breadcrumb line. Same tree, same urls — compare #/cards/energy/north/m1 with #/cards/energy/south/m3."
+                                            ]
                                         }
                                     ]
                                 },
@@ -635,7 +637,282 @@
                                                 "gclass": "C_TEST_VIEW",
                                                 "kw": {
                                                     "title": "Tank 2",
-                                                    "lead": "Change the projection from the panel at /cards and watch the shape change without the URL moving.",
+                                                    "lead": "Change the projection from the panel and watch the shape change without the URL moving.",
+                                                    "badges": [
+                                                        "projection: vertical",
+                                                        "level 3"
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "crumbs",
+                    "name": "Breadcrumb",
+                    "icon": "yi-chevron-right",
+                    "tooltip": "The same tree, shown with a breadcrumb instead of stacked tabs",
+                    "route": "/crumbs",
+                    "_comment": "A tree of C_YUI_NODE gobjs on ONE declared route: the shell resolves it and hands everything below as a subpath, so depth is unbounded. The two chapters carry the SAME tree; only the root's knob differs, which is what the panel's 'tabs or breadcrumb' button flips at runtime. Here: chrome_depth 0 (no strips at all) plus projection.path, so the way in is one breadcrumb line drawn from the tree root.",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_YUI_NODE",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "node_id": "crumbs",
+                            "label": "Breadcrumb",
+                            "base_route": "/crumbs",
+                            "tree_version": "1.0.0",
+                            "chrome_depth": 0,
+                            "projection": {
+                                "index": {
+                                    "layout": "cards"
+                                },
+                                "path": {
+                                    "layout": "breadcrumb"
+                                }
+                            },
+                            "content": {
+                                "gclass": "C_DEMO_NODE_LAB",
+                                "kw": {
+                                    "title": "Breadcrumb",
+                                    "lead": "The same tree as the Cards chapter, at the same depths. The way in is a BREADCRUMB: one line from the root to where you are, each crumb a link. Stacked tabs also let you jump to a sibling without going back; a breadcrumb costs one row instead of one per level."
+                                }
+                            },
+                            "children": [
+                                {
+                                    "id": "alpha",
+                                    "label": "Alpha",
+                                    "icon": "yi-eye",
+                                    "content": {
+                                        "gclass": "C_TEST_VIEW",
+                                        "kw": {
+                                            "title": "Alpha",
+                                            "lead": "A leaf directly under the root: content, no children.",
+                                            "badges": [
+                                                "level 2",
+                                                "content, no children"
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "id": "beta",
+                                    "label": "Beta",
+                                    "icon": "yi-cog",
+                                    "projection": {
+                                        "index": {
+                                            "layout": "cards"
+                                        },
+                                        "chrome": [
+                                            {
+                                                "layout": "tabs",
+                                                "show_on": ">=tablet"
+                                            },
+                                            {
+                                                "layout": "backbar",
+                                                "show_on": "<tablet"
+                                            }
+                                        ]
+                                    },
+                                    "content": {
+                                        "gclass": "C_TEST_VIEW",
+                                        "kw": {
+                                            "title": "Beta",
+                                            "lead": "This node has CONTENT and CHILDREN at the same time: the content is the page, the children are projected under it. One node, not two concepts.",
+                                            "badges": [
+                                                "content + children",
+                                                "level 2"
+                                            ]
+                                        }
+                                    },
+                                    "children": [
+                                        {
+                                            "id": "one",
+                                            "label": "Beta one",
+                                            "icon": "yi-square",
+                                            "content": {
+                                                "gclass": "C_TEST_VIEW",
+                                                "kw": {
+                                                    "title": "Beta one",
+                                                    "lead": "Reached from a card under Beta's own content.",
+                                                    "badges": [
+                                                        "level 3"
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "id": "two",
+                                            "label": "Beta two",
+                                            "icon": "yi-square",
+                                            "content": {
+                                                "gclass": "C_TEST_VIEW",
+                                                "kw": {
+                                                    "title": "Beta two",
+                                                    "lead": "Back returns to Beta, which shows its content again.",
+                                                    "badges": [
+                                                        "level 3"
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "id": "energy",
+                                    "label": "Energy",
+                                    "icon": "yi-bolt",
+                                    "projection": {
+                                        "index": {
+                                            "layout": "cards"
+                                        },
+                                        "chrome": [
+                                            {
+                                                "layout": "tabs",
+                                                "show_on": ">=tablet"
+                                            },
+                                            {
+                                                "layout": "backbar",
+                                                "show_on": "<tablet"
+                                            }
+                                        ]
+                                    },
+                                    "children": [
+                                        {
+                                            "id": "north",
+                                            "label": "North hall",
+                                            "icon": "yi-table",
+                                            "projection": {
+                                                "index": {
+                                                    "layout": "cards"
+                                                },
+                                                "chrome": [
+                                                    {
+                                                        "layout": "tabs",
+                                                        "show_on": ">=tablet"
+                                                    },
+                                                    {
+                                                        "layout": "backbar",
+                                                        "show_on": "<tablet"
+                                                    }
+                                                ]
+                                            },
+                                            "children": [
+                                                {
+                                                    "id": "m1",
+                                                    "label": "Meter 1",
+                                                    "icon": "yi-plug",
+                                                    "link": {
+                                                        "kind": "tranger",
+                                                        "gclass": "C_DEMO_TRANGER_LINK",
+                                                        "kw": {
+                                                            "topic": "meters^north^m1",
+                                                            "records": 3418772
+                                                        }
+                                                    }
+                                                },
+                                                {
+                                                    "id": "m2",
+                                                    "label": "Meter 2",
+                                                    "icon": "yi-plug",
+                                                    "link": {
+                                                        "kind": "tranger",
+                                                        "gclass": "C_DEMO_TRANGER_LINK",
+                                                        "kw": {
+                                                            "topic": "meters^north^m2",
+                                                            "records": 2904331
+                                                        }
+                                                    }
+                                                }
+                                            ],
+                                            "aliases": [
+                                                "hall1"
+                                            ],
+                                            "_aliases_comment": "This node used to be called 'hall1'. The tree's paths are a CONTRACT, so the id was not rewritten in place: #/crumbs/energy/hall1/m1 still resolves and is rewritten to the canonical spelling."
+                                        },
+                                        {
+                                            "id": "south",
+                                            "label": "South hall",
+                                            "icon": "yi-table",
+                                            "projection": {
+                                                "index": {
+                                                    "layout": "cards"
+                                                },
+                                                "chrome": [
+                                                    {
+                                                        "layout": "tabs",
+                                                        "show_on": ">=tablet"
+                                                    },
+                                                    {
+                                                        "layout": "backbar",
+                                                        "show_on": "<tablet"
+                                                    }
+                                                ]
+                                            },
+                                            "children": [
+                                                {
+                                                    "id": "m3",
+                                                    "label": "Meter 3",
+                                                    "icon": "yi-plug",
+                                                    "content": {
+                                                        "gclass": "C_TEST_VIEW",
+                                                        "kw": {
+                                                            "title": "Meter 3",
+                                                            "lead": "Level 4 on one declared route. Everything below /crumbs is subpath: the shell's route table never grew.",
+                                                            "badges": [
+                                                                "level 4",
+                                                                "one declared route"
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "id": "water",
+                                    "label": "Water",
+                                    "icon": "yi-droplet",
+                                    "projection": {
+                                        "index": {
+                                            "layout": "vertical"
+                                        },
+                                        "chrome": {
+                                            "layout": "vertical"
+                                        }
+                                    },
+                                    "children": [
+                                        {
+                                            "id": "tank1",
+                                            "label": "Tank 1",
+                                            "icon": "yi-droplet",
+                                            "content": {
+                                                "gclass": "C_TEST_VIEW",
+                                                "kw": {
+                                                    "title": "Tank 1",
+                                                    "lead": "Its parent projects its children as a VERTICAL list instead of cards. Same tree, same URLs — a projection is HOW you see the children, not WHERE you are.",
+                                                    "badges": [
+                                                        "projection: vertical",
+                                                        "level 3"
+                                                    ]
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "id": "tank2",
+                                            "label": "Tank 2",
+                                            "icon": "yi-droplet",
+                                            "content": {
+                                                "gclass": "C_TEST_VIEW",
+                                                "kw": {
+                                                    "title": "Tank 2",
+                                                    "lead": "Change the projection from the panel and watch the shape change without the URL moving.",
                                                     "badges": [
                                                         "projection: vertical",
                                                         "level 3"
@@ -1044,97 +1321,121 @@
             ]
         },
         "quick": {
-            "_comment": "A menu rendered with layout:\"drawer\": an off-canvas panel on the overlay layer (its inner list reuses the vertical renderer). Opened by the toolbar burger. Items carry only a route and no target, so they resolve to the same route-index entries as the primary menu — no duplicate view gobjs.",
+            "_comment": "Every chapter, in the primary menu's order. A drawer that lists only some of them is worse than no drawer: the reader cannot tell whether what is missing does not exist or was forgotten.",
             "render": {
                 "overlay": "drawer"
             },
             "items": [
                 {
-                    "id": "q-tabs",
+                    "id": "tabs",
                     "name": "Tabs",
                     "icon": "yi-square-check",
                     "route": "/tabs"
                 },
                 {
-                    "id": "q-submenu",
+                    "id": "submenu",
                     "name": "Side submenu",
                     "icon": "yi-arrow-right",
                     "route": "/submenu"
                 },
                 {
-                    "id": "q-cards",
+                    "id": "cards",
                     "name": "Cards",
                     "icon": "yi-square",
                     "route": "/cards"
                 },
                 {
-                    "id": "q-accordion",
+                    "id": "crumbs",
+                    "name": "Breadcrumb",
+                    "icon": "yi-chevron-right",
+                    "route": "/crumbs"
+                },
+                {
+                    "id": "sectionindex",
+                    "name": "Section index",
+                    "icon": "yi-table",
+                    "route": "/sectionindex"
+                },
+                {
+                    "id": "accordion",
                     "name": "Accordion",
                     "icon": "yi-copy",
                     "route": "/accordion"
                 },
                 {
-                    "id": "q-form",
+                    "id": "form",
                     "name": "Form",
                     "icon": "yi-pen",
                     "route": "/form"
                 },
                 {
-                    "id": "q-table",
+                    "id": "table",
                     "name": "Table",
                     "icon": "yi-table",
                     "route": "/table"
                 },
                 {
-                    "id": "q-treedb",
+                    "id": "treedb",
                     "name": "TreeDB",
                     "icon": "yi-hexagon-nodes",
                     "route": "/treedb"
                 },
                 {
-                    "id": "q-chart",
+                    "id": "chart",
                     "name": "Chart",
                     "icon": "yi-eye",
                     "route": "/chart"
                 },
                 {
-                    "id": "q-tree",
+                    "id": "tree",
                     "name": "Frontend view",
                     "icon": "yi-hexagon-nodes",
                     "route": "/tree"
                 },
                 {
-                    "id": "q-json",
+                    "id": "json",
                     "name": "JSON graph",
                     "icon": "yi-square-js",
                     "route": "/json"
                 },
                 {
-                    "id": "q-wizard",
+                    "id": "jsontree",
+                    "name": "JSON tree",
+                    "icon": "yi-square-js",
+                    "route": "/jsontree"
+                },
+                {
+                    "id": "wizard",
                     "name": "Wizard",
                     "icon": "yi-cog",
                     "route": "/wizard"
                 },
                 {
-                    "id": "q-pager",
+                    "id": "pager",
                     "name": "Pager",
                     "icon": "yi-bars",
                     "route": "/pager"
                 },
                 {
-                    "id": "q-modals",
+                    "id": "period",
+                    "name": "Period",
+                    "icon": "yi-calendar-days",
+                    "route": "/period"
+                },
+                {
+                    "id": "modals",
                     "name": "Modals",
                     "icon": "yi-circle-info",
                     "route": "/modals"
                 },
                 {
-                    "id": "q-windows",
+                    "id": "windows",
                     "name": "Windows",
                     "icon": "yi-square",
                     "route": "/windows"
                 },
                 {
-                    "id": "q-map",
+                    "id": "map",
                     "name": "Map",
                     "icon": "yi-location-dot",
                     "route": "/map"
