@@ -376,7 +376,7 @@
                     "icon": "yi-square",
                     "tooltip": "A tree of node gobjs shown with cards and stacked tabs",
                     "route": "/cards",
-                    "_comment": "A tree of C_YUI_NODE gobjs on ONE declared route: the shell resolves it and hands everything below as a subpath, so depth is unbounded. The two chapters carry the SAME tree; only the root's knob differs, which is what the panel's 'tabs or breadcrumb' button flips at runtime. Here: cards for the index, one tab strip per ancestor.",
+                    "_comment": "A tree of C_YUI_NODE gobjs on ONE declared route: the shell resolves it and hands everything below as a subpath, so depth is unbounded. The two chapters carry the SAME tree; only the root's nav_mode differs, which is what the panel's 'stack, back or path' button cycles at runtime (yui_node_set_nav_mode). Here: the default mode 'stack' -- cards for the index, one tab strip per ancestor.",
                     "target": {
                         "stage": "main",
                         "gclass": "C_YUI_NODE",
@@ -405,7 +405,7 @@
                                 "gclass": "C_DEMO_NODE_LAB",
                                 "kw": {
                                     "title": "Cards",
-                                    "lead": "The cards below are child NODES, each a gobj. Walk in: Energy → North hall → Meter 1 is four levels deep. This chapter shows the way in as STACKED TABS — one strip per ancestor. The buttons reshape the live tree; the last one switches this chapter to a breadcrumb."
+                                    "lead": "The cards below are child NODES, each a gobj. Walk in: Energy → North hall → Meter 1 is four levels deep. This chapter shows the way in as STACKED TABS — one strip per ancestor. The buttons reshape the live tree; the last one cycles the whole tree through the three navigation modes: stacked strips, a single back to the parent, and a breadcrumb."
                                 }
                             },
                             "children": [
@@ -657,7 +657,7 @@
                     "icon": "yi-chevron-right",
                     "tooltip": "The same tree, shown with a breadcrumb instead of stacked tabs",
                     "route": "/crumbs",
-                    "_comment": "A tree of C_YUI_NODE gobjs on ONE declared route: the shell resolves it and hands everything below as a subpath, so depth is unbounded. The two chapters carry the SAME tree; only the root's knob differs, which is what the panel's 'tabs or breadcrumb' button flips at runtime. Here: chrome_depth 0 (no strips at all) plus projection.path, so the way in is one breadcrumb line drawn from the tree root.",
+                    "_comment": "A tree of C_YUI_NODE gobjs on ONE declared route: the shell resolves it and hands everything below as a subpath, so depth is unbounded. The two chapters carry the SAME tree; only the root's nav_mode differs. This one declares BY HAND what nav_mode 'path' does in one word -- chrome_depth 0 (no strips at all) plus projection.path, one breadcrumb line drawn from the tree root -- because that is what the mode is made of, and a chapter that only showed the shortcut would hide the model.",
                     "target": {
                         "stage": "main",
                         "gclass": "C_YUI_NODE",

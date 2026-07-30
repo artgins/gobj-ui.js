@@ -56,15 +56,21 @@ the prototype of the model where *the gobj tree IS the navigation tree*.
 - **A node may have content AND children** (see *Beta*): the content is
   the page, the children are projected under it. One node, not two
   concepts.
-- **Two ways to show depth, one per chapter.** **Cards** (`/cards`) stacks one
-  chrome strip per ancestor; **Breadcrumb** (`/crumbs`) carries the *same tree
-  at the same depths* and declares `chrome_depth: 0` + `projection.path`, so
-  the way in is a single line drawn from the tree root. They were one chapter
-  with both modes in different branches, which read as inconsistency rather
-  than as a choice. Only the ROOT's knob differs between them — which is why
-  the panel's **tabs or breadcrumb** button can flip a live tree between the
-  two with `yui_node_set_projection` + `yui_node_set_chrome_depth` on a single
-  node.
+- **Three ways to show depth, and the button that cycles them.**
+  `nav_mode` on the tree ROOT: `"stack"` (one chrome strip per ancestor),
+  `"back"` (only the tip's parent, as a `← parent`) or `"path"` (the trail as
+  one breadcrumb line). The panel's **stack, back or path** button walks a
+  live tree through the three with a single `yui_node_set_nav_mode(root, mode)`
+  — including back to `"stack"`, which restores exactly what each branch
+  declared, because a mode filters the renders instead of rewriting them.
+  Try it at a leaf: `#/cards/energy/north/m1` shows three strips in `stack`,
+  one `← North hall` in `back`, and four crumbs in `path`.
+- **Two chapters, so the two shapes can be seen side by side.** **Cards**
+  (`/cards`) is the default `stack`; **Breadcrumb** (`/crumbs`) carries the
+  *same tree at the same depths* and declares by hand what `nav_mode: "path"`
+  does in one word — `chrome_depth: 0` + `projection.path` — which is what
+  the mode is made of. They were one chapter with both shapes in different
+  branches, which read as inconsistency rather than as a choice.
 - **`chrome_depth` caps the stacked chrome.** Every ancestor paints its own
   strip, so depth 4 shows three of them (on mobile they read as a vertical
   breadcrumb of backbars). `energy/north` leaves them stacked;
