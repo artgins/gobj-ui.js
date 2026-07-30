@@ -40,7 +40,7 @@ import {
     yui_node_add,
     yui_node_remove,
     yui_node_set_projection,
-    yui_node_set_chrome_depth,
+    yui_node_set_nav_mode,
 } from "@yuneta/gobj-ui/src/c_yui_node.js";
 
 
@@ -49,33 +49,12 @@ import {
  ***************************************************************/
 const GCLASS_NAME = "C_DEMO_NODE_LAB";
 
-/*  The two ways of showing depth, as a live choice.  Both are ONE
- *  knob on the ROOT node: `path` draws the trail from the tree root
- *  whoever declares it, and chrome_depth 0 there caps the stacked
- *  strips of the WHOLE subtree (the deepest declaration on the path
- *  wins, and no child declares one).  So switching the whole tree's
- *  navigation is two calls on a single node. */
-const NAV_MODES = [
-    {
-        id: "cards + tabs",
-        chrome_depth: -1,
-        projection: {
-            index: {layout: "cards"},
-            chrome: [
-                {layout: "tabs", show_on: ">=tablet"},
-                {layout: "backbar", show_on: "<tablet"}
-            ]
-        }
-    },
-    {
-        id: "breadcrumb",
-        chrome_depth: 0,
-        projection: {
-            index: {layout: "cards"},
-            path: {layout: "breadcrumb"}
-        }
-    }
-];
+/*  The three ways of showing the way in, as a live choice.  They are
+ *  ONE knob on the tree — the root holds `nav_mode` and every node
+ *  reads it from there — so switching the whole tree's navigation is
+ *  a single call, and coming back to "stack" restores exactly what
+ *  each branch declared. */
+const NAV_MODES = ["stack", "back", "path"];
 
 /*  The projections the demo cycles through, in order. */
 const PROJECTIONS = [
@@ -225,7 +204,7 @@ function build_ui(gobj)
                 button_descriptor("LAB_ADD", "yi-plus", "add node"),
                 button_descriptor("LAB_REMOVE", "yi-trash", "remove last added"),
                 button_descriptor("LAB_PROJECTION", "yi-table", "cycle projection"),
-                button_descriptor("LAB_NAV_MODE", "yi-arrows-rotate", "tabs or breadcrumb")
+                button_descriptor("LAB_NAV_MODE", "yi-arrows-rotate", "stack, back or path")
             ]],
             ["p", {class: "LAB_STATUS is-size-7"}, ""]
         ]]
@@ -372,9 +351,13 @@ function ac_projection_clicked(gobj, event, kw, src)
 
 
 /************************************************************
- *  Switch the whole subtree between stacked chrome and a
- *  breadcrumb — the same two declarations the two chapters ship
- *  statically, applied to the live tree.
+ *  Cycle the whole tree through the three navigation modes:
+ *  stacked strips, a single "\u2190 parent", the trail as one line.
+ *
+ *  Nothing declared is rewritten -- the mode filters the renders as
+ *  the tree asks for them -- so this button is reversible by
+ *  definition: back on "stack", every branch paints what IT
+ *  declared, including layouts the modes never mention.
  ************************************************************/
 function ac_nav_mode_clicked(gobj, event, kw, src)
 {
@@ -387,9 +370,8 @@ function ac_nav_mode_clicked(gobj, event, kw, src)
 
     priv.nav_idx = (priv.nav_idx + 1) % NAV_MODES.length;
     let mode = NAV_MODES[priv.nav_idx];
-    yui_node_set_projection(node, mode.projection);
-    yui_node_set_chrome_depth(node, mode.chrome_depth);
-    set_status(gobj, `navigation: ${mode.id}`);
+    yui_node_set_nav_mode(node, mode);
+    set_status(gobj, `navigation: ${mode}`);
     return 0;
 }
 

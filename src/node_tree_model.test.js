@@ -12,6 +12,9 @@ import {
     projection_renders,
     child_nav_items,
     normalize_spec,
+    is_nav_mode,
+    nav_mode_renders,
+    nav_mode_depth,
 } from "./node_tree_model.js";
 
 
@@ -279,4 +282,71 @@ test("a link IS the node's content — declaring both is rejected", () => {
         link: {kind: "tranger", gclass: "C_V"}
     }, errors, "/")).toBe(null);
     expect(errors.some((e) => /both 'link' and 'content'/.test(e))).toBe(true);
+});
+
+
+/***************************************************************
+ *      navigation modes
+ ***************************************************************/
+const DECLARED = {
+    index:  {layout: "cards"},
+    chrome: [
+        {layout: "tabs", show_on: ">=tablet"},
+        {layout: "backbar", show_on: "<tablet"}
+    ]
+};
+
+test("only the three modes are modes", () => {
+    expect(is_nav_mode("stack")).toBe(true);
+    expect(is_nav_mode("back")).toBe(true);
+    expect(is_nav_mode("path")).toBe(true);
+    expect(is_nav_mode("breadcrumb")).toBe(false);   /*  that is a LAYOUT  */
+    expect(is_nav_mode("")).toBe(false);
+});
+
+test("stack gives back exactly what the node declared", () => {
+    expect(nav_mode_renders(DECLARED, "stack", "chrome", true))
+        .toEqual(DECLARED.chrome);
+    expect(nav_mode_renders("vertical", "stack", "index", false))
+        .toEqual([{layout: "vertical"}]);
+    /*  An unknown mode must not silently reshape a tree  */
+    expect(nav_mode_renders(DECLARED, "nonsense", "chrome", true))
+        .toEqual(DECLARED.chrome);
+});
+
+test("back replaces every chrome with one backbar, and drops the trail", () => {
+    expect(nav_mode_renders(DECLARED, "back", "chrome", true))
+        .toEqual([{layout: "backbar"}]);
+    expect(nav_mode_renders(DECLARED, "back", "chrome", false))
+        .toEqual([{layout: "backbar"}]);
+    expect(nav_mode_renders({path: {layout: "breadcrumb"}}, "back", "path", true))
+        .toEqual([]);
+});
+
+test("path draws the trail ONCE, at the root, and no strips anywhere", () => {
+    expect(nav_mode_renders(DECLARED, "path", "path", true))
+        .toEqual([{layout: "breadcrumb"}]);
+    expect(nav_mode_renders(DECLARED, "path", "path", false)).toEqual([]);
+    expect(nav_mode_renders(DECLARED, "path", "chrome", true)).toEqual([]);
+    expect(nav_mode_renders(DECLARED, "path", "chrome", false)).toEqual([]);
+});
+
+test("the index projection survives every mode", () => {
+    for(const mode of ["stack", "back", "path"]) {
+        expect(nav_mode_renders(DECLARED, mode, "index", true))
+            .toEqual([{layout: "cards"}]);
+    }
+    /*  and an undeclared projection keeps defaulting to cards  */
+    expect(nav_mode_renders(null, "path", "index", true))
+        .toEqual([{layout: "cards"}]);
+});
+
+test("back is depth 1 and path is depth 0, whatever the tree declared", () => {
+    expect(nav_mode_depth(null, "back")).toBe(1);
+    expect(nav_mode_depth(3, "back")).toBe(1);
+    expect(nav_mode_depth(null, "path")).toBe(0);
+    expect(nav_mode_depth(3, "path")).toBe(0);
+    /*  stack keeps the declaration, unlimited included  */
+    expect(nav_mode_depth(null, "stack")).toBe(null);
+    expect(nav_mode_depth(2, "stack")).toBe(2);
 });

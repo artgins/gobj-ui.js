@@ -201,6 +201,30 @@ seen*:
   `projection.path`) while the rest of the tree keeps its tabs. Note the
   asymmetry that makes it a third mode and not a layout: `index` and `chrome`
   project a node's CHILDREN; `path` projects the way in.
+- **`nav_mode` — the three shapes as one runtime knob.** The two bullets above
+  describe what a tree *declares*; `nav_mode` is how a user *chooses* between
+  the shapes without the app rewriting anything:
+
+  | mode | what it shows | equivalent declaration |
+  |---|---|---|
+  | `"stack"` (default) | one strip per ancestor | whatever each branch declares |
+  | `"back"` | only the tip's parent, as a `← parent` | `chrome: {"layout":"backbar"}` everywhere + `chrome_depth: 1` |
+  | `"path"` | the trail as ONE line | `path: {"layout":"breadcrumb"}` on the root + `chrome_depth: 0` |
+
+  It belongs to the **root** (`yui_node_set_nav_mode(root, "path")`, or
+  `"nav_mode"` in its declaration) and the whole tree reads it from there —
+  ancestors stacking strips while a descendant drew a breadcrumb would be
+  saying the same thing twice in two languages. Set on a middle node it is
+  refused, loudly, rather than accepted and ignored.
+
+  A mode **filters the renders as they are asked for; it never rewrites what
+  the app declared.** That is what makes `"stack"` an exact restore: a branch
+  that declared `vertical` chrome comes back as `vertical`, not as the tabs a
+  canonical "stacked" shape would have imposed. The `index` projection is
+  never touched by a mode — how a node shows its own children when it IS the
+  page is not a statement about depth. Modes are per tree, so an app can run
+  `/admin` as a breadcrumb and `/alarms` as a backbar; `test-app`'s node lab
+  cycles all three on the live tree.
 - **`chrome_depth`** caps the stacked chrome: with every ancestor painting its
   own strip, depth N shows N-1 of them. A node declares how many its corner of
   the tree deserves (`0` = none, omit = all), the **deepest declaration on the
@@ -213,6 +237,7 @@ seen*:
   yui_node_add(node, spec, index)      yui_node_remove(node, node_id)
   yui_node_set_projection(node, proj)  yui_node_set_content(node, content)
   yui_node_set_chrome_depth(node, n)   yui_node_tree_version(node)
+  yui_node_set_nav_mode(root, mode)    yui_node_nav_mode(node)
   yui_node_find(node, "energy/north")  yui_node_route(node)
   ```
 

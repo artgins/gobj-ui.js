@@ -7,6 +7,38 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+
+## 5.4.0
+
+- **feat(`C_YUI_NODE`): `nav_mode` — the three ways of showing the way in, as
+  one knob.** A tree can now be asked for stacked strips (`"stack"`, the
+  default and what it declares), a single `← parent` (`"back"`), or the trail
+  as one breadcrumb line (`"path"`), at runtime:
+  `yui_node_set_nav_mode(root, "path")`, or `"nav_mode"` in the root's
+  declaration. `yui_node_nav_mode(node)` reads it.
+
+  The shapes were all expressible before — `back` is `chrome_depth: 1` plus a
+  `backbar` chrome on every branch, `path` is `projection.path` on the root
+  plus `chrome_depth: 0` — but only by **rewriting the declarations**, and
+  only the app knew which rewrite meant which shape. Two consequences made
+  that the wrong place: `back` is not a root-level edit (projections do not
+  inherit, so every branch had to be rewritten), and going back was lossy —
+  restoring "stacked" meant re-imposing a canonical shape, so a branch that
+  declared `vertical` chrome came back as tabs.
+
+  So a mode is a **filter applied when the renders are asked for**, never a
+  rewrite: `"stack"` is an exact restore by construction, per branch,
+  including layouts the modes never mention. The `index` projection is
+  untouched by every mode — how a node shows its children when it IS the page
+  is not a statement about depth. The knob is **root-only** (a tree stacking
+  strips at one level and drawing a breadcrumb at another would say the same
+  thing twice, in two languages); on a middle node the call is refused with a
+  log, not silently ignored. Modes are per tree, so an app can run `/admin` as
+  a breadcrumb and `/alarms` as a backbar.
+
+  `test-app`'s node lab cycles the three on the live tree (it cycled two
+  before, by rewriting projections).
+
 - **docs(`C_YUI_NODE`): chrome belongs to the node that declares it, so every
   branch declares its own.** The library was already right — a node's backbar
   is built with `back_route = my_route` — but nothing said the rule, and the

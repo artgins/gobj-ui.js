@@ -553,7 +553,7 @@ purely visual chunking inside the secondary nav.
 | `accordion`  | `left`               | yes (in inner items)    | Collapsible groups; first-level entries are sections, not decorations. |
 | `tabs`       | `top-sub`            | no — silently dropped   | Horizontal strip; no room for labels.   |
 | `breadcrumb` | anywhere (`C_YUI_NODE`'s `projection.path`) | no | The trail to here as one line; its items are the PATH, not a node's children. |
-| `backbar`    | secondary strip, node `chrome` | no      | A single "← owner" going UP to the route of whoever declared it. Synthesized by `submenu.index` on mobile; in `C_YUI_NODE` **every branch declares its own**, or the subtree's only ← is the root's (README, *C_YUI_NODE*). |
+| `backbar`    | secondary strip, node `chrome` | no      | A single "← owner" going UP to the route of whoever declared it. Synthesized by `submenu.index` on mobile; in `C_YUI_NODE` **every branch declares its own**, or the subtree's only ← is the root's (README, *C_YUI_NODE*). A whole tree can be switched to backbars at once with `nav_mode: "back"`. |
 | `icon-bar`   | `bottom`             | no — silently dropped   | Mobile primary; one slot per icon.      |
 
 ---

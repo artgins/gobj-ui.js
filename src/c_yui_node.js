@@ -126,6 +126,10 @@ import {
     child_nav_items,
     chrome_visible,
     normalize_spec,
+    is_nav_mode,
+    nav_mode_renders,
+    nav_mode_depth,
+    NAV_MODES,
 } from "./node_tree_model.js";
 
 import {
@@ -169,6 +173,7 @@ SDATA(data_type_t.DTP_JSON,     "children",     0,  null,   "Declared child spec
 
 SDATA(data_type_t.DTP_STRING,   "base_route",   0,  "",     "ROOT only: the declared route the whole tree hangs from"),
 SDATA(data_type_t.DTP_STRING,   "tree_version", 0,  "",     "ROOT only: version of the tree CONTRACT (its paths are public urls)"),
+SDATA(data_type_t.DTP_STRING,   "nav_mode",     0,  "stack","ROOT only: how the way in is shown — stack|back|path"),
 
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Root HTMLElement (shell view contract)"),
 SDATA_END()
@@ -390,6 +395,29 @@ function tree_root_of(gobj)
 }
 
 /************************************************************
+ *  The navigation mode in force for this node.
+ *
+ *  It is ONE knob per tree, held by the root: a tree whose ancestors
+ *  stacked strips while a descendant drew a breadcrumb would be
+ *  showing the way in twice, in two languages.  Descendants read it
+ *  from the root rather than keeping a copy, so a node added at
+ *  runtime is born in the mode the tree is already in.
+ ************************************************************/
+function nav_mode_of(gobj)
+{
+    let mode = gobj_read_attr(tree_root_of(gobj), "nav_mode") || "stack";
+
+    if(!is_nav_mode(mode)) {
+        log_error(
+            `${GCLASS_NAME} '${node_path_str(gobj)}': unknown nav_mode ` +
+            `'${mode}' — expected one of ${NAV_MODES.join("|")}`
+        );
+        return "stack";
+    }
+    return mode;
+}
+
+/************************************************************
  *  Node ids from the root DOWN TO this node, root excluded
  *  (the root's own segment is already inside base_route).
  ************************************************************/
@@ -494,12 +522,14 @@ function resolve_path_info(gobj, subpath, inherited)
 {
     let effective = (typeof inherited === "number") ? inherited : null;
 
+    let mode = nav_mode_of(gobj);
+
     let own = gobj_read_attr(gobj, "chrome_depth");
     if(typeof own === "number" && own >= 0) {
         effective = own;
     }
     if(has_link(gobj)) {
-        return {distance: 0, chrome_depth: effective, chain: []};
+        return {distance: 0, chrome_depth: nav_mode_depth(effective, mode), chain: []};
     }
 
     /*  Distance is counted in STRUCTURAL segments: the tail a viewer
@@ -524,7 +554,11 @@ function resolve_path_info(gobj, subpath, inherited)
             break;
         }
     }
-    return {distance: distance, chrome_depth: effective, chain: chain};
+    return {
+        distance: distance,
+        chrome_depth: nav_mode_depth(effective, mode),
+        chain: chain
+    };
 }
 
 /************************************************************
@@ -575,7 +609,8 @@ function render_projection(gobj, mode, $where, active_route, active_id, zones_on
     if(!priv.children.length) {
         return;
     }
-    let renders = projection_renders(gobj_read_attr(gobj, "projection"), mode);
+    let renders = nav_mode_renders(gobj_read_attr(gobj, "projection"),
+        nav_mode_of(gobj), mode, priv.is_root);
     if(!renders.length) {
         return;
     }
@@ -833,7 +868,8 @@ function render_child(gobj, child)
 function render_path(gobj, $where)
 {
     let priv = gobj.priv;
-    let renders = projection_renders(gobj_read_attr(gobj, "projection"), "path");
+    let renders = nav_mode_renders(gobj_read_attr(gobj, "projection"),
+        nav_mode_of(gobj), "path", priv.is_root);
 
     if(!renders.length) {
         return;
@@ -1329,6 +1365,54 @@ function ac_set_chrome_depth(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Runtime API: change how this TREE shows the way in.
+ *
+ *  One knob for the whole tree, and deliberately root-only: the
+ *  mode answers "how deep am I and how do I get back", a question
+ *  that has one answer per tree.  Set on a middle node it would
+ *  silently do nothing (descendants read the root's), and a knob
+ *  that accepts a call and ignores it is worse than one that
+ *  refuses it.
+ *
+ *  Nothing declared is rewritten — the mode filters the renders as
+ *  they are asked for — so going back to "stack" restores exactly
+ *  what the app declared, per branch, including layouts this mode
+ *  never mentions.
+ ************************************************************/
+function ac_set_nav_mode(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let mode = kw.nav_mode || "";
+
+    if(!is_nav_mode(mode)) {
+        log_error(
+            `${GCLASS_NAME} '${node_path_str(gobj)}': unknown nav_mode ` +
+            `'${mode}' — expected one of ${NAV_MODES.join("|")}`
+        );
+        return -1;
+    }
+    if(!priv.is_root) {
+        log_error(
+            `${GCLASS_NAME} '${node_path_str(gobj)}': nav_mode belongs to the ` +
+            `tree ROOT — set it there, the whole tree reads it`
+        );
+        return -1;
+    }
+    gobj_write_attr(gobj, "nav_mode", mode);
+
+    /*  Same reason as EV_SET_CHROME_DEPTH: what changes is the shape
+     *  of the ACTIVE PATH, whose strips are painted by the ancestors,
+     *  so the tree is asked to re-apply the current route instead of
+     *  repainting one node. */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        yui_shell_navigate(shell, gobj_read_attr(shell, "current_route") ||
+            route_of(gobj), {replace: true});
+    }
+    return 0;
+}
+
+/************************************************************
  *  Runtime API: change (or set) my content.
  ************************************************************/
 function ac_set_content(gobj, event, kw, src)
@@ -1400,6 +1484,20 @@ function yui_node_set_chrome_depth(node, depth)
 {
     return gobj_send_event(node, "EV_SET_CHROME_DEPTH",
         {chrome_depth: depth}, node);
+}
+
+/************************************************************
+ *  The tree's navigation mode: "stack" | "back" | "path".
+ *  Send it to the ROOT — the whole tree reads it from there.
+ ************************************************************/
+function yui_node_set_nav_mode(node, mode)
+{
+    return gobj_send_event(node, "EV_SET_NAV_MODE", {nav_mode: mode}, node);
+}
+
+function yui_node_nav_mode(node)
+{
+    return gobj_read_attr(tree_root_of(node), "nav_mode") || "stack";
 }
 
 /************************************************************
@@ -1484,6 +1582,7 @@ function create_gclass(gclass_name)
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
+            ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
         ]],
@@ -1496,6 +1595,7 @@ function create_gclass(gclass_name)
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
+            ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
         ]],
@@ -1508,6 +1608,7 @@ function create_gclass(gclass_name)
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
+            ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
         ]]
@@ -1525,6 +1626,7 @@ function create_gclass(gclass_name)
         ["EV_REMOVE_NODE",          0],
         ["EV_SET_PROJECTION",       0],
         ["EV_SET_CHROME_DEPTH",     0],
+        ["EV_SET_NAV_MODE",         0],
         ["EV_SET_CONTENT",          0],
         ["EV_NODE_TREE_CHANGED",    0]
     ];
@@ -1565,6 +1667,8 @@ export {
     yui_node_set_projection,
     yui_node_set_content,
     yui_node_set_chrome_depth,
+    yui_node_set_nav_mode,
+    yui_node_nav_mode,
     yui_node_find,
     yui_node_route,
     yui_node_tree_version

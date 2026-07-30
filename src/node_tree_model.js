@@ -212,6 +212,73 @@ export function chrome_visible(distance, depth)
 }
 
 /************************************************************
+ *  NAVIGATION MODES — the three ways a tree can show the way in.
+ *
+ *      "stack"  — one chrome strip per ancestor.  Whatever each
+ *                 node declared, painted at every level.
+ *      "back"   — only the tip's parent, and only as a "← parent".
+ *      "path"   — no strips at all: the trail as ONE breadcrumb
+ *                 line, drawn by the root.
+ *
+ *  A mode is a FILTER over what the app declared, applied when the
+ *  renders are asked for — never a rewrite of the declared
+ *  projections.  That is what makes going back to "stack" free and
+ *  exact: an app that declares `vertical` chrome gets `vertical`
+ *  back, not the tabs a canonical "stack" shape would have imposed.
+ *
+ *  The index projection is NEVER touched: how a node shows its own
+ *  children when it IS the page is not a statement about depth.
+ ************************************************************/
+export const NAV_MODES = ["stack", "back", "path"];
+
+export function is_nav_mode(mode)
+{
+    return NAV_MODES.indexOf(mode) >= 0;
+}
+
+/************************************************************
+ *  The renders of one projection slot under a nav mode.
+ *
+ *  `is_root` only matters for "path": the trail is drawn from the
+ *  tree root down to the tip whoever declares it, so exactly one
+ *  node must draw it or the same line appears once per ancestor.
+ ************************************************************/
+export function nav_mode_renders(projection, mode, slot, is_root)
+{
+    if(slot === "index" || !is_nav_mode(mode) || mode === "stack") {
+        return projection_renders(projection, slot);
+    }
+    if(mode === "back") {
+        return (slot === "chrome") ? [{layout: "backbar"}] : [];
+    }
+    /*  "path"  */
+    if(slot === "path") {
+        return is_root ? [{layout: "breadcrumb"}] : [];
+    }
+    return [];
+}
+
+/************************************************************
+ *  The effective chrome depth under a nav mode.
+ *
+ *  "back" is exactly `chrome_depth: 1` — one strip, the parent's.
+ *  "path" is `0`: the trail already says everything the strips
+ *  would, and a strip under it would be the same information twice.
+ *  Both override what the tree declared, because the user asked for
+ *  a shape and the declaration is what they asked to change.
+ ************************************************************/
+export function nav_mode_depth(declared_depth, mode)
+{
+    if(mode === "back") {
+        return 1;
+    }
+    if(mode === "path") {
+        return 0;
+    }
+    return declared_depth;
+}
+
+/************************************************************
  *  Validate + fill one node spec.  Returns the normalized spec,
  *  or null when it is unusable; every rejection pushes a
  *  human-readable line into `errors` (the caller logs them —

@@ -183,7 +183,7 @@ const es_translation = {
     "C_YUI_JSON renders a value as a lazily expanded tree. Indentation is four characters per level and each ancestor draws a guide line, the same as the site map: past level two the eye follows the guide, not the offset.": "C_YUI_JSON pinta un valor como árbol de expansión perezosa. La indentación es de cuatro caracteres por nivel y cada ancestro dibuja una guía, igual que el mapa del sitio: pasado el nivel dos el ojo sigue la guía, no el sangrado.",
     "sample": "muestra",
     "Breadcrumb": "Miga de pan",
-    "tabs or breadcrumb": "pestañas o miga de pan",
+    "stack, back or path": "tiras, back o traza",
     "A leaf directly under the root: content, no children.": "Una hoja directamente bajo la raíz: contenido, sin hijos.",
     "Change the projection from the panel and watch the shape change without the URL moving.": "Cambia la proyección desde el panel y mira cómo cambia la forma sin que se mueva la URL.",
     "Level 4 on one declared route. Everything below /cards is subpath: the shell's route table never grew.": "Nivel 4 sobre una única ruta declarada. Todo lo que hay bajo /cards es subpath: la tabla de rutas del shell no ha crecido.",
