@@ -7,6 +7,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **docs(`C_YUI_NODE`): chrome belongs to the node that declares it, so every
+  branch declares its own.** The library was already right — a node's backbar
+  is built with `back_route = my_route` — but nothing said the rule, and the
+  README's own example showed the shape that breaks it: the pair
+  `tabs@>=tablet` + `backbar@<tablet` on the root, and a child with only an
+  `index`. Copied as-is (yunovatios' `/admin` did), a subtree ends up with a
+  single ← that belongs to the root and reads "← root" at every depth, instead
+  of one ← per level going up one level. The rule is now a bullet in the
+  README, the example declares the chrome on its child too, and SHELL.md's
+  layout table has a `backbar` row that names it. `test-app`'s `/cards` was
+  already the correct demonstration.
+
 
 ## 5.3.3
 

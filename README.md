@@ -162,7 +162,11 @@ seen*:
         "content":  {"gclass": "C_MY_LANDING", "kw": {}},
         "children": [
             {"id": "energy", "label": "Energy", "icon": "yi-bolt",
-             "projection": {"index": {"layout": "cards"}},
+             "projection": {
+                 "index":  {"layout": "cards"},
+                 "chrome": [{"layout": "tabs", "show_on": ">=tablet"},
+                            {"layout": "backbar", "show_on": "<tablet"}]
+             },
              "children": [ /* … any depth … */ ]}
         ]
     }
@@ -173,6 +177,16 @@ seen*:
   icon-bar/backbar and `show_on` all work unchanged) in two modes: `index`
   when the node is the tip of the path — the projection IS the page — and
   `chrome` when a child is showing — the projection is the strip around it.
+- **Chrome belongs to the node that declares it — so every branch declares its
+  own.** A node's `chrome` strip lists *that* node's children, and its backbar
+  goes back to *that* node's route (`back_route = my_route`). A branch that
+  declares no `chrome` therefore contributes no strip, and the only ← the user
+  can reach is the nearest ancestor that did declare one. Declaring the pair
+  **only at the root** is the mistake this rule exists to name: the whole
+  subtree then shows one "← root" that says the same thing at every depth,
+  instead of one ← per level going up exactly one level. Repeat the same
+  `chrome` on every branch that can have a tip below it — that is what
+  `test-app`'s `/cards` does, and what makes its ← hierarchical.
 - **`content` and `children` are not exclusive**: a section with its own page
   and sub-pages is one node.
 - **The route table does not grow.** The host declares ONE route; everything
