@@ -78,6 +78,19 @@
                 }
             },
             {
+                "id": "alerts",
+                "icon": "yi-triangle-exclamation",
+                "align": "end",
+                "aria_label": "Alerts",
+                "tooltip": "Alerts — click to cycle the badge",
+                "badge": 3,
+                "_comment": "Toolbar badge demo: `badge` seeds the first paint and yui_shell_set_toolbar_item_badge() moves it at runtime, which is what actually matters -- a count is a runtime fact.",
+                "action": {
+                    "type": "event",
+                    "event": "EV_CYCLE_BADGE"
+                }
+            },
+            {
                 "id": "lang",
                 "icon": "yi-language",
                 "name": "ES/EN",

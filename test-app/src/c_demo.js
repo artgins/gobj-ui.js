@@ -34,6 +34,7 @@ import {
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
+    yui_shell_set_toolbar_item_badge,
     yui_shell_language_changed,
     yui_shell_unpark_route,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
@@ -69,6 +70,11 @@ SDATA_END()
 let PRIVATE_DATA = {
     shell: null,
     lead_handler: null,
+    /*  Demo of the toolbar badge: the values the "alerts" button walks
+     *  through.  The first one is what app_config seeds, so the first
+     *  click already MOVES it. */
+    badge_steps: [12, 150, 0, 3],
+    badge_step: 0,
 };
 
 let __gclass__ = null;
@@ -124,6 +130,7 @@ function mt_create(gobj)
 
     gobj_subscribe_event(shell, "EV_TOGGLE_THEME",    {}, gobj);
     gobj_subscribe_event(shell, "EV_TOGGLE_LANGUAGE", {}, gobj);
+    gobj_subscribe_event(shell, "EV_CYCLE_BADGE",     {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_FRONTEND_VIEW", {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_SITEMAP",    {}, gobj);
@@ -284,6 +291,24 @@ function ac_toggle_language(gobj, event, kw, src)
 
     toggle_locale();
     yui_shell_language_changed(priv.shell);
+    return 0;
+}
+
+/***************************************************************
+ *  Toolbar "alerts" button (action:event EV_CYCLE_BADGE) — walks
+ *  the badge through a count, a capped count (150 renders "99+")
+ *  and none at all, which is what an app's alarm feed would do.
+ *
+ *  The declared `badge` in app_config only seeds the first paint:
+ *  a count is a RUNTIME fact, so the API is the real interface.
+ ***************************************************************/
+function ac_cycle_badge(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    const value = priv.badge_steps[priv.badge_step % priv.badge_steps.length];
+    priv.badge_step++;
+    yui_shell_set_toolbar_item_badge(priv.shell, "alerts", value);
     return 0;
 }
 
@@ -463,6 +488,7 @@ function create_gclass(gclass_name)
             ["EV_SHOW_LEAD",        ac_show_lead,        null],
             ["EV_TOGGLE_THEME",     ac_toggle_theme,     null],
             ["EV_TOGGLE_LANGUAGE",  ac_toggle_language,  null],
+            ["EV_CYCLE_BADGE",      ac_cycle_badge,      null],
             ["EV_OPEN_DEVTOOLS",    ac_open_devtools,    null],
             ["EV_OPEN_FRONTEND_VIEW", ac_open_frontend_view, null],
             ["EV_OPEN_SITEMAP",     ac_open_sitemap,     null],
@@ -478,6 +504,7 @@ function create_gclass(gclass_name)
         ["EV_SHOW_LEAD",        0],
         ["EV_TOGGLE_THEME",     0],
         ["EV_TOGGLE_LANGUAGE",  0],
+        ["EV_CYCLE_BADGE",      0],
         ["EV_OPEN_DEVTOOLS",    0],
         ["EV_OPEN_FRONTEND_VIEW", 0],
         ["EV_OPEN_SITEMAP",     0],

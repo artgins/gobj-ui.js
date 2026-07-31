@@ -32,7 +32,12 @@
  *      container; build_ui re-applies them on every rebuild.
  *
  *      Each item supports:
- *          id, name, icon (CSS class or svg id), route, badge, disabled
+ *          id, name, icon (CSS class or svg id), route, disabled
+ *          (`badge` was listed here for a long time and NOTHING ever
+ *           rendered it — a menu item cannot carry a count today. The
+ *           toolbar can: `badge` on a toolbar item plus
+ *           yui_shell_set_toolbar_item_badge(). Implement it here the
+ *           day a menu entry needs one, rather than re-listing it.)
  *          class    — extra CSS class(es) on the item (tabs layout), e.g.
  *                     a per-item state colour like "yui-nav-disconnected"
  *          closable — render a trailing ✕ that emits EV_NAV_ITEM_CLOSE

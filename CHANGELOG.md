@@ -8,6 +8,34 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 ## Unreleased
 
 
+## 5.6.0
+
+- **feat(`C_YUI_SHELL`): a toolbar item can carry a badge.** `badge` on the item
+  seeds the first paint and
+  **`yui_shell_set_toolbar_item_badge(shell, item_id, value)`** moves it — which
+  is the interface that matters, because a count is a runtime fact. An icon-only
+  toolbar button is a link; the badge is what makes it a signal, and an alarm
+  bell without a number cannot say whether anything needs you.
+
+  `0` / `""` / `null` / `false` clear it (a badge reading "0" draws the eye to
+  say nothing); over 99 renders `99+` (the toolbar is a fixed-width row and a
+  four-digit pill pushes its neighbours off a phone screen); a string passes
+  through for states that are not counts. An unknown item id is a silent no-op,
+  and re-writing the same value touches no DOM — the badge is a `role="status"`
+  live region and would otherwise be announced again on every tick. It is
+  `role="status"` rather than `aria-hidden` because the button has an explicit
+  `aria-label`, which REPLACES its content for a screen reader: a badge inside
+  it would be silent.
+
+  Anchored to the icon, not to the button — with its label on, the button is
+  wide and a badge in its corner would float away from the glyph it counts.
+
+- **docs(`C_YUI_NAV`): stop advertising a `badge` that never existed.** The item
+  contract had listed it for a long time and NOTHING rendered it anywhere in the
+  library, so it read as an available feature. The toolbar has one now; a menu
+  item still does not.
+
+
 ## 5.5.0
 
 - **feat: `C_YUI_SERVICE_VIEW` + `yui_mount_service_view()` — mounting a view

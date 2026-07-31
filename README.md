@@ -464,6 +464,46 @@ host can use it to toggle. The tree is a **pure child of the window**, so every
 teardown path (the ✕, or the host destroying the window to toggle the entry
 off) takes it down too.
 
+### Toolbar badge — a count pinned to an item's icon
+
+```js
+/*  app_config.json — seeds the FIRST paint only  */
+{ "id": "alarms", "icon": "yi-triangle-exclamation", "align": "end",
+  "aria_label": "alarms", "badge": 0,
+  "action": {"type": "navigate", "route": "/alarms"} }
+
+/*  the interface that matters: a count is a RUNTIME fact  */
+yui_shell_set_toolbar_item_badge(shell, "alarms", 3);
+yui_shell_set_toolbar_item_badge(shell, "alarms", 0);   // clears it
+```
+
+An icon-only toolbar button is a link; the badge is what makes it a
+**signal**. Without a number, an alarm bell cannot say whether anything needs
+you — which is the reason to look at it at all.
+
+Rules baked in, all for the same reason (a badge that lies costs more than no
+badge):
+
+- **`0`, `""`, `null` and `false` all clear it.** A badge reading "0" is worse
+  than none: it draws the eye to say nothing.
+- **Over 99 renders `99+`.** The toolbar is a fixed-width row and a four-digit
+  pill pushes its neighbours off a phone screen.
+- **A string passes through** for the states that are not counts (`"!"`, `"…"`).
+- **Unknown item id is a silent no-op**, so an app whose toolbar has no such
+  item does not log an error on every tick of whatever feeds the number.
+- Writing the **same** value again touches no DOM: the badge is a
+  `role="status"` live region, and rewriting it would have a screen reader
+  announce the same number on every tick.
+
+`role="status"` and not `aria-hidden`, deliberately: the button carries an
+explicit `aria-label`, and an explicit label **replaces** an element's content
+for a screen reader — a badge inside it would otherwise be silent. As its own
+live region it is both read and announced when it changes.
+
+> `C_YUI_NAV` items do **not** have this. Its item contract listed `badge` for a
+> long time and nothing ever rendered it; the claim is gone. Implement it there
+> the day a menu entry needs one.
+
 ### Modals — `yui_shell_show_modal` and the `before_close` veto
 
 `yui_shell_show_modal(shell, $box, opts)` is the standard popup: pass

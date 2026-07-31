@@ -1642,14 +1642,66 @@ function build_toolbar(gobj, config)
 }
 
 /************************************************************
+ *  The badge node of a toolbar item — the little count pinned to
+ *  the corner of its icon (unread notifications, active alarms).
+ *
+ *  ALWAYS rendered, hidden when empty, so the runtime setter has a
+ *  node to write into and does not have to rebuild the button.
+ *
+ *  EMPTY IS 0, "" AND null ALIKE: a badge reading "0" is worse than
+ *  no badge — it draws the eye to say nothing.  A count is only
+ *  worth a pixel when there IS something.
+ *
+ *  Capped at 99+: the toolbar is a fixed-width row, and a four
+ *  digit pill pushes the items next to it off a phone screen.
+ *
+ *  role="status" and NOT aria-hidden, deliberately.  The button
+ *  carries an explicit aria-label, and an explicit label REPLACES
+ *  the element's content for a screen reader — so a badge inside
+ *  it would be silent.  As its own live region it is both read and
+ *  announced when the count changes, which is the whole point of a
+ *  badge that means "something needs you".
+ ************************************************************/
+function badge_text(value)
+{
+    if(value === null || value === undefined || value === false) {
+        return "";
+    }
+    if(typeof value === "number") {
+        if(!isFinite(value) || value <= 0) {
+            return "";
+        }
+        return (value > 99) ? "99+" : String(Math.floor(value));
+    }
+    return String(value).trim();
+}
+
+function badge_node(value)
+{
+    let text = badge_text(value);
+    let attrs = {class: "yui-toolbar-badge", role: "status"};
+    if(!text) {
+        attrs.hidden = "hidden";
+    }
+    return ["span", attrs, text];
+}
+
+/************************************************************
  *  Renderer for the default ("action") item kind.
  ************************************************************/
 function build_toolbar_action_item(gobj, it)
 {
     let children = [];
     if(!empty_string(it.icon)) {
-        children.push(["span", {class: "icon"},
-            ["i", {class: it.icon, "aria-hidden": "true"}]]);
+        /*  The badge is anchored to the ICON, not to the button: with a
+         *  label on (desktop) the button is wide, and a badge pinned to
+         *  its corner would float far from the glyph it counts. */
+        children.push(["span", {class: "icon yui-toolbar-icon"},
+            [
+                ["i", {class: it.icon, "aria-hidden": "true"}],
+                badge_node(it.badge)
+            ]
+        ]);
     }
     if(!empty_string(it.name)) {
         children.push(["span", {class: "yui-toolbar-item-label", i18n: it.name},
@@ -3369,6 +3421,57 @@ function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)
 }
 
 /************************************************************
+ *  Set (or clear) a toolbar item's badge — the count pinned to
+ *  its icon.
+ *
+ *      yui_shell_set_toolbar_item_badge(shell, "alarms", 3);
+ *      yui_shell_set_toolbar_item_badge(shell, "alarms", 0);   // hidden
+ *
+ *  This is the API that matters: a count is a RUNTIME fact.  The
+ *  `badge` field of a toolbar item only seeds the first paint, and
+ *  an app whose number never changes did not need a badge.
+ *
+ *  0 / "" / null / false all clear it, and a number over 99 renders
+ *  "99+" — see badge_node().  Accepts a string for the states that
+ *  are not counts ("!", "…").
+ *
+ *  Silent no-op on an unknown item id: a toolbar that does not
+ *  declare the item (an app without alarms) must not be an error
+ *  at every tick of whatever feeds the number.
+ ************************************************************/
+function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value)
+{
+    if(!shell_gobj || !is_gobj(shell_gobj) || empty_string(item_id)) {
+        return;
+    }
+    let $container = gobj_read_attr(shell_gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    let $badge = $container.querySelector(
+        `[data-toolbar-item-id="${item_id}"] .yui-toolbar-badge`
+    );
+    if(!$badge) {
+        return;
+    }
+
+    let text = badge_text(value);
+    if(!text) {
+        $badge.textContent = "";
+        $badge.setAttribute("hidden", "hidden");
+        return;
+    }
+    /*  Do not touch the DOM when nothing changed: role="status" is a
+     *  live region, and rewriting the same number would have a screen
+     *  reader announce it again on every tick. */
+    if($badge.textContent === text && !$badge.hasAttribute("hidden")) {
+        return;
+    }
+    $badge.textContent = text;
+    $badge.removeAttribute("hidden");
+}
+
+/************************************************************
  *  Programmatic close of any open toolbar dropdown.  Useful for
  *  external triggers (e.g. EV_LOGOUT firing from elsewhere) that
  *  want to dismiss whatever menu is on screen.
@@ -3414,6 +3517,7 @@ export {
     yui_shell_language_changed,
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,
+    yui_shell_set_toolbar_item_badge,
     yui_shell_close_dropdown,
     yui_shell_set_submenu
 };

@@ -449,6 +449,53 @@
     background-color: var(--bulma-scheme-main-bis, rgba(0,0,0,0.04));
 }
 
+/*------------------------------------------------------------
+ *      Toolbar badge — the count pinned to an item's icon
+ *
+ *  Anchored to the ICON and not to the button: with its label on
+ *  (desktop) the button is wide, and a badge in its corner would
+ *  float away from the glyph it counts.
+ *
+ *  `hidden` is honoured explicitly: the element is always in the
+ *  DOM (so the runtime setter has somewhere to write) and
+ *  [hidden] loses to `display:inline-flex` without this rule.
+ *
+ *  Danger colour on purpose — a badge exists to pull the eye.  It
+ *  is its own colour pair in both schemes rather than a Bulma
+ *  helper, so it keeps its contrast when the toolbar background
+ *  changes with the theme.  No transition: house rule.
+ *------------------------------------------------------------*/
+.yui-toolbar-icon {
+    position: relative;
+    overflow: visible;
+}
+.yui-toolbar-badge {
+    position: absolute;
+    top: -0.35em;
+    right: -0.55em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    /*  A round dot for one digit, a pill from two on. */
+    min-width: 1.15em;
+    height: 1.15em;
+    padding: 0 0.3em;
+    border-radius: 999px;
+    font-size: 0.62em;
+    font-weight: 700;
+    line-height: 1;
+    font-family: inherit;
+    background-color: var(--bulma-danger, #f14668);
+    color: var(--bulma-danger-invert, #fff);
+    /*  Separates the pill from the glyph when they overlap. */
+    box-shadow: 0 0 0 0.12em var(--bulma-scheme-main, #fff);
+    pointer-events: none;
+}
+.yui-toolbar-badge[hidden] {
+    display: none;
+}
+
 /*============================================================
  *      Toolbar — type:"brand"
  *      Logo image + wordmark text. Renders as <button> when
