@@ -1,47 +1,47 @@
 {
-    "name": "@yuneta/gobj-ui",
-    "version": "5.4.0",
-    "type": "module",
-    "main": "dist/gobj-ui.cjs.js",
-    "module": "dist/gobj-ui.es.js",
-    "exports": {
-        ".": {
-            "import": "./dist/gobj-ui.es.js",
-            "require": "./dist/gobj-ui.cjs.js"
-        },
-        "./index.js": "./index.js",
-        "./vite-plugin-yuneta-html.js": "./vite-plugin-yuneta-html.js",
-        "./src/*": "./src/*"
+  "name": "@yuneta/gobj-ui",
+  "version": "5.5.0",
+  "type": "module",
+  "main": "dist/gobj-ui.cjs.js",
+  "module": "dist/gobj-ui.es.js",
+  "exports": {
+    ".": {
+      "import": "./dist/gobj-ui.es.js",
+      "require": "./dist/gobj-ui.cjs.js"
     },
-    "files": [
-        "dist/gobj-ui.es.js",
-        "dist/gobj-ui.cjs.js",
-        "index.js",
-        "src/",
-        "vite-plugin-yuneta-html.js"
-    ],
-    "description": "Yuneta UI Library — the active line: declarative shell (C_YUI_SHELL+NAV+PAGER+WIZARD) + windows, TreeDB views, forms, charts and maps.  Consumed by wattyzer and the yunetas JS yunos (gui_agent, gui_treedb).  The frozen legacy GClass GUI stack (C_YUI_MAIN/TABS/ROUTING) lives on the v1 branch, npm dist-tag 'legacy' (consumed by estadodelaire and hidraulia).",
-    "scripts": {
-        "build": "vite build",
-        "test": "vitest run",
-        "prepublishOnly": "npm run build"
-    },
-    "devDependencies": {
-        "@rollup/plugin-terser": "^1.0.0",
-        "@vitest/coverage-v8": "^4.1.10",
-        "@yuneta/gobj-js": "^7.8.7",
-        "vite": "^8.1.5",
-        "vitest": "^4.1.10"
-    },
-    "peerDependencies": {
-        "@antv/g6": "^5.1.0",
-        "@yuneta/gobj-js": "^7.8.7",
-        "bulma": "^1.0.4",
-        "i18next": "^26.3.6",
-        "maplibre-gl": "^6.0.0",
-        "tabulator-tables": "^6.5.2",
-        "tom-select": "^2.6.2",
-        "uplot": "^1.6.32",
-        "vanilla-jsoneditor": "^3.13.0"
-    }
+    "./index.js": "./index.js",
+    "./vite-plugin-yuneta-html.js": "./vite-plugin-yuneta-html.js",
+    "./src/*": "./src/*"
+  },
+  "files": [
+    "dist/gobj-ui.es.js",
+    "dist/gobj-ui.cjs.js",
+    "index.js",
+    "src/",
+    "vite-plugin-yuneta-html.js"
+  ],
+  "description": "Yuneta UI Library — the active line: declarative shell (C_YUI_SHELL+NAV+PAGER+WIZARD) + windows, TreeDB views, forms, charts and maps.  Consumed by wattyzer and the yunetas JS yunos (gui_agent, gui_treedb).  The frozen legacy GClass GUI stack (C_YUI_MAIN/TABS/ROUTING) lives on the v1 branch, npm dist-tag 'legacy' (consumed by estadodelaire and hidraulia).",
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@rollup/plugin-terser": "^1.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "@yuneta/gobj-js": "^7.8.7",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "@antv/g6": "^5.1.0",
+    "@yuneta/gobj-js": "^7.8.7",
+    "bulma": "^1.0.4",
+    "i18next": "^26.3.6",
+    "maplibre-gl": "^6.0.0",
+    "tabulator-tables": "^6.5.2",
+    "tom-select": "^2.6.2",
+    "uplot": "^1.6.32",
+    "vanilla-jsoneditor": "^3.13.0"
+  }
 }

@@ -322,6 +322,61 @@ Runnable reference: the **Cards** chapter of `test-app` (four levels plus a
 panel that mutates the live tree), driven by `test-app/_qa_nodetree.mjs` and
 `test-app/_qa_extra.mjs`.
 
+### C_YUI_SERVICE_VIEW — mounting a view that talks to a backend
+
+A view asks the backend for data with `gobj_command(remote, …, src = itself)`,
+and `C_IEVENT_CLI` routes the answer back with
+`gobj_find_service(gobj_name(src))` — **which only finds registered services**.
+Neither host creates one, so a backend-talking view mounted directly at a route
+never receives a single answer: it sits empty while the ievent logs *"service
+not found"* once per answer. And a route's `target.kw` is static JSON, so it
+cannot carry the live transport pointer either.
+
+Two shapes, because the callers are not alike:
+
+```js
+/*  A route with NO extras: declare the host, name the view it hosts.  */
+{ gclass: "C_YUI_SERVICE_VIEW", kw: {
+    view_gclass:  "C_MY_VIEW",
+    service_name: "#my-view",          // UNIQUE per mount — see below
+    view_kw:      { title: "…" }
+}}
+
+/*  A wrapper that keeps its own extras (url segments into the hosted view,
+ *  rebinding it when a connection drops): drop only the boilerplate.       */
+let view = yui_mount_service_view(gobj, {
+    gclass:    "C_YUI_TREEDB_TOPICS",
+    name:      service_name(gobj),
+    kw:        {...},
+    transport: remote            // already resolved (e.g. per connection);
+});                              // omit it for "__remote_service__"
+```
+
+The hosted gclass must declare the attr the transport is injected under
+(`gobj_remote_yuno` by default), build its `$container` in `mt_create`, and flag
+`EVF_PUBLIC_EVENT` on whatever arrives from the backend — the ievent drops
+events that are not public.
+
+**The service name must be unique per mount**, and a duplicate is dangerous
+precisely because it is not fatal: gobj-js logs *"service ALREADY REGISTERED.
+Will be UPDATED"* and **rebinds the name**, so two mounts of one route would
+cross their answers. Derive it from the route (or from whatever else makes the
+mount unique — a connection id, a workspace), never from the gclass alone.
+
+> **Why the hosts do not just create services.** It would make every routed view
+> an inter-yuno endpoint by default, against the framework's rule that only
+> named services are; most views never talk to a backend; and the collision
+> above would become the default failure mode. Opt-in per route instead.
+>
+> **Known asymmetry, deliberately left alone:** `C_YUI_SHELL` mounts a view with
+> `gobj_create()` (a plain child) and `C_YUI_NODE` with
+> `gobj_create_pure_child()`. The flag decides whether a gclass that consults
+> `gobj_is_pure_child()` sends its output event straight to the parent or
+> publishes it. Today nothing consults it *on a view* (only `c_ievent_cli` and
+> `c_timer` do, and always about themselves), so the difference has no observed
+> consequence — but the same view gclass does get a different flag depending on
+> who mounted it. Align it the day it bites, with the case that bit.
+
 ### C_YUI_JSON — lazy JSON tree viewer
 
 Indentation follows the house rule: four characters per level, plus a **guide

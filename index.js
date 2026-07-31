@@ -24,6 +24,11 @@ export { register_c_yui_uplot } from "./src/c_yui_uplot.js";
 export { register_c_yui_json_graph } from "./src/c_yui_json_graph.js";
 export { register_c_yui_json } from "./src/c_yui_json.js";
 export { register_c_yui_gobj_tree_js } from "./src/c_yui_gobj_tree_js.js";
+export {
+    register_c_yui_service_view,
+    yui_mount_service_view,
+    expose_view_container,
+} from "./src/c_yui_service_view.js";
 
 /*
  *  Declarative shell + menu navigation (new in v7.4)

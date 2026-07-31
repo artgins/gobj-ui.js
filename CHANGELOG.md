@@ -7,6 +7,35 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+
+## 5.5.0
+
+- **feat: `C_YUI_SERVICE_VIEW` + `yui_mount_service_view()` — mounting a view
+  that talks to a backend.** A view asks for data with
+  `gobj_command(remote, …, src = itself)`, and `C_IEVENT_CLI` routes the answer
+  back with `gobj_find_service(gobj_name(src))` — which only finds REGISTERED
+  services. Neither host creates one (`C_YUI_SHELL` uses `gobj_create()`,
+  `C_YUI_NODE` `gobj_create_pure_child()`), so such a view never received a
+  single answer: it sat empty while the ievent logged "service not found" once
+  per answer. The second half of the same problem: a route's `target.kw` is
+  static JSON and cannot carry the live transport pointer.
+
+  Both halves had been written **four separate times in three repos**
+  (`c_treedb_view.js`, `c_wz_treedb.js`, `c_yv_treedb.js`,
+  `c_yv_service_view.js`), each header explaining the same thing. Two shapes,
+  because the callers are not alike: `yui_mount_service_view(host, spec)` for a
+  wrapper that keeps its own extras on top (bridging url segments into the
+  hosted view, rebinding it when a connection drops — app/route logic that does
+  not belong in the library), and the `C_YUI_SERVICE_VIEW` gclass for a route
+  with no extras at all.
+
+  Deliberately NOT done: making the hosts create services. That would make every
+  routed view an inter-yuno endpoint by default — against the framework's own
+  rule that only named services are — and a name collision does not fail loudly:
+  gobj-js logs "service ALREADY REGISTERED. Will be UPDATED" and REBINDS, so two
+  mounts of one route would silently cross their answers. Opt-in per route
+  instead.
+
 - **fix(`C_YUI_NODE`): the tree's chrome strips render in the app's language.**
   A node renders its strips WHEN YOU WALK INTO IT — long after the app's
   one-shot `refresh_language()` over the shell tree — and its zone navs are
