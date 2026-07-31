@@ -137,6 +137,7 @@ import {
     yui_shell_zone,
     yui_shell_navigate,
     yui_shell_set_sub_routes,
+    yui_shell_translate,
 } from "./c_yui_shell.js";
 
 import "./c_yui_node.css";
@@ -583,6 +584,30 @@ function walk_path(node, path)
 }
 
 /************************************************************
+ *  Translate a subtree this node just built.
+ *
+ *  A node renders its chrome WHEN YOU WALK INTO IT, long after
+ *  the host's one-shot refresh_language over the shell tree, and
+ *  its zone navs are appended into shell zones, outside this
+ *  node's own $container.  Neither pass reaches them, so without
+ *  this every strip renders its raw i18n key: `treedb`,
+ *  `central database`, `data` in lower-case English next to a
+ *  translated menu — which reads as a MISSING key and sent more
+ *  than one person looking for the wrong bug.
+ *
+ *  This is library-built DOM, so it goes through the shell's
+ *  registered translator.  What a node MOUNTS is not ours: an app
+ *  view gclass translates its own DOM.
+ ************************************************************/
+function translate_own_dom(gobj, $el)
+{
+    if(!$el) {
+        return;
+    }
+    yui_shell_translate(yui_shell_of(gobj), $el);
+}
+
+/************************************************************
  *  Destroy the C_YUI_NAV gobjs rendering this node's projection.
  ************************************************************/
 function clear_navs(gobj)
@@ -669,6 +694,7 @@ function render_projection(gobj, mode, $where, active_route, active_id, zones_on
         let $nav = gobj_read_attr(nav, "$container");
         if($nav) {
             $target.appendChild($nav);
+            translate_own_dom(gobj, $nav);
         }
         priv.navs.push(nav);
         i++;
@@ -716,11 +742,14 @@ function project_into_zone(gobj, render, items, active_route, active_id)
         let $nav = gobj_read_attr(nav, "$container");
         if($nav) {
             $zone.appendChild($nav);
+            translate_own_dom(gobj, $nav);
         }
         priv.zone_navs[key] = nav;
         priv.zone_sig[key] = sig;
     } else if(priv.zone_sig[key] !== sig) {
         gobj_send_event(nav, "EV_SET_ITEMS", {items: items}, gobj);
+        /*  EV_SET_ITEMS rebuilt the nav's DOM: translate it again. */
+        translate_own_dom(gobj, gobj_read_attr(nav, "$container"));
         priv.zone_sig[key] = sig;
     }
 
@@ -821,10 +850,12 @@ function render_self(gobj)
     }
 
     if(!view) {
-        priv.$body.appendChild(createElement2(
+        let $empty = createElement2(
             ["div", {class: "NODE_EMPTY", i18n: "nothing here yet"},
                 "Nothing here yet."]
-        ));
+        );
+        priv.$body.appendChild($empty);
+        translate_own_dom(gobj, $empty);
     }
 }
 
@@ -917,6 +948,7 @@ function render_path(gobj, $where)
         let $nav = gobj_read_attr(nav, "$container");
         if($nav) {
             $where.appendChild($nav);
+            translate_own_dom(gobj, $nav);
         }
         priv.navs.push(nav);
         i++;

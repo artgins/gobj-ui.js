@@ -440,6 +440,25 @@ shapes, and the fix for each:
 | A composed string (`` `${key} · ${t(mode)}` ``) | carries no key at all | split it: the translatable halves get their own key. (Note `createElement2` **trims** text nodes — space a `·` separator with CSS, not with spaces.) |
 | `title` / `aria-label` set with `t()` | tooltip stuck in the old language | `data-i18n-title` / `data-i18n-aria-label` |
 | Anything a WIDGET renders (a Tabulator header, its paginator, a formatter) | drawn once; no attribute reaches it | subscribe to the shell and re-render (below) |
+| DOM built AFTER start up (a node's strips, a dropdown panel) | renders the raw key — indistinguishable from a MISSING key | `yui_shell_translate(shell, $el)` right after building it (below) |
+
+**Carrying the key is not enough for the FIRST render.** A node is born holding
+the raw English key, and the app's `refresh_language()` passes only walk what
+already exists: the shell tree at start up, `document.body` on a language
+switch. Anything built later — a `C_YUI_NODE` strip rendered when you walk into
+it, a lazily-built toolbar panel — is reached by neither, so it renders the key:
+lower-case English that never changes language, which is exactly what a missing
+key looks like. Division of labour:
+
+```js
+yui_shell_translate(shell, $el);   // LIBRARY-built DOM, right after building it
+```
+
+and **app view gclasses translate their own DOM** — they own a `t`, so they call
+`refresh_language($container, t)` at the end of their build (this is why the
+shell does not translate a mounted view: see `mount_view` in `c_yui_shell.js`).
+`yui_shell_translate` is a no-op when the app registered no translator, so
+behaviour is unchanged for apps that never call `yui_shell_set_translator`.
 
 **The contract.** The app owns the locales: it switches its i18next and calls
 

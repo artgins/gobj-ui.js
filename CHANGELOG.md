@@ -7,6 +7,27 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(`C_YUI_NODE`): the tree's chrome strips render in the app's language.**
+  A node renders its strips WHEN YOU WALK INTO IT — long after the app's
+  one-shot `refresh_language()` over the shell tree — and its zone navs are
+  appended into shell zones, outside the node's own `$container`. Neither pass
+  reached them, so every strip showed its raw i18n key: `treedb`,
+  `central database`, `data` in lower-case English next to a fully translated
+  menu. That is indistinguishable from a MISSING key, so it reads as an
+  untranslated app rather than as an unapplied translation, and it sent more
+  than one person looking for the wrong bug. The strips already carried their
+  keys (`C_YUI_NAV` tags every label); nobody applied the translator to them.
+
+- **feat(`C_YUI_SHELL`): `yui_shell_translate(shell, $el)`.** Applies the
+  registered translator to a freshly built subtree. The rule it names: DOM the
+  LIBRARY builds after start up goes through here; APP view gclasses translate
+  their own DOM (they own a `t`). The shell already did this ad hoc in three
+  places (the mounted section index, the toolbar dropdown panel, an
+  `EV_SET_ITEMS` rebuild) — those now call the helper, and `C_YUI_NODE` uses it
+  for its strips and its empty-node notice. No-op without a registered
+  translator, so nothing changes for an app that never calls
+  `yui_shell_set_translator`.
+
 
 ## 5.4.0
 

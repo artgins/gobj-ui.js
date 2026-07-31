@@ -1542,10 +1542,8 @@ function build_view_gobj(gobj, entry, route, stage)
      *  (synthesized "cards" C_YUI_NAV) is SHELL-owned DOM built after
      *  the host's one-shot refresh_language — apply the registered
      *  translator, same policy as lazily-built dropdown panels. */
-    let priv = gobj.priv;
-    if(priv && typeof priv.translator === "function" &&
-            target.gclass === "C_YUI_NAV") {
-        refresh_language($view, priv.translator);
+    if(target.gclass === "C_YUI_NAV") {
+        yui_shell_translate(gobj, $view);
     }
     return view;
 }
@@ -2050,9 +2048,7 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
     priv.layers.popup.appendChild($panel);
 
     /*  Translate the lazily-built panel (see the note above). */
-    if(typeof priv.translator === "function") {
-        refresh_language($panel, priv.translator);
-    }
+    yui_shell_translate(gobj, $panel);
 
     /*  Click-outside (capture-phase mousedown) closes the dropdown.
      *  Capture phase so a click on a sibling toolbar trigger lands
@@ -2857,10 +2853,7 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
                 gobj_send_event(view, "EV_SET_ITEMS", {items: items}, shell_gobj);
                 /*  EV_SET_ITEMS rebuilt the DOM: re-apply the translator
                  *  (shell-owned DOM, same policy as build_view_gobj). */
-                let $view = gobj_read_attr(view, "$container");
-                if($view && typeof priv.translator === "function") {
-                    refresh_language($view, priv.translator);
-                }
+                yui_shell_translate(shell_gobj, gobj_read_attr(view, "$container"));
             }
         }
     }
@@ -3265,9 +3258,10 @@ function yui_shell_refresh_avatars(shell_gobj)
  *  Register the host's i18n translator (a t-function:
  *  key => translated string).  The host still translates the
  *  static shell tree itself via refresh_language($container, t);
- *  this is only so the shell can translate DOM it builds LAZILY
- *  and OUTSIDE $container — today the toolbar dropdown panel.
- *  Optional: with no translator the panel renders raw keys
+ *  this is only so the shell — and the library components that
+ *  build DOM under it — can translate DOM built LAZILY, after
+ *  that one-shot pass and often outside $container.
+ *  Optional: with no translator such DOM renders raw keys
  *  (the previous behaviour).
  ************************************************************/
 function yui_shell_set_translator(shell_gobj, t)
@@ -3277,6 +3271,39 @@ function yui_shell_set_translator(shell_gobj, t)
         return;
     }
     priv.translator = (typeof t === "function") ? t : null;
+}
+
+/************************************************************
+ *  Apply the registered translator to a FRESHLY BUILT subtree.
+ *
+ *  Carrying the `i18n` key on a node is not enough for it to
+ *  render translated: the node is born holding the raw English
+ *  key, and the host's refresh_language() passes walk what
+ *  ALREADY exists — the shell tree at start up, document.body on
+ *  a language switch.  Anything built after that (a dropdown
+ *  panel, a nav a node renders when you walk into it) is reached
+ *  by neither, so it renders the key: lower-case English that
+ *  never changes language, i.e. exactly what a MISSING key looks
+ *  like.
+ *
+ *  The division of labour, unchanged: LIBRARY-built DOM is
+ *  translated through here; APP view gclasses translate their own
+ *  DOM (they own a `t` — see mount_view).
+ *
+ *  Silent no-op with no shell or no translator: an app that never
+ *  registered one keeps the previous behaviour instead of losing
+ *  its chrome.
+ ************************************************************/
+function yui_shell_translate(shell_gobj, $el)
+{
+    if(!$el || !shell_gobj || !is_gobj(shell_gobj)) {
+        return;
+    }
+    let priv = shell_gobj.priv;
+    if(!priv || typeof priv.translator !== "function") {
+        return;
+    }
+    refresh_language($el, priv.translator);
 }
 
 /************************************************************
@@ -3383,6 +3410,7 @@ export {
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
+    yui_shell_translate,
     yui_shell_language_changed,
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,
