@@ -6,6 +6,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="/yuneta-mark.svg" type="image/svg+xml">
+    <!--
+        Theme, resolved before the first paint so there is no flash.
+
+        Four sources, in order:
+
+          1. ?theme= in the url. This is the hand-off from the landing on
+             yuneta.io, which links here with the reader's current choice.
+             localStorage is per ORIGIN, so a separate host cannot read the
+             landing's preference: the url is the only channel there is.
+          2. localStorage "myst:theme", the same key the docs and the
+             landing use. One vocabulary across the family, even though the
+             storage itself does not cross origins.
+          3. The operating system, through prefers-color-scheme.
+          4. Light.
+
+        The url wins over the stored value on purpose: arriving from a dark
+        landing must give a dark demo, whatever this origin remembers from
+        an earlier visit. It is also written to storage, so a reload without
+        the parameter keeps it.
+    -->
+    <script>
+    (function () {
+        "use strict";
+        var theme = null;
+        try {
+            var q = new URLSearchParams(window.location.search).get("theme");
+            if(q === "dark" || q === "light") {
+                theme = q;
+                localStorage.setItem("myst:theme", theme);
+            } else {
+                var stored = localStorage.getItem("myst:theme");
+                if(stored === "dark" || stored === "light") {
+                    theme = stored;
+                }
+            }
+        } catch (e) {
+            theme = null;
+        }
+        if(!theme) {
+            theme = (window.matchMedia &&
+                window.matchMedia("(prefers-color-scheme: dark)").matches)
+                ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+    })();
+    </script>
     <style>
         html, body {
             margin: 0;

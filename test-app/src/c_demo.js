@@ -217,6 +217,17 @@ function apply_theme(theme)
 {
     let t = (theme === "dark") ? "dark" : "light";
     document.documentElement.setAttribute("data-theme", t);
+
+    /*  Persist under the key the docs and the landing use. Without this the
+     *  toggle lasted until the next reload: index.html seeds the attribute
+     *  at boot and had nothing to read back. */
+    try {
+        localStorage.setItem("myst:theme", t);
+    } catch (e) {
+        /*  Private mode, or storage disabled. The theme still applies for
+         *  this page load, it just does not survive it. */
+    }
+
     return t;
 }
 
