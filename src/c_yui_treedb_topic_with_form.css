@@ -46,6 +46,31 @@
     min-width: 0;
 }
 
+/*  Search box width: a rule, not an inline style, so the mobile block
+ *  below can widen it (an inline max-width would win over any class).  */
+.TREEDB_TABLE_TOOLS .TREEDB_TABLE_SEARCH .input {
+    max-width: 200px;
+}
+
+/*  Mobile: the tools of the list (search + refresh) take a row of their
+ *  own, with the search stretched across it and the refresh pinned at
+ *  the end. Without this the group keeps its natural width and leaves
+ *  dead space, while the search -- the most used control of the two --
+ *  stays the narrowest thing on screen. The refresh label is already
+ *  dropped by is-hidden-mobile, decided in the markup: measuring at
+ *  runtime would change the shape of the bar on a language switch.  */
+@media screen and (max-width: 768px) {
+    .TREEDB_TABLE_TOOLS {
+        width: 100%;
+    }
+    .TREEDB_TABLE_TOOLS .TREEDB_TABLE_SEARCH {
+        flex: 1 1 auto;
+    }
+    .TREEDB_TABLE_TOOLS .TREEDB_TABLE_SEARCH .input {
+        max-width: none;
+    }
+}
+
 /*  The edit/create form runs in the shell's standardized adaptive dialog
  *  (yui_shell_show_modal dialog:true, logical_class TREEDB_FORM_SHEET). The
  *  shell CSS already gives it the centred card / full-screen-mobile sheet;

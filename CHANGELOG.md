@@ -7,6 +7,26 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **fix(treedb table): the search stretches on mobile, and its placeholder
+  finally speaks the user's language.** The toolbar already put the record
+  actions left and the tools (search + refresh) right, wrapping to a second
+  row on a phone -- but that second row kept its natural width, so the search,
+  the most used control of the two, stayed the narrowest thing on screen with
+  dead space beside it. The tools group now takes the full row and the search
+  takes what the refresh does not.
+
+  The width moves from an inline `style` to a rule, because an inline
+  `max-width` wins over any class and no media query could have widened it.
+
+  The placeholder was the literal `'search...'`: a placeholder is not a text
+  node, so `refresh_language()` could never reach it and it stayed English in
+  every language. It now carries `data-i18n-placeholder`.
+
+  New logical class names on the blocks -- `TREEDB_TABLE_TOOLBAR`,
+  `TREEDB_TABLE_ACTIONS`, `TREEDB_TABLE_TOOLS`, `TREEDB_TABLE_SEARCH` -- so
+  the bar is identifiable in the inspector and stylable without leaning on
+  Bulma's utility classes.
+
 - **feat(modals): `yui_shell_confirm_danger()` — a destructive confirmation
   whose button is RED.** `yui_shell_confirm_yesno()` puts its yes in `is-link`,
   which is the right colour for *"do you want to continue"* and the wrong one

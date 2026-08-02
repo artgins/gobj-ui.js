@@ -343,7 +343,7 @@ function build_ui(gobj)
 
         if(with_edition_mode) {
             $table_toolbar = createElement2(
-                ['div', {id: `${toolbar_id}`, class: 'buttons mb-0'}]
+                ['div', {id: `${toolbar_id}`, class: 'TREEDB_TABLE_ACTIONS buttons mb-0'}]
             );
             let $edit_button = createElement2(
                 ['button', {id: ``, class: 'button button-edit-record mr-1'}, [
@@ -463,7 +463,12 @@ function build_ui(gobj)
      *----------------------------------------------*/
     let toolbar_id = gobj_read_str_attr(gobj, "toolbar_id");
 
-    let $view_toolbar = createElement2(['div', {class: 'is-flex is-align-items-center'}]);
+    /*  The tools of the list (search, refresh) sit apart from the record
+     *  actions: actions left, tools right, and on mobile the tools take a
+     *  row of their own with the search stretched across it. */
+    let $view_toolbar = createElement2(
+        ['div', {class: 'TREEDB_TABLE_TOOLS is-flex is-align-items-center'}]
+    );
 
     let with_refresh_button     = gobj_read_bool_attr(gobj, "with_refresh_button");
     let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
@@ -471,13 +476,16 @@ function build_ui(gobj)
     if(with_search_button) {
         let search_id = `${toolbar_id}_search`;
         let $search_box = createElement2(
-            ['div', {class: 'control has-icons-left mr-1'}, [
+            ['div', {class: 'TREEDB_TABLE_SEARCH control has-icons-left mr-1'}, [
                 ['input', {
                     id: search_id,
                     class: 'input',
                     type: 'text',
-                    placeholder: 'search...',
-                    style: 'max-width:200px;'
+                    /*  The placeholder is not a text node, so the
+                     *  data-i18n walk cannot reach it — it needs its own
+                     *  key or it stays English for good. */
+                    placeholder: t('search'),
+                    'data-i18n-placeholder': 'search'
                 }],
                 ['span', {class: 'icon is-left'}, [
                     ['i', {class: 'yi-magnifying-glass'}]
@@ -536,7 +544,7 @@ function build_ui(gobj)
     let table_id = gobj_read_str_attr(gobj, "table_id");
     let $container = createElement2(
         ['div', {class: 'C_YUI_TREEDB_TOPIC_WITH_FORM', style: 'height:100%;'}, [
-            ['div', {class: 'toolbar_tabulator_table m-1', style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;'}],
+            ['div', {class: 'TREEDB_TABLE_TOOLBAR toolbar_tabulator_table m-1', style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;'}],
             ['div',
                 {
                     id: `${table_id}`,
