@@ -520,6 +520,43 @@ keeps working afterwards. With no guard a modal closes exactly as it always
 did, and the returned `close()` always closes **unconditionally** — the veto is
 for the user's dismiss, not for the code's.
 
+### Confirmations — and the red one, `yui_shell_confirm_danger`
+
+`yui_shell_confirm_yesno(shell, message, opts)` asks a question and resolves to
+a boolean. Its yes is `is-link`, the right colour for *"do you want to
+continue"*.
+
+**`yui_shell_confirm_danger(shell, message, opts)`** is the same call with a
+**red** confirm button and the error icon (`type: "danger"` by default). Use it
+whenever the yes destroys something — deleting an account, dropping a record.
+The two must not look alike: the destructive one is precisely the one that must
+not be clicked by reflex.
+
+In both, the **safe answer is the last button**, so Escape, the backdrop and
+the X all resolve to it.
+
+```js
+if(await yui_shell_confirm_danger(shell, t("delete account detail"))) {
+    /* only here has the red button been pressed */
+}
+```
+
+### `C_YUI_FORM` — choosing the bottom toolbar
+
+By default the form shows **save + undo + clear + copy + paste**. The
+`toolbar` attr takes the button names you want, in the order you want them:
+
+```js
+gobj_create("form", "C_YUI_FORM", {toolbar: ["save"]}, parent);   // one action
+gobj_create("form", "C_YUI_FORM", {toolbar: []}, parent);         // no toolbar
+```
+
+Save/undo/clear stay on the left of the bar and copy/paste on the right — the
+split the layout has always drawn — so dropping a whole group leaves no hole in
+the middle, and **a toolbar left with a single group is centred**. An unknown
+name is reported, not silently dropped: a typo would otherwise remove the save
+button with no trace of why.
+
 ## Conventions
 
 ### i18n: a string must be able to CHANGE language, not just be translated once
