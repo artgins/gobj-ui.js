@@ -7,6 +7,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(modals): `yui_shell_confirm_danger()` — a destructive confirmation
+  whose button is RED.** `yui_shell_confirm_yesno()` puts its yes in `is-link`,
+  which is the right colour for *"do you want to continue"* and the wrong one
+  for *"this deletes an account"*: the two read the same at a glance, and the
+  destructive one is precisely the one that must not be clicked by reflex.
+
+  Defaults to `type: "danger"` (the tinted error icon), and the safe answer is
+  the LAST button, so Escape, the backdrop and the X all resolve to it. Returns
+  a `Promise<boolean>` that is true only if the red button was pressed.
+
 - **feat(`C_YUI_FORM`): the bottom toolbar is configurable — `toolbar` attr.**
   A list of button names, in the order you want them: `["save"]` for a dialog
   with one action, `[]` for no toolbar at all, and the default is the five it

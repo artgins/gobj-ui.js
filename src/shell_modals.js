@@ -562,6 +562,33 @@ export function yui_shell_confirm_yesno(shell, message, opts)
     ], opts).then(v => v === "yes");
 }
 
+/***************************************************************
+ *  A DESTRUCTIVE confirmation: the button that does the damage is
+ *  red, not blue.
+ *
+ *  yui_shell_confirm_yesno() puts its yes in `is-link`, which is
+ *  the right colour for "do you want to continue" and the wrong
+ *  one for "this deletes an account": the two read the same at a
+ *  glance, and the destructive one is the one that must not be
+ *  clicked by reflex.  The safe answer is also the LAST button,
+ *  so Escape, the backdrop and the X all resolve to it.
+ *
+ *  Returns a Promise<boolean>: true only if the red button was
+ *  pressed.
+ ***************************************************************/
+export function yui_shell_confirm_danger(shell, message, opts)
+{
+    let confirm_label = (opts && opts.confirm_label) || "Delete";
+    let cancel_label  = (opts && opts.cancel_label)  || "Cancel";
+    if(!opts || !opts.type) {
+        opts = Object.assign({}, opts, {type: "danger"});
+    }
+    return build_dialog(shell, message, [
+        {label: confirm_label, value: "confirm", kind: "danger"},
+        {label: cancel_label,  value: "cancel"}
+    ], opts).then(v => v === "confirm");
+}
+
 export function yui_shell_confirm_yesnocancel(shell, message, opts)
 {
     let yes_label    = (opts && opts.yes_label)    || "Yes";
