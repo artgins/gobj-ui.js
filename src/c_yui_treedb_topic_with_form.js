@@ -345,6 +345,11 @@ function build_ui(gobj)
             $table_toolbar = createElement2(
                 ['div', {id: `${toolbar_id}`, class: 'TREEDB_TABLE_ACTIONS buttons mb-0'}]
             );
+            /*  Edit is a MODE TOGGLE, not one more action: it arms/disarms
+             *  the buttons that modify the table (new/delete/copy/paste),
+             *  which is why it comes first and why delete sits among them
+             *  instead of being pushed away from the harmless ones. Do not
+             *  reorder this group as if they were peer actions.  */
             let $edit_button = createElement2(
                 ['button', {id: ``, class: 'button button-edit-record mr-1'}, [
                     ['i', {class: 'yi-pen'}],
