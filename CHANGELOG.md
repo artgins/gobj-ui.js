@@ -5,7 +5,7 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 5.8.1
 
 - **fix(treedb table): the search stretches on mobile, and its placeholder
   finally speaks the user's language.** The toolbar already put the record
@@ -27,6 +27,9 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   the bar is identifiable in the inspector and stylable without leaning on
   Bulma's utility classes.
 
+
+## 5.8.0
+
 - **feat(modals): `yui_shell_confirm_danger()` — a destructive confirmation
   whose button is RED.** `yui_shell_confirm_yesno()` puts its yes in `is-link`,
   which is the right colour for *"do you want to continue"* and the wrong one
@@ -36,6 +39,9 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   Defaults to `type: "danger"` (the tinted error icon), and the safe answer is
   the LAST button, so Escape, the backdrop and the X all resolve to it. Returns
   a `Promise<boolean>` that is true only if the red button was pressed.
+
+
+## 5.7.0 / 5.7.1 / 5.7.2
 
 - **feat(`C_YUI_FORM`): the bottom toolbar is configurable — `toolbar` attr.**
   A list of button names, in the order you want them: `["save"]` for a dialog
@@ -55,13 +61,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   The choice lives in `form_toolbar_plan.js` as a pure function, tested apart
   from the DOM (`plan_toolbar`).
 
-  **A toolbar with a single group is centred.** With `space-between` and one
+  **A toolbar with a single group is centred** (5.7.2). With `space-between` and one
   group the button sits against a border with the whole gap on the other side.
   The choice is made here and not in the caller's CSS because the class that
   spreads them is a Bulma helper, and those carry `!important`: an app rule
   cannot win against it.
 
-  `set_changed_stated()` no longer assumes save and undo are both there. They
+  `set_changed_stated()` no longer assumes save and undo are both there
+  (5.7.1). They
   were looked up and used without a guard, so the first change typed into a
   form that had dropped one died with *"can't access property setAttribute, a
   is null"* — found by the consumer's own QA the moment the attr was used.
