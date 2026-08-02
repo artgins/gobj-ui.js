@@ -25,6 +25,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   The choice lives in `form_toolbar_plan.js` as a pure function, tested apart
   from the DOM (`plan_toolbar`).
 
+  **A toolbar with a single group is centred.** With `space-between` and one
+  group the button sits against a border with the whole gap on the other side.
+  The choice is made here and not in the caller's CSS because the class that
+  spreads them is a Bulma helper, and those carry `!important`: an app rule
+  cannot win against it.
+
   `set_changed_stated()` no longer assumes save and undo are both there. They
   were looked up and used without a guard, so the first change typed into a
   form that had dropped one died with *"can't access property setAttribute, a

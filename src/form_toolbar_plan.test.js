@@ -46,6 +46,17 @@ describe("plan_toolbar", () => {
         expect(p.unknown).toEqual(["sav"]);
     });
 
+    it("one group centres; two groups keep the split", () => {
+        /*  La clase que reparte es un helper de Bulma, con !important:
+         *  si no se decide aqui, ninguna regla de app puede centrarlo. */
+        expect(plan_toolbar(["save"]).single_group).toBe(true);
+        expect(plan_toolbar(["save", "undo", "clear"]).single_group).toBe(true);
+        expect(plan_toolbar(["copy", "paste"]).single_group).toBe(true);
+        expect(plan_toolbar(undefined).single_group).toBe(false);
+        expect(plan_toolbar(["save", "copy"]).single_group).toBe(false);
+        expect(plan_toolbar([]).single_group).toBe(false);
+    });
+
     it("drops one whole side without disturbing the other", () => {
         const p = plan_toolbar(["save", "undo", "clear"]);
         expect(p.left).toEqual(["save", "undo", "clear"]);

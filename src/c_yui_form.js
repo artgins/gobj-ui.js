@@ -391,12 +391,21 @@ function build_toolbar(gobj)
         return ['span', {class: 'yui-toolbar-form-empty', style: 'display:none;'}, ''];
     }
 
-    return ['div', {class: 'yui-toolbar-form is-flex-shrink-0 is-flex is-flex-direction-row is-justify-content-space-between is-align-items-center', style: 'width:100%; flex-wrap:wrap; row-gap:6px;'}, [
-        ['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'},
-            plan.left.map((n) => toolbar_button(gobj, n))],
-        ['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'},
-            plan.right.map((n) => toolbar_button(gobj, n))]
-    ]];
+    const justify = plan.single_group
+        ? 'is-justify-content-center'
+        : 'is-justify-content-space-between';
+
+    let groups = [];
+    if(plan.left.length) {
+        groups.push(['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'},
+            plan.left.map((n) => toolbar_button(gobj, n))]);
+    }
+    if(plan.right.length) {
+        groups.push(['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'},
+            plan.right.map((n) => toolbar_button(gobj, n))]);
+    }
+
+    return ['div', {class: `yui-toolbar-form is-flex-shrink-0 is-flex is-flex-direction-row ${justify} is-align-items-center`, style: 'width:100%; flex-wrap:wrap; row-gap:6px;'}, groups];
 }
 
 /************************************************************
