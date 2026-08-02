@@ -7,6 +7,24 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **feat(`C_YUI_FORM`): the bottom toolbar is configurable — `toolbar` attr.**
+  A list of button names, in the order you want them: `["save"]` for a dialog
+  with one action, `[]` for no toolbar at all, and the default is the five it
+  has always shown, so nothing moves for a caller that says nothing.
+
+  It exists because the toolbar was hardcoded. A three-field sign-up dialog
+  with a single action still got **save + undo + clear + copy + paste**, and
+  the only way out was to stop using this gclass and hand-build the form —
+  which is exactly what one consumer had just done.
+
+  Save/undo/clear stay on the left of the bar and copy/paste on the right, the
+  split the layout has always drawn, so dropping one whole group leaves no hole
+  in the middle. An unknown name is **reported and not silently dropped**: a
+  typo in the list would otherwise remove the save button with no trace of why.
+
+  The choice lives in `form_toolbar_plan.js` as a pure function, tested apart
+  from the DOM (`plan_toolbar`).
+
 
 ## 5.6.0
 

@@ -57,6 +57,7 @@ import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "./c_yui_form.css";
 import {attach_clear, refresh_clear} from "./yui_inputs.js";
+import {plan_toolbar} from "./form_toolbar_plan.js";
 /*  Read at field-build time only — deliberately NOT watched: the hosting
  *  dialog rebuilds the form on every open, and re-rendering a form under
  *  the user mid-edit would throw away what they typed. */
@@ -96,6 +97,20 @@ SDATA(data_type_t.DTP_BOOLEAN,  "selectable",       0,  true,   "Rows selectable
 SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_rownum",      0,  false,  "Print first column with row number"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_row_btn", 0,  false, "Print last column with delete row button"),
+/*
+ *  Which buttons the bottom toolbar shows, and in which order.  The
+ *  default is the five it has always shown, so nothing moves for a
+ *  caller that does not set it.
+ *
+ *  It exists because the toolbar was hardcoded: a three-field sign-up
+ *  dialog with ONE action still got save + undo + clear + copy + paste,
+ *  and the only way out was to not use this gclass at all.  `[]` hides
+ *  the toolbar entirely, for a caller that supplies its own buttons.
+ *
+ *  Unknown names are ignored, with a warning: a typo must not silently
+ *  drop the save button.
+ */
+SDATA(data_type_t.DTP_JSON,     "toolbar",          0,  ["save", "undo", "clear", "copy", "paste"], "Toolbar buttons to show, in order: save, undo, clear, copy, paste. [] hides the toolbar"),
 /*
  *  Defaults for tabulator
  */
@@ -284,6 +299,90 @@ async function readClipboard(gobj)
 }
 
 /************************************************************
+ *   Bottom toolbar, from the `toolbar` attr.
+ *
+ *   The five buttons it can show, and their order, are the
+ *   caller's: a dialog with a single action asks for ["save"],
+ *   and [] leaves no toolbar at all.  Default is the five it
+ *   always had, so nothing moves for a caller that says nothing.
+ ************************************************************/
+function toolbar_button(gobj, name)
+{
+    switch(name) {
+        case "save":
+            return ['button', {class: 'button p-1 button-save', title: 'save', 'aria-label': 'save', disabled: true}, [
+                ['span', {class: 'icon m-0'}, '<i class="yi-floppy-disk"></i>'],
+                ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'save'}, 'save']
+            ], {
+                click: function(evt) {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_SAVE_RECORD", {}, gobj);
+                }
+            }];
+        case "undo":
+            return ['button', {class: 'button p-1 button-undo', title: 'undo', 'aria-label': 'undo', disabled: true}, [
+                ['span', {class: 'icon m-0'}, '<i class="yi-arrow-rotate-left"></i>'],
+                ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'undo'}, 'undo']
+            ], {
+                click: function(evt) {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_UNDO_RECORD", {}, gobj);
+                }
+            }];
+        case "clear":
+            return ['button', {class: 'button p-1', title: 'clear', 'aria-label': 'clear'}, [
+                ['span', {class: 'icon m-0'}, '<i class="yi-broom-wide"></i>'],
+                ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'clear'}, 'clear']
+            ], {
+                click: function(evt) {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_CLEAR_RECORD", {}, gobj);
+                }
+            }];
+        case "copy":
+            return ['button', {class: 'button p-1', title: 'copy', 'aria-label': 'copy'}, [
+                ['span', {class: 'icon m-0'}, '<i class="yi-copy"></i>'],
+                ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'copy'}, 'copy']
+            ], {click: function(evt) {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_COPY_RECORD", {}, gobj);
+                }
+            }];
+        case "paste":
+            return ['button', {class: 'button p-1', title: 'paste', 'aria-label': 'paste'}, [
+                ['span', {class: 'icon m-0'}, '<i class="yi-paste"></i>'],
+                ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'paste'}, 'paste']
+            ], {click: async function(evt) {
+                    evt.stopPropagation();
+                    await readClipboard(gobj);
+                }
+            }];
+        default:
+            return null;   /*  plan_toolbar() already warned  */
+    }
+}
+
+function build_toolbar(gobj)
+{
+    const plan = plan_toolbar(gobj_read_attr(gobj, "toolbar"));
+
+    for(let name of plan.unknown) {
+        /*  A typo must not silently drop the save button. */
+        log_warning(`${gobj_short_name(gobj)}: unknown toolbar button '${name}'`);
+    }
+    if(!plan.left.length && !plan.right.length) {
+        return ['span', {class: 'yui-toolbar-form-empty', style: 'display:none;'}, ''];
+    }
+
+    return ['div', {class: 'yui-toolbar-form is-flex-shrink-0 is-flex is-flex-direction-row is-justify-content-space-between is-align-items-center', style: 'width:100%; flex-wrap:wrap; row-gap:6px;'}, [
+        ['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'},
+            plan.left.map((n) => toolbar_button(gobj, n))],
+        ['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'},
+            plan.right.map((n) => toolbar_button(gobj, n))]
+    ]];
+}
+
+/************************************************************
  *   Build UI
  ************************************************************/
 function build_ui(gobj)
@@ -314,81 +413,7 @@ function build_ui(gobj)
             /*----------------------------*
              *      Bottom toolbar
              *----------------------------*/
-            ['div', {class: 'yui-toolbar-form is-flex-shrink-0 is-flex is-flex-direction-row is-justify-content-space-between is-align-items-center', style: 'width:100%; flex-wrap:wrap; row-gap:6px;'}, [
-
-                /*----------------------------*
-                 *      Left buttons
-                 *----------------------------*/
-                ['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'}, [
-                    /*----------------------------*
-                     *      Save
-                     *----------------------------*/
-                    ['button', {class: 'button p-1 button-save', title: 'save', 'aria-label': 'save', disabled: true}, [
-                        ['span', {class: 'icon m-0'}, '<i class="yi-floppy-disk"></i>'],
-                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'save'}, 'save']
-                    ], {
-                        click: function(evt) {
-                            evt.stopPropagation();
-                            gobj_send_event(gobj, "EV_SAVE_RECORD", {}, gobj);
-                        }
-                    }],
-
-                    /*----------------------------*
-                     *      Undo
-                     *----------------------------*/
-                    ['button', {class: 'button p-1 button-undo', title: 'undo', 'aria-label': 'undo', disabled: true}, [
-                        ['span', {class: 'icon m-0'}, '<i class="yi-arrow-rotate-left"></i>'],
-                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'undo'}, 'undo']
-                    ], {
-                        click: function(evt) {
-                            evt.stopPropagation();
-                            gobj_send_event(gobj, "EV_UNDO_RECORD", {}, gobj);
-                        }
-                    }],
-
-                    /*----------------------------*
-                     *      Clear
-                     *----------------------------*/
-                    ['button', {class: 'button p-1', title: 'clear', 'aria-label': 'clear'}, [
-                        ['span', {class: 'icon m-0'}, '<i class="yi-broom-wide"></i>'],
-                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'clear'}, 'clear']
-                    ], {
-                        click: function(evt) {
-                            evt.stopPropagation();
-                            gobj_send_event(gobj, "EV_CLEAR_RECORD", {}, gobj);
-                        }
-                    }],
-                ]],
-
-                /*----------------------------*
-                 *      Right buttons
-                 *----------------------------*/
-                ['div', {class: 'p-1 is-flex is-flex-direction-row is-align-items-center', style:'column-gap:6px;'}, [
-                    /*----------------------------*
-                     *      Copy
-                     *----------------------------*/
-                    ['button', {class: 'button p-1', title: 'copy', 'aria-label': 'copy'}, [
-                        ['span', {class: 'icon m-0'}, '<i class="yi-copy"></i>'],
-                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'copy'}, 'copy']
-                    ], {click: function(evt) {
-                            evt.stopPropagation();
-                            gobj_send_event(gobj, "EV_COPY_RECORD", {}, gobj);
-                        }
-                    }],
-
-                    /*----------------------------*
-                     *      Paste
-                     *----------------------------*/
-                    ['button', {class: 'button p-1', title: 'paste', 'aria-label': 'paste'}, [
-                        ['span', {class: 'icon m-0'}, '<i class="yi-paste"></i>'],
-                        ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'paste'}, 'paste']
-                    ], {click: async function(evt) {
-                            evt.stopPropagation();
-                            await readClipboard(gobj);
-                        }
-                    }]
-                ]]
-            ]]
+            build_toolbar(gobj)
         ]]
     );
 
