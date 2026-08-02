@@ -219,6 +219,29 @@ function set_changed_stated(gobj, changed)
     let $container = gobj_read_attr(gobj, "$container");
     let $form = $container.querySelector('form');
 
+    /*
+     *  Los dos pueden NO estar: desde que la botonera es configurable
+     *  (`toolbar`), un dialogo de una sola accion pide ["save"] y aqui no
+     *  hay undo que habilitar.  Antes se daban por presentes y quitar uno
+     *  reventaba con "can't access property setAttribute, a is null" al
+     *  primer cambio en el formulario.
+     */
+    const enable = ($btn, on, color) => {
+        if(!$btn) {
+            return;
+        }
+        if(on) {
+            $btn.removeAttribute("disabled");
+        } else {
+            $btn.setAttribute("disabled", true);
+        }
+        const $i = $btn.querySelector('span i');
+        if($i) {
+            $i.style.color = color;
+        }
+    };
+    const OFF_COLOR = "hsl(var(--bulma-button-h), var(--bulma-button-s), var(--bulma-button-color-l))";
+
     let $button_save = $container.querySelector('.button-save');
     let $button_undo = $container.querySelector('.button-undo');
 
@@ -228,11 +251,8 @@ function set_changed_stated(gobj, changed)
          */
         gobj_write_bool_attr(gobj, "changes", true);
 
-        $button_save.removeAttribute("disabled");
-        $button_undo.removeAttribute("disabled");
-
-        $button_save.querySelector('span i').style.color = "MediumSeaGreen";
-        $button_undo.querySelector('span i').style.color = "Magenta";
+        enable($button_save, true, "MediumSeaGreen");
+        enable($button_undo, true, "Magenta");
 
         $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
             if(isEventSet($table.tabulator, "dataChanged")) {
@@ -252,11 +272,8 @@ function set_changed_stated(gobj, changed)
          */
         gobj_write_bool_attr(gobj, "changes", false);
 
-        $button_save.setAttribute("disabled", true);
-        $button_undo.setAttribute("disabled", true);
-
-        $button_save.querySelector('span i').style.color = "hsl(var(--bulma-button-h), var(--bulma-button-s), var(--bulma-button-color-l))";
-        $button_undo.querySelector('span i').style.color = "hsl(var(--bulma-button-h), var(--bulma-button-s), var(--bulma-button-color-l))";
+        enable($button_save, false, OFF_COLOR);
+        enable($button_undo, false, OFF_COLOR);
 
         // TODO improve
         setTimeout(function() {

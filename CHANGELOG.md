@@ -25,6 +25,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   The choice lives in `form_toolbar_plan.js` as a pure function, tested apart
   from the DOM (`plan_toolbar`).
 
+  `set_changed_stated()` no longer assumes save and undo are both there. They
+  were looked up and used without a guard, so the first change typed into a
+  form that had dropped one died with *"can't access property setAttribute, a
+  is null"* — found by the consumer's own QA the moment the attr was used.
+
 
 ## 5.6.0
 
