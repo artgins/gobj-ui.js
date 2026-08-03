@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.9.0
+
+- **feat: shared clipboard helpers, so any table can hand over its rows.**
+  `yui_clipboard.js` adds `yui_copy_text()`, `yui_copy_json()`,
+  `yui_table_rows()` and `yui_copy_table_json()`. A table that wires the last
+  one copies **what the user is looking at**: the selected rows when there is
+  a selection, otherwise every row the current filters leave on screen, in the
+  order shown.
+
+  Four views had each grown their own copy code and it had drifted: two of
+  them wrote unindented JSON, and two reported nothing at all when the write
+  failed. The shared helpers indent four spaces — the width the rest of the
+  family uses to show structure — and log on every failing path.
+
+  They also handle what a bare `navigator.clipboard.writeText()` does not: the
+  API is absent in an insecure context (plain http, some embedded webviews)
+  and REJECTS when the document has lost focus, which is easy to trigger from
+  the very click asking for the copy. A hidden-textarea copy covers both
+  instead of failing silently.
+
 ## 5.8.2
 
 - **fix(shell): a toolbar dropdown no longer opens off-screen.** The panel
