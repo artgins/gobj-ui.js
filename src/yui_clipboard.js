@@ -140,4 +140,70 @@ function yui_copy_table_json(tabulator)
     });
 }
 
-export {yui_copy_text, yui_copy_json, yui_table_rows, yui_copy_table_json};
+/***************************************************************
+ *      Show a button as "done": swap its icon for a check and
+ *      its label for the given text. Idempotent — calling it
+ *      twice does not lose the original.
+ *
+ *      The TIMING is not here on purpose. A view arms its own
+ *      C_TIMER and calls yui_button_unmark() from the timeout
+ *      action, so going back is an FSM transition and shows up
+ *      in the machine trace, instead of a setTimeout nobody can
+ *      see. gobj-ui owns the look; the view owns the when.
+ *
+ *      Expects the Bulma button shape both views use:
+ *          <button><span class="icon"><span class="yi-…">
+ *                  <span>label</span></button>
+ *      The label is optional (icon-only buttons on a phone).
+ ***************************************************************/
+function yui_button_mark_done($button, label)
+{
+    if(!$button) {
+        log_error("yui_button_mark_done(): no button");
+        return;
+    }
+
+    let $icon = $button.querySelector("span.icon > span");
+    let $label = $button.querySelector("span.icon ~ span");
+
+    if($icon && $button.dataset.yuiIconWas === undefined) {
+        $button.dataset.yuiIconWas = $icon.className;
+        $icon.className = "yi-check";
+    }
+    if($label && $button.dataset.yuiLabelWas === undefined) {
+        $button.dataset.yuiLabelWas = $label.textContent;
+        $label.textContent = label;
+    }
+}
+
+/***************************************************************
+ *      Put the button back the way it was. Safe to call when
+ *      it was never marked.
+ ***************************************************************/
+function yui_button_unmark($button)
+{
+    if(!$button) {
+        return;
+    }
+
+    let $icon = $button.querySelector("span.icon > span");
+    let $label = $button.querySelector("span.icon ~ span");
+
+    if($icon && $button.dataset.yuiIconWas !== undefined) {
+        $icon.className = $button.dataset.yuiIconWas;
+        delete $button.dataset.yuiIconWas;
+    }
+    if($label && $button.dataset.yuiLabelWas !== undefined) {
+        $label.textContent = $button.dataset.yuiLabelWas;
+        delete $button.dataset.yuiLabelWas;
+    }
+}
+
+export {
+    yui_copy_text,
+    yui_copy_json,
+    yui_table_rows,
+    yui_copy_table_json,
+    yui_button_mark_done,
+    yui_button_unmark,
+};

@@ -10,6 +10,8 @@ import {
     yui_copy_json,
     yui_table_rows,
     yui_copy_table_json,
+    yui_button_mark_done,
+    yui_button_unmark,
 } from "./yui_clipboard.js";
 
 let written;
@@ -109,4 +111,74 @@ test("copy_table_json: an empty table copies nothing and reports 0", async () =>
 test("copy_table_json: counts the SELECTION when there is one", async () => {
     let active = [{id: 1}, {id: 2}, {id: 3}];
     await expect(yui_copy_table_json(fake_table(active, [{id: 2}]))).resolves.toBe(1);
+});
+
+/*============================================================
+ *      yui_button_mark_done / yui_button_unmark
+ *
+ *  Doubles instead of jsdom: the library has no DOM test
+ *  environment and does not need one for this. What is worth
+ *  testing here is the save/restore bookkeeping; that the
+ *  selectors match the real markup is the app's job to prove.
+ *============================================================*/
+function fake_button(with_label)
+{
+    let $icon = {className: "yi-copy"};
+    let $label = with_label? {textContent: "Copy JSON"} : null;
+
+    return {
+        $icon: $icon,
+        $label: $label,
+        dataset: {},
+        querySelector: function(sel) {
+            if(sel === "span.icon > span") {
+                return $icon;
+            }
+            return $label;
+        }
+    };
+}
+
+test("mark_done: swaps the glyph for a check and the label", () => {
+    let $b = fake_button(true);
+    yui_button_mark_done($b, "Copied");
+    expect($b.$icon.className).toBe("yi-check");
+    expect($b.$label.textContent).toBe("Copied");
+});
+
+test("unmark: puts the original glyph and label back", () => {
+    let $b = fake_button(true);
+    yui_button_mark_done($b, "Copied");
+    yui_button_unmark($b);
+    expect($b.$icon.className).toBe("yi-copy");
+    expect($b.$label.textContent).toBe("Copy JSON");
+});
+
+test("mark_done twice does NOT lose the original", () => {
+    let $b = fake_button(true);
+    yui_button_mark_done($b, "Copied");
+    yui_button_mark_done($b, "Copied again");
+    yui_button_unmark($b);
+    expect($b.$icon.className).toBe("yi-copy");
+    expect($b.$label.textContent).toBe("Copy JSON");
+});
+
+test("an icon-only button (no label) round-trips too", () => {
+    let $b = fake_button(false);
+    yui_button_mark_done($b, "Copied");
+    expect($b.$icon.className).toBe("yi-check");
+    yui_button_unmark($b);
+    expect($b.$icon.className).toBe("yi-copy");
+});
+
+test("unmark on a button that was never marked is a no-op", () => {
+    let $b = fake_button(true);
+    yui_button_unmark($b);
+    expect($b.$icon.className).toBe("yi-copy");
+    expect($b.$label.textContent).toBe("Copy JSON");
+});
+
+test("mark_done without a button is reported, not thrown", () => {
+    expect(() => yui_button_mark_done(null, "Copied")).not.toThrow();
+    expect(() => yui_button_unmark(null)).not.toThrow();
 });

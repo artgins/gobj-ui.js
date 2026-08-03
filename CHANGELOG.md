@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.10.0
+
+- **feat: `yui_button_mark_done()` / `yui_button_unmark()`** — show a button as
+  done (check glyph + a caller-supplied label) and put it back. The copy
+  helpers give no sign of their own, and a clipboard that works silently reads
+  exactly like one that failed.
+
+  The TIMING deliberately stays out of the library: the view arms its own
+  `C_TIMER` and calls `yui_button_unmark()` from the timeout action, so going
+  back is an FSM transition that shows in the machine trace instead of a
+  `setTimeout` nobody can see. gobj-ui owns the look, the view owns the when.
+
 ## 5.9.0
 
 - **feat: shared clipboard helpers, so any table can hand over its rows.**
