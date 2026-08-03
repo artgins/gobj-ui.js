@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.8.2
+
+- **fix(shell): a toolbar dropdown no longer opens off-screen.** The panel
+  was anchored to one edge of its trigger — `right` for a `navbar-end`
+  item, `left` otherwise — and only the anchored edge was guarded against
+  the viewport. A right-aligned panel whose trigger sits near the LEFT of
+  the bar therefore hung off the left side, which is what *every*
+  `navbar-end` trigger does under `dir="rtl"`: in Arabic the language menu
+  opened at `left:-60px` with its first characters unreachable. The panel
+  is now measured once it is in the DOM and clamped inside the viewport on
+  both edges. Positions in LTR are unchanged.
+
 ## 5.8.1
 
 - **fix(treedb table): the search stretches on mobile, and its placeholder

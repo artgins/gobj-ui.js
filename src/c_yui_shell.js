@@ -2099,6 +2099,28 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
 
     priv.layers.popup.appendChild($panel);
 
+    /*  Now that it HAS a width, keep it inside the viewport on both
+     *  edges.  The anchoring above guards only the edge it aligns to,
+     *  so a right-aligned panel whose trigger sits near the LEFT of the
+     *  bar hangs off the left side — which is what every navbar-end
+     *  trigger does under dir="rtl": in Arabic the language menu opened
+     *  at left:-60px with its first characters unreachable.  Measure,
+     *  clamp, and pin with `left` so there is one source of truth. */
+    let margin = 8;
+    let pw = $panel.offsetWidth;
+    let pos = $panel.getBoundingClientRect();
+    let left = pos.left;
+    if(left + pw > window.innerWidth - margin) {
+        left = window.innerWidth - pw - margin;
+    }
+    if(left < margin) {
+        left = margin;
+    }
+    if(Math.round(left) !== Math.round(pos.left)) {
+        $panel.style.right = "auto";
+        $panel.style.left = `${Math.round(left)}px`;
+    }
+
     /*  Translate the lazily-built panel (see the note above). */
     yui_shell_translate(gobj, $panel);
 
