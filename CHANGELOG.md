@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.11.0
+
+- **feat: `yui_install.js` — offer the PWA install, on the app's schedule.**
+  Chrome shows its own install banner on a heuristic nobody can read, and once
+  the mini-infobar has been dismissed — or the app installed and removed — it
+  goes quiet on that origin for about three months. The app then LOOKS
+  uninstallable when it is only unadvertised, and the way in is buried in the
+  browser menu.
+
+  So the banner is refused and the event kept: `yui_install_ask_once()` asks
+  with the family's own dialog, once per browser, and `yui_install_prompt()`
+  opens the real system dialog from a button whenever the app likes.
+  `yui_install_can()` is false on a browser that never offered (Firefox,
+  Safari), so nothing is promised that cannot be delivered.
+
+  **The event arrives before the bundle is parsed**, and one nobody caught
+  cannot be asked for back, so the catching belongs in a tiny script the app
+  serves from `public/install-prompt.js` and loads with `<script src>` — never
+  inline, which every SPA's `script-src 'self'` would drop without a word.
+
+  Ported from yunomúsica, which had it first.
+
 ## 5.10.0
 
 - **feat: `yui_button_mark_done()` / `yui_button_unmark()`** — show a button as
