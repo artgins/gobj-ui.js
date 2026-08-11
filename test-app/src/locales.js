@@ -110,6 +110,7 @@ const es_translation = {
     "delete": "Borrar",
     "refresh": "Refrescar",
     "schema": "Esquema",
+    "show json": "Ver JSON",
     "rows": "filas",
     "users": "usuarios",
     "All changes will be lost. Are you sure?": "Se perderán todos los cambios. ¿Seguro?",
