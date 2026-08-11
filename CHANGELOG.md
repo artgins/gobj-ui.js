@@ -5,7 +5,7 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 5.13.0
 
 - **feat: `C_YUI_TREEDB_TOPIC_WITH_FORM` opens a cell's JSON.** Clicking a cell
   of a col that holds a JSON document — `dict`, `list`, `object`, `array`,
