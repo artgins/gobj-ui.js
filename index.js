@@ -69,6 +69,7 @@ export {
     yui_shell_confirm_ok,
     yui_shell_confirm_yesno,
     yui_shell_confirm_yesnocancel,
+    yui_shell_confirm_danger,
 } from "./src/shell_modals.js";
 
 /*

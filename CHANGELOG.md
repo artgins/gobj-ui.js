@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.11.1
+
+- **fix: `yui_shell_confirm_danger()` is exported from the package root.** Its
+  three siblings — `confirm_ok`, `confirm_yesno`, `confirm_yesnocancel` — were
+  all in the barrel, and the destructive one was not. So the dialog this
+  library's own comment tells you to use for *"this deletes an account"*, the
+  one with the red button and the safe answer last, was the single one that
+  `import { … } from "@yuneta/gobj-ui"` resolved to `undefined`.
+
+  A missing export fails at the call, not at the import, so it reads as a bug
+  in the caller. The only consumer had reached for the deep import
+  (`@yuneta/gobj-ui/src/shell_modals.js`) and moved on, which is exactly how an
+  omission like this survives: the workaround works, and it works quietly.
+
+  Deep imports keep working — the `./src/*` exports map is unchanged — so this
+  breaks nothing and only widens what the barrel offers.
+
+  Found while writing the gobj-ui API reference for doc.yuneta.io.
+
 ## 5.11.0
 
 - **feat: `yui_install.js` — offer the PWA install, on the app's schedule.**
