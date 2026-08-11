@@ -82,6 +82,24 @@
     }
 }
 
+/*  Cell of a col holding a JSON document: a truncated preview that opens
+ *  the whole value in a viewer. Bulma already paints an <a> as a link
+ *  (colour + pointer cursor, href or not — the click is an FSM event,
+ *  not a navigation), so the only thing to state here is that a preview
+ *  of a JSON fragment must stay on ONE line: wrapped, it would make the
+ *  row of every structured record three lines tall.  */
+.JSON_CELL {
+    white-space: nowrap;
+}
+.JSON_CELL .JSON_CELL_ICON {
+    margin-right: 0.25rem;
+    vertical-align: middle;
+}
+.JSON_CELL .JSON_CELL_PREVIEW {
+    text-decoration: underline;
+    vertical-align: middle;
+}
+
 .without-border {
     border: none !important;
     box-shadow: none !important;

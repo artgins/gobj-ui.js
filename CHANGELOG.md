@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **feat: `C_YUI_TREEDB_TOPIC_WITH_FORM` opens a cell's JSON.** Clicking a cell
+  of a col that holds a JSON document — `dict`, `list`, `object`, `array`,
+  `blob`, `template`, `coordinates`, `gbuffer` — shows the whole value in the
+  standardized adaptive dialog, rendered by a hosted `C_YUI_JSON`.
+
+  The cell has only ever shown the first 20 characters of `JSON.stringify()`,
+  which for the fields that carry the actual configuration of a node is a
+  preview of the opening brace. The value was reachable only by opening the
+  edit form, which needs edition mode and offers a raw text editor for
+  something you just wanted to read. The viewer is read-only, collapsed and
+  searchable, issues no command, and touches no backend: the record is already
+  in the table.
+
+  The click crosses the machine (`EV_SHOW_CELL_JSON {row_id, col_id}`), like
+  every other action of this view; the kw carries the IDENTITY of the cell and
+  never the value, so the trace stays readable. A cell whose document is empty
+  gets no link and ignores the click.
+
+  The preview is now built as a DOM node (`JSON_CELL` / `JSON_CELL_ICON` /
+  `JSON_CELL_PREVIEW`) instead of a bare string: record data is no longer
+  parsed as markup on its way into the cell. The link title carries the
+  `show json` i18n key.
+
 ## 5.12.0
 
 - **feat: `C_YUI_TREEDB_TOPIC_WITH_FORM` shows the topic's schema.** A new

@@ -147,6 +147,8 @@ let PRIVATE_DATA = {
     form_modal:         null,   // { close } handle of the adaptive dialog
     schema_gobj:        null,   // hosted C_YUI_JSON child (while schema open)
     schema_modal:       null,   // { close } handle of the schema dialog
+    cell_json_gobj:     null,   // hosted C_YUI_JSON child (while a cell is open)
+    cell_json_modal:    null,   // { close } handle of the cell dialog
 };
 
 let __gclass__ = null;
@@ -226,6 +228,7 @@ function mt_stop(gobj)
     }
     close_form_dialog(gobj);
     close_schema_dialog(gobj);
+    close_cell_json_dialog(gobj);
     table__destroy(gobj);
 }
 
@@ -240,6 +243,7 @@ function mt_destroy(gobj)
      *  listener) and removes the dialog DOM. */
     close_form_dialog(gobj);
     close_schema_dialog(gobj);
+    close_cell_json_dialog(gobj);
     destroy_ui(gobj);
 }
 
@@ -731,6 +735,36 @@ function create_tabulator(gobj)
         return "???";
     }
 
+    /*
+     *  Click on a JSON-document cell (dict/list/blob/template/…): the cell
+     *  can only ever show a truncated preview, so open the whole value in
+     *  the viewer. The kw carries the IDENTITY of the cell (row id + col
+     *  id), never the value itself — the machine trace dumps the kw.
+     */
+    function json_cell_click(e, cell)
+    {
+        if(!cell.getElement().querySelector('.JSON_CELL')) {
+            return;     // empty document: nothing to open
+        }
+        e.stopPropagation();
+
+        let pkey = desc.pkey || "id";
+        let row_id = cell.getData()[pkey];
+        if(row_id === undefined || row_id === null) {
+            log_error(
+                `${gobj_short_name(gobj)}: row without pkey '${pkey}',` +
+                ` cannot open the json of '${cell.getField()}'`
+            );
+            return;
+        }
+        gobj_send_event(
+            gobj,
+            "EV_SHOW_CELL_JSON",
+            {row_id: row_id, col_id: cell.getField()},
+            gobj
+        );
+    }
+
     for (let i = 0; i < desc.cols.length; i++) {
         let col = desc.cols[i];
         if(!col.id || col.id[0]==='_') {
@@ -794,6 +828,8 @@ function create_tabulator(gobj)
             case "list":
             case "coordinates":
             case "blob":
+            case "gbuffer":
+                cellClick = json_cell_click;
                 break;
             case "boolean":
                 hozAlign = "center";
@@ -985,6 +1021,41 @@ function table__destroy(gobj)
 }
 
 /************************************************************
+ *  Cell of a col holding a JSON document (dict/list/blob/
+ *  template/coordinates/…): a one-line truncated preview,
+ *  marked as a link because the click opens the whole value
+ *  in a viewer (json_cell_click -> EV_SHOW_CELL_JSON).
+ *
+ *  An empty document gets no link — there is nothing to open,
+ *  and json_cell_click uses its absence to ignore the click.
+ *
+ *  Built as a DOM node and not as an HTML string: the preview
+ *  is raw record data, so it must never be parsed as markup.
+ ************************************************************/
+function build_json_cell_preview(value)
+{
+    if(value === null || value === undefined || json_size(value) === 0) {
+        return "";
+    }
+
+    let text = JSON.stringify(value);
+    if(text && text.length > 20) {
+        text = text.substring(0, 20) + "…";
+    }
+
+    return createElement2(
+        ['a', {
+            class: 'JSON_CELL',
+            title: t('show json'),
+            'data-i18n-title': 'show json'
+        }, [
+            ['span', {class: 'JSON_CELL_ICON icon yi-eye'}],
+            ['span', {class: 'JSON_CELL_PREVIEW'}, text]
+        ]]
+    );
+}
+
+/************************************************************
  *  Convert a record column value from backend to frontend
  ************************************************************/
 function transform__treedb_value_2_table_value(gobj, col, value, row, field)
@@ -1013,10 +1084,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
         case "coordinates":
         case "blob":
         case "gbuffer":
-            value = JSON.stringify(value);
-            if(value && value.length > 20) {
-                value = value.substring(0, 20) + "…";
-            }
+            value = build_json_cell_preview(value);
             break;
 
         case "enum":
@@ -1460,6 +1528,124 @@ function close_schema_dialog(gobj)
         return;
     }
     teardown_schema_child(gobj);
+}
+
+/************************************************************
+ *  Show the JSON document held by ONE CELL — the value of a
+ *  dict/list/object/array/blob/template/coordinates col — in
+ *  the standardized adaptive dialog, rendered by a C_YUI_JSON
+ *  child. The cell can only show a 20-char preview; this is
+ *  where the value is actually readable (collapsed, searchable).
+ *
+ *  Read-only and offline: the record is already in the table,
+ *  so no command is issued and nothing can be edited here (the
+ *  edit form remains the way to change the value).
+ ************************************************************/
+function open_cell_json_dialog(gobj, row_id, col_id)
+{
+    close_cell_json_dialog(gobj);   // only one at a time
+
+    let priv = gobj.priv;
+
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: no table, no cell to show`);
+        return;
+    }
+    let row = tabulator.getRow(row_id);
+    if(!row) {
+        log_error(`${gobj_short_name(gobj)}: row '${row_id}' not found in the table`);
+        return;
+    }
+    let value = row.getData()[col_id];
+    if(value === undefined) {
+        log_error(`${gobj_short_name(gobj)}: row '${row_id}' has no col '${col_id}'`);
+        return;
+    }
+
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${gobj_short_name(gobj)}: no shell, cannot open the cell json`);
+        return;
+    }
+
+    let json_view = gobj_create_pure_child(
+        "cell_" + clean_name(gobj_name(gobj)),
+        "C_YUI_JSON",
+        {
+            /*  No `title`: the dialog header already titles it. */
+        },
+        gobj
+    );
+    if(!json_view) {
+        log_error(`${gobj_short_name(gobj)}: cannot create the cell json viewer`);
+        return;
+    }
+    priv.cell_json_gobj = json_view;
+    gobj_start(json_view);
+
+    let $box = gobj_read_attr(json_view, "$container");
+    if(!$box) {
+        log_error(`${gobj_short_name(gobj)}: the cell json viewer built no $container`);
+        teardown_cell_json_child(gobj);
+        return;
+    }
+
+    /*  Title split in two halves, same contract as the schema dialog: the
+     *  record id is DATA (never translated) and the column carries its own
+     *  i18n key — the shared `col.id` one, so the header re-translates on a
+     *  language switch and reads as the raw id where the app defines no key
+     *  (exactly what an untranslated column header already shows). */
+    priv.cell_json_modal = yui_shell_show_modal(shell, $box, {
+        dialog:        true,
+        logical_class: "TREEDB_CELL_JSON_SHEET",
+        title_prefix:  String(row_id),
+        title:         col_id,
+        t:             t,
+        on_close:      function() {
+            teardown_cell_json_child(gobj);
+        }
+    });
+
+    /*  EV_SET_JSON and not the `json_data` attr: the attr renders the
+     *  tree but leaves the viewer in ST_IDLE, where a click to expand a
+     *  node is an event nobody handles. */
+    gobj_send_event(json_view, "EV_SET_JSON", {json: value}, gobj);
+}
+
+/************************************************************
+ *  Destroy the hosted C_YUI_JSON child. Called from the cell
+ *  modal's on_close — the shell has already removed the dialog
+ *  DOM and retired its Escape / history entries.
+ ************************************************************/
+function teardown_cell_json_child(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.cell_json_gobj) {
+        if(gobj_is_running(priv.cell_json_gobj)) {
+            gobj_stop(priv.cell_json_gobj);
+        }
+        gobj_destroy(priv.cell_json_gobj);
+        priv.cell_json_gobj = null;
+    }
+    priv.cell_json_modal = null;
+}
+
+/************************************************************
+ *  Close the cell json dialog (teardown, or a second open).
+ *  Closing the modal runs its on_close, which tears the
+ *  viewer child down.
+ ************************************************************/
+function close_cell_json_dialog(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.cell_json_modal) {
+        let modal = priv.cell_json_modal;
+        priv.cell_json_modal = null;
+        modal.close();          // -> on_close -> teardown_cell_json_child
+        return;
+    }
+    teardown_cell_json_child(gobj);
 }
 
 /************************************************************
@@ -2419,6 +2605,20 @@ function ac_refresh(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Show the JSON document of one cell
+ *  {
+ *      row_id:
+ *      col_id:
+ *  }
+ ************************************************************/
+function ac_show_cell_json(gobj, event, kw, src)
+{
+    open_cell_json_dialog(gobj, kw.row_id, kw.col_id);
+
+    return 0;
+}
+
+/************************************************************
  *  Show the schema (desc) of this topic
  ************************************************************/
 function ac_show_schema(gobj, event, kw, src)
@@ -2500,6 +2700,7 @@ function create_gclass(gclass_name)
             ["EV_COPY_ROWS",            ac_copy_rows,          null],
             ["EV_PASTE_ROWS",           ac_paste_rows,         null],
             ["EV_SHOW_HOOK_DATA",       ac_show_hook_data,     null],
+            ["EV_SHOW_CELL_JSON",       ac_show_cell_json,     null],
             ["EV_CHANGE_LOCALE",        ac_change_locale,      null],
             ["EV_REFRESH",              ac_refresh,            null],
             ["EV_SHOW_SCHEMA",          ac_show_schema,        null],
@@ -2527,6 +2728,7 @@ function create_gclass(gclass_name)
         ["EV_SELECT_ROWS",          event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UNSELECT_ROWS",        event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_SHOW_HOOK_DATA",       event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_SHOW_CELL_JSON",       0],
         ["EV_CHANGE_LOCALE",        0],
         ["EV_REFRESH",              0],
         ["EV_SHOW_SCHEMA",          0],
