@@ -5,6 +5,29 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.12.0
+
+- **feat: `C_YUI_TREEDB_TOPIC_WITH_FORM` shows the topic's schema.** A new
+  toolbar button (`with_schema_button`, on by default) opens the topic's
+  `desc` — pkey, cols, types, flags and fkey targets — in the standardized
+  adaptive dialog, rendered by a hosted `C_YUI_JSON`.
+
+  The table shows the data; this shows the contract the data answers to, which
+  is what you need when a value is refused, a link does not appear, or a
+  column is read-only for a reason nobody remembers. It was reachable before
+  only by reading the backend's schema by hand.
+
+  A viewer and not a `<pre>` dump: a forty-column topic is legible collapsed
+  and searchable, and it is exactly what the JSON viewer already does. The
+  desc is already in the gobj, so the dialog issues no command and touches no
+  backend. The click crosses the machine (`EV_SHOW_SCHEMA`), like every other
+  action of this view.
+
+  `register_c_yui_treedb_topic_with_form()` now auto-registers `C_YUI_JSON`
+  when the app has not, the same courtesy it already did for `C_YUI_FORM`, and
+  `register_c_yui_json()` became idempotent so an app that registers it
+  explicitly — in whatever order — no longer trips *"GClass ALREADY created"*.
+
 ## 5.11.1
 
 - **fix: `yui_shell_confirm_danger()` is exported from the package root.** Its

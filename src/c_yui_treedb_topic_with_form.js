@@ -69,6 +69,7 @@ import {
 } from "./c_yui_shell.js";
 
 import {register_c_yui_form} from "./c_yui_form.js";
+import {register_c_yui_json} from "./c_yui_json.js";
 import {attach_clear} from "./yui_inputs.js";
 
 import {yui_tabulator_lang, yui_tabulator_relocalize} from "./yui_tabulator_i18n.js";
@@ -103,6 +104,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_copy_button",     0,  true,   "Button tool
 SDATA(data_type_t.DTP_BOOLEAN,  "with_paste_button",         0,  true,   "Button toolbar PASTE"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_refresh_button",       0,  true,   "Button toolbar REFRESH"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_search_button",        0,  true,   "Button toolbar SEARCH"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_schema_button",        0,  true,   "Button toolbar SCHEMA (show the topic's desc)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a last column with internal EDIT/DELETE icon"),
 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
@@ -143,6 +145,8 @@ let PRIVATE_DATA = {
     tabulator:          null,
     form:               null,   // hosted C_YUI_FORM child (while dialog open)
     form_modal:         null,   // { close } handle of the adaptive dialog
+    schema_gobj:        null,   // hosted C_YUI_JSON child (while schema open)
+    schema_modal:       null,   // { close } handle of the schema dialog
 };
 
 let __gclass__ = null;
@@ -221,6 +225,7 @@ function mt_stop(gobj)
         gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
     }
     close_form_dialog(gobj);
+    close_schema_dialog(gobj);
     table__destroy(gobj);
 }
 
@@ -234,6 +239,7 @@ function mt_destroy(gobj)
      *  it unhooks the Escape handler (shell chain or document
      *  listener) and removes the dialog DOM. */
     close_form_dialog(gobj);
+    close_schema_dialog(gobj);
     destroy_ui(gobj);
 }
 
@@ -477,6 +483,7 @@ function build_ui(gobj)
 
     let with_refresh_button     = gobj_read_bool_attr(gobj, "with_refresh_button");
     let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
+    let with_schema_button      = gobj_read_bool_attr(gobj, "with_schema_button");
 
     if(with_search_button) {
         let search_id = `${toolbar_id}_search`;
@@ -541,6 +548,27 @@ function build_ui(gobj)
             }]
         );
         $view_toolbar.appendChild($refresh);
+    }
+
+    if(with_schema_button) {
+        /*  What the columns of this topic ARE: types, flags, fkeys. The
+         *  table shows the data; this shows the contract the data answers
+         *  to, which is what you need when a value is refused or a link
+         *  does not appear. */
+        let $schema = createElement2(
+            ['button', {class: 'TREEDB_TABLE_SCHEMA button mr-1',
+                        title: t('schema'), 'data-i18n-title': 'schema',
+                        'aria-label': t('schema'), 'data-i18n-aria-label': 'schema'}, [
+                ['i', {class: 'yi-hexagon-nodes'}],
+                ['span', {class: 'is-hidden-mobile', i18n: 'schema', style: 'padding-left:5px;'}, 'schema']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    gobj_send_event(gobj, "EV_SHOW_SCHEMA", {}, gobj);
+                }
+            }]
+        );
+        $view_toolbar.appendChild($schema);
     }
 
     /*----------------------------------------------*
@@ -1326,6 +1354,112 @@ function close_form_dialog(gobj)
         return;
     }
     teardown_form_child(gobj);
+}
+
+/************************************************************
+ *  Show the topic's SCHEMA: its `desc` — pkey, cols, types,
+ *  flags and fkey targets — in the standardized adaptive
+ *  dialog, rendered by a C_YUI_JSON child. A viewer and not a
+ *  <pre> dump because a forty-column topic is only readable
+ *  collapsed and searchable.
+ *
+ *  Read-only and offline: the desc is already in this gobj,
+ *  so no command is issued and nothing can be edited here.
+ ************************************************************/
+function open_schema_dialog(gobj)
+{
+    close_schema_dialog(gobj);      // only one at a time
+
+    let priv = gobj.priv;
+
+    let desc = gobj_read_attr(gobj, "desc");
+    if(!desc) {
+        log_error(`${gobj_short_name(gobj)}: no desc, no schema to show`);
+        return;
+    }
+
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${gobj_short_name(gobj)}: no shell, cannot open the schema view`);
+        return;
+    }
+
+    let json_view = gobj_create_pure_child(
+        "schema_" + clean_name(gobj_name(gobj)),
+        "C_YUI_JSON",
+        {
+            /*  No `title`: the dialog header already titles it. The
+             *  viewer's own would land inside the dialog, doubling it. */
+        },
+        gobj
+    );
+    if(!json_view) {
+        log_error(`${gobj_short_name(gobj)}: cannot create the schema viewer`);
+        return;
+    }
+    priv.schema_gobj = json_view;
+    gobj_start(json_view);
+
+    let $box = gobj_read_attr(json_view, "$container");
+    if(!$box) {
+        log_error(`${gobj_short_name(gobj)}: the schema viewer built no $container`);
+        teardown_schema_child(gobj);
+        return;
+    }
+
+    /*  Title split in two halves: the topic name is DATA (never
+     *  translated) and "schema" is the kind (carries its i18n key), so
+     *  the header re-translates on a language switch. */
+    priv.schema_modal = yui_shell_show_modal(shell, $box, {
+        dialog:        true,
+        logical_class: "TREEDB_SCHEMA_SHEET",
+        title_prefix:  gobj_read_str_attr(gobj, "topic_name"),
+        title:         "schema",
+        t:             t,
+        on_close:      function() {
+            teardown_schema_child(gobj);
+        }
+    });
+
+    /*  EV_SET_JSON and not the `json_data` attr: the attr renders the
+     *  tree but leaves the viewer in ST_IDLE, where a click to expand a
+     *  node is an event nobody handles. */
+    gobj_send_event(json_view, "EV_SET_JSON", {json: desc}, gobj);
+}
+
+/************************************************************
+ *  Destroy the hosted C_YUI_JSON child. Called from the
+ *  schema modal's on_close — the shell has already removed
+ *  the dialog DOM and retired its Escape / history entries.
+ ************************************************************/
+function teardown_schema_child(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.schema_gobj) {
+        if(gobj_is_running(priv.schema_gobj)) {
+            gobj_stop(priv.schema_gobj);
+        }
+        gobj_destroy(priv.schema_gobj);
+        priv.schema_gobj = null;
+    }
+    priv.schema_modal = null;
+}
+
+/************************************************************
+ *  Close the schema dialog (teardown, or a second open).
+ *  Closing the modal runs its on_close, which tears the
+ *  viewer child down.
+ ************************************************************/
+function close_schema_dialog(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.schema_modal) {
+        let modal = priv.schema_modal;
+        priv.schema_modal = null;
+        modal.close();          // -> on_close -> teardown_schema_child
+        return;
+    }
+    teardown_schema_child(gobj);
 }
 
 /************************************************************
@@ -2285,6 +2419,16 @@ function ac_refresh(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Show the schema (desc) of this topic
+ ************************************************************/
+function ac_show_schema(gobj, event, kw, src)
+{
+    open_schema_dialog(gobj);
+
+    return 0;
+}
+
+/************************************************************
  *  {
  *      href: href
  *  }
@@ -2358,6 +2502,7 @@ function create_gclass(gclass_name)
             ["EV_SHOW_HOOK_DATA",       ac_show_hook_data,     null],
             ["EV_CHANGE_LOCALE",        ac_change_locale,      null],
             ["EV_REFRESH",              ac_refresh,            null],
+            ["EV_SHOW_SCHEMA",          ac_show_schema,        null],
             ["EV_SHOW",                 ac_show,               null],
             ["EV_HIDE",                 ac_hide,               null]
         ]]
@@ -2384,6 +2529,7 @@ function create_gclass(gclass_name)
         ["EV_SHOW_HOOK_DATA",       event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CHANGE_LOCALE",        0],
         ["EV_REFRESH",              0],
+        ["EV_SHOW_SCHEMA",          0],
 
         ["EV_CREATE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UPDATE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
@@ -2424,6 +2570,10 @@ function register_c_yui_treedb_topic_with_form()
      *  its gclass exists even if the app didn't register it  */
     if(!gclass_find_by_name("C_YUI_FORM", false)) {
         register_c_yui_form();
+    }
+    /*  same for the schema dialog's C_YUI_JSON viewer  */
+    if(!gclass_find_by_name("C_YUI_JSON", false)) {
+        register_c_yui_json();
     }
     return create_gclass(GCLASS_NAME);
 }

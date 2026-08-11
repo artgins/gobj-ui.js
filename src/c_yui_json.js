@@ -37,6 +37,7 @@ import {
     data_type_t,
     event_flag_t,
     gclass_create,
+    gclass_find_by_name,
     log_error,
     gobj_read_pointer_attr,
     gobj_parent,
@@ -936,6 +937,13 @@ function create_gclass(gclass_name)
  ***************************************************************/
 function register_c_yui_json()
 {
+    /*  Idempotent: C_YUI_TREEDB_TOPIC_WITH_FORM auto-registers this
+     *  gclass for its schema dialog, so an app that also registers it
+     *  explicitly (order-independent) must not trip
+     *  "GClass ALREADY created".  */
+    if(gclass_find_by_name(GCLASS_NAME, false)) {
+        return 0;
+    }
     return create_gclass(GCLASS_NAME);
 }
 
