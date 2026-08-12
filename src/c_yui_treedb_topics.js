@@ -1717,6 +1717,24 @@ function ac_mt_command_answer(gobj, event, kw, src)
 
         case "create-node":
         case "update-node":
+            /*
+             *  The view refreshes itself from the treedb's own
+             *  EV_TREEDB_NODE_* events, which arrive for EVERY writer. This
+             *  says something those cannot: THIS view has just written THIS
+             *  record, and it succeeded. A host whose save is not finished
+             *  with one record — a schema editor, where a column change also
+             *  has to raise the versions that publish it — needs exactly that,
+             *  and cannot use the node events without answering its own writes
+             *  in a loop.
+             */
+            gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
+                treedb_name: kw_get_str(gobj, kw_command, "treedb_name", "", 0),
+                topic_name:  kw_get_str(gobj, kw_command, "topic_name", "", 0),
+                record:      kw_get_dict(gobj, kw_command, "record", {}, 0),
+                created:     (command === "create-node")
+            });
+            break;
+
         case "delete-node":
             // Don't process by here, process on subscribed events.
             break;
@@ -2239,6 +2257,8 @@ function create_gclass(gclass_name)
         ["EV_CREATE_RECORD",        0],
         ["EV_UPDATE_RECORD",        0],
         ["EV_DELETE_RECORD",        0],
+        ["EV_RECORD_WRITTEN",       event_flag_t.EVF_OUTPUT_EVENT|
+                                    event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_REFRESH_TOPIC",        0],
         ["EV_OPEN_JSON",            0],
         ["EV_EXPAND_PATH",          0],
