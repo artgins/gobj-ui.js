@@ -5,6 +5,37 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.14.1
+
+- **fix: `C_YUI_TREEDB_TOPIC_WITH_FORM` knows the `rowid` type.** A topic keyed
+  by rowid — which is how the `__system__` treedb stores a schema since SDK
+  7.13.0 (`topics` and `cols` carry the `rowid` flag on `id`, the name living in
+  the `value` pkey2) — logged
+  *"transform\_\_treedb\_value\_2\_table\_value() unhandled type 'rowid'"*
+  once per cell, on every render of exactly the two topics a schema editor
+  exists to edit. The value passed through and the form worked; it was noise,
+  and noise that hid whatever real error came after it.
+
+  The column also reads like the number it is now: right-aligned and sorted
+  numerically, because sorted as text `"9"` lands after `"69"`.
+
+  The same switch still has no case for `uuid`, `password` and other scalar
+  types nobody has met yet. They are deliberately left out: each needs its own
+  decision (a password must NOT be rendered as it comes), and inventing them
+  blind is how a hash ends up in a table cell.
+
+## 5.14.0
+
+- **feat: `C_YUI_TREEDB_TOPICS` publishes `EV_RECORD_WRITTEN`.** The view
+  refreshes itself from the treedb's own `EV_TREEDB_NODE_*`, which arrive for
+  every writer. That says nothing a host can act on: a schema editor, where
+  changing a column also has to raise the versions that publish the change,
+  cannot use them without answering its own writes in a loop. The new event
+  says the one thing those cannot — THIS view has just written THIS record, and
+  it succeeded — carrying `{treedb_name, topic_name, record, created}`.
+
+  (Backfilled: 5.14.0 shipped without this entry.)
+
 ## 5.13.0
 
 - **feat: `C_YUI_TREEDB_TOPIC_WITH_FORM` opens a cell's JSON.** Clicking a cell

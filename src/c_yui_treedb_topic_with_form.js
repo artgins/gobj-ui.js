@@ -842,6 +842,12 @@ function create_tabulator(gobj)
                 hozAlign = "right";
                 sorter = "number";
                 break;
+            /*  A rowid is a NUMBER stored as a string key: sorted as text,
+             *  "9" lands after "69". Read like the integer it is.  */
+            case "rowid":
+                hozAlign = "right";
+                sorter = "number";
+                break;
         }
 
         let colDef = {
@@ -1068,6 +1074,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
         case "email":   // string subtype — plain text in the cell
         case "tel":     // string subtype — plain text in the cell
         case "url":     // string subtype — plain text in the cell
+        case "rowid":   // the record's own key — shown as it comes
             break;
         case "integer":
             break;
