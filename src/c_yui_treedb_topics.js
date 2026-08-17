@@ -714,7 +714,7 @@ function build_schema_child(gobj)
     if(!is_object(gobj_read_attr(gobj, "descs"))) {
         return;
     }
-    if(gclass_find_by_name("C_YUI_TREEDB_SCHEMA") === null) {
+    if(!gclass_find_by_name("C_YUI_TREEDB_SCHEMA")) {
         log_error(`${gobj_short_name(gobj)}: C_YUI_TREEDB_SCHEMA not registered by the app`);
         return;
     }
@@ -1442,7 +1442,7 @@ function open_json_viewer(gobj)
         return;
     }
 
-    if(gclass_find_by_name("C_YUI_JSON") === null) {
+    if(!gclass_find_by_name("C_YUI_JSON")) {
         log_error(`${gobj_short_name(gobj)}: C_YUI_JSON not registered by the app`);
         yui_shell_show_error(yui_shell_of(gobj), "raw json viewer unavailable", {t: t});
         return;

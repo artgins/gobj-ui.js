@@ -453,8 +453,13 @@ export function yui_shell_show_route_map(shell, opts)
         return null;
     }
 
-    /*  Preferred: a resizable, maximisable floating window. */
-    if(gclass_find_by_name("C_YUI_WINDOW") !== null) {
+    /*  Preferred: a resizable, maximisable floating window.
+     *
+     *  Truthiness, never `!== null`: a lookup that does not find its name
+     *  used to answer `undefined`, so `!== null` was TRUE for a gclass that
+     *  is NOT registered and this branch built a window out of nothing.
+     *  gobj-js >= 7.10.1 returns null, and this reads right either way.  */
+    if(gclass_find_by_name("C_YUI_WINDOW")) {
         let win_ref = {gobj: null};
         /*  A workspace surface, not a thing floating over one view: it
          *  joins the dock when the app HAS one (minimise, restore, focus

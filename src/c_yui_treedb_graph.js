@@ -572,7 +572,7 @@ function open_json_viewer(gobj)
     if(priv.json_win || priv.json_modal) {
         return;     /*  already open  */
     }
-    if(gclass_find_by_name("C_YUI_JSON") === null) {
+    if(!gclass_find_by_name("C_YUI_JSON")) {
         log_error(`${gobj_short_name(gobj)}: C_YUI_JSON not registered by the app`);
         yui_shell_show_error(yui_shell_of(gobj), "raw json viewer unavailable", {t: t});
         return;

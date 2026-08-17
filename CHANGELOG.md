@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.14.2
+
+- **fix: four registration guards that could never fire.** They were written
+  against a contract the runtime did not keep — `gclass_find_by_name()` answers
+  `undefined`, not `null`, for a name it does not hold (fixed at its own layer in
+  gobj-js 7.10.1) — so `=== null` was always false and `!== null` always true:
+
+  | Site | Was | Meant to |
+  |---|---|---|
+  | `c_yui_treedb_topics.js` (schema landing) | `=== null` | refuse to build the graph and say *"C_YUI_TREEDB_SCHEMA not registered by the app"* |
+  | `c_yui_treedb_topics.js` (raw JSON) | `=== null` | same, for `C_YUI_JSON` |
+  | `c_yui_treedb_graph.js` (raw JSON) | `=== null` | same |
+  | `shell_route_map.js` (site map) | `!== null` | **use** `C_YUI_WINDOW` only when the app registered it |
+
+  The first three left a missing gclass to surface one frame later as *"can't
+  access property jn_attrs, e is null"* — thrown by the code using the gobj
+  `gobj_create` had refused to build, an error naming neither the gclass nor the
+  app that forgot to register it. The fourth is the dangerous one: it took the
+  *preferred* branch and tried to build a floating window out of a gclass that
+  was not there, where the fallback overlay was sitting right below.
+
+  All four are truthiness tests now, which read correctly against **any**
+  gobj-js: this release does not raise the peer floor, and does not need
+  7.10.1 to be right.
+
 ## 5.14.1
 
 - **fix: `C_YUI_TREEDB_TOPIC_WITH_FORM` knows the `rowid` type.** A topic keyed
