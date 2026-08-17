@@ -458,7 +458,7 @@ export function yui_shell_show_route_map(shell, opts)
      *  Truthiness, never `!== null`: a lookup that does not find its name
      *  used to answer `undefined`, so `!== null` was TRUE for a gclass that
      *  is NOT registered and this branch built a window out of nothing.
-     *  gobj-js >= 7.10.1 returns null, and this reads right either way.  */
+     *  gobj-js >= 7.12.0 returns null, and this reads right either way.  */
     if(gclass_find_by_name("C_YUI_WINDOW")) {
         let win_ref = {gobj: null};
         /*  A workspace surface, not a thing floating over one view: it

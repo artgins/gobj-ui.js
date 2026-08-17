@@ -10,7 +10,7 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 - **fix: four registration guards that could never fire.** They were written
   against a contract the runtime did not keep — `gclass_find_by_name()` answers
   `undefined`, not `null`, for a name it does not hold (fixed at its own layer in
-  gobj-js 7.10.1) — so `=== null` was always false and `!== null` always true:
+  gobj-js 7.12.0) — so `=== null` was always false and `!== null` always true:
 
   | Site | Was | Meant to |
   |---|---|---|
@@ -28,7 +28,7 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
   All four are truthiness tests now, which read correctly against **any**
   gobj-js: this release does not raise the peer floor, and does not need
-  7.10.1 to be right.
+  7.12.0 to be right.
 
 ## 5.14.1
 
