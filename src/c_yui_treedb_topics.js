@@ -77,6 +77,7 @@ SDATA(data_type_t.DTP_JSON,     "descs",            0,  null,   "Description of 
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
 SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth", "Bulma tab styling"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_cards_landing",0, false,  "Land on a grid of topic cards (list->detail): a card opens its table, with the tabs bar + a back-to-grid button. Off = tabs only (legacy)."),
+SDATA(data_type_t.DTP_BOOLEAN,  "readonly",         0,  false,  "The whole treedb is read-only: every topic opens without its write affordances and the write events are refused. Set it when this yuno is not the MASTER of the treedb's tranger -- only the master can write, and the yuno answers 'READ-ONLY' to a write since SDK 7.13.0 (ask `treedb-info`)"),
 SDATA(data_type_t.DTP_JSON,     "card_action_routes",0, null,   "Per-card hash-route templates {info, table, graph} with a {topic} placeholder (host-supplied, route-agnostic). Present ⇒ cards show 3 icon actions; absent ⇒ a single card that opens the table."),
 SDATA(data_type_t.DTP_JSON,     "landing_routes",   0,  null,   "Host-supplied hashes for the two landing sub-views {cards, schema}; the toggle navigates to them so the landing is URL-addressable (ROUTING.md). Absent ⇒ toggle flips in-view only (legacy)."),
 SDATA(data_type_t.DTP_STRING,   "base_route",       0,  "",     "This view's base route (host-supplied); used to declare its sub-routes (topics / info / schema) to the site map (ROUTING.md contributor)."),
@@ -997,6 +998,7 @@ function process_treedb_descs(gobj)
     let descs = gobj_read_attr(gobj, "descs");
     let system = gobj_read_bool_attr(gobj, "system");
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
+    let readonly = gobj_read_bool_attr(gobj, "readonly");
     for(const [key, desc] of Object.entries(descs)) {
         if(system) {
         } else {
@@ -1008,10 +1010,13 @@ function process_treedb_descs(gobj)
         let kw_topic_form = {
             subscriber: gobj,  // HACK get all output events
 
-            // TODO set according the authz
-            //with_edit_button: true,
-            with_new_button: true,
-            with_delete_button: true,
+            /*  One flag, not three: a read-only treedb has no writable
+             *  topic. (The old TODO here asked for the authz to decide the
+             *  buttons; the authz is a per-user question the backend answers
+             *  per command, while this is a property of the STORE.)  */
+            readonly: readonly,
+            with_new_button: !readonly,
+            with_delete_button: !readonly,
 
             treedb_name: treedb_name,
             topic_name: key,
@@ -1619,6 +1624,25 @@ function request_print_tranger(gobj, path)
 
 
 
+/***************************************************************
+ *  The last gate before a write leaves for the yuno. The per-topic
+ *  children already hide their write buttons when the treedb is
+ *  read-only, but the record events converge HERE, and this is the
+ *  gclass that owns the treedb: a write that got this far on a replica
+ *  would travel, be refused by the yuno, and come back as a toast --
+ *  after the table had already drawn the row.
+ ***************************************************************/
+function refuse_if_readonly(gobj, event)
+{
+    if(!gobj_read_bool_attr(gobj, "readonly")) {
+        return false;
+    }
+    log_error(`${gobj_short_name(gobj)}: ${event} refused, treedb ` +
+        `'${gobj_read_str_attr(gobj, "treedb_name")}' is READ-ONLY`);
+    return true;
+}
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -2051,6 +2075,9 @@ function ac_treedb_node_deleted(gobj, event, kw, src)
  ********************************************/
 function ac_create_record(gobj, event, kw, src)
 {
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     let topic_name = gobj_read_attr(src, "topic_name");
     let record = kw.record;
@@ -2079,6 +2106,9 @@ function ac_create_record(gobj, event, kw, src)
  ********************************************/
 function ac_update_record(gobj, event, kw, src)
 {
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     let topic_name = gobj_read_attr(src, "topic_name");
     let record = kw.record;
@@ -2106,6 +2136,9 @@ function ac_update_record(gobj, event, kw, src)
  ********************************************/
 function ac_delete_record(gobj, event, kw, src)
 {
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     let topic_name = gobj_read_attr(src, "topic_name");
     let record = kw.record;

@@ -76,6 +76,8 @@ import {yui_tabulator_lang, yui_tabulator_relocalize} from "./yui_tabulator_i18n
 
 import {t} from "i18next";
 
+import {plan_treedb_writes} from "./treedb_write_plan.js";
+
 import "./c_yui_treedb_topic_with_form.css";
 import "./tabulator.css";
 
@@ -97,6 +99,7 @@ SDATA(data_type_t.DTP_STRING,   "topic_name",           0,  null,   "Topic name"
 SDATA(data_type_t.DTP_POINTER,  "desc",                 0,  null,   "Description of topics"),
 
 /*---------------- Edition Mode ----------------*/
+SDATA(data_type_t.DTP_BOOLEAN,  "readonly",             0,  false,  "The topic cannot be written: no edition mode, no new/delete/paste, no in-row icons, and the record form opens without its save toolbar. Set it when the treedb is not the master of its tranger (only the master can write; the yuno refuses otherwise), or when the user lacks the authz"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_edition_mode",    0,  true,   "Enable EDITION mode showing EDIT Button toolbar"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_new_button",      0,  true,   "Button toolbar NEW"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_button",   0,  true,   "Button toolbar DELETE"),
@@ -343,11 +346,16 @@ function build_ui(gobj)
         // TODO pon autorización, solo si está autorizado a modificar los datos!!!
         // TODO deja que estos botones se queden en el top cuando se hace scroll (clip ?)
         let $table_toolbar = [];
-        let with_edition_mode = gobj_read_bool_attr(gobj, "with_edition_mode");
-        let with_new_button = gobj_read_bool_attr(gobj, "with_new_button");
-        let with_delete_button = gobj_read_bool_attr(gobj, "with_delete_button");
+        /*  One plan decides every write affordance (treedb_write_plan.js):
+         *  `readonly` is the STATE of the topic and beats each with_* flag,
+         *  and stating that in five `!readonly &&` expressions is five places
+         *  to forget the sixth.  */
+        let plan = write_plan(gobj);
+        let with_edition_mode = plan.edition_mode;
+        let with_new_button = plan.new_button;
+        let with_delete_button = plan.delete_button;
         let with_copy_button = gobj_read_bool_attr(gobj, "with_copy_button");
-        let with_paste_button = gobj_read_bool_attr(gobj, "with_paste_button");
+        let with_paste_button = plan.paste_button;
 
         let toolbar_id = gobj_read_str_attr(gobj, "toolbar_id");
 
@@ -884,7 +892,7 @@ function create_tabulator(gobj)
         ].join('');
     }
 
-    let with_in_row_edit_icons = gobj_read_bool_attr(gobj, "with_in_row_edit_icons");
+    let with_in_row_edit_icons = write_plan(gobj).in_row_icons;
     if(with_in_row_edit_icons) {
         columns.push({
             field: '_operation',
@@ -1306,6 +1314,7 @@ function open_form_dialog(gobj, mode, record)
                  style: 'display:flex; flex-direction:column; height:100%;'}, []]
     );
 
+    let form_plan = write_plan(gobj);
     let form = gobj_create_pure_child(
         "form_" + clean_name(gobj_name(gobj)),
         "C_YUI_FORM",
@@ -1314,13 +1323,18 @@ function open_form_dialog(gobj, mode, record)
             record:         record,
             fkey_options:   build_fkey_options(gobj),
             form_mode:      mode,
+            /*  A read-only topic still OPENS its form -- looking at a record
+             *  is the point of a replica -- with the cells not editable and
+             *  the write half of the toolbar gone. A null plan leaves the
+             *  form's own default alone.  */
+            ...(form_plan.form_toolbar ? {toolbar: form_plan.form_toolbar} : {}),
             /*  Editing the raw topic record: structured cols
              *  (template / table / coordinates) are raw JSON editors,
              *  not interpreted into sub-widgets (the pre-merge behaviour). */
             render_mode:    "edit",
             pkey:           desc.pkey || "id",
             topic_name:     topic_name,
-            editable:       true,
+            editable:       !form_plan.readonly,
             $parent:        $body
         },
         gobj
@@ -2066,6 +2080,42 @@ function show_dropdown_popup_menu(gobj, x, y, items, callback)
 
 
 
+/***************************************************************
+ *  A read-only topic refuses the write EVENTS too, not only their
+ *  buttons. The buttons are gone, but an event can still arrive: a
+ *  keyboard path, a hosted form that outlived the flag, a caller that
+ *  sends EV_SAVE_RECORD itself. Refusing here is what makes `readonly`
+ *  a state of the gclass rather than a way of drawing it -- and it
+ *  fails LOUDLY, because an ignored write is how the backend used to
+ *  behave and what this whole change exists to stop.
+ ***************************************************************/
+function write_plan(gobj)
+{
+    return plan_treedb_writes({
+        readonly:               gobj_read_bool_attr(gobj, "readonly"),
+        with_edition_mode:      gobj_read_bool_attr(gobj, "with_edition_mode"),
+        with_new_button:        gobj_read_bool_attr(gobj, "with_new_button"),
+        with_delete_button:     gobj_read_bool_attr(gobj, "with_delete_button"),
+        with_paste_button:      gobj_read_bool_attr(gobj, "with_paste_button"),
+        with_in_row_edit_icons: gobj_read_bool_attr(gobj, "with_in_row_edit_icons")
+    });
+}
+
+/***************************************************************
+ *  A read-only topic refuses the write EVENTS too, not only their
+ *  buttons.
+ ***************************************************************/
+function refuse_if_readonly(gobj, event)
+{
+    if(!gobj_read_bool_attr(gobj, "readonly")) {
+        return false;
+    }
+    log_error(`${gobj_short_name(gobj)}: ${event} refused, topic ` +
+        `'${gobj_read_str_attr(gobj, "topic_name")}' is READ-ONLY`);
+    return true;
+}
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -2242,6 +2292,9 @@ function ac_node_deleted(gobj, event, kw, src)
  ************************************************************/
 function ac_edition_mode(gobj, event, kw, src)
 {
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
     let tabulator = gobj_read_attr(gobj, "tabulator");
 
     /*
@@ -2307,6 +2360,9 @@ function ac_edition_mode(gobj, event, kw, src)
  ************************************************************/
 function ac_new_row(gobj, event, kw, src)
 {
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
     /*
      *  Build default values. TODO no debería estar en desc configuration?
      */
@@ -2352,6 +2408,9 @@ function ac_new_row(gobj, event, kw, src)
  ************************************************************/
 function ac_delete_rows(gobj, event, kw, src)
 {
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
     let tabulator = gobj_read_attr(gobj, "tabulator");
 
     if(json_size(kw) === 0) {
@@ -2451,6 +2510,9 @@ function ac_copy_rows(gobj, event, kw, src)
  ************************************************************/
 function ac_paste_rows(gobj, event, kw, src)
 {
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
     /*----------------------------*
      *  Paste rows
      *----------------------------*/
@@ -2478,6 +2540,9 @@ function ac_paste_rows(gobj, event, kw, src)
  ************************************************************/
 function ac_form_save_record(gobj, event, kw, src)
 {
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
     let mode = gobj_read_str_attr(src, "form_mode");
     gobj_publish_event(
         gobj,

@@ -5,6 +5,33 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.15.0
+
+- **feat: `readonly` on the treedb editor.** `C_YUI_TREEDB_TOPICS` (and the
+  per-topic `C_YUI_TREEDB_TOPIC_WITH_FORM`) take a `readonly` attr, propagated
+  to every topic: no edition mode, no *new* / *delete* / *paste*, no in-row edit
+  icons, and the record form opens with its cells not editable and only `copy`
+  on the toolbar. The form still opens — looking at a record is the point of a
+  replica.
+
+  It exists because only the **master** of a treedb's tranger can write, and
+  the yuno refuses otherwise (SDK 7.13.0, `treedb-info` answers whether it is).
+  Until now the editor offered every write affordance on a replica and turned
+  each click into an error toast — and before the yuno refused, into a row that
+  looked saved and was already lost.
+
+  Two things this is careful about:
+
+  - the decision is one pure, tested function (`treedb_write_plan.js`, 9 tests)
+    instead of five `!readonly && with_x` expressions scattered through a DOM
+    builder — which is five places to forget the sixth. It also replaces the
+    `// TODO set according the authz` that had the write buttons hardcoded to
+    `true`;
+  - and the write **events** are refused too, in both gclasses, with a
+    `log_error` naming the treedb. Hiding a button is not refusing a write: the
+    event can still arrive from a keyboard path or a form that outlived the
+    flag, and silently ignoring it is the behaviour this change exists to stop.
+
 ## 5.14.2
 
 - **fix: four registration guards that could never fire.** They were written

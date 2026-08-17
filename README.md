@@ -430,6 +430,38 @@ Logical DOM classes: `JSON_VIEWER`, `JSON_TOOLBAR`, `JSON_SEARCH`, `JSON_TREE`,
 `JSON_ROW`, `JSON_KEY`, `JSON_VALUE`, `JSON_SUMMARY`, `JSON_COLLAPSED`,
 `JSON_TIME`. The gclass imports its own `c_yui_json.css`.
 
+### Read-only treedbs: `readonly`
+
+`C_YUI_TREEDB_TOPICS` takes a **`readonly`** attr, propagated to every topic it
+builds. It is not one more button flag: it is the STATE of the treedb and it
+beats each `with_*` flag at once, because a treedb whose tranger the yuno does
+not master answers **every** write with
+
+```
+ERROR -1: <yuno>: treedb '<name>' is READ-ONLY, this yuno is not the master of its tranger
+```
+
+(the yuno refuses since SDK 7.13.0), so offering the buttons anyway turns a
+fact into an error message per click. Ask the yuno which it is with
+`command-yuno id=<yuno> service=<treedb> command=treedb-info`, which answers
+`{treedb_name, master, schema_version, topics}` — and remember the flag is per
+TREEDB and is runtime state: a yuno is routinely the master of its
+`treedb_system_schema` and a replica of a data treedb it shares.
+
+What `readonly` takes away: the edition mode, the *new* / *delete* / *paste*
+buttons, the in-row edit icons, and the write half of the record form's toolbar
+(`copy` stays — reading a record includes taking it with you) with the cells not
+editable. The record form still OPENS: looking is the point of a replica.
+
+Two implementation notes worth keeping:
+
+- the decision lives in **`treedb_write_plan.js`** (pure, tested), not in five
+  `!readonly && with_x` expressions — five places to forget the sixth;
+- and the write **events** are refused as well, in both gclasses, with a
+  `log_error`. Hiding a button is not the same as refusing a write: an event can
+  still arrive from a keyboard path or a form that outlived the flag, and an
+  ignored write is exactly the behaviour this whole change exists to stop.
+
 ### C_YUI_TREEDB_SCHEMA — the treedb as a graph of topics (prototype)
 
 A landing view that draws a treedb as a **graph of topics** — one node per
