@@ -2242,7 +2242,22 @@ function ac_load_node_updated(gobj, event, kw, src)
     let tabulator = gobj_read_attr(gobj, "tabulator");
     if(tabulator) {
         for(let record of data) {
-            tabulator.updateData([record]);
+            /*
+             *  updateData() REJECTS the promise on a row it cannot find and
+             *  nobody awaits it, so the rejection surfaces as an unhandled
+             *  "Update Error - Unable to find row" that names neither the
+             *  gclass nor the topic. Ask first, like ac_node_deleted does.
+             *
+             *  A table nobody has opened holds NO rows, and a node event for
+             *  it is not news: its rows are read when the topic is shown. A
+             *  row missing from a table that IS loaded is.
+             */
+            if(tabulator.getRow(record.id)) {
+                tabulator.updateData([record]);
+            } else if(tabulator.getDataCount() > 0) {
+                log_error(`${gobj_short_name(gobj)}: updated node is not in ` +
+                    `the loaded table: ${record.id}`);
+            }
         }
     }
 

@@ -1755,7 +1755,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 treedb_name: kw_get_str(gobj, kw_command, "treedb_name", "", 0),
                 topic_name:  kw_get_str(gobj, kw_command, "topic_name", "", 0),
                 record:      kw_get_dict(gobj, kw_command, "record", {}, 0),
-                created:     (command === "create-node")
+                created:     (command === "create-node"),
+                command:     command
             });
             break;
 

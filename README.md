@@ -432,10 +432,11 @@ Logical DOM classes: `JSON_VIEWER`, `JSON_TOOLBAR`, `JSON_SEARCH`, `JSON_TREE`,
 
 ### Read-only treedbs: `readonly`
 
-`C_YUI_TREEDB_TOPICS` takes a **`readonly`** attr, propagated to every topic it
-builds. It is not one more button flag: it is the STATE of the treedb and it
-beats each `with_*` flag at once, because a treedb whose tranger the yuno does
-not master answers **every** write with
+`C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` take a **`readonly`** attr; the
+topics view propagates it to every topic it builds. It is not one more button
+flag: it is the STATE of the treedb and it beats each `with_*` flag at once,
+because a treedb whose tranger the yuno does not master answers **every** write
+with
 
 ```
 ERROR -1: <yuno>: treedb '<name>' is READ-ONLY, this yuno is not the master of its tranger
@@ -453,11 +454,17 @@ buttons, the in-row edit icons, and the write half of the record form's toolbar
 (`copy` stays — reading a record includes taking it with you) with the cells not
 editable. The record form still OPENS: looking is the point of a replica.
 
+In the **graph** it takes away the `edition` operation mode, which is the only
+one that draws the create / delete / link affordances — the mode select stops
+offering it, and a graph left in edition on a master comes back in `reading` on
+a replica (the mode is a persisted preference). The other modes are untouched:
+panning, zooming and opening a node are reading.
+
 Two implementation notes worth keeping:
 
 - the decision lives in **`treedb_write_plan.js`** (pure, tested), not in five
   `!readonly && with_x` expressions — five places to forget the sixth;
-- and the write **events** are refused as well, in both gclasses, with a
+- and the write **events** are refused as well, in every gclass, with a
   `log_error`. Hiding a button is not the same as refusing a write: an event can
   still arrive from a keyboard path or a form that outlived the flag, and an
   ignored write is exactly the behaviour this whole change exists to stop.

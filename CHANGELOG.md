@@ -5,6 +5,57 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.16.0
+
+- **feat: `readonly` on the treedb GRAPH.** `C_YUI_TREEDB_GRAPH` takes the same
+  `readonly` attr the topics editor got in 5.15.0, and it is the other half of
+  the same fact: only the **master** of a treedb's tranger can write, and every
+  write against a replica comes back as an error toast.
+
+  In the graph the whole write surface hangs off ONE mode: `edition` is the only
+  operation mode that draws the create / delete / link affordances. So
+  `readonly` drops it from the mode select, and — because the mode is a
+  PERSISTED user preference — a graph left in edition on a master comes back in
+  `reading` on a replica instead of opening with buttons that cannot work.
+
+  The five write events (`EV_CREATE_NODE`, `EV_UPDATE_NODE`, `EV_DELETE_NODE`,
+  `EV_LINK_NODES`, `EV_UNLINK_NODES`) are refused too, with a `log_error` naming
+  the treedb. That gate is not redundant with the missing button: the G6 child
+  raises the same events from its undo/redo history and from saving the node
+  GEOMETRY, neither of which goes through the toolbar.
+
+- **feat: the graph reports its writes with `EV_RECORD_WRITTEN`**, the event
+  `C_YUI_TREEDB_TOPICS` has published since 5.14.0, now raised by
+  `C_YUI_TREEDB_GRAPH` as well when the yuno accepts a `create-node`,
+  `update-node`, `delete-node`, `link-nodes` or `unlink-nodes`.
+
+  A host that edits a SCHEMA is not finished when the record is written — the
+  yuno still has to be restarted to re-read it — and it cannot learn this from
+  the treedb's own `EV_TREEDB_NODE_*` events, which arrive for every writer and
+  would have it answering its own writes in a loop. Without this, a schema
+  changed in the graph left the host showing no pending work at all.
+
+  The kw gains a `command` field in **both** gclasses (additive): in a graph a
+  LINK is as much a write as a record is, and `{topic_name, record, created}`
+  cannot describe one.
+
+  One topic is deliberately **not** reported: `__graphs__`, which the graph
+  writes itself — one record per topic — every time the layout is saved. That
+  is the view's own bookkeeping, and reporting it would tell a schema editor
+  that the schema changed because somebody dragged a node.
+
+- **fix: an updated node the table never loaded threw an unhandled rejection.**
+  `C_YUI_TREEDB_TOPIC_WITH_FORM` fed every `EV_LOAD_NODE_UPDATED` straight to
+  Tabulator's `updateData()`, which REJECTS on a row it cannot find — and
+  nobody awaits it, so it surfaced as a bare *"Update Error - Unable to find
+  row"* naming neither the gclass nor the topic. It asks for the row first now,
+  the way the delete path already did: a table nobody has opened holds no rows
+  and the event is not news (its rows are read when the topic is shown), while
+  a row missing from a LOADED table is logged.
+
+  It took a second view writing to the same treedb to surface: a topic editor
+  alone only ever hears about the records it just wrote itself.
+
 ## 5.15.0
 
 - **feat: `readonly` on the treedb editor.** `C_YUI_TREEDB_TOPICS` (and the

@@ -115,6 +115,7 @@ SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to 
 SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote service treedb name"),
 SDATA(data_type_t.DTP_DICT,     "descs",            0,  null,   "Descriptions of topics obtained"),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "readonly",         0,  false,  "The whole treedb is read-only: the graph drops its `edition` mode (the only one that draws write affordances) and refuses every write event. Set it when this yuno is not the MASTER of the treedb's tranger -- only the master can write, and the yuno answers 'READ-ONLY' to a write since SDK 7.13.0 (ask `treedb-info`)"),
 SDATA(data_type_t.DTP_STRING,   "back_route",       0,  "",     "Optional hash route for a '← topics' button back to the topics grid (host-supplied; empty = no button)"),
 SDATA(data_type_t.DTP_STRING,   "base_route",       0,  "",     "This view's base route (host-supplied); used to declare its per-topic focus sub-routes to the site map (ROUTING.md contributor)."),
 SDATA(data_type_t.DTP_DICT,     "records",          0,  "{}",   "Data of topics"),
@@ -191,6 +192,16 @@ function mt_create(gobj)
 
     if(!priv.treedb_name) {
         log_error(`${gobj_name(gobj)} -> treedb_name not configured`);
+    }
+
+    /*
+     *  `edition` is the ONLY mode that draws write affordances, and the
+     *  mode is a PERSISTED user preference: a graph that was left in
+     *  edition on a master would come back in edition on a replica.
+     *  Fall back to `reading` before the G6 child is born with it.
+     */
+    if(gobj_read_bool_attr(gobj, "readonly") && priv.operation_mode === "edition") {
+        gobj_write_str_attr(gobj, "operation_mode", "reading");
     }
 
     /*
@@ -433,6 +444,11 @@ function make_toolbar(gobj)
      *      Top Header toolbar
      *---------------------------------------*/
     let modes = gobj_read_attr(gobj, "operation_modes");
+    if(gobj_read_bool_attr(gobj, "readonly")) {
+        /*  A mode the user cannot have is not offered: `edition` is the
+         *  one that draws the create / delete / link affordances.  */
+        modes = modes.filter(mode => mode !== "edition");
+    }
     let mode_options = modes.map(item => ['option', {}, item]);
 
     /*
@@ -1342,6 +1358,24 @@ function refresh_data(gobj)
     request_treedb_descs(gobj);
 }
 
+/********************************************
+ *  The last gate before a write leaves for the yuno. The `edition`
+ *  mode is gone on a replica, so no button can raise these -- but the
+ *  G6 child also publishes them from its undo/redo history and from
+ *  saving the node geometry, and a write that got this far would
+ *  travel, be refused by the yuno, and come back as a toast with the
+ *  graph already redrawn.
+ ********************************************/
+function refuse_if_readonly(gobj, event)
+{
+    if(!gobj_read_bool_attr(gobj, "readonly")) {
+        return false;
+    }
+    log_error(`${gobj_short_name(gobj)}: ${event} refused, treedb ` +
+        `'${gobj_read_str_attr(gobj, "treedb_name")}' is READ-ONLY`);
+    return true;
+}
+
 
 
 
@@ -1468,7 +1502,36 @@ function ac_mt_command_answer(gobj, event, kw, src)
         case "delete-node":
         case "link-nodes":
         case "unlink-nodes":
-            // Don't process here, process on subscribed events.
+            /*
+             *  The graph redraws itself from the treedb's own EV_TREEDB_NODE_*
+             *  events, which arrive for EVERY writer. This says what those
+             *  cannot: THIS view has just written, and the yuno took it. A host
+             *  whose save is not finished with the record -- a schema editor,
+             *  where the yuno still has to be restarted to re-read the schema --
+             *  needs exactly that, and cannot use the node events without
+             *  answering its own writes in a loop.
+             *
+             *  Same event and same kw as C_YUI_TREEDB_TOPICS, plus `command`:
+             *  in a graph a LINK is as much a write as a record is, and the
+             *  three of them carry different halves of the kw.
+             *
+             *  `__graphs__` is EXCLUDED, and that exclusion is the point of
+             *  reading this comment: the view writes that topic ITSELF, one
+             *  record per topic, every time the layout is saved. It is this
+             *  view's bookkeeping, not the operator's data -- reporting it
+             *  would tell a schema editor that the schema changed because
+             *  somebody dragged a node.
+             */
+            if(result >= 0 &&
+                kw_get_str(gobj, kw_command, "topic_name", "", 0) !== "__graphs__") {
+                gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
+                    treedb_name: kw_get_str(gobj, kw_command, "treedb_name", "", 0),
+                    topic_name:  kw_get_str(gobj, kw_command, "topic_name", "", 0),
+                    record:      kw_get_dict(gobj, kw_command, "record", {}, 0),
+                    created:     (command === "create-node"),
+                    command:     command
+                });
+            }
             break;
 
         default:
@@ -1787,6 +1850,11 @@ function ac_edge_clicked(gobj, event, kw, src)
 function ac_create_node(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+
     let treedb_name = priv.treedb_name;
     let topic_name = kw.topic_name;
     let record = kw.record;
@@ -1813,6 +1881,11 @@ function ac_create_node(gobj, event, kw, src)
 function ac_update_node(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+
     let treedb_name = priv.treedb_name;
     let topic_name = kw.topic_name;
     let record = kw.record;
@@ -1839,6 +1912,11 @@ function ac_update_node(gobj, event, kw, src)
 function ac_delete_node(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+
     let treedb_name = priv.treedb_name;
     let topic_name = kw.topic_name;
     let record = kw.record;
@@ -1865,6 +1943,11 @@ function ac_delete_node(gobj, event, kw, src)
 function ac_link_nodes(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+
     let treedb_name = priv.treedb_name;
     let parent_ref = kw.parent_ref;
     let child_ref = kw.child_ref;
@@ -1891,6 +1974,11 @@ function ac_link_nodes(gobj, event, kw, src)
 function ac_unlink_nodes(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+
     let treedb_name = priv.treedb_name;
     let parent_ref = kw.parent_ref;
     let child_ref = kw.child_ref;
@@ -2001,6 +2089,14 @@ function ac_set_operation_mode(gobj, event, kw, src)
     let priv = gobj.priv;
 
     let operation_mode = kw.operation_mode;
+    if(operation_mode === "edition" && gobj_read_bool_attr(gobj, "readonly")) {
+        /*  The select does not offer it on a replica, so getting here means
+         *  the event came from somewhere else -- and it is the mode that
+         *  turns on every write affordance.  */
+        log_error(`${gobj_short_name(gobj)}: edition mode refused, treedb ` +
+            `'${gobj_read_str_attr(gobj, "treedb_name")}' is READ-ONLY`);
+        return -1;
+    }
     gobj_write_str_attr(gobj, "operation_mode", operation_mode);
     gobj_save_persistent_attrs(gobj, "operation_mode");
 
@@ -2167,6 +2263,8 @@ function create_gclass(gclass_name)
         ["EV_SET_OPERATION_MODE",       0],
         ["EV_SET_FOCUS_TOPIC",          0],
         ["EV_OPERATION_MODE_CHANGED",
+            event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_RECORD_WRITTEN",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
