@@ -430,6 +430,25 @@ Logical DOM classes: `JSON_VIEWER`, `JSON_TOOLBAR`, `JSON_SEARCH`, `JSON_TREE`,
 `JSON_ROW`, `JSON_KEY`, `JSON_VALUE`, `JSON_SUMMARY`, `JSON_COLLAPSED`,
 `JSON_TIME`. The gclass imports its own `c_yui_json.css`.
 
+### What a node in the graph is CALLED
+
+`C_G6_NODES_TREE` (the record graph inside `C_YUI_TREEDB_GRAPH`) labels a card
+by what NAMES the record, which is not always what KEYS it. A topic whose id
+column is flagged `rowid` or `uuid` keys its records by a value nobody reads —
+that is the point of those flags — and the name lives in the secondary key the
+topic declares (`pkey2s`). `treedb_system_schema` is the case that forced it:
+its `topics` and `cols` records are keyed by rowid and named in `value`, so the
+graph drew cards reading `181`, `225`, `193`.
+
+The rule is in **`treedb_node_label.js`** (pure, unit-tested): read the pkey
+column's flags from the desc; if the key is synthetic, take the first `pkey2s`
+field the record actually carries; otherwise keep the id. **The pkey is never
+lost** — it is the card's tooltip, on the chip and on the entity card alike.
+
+It needs the descriptor to carry `pkey2s`, which `tranger2_topic_desc()` only
+clones from **SDK > 7.13.0**. Against an older node the desc has no `pkey2s`, the
+label falls back to the id, and nothing else changes.
+
 ### Read-only treedbs: `readonly`
 
 `C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` take a **`readonly`** attr; the

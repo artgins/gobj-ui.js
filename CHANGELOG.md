@@ -38,6 +38,23 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   correct picture of the storage and an unreadable picture of the schema. This
   view answers the schema question; that one answers the data question.
 
+- **feat: the node graph labels a record by its NAME, not by its rowid.**
+  `C_G6_NODES_TREE` drew every card with `record.id`. A topic whose id column
+  is flagged `rowid` or `uuid` keys its records by a value nobody reads — that
+  is the point of those flags — and the name lives in the secondary key the
+  topic declares. On `treedb_system_schema` that meant a graph of cards reading
+  "181", "225", "193".
+
+  The new `node_label()` (`treedb_node_label.js`, pure and unit-tested) reads
+  the pkey column's flags from the desc and, when the key is synthetic, takes
+  the first `pkey2s` field that the record actually carries. The pkey is never
+  lost: it stays as the card's tooltip, on both the chip and the entity card.
+
+  Declarative, not guessed — but it needs the descriptor to CARRY `pkey2s`,
+  which `tranger2_topic_desc()` did not clone at **SDK 7.13.0** or earlier. Against an
+  older node the desc has no `pkey2s` and the label falls back to the id, which
+  is exactly the previous behaviour.
+
 - **test-app: a third entry point, `schema.html`**, mounting
   `C_YUI_TREEDB_SCHEMA` alone against the real yuneta agent schema
   (`src/schema_yuneta_agent.json`, extracted from

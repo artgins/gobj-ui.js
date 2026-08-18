@@ -78,6 +78,8 @@ import {
     getStrokeColor,
 } from "./lib_graph.js";
 
+import {node_label} from "./treedb_node_label.js";
+
 import {
     BaseLayout,
     ExtensionCategory,
@@ -1227,7 +1229,8 @@ function create_topic_node(gobj, desc, record)
         style.dx = -58;
         style.dy = -20;
         style.innerHTML = build_chip_innerHTML(
-            desc.color, priv.theme, record.icon, record.id
+            desc.color, priv.theme, record.icon,
+            node_label(desc, record), record.id
         );
 
     } else if(node_treedb_type === 'extended') {
@@ -1239,8 +1242,8 @@ function create_topic_node(gobj, desc, record)
         style.dx = -72;
         style.dy = -33;
         style.innerHTML = build_node_innerHTML(
-            desc.color, priv.theme, record.icon, record.id,
-            desc.topic_name, true
+            desc.color, priv.theme, record.icon, node_label(desc, record),
+            desc.topic_name, true, record.id
         );
 
     } else {
@@ -1250,7 +1253,8 @@ function create_topic_node(gobj, desc, record)
         style.dx = -86;
         style.dy = -48;
         style.innerHTML = build_node_innerHTML(
-            desc.color, priv.theme, record.icon, record.id, desc.topic_name
+            desc.color, priv.theme, record.icon, node_label(desc, record),
+            desc.topic_name, false, record.id
         );
     }
 
@@ -1353,7 +1357,8 @@ function update_topic_node(gobj, desc, node_name, record)
                 id: node_name,
                 style: {
                     innerHTML: build_chip_innerHTML(
-                        desc.color, priv.theme, record.icon, record.id
+                        desc.color, priv.theme, record.icon,
+                        node_label(desc, record), record.id
                     ),
                 }
             }]);
@@ -1362,8 +1367,9 @@ function update_topic_node(gobj, desc, node_name, record)
                 id: node_name,
                 style: {
                     innerHTML: build_node_innerHTML(
-                        desc.color, priv.theme, record.icon, record.id,
-                        desc.topic_name, true
+                        desc.color, priv.theme, record.icon,
+                        node_label(desc, record),
+                        desc.topic_name, true, record.id
                     ),
                 }
             }]);
@@ -1372,8 +1378,9 @@ function update_topic_node(gobj, desc, node_name, record)
                 id: node_name,
                 style: {
                     innerHTML: build_node_innerHTML(
-                        desc.color, priv.theme, record.icon, record.id,
-                        desc.topic_name
+                        desc.color, priv.theme, record.icon,
+                        node_label(desc, record),
+                        desc.topic_name, false, record.id
                     ),
                 }
             }]);
@@ -4184,8 +4191,9 @@ function show_node_popover(gobj)
         if(node_graph_type === 'hierarchical') {
             let record = nodeData.data.record || {};
             updateStyle.innerHTML = build_node_innerHTML(
-                fill, priv.theme, record.icon, record.id,
-                nodeData.data.desc.topic_name
+                fill, priv.theme, record.icon,
+                node_label(nodeData.data.desc, record),
+                nodeData.data.desc.topic_name, false, record.id
             );
         }
         graph.updateNodeData([{ id: node_id, style: updateStyle }]);
@@ -4221,8 +4229,9 @@ function show_node_popover(gobj)
                 if(node_graph_type === 'hierarchical') {
                     let record = nodeData.data.record || {};
                     restoreStyle.innerHTML = build_node_innerHTML(
-                        origFill, priv.theme, record.icon, record.id,
-                        nodeData.data.desc.topic_name
+                        origFill, priv.theme, record.icon,
+                        node_label(nodeData.data.desc, record),
+                        nodeData.data.desc.topic_name, false, record.id
                     );
                 }
                 graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
@@ -4398,7 +4407,8 @@ function refresh_html_nodes_theme(gobj, theme)
                 style: {
                     innerHTML: build_node_innerHTML(
                         nd.data.desc.color, theme, record.icon,
-                        record.id, nd.data.desc.topic_name
+                        node_label(nd.data.desc, record),
+                        nd.data.desc.topic_name, false, record.id
                     )
                 }
             });
@@ -4408,7 +4418,7 @@ function refresh_html_nodes_theme(gobj, theme)
                 style: {
                     innerHTML: build_chip_innerHTML(
                         nd.data.desc.color, theme, record.icon,
-                        record.id
+                        node_label(nd.data.desc, record), record.id
                     )
                 }
             });
@@ -4418,7 +4428,8 @@ function refresh_html_nodes_theme(gobj, theme)
                 style: {
                     innerHTML: build_node_innerHTML(
                         nd.data.desc.color, theme, record.icon,
-                        record.id, nd.data.desc.topic_name, true
+                        node_label(nd.data.desc, record),
+                        nd.data.desc.topic_name, true, record.id
                     )
                 }
             });
@@ -4464,8 +4475,9 @@ function refresh_default_edges_theme(gobj, theme)
  *  but lighter (1px border, no shadow, single line). The name is
  *  always legible (ellipsis + native title tooltip on overflow).
  ************************************************************/
-function build_chip_innerHTML(color, theme, icon, id)
+function build_chip_innerHTML(color, theme, icon, label, key)
 {
+    let title = key || label;
     let dark = (theme === "dark");
     let surface = dark ? "#1b2230" : "#ffffff";
     let bg = dark
@@ -4485,7 +4497,7 @@ function build_chip_innerHTML(color, theme, icon, id)
     }
 
     return `
-<div title="${escapeHtml(id)}" style="
+<div title="${escapeHtml(title)}" style="
     box-sizing: border-box;
     width: 100%;
     height: 100%;
@@ -4502,7 +4514,7 @@ function build_chip_innerHTML(color, theme, icon, id)
 ">${icon_html}<span style="
         font-size: 12px; font-weight: 600; line-height: 1;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    ">${escapeHtml(id)}</span>
+    ">${escapeHtml(label)}</span>
 </div>
 `;
 }
@@ -4517,8 +4529,9 @@ function build_chip_innerHTML(color, theme, icon, id)
  *  colour is kept (per-topic differentiation) but softened via
  *  color-mix instead of a harsh saturated fill. Theme-aware.
  ************************************************************/
-function build_node_innerHTML(color, theme, icon, id, topic_name, structural)
+function build_node_innerHTML(color, theme, icon, label, topic_name, structural, key)
 {
+    let title = key || label;
     let dark = (theme === "dark");
     let surface = dark ? "#1b2230" : "#ffffff";
     let bg, border, border_style;
@@ -4568,7 +4581,7 @@ function build_node_innerHTML(color, theme, icon, id, topic_name, structural)
     }
 
     return `
-<div title="${escapeHtml(id)}" style="
+<div title="${escapeHtml(title)}" style="
     box-sizing: border-box;
     width: 100%;
     height: 100%;
@@ -4591,7 +4604,7 @@ function build_node_innerHTML(color, theme, icon, id, topic_name, structural)
         max-width: 100%; overflow: hidden; text-overflow: ellipsis;
         display: -webkit-box; -webkit-line-clamp: 2;
         -webkit-box-orient: vertical; word-break: break-word;
-    ">${escapeHtml(id)}</div>${sub_html}
+    ">${escapeHtml(label)}</div>${sub_html}
 </div>
 `;
 }
@@ -4945,8 +4958,9 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
         if(nd.data.desc.node_treedb_type === 'hierarchical') {
             let record = nd.data.record || {};
             updateStyle.innerHTML = build_node_innerHTML(
-                fill, priv.theme, record.icon, record.id,
-                nd.data.desc.topic_name
+                fill, priv.theme, record.icon,
+                node_label(nd.data.desc, record),
+                nd.data.desc.topic_name, false, record.id
             );
         }
         updates.push({ id: nodes[i].id, style: updateStyle });
