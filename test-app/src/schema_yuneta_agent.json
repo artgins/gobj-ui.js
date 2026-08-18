@@ -1,0 +1,763 @@
+{
+    "realms": {
+        "topic_name": "realms",
+        "pkey": "id",
+        "tkey": "",
+        "system_flag": "sf_string_key",
+        "topic_version": "7",
+        "cols": [
+            {
+                "header": "id",
+                "fillspace": 30,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "id"
+            },
+            {
+                "header": "Realms",
+                "fillspace": 10,
+                "type": "dict",
+                "flag": [
+                    "hook"
+                ],
+                "hook": {
+                    "realms": "parent_realm_id"
+                },
+                "id": "realms"
+            },
+            {
+                "header": "Realm Parent",
+                "fillspace": 10,
+                "type": "string",
+                "flag": [
+                    "fkey"
+                ],
+                "fkey": {
+                    "realms": "realms"
+                },
+                "id": "parent_realm_id"
+            },
+            {
+                "header": "realm_owner",
+                "fillspace": 15,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "realm_owner"
+            },
+            {
+                "header": "realm_role",
+                "fillspace": 15,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "realm_role"
+            },
+            {
+                "header": "realm_name",
+                "fillspace": 15,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "realm_name"
+            },
+            {
+                "header": "realm_env",
+                "fillspace": 9,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "realm_env"
+            },
+            {
+                "header": "realm_disabled",
+                "fillspace": 8,
+                "type": "boolean",
+                "flag": [
+                    "inherit",
+                    "persistent"
+                ],
+                "id": "realm_disabled"
+            },
+            {
+                "header": "range_ports",
+                "fillspace": 0,
+                "type": "blob",
+                "flag": [],
+                "id": "range_ports"
+            },
+            {
+                "header": "bind_ip",
+                "fillspace": 15,
+                "type": "string",
+                "default": "127.0.0.1",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "bind_ip"
+            },
+            {
+                "header": "last_port",
+                "fillspace": 0,
+                "type": "integer",
+                "flag": [],
+                "id": "last_port"
+            },
+            {
+                "header": "yunos",
+                "fillspace": 22,
+                "type": "object",
+                "flag": [
+                    "hook"
+                ],
+                "hook": {
+                    "yunos": "realm_id"
+                },
+                "id": "yunos"
+            },
+            {
+                "header": "Geometry",
+                "type": "blob",
+                "fillspace": 10,
+                "flag": [
+                    "persistent"
+                ],
+                "id": "_geometry"
+            }
+        ]
+    },
+    "yunos": {
+        "topic_name": "yunos",
+        "pkey": "id",
+        "tkey": "",
+        "system_flag": "sf_string_key",
+        "topic_version": "20",
+        "cols": [
+            {
+                "header": "id",
+                "fillspace": 10,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required",
+                    "rowid"
+                ],
+                "id": "id"
+            },
+            {
+                "header": "realm_id",
+                "fillspace": 30,
+                "type": "string",
+                "flag": [
+                    "fkey"
+                ],
+                "fkey": {
+                    "realms": "yunos"
+                },
+                "id": "realm_id"
+            },
+            {
+                "header": "yuno_role",
+                "fillspace": 16,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "yuno_role"
+            },
+            {
+                "header": "yuno_name",
+                "fillspace": 22,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "yuno_name"
+            },
+            {
+                "header": "yuno_release",
+                "fillspace": 12,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "yuno_release"
+            },
+            {
+                "header": "yuno_tag",
+                "fillspace": 12,
+                "type": "string",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "yuno_tag"
+            },
+            {
+                "header": "running",
+                "fillspace": 5,
+                "type": "boolean",
+                "flag": [],
+                "id": "yuno_running"
+            },
+            {
+                "header": "playing",
+                "fillspace": 5,
+                "type": "boolean",
+                "flag": [],
+                "id": "yuno_playing"
+            },
+            {
+                "header": "pid",
+                "fillspace": 7,
+                "type": "integer",
+                "flag": [],
+                "id": "yuno_pid"
+            },
+            {
+                "header": "w_pid",
+                "fillspace": 7,
+                "type": "integer",
+                "flag": [],
+                "id": "watcher_pid"
+            },
+            {
+                "header": "disabled",
+                "fillspace": 6,
+                "type": "boolean",
+                "flag": [
+                    "inherit",
+                    "persistent"
+                ],
+                "id": "yuno_disabled"
+            },
+            {
+                "header": "must_play",
+                "fillspace": 8,
+                "type": "boolean",
+                "flag": [
+                    "inherit",
+                    "persistent"
+                ],
+                "id": "must_play"
+            },
+            {
+                "header": "start_pri",
+                "fillspace": 6,
+                "type": "integer",
+                "default": 5,
+                "flag": [
+                    "persistent"
+                ],
+                "id": "start_priority"
+            },
+            {
+                "header": "sched_pri",
+                "fillspace": 6,
+                "type": "integer",
+                "default": 20,
+                "flag": [
+                    "persistent"
+                ],
+                "id": "sched_priority"
+            },
+            {
+                "header": "cpu_core",
+                "fillspace": 6,
+                "type": "integer",
+                "default": 0,
+                "flag": [
+                    "persistent"
+                ],
+                "id": "cpu_core"
+            },
+            {
+                "header": "role_version",
+                "fillspace": 16,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "role_version"
+            },
+            {
+                "header": "name_version",
+                "fillspace": 16,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "name_version"
+            },
+            {
+                "header": "traced",
+                "fillspace": 6,
+                "type": "boolean",
+                "flag": [
+                    "inherit",
+                    "persistent"
+                ],
+                "id": "traced"
+            },
+            {
+                "header": "yuno_multiple",
+                "fillspace": 6,
+                "type": "boolean",
+                "flag": [
+                    "inherit",
+                    "persistent"
+                ],
+                "id": "yuno_multiple"
+            },
+            {
+                "header": "global",
+                "fillspace": 6,
+                "type": "boolean",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "global"
+            },
+            {
+                "header": "date",
+                "fillspace": 22,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "date"
+            },
+            {
+                "header": "yuno_startdate",
+                "fillspace": 10,
+                "type": "string",
+                "flag": [],
+                "id": "yuno_startdate"
+            },
+            {
+                "header": "_channel_gobj",
+                "fillspace": 6,
+                "type": "integer",
+                "flag": [],
+                "id": "_channel_gobj"
+            },
+            {
+                "header": "_requester",
+                "fillspace": 10,
+                "type": "string",
+                "flag": [],
+                "id": "_requester"
+            },
+            {
+                "header": "_requester_md_iev",
+                "fillspace": 10,
+                "type": "blob",
+                "flag": [],
+                "id": "_requester_md_iev"
+            },
+            {
+                "header": "launch_id",
+                "fillspace": 10,
+                "type": "integer",
+                "flag": [],
+                "id": "launch_id"
+            },
+            {
+                "header": "configurations",
+                "fillspace": 15,
+                "type": "object",
+                "flag": [
+                    "hook"
+                ],
+                "hook": {
+                    "configurations": "yunos"
+                },
+                "id": "configurations"
+            },
+            {
+                "header": "binary",
+                "fillspace": 8,
+                "type": "object",
+                "flag": [
+                    "hook"
+                ],
+                "hook": {
+                    "binaries": "yunos"
+                },
+                "id": "binary"
+            },
+            {
+                "header": "Geometry",
+                "type": "blob",
+                "fillspace": 10,
+                "flag": [
+                    "persistent"
+                ],
+                "id": "_geometry"
+            }
+        ]
+    },
+    "binaries": {
+        "topic_name": "binaries",
+        "pkey": "id",
+        "tkey": "",
+        "system_flag": "sf_string_key",
+        "topic_version": "3",
+        "cols": [
+            {
+                "header": "id",
+                "fillspace": 18,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "id"
+            },
+            {
+                "header": "version",
+                "fillspace": 14,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "version"
+            },
+            {
+                "header": "size",
+                "fillspace": 10,
+                "type": "integer",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "size"
+            },
+            {
+                "header": "date",
+                "fillspace": 22,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "date"
+            },
+            {
+                "header": "description",
+                "fillspace": 22,
+                "type": "string",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "description"
+            },
+            {
+                "header": "tags",
+                "fillspace": 22,
+                "type": "blob",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "tags"
+            },
+            {
+                "header": "required_services",
+                "fillspace": 22,
+                "type": "blob",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "required_services"
+            },
+            {
+                "header": "public_services",
+                "fillspace": 22,
+                "type": "blob",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "public_services"
+            },
+            {
+                "header": "service_descriptor",
+                "fillspace": 22,
+                "type": "blob",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "service_descriptor"
+            },
+            {
+                "header": "binary",
+                "fillspace": 22,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "binary"
+            },
+            {
+                "header": "yunos",
+                "fillspace": 22,
+                "type": "array",
+                "flag": [
+                    "fkey"
+                ],
+                "fkey": {
+                    "yunos": "binary"
+                },
+                "id": "yunos"
+            },
+            {
+                "header": "Geometry",
+                "type": "blob",
+                "fillspace": 10,
+                "flag": [
+                    "persistent"
+                ],
+                "id": "_geometry"
+            }
+        ]
+    },
+    "configurations": {
+        "topic_name": "configurations",
+        "pkey": "id",
+        "tkey": "",
+        "system_flag": "sf_string_key",
+        "topic_version": "3",
+        "cols": [
+            {
+                "header": "id",
+                "fillspace": 30,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required",
+                    "rowid"
+                ],
+                "id": "id"
+            },
+            {
+                "header": "version",
+                "fillspace": 14,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "version"
+            },
+            {
+                "header": "date",
+                "fillspace": 22,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "date"
+            },
+            {
+                "header": "description",
+                "fillspace": 30,
+                "type": "string",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "description"
+            },
+            {
+                "header": "yunos",
+                "fillspace": 22,
+                "type": "array",
+                "flag": [
+                    "fkey"
+                ],
+                "fkey": {
+                    "yunos": "configurations"
+                },
+                "id": "yunos"
+            },
+            {
+                "header": "zcontent",
+                "fillspace": 35,
+                "type": "blob",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "zcontent"
+            },
+            {
+                "header": "Geometry",
+                "type": "blob",
+                "fillspace": 10,
+                "flag": [
+                    "persistent"
+                ],
+                "id": "_geometry"
+            }
+        ]
+    },
+    "public_services": {
+        "topic_name": "public_services",
+        "pkey": "id",
+        "tkey": "",
+        "system_flag": "sf_string_key",
+        "topic_version": "3",
+        "cols": [
+            {
+                "header": "id",
+                "fillspace": 10,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required",
+                    "rowid"
+                ],
+                "id": "id"
+            },
+            {
+                "header": "service",
+                "fillspace": 18,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "service"
+            },
+            {
+                "header": "realm_id",
+                "fillspace": 30,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "realm_id"
+            },
+            {
+                "header": "description",
+                "fillspace": 18,
+                "type": "string",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "description"
+            },
+            {
+                "header": "yuno_role",
+                "fillspace": 18,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "yuno_role"
+            },
+            {
+                "header": "yuno_name",
+                "fillspace": 18,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "yuno_name"
+            },
+            {
+                "header": "yuno_id",
+                "fillspace": 8,
+                "type": "string",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "yuno_id"
+            },
+            {
+                "header": "ip",
+                "fillspace": 16,
+                "type": "string",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "ip"
+            },
+            {
+                "header": "port",
+                "fillspace": 5,
+                "type": "integer",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "port"
+            },
+            {
+                "header": "schema",
+                "fillspace": 6,
+                "type": "string",
+                "flag": [
+                    "persistent",
+                    "required"
+                ],
+                "id": "schema"
+            },
+            {
+                "header": "url",
+                "fillspace": 22,
+                "type": "string",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "url"
+            },
+            {
+                "header": "version",
+                "fillspace": 14,
+                "type": "string",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "version"
+            },
+            {
+                "header": "connector",
+                "fillspace": 12,
+                "type": "blob",
+                "flag": [
+                    "persistent"
+                ],
+                "id": "connector"
+            },
+            {
+                "header": "Geometry",
+                "type": "blob",
+                "fillspace": 10,
+                "flag": [
+                    "persistent"
+                ],
+                "id": "_geometry"
+            }
+        ]
+    }
+}

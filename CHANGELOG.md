@@ -5,6 +5,46 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 5.17.0
+
+- **feat: the schema landing draws the schema, not dots.** `C_YUI_TREEDB_SCHEMA`
+  drew one 40px circle per topic with its name underneath — which answered
+  neither of the two questions a schema is opened for: what a topic holds, and
+  what links to what. It now draws what the `.c` literals draw in ASCII
+  (`treedb_schema_*.c`, `treedb_system_schema.c`): one CARD per topic listing
+  its fields in schema order, and one edge per hook, leaving the row that
+  declares the hook and landing on the fkey row of the child it names.
+
+  The marks are the notation of those literals, so the drawing and the source
+  read the same: `{}` dict hook, `[]` list hook, `()` single child, `(↖)` /
+  `[↖]` / `{↖}` fkeys, `*` required, `#` the pkey. `dict` and `object` are one
+  shape and `list` and `array` are another, exactly as tr_treedb's hook/fkey
+  switches treat them.
+
+  The edge endpoints are read from the declarations, not guessed:
+  `'hook': {'yunos': 'realm_id'}` names both ends, and the backend fills the
+  reciprocal `fkey` mapping at treedb_open, so a schema whose parent declares no
+  hook still draws its edge. A self-referent hook (a tree) draws as a loop
+  instead of being dropped.
+
+  Nothing is asked of the backend: it is still built from `descs` alone, no data
+  and no round trip. A theme switch repaints the cards in place — they are HTML,
+  so their colours live in their markup — keeping the user's zoom, pan and any
+  dragged node.
+
+  Why it matters: the node graph next door (`C_G6_NODES_TREE`) draws RECORDS, so
+  on `treedb_system_schema` — whose records ARE schemas — it draws one box per
+  column, hundreds of them, each labelled by a pkey that is a rowid. That is a
+  correct picture of the storage and an unreadable picture of the schema. This
+  view answers the schema question; that one answers the data question.
+
+- **test-app: a third entry point, `schema.html`**, mounting
+  `C_YUI_TREEDB_SCHEMA` alone against the real yuneta agent schema
+  (`src/schema_yuneta_agent.json`, extracted from
+  `treedb_schema_yuneta_agent.c` with the fkey mappings the backend derives).
+  It exists so the rendered graph can be held against the reference ASCII
+  drawing in that `.c` — offline, no backend, both themes.
+
 ## 5.16.0
 
 - **feat: `readonly` on the treedb GRAPH.** `C_YUI_TREEDB_GRAPH` takes the same

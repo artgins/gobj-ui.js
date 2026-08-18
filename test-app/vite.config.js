@@ -166,13 +166,17 @@ export default defineConfig({
      *      index.html — the shell owns the menu (submenu.index & co).
      *      tree.html  — the root IS a node (config.shell.tree); the
      *                   shell contributes only the space.
+     *      schema.html — C_YUI_TREEDB_SCHEMA alone, against the real
+     *                   yuneta_agent schema, to hold the drawing
+     *                   against the ASCII one in its `.c` literal.
      *  Kept side by side on purpose: while the model settles, the two
      *  must be comparable in the same browser. */
     build: {
         rollupOptions: {
             input: {
                 main: path.resolve(__dirname, "index.html"),
-                tree: path.resolve(__dirname, "tree.html")
+                tree: path.resolve(__dirname, "tree.html"),
+                schema: path.resolve(__dirname, "schema.html")
             }
         }
     },

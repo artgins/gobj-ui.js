@@ -1,11 +1,26 @@
 /***********************************************************************
  *          c_yui_treedb_schema.js
  *
- *      Schema-graph landing (prototype): the treedb drawn as a GRAPH OF
- *      TOPICS — one node per topic, one edge per hook/fkey relationship
- *      — from the schema `descs` alone (no data, no backend calls). A
- *      node click opens that topic's table (a real hash navigation via
- *      the host-supplied `node_route`). An alternate landing to the
+ *      Schema-graph landing: the treedb drawn the way its `.c` literal
+ *      draws it in ASCII (treedb_schema_*.c, treedb_system_schema.c) —
+ *      one CARD per topic listing its fields in schema order, one edge
+ *      per hook, from the row that declares the hook to the fkey row of
+ *      the child it names. Built from the schema `descs` alone: no data,
+ *      no backend calls.
+ *
+ *      WHY THE CARD AND NOT A DOT. A topic is its fields; a schema is
+ *      read to find out what a topic holds and what links to what. A
+ *      graph of labelled dots answers neither, and the node graph next
+ *      door (C_G6_NODES_TREE) answers a different question entirely —
+ *      it draws the RECORDS, so on a treedb whose records are schemas
+ *      it draws one box per column, hundreds of them, each labelled by
+ *      a pkey that may be a rowid. This view draws the schema itself.
+ *
+ *      The marks are the notation of the `.c` literals, so the drawing
+ *      and the source read the same — see schema_rows().
+ *
+ *      A node click opens that topic's table (a real hash navigation
+ *      via the host-supplied `node_route`). An alternate landing to the
  *      topic cards, in the spirit of "every treedb is a graph".
  *
  *          Copyright (c) 2026, ArtGins.
@@ -29,9 +44,12 @@ import {
     gobj_read_bool_attr,
     gobj_read_str_attr,
     is_object,
+    escapeHtml,
 } from "@yuneta/gobj-js";
 
 import {Graph, NodeEvent} from "@antv/g6";
+
+import {getStrokeColor} from "./lib_graph.js";
 
 import {yui_is_dark, yui_watch_theme} from "./yui_theme.js";
 
@@ -41,6 +59,31 @@ import {t} from "i18next";
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_TREEDB_SCHEMA";
+
+/************************************************************
+ *   Geometry of a card, in one place: the row height is what
+ *   turns a field's index into the vertical position of its
+ *   port, so an edge leaves the very row that declares the
+ *   hook and lands on the row that declares the fkey.
+ ************************************************************/
+const CARD_HEADER_H = 30;
+const CARD_ROW_H    = 19;
+const CARD_PAD_V    = 7;
+const CARD_MIN_W    = 210;
+const CARD_MAX_W    = 340;
+
+/*  Same palette as the node graph (C_G6_NODES_TREE), so a topic
+ *  keeps its colour when the operator moves between the two.  */
+const topic_colors = [
+    'rgb(237, 201, 73)',
+    'rgb(118, 183, 178)',
+    'rgb(255, 157, 167)',
+    'rgb(175, 122, 161)',
+    'rgb(89, 161, 79)',
+    'rgb(186, 176, 171)',
+    'rgb(66, 146, 198)',
+];
+const SYSTEM_TOPIC_COLOR = 'rgb(148, 163, 184)';
 
 /***************************************************************
  *              Data
@@ -139,60 +182,317 @@ function build_ui(gobj)
 }
 
 /************************************************************
+ *   The shape of a hook/fkey field, from the type it declares.
+ *   `dict` and `object` are the SAME thing to treedb (both build
+ *   a json object keyed by child id), and so are `list` and
+ *   `array` — see the hook/fkey switches in tr_treedb.c. A
+ *   `string` holds one reference, so it draws as one.
+ ************************************************************/
+function hook_mark(type)
+{
+    if(type === "dict" || type === "object") {
+        return "{}";
+    }
+    if(type === "list" || type === "array") {
+        return "[]";
+    }
+    return "()";
+}
+
+/************************************************************
+ *   The fields of one topic, as the schema declares them.
+ *
+ *   The marks are the notation of the schema `.c` literals
+ *   (treedb_schema_*.c, treedb_system_schema.c), so the
+ *   drawing and the source read the same:
+ *      {}   dict hook   (N unique children)
+ *      []   list hook   (n not-unique children)
+ *      ()   1 child
+ *      (↖)  1 fkey      (1 parent)
+ *      [↖]  n fkeys     (n parents)
+ *      {↖}  N fkeys     (N parents)
+ *      *    required
+ *      #    the primary key
+ *
+ *   A column can be BOTH hook and fkey, so the flags are read
+ *   here rather than through treedb_get_field_desc's single
+ *   `type`, which keeps only the last flag it saw.
+ ************************************************************/
+function schema_rows(desc)
+{
+    let rows = [];
+    if(!is_object(desc) || !Array.isArray(desc.cols)) {
+        return rows;
+    }
+    for(let col of desc.cols) {
+        if(!is_object(col) || !col.id) {
+            continue;
+        }
+        let flags = Array.isArray(col.flag)? col.flag : [];
+        let is_hook = flags.indexOf("hook") >= 0;
+        let is_fkey = flags.indexOf("fkey") >= 0;
+        let mark = "";
+        if(is_hook) {
+            mark = hook_mark(col.type);
+        }
+        if(is_fkey) {
+            let fmark = hook_mark(col.type).replace("}", "↖}")
+                                           .replace("]", "↖]")
+                                           .replace(")", "↖)");
+            mark = mark? (mark + " " + fmark) : fmark;
+        }
+        rows.push({
+            name:     col.id,
+            type:     col.type || "",
+            mark:     mark,
+            is_hook:  is_hook,
+            is_fkey:  is_fkey,
+            is_pkey:  (col.id === desc.pkey),
+            required: (flags.indexOf("required") >= 0 || flags.indexOf("notnull") >= 0),
+        });
+    }
+    return rows;
+}
+
+/************************************************************
+ *   Size of the card that holds those rows. The width follows
+ *   the longest line so a long field name is not clipped into
+ *   an ellipsis — the point of the drawing is to read them.
+ ************************************************************/
+function card_size(rows)
+{
+    let longest = 0;
+    for(let row of rows) {
+        let len = row.name.length + (row.mark? row.mark.length + 2 : 0) + 2;
+        if(len > longest) {
+            longest = len;
+        }
+    }
+    let w = Math.round(26 + longest * 6.6);
+    if(w < CARD_MIN_W) {
+        w = CARD_MIN_W;
+    }
+    if(w > CARD_MAX_W) {
+        w = CARD_MAX_W;
+    }
+    let h = CARD_HEADER_H + CARD_PAD_V * 2 + rows.length * CARD_ROW_H;
+    return [w, h];
+}
+
+/************************************************************
+ *   Vertical placement of a field's port, as a fraction of the
+ *   card height: the centre of its own row.
+ ************************************************************/
+function row_placement(index, height)
+{
+    let y = CARD_HEADER_H + CARD_PAD_V + index * CARD_ROW_H + CARD_ROW_H / 2;
+    return y / height;
+}
+
+/************************************************************
+ *   The card itself. Header = topic name on its topic colour;
+ *   body = one line per field, in schema order.
+ ************************************************************/
+function build_card_innerHTML(topic, rows, color, dark)
+{
+    let surface     = dark? "#1b2230" : "#ffffff";
+    let bg          = dark
+        ? `color-mix(in srgb, ${color} 18%, #232b38)`
+        : `color-mix(in srgb, ${color} 6%, ${surface})`;
+    let border      = dark
+        ? `color-mix(in srgb, ${color} 85%, #ffffff)`
+        : color;
+    let header_bg   = dark
+        ? `color-mix(in srgb, ${color} 45%, #2c3542)`
+        : `color-mix(in srgb, ${color} 28%, ${surface})`;
+    let title_color = dark? "#e8eaed" : "#0f172a";
+    let text_color  = dark? "#d3d8de" : "#334155";
+    let mute_color  = dark? "#98a2b0" : "#7c8694";
+    let rule_color  = dark
+        ? "rgba(255,255,255,0.06)"
+        : "rgba(15,23,42,0.05)";
+    let shadow      = dark
+        ? "0 1px 3px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.30)"
+        : "0 1px 3px rgba(15,23,42,0.12), 0 1px 2px rgba(15,23,42,0.06)";
+
+    let rows_html = "";
+    for(let row of rows) {
+        let lead = row.is_pkey? "#" : (row.required? "*" : "");
+        let name_weight = (row.is_pkey || row.required)? "600" : "400";
+        let name_color = (row.is_hook || row.is_fkey)? title_color : text_color;
+        rows_html +=
+`    <div class="TREEDB_SCHEMA_FIELD" style="
+        display: flex; align-items: center; gap: 6px;
+        height: ${CARD_ROW_H}px; line-height: ${CARD_ROW_H}px;
+        padding: 0 10px; border-top: 1px solid ${rule_color};
+    ">
+        <span style="
+            width: 8px; flex: 0 0 8px; text-align: center;
+            color: ${mute_color}; font-size: 11px;
+        ">${lead}</span>
+        <span style="
+            flex: 1 1 auto; min-width: 0; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+            font-size: 12px; font-weight: ${name_weight}; color: ${name_color};
+        ">${escapeHtml(row.name)}</span>
+        <span style="
+            flex: 0 0 auto; font-size: 11px; color: ${mute_color};
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        ">${escapeHtml(row.mark)}</span>
+    </div>
+`;
+    }
+
+    return `
+<div class="TREEDB_SCHEMA_CARD" title="${escapeHtml(topic)}" style="
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    background: ${bg};
+    border: 1.5px solid ${border};
+    border-radius: 8px;
+    box-shadow: ${shadow};
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    cursor: pointer;
+">
+    <div class="TREEDB_SCHEMA_CARD_HEADER" style="
+        height: ${CARD_HEADER_H}px; line-height: ${CARD_HEADER_H}px;
+        flex: 0 0 ${CARD_HEADER_H}px;
+        padding: 0 10px; background: ${header_bg}; color: ${title_color};
+        font-size: 13px; font-weight: 700;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    ">${escapeHtml(topic)}</div>
+    <div class="TREEDB_SCHEMA_CARD_BODY" style="
+        flex: 1 1 auto; padding: ${CARD_PAD_V}px 0; overflow: hidden;
+    ">
+${rows_html}    </div>
+</div>
+`;
+}
+
+/************************************************************
  *   Derive {nodes, edges} from the schema.
- *   Node  = a topic.  Edge  = a hook (parent -> child) or an
- *   fkey (child -> parent, reversed to parent -> child), deduped.
+ *
+ *   Node = a topic, drawn as the card the `.c` literal draws in
+ *   ASCII: its name and its fields. Edge = a hook, from the row
+ *   that declares it to the fkey row of the child it names —
+ *   `'hook': {'users': 'departments'}` says both ends, so the
+ *   arrow can land where the `.c` drawing lands it. An fkey
+ *   whose parent declares no hook still gets its edge, or a
+ *   half-declared schema would draw as disconnected.
+ *
  *   Left-to-right dagre follows the parent -> child data flow.
  ************************************************************/
 function schema_to_graph(gobj)
 {
     let descs = gobj_read_attr(gobj, "descs");
     let system = gobj_read_bool_attr(gobj, "system");
+    let dark = yui_is_dark();
     let nodes = [];
-    let topic_set = {};
+    let cards = {};     /*  topic -> {rows, size, color}  */
 
     if(!is_object(descs)) {
         return {nodes: nodes, edges: []};
     }
 
+    let idx = 0;
     for(let topic of Object.keys(descs)) {
-        if(!system && topic.substring(0, 2) === "__") {
+        let is_system = (topic.substring(0, 2) === "__");
+        if(!system && is_system) {
             continue;
         }
-        topic_set[topic] = true;
-        nodes.push({id: topic, data: {topic_name: topic}});
+        let rows = schema_rows(descs[topic]);
+        let color;
+        if(is_system) {
+            color = SYSTEM_TOPIC_COLOR;
+        } else {
+            color = topic_colors[idx % topic_colors.length];
+            idx++;
+        }
+        cards[topic] = {rows: rows, size: card_size(rows), color: color};
+    }
+
+    /*
+     *  Ports: a hook leaves on the right, an fkey arrives on the
+     *  left, each at the height of its own row.
+     */
+    for(let topic of Object.keys(cards)) {
+        let card = cards[topic];
+        let [w, h] = card.size;
+        let ports = [];
+        for(let i = 0; i < card.rows.length; i++) {
+            let row = card.rows[i];
+            if(!row.is_hook && !row.is_fkey) {
+                continue;
+            }
+            ports.push({
+                key:       row.name,
+                placement: [row.is_hook? 1 : 0, row_placement(i, h)],
+                fill:      card.color,
+                stroke:    getStrokeColor(card.color),
+            });
+        }
+        nodes.push({
+            id:   topic,
+            type: "html",
+            style: {
+                size:      [w, h],
+                dx:        -w / 2,
+                dy:        -h / 2,
+                innerHTML: build_card_innerHTML(topic, card.rows, card.color, dark),
+                port:      ports.length > 0,
+                ports:     ports,
+                portR:     3,
+                portLineWidth: 1,
+            },
+            /*  What a theme switch needs to repaint this card without
+             *  rebuilding the graph (which would drop zoom/pan).  */
+            data: {topic_name: topic, rows: card.rows, color: card.color},
+        });
     }
 
     let edge_seen = {};
     let edges = [];
-    let add_edge = (source, target) => {
-        if(!topic_set[source] || !topic_set[target] || source === target) {
+    let add_edge = (source, source_port, target, target_port) => {
+        if(!cards[source] || !cards[target]) {
             return;
         }
-        let key = source + "" + target;
+        let key = `${source}|${source_port}|${target}|${target_port}`;
         if(edge_seen[key]) {
             return;
         }
         edge_seen[key] = true;
-        edges.push({id: key, source: source, target: target});
+        edges.push({
+            id:     key,
+            type:   "cubic",
+            source: source,
+            target: target,
+            style:  {sourcePort: source_port, targetPort: target_port},
+        });
     };
 
-    for(let topic of Object.keys(descs)) {
+    for(let topic of Object.keys(cards)) {
         let desc = descs[topic];
         if(!is_object(desc) || !Array.isArray(desc.cols)) {
             continue;
         }
         for(let col of desc.cols) {
-            if(!col) {
+            if(!is_object(col) || !col.id) {
                 continue;
             }
             if(is_object(col.hook)) {
+                /*  {child_topic: fkey_field_of_the_child}  */
                 for(let child of Object.keys(col.hook)) {
-                    add_edge(topic, child);          /*  parent -> child  */
+                    add_edge(topic, col.id, child, col.hook[child]);
                 }
-            } else if(is_object(col.fkey)) {
+            }
+            if(is_object(col.fkey)) {
+                /*  {parent_topic: hook_field_of_the_parent}  */
                 for(let parent of Object.keys(col.fkey)) {
-                    add_edge(parent, topic);         /*  parent -> child  */
+                    add_edge(parent, col.fkey[parent], topic, col.id);
                 }
             }
         }
@@ -202,29 +502,16 @@ function schema_to_graph(gobj)
 }
 
 /************************************************************
- *   The theme-dependent styles, in ONE place: they are applied
- *   as the graph is built and re-applied on a theme switch
+ *   The theme-dependent edge style, in ONE place: applied as
+ *   the graph is built and re-applied on a theme switch
  *   (ac_theme), which restyles the LIVE graph — rebuilding it
  *   would drop the user's zoom/pan and any dragged node.
  ************************************************************/
-function node_style(dark)
-{
-    return {
-        size:           40,
-        fill:           "#5B8FF9",
-        labelText:      (d) => d.id,
-        labelPlacement: "bottom",
-        labelFill:      dark ? "#e6e6e6" : "#333333",
-        labelBackground: true,
-        labelBackgroundFill: dark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.7)",
-        cursor:         "pointer",
-    };
-}
-
 function edge_style(dark)
 {
     return {
-        stroke:   dark ? "#666666" : "#bbbbbb",
+        stroke:   dark ? "#7a8593" : "#9aa4b2",
+        lineWidth: 1.2,
         endArrow: true,
     };
 }
@@ -258,17 +545,14 @@ function build_graph(gobj)
             container:  $container,
             autoResize: true,
             data:       data,
-            node: {
-                style: node_style(dark),
-            },
             edge: {
                 style: edge_style(dark),
             },
             layout: {
                 type:    "antv-dagre",
                 rankdir: "LR",
-                nodesep: 24,
-                ranksep: 60,
+                nodesep: 28,
+                ranksep: 90,
             },
             behaviors: ["zoom-canvas", "drag-canvas", "drag-element"],
         });
@@ -386,8 +670,29 @@ function ac_theme(gobj, event, kw, src)
     let dark = (kw && kw.theme) ? (kw.theme === "dark") : yui_is_dark();
     try {
         graph.setTheme(dark ? "dark" : "light");
-        graph.setNode({style: node_style(dark)});
         graph.setEdge({style: edge_style(dark)});
+
+        /*  A card is HTML, so its colours live in its markup: repaint
+         *  each one from the rows kept in its node data.  */
+        let updates = [];
+        for(let node of graph.getNodeData()) {
+            let data = node.data;
+            if(!is_object(data) || !Array.isArray(data.rows)) {
+                continue;
+            }
+            updates.push({
+                id: node.id,
+                style: {
+                    innerHTML: build_card_innerHTML(
+                        data.topic_name, data.rows, data.color, dark
+                    )
+                }
+            });
+        }
+        if(updates.length > 0) {
+            graph.updateNodeData(updates);
+        }
+
         graph.draw().catch((e) => {
             log_error(`${gobj_short_name(gobj)}: schema graph redraw failed: ${e}`);
         });

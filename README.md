@@ -469,14 +469,44 @@ Two implementation notes worth keeping:
   still arrive from a keyboard path or a form that outlived the flag, and an
   ignored write is exactly the behaviour this whole change exists to stop.
 
-### C_YUI_TREEDB_SCHEMA — the treedb as a graph of topics (prototype)
+### C_YUI_TREEDB_SCHEMA — the treedb drawn the way its `.c` draws it
 
-A landing view that draws a treedb as a **graph of topics** — one node per
-topic, one edge per hook/fkey relationship — built from the schema `descs`
-**alone**: no data, no backend calls. It is the "every treedb is a graph" rule
-applied to the schema itself, and an alternate landing to the topic cards. A
-node click opens that topic's table through a real hash navigation, so the
-graph is a navigation surface rather than a picture.
+A landing view that draws a treedb the way its schema literal draws it in ASCII
+(`treedb_schema_*.c`, `treedb_system_schema.c`): **one card per topic**,
+listing its fields in schema order, and **one edge per hook**, leaving the row
+that declares the hook and landing on the fkey row of the child it names. Built
+from the schema `descs` **alone**: no data, no backend calls. It is the "every
+treedb is a graph" rule applied to the schema itself, and an alternate landing
+to the topic cards. A node click opens that topic's table through a real hash
+navigation, so the graph is a navigation surface rather than a picture.
+
+The marks are the notation of those `.c` literals, so the drawing and the
+source read the same:
+
+| Mark | Meaning |
+|------|---------|
+| `{}` | dict hook — N unique children |
+| `[]` | list hook — n not-unique children |
+| `()` | a single child |
+| `(↖)` | 1 fkey — 1 parent |
+| `[↖]` | n fkeys — n parents |
+| `{↖}` | N fkeys — N parents |
+| `*` | required |
+| `#` | the primary key |
+
+`dict` and `object` are one shape and `list` and `array` are another, exactly
+as tr_treedb's hook/fkey switches treat them. A self-referent hook (a tree)
+draws as a loop.
+
+**Not to be confused with the node graph** (`C_G6_NODES_TREE`, hosted by
+`C_YUI_TREEDB_GRAPH`), which draws the **records**. On a treedb whose records
+are schemas — `treedb_system_schema` — that one draws a box per column,
+hundreds of them, each labelled by a pkey that is a rowid: a correct picture of
+the storage and an unreadable picture of the schema. This view answers the
+schema question; that one answers the data question.
+
+The demo `test-app/schema.html` mounts it alone against the real yuneta agent
+schema, so the drawing can be held against the ASCII one in its `.c`.
 
 **Contract:**
 
@@ -489,8 +519,9 @@ graph is a navigation surface rather than a picture.
   graph in place, preserving the user's zoom/pan), plus the internal
   `EV_NODE_CLICK` a node click sends into the FSM.
 
-Marked a **prototype**: it is barrel-exported and public from 4.0.0, but its
-shape may still move. Renders with `@antv/g6` (no CSS of its own).
+Barrel-exported and public from 4.0.0. Renders with `@antv/g6`; the cards are
+HTML nodes carrying their own inline colours, so a theme switch repaints them in
+place (no CSS of its own).
 
 ### Frontend view — `setup_frontend_view`
 
