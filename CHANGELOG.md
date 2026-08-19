@@ -5,6 +5,47 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 6.1.1
+
+What running 6.1.0 against a real yuno found. Nothing consumed it in
+between; this is the schema editor as it should have shipped.
+
+- **fix: `autolink` goes with a CREATE and with nothing else.** It
+  rewrites a node's links from the fkey fields the record carries, so on
+  a PARTIAL update — which is every update this editor makes, since it
+  writes only what changed — it finds none and reads that as "no
+  parents". Raising a topic's `topic_version` therefore DETACHED that
+  topic from its treedb: the version moved, the write answered success,
+  and the topic disappeared from the schema. The store had to be
+  repaired by hand with `link-nodes`. The rule now lives in
+  `schema_write_options.js`, pure and tested, next to why a create goes
+  through `update-node` at all (only that path carries `autolink`, and
+  without a link a new column belongs to no topic).
+
+- **fix: an unset `blob` column comes back as `{}`, and that is not a
+  value.** Read as one, a 4-topic schema exported 1229 lines of empty
+  objects — and `'hook': {}` in a literal is a hook the treedb builds
+  and nothing writes. `is_empty_value()` answers it once, for the
+  export, the desc, the import plan and the row that drew an arrow
+  pointing at nothing. The topic record's own `_geometry` is storage
+  too, and does not travel; a column NAMED `_geometry` is a real column
+  and stays.
+
+- **fix: an empty number field is ABSENT, not zero.** A new column left
+  with no `fillspace` stored 0, so the schema default of 10 never
+  applied.
+
+- **feat: a name that is not unique carries its id.** A store can hold
+  two generations of one schema — the projector never deletes, so a
+  treedb re-keyed by a newer SDK keeps its rowid-keyed rows beside the
+  qualified ones, both children of the same treedb with the same name.
+  Drawn as two identical rows that behave differently that reads as a
+  bug; the id is shown, and it is what the url carries, so the row that
+  was clicked is the row that opens.
+
+- **feat: `yi-grip-vertical` and `yi-database`.** Both were referenced
+  and neither existed, which renders as a solid black square.
+
 ## 6.1.0
 
 The schema an operator edits, edited as a schema.

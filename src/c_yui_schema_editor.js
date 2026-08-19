@@ -120,6 +120,7 @@ import {
     col_flags,
     col_hook,
     col_enum,
+    is_empty_value,
     fkey_ref,
     next_order,
     moved_orders,
@@ -129,6 +130,7 @@ import {topic_descs} from "./schema_descs.js";
 import {schema_to_json, schema_to_c} from "./schema_to_c.js";
 import {plan_import, plan_deletes} from "./schema_import.js";
 import {grouped_flags, toggle_flag} from "./schema_flags.js";
+import {write_command, write_options} from "./schema_write_options.js";
 import {COL_TYPES} from "./schema_validate.js";
 
 import {yui_shell_of} from "./c_yui_shell.js";
@@ -488,10 +490,23 @@ function remote_command(gobj, command, kw)
         service:     treedb_name,
         treedb_name: treedb_name
     }, kw || {});
-    full_kw.__md_command__ = Object.assign({
+
+    /*  What has to come BACK with the answer.
+     *
+     *  Its keys repeat the ones the command already carries, on purpose:
+     *  the transport may be a direct C_IEVENT_CLI, which echoes the whole
+     *  request as the command_stack frame, or a routing adapter, which
+     *  echoes `__md_command__` AS that frame (c_agent_treedb_link.js).
+     *  Same names in both places is what makes the answer readable
+     *  whichever one is under this view — and `record_id` is here and
+     *  NOT at the top level because a delete answers with nothing, and a
+     *  parameter the treedb does not know has no business travelling.  */
+    full_kw.__md_command__ = {
         purpose:    PURPOSE,
-        command:    command
-    }, kw && kw.topic_name ? {topic_name: kw.topic_name} : {});
+        topic_name: (kw && kw.topic_name) || "",
+        record_id:  (kw && kw.record_id) || ""
+    };
+    delete full_kw.record_id;
 
     let ret = gobj_command(remote, command, full_kw, gobj);
     if(ret) {
@@ -743,12 +758,12 @@ function render_toolbar(gobj)
     if(priv.treedb_id && has_model) {
         $right.push(toolbar_button("SCHEMA_DIAGRAM_BTN", "yi-hexagon-nodes",
             priv.diagram ? "topics" : "diagram", "EV_TOGGLE_DIAGRAM", false));
-        $right.push(toolbar_button("SCHEMA_VALIDATE_BTN", "yi-circle-check",
+        $right.push(toolbar_button("SCHEMA_VALIDATE_BTN", "yi-square-check",
             "check", "EV_VALIDATE", false));
-        $right.push(toolbar_button("SCHEMA_EXPORT_BTN", "yi-file-export",
+        $right.push(toolbar_button("SCHEMA_EXPORT_BTN", "yi-download",
             "export", "EV_EXPORT", false));
         if(!readonly) {
-            $right.push(toolbar_button("SCHEMA_IMPORT_BTN", "yi-file-import",
+            $right.push(toolbar_button("SCHEMA_IMPORT_BTN", "yi-upload",
                 "import", "EV_IMPORT", false));
         }
     }
@@ -944,17 +959,23 @@ function render_topics(gobj, $body)
     }
 
     let readonly = is_readonly(gobj);
+    let twice = repeated_names(treedb.topics);
     let $rows = [];
     for(let topic of treedb.topics) {
         let pending = priv.written[topic.id] &&
             String(priv.baseline[topic.id]) === String(topic.topic_version);
+        /*  Two topics of one name: the id is what tells them apart, and
+         *  it is what the url has to carry — addressing by name would
+         *  open the first one whichever row was clicked.  */
+        let ambiguous = !!twice[topic.name];
+        let address = ambiguous ? topic.id : topic.name;
 
         let $actions = [];
         if(!readonly) {
             $actions.push(row_icon(gobj, "SCHEMA_TOPIC_EDIT", "yi-pen", "edit topic",
-                "EV_EDIT_TOPIC", {topic: topic.name}));
+                "EV_EDIT_TOPIC", {topic: address}));
             $actions.push(row_icon(gobj, "SCHEMA_TOPIC_DELETE", "yi-trash", "delete topic",
-                "EV_DELETE_TOPIC", {topic: topic.name}));
+                "EV_DELETE_TOPIC", {topic: address}));
         }
 
         $rows.push(["tr", {class: "SCHEMA_TOPIC_ROW", role: "button", tabindex: "0"}, [
@@ -963,6 +984,10 @@ function render_topics(gobj, $body)
                 topic.system_topic
                     ? ["span", {class: "SCHEMA_TOPIC_SYSTEM tag is-light ml-2",
                                 i18n: "system"}, t("system")]
+                    : ["span", {}, ""],
+                ambiguous
+                    ? ["div", {class: "SCHEMA_TOPIC_ID is-size-7 has-text-grey"},
+                        [["code", {}, `${topic.id}`]]]
                     : ["span", {}, ""]
             ]],
             ["td", {class: "SCHEMA_TOPIC_PKEY"}, [["code", {}, `${topic.pkey || "id"}`]]],
@@ -977,14 +1002,14 @@ function render_topics(gobj, $body)
                 if(evt.target.closest(".SCHEMA_TOPIC_ACTIONS")) {
                     return;     /*  a row action, not the row  */
                 }
-                gobj_send_event(gobj, "EV_SELECT_TOPIC", {topic: topic.name}, gobj);
+                gobj_send_event(gobj, "EV_SELECT_TOPIC", {topic: address}, gobj);
             },
             keydown: (evt) => {
                 if(evt.key !== "Enter" && evt.key !== " ") {
                     return;
                 }
                 evt.preventDefault();
-                gobj_send_event(gobj, "EV_SELECT_TOPIC", {topic: topic.name}, gobj);
+                gobj_send_event(gobj, "EV_SELECT_TOPIC", {topic: address}, gobj);
             }
         }]);
     }
@@ -1030,6 +1055,31 @@ function row_icon(gobj, logical, icon, key, event, kw)
 }
 
 /***************************************************************
+ *  Which names appear more than once.
+ *
+ *  A store can hold TWO GENERATIONS of the same schema: the
+ *  projector never deletes, so a treedb re-keyed by a newer SDK
+ *  keeps its old rowid-keyed rows next to the qualified ones, and
+ *  both are children of the same treedb with the same name. Drawn
+ *  as two identical rows that behave differently, that reads as a
+ *  bug in the editor; drawn with what tells them apart, it reads
+ *  as what it is.
+ ***************************************************************/
+function repeated_names(list)
+{
+    let seen = {};
+    let twice = {};
+
+    for(let entry of list) {
+        if(seen[entry.name]) {
+            twice[entry.name] = true;
+        }
+        seen[entry.name] = true;
+    }
+    return twice;
+}
+
+/***************************************************************
  *  ST_COLUMNS — the columns of one topic, in schema order.
  *
  *  The order is a FIELD (`order`), so the rows are draggable and
@@ -1062,9 +1112,10 @@ function render_columns(gobj, $body)
         $wrap.appendChild($banner);
     }
 
+    let twice = repeated_names(topic.cols);
     let $rows = [];
     for(let i = 0; i < topic.cols.length; i++) {
-        $rows.push(column_row(gobj, topic, topic.cols[i], i, readonly));
+        $rows.push(column_row(gobj, topic, topic.cols[i], i, readonly, twice));
     }
 
     let $table = createElement2(
@@ -1133,7 +1184,7 @@ function version_banner(gobj, topic)
                         title: t("raise the version"), "aria-label": t("raise the version"),
                         "data-i18n-title": "raise the version",
                         "data-i18n-aria-label": "raise the version"}, [
-                ["span", {class: "icon"}, [["i", {class: "yi-arrow-up"}]]],
+                ["span", {class: "icon"}, [["i", {class: "yi-chevron-up"}]]],
                 ["span", {i18n: "raise"}, t("raise")]
             ]]
         ]]
@@ -1152,9 +1203,13 @@ function version_banner(gobj, topic)
  *  Yuneta event is plain JSON, so a DOM node never travels in
  *  one.
  ***************************************************************/
-function column_row(gobj, topic, col, index, readonly)
+function column_row(gobj, topic, col, index, readonly, twice)
 {
     let record = col.record || {};
+    /*  Same two generations as the topics above: when a name is not
+     *  unique the id is what addresses the row.  */
+    let ambiguous = !!(twice && twice[col.name]);
+    let address = ambiguous ? col.id : col.name;
     let flags = col_flags(record);
     let hook = col_hook(record);
     let is_pkey = (col.name === (topic.pkey || "id"));
@@ -1163,8 +1218,11 @@ function column_row(gobj, topic, col, index, readonly)
         return ["span", {class: `SCHEMA_COL_FLAG tag is-light ${flag_style(flag)}`}, `${flag}`];
     });
 
+    /*  An unset `blob` column comes back as `{}`, which is an object and
+     *  is not a hook: read as one, every column in the topic draws an
+     *  arrow pointing at nothing.  */
     let link = "";
-    if(hook) {
+    if(hook && !is_empty_value(hook)) {
         link = "→ " + Object.keys(hook).join(", ");
     } else if(flags.indexOf("fkey") >= 0) {
         link = "↖";
@@ -1173,11 +1231,11 @@ function column_row(gobj, topic, col, index, readonly)
     let $actions = [];
     if(!readonly) {
         $actions.push(row_icon(gobj, "SCHEMA_COL_EDIT", "yi-pen", "edit column",
-            "EV_EDIT_COLUMN", {col: col.name}));
+            "EV_EDIT_COLUMN", {col: address}));
         $actions.push(row_icon(gobj, "SCHEMA_COL_DUPLICATE", "yi-copy", "duplicate column",
-            "EV_DUPLICATE_COLUMN", {col: col.name}));
+            "EV_DUPLICATE_COLUMN", {col: address}));
         $actions.push(row_icon(gobj, "SCHEMA_COL_DELETE", "yi-trash", "delete column",
-            "EV_DELETE_COLUMN", {col: col.name}));
+            "EV_DELETE_COLUMN", {col: address}));
     }
 
     let $row = createElement2(
@@ -1188,6 +1246,10 @@ function column_row(gobj, topic, col, index, readonly)
                     [["i", {class: "yi-grip-vertical"}]]]]],
             ["td", {class: "SCHEMA_COL_NAME"}, [
                 ["code", {}, `${col.name}`],
+                ambiguous
+                    ? ["span", {class: "SCHEMA_COL_ID is-size-7 has-text-grey ml-2"},
+                        [["code", {}, `${col.id}`]]]
+                    : ["span", {}, ""],
                 is_pkey
                     ? ["span", {class: "SCHEMA_COL_PKEY tag is-info is-light ml-2",
                                 i18n: "pkey"}, t("pkey")]
@@ -1210,7 +1272,7 @@ function column_row(gobj, topic, col, index, readonly)
         if(readonly || evt.target.closest(".SCHEMA_COL_ACTIONS")) {
             return;
         }
-        gobj_send_event(gobj, "EV_EDIT_COLUMN", {col: col.name}, gobj);
+        gobj_send_event(gobj, "EV_EDIT_COLUMN", {col: address}, gobj);
     });
     return $row;
 }
@@ -1552,7 +1614,10 @@ function open_column_form(gobj, topic, col, prefill)
     let record = prefill || (col && col.record) || {};
     let creating = !col;
     let type = record.type || "string";
-    let hook = col_hook(record) || {};
+    let hook = col_hook(record);
+    if(is_empty_value(hook)) {
+        hook = {};
+    }
     let hook_topic = Object.keys(hook)[0] || "";
     let hook_col = hook_topic ? hook[hook_topic] : "";
     let treedb = current_treedb(gobj);
@@ -1686,7 +1751,7 @@ function open_topic_form(gobj, treedb, topic)
                         col_names.length > 0 ? col_names : [record.pkey || "id"])),
             field("SCHEMA_TOPIC_FORM_PKEY2S", "pkey2s", "secondary keys",
                 text_input("pkey2s", stringify_field(record.pkey2s), ""),
-                "the column a record is KNOWN by when its key is composed"),
+                "the column a record is known by when its key is composed"),
             field("SCHEMA_TOPIC_FORM_SYSTEM_FLAG", "system_flag", "system flag",
                 text_input("system_flag", record.system_flag || "sf_string_key", "")),
             field("SCHEMA_TOPIC_FORM_TKEY", "tkey", "time key",
@@ -1888,7 +1953,7 @@ function open_import(gobj, treedb)
                      ["span", {i18n: "preview"}, t("preview")]]],
                 ["button", {class: "SCHEMA_IMPORT_RUN button is-small is-warning",
                             type: "button", disabled: "disabled"},
-                    [["span", {class: "icon"}, [["i", {class: "yi-file-import"}]]],
+                    [["span", {class: "icon"}, [["i", {class: "yi-upload"}]]],
                      ["span", {i18n: "import"}, t("import")]]]
             ]]
         ]]
@@ -2112,13 +2177,18 @@ function run_next_write(gobj)
         return end_writes(gobj, "");
     }
     let write = priv.save_queue[0];
-    let command = (write.op === "create") ? "create-node"
-        : (write.op === "delete") ? "delete-node" : "update-node";
+
+    /*  Which command and which options: three words that decide whether
+     *  a write does what it says, and each one wrong in a way that
+     *  succeeds. They live in schema_write_options.js, with the reasons
+     *  and the tests.  */
+    let command = write_command(write.op);
+    let options = write_options(write.op);
 
     if(remote_command(gobj, command, {
         topic_name: write.topic_name,
         record:     write.record,
-        options:    {},
+        options:    options,
         record_id:  write.record.id || ""
     }) < 0) {
         return end_writes(gobj, t("cannot reach the treedb"));
@@ -2198,7 +2268,14 @@ function column_record(gobj, topic, col, values)
     record.header = values.header || "";
     record.type = values.type || "string";
     record.flag = flags;
-    record.fillspace = values.fillspace === "" ? "" : Number(values.fillspace);
+    /*  An empty number field is ABSENT, not zero: sending "" stored a
+     *  fillspace of 0 and the column's schema default (10) never
+     *  applied.  */
+    if(String(values.fillspace).trim() !== "") {
+        record.fillspace = Number(values.fillspace);
+    } else if(!creating) {
+        record.fillspace = "";      /*  cleared on purpose  */
+    }
     record.placeholder = values.placeholder || "";
     record.description = values.description || "";
     record.default = values.default || "";
@@ -2359,7 +2436,14 @@ function ac_mt_command_answer(gobj, event, kw, src)
     let __command__ = msg_iev_get_stack(gobj, kw, "command_stack", true);
     let command = kw_get_str(gobj, __command__, "command", "", 0);
     let kw_command = kw_get_dict(gobj, __command__, "kw", {}, 0);
-    let md = kw_get_dict(gobj, kw_command, "__md_command__", {}, 0);
+
+    /*  The frame carries either the whole request (a direct transport)
+     *  or the `__md_command__` this view sent (a routing adapter). Both
+     *  answer the same questions under the same names, so unwrap one
+     *  level when it is there and read from whichever it is.  */
+    /*  Not kw_get_dict with a null default: it answers Object(null), which
+     *  is `{}` and truthy, so the fallback would never run.  */
+    let md = is_object(kw_command.__md_command__) ? kw_command.__md_command__ : kw_command;
 
     if(kw_get_str(gobj, md, "purpose", "", 0) !== PURPOSE) {
         return 0;       /*  another panel's answer on a shared transport  */
@@ -2388,15 +2472,14 @@ function ac_mt_command_answer(gobj, event, kw, src)
         return go(gobj, priv.treedb_id, priv.topic_name, priv.diagram, false);
     }
 
-    if(command === "create-node" || command === "update-node" || command === "delete-node") {
-        let topic_name = kw_get_str(gobj, kw_command, "topic_name", "", 0);
+    if(command === "update-node" || command === "delete-node") {
+        let topic_name = kw_get_str(gobj, md, "topic_name", "", 0);
         if(result < 0) {
             return end_writes(gobj, comment || t("the treedb refused the write"));
         }
         priv.save_wrote = true;
         if(command === "delete-node") {
-            forget_record(gobj, topic_name,
-                kw_get_str(gobj, kw_command, "record_id", "", 0));
+            forget_record(gobj, topic_name, kw_get_str(gobj, md, "record_id", "", 0));
         } else {
             let record = is_object(data) ? data
                 : (Array.isArray(data) && is_object(data[0]) ? data[0] : null);
@@ -2412,8 +2495,11 @@ function ac_mt_command_answer(gobj, event, kw, src)
             }
         }
         if(topic_name === T_TOPICS || topic_name === T_COLS) {
-            let touched = kw_get_dict(gobj, kw_command, "record", {}, 0);
-            mark_written(gobj, topic_name, touched);
+            /*  Which record it was is in the QUEUE, not in the answer: an
+             *  adapter echoes only what it was asked to echo, and the
+             *  record is not small enough to be worth echoing.  */
+            let write = priv.save_queue[0];
+            mark_written(gobj, topic_name, write ? write.record : null);
         }
         priv.save_queue.shift();
         return run_next_write(gobj);
@@ -2927,7 +3013,7 @@ function ac_preview_import(gobj, event, kw, src)
     } catch(e) {
         priv.import_plan = null;
         render_import_plan(gobj, {writes: [], summary: {},
-            conflicts: [{code: "that is not JSON", topic: "", col: ""}]});
+            conflicts: [{code: "that is not json", topic: "", col: ""}]});
         return -1;
     }
 

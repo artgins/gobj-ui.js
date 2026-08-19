@@ -22,6 +22,7 @@ import {
     fkey_ref,
     next_order,
     moved_orders,
+    is_empty_value,
 } from "./schema_model.js";
 
 
@@ -229,5 +230,29 @@ describe("writing helpers", () => {
             {id: "b", order: DEFAULT_ORDER, record: {}},
         ];
         expect(moved_orders(list)).toEqual([{id: "a", order: 1}, {id: "b", order: 2}]);
+    });
+});
+
+describe("is_empty_value — what the store answers when a blob was never set", () => {
+    test("nothing is nothing", () => {
+        expect(is_empty_value(null)).toBe(true);
+        expect(is_empty_value(undefined)).toBe(true);
+        expect(is_empty_value("")).toBe(true);
+    });
+
+    test("an EMPTY COLLECTION is nothing too — this is the whole point", () => {
+        /*  A `blob` column that was never set comes back as `{}`, not as
+            nothing. Read as a value it puts `'hook': {}` into an exported
+            literal, which is a hook with no mapping.  */
+        expect(is_empty_value({})).toBe(true);
+        expect(is_empty_value([])).toBe(true);
+    });
+
+    test("anything with something in it is something", () => {
+        expect(is_empty_value({a: 1})).toBe(false);
+        expect(is_empty_value(["a"])).toBe(false);
+        expect(is_empty_value("x")).toBe(false);
+        expect(is_empty_value(0)).toBe(false);
+        expect(is_empty_value(false)).toBe(false);
     });
 });

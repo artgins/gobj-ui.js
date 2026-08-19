@@ -631,11 +631,21 @@ else.
   `ST_LOADING`, `ST_EMPTY`, `ST_TREEDBS`, `ST_TOPICS`, `ST_DIAGRAM`,
   `ST_COLUMNS`, `ST_SAVING`.
 
+**Three words decide whether a write does what it says** (`schema_write_options.js`,
+and they are tested because getting one wrong costs a store repaired by hand):
+a create goes through `update-node` and not `create-node`, because only that
+path carries **`autolink`** — and without a link a new column belongs to no
+topic. `autolink` rewrites a node's links from the fkey fields the record
+carries, so it goes with a create, where the record has one, **and with nothing
+else**: on a partial update it finds none, reads that as "no parents", and
+detaches the node. Raising a topic's version with it on unlinked that topic
+from its treedb, and the write answered success.
+
 The logic is pure and tested apart from the view: `schema_model.js` (the three
 lists regrouped — grouping follows the **fkey**, not a split of the qualified
 id on `.`, which works right up to the first name that carries one),
 `schema_validate.js`, `schema_descs.js`, `schema_to_c.js`, `schema_import.js`,
-`schema_flags.js`. Since 6.1.0.
+`schema_flags.js`, `schema_write_options.js`. Since 6.1.0.
 
 ### Frontend view — `setup_frontend_view`
 

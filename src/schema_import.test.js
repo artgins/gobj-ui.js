@@ -232,3 +232,24 @@ describe("what is not a schema", () => {
         expect(plan_import(null, {topics: []}).conflicts[0].code).toBe("schema has no id");
     });
 });
+
+describe("the empty collections the store answers with", () => {
+    test("a stored `{}` and an absent field are the same, so nothing is planned", () => {
+        /*  Otherwise every import of an unchanged schema rewrites every
+            column to clear fields that were never set.  */
+        const stored = build_schema_model({
+            treedbs: [{id: "db", schema_version: 1}],
+            topics: [{id: "db.t", value: "t", order: 1, pkey: "id", topic_version: 1,
+                      treedbs: ["treedbs^db^topics"]}],
+            cols: [{id: "db.t.id", value: "id", order: 1, header: "Id", type: "string",
+                    enum: {}, hook: {}, default: {}, template: {}, properties: {},
+                    topics: ["topics^db.t^cols"]}],
+        }).treedbs[0];
+        const incoming = {
+            id: "db", schema_version: "1",
+            topics: [{id: "t", pkey: "id", topic_version: "1",
+                      cols: {id: {header: "Id", type: "string"}}}]
+        };
+        expect(plan_import(stored, incoming).writes).toEqual([]);
+    });
+});

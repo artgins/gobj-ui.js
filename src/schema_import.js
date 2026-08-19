@@ -29,6 +29,7 @@ import {
     col_hook,
     col_enum,
     as_json,
+    is_empty_value,
     fkey_ref,
 } from "./schema_model.js";
 
@@ -66,7 +67,7 @@ function same_value(field, a, b)
             list = list.filter(f => typeof f === "string" && f.length > 0).sort();
             return JSON.stringify(list);
         }
-        if(v === null || v === undefined || v === "") {
+        if(is_empty_value(v)) {
             return "";
         }
         if(typeof v === "object") {
@@ -86,10 +87,14 @@ function incoming_col_fields(col)
 
     for(let field of COL_FIELDS) {
         let value = col ? col[field] : undefined;
-        if(value === undefined || value === null || value === "") {
+        if(is_empty_value(value)) {
             continue;
         }
-        out[field] = JSON_FIELDS.indexOf(field) >= 0 ? as_json(value) : value;
+        let read = JSON_FIELDS.indexOf(field) >= 0 ? as_json(value) : value;
+        if(is_empty_value(read)) {
+            continue;
+        }
+        out[field] = read;
     }
     if(Array.isArray(out.flag)) {
         out.flag = out.flag.filter(f => typeof f === "string" && f.length > 0);
@@ -108,10 +113,14 @@ function stored_col_fields(record)
 
     for(let field of COL_FIELDS) {
         let value = record ? record[field] : undefined;
-        if(value === undefined || value === null || value === "") {
+        if(is_empty_value(value)) {
             continue;
         }
-        out[field] = JSON_FIELDS.indexOf(field) >= 0 ? as_json(value) : value;
+        let read = JSON_FIELDS.indexOf(field) >= 0 ? as_json(value) : value;
+        if(is_empty_value(read)) {
+            continue;
+        }
+        out[field] = read;
     }
     let flags = col_flags(record);
     if(flags.length > 0) {
@@ -120,8 +129,10 @@ function stored_col_fields(record)
         delete out.flag;
     }
     let hook = col_hook(record);
-    if(hook) {
+    if(hook && !is_empty_value(hook)) {
         out.hook = hook;
+    } else {
+        delete out.hook;
     }
     let e = col_enum(record);
     if(e.length > 0) {

@@ -216,3 +216,50 @@ describe("the characters that cannot be written as themselves", () => {
             .toBe(header);
     });
 });
+
+describe("the empty collections the store answers with", () => {
+    /*  Found by running the editor against a real yuno: every `blob`
+        column that was never set came back as `{}` and was exported as
+        one, so a 4-topic schema printed 1229 lines of empty objects —
+        and `'hook': {}` in a literal is a hook the treedb builds and
+        nothing writes.  */
+    const model = build_schema_model({
+        treedbs: [{id: "treedb_x", schema_version: 1, _geometry: {}}],
+        topics: [{id: "treedb_x.t", value: "t", order: 1, pkey: "id",
+                  topic_version: 1, _geometry: {}, pkey2s: {},
+                  treedbs: ["treedbs^treedb_x^topics"]}],
+        cols: [{id: "treedb_x.t.id", value: "id", order: 1, header: "Id",
+                type: "string", flag: ["persistent"],
+                enum: {}, hook: {}, default: {}, template: {}, properties: {},
+                _geometry: {}, pkey2s: {},
+                topics: ["topics^treedb_x.t^cols"]}],
+    });
+    const json = schema_to_json(model.treedbs[0]);
+
+    test("an unset blob is left out, not exported as an empty object", () => {
+        for(const key of ["enum", "hook", "default", "template", "properties", "pkey2s"]) {
+            expect(key in json.topics[0].cols.id).toBe(false);
+        }
+    });
+
+    test("the record's own _geometry is storage and does not travel", () => {
+        expect("_geometry" in json.topics[0]).toBe(false);
+        expect("_geometry" in json.topics[0].cols.id).toBe(false);
+    });
+
+    test("a column NAMED _geometry is a real column and stays", () => {
+        /*  The .c literals declare one; only the FIELD is storage.  */
+        const with_geo = build_schema_model({
+            treedbs: [{id: "treedb_x", schema_version: 1}],
+            topics: [{id: "treedb_x.t", value: "t", treedbs: ["treedbs^treedb_x^topics"]}],
+            cols: [{id: "treedb_x.t._geometry", value: "_geometry", header: "Geometry",
+                    type: "blob", topics: ["topics^treedb_x.t^cols"]}],
+        });
+        expect(Object.keys(schema_to_json(with_geo.treedbs[0]).topics[0].cols))
+            .toEqual(["_geometry"]);
+    });
+
+    test("what is left still round-trips", () => {
+        expect(load_like_the_yuno(schema_to_c(model.treedbs[0]))).toEqual(json);
+    });
+});

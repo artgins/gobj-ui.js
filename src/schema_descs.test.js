@@ -143,3 +143,28 @@ describe("edges", () => {
         expect(topic_descs({})).toEqual({});
     });
 });
+
+describe("the empty collections the store answers with", () => {
+    const model = build_schema_model({
+        treedbs: [{id: "db"}],
+        topics: [{id: "db.t", value: "t", _geometry: {}, treedbs: ["treedbs^db^topics"]}],
+        cols: [{id: "db.t.id", value: "id", type: "string",
+                enum: {}, hook: {}, default: {}, _geometry: {},
+                topics: ["topics^db.t^cols"]}],
+    });
+    const descs = topic_descs(model.treedbs[0]);
+
+    test("an unset blob does not become a value in the desc", () => {
+        for(const key of ["enum", "hook", "default", "_geometry"]) {
+            expect(key in descs.t.cols[0]).toBe(false);
+        }
+    });
+
+    test("an empty hook is NOT a hook — the info panel would draw an arrow to nothing", () => {
+        expect(descs.t.cols[0].hook).toBeUndefined();
+    });
+
+    test("the topic record's own _geometry does not travel", () => {
+        expect("_geometry" in descs.t).toBe(false);
+    });
+});

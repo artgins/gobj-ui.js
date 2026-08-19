@@ -32,6 +32,7 @@ import {
     col_enum,
     topic_pkey2s,
     as_json,
+    is_empty_value,
 } from "./schema_model.js";
 
 
@@ -60,9 +61,12 @@ const COL_KEY_ORDER = [
  *  hand-written schema without looking foreign.  */
 const VERSION_KEYS = ["schema_version", "topic_version"];
 
-/*  Storage-only: they say where the record lives, not what it declares.  */
-const COL_SKIP = ["id", "value", "topics", "order", "__md_treedb__"];
-const TOPIC_SKIP = ["id", "value", "treedbs", "cols", "order", "__md_treedb__"];
+/*  Storage-only: they say where the record lives, not what it declares.
+ *  `_geometry` is here as a FIELD — where the graph editor put this
+ *  record's box — and it is not the same thing as a column NAMED
+ *  `_geometry`, which the .c literals do declare and which stays.  */
+const COL_SKIP = ["id", "value", "topics", "order", "_geometry", "__md_treedb__"];
+const TOPIC_SKIP = ["id", "value", "treedbs", "cols", "order", "_geometry", "__md_treedb__"];
 
 /*  Fields whose stored form may be the JSON text of the value.  */
 const JSON_FIELDS = ["enum", "hook", "default", "template", "properties", "pkey2s"];
@@ -149,10 +153,14 @@ function schema_to_json(treedb)
             if(TOPIC_SKIP.indexOf(key) >= 0) {
                 continue;
             }
-            if(value === null || value === undefined || value === "") {
+            if(is_empty_value(value)) {
                 continue;
             }
-            jn_topic[key] = JSON_FIELDS.indexOf(key) >= 0 ? as_json(value) : value;
+            let read = JSON_FIELDS.indexOf(key) >= 0 ? as_json(value) : value;
+            if(is_empty_value(read)) {
+                continue;
+            }
+            jn_topic[key] = read;
         }
         if(jn_topic.topic_version !== undefined) {
             jn_topic.topic_version = version(jn_topic.topic_version);
@@ -175,10 +183,14 @@ function schema_to_json(treedb)
                 if(COL_SKIP.indexOf(key) >= 0) {
                     continue;
                 }
-                if(value === null || value === undefined || value === "") {
+                if(is_empty_value(value)) {
                     continue;
                 }
-                jn_col[key] = JSON_FIELDS.indexOf(key) >= 0 ? as_json(value) : value;
+                let read = JSON_FIELDS.indexOf(key) >= 0 ? as_json(value) : value;
+                if(is_empty_value(read)) {
+                    continue;
+                }
+                jn_col[key] = read;
             }
             let flags = col_flags(col_record);
             if(flags.length > 0) {
@@ -187,8 +199,10 @@ function schema_to_json(treedb)
                 delete jn_col.flag;
             }
             let hook = col_hook(col_record);
-            if(hook) {
+            if(hook && !is_empty_value(hook)) {
                 jn_col.hook = hook;
+            } else {
+                delete jn_col.hook;
             }
             let e = col_enum(col_record);
             if(e.length > 0) {

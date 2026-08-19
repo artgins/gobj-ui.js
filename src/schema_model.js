@@ -295,6 +295,31 @@ function build_schema_model(records)
 }
 
 /***************************************************************
+ *  Is there a value here at all?
+ *
+ *  The store answers a `blob` column that was never set with an
+ *  EMPTY COLLECTION, not with nothing: `enum: {}`, `hook: {}`,
+ *  `default: {}`. Read as "a value", those turn every export into
+ *  a schema full of empty objects — and `'hook': {}` in a literal
+ *  is a hook with no mapping, which is a link the treedb builds
+ *  and nothing writes.
+ ***************************************************************/
+function is_empty_value(value)
+{
+    if(value === null || value === undefined || value === "") {
+        return true;
+    }
+    if(Array.isArray(value)) {
+        return value.length === 0;
+    }
+    if(typeof value === "object") {
+        return Object.keys(value).length === 0;
+    }
+    return false;
+}
+
+
+/***************************************************************
  *  The fields of a column that are DECLARED as one thing and
  *  STORED as another.
  *
@@ -495,6 +520,7 @@ export {
     REF_SEP,
     parse_fkey_ref,
     as_json,
+    is_empty_value,
     col_flags,
     col_has_flag,
     col_hook,

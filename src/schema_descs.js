@@ -34,16 +34,18 @@ import {
     col_enum,
     topic_pkey2s,
     as_json,
+    is_empty_value,
 } from "./schema_model.js";
 
 
 /*  Storage-only fields of a `cols` record: they describe where the
  *  record LIVES in treedb_system_schema, not the column it declares.
  *  The C validator drops the same ones (_treedb_create_topic_cols_desc).  */
-const COL_STORAGE_FIELDS = ["id", "value", "topics", "order", "__md_treedb__"];
+const COL_STORAGE_FIELDS = ["id", "value", "topics", "order", "_geometry", "__md_treedb__"];
 
 /*  Same, one level up, for a `topics` record.  */
-const TOPIC_STORAGE_FIELDS = ["id", "value", "treedbs", "cols", "order", "__md_treedb__"];
+const TOPIC_STORAGE_FIELDS = ["id", "value", "treedbs", "cols", "order", "_geometry",
+                              "__md_treedb__"];
 
 /*  Fields of a column whose stored form is TEXT and whose desc form is
  *  the value: they are `blob` columns of the `cols` topic.  */
@@ -67,16 +69,22 @@ function col_desc(col)
         if(COL_STORAGE_FIELDS.indexOf(key) >= 0) {
             continue;
         }
-        if(value === null || value === undefined || value === "") {
+        if(is_empty_value(value)) {
             continue;
         }
-        desc[key] = COL_JSON_FIELDS.indexOf(key) >= 0 ? as_json(value) : value;
+        let read = COL_JSON_FIELDS.indexOf(key) >= 0 ? as_json(value) : value;
+        if(is_empty_value(read)) {
+            continue;
+        }
+        desc[key] = read;
     }
     desc.id = col.name;
     desc.flag = col_flags(record);
     let hook = col_hook(record);
-    if(hook) {
+    if(hook && !is_empty_value(hook)) {
         desc.hook = hook;
+    } else {
+        delete desc.hook;
     }
     let e = col_enum(record);
     if(e.length > 0) {
@@ -105,7 +113,7 @@ function topic_descs(treedb)
             if(TOPIC_STORAGE_FIELDS.indexOf(key) >= 0) {
                 continue;
             }
-            if(value === null || value === undefined || value === "") {
+            if(is_empty_value(value)) {
                 continue;
             }
             desc[key] = value;
