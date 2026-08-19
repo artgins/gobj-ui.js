@@ -1389,9 +1389,11 @@ function render_diagram(gobj)
             subscriber: gobj,
             descs:      descs,
             /*  No `node_route`: this diagram lives inside the editor and
-             *  a node click is answered here, not by a hash the shell
-             *  would have to own.  */
-            node_route: "",
+             *  a node click is answered HERE, not by a hash the shell
+             *  would have to own — which is what `with_node_click` asks
+             *  for, and why EV_NODE_CLICK is declared in this FSM.  */
+            node_route:      "",
+            with_node_click: true,
             system:     true
         },
         gobj

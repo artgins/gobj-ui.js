@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 6.1.2
+
+- **fix: publishing a node click is OPT-IN (`with_node_click`).** 6.1.1 made
+  `C_YUI_TREEDB_SCHEMA` publish `EV_NODE_CLICK` whenever it had no
+  `node_route`, which is right for the host that wants it and wrong for
+  everyone else: the CHILD subscription model subscribes a host to ALL of a
+  child's events, so an event published unasked turns a click into "Event NOT
+  DEFINED in state" in hosts that never wanted one. Two of them ship in this
+  repo — `C_YUI_TREEDB_TOPICS`, which mounts this view as its schema landing
+  and passes a route only when the app gave it one, and the offline demo, whose
+  subscriber is the yuno. Both are back to dropping the click; the schema
+  editor asks for it and declares the event.
+
 ## 6.1.1
 
 What running 6.1.0 against a real yuno found. Nothing consumed it in

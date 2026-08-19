@@ -94,6 +94,7 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_JSON,     "descs",        0,  null,   "Treedb schema: {topic_name: desc}"),
 SDATA(data_type_t.DTP_STRING,   "node_route",   0,  "",     "Hash-route template with a {topic} placeholder: a node click opens that topic (e.g. '#/topics/db/<sel>/{topic}')"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_node_click", 0, false, "With no `node_route`, PUBLISH a node click as EV_NODE_CLICK instead of dropping it. Opt-in, because a subscriber has to DECLARE the event: the hosts that route by hash, and the ones that want nothing, must not have it appear underneath them"),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",       0,  false,  "Include system topics (__*__) too"),
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Root HTML element"),
 SDATA_END()
@@ -622,12 +623,19 @@ function destroy_graph(gobj)
  *   With a `node_route` the click IS a navigation and this view
  *   makes it: that is what the route was handed down for.
  *
- *   Without one it is still an action, and it belongs to whoever
- *   mounted this view — the schema editor draws the same picture
- *   inside its own screens, where a topic opens in place and no
- *   hash is involved. So the click is published rather than
- *   dropped. A host that subscribes must DECLARE EV_NODE_CLICK in
- *   its own FSM, as with every event a child publishes.
+ *   Without one it is still an action, and it can belong to
+ *   whoever mounted this view — the schema editor draws the same
+ *   picture inside its own screens, where a topic opens in place
+ *   and no hash is involved. That host asks for it with
+ *   `with_node_click` and DECLARES EV_NODE_CLICK in its own FSM,
+ *   as with every event a child publishes.
+ *
+ *   It is opt-in and not the default for exactly that reason: the
+ *   CHILD subscription model subscribes the host to ALL of this
+ *   view's events, so publishing one unasked turns a click into
+ *   "Event NOT DEFINED in state" in every host that never wanted
+ *   it — the topics view that mounts this as its schema landing,
+ *   and the offline demo that mounts it against a json file.
  ************************************************************/
 function ac_node_click(gobj, event, kw, src)
 {
@@ -638,7 +646,9 @@ function ac_node_click(gobj, event, kw, src)
         return 0;
     }
     if(!route) {
-        gobj_publish_event(gobj, "EV_NODE_CLICK", {topic: topic});
+        if(gobj_read_bool_attr(gobj, "with_node_click")) {
+            gobj_publish_event(gobj, "EV_NODE_CLICK", {topic: topic});
+        }
         return 0;
     }
     let href = route.replace("{topic}", topic);

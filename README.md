@@ -539,12 +539,15 @@ schema, so the drawing can be held against the ASCII one in its `.c`.
 - Events: `EV_SHOW`, `EV_REBUILD`, `EV_THEME` (restyle — it repaints the G6
   graph in place, preserving the user's zoom/pan), plus `EV_NODE_CLICK`, which
   a node click sends into the FSM. **With a `node_route` the click IS a
-  navigation** and this view makes it; **without one the click is published**
-  (`{topic}`) for whoever mounted the view — a host that draws the same picture
-  inside its own screens opens the topic in place, with no hash involved. A
-  host that subscribes must declare `EV_NODE_CLICK` in its own FSM, as with
-  every event a child publishes. Since 6.1.0; before that a click with no route
-  was dropped.
+  navigation** and this view makes it. **Without one the click is dropped,
+  unless the host asked for it with `with_node_click`** — then it is published
+  as `{topic}`, for a host that draws the same picture inside its own screens
+  and opens the topic in place, with no hash involved. That host must declare
+  `EV_NODE_CLICK` in its own FSM, as with every event a child publishes, which
+  is exactly why it is opt-in: the CHILD subscription model subscribes a host
+  to ALL of this view's events, so publishing one unasked turns a click into
+  "Event NOT DEFINED in state" underneath a host that never wanted it. Since
+  6.1.2 (6.1.0 and 6.1.1 published it unconditionally).
 
 Barrel-exported and public from 4.0.0. Renders with `@antv/g6`; the cards are
 HTML nodes carrying their own inline colours, so a theme switch repaints them in
