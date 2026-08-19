@@ -14,14 +14,17 @@
  *  What a node is CALLED, which is not always what it is
  *  keyed by.
  *
- *  A topic whose id column is flagged `rowid` or `uuid` keys
- *  its records by a value nobody reads — that is the point of
- *  those flags — and the name a human knows the record by
- *  lives in the secondary key the topic declares (`pkey2s`,
- *  carried in the desc since SDK > 7.13.0). The `topics` and
- *  `cols` topics of treedb_system_schema are the case that
- *  forced this: keyed by rowid, named in `value`, so every
- *  card in the graph read "181", "225", "193".
+ *  A topic whose id column is flagged `rowid`, `uuid` or
+ *  `qualified` keys its records by something that is not the
+ *  name — a counter, a random string, or the name with every
+ *  ancestor in front of it — and the name a human knows the
+ *  record by lives in the secondary key the topic declares
+ *  (`pkey2s`, carried in the desc since SDK > 7.13.0). The
+ *  `topics` and `cols` topics of treedb_system_schema are the
+ *  case that forced this: named in `value`, so every card in
+ *  the graph read "181", "225", "193" while they were keyed by
+ *  rowid, and reads the whole path now that they are
+ *  qualified.
  *
  *  The pkey stays reachable: it is the card's tooltip.
  *
@@ -48,7 +51,10 @@ export function node_label(desc, record)
     if(!id_col || !Array.isArray(id_col.flag)) {
         return id;
     }
-    if(id_col.flag.indexOf("rowid") < 0 && id_col.flag.indexOf("uuid") < 0) {
+    if(id_col.flag.indexOf("rowid") < 0 &&
+        id_col.flag.indexOf("uuid") < 0 &&
+        id_col.flag.indexOf("qualified") < 0
+    ) {
         return id;
     }
 

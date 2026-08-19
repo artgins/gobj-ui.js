@@ -50,6 +50,20 @@ describe("node_label", () => {
         expect(node_label(desc, {id: "181", value: "yuno_role"})).toBe("yuno_role");
     });
 
+    it("treats a qualified pkey like a rowid one", () => {
+        let desc = {
+            ...COLS_DESC,
+            cols: [
+                {id: "id",    type: "string", flag: ["persistent", "qualified"]},
+                {id: "value", type: "string", flag: ["persistent", "required"]},
+            ],
+        };
+        expect(node_label(desc, {
+            id:    "treedb_yunovatioscodb.yunos.yuno_role",
+            value: "yuno_role",
+        })).toBe("yuno_role");
+    });
+
     it("treats a uuid pkey like a rowid one", () => {
         let desc = {
             ...COLS_DESC,

@@ -1082,7 +1082,8 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
         case "email":   // string subtype — plain text in the cell
         case "tel":     // string subtype — plain text in the cell
         case "url":     // string subtype — plain text in the cell
-        case "rowid":   // the record's own key — shown as it comes
+        case "rowid":       // the record's own key — shown as it comes
+        case "qualified":   // idem, the name with its ancestors in front
             break;
         case "integer":
             break;
@@ -1758,6 +1759,9 @@ function transform__form_value_2_treedb_value(gobj, col, value, operation)
 
     switch(field_desc.type) {
         case "rowid":
+        case "qualified":
+            /*  The store hands the key out: a rowid from the topic size, a
+             *  qualified id from the parent and the name.  */
             if(operation==="create") {
                 value = "";
             }

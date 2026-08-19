@@ -434,15 +434,17 @@ Logical DOM classes: `JSON_VIEWER`, `JSON_TOOLBAR`, `JSON_SEARCH`, `JSON_TREE`,
 
 `C_G6_NODES_TREE` (the record graph inside `C_YUI_TREEDB_GRAPH`) labels a card
 by what NAMES the record, which is not always what KEYS it. A topic whose id
-column is flagged `rowid` or `uuid` keys its records by a value nobody reads —
-that is the point of those flags — and the name lives in the secondary key the
+column is flagged `rowid`, `uuid` or `qualified` keys its records by something
+that is not the plain name — a counter, a random string, or the name with
+every ancestor in front of it — and the name lives in the secondary key the
 topic declares (`pkey2s`). `treedb_system_schema` is the case that forced it:
-its `topics` and `cols` records are keyed by rowid and named in `value`, so the
-graph drew cards reading `181`, `225`, `193`.
+its `topics` and `cols` records are named in `value`, so the graph drew cards
+reading `181`, `225`, `193` while they were keyed by rowid, and would read the
+whole path now that they are qualified.
 
 The rule is in **`treedb_node_label.js`** (pure, unit-tested): read the pkey
-column's flags from the desc; if the key is synthetic, take the first `pkey2s`
-field the record actually carries; otherwise keep the id. **The pkey is never
+column's flags from the desc; if the key is not the plain name, take the first
+`pkey2s` field the record actually carries; otherwise keep the id. **The pkey is never
 lost** — it is the card's tooltip, on the chip and on the entity card alike.
 
 It needs the descriptor to carry `pkey2s`, which `tranger2_topic_desc()` only

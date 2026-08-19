@@ -676,6 +676,7 @@ function build_form_field_conf(gobj, field_desc)
             break;
 
         case "rowid":
+        case "qualified":
             field_conf.tag = 'input';
             field_conf.inputType = 'text';
             break;
@@ -878,7 +879,8 @@ function build_fkey_ref(gobj, field_desc, value)
 /************************************************************
  *  Apply the form mode to the pkey field:
  *      "update" -> pkey readonly, not required
- *      "create" -> pkey writable and required (readonly if rowid)
+ *      "create" -> pkey writable and required, unless the store
+ *                  hands the key out itself (rowid, qualified)
  *  Empty form_mode keeps the template-declared behaviour
  *  (backward compatible).
  ************************************************************/
@@ -898,8 +900,11 @@ function apply_form_mode(gobj, $form)
         return;
     }
 
-    let is_rowid = $input.field_desc && $input.field_desc.type === "rowid";
-    if(mode === "create" && !is_rowid) {
+    /*  A key the store composes is never typed: a rowid comes from the
+     *  topic size, a qualified id from the parent and the name.  */
+    let type = $input.field_desc? $input.field_desc.type: "";
+    let store_makes_the_key = (type === "rowid" || type === "qualified");
+    if(mode === "create" && !store_makes_the_key) {
         $input.removeAttribute("readonly");
         $input.setAttribute("required", "");
     } else {
@@ -1826,6 +1831,7 @@ function template2columns(gobj, columns, template, sub_elements)
                 break;
 
             case "rowid":
+            case "qualified":
                 // field_conf.tag = 'input';
                 // field_conf.inputType = 'text';
                 column = null;
@@ -2448,6 +2454,7 @@ function treedb_value_2_form_value(gobj, field_desc, value)
         case "enum":
         case "uuid":
         case "rowid":
+        case "qualified":
         case "password":
         case "email":
         case "url":
@@ -2572,6 +2579,7 @@ function form_value_2_treedb_value(gobj, field_desc, value)
         case "enum":
         case "uuid":
         case "rowid":
+        case "qualified":
         case "password":
         case "email":
         case "url":

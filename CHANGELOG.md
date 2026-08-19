@@ -5,6 +5,33 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **feat: a `qualified` pkey is a key the store hands out, and it is not the
+  label.** The SDK re-keyed the `topics` and `cols` topics of
+  `treedb_system_schema`: they used to carry a rowid, they now carry the
+  qualified name — the id of the parent, a dot, and the record's own name
+  (`treedb_yunovatioscodb.yunos.yuno_role`). Three places had to learn the
+  word, and each was wrong in a different way without it:
+
+  - `treedb_node_label.js` labelled by the secondary key when the pkey was
+    `rowid` or `uuid`. A qualified id does name the record, but it names every
+    ancestor with it, and a card wants the leaf. The pkey stays as the
+    tooltip, as it already did.
+  - `C_YUI_FORM` made the pkey writable and **required** on create for
+    anything that was not a rowid, so creating a column asked the operator to
+    type `treedb.topic.column` by hand. A qualified key is composed by the
+    store from the record's fkey and its name: readonly on create, blanked on
+    the way out, and hidden as a table column.
+  - an existing row of a rowid-keyed topic opens in **create** mode, because a
+    rowid pkey has no update — which is why saving a column used to append a
+    second one under the same name instead of changing it. A qualified pkey is
+    stable, so the row opens for **update** and the edit lands on the node it
+    came from.
+
+  Against an SDK that still keys those topics by rowid nothing changes: the
+  flag is simply absent and every path above takes its previous branch.
+
 ## 5.17.0
 
 - **feat: the schema landing draws the schema, not dots.** `C_YUI_TREEDB_SCHEMA`
