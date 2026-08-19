@@ -1,0 +1,133 @@
+/***********************************************************************
+ *          c_yui_schema_editor.css
+ *
+ *      What the schema editor needs that Bulma does not give: a drag
+ *      affordance on a row, the line that says where a dropped row
+ *      lands, and a flag grid that stays readable at 360px.
+ *
+ *      No transitions anywhere, deliberately: a row that slides into
+ *      place hides the fact that a write is what moved it.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_TOOLBAR {
+    border-bottom: 1px solid var(--bulma-border, rgba(128, 128, 128, .3));
+    flex: 0 0 auto;
+}
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_CRUMBS {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_CRUMB_SEP {
+    margin: 0 .3rem;
+    opacity: .5;
+}
+
+/*  The rows are the working surface: a drag handle that looks
+ *  draggable, and a cursor that says the row itself opens.  */
+.C_YUI_SCHEMA_EDITOR .SCHEMA_COL_ROW {
+    cursor: default;
+}
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_COL_HANDLE {
+    cursor: grab;
+    width: 1.6rem;
+    text-align: center;
+}
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_COL_ROW.SCHEMA_COL_DRAGGING {
+    opacity: .45;
+}
+
+/*  Where the row would land. A line and not a gap: a gap reflows the
+ *  table under the pointer, which moves the target while it is aimed at.  */
+.C_YUI_SCHEMA_EDITOR .SCHEMA_COL_ROW.SCHEMA_COL_DROP_BEFORE > td {
+    box-shadow: inset 0 2px 0 0 var(--bulma-link, #485fc7);
+}
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_COL_ROW.SCHEMA_COL_DROP_AFTER > td {
+    box-shadow: inset 0 -2px 0 0 var(--bulma-link, #485fc7);
+}
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_TOPIC_ROW {
+    cursor: pointer;
+}
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_COL_FLAGS .tags {
+    margin-bottom: 0;
+}
+
+.C_YUI_SCHEMA_EDITOR .SCHEMA_COL_FLAGS .tag {
+    margin-bottom: 0;
+}
+
+/*  The treedb cards reuse the shell's grid, so a schema card and a nav
+ *  card are the same object to the eye.  */
+.C_YUI_SCHEMA_EDITOR .yui-nav-card {
+    cursor: pointer;
+}
+
+/*  The flag grid: as many columns as fit, never fewer than one.  */
+.SCHEMA_FLAGS .SCHEMA_FLAG_LIST {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: .1rem .5rem;
+}
+
+.SCHEMA_FLAGS .SCHEMA_FLAG {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.SCHEMA_FLAGS .SCHEMA_FLAG_NAME {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--bulma-family-code, monospace);
+}
+
+/*  Meaningless on the chosen type, and still editable: a flag already
+ *  set has to stay reachable or the next save drops it.  */
+.SCHEMA_FLAGS .SCHEMA_FLAG_DIM .SCHEMA_FLAG_NAME {
+    opacity: .55;
+}
+
+.SCHEMA_EXPORT_TEXT,
+.SCHEMA_IMPORT_TEXT {
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+}
+
+.SCHEMA_IMPORT_LINES {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.SCHEMA_IMPORT_LINE {
+    padding: .1rem 0;
+}
+
+/*  No animation anywhere in this view.  */
+.C_YUI_SCHEMA_EDITOR *,
+.SCHEMA_COL_FORM_DIALOG *,
+.SCHEMA_TOPIC_FORM_DIALOG *,
+.SCHEMA_IMPORT_DIALOG *,
+.SCHEMA_EXPORT_DIALOG *,
+.SCHEMA_REPORT_DIALOG * {
+    transition: none !important;
+    animation: none !important;
+}
+
+/*  A write is in flight: the screen stays up and stops answering.  */
+.C_YUI_SCHEMA_EDITOR .SCHEMA_BODY.SCHEMA_BUSY {
+    pointer-events: none;
+    opacity: .6;
+}

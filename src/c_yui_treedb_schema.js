@@ -31,8 +31,10 @@ import {
     SDATA,
     SDATA_END,
     data_type_t,
+    event_flag_t,
     gclass_create,
     log_error,
+    gobj_publish_event,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
     gobj_send_event,
@@ -615,13 +617,28 @@ function destroy_graph(gobj)
 
 
 /************************************************************
- *   A topic node was clicked: open its table via the host route.
+ *   A topic node was clicked.
+ *
+ *   With a `node_route` the click IS a navigation and this view
+ *   makes it: that is what the route was handed down for.
+ *
+ *   Without one it is still an action, and it belongs to whoever
+ *   mounted this view — the schema editor draws the same picture
+ *   inside its own screens, where a topic opens in place and no
+ *   hash is involved. So the click is published rather than
+ *   dropped. A host that subscribes must DECLARE EV_NODE_CLICK in
+ *   its own FSM, as with every event a child publishes.
  ************************************************************/
 function ac_node_click(gobj, event, kw, src)
 {
     let topic = kw && kw.node_id;
     let route = gobj_read_str_attr(gobj, "node_route");
-    if(!topic || !route) {
+
+    if(!topic) {
+        return 0;
+    }
+    if(!route) {
+        gobj_publish_event(gobj, "EV_NODE_CLICK", {topic: topic});
         return 0;
     }
     let href = route.replace("{topic}", topic);
@@ -749,7 +766,9 @@ function create_gclass(gclass_name)
     ];
 
     const event_types = [
-        ["EV_NODE_CLICK",   0],
+        /*  Sent to itself by the graph, and published to the host when no
+         *  `node_route` was given: optional there, so no warning.  */
+        ["EV_NODE_CLICK",   event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_SHOW",         0],
         ["EV_THEME",        0],
         ["EV_REBUILD",      0],
