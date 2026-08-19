@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 6.2.1
+
+- **fix: the remembered item is highlighted again.** `C_YUI_NAV` marks the
+  active item by EXACT route, and 6.2.0 moved where an item points without
+  moving the `active_route` the nav is told about — so with
+  `remember_position` on, the child you were inside was never marked. One
+  function decides both now.
+
 ## 6.2.0
 
 - **feat: `C_YUI_NODE` can remember where you left each child

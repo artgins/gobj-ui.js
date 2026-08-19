@@ -632,6 +632,27 @@ function clear_navs(gobj)
  *      "index"  — I am the tip: the projection is the page.
  *      "chrome" — a child is showing: the projection is its chrome.
  ************************************************************/
+/************************************************************
+ *  WHERE A CHILD'S NAV ITEM POINTS.
+ *
+ *  One function, because two things read it and they must not
+ *  disagree: the item's own href, and the `active_route` the nav
+ *  is told to highlight — C_YUI_NAV matches by EXACT route, so an
+ *  item pointing at a remembered position while the active route
+ *  stayed canonical is an item that is never marked active.
+ ************************************************************/
+function child_nav_route(gobj, id)
+{
+    let my_route = route_of(gobj);
+    let base = my_route === "/" ? "" : my_route;
+    let route = `${base}/${id}`;
+
+    if(!gobj_read_bool_attr(gobj, "remember_position")) {
+        return route;
+    }
+    return nav_route_with_tail(route, gobj.priv.remembered[id]);
+}
+
 function render_projection(gobj, mode, $where, active_route, active_id, zones_only)
 {
     let priv = gobj.priv;
@@ -662,11 +683,7 @@ function render_projection(gobj, mode, $where, active_route, active_id, zones_on
      *  contract either way: what the item carries is a real position,
      *  so clicking it is a navigation and not a restore that would then
      *  have to argue with the url.  */
-    let remember = gobj_read_bool_attr(gobj, "remember_position");
-    let items = child_nav_items(specs, (id) => {
-        let route = `${base}/${id}`;
-        return remember ? nav_route_with_tail(route, priv.remembered[id]) : route;
-    });
+    let items = child_nav_items(specs, (id) => child_nav_route(gobj, id));
 
     let i = 0;
     for(let render of renders) {
@@ -892,7 +909,10 @@ function render_child(gobj, child)
      *  level.  `chrome_depth` is how a node caps that for its corner
      *  of the tree (see resolve_chrome_depth). */
     if(chrome_visible(priv.distance, priv.chrome_depth)) {
-        render_projection(gobj, "chrome", priv.$chrome, route_of(child),
+        /*  The SAME route the item carries, or the nav has nothing to
+         *  match: it highlights by exact route.  */
+        render_projection(gobj, "chrome", priv.$chrome,
+            child_nav_route(gobj, gobj_read_attr(child, "node_id")),
             gobj_read_attr(child, "node_id"));
     }
     render_path(gobj, priv.$chrome);
