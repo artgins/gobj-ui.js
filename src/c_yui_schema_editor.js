@@ -124,7 +124,7 @@ import {
     next_order,
     moved_orders,
 } from "./schema_model.js";
-import {validate_schema} from "./schema_validate.js";
+import {validate_schema, validate_model, has_errors} from "./schema_validate.js";
 import {topic_descs} from "./schema_descs.js";
 import {schema_to_json, schema_to_c} from "./schema_to_c.js";
 import {plan_import, plan_deletes} from "./schema_import.js";
@@ -518,6 +518,41 @@ function build_model(gobj)
             priv.baseline[topic.id] = topic.topic_version;
         }
     }
+}
+
+/***************************************************************
+ *  Say what the whole store would be refused for.
+ *
+ *  Not for this view — it has a button for that — but for
+ *  WHOEVER APPLIES. Applying a schema is restarting the yuno that
+ *  owns it, and the restart is driven from a tab above this one
+ *  that has no way to know what was edited. So the count travels
+ *  up on every settle, and the confirmation up there can say what
+ *  it is about to restart onto.
+ ***************************************************************/
+function publish_check(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv.model) {
+        return;
+    }
+    let findings = validate_model(priv.model, {
+        written_topics: Object.keys(priv.written),
+        baseline:       priv.baseline
+    });
+    gobj_publish_event(gobj, "EV_SCHEMA_CHECKED", {
+        treedb_name: gobj_read_str_attr(gobj, "treedb_name"),
+        errors:      findings.filter(f => f.severity === "error").length,
+        warnings:    findings.filter(f => f.severity === "warning").length,
+        /*  Plain JSON, and capped: the kw of an event is dumped by the
+         *  machine trace, and a schema with two hundred findings would
+         *  put all of them in it.  */
+        first:       findings.slice(0, 5).map((f) => {
+            return {severity: f.severity, code: f.code, topic: f.topic,
+                    col: f.col, detail: f.detail};
+        })
+    });
 }
 
 /***************************************************************
@@ -1543,7 +1578,7 @@ function open_column_form(gobj, topic, col, prefill)
                 ["label", {class: "label is-small", i18n: "hook"}, t("hook")],
                 ["div", {class: "is-flex", style: "gap:.4rem;"}, [
                     select_input("hook_topic", hook_topic, [""].concat(sibling_topics)),
-                    text_input("hook_col", hook_col, t("the child's fkey column"))
+                    text_input("hook_col", hook_col, t("the fkey column of the child"))
                 ]],
                 ["p", {class: "help", i18n: "a hook names the child topic and the column of the child that points back"},
                     t("a hook names the child topic and the column of the child that points back")]
@@ -1833,8 +1868,8 @@ function open_import(gobj, treedb)
     let $content = createElement2(
         ["div", {class: "SCHEMA_IMPORT box"}, [
             ["p", {class: "SCHEMA_IMPORT_HELP help mb-2",
-                   i18n: "paste a schema as JSON: the plan is shown before anything is written"},
-                t("paste a schema as JSON: the plan is shown before anything is written")],
+                   i18n: "paste a schema as json: the plan is shown before anything is written"},
+                t("paste a schema as json: the plan is shown before anything is written")],
             ["textarea", {class: "SCHEMA_IMPORT_TEXT textarea is-small is-family-monospace",
                           rows: "12", spellcheck: "false",
                           placeholder: '{"id": "...", "schema_version": "1", "topics": []}'}, ""],
@@ -2134,6 +2169,7 @@ function end_writes(gobj, error)
     }
     priv.save_wrote = false;
     render(gobj);
+    publish_check(gobj);
     return error ? -1 : 0;
 }
 
@@ -2249,6 +2285,7 @@ function go(gobj, treedb_id, topic_name, diagram, mirror)
 
     gobj_change_state(gobj, state);
     render(gobj);
+    publish_check(gobj);
 
     if(mirror !== false) {
         gobj_publish_event(gobj, "EV_POSITION_CHANGED", {subpath: position_seg(gobj)});
@@ -2838,6 +2875,9 @@ function ac_validate(gobj, event, kw, src)
         baseline:       priv.baseline
     });
     open_report(gobj, findings, treedb.id);
+    if(has_errors(findings)) {
+        log_warning(`${gobj_short_name(gobj)}: ${treedb.id} would be refused as it is`);
+    }
     return 0;
 }
 
@@ -3140,6 +3180,8 @@ function create_gclass(gclass_name)
         ["EV_POSITION_CHANGED",     event_flag_t.EVF_OUTPUT_EVENT|
                                     event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_RECORD_WRITTEN",       event_flag_t.EVF_OUTPUT_EVENT|
+                                    event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_SCHEMA_CHECKED",       event_flag_t.EVF_OUTPUT_EVENT|
                                     event_flag_t.EVF_NO_WARN_SUBS]
     ];
 

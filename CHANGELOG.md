@@ -5,6 +5,48 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 6.1.0
+
+The schema an operator edits, edited as a schema.
+
+- **feat: `C_YUI_SCHEMA_EDITOR`.** Every schema a yuno holds lives in its
+  `treedb_system_schema`, stored as data in three flat topics linked by fkeys —
+  `treedbs` → `topics` → `cols`. That is the right storage and the wrong screen:
+  adding one column to one topic meant finding it in a table holding every
+  column of every topic of every treedb the yuno has, composing the parent fkey
+  by hand, and remembering to raise a `topic_version` that nothing asks about.
+  The new view puts the schema back together and edits that — treedb → topics →
+  columns in declared order, with the qualified id, the fkey, the place among
+  the siblings and the versions composed underneath.
+
+  **The versions are the point.** `topic_version` is what publishes a change of
+  a topic's columns; leave it and the persisted `topic_cols.json` masks the
+  whole edit, the restart succeeds and nothing moved. `schema_version` is what
+  publishes the schema as a whole, and raising it is safe because re-projection
+  from C compares `c_schema_version`, the version of the literal
+  (`c_treedb.c`). Every write carries both.
+
+  Also in the view: **columns reorder by dragging** (`order` is a field, so a
+  drop writes only the rows whose place actually changed); the **flags** as
+  checkboxes that say what they do, with `hook` and `fkey` turning each other
+  off; the treedb **drawn from the records being edited**; **check**, which
+  reports what the treedb would refuse before the restart that finds out;
+  **export** as the C literal, because an edit made here works and lives
+  nowhere the next build knows about; and **import** as a plan shown before it
+  runs, since it is the one operation here that can delete a column.
+
+  The logic is pure and tested apart from the view: `schema_model`,
+  `schema_validate`, `schema_descs`, `schema_to_c`, `schema_import`,
+  `schema_flags` — 118 tests.
+
+- **feat: `C_YUI_TREEDB_SCHEMA` publishes a node click when it has no
+  `node_route`.** With a route the click IS a navigation and that view still
+  makes it. Without one it used to be dropped; it is published now, because it
+  is still an action and it belongs to whoever mounted the view — the schema
+  editor draws the same picture inside its own screens, where a topic opens in
+  place and no hash is involved. A host that subscribes must declare
+  `EV_NODE_CLICK` in its own FSM, as with every event a child publishes.
+
 ## 6.0.0
 
 A dependency-only major, like 5.0.0: no API moved and nothing this library

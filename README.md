@@ -537,12 +537,105 @@ schema, so the drawing can be held against the ASCII one in its `.c`.
   `system` (include the `__*__` system topics too, default `false`),
   `$container` (mounted by the parent).
 - Events: `EV_SHOW`, `EV_REBUILD`, `EV_THEME` (restyle — it repaints the G6
-  graph in place, preserving the user's zoom/pan), plus the internal
-  `EV_NODE_CLICK` a node click sends into the FSM.
+  graph in place, preserving the user's zoom/pan), plus `EV_NODE_CLICK`, which
+  a node click sends into the FSM. **With a `node_route` the click IS a
+  navigation** and this view makes it; **without one the click is published**
+  (`{topic}`) for whoever mounted the view — a host that draws the same picture
+  inside its own screens opens the topic in place, with no hash involved. A
+  host that subscribes must declare `EV_NODE_CLICK` in its own FSM, as with
+  every event a child publishes. Since 6.1.0; before that a click with no route
+  was dropped.
 
 Barrel-exported and public from 4.0.0. Renders with `@antv/g6`; the cards are
 HTML nodes carrying their own inline colours, so a theme switch repaints them in
 place (no CSS of its own).
+
+### C_YUI_SCHEMA_EDITOR — a schema edited as a schema
+
+Every schema a yuno holds lives in its `treedb_system_schema`, stored as data
+in three flat topics linked by fkeys: `treedbs` → `topics` → `cols`. That is
+the right **storage** and it is not a **screen**. Opened with the ordinary
+topic editor, adding one column to one topic means finding it in a table
+holding every column of every topic of every treedb the yuno has, composing the
+parent fkey by hand, and remembering to raise a `topic_version` that nothing
+asks about.
+
+This view puts the schema back together and edits that: **treedb → topics →
+columns**, each in its declared `order`, with the storage composed underneath —
+the qualified id, the fkey to the parent, the place among the siblings, and the
+versions that publish the change.
+
+**The versions are the point, not a detail.** `topic_version` is what publishes
+a change of a topic's columns: leave it and the persisted `topic_cols.json`
+masks the whole edit — the restart succeeds and nothing moved. `schema_version`
+is what publishes the schema as a whole ("the stored one wins on ties, and the
+incoming one has to be strictly newer to take over", `c_treedb.c`), and raising
+it is safe: re-projection from C compares `c_schema_version`, the version of
+the **literal**, precisely so that an edit made here survives every start until
+a newer literal arrives. So **every write carries both** and the operator is
+never asked to remember either. The banner in the column screen is for the case
+where something *else* wrote the topic and left its version alone.
+
+What the screens offer:
+
+| Screen | What it is for |
+|--------|----------------|
+| treedbs | one card per treedb, with its topic count and its `schema_version` beside the `c_schema_version` it was projected from |
+| topics | the topics of one treedb in schema order: pkey, column count, version, system flag |
+| columns | the heart. Rows in `order`, **draggable** — `order` is a field, so a drop writes the rows whose place actually changed, two or three and not forty |
+| diagram | the treedb **drawn from the records being edited**, through `C_YUI_TREEDB_SCHEMA` |
+
+And what the toolbar offers, each answering a question the storage could not:
+
+- **check** — what the treedb would refuse, from the records alone: a pkey
+  naming no column, a hook whose target is missing or is not a fkey, two hooks
+  on one fkey, an `enum` flag with no `enum`. Applying a schema is restarting
+  the yuno that owns it, so a schema it refuses costs an outage to discover and
+  the message lands in that yuno's log, on the node, minutes later.
+- **export** — the schema as its **C literal**, ready to paste into the source.
+  An edit made here works and lives nowhere the next build knows about;
+  `diff-schema` says the two halves drifted, and this is the other half of that
+  answer. Escaping crosses two layers and the second is not JSON's:
+  `helper_quote2doublequote()` rewrites *every* single quote before the parse,
+  so a quote inside a value can only survive as `\u0027`.
+- **import** — the writes that make the stored schema equal a pasted one, shown
+  as a **plan** before it runs. Import is the one operation here that can delete
+  a column, so what is confirmed is what runs.
+
+The **flags** of a column are checkboxes that say what they do, grouped the way
+they act and dimmed (never hidden) when they are meaningless on the chosen type:
+a flag already set on a column of another type has to stay visible or the next
+save drops it silently. `hook` and `fkey` turn each other off, because they are
+the two ends of one link.
+
+A **name is not editable**: the store keys a column by its qualified id —
+treedb, topic and name — so renaming one is creating another and deleting this
+one. The form says so rather than offering a field that quietly does something
+else.
+
+**Contract:**
+
+- Attributes: `subscriber`, `gobj_remote_yuno` (the transport — the treedb's
+  service, or an adapter that reaches it: this view cannot tell and must not),
+  `treedb_name` (the system-schema treedb), `readonly` (this yuno does not
+  master the tranger, so it refuses every write), `base_route`, `$container`.
+- In: `EV_SHOW` (`{subpath}` — the tail it owns is `<treedb>[/<topic>]` or
+  `<treedb>/diagram`), `EV_HIDE`, `EV_TRANSPORT_STATE`, `EV_REFRESH`,
+  `EV_LANGUAGE_CHANGED`, `EV_MT_COMMAND_ANSWER`.
+- Out: `EV_POSITION_CHANGED` (`{subpath}` — the host writes the url; this view
+  navigates nothing itself), `EV_RECORD_WRITTEN` (whoever owns the Apply needs
+  to know the yuno has not re-read its schema yet), `EV_SCHEMA_CHECKED`
+  (`{errors, warnings, first}` — so the confirmation that restarts the yuno can
+  say what it is about to restart onto).
+- States, because each is a screen and a set of legal actions: `ST_IDLE`,
+  `ST_LOADING`, `ST_EMPTY`, `ST_TREEDBS`, `ST_TOPICS`, `ST_DIAGRAM`,
+  `ST_COLUMNS`, `ST_SAVING`.
+
+The logic is pure and tested apart from the view: `schema_model.js` (the three
+lists regrouped — grouping follows the **fkey**, not a split of the qualified
+id on `.`, which works right up to the first name that carries one),
+`schema_validate.js`, `schema_descs.js`, `schema_to_c.js`, `schema_import.js`,
+`schema_flags.js`. Since 6.1.0.
 
 ### Frontend view — `setup_frontend_view`
 
