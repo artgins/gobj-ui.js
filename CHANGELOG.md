@@ -5,7 +5,11 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 6.0.0
+
+A dependency-only major, like 5.0.0: no API moved and nothing this library
+exports changed shape. The peer floor for `@yuneta/gobj-js` goes to
+**`^7.13.2`**, because everything below only works with it.
 
 - **feat: a `qualified` pkey is a key the store hands out, and it is not the
   label.** The SDK re-keyed the `topics` and `cols` topics of
@@ -31,6 +35,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
   Against an SDK that still keys those topics by rowid nothing changes: the
   flag is simply absent and every path above takes its previous branch.
+
+  **It needs gobj-js `>= 7.13.2`**, which is why this is a major. The flag
+  becomes a `type` in `treedb_field_types`, a list gobj-js owns; on an older
+  runtime the word is missing, `field_desc.type` stays at the plain `string`,
+  and the three paths above take a branch that asks the operator to type
+  `treedb.topic.column` by hand. It fails quietly, so the floor says it
+  instead.
 
 ## 5.17.0
 
