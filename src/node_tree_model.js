@@ -169,6 +169,32 @@ export function projection_renders(projection, mode)
  *  `route_of(id)` returns the canonical route of a child — the
  *  node supplies it, so this file stays route-agnostic.
  ************************************************************/
+/***************************************************************
+ *  nav_route_with_tail(route, tail) -> where that item goes
+ *
+ *      A nav item normally points at the canonical route of a
+ *      child. When the tree remembers positions it points at
+ *      WHERE THE OPERATOR LEFT that child instead: the child's
+ *      route plus the tail last active under it.
+ *
+ *      It is the difference between a strip of treedbs that
+ *      behaves like a row of tabs and one that drops what each
+ *      tab had open every time you come back to it.
+ *
+ *      An empty tail is not a position: it means the operator was
+ *      at the child's own home, which is the canonical route.
+ ***************************************************************/
+export function nav_route_with_tail(route, tail)
+{
+    let base = String(route || "");
+    let rest = String(tail || "").replace(/^\/+/, "").replace(/\/+$/, "");
+
+    if(!rest) {
+        return base;
+    }
+    return base.replace(/\/+$/, "") + "/" + rest;
+}
+
 export function child_nav_items(children, route_of)
 {
     let items = [];

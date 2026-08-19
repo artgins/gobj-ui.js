@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 6.2.0
+
+- **feat: `C_YUI_NODE` can remember where you left each child
+  (`remember_position`).** A nav item pointed at the canonical route of its
+  child, so a strip of children behaved like a row of tabs that forgets: open a
+  topic inside one, move to a sibling, come back — and the tab is at its
+  landing, with browser Back the only way to what was open. Reported from the
+  agent console's Schemas workspace, where the strip really is a row of tabs.
+
+  With the attr on, the item points at the child's route plus the tail last
+  active under it. It stays a real position, so clicking is a navigation like
+  any other: nothing redirects, nothing argues with the url, and a bare
+  navigation to a child records "its home" and the item follows. Off by default
+  — a tree whose children are pages wants the item to BE the destination.
+
+  A zone-projected nav is rebuilt from a signature of its items; that signature
+  now carries each item's route, because with this attr an id never moves while
+  its destination does.
+
 ## 6.1.2
 
 - **fix: publishing a node click is OPT-IN (`with_node_click`).** 6.1.1 made

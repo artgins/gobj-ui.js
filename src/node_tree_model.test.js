@@ -3,7 +3,7 @@
  *
  *      Unit tests for the pure node-tree helpers.
  ***********************************************************************/
-import { test, expect } from "vitest";
+import { describe, test, expect } from "vitest";
 import {
     chrome_visible,
     split_subpath,
@@ -11,6 +11,7 @@ import {
     join_route,
     projection_renders,
     child_nav_items,
+    nav_route_with_tail,
     normalize_spec,
     is_nav_mode,
     nav_mode_renders,
@@ -349,4 +350,33 @@ test("back is depth 1 and path is depth 0, whatever the tree declared", () => {
     /*  stack keeps the declaration, unlimited included  */
     expect(nav_mode_depth(null, "stack")).toBe(null);
     expect(nav_mode_depth(2, "stack")).toBe(2);
+});
+
+describe("nav_route_with_tail — a nav item that points where you left", () => {
+    test("no tail is the canonical route: the child's own home", () => {
+        expect(nav_route_with_tail("/schemas/db", "")).toBe("/schemas/db");
+        expect(nav_route_with_tail("/schemas/db", null)).toBe("/schemas/db");
+        expect(nav_route_with_tail("/schemas/db", undefined)).toBe("/schemas/db");
+    });
+
+    test("a tail is appended, which is the whole point", () => {
+        expect(nav_route_with_tail("/schemas/db", "users")).toBe("/schemas/db/users");
+        expect(nav_route_with_tail("/schemas/db", "users/info"))
+            .toBe("/schemas/db/users/info");
+    });
+
+    test("it never doubles a slash, whichever side carries one", () => {
+        expect(nav_route_with_tail("/schemas/db/", "users")).toBe("/schemas/db/users");
+        expect(nav_route_with_tail("/schemas/db", "/users")).toBe("/schemas/db/users");
+        expect(nav_route_with_tail("/schemas/db/", "/users/")).toBe("/schemas/db/users");
+    });
+
+    test("a tail of only slashes is no tail", () => {
+        expect(nav_route_with_tail("/schemas/db", "/")).toBe("/schemas/db");
+    });
+
+    test("no route at all is not a crash", () => {
+        expect(nav_route_with_tail("", "users")).toBe("/users");
+        expect(nav_route_with_tail(null, null)).toBe("");
+    });
 });

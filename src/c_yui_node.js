@@ -106,6 +106,7 @@ import {
     gobj_parent,
     gobj_gclass_name,
     gobj_read_attr,
+    gobj_read_bool_attr,
     gobj_read_pointer_attr,
     gobj_write_attr,
     gobj_subscribe_event,
@@ -124,6 +125,7 @@ import {
     join_route,
     projection_renders,
     child_nav_items,
+    nav_route_with_tail,
     chrome_visible,
     normalize_spec,
     is_nav_mode,
@@ -175,6 +177,7 @@ SDATA(data_type_t.DTP_JSON,     "children",     0,  null,   "Declared child spec
 SDATA(data_type_t.DTP_STRING,   "base_route",   0,  "",     "ROOT only: the declared route the whole tree hangs from"),
 SDATA(data_type_t.DTP_STRING,   "tree_version", 0,  "",     "ROOT only: version of the tree CONTRACT (its paths are public urls)"),
 SDATA(data_type_t.DTP_STRING,   "nav_mode",     0,  "stack","ROOT only: how the way in is shown — stack|back|path"),
+SDATA(data_type_t.DTP_BOOLEAN,  "remember_position", 0, false, "A nav item points at WHERE THE OPERATOR LEFT that child, not at its bare route: the tail last active under each child is remembered and appended. For a tree whose children are workspaces with a position inside them (a treedb and its open topic); off for one whose children are pages, where the item IS the destination"),
 
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Root HTMLElement (shell view contract)"),
 SDATA_END()
@@ -187,6 +190,7 @@ let PRIVATE_DATA = {
     zone_sig:       null,   /*  their last item signature                 */
     content_gobj:   null,
     active_child:   null,   /*  child NODE gobj currently on the path    */
+    remembered:     null,   /*  child id -> tail last active under it     */
     chrome_depth:   null,   /*  effective for the active path (null = all) */
     distance:       0,      /*  segments from me down to the tip           */
     chain:          null,   /*  nodes from my child down to the tip        */
@@ -224,6 +228,7 @@ function mt_create(gobj)
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
     priv.children = [];
+    priv.remembered = {};
     priv.navs = [];
     priv.zone_navs = {};
     priv.zone_sig = {};
@@ -652,7 +657,16 @@ function render_projection(gobj, mode, $where, active_route, active_id, zones_on
             disabled: gobj_read_attr(child, "disabled")
         });
     }
-    let items = child_nav_items(specs, (id) => `${base}/${id}`);
+    /*  A nav item points at the child's canonical route, or — when this
+     *  tree remembers — at where the operator left that child. Same
+     *  contract either way: what the item carries is a real position,
+     *  so clicking it is a navigation and not a restore that would then
+     *  have to argue with the url.  */
+    let remember = gobj_read_bool_attr(gobj, "remember_position");
+    let items = child_nav_items(specs, (id) => {
+        let route = `${base}/${id}`;
+        return remember ? nav_route_with_tail(route, priv.remembered[id]) : route;
+    });
 
     let i = 0;
     for(let render of renders) {
@@ -714,7 +728,11 @@ function project_into_zone(gobj, render, items, active_route, active_id)
 {
     let priv = gobj.priv;
     let key = `${render.zone}|${render.layout}|${render.show_on || ""}`;
-    let sig = items.map((it) => it.id).join(",");
+    /*  The route is part of it: with `remember_position` an item's id
+     *  never changes while its destination does, so a signature of ids
+     *  alone would leave a persisted zone nav pointing at where the
+     *  operator was three navigations ago.  */
+    let sig = items.map((it) => `${it.id}=${it.route}`).join(",");
     let nav = priv.zone_navs[key];
 
     if(!nav) {
@@ -988,6 +1006,18 @@ function activate(gobj, subpath, inherited_depth)
     priv.distance = info.distance;
     priv.chrome_depth = info.chrome_depth;
     priv.chain = info.chain;
+
+    /*  WHERE THE OPERATOR IS INSIDE THIS CHILD, recorded before anything
+     *  is drawn, because the strip drawn on this very activation is the
+     *  one that has to point back here.
+     *
+     *  An empty tail is recorded too, and that is not the same as not
+     *  recording: navigating to a child's bare route IS the operator
+     *  choosing its home, and the item must stop pointing at the topic
+     *  they left three navigations ago.  */
+    if(head) {
+        priv.remembered[head] = tail || "";
+    }
 
     /*  Structure ends here: whatever is left of the url is data, and it
      *  belongs to the viewer.  Re-render only the first time — paging

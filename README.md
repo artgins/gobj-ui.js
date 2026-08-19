@@ -201,6 +201,23 @@ seen*:
   `projection.path`) while the rest of the tree keeps its tabs. Note the
   asymmetry that makes it a third mode and not a layout: `index` and `chrome`
   project a node's CHILDREN; `path` projects the way in.
+- **`remember_position` — an item points at where you LEFT that child.**
+  Without it a nav item points at the canonical route of its child, so a strip
+  of children behaves like a row of tabs that forgets: open a topic inside one,
+  move to a sibling, come back, and the tab is at its landing — browser Back
+  the only way to what was open. With it, the item carries the tail that was
+  last active under that child.
+
+  It stays a **real position**, which is the reason it is done here and not by
+  the viewer restoring itself: clicking is a navigation like any other, nothing
+  redirects and nothing argues with the url. A bare navigation to a child
+  records "its home", so choosing the landing sticks too.
+
+  Off by default: a tree whose children are pages wants the item to BE the
+  destination. On for a tree whose children are workspaces with a position
+  inside them — the agent console's strip of treedbs, each with its open topic.
+  Since 6.2.0.
+
 - **`nav_mode` — the three shapes as one runtime knob.** The two bullets above
   describe what a tree *declares*; `nav_mode` is how a user *chooses* between
   the shapes without the app rewriting anything:
