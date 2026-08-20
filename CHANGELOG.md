@@ -5,6 +5,13 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.4.2
+
+- **fix: the focused legend entry hid its own swatch.** A solid `is-primary`
+  fill sat right behind the colour chip, swallowing the one thing the entry
+  exists to show. `is-light` marks it just as clearly and leaves the colour
+  readable.
+
 ## 7.4.1
 
 - **fix: a legend click moved the URL and focused nothing.** It only ANNOUNCED

@@ -2259,8 +2259,11 @@ function refresh_legend(gobj)
         let focused = (priv.focus_topic === topic_name);
         let $item = createElement2(
             ['button', {
+                /*  `is-light` on the focused one, not solid `is-primary`:
+                 *  the solid fill sat right behind the swatch and swallowed
+                 *  the one colour the entry exists to show. */
                 class: 'GRAPH_LEGEND_ITEM button is-small' +
-                       (focused? ' is-primary' : ''),
+                       (focused? ' is-primary is-light' : ''),
                 title: topic_name,
                 'aria-label': topic_name,
                 'aria-pressed': focused? 'true' : 'false'
