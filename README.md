@@ -491,6 +491,39 @@ The buttons of that toolbar never shrink. When the row runs out of room, the
 url is what gives way, cut with an ellipsis, and the whole value stays in the
 `title` and the `aria-label`.
 
+### Editing a topic table in place
+
+A writable scalar is editable in the table, in edition mode
+(`with_inline_edit`, default on). Changing one field used to mean opening the
+record form, changing it, saving and closing.
+
+**Which cells, and why not the rest.** The schema decides first: only a column
+flagged `writable`, and never the pkey — renaming what a record is KEYED by is
+not a field edit. Then the type: a hook holds children and an fkey IS a link,
+so both are edited by linking; a dict or a list is a document the form has an
+editor for; a date cell shows a formatted string over an epoch, so typing into
+it would write the string. Those stay with the form, one click away on the
+same row. `boolean` gets a tick, `enum` the list of its own values, numbers a
+number editor.
+
+**The write is a partial update with no `autolink`, and that is the whole
+safety of it.** `treedb_update_node()` merges (`json_object_update`), so the
+fields it does not carry are left alone; `autolink` is the option that wipes a
+node's links and rebuilds them from the fkeys the record carries, and on a
+partial record it reads that as "no parents", detaches the node and answers
+**success**. So a cell edit travels as its own event, `EV_UPDATE_FIELD`, and
+not as `EV_UPDATE_RECORD` — that one does send autolink, and may, because the
+form hands it the whole record with its fkeys in it. See
+`schema_write_options.js` for the rule and why each word of it is there.
+
+`editable` is a **function** on the column, not a flag: edition mode is
+toggled on a table that is already built, so the answer has to be asked for at
+the moment of the click.
+
+A refused write puts the topic back to what the treedb has. Leaving the typed
+value on screen is tolerable for a form, which stays open on the values it
+failed with; a cell edited in place would just look saved.
+
 ### Reading a topic table: filters, columns, CSV
 
 `C_YUI_TREEDB_TOPIC_WITH_FORM` had one global search box over the loaded rows.
