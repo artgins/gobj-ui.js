@@ -293,6 +293,8 @@ let PRIVATE_DATA = {
     _pending_focus_topic: null,     // focus requested before data was loaded
     _pending_find:      null,       // find requested before data was loaded
     _layout_asked:      "",         // layout the host asked for at create (see mt_create)
+    _nodes_total:       0,          // nodes built so far (auto_layout)
+    _nodes_placed:      0,          // ...of which carried a saved position
 };
 
 let __gclass__ = null;
@@ -1224,6 +1226,19 @@ function create_topic_node(gobj, desc, record)
     let node_name = build_node_name(gobj, desc.topic_name, record.id);
     let xy = get_default_ne_xy(gobj);
     let geometry = get_node_graph_props(gobj, desc.topic_name, record.id, record);
+
+    /*  Counted HERE, and before the two kw_get_int() below, because those
+     *  carry KW_CREATE: `get_node_graph_props()` hands back the record's own
+     *  `_geometry` object when it has one — and `{}` is one — so the very
+     *  next lines WRITE the invented cascade coordinates into it. Ask the
+     *  question a moment later and every node of every treedb answers
+     *  "placed", which is exactly how the dagre default kept refusing to
+     *  fire: 126 of 126, all of them positions the app had just made up. */
+    priv._nodes_total++;
+    if(geometry_has_position(geometry)) {
+        priv._nodes_placed++;
+    }
+
     let x = kw_get_int(gobj, geometry, "x", xy, kw_flag_t.KW_CREATE);
     let y = kw_get_int(gobj, geometry, "y", xy, kw_flag_t.KW_CREATE);
 
@@ -4495,50 +4510,18 @@ function show_node_detail_popover(gobj, node_id)
  *  junction diamonds get their neutral fill/stroke re-themed.
  ************************************************************/
 /************************************************************
- *  How many nodes of this treedb carry a saved position, and how many
- *  there are. Positions live in `__graphs__` (per topic, per node) and,
- *  on older data, in a `_geometry` on the record itself; both are read.
+ *  Does this geometry carry a POSITION?
+ *
+ *  An empty object does not. A treedb hands back `_geometry: {}` for a
+ *  record nobody ever moved, and a `__graphs__` node entry can hold a
+ *  port size and no coordinates — both are objects all the same.
  ************************************************************/
 function geometry_has_position(g)
 {
-    /*  An EMPTY object is not a position. A treedb hands back
-     *  `_geometry: {}` for a record nobody ever moved, and a `__graphs__`
-     *  node entry can hold a port size with no coordinates — both are
-     *  objects, and taking either for "this was placed" is wrong. */
     if(!is_object(g)) {
         return false;
     }
     return is_number(g.x) || is_number(g.y);
-}
-
-function count_saved_geometry(gobj)
-{
-    let priv = gobj.priv;
-    let saved = 0;
-    let total = 0;
-
-    for(let topic of Object.keys(priv.records || {})) {
-        let records = priv.records[topic];
-        if(!is_array(records)) {
-            continue;
-        }
-        let props = priv._graph_properties? priv._graph_properties[topic] : null;
-        let nodes = (props && is_object(props.nodes))? props.nodes : null;
-
-        for(let record of records) {
-            if(!record) {
-                continue;
-            }
-            total++;
-            if(nodes && geometry_has_position(nodes[record.id])) {
-                saved++;
-            } else if(geometry_has_position(record._geometry)) {
-                saved++;
-            }
-        }
-    }
-
-    return {saved: saved, total: total};
 }
 
 /************************************************************
@@ -4570,8 +4553,10 @@ function auto_layout(gobj)
      *  that forced this had exactly ONE node of 126 carrying a geometry,
      *  and it was `{x:100, y:100}` — the first cascade slot, saved. One
      *  leftover is not an arrangement. A majority is. */
-    let g = count_saved_geometry(gobj);
-    if(g.total > 0 && g.saved * 2 > g.total) {
+    /*  MOST of the nodes, not one of them: the app saves a position it
+     *  invented as readily as one a human chose, so a single stored
+     *  coordinate proves nothing. One leftover is not an arrangement. */
+    if(priv._nodes_total > 0 && priv._nodes_placed * 2 > priv._nodes_total) {
         return;         /*  somebody arranged it: leave it alone  */
     }
     if(!priv.graph) {
@@ -5790,6 +5775,11 @@ function ac_clear_data(gobj, event, kw, src)
     hide_create_popover(gobj);
 
     gobj_write_attr(gobj, "records", {});
+
+    /*  The node counters belong to the data that is going away: a refresh
+     *  that kept them would decide the layout on the previous treedb. */
+    priv._nodes_total = 0;
+    priv._nodes_placed = 0;
 
     graph_remove_plugin(gobj, "history");
     update_history_buttons(gobj);

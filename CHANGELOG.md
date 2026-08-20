@@ -5,20 +5,37 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.5.7
+
+- **fix: the dagre default, and this time the actual cause.** Every node of
+  every treedb was answering "I have a saved position" — 126 of 126 — and none
+  of them did. `get_node_graph_props()` hands back the record's own
+  `_geometry` object when it has one, and a treedb hands back `{}` for a
+  record nobody ever moved; the two `kw_get_int(..., KW_CREATE)` on the next
+  lines then WRITE the invented cascade coordinates into it. The check was
+  reading data the node-creation loop had fabricated a moment earlier.
+
+  Whether a node arrived placed is counted **at creation, before those two
+  lines**, and the layout decision reads the counters. Worth keeping in mind
+  beyond this fix: after a graph is built, `record._geometry` is not evidence
+  of anything a human did.
+
+  (7.5.5 claimed this fix and did not have it; 7.5.6 was the instrumentation
+  that found the cause. Neither carries a git tag — 7.5.6 was published from a
+  working tree that was never committed on its own.)
+
 ## 7.5.5
 
-- **fix: the dagre default, third time.** One saved coordinate was being read
-  as "somebody arranged this treedb". The treedb that forced the whole change
-  had exactly ONE node of 126 carrying a geometry — and it was
-  `{x: 100, y: 100}`, the FIRST cascade slot, saved. The app stores a position
-  it invented as readily as one a human chose, so a single stored coordinate
-  proves nothing; the test is now whether MOST of the nodes carry one.
+- **fix (incomplete — see 7.5.7): a majority of placed nodes, not one.** One
+  stored coordinate was being read as "somebody arranged this treedb", and the
+  first node examined carried `{x: 100, y: 100}` — the first cascade slot. The
+  majority test is right and stays; what was still wrong is where the answer
+  came from.
 
-  (7.5.3 and 7.5.4 were the instrumentation that found it, and carry no git
-  tag: they were published from working trees that were never committed on
-  their own. Two guesses had been wrong before them — the lesson being the one
-  already written down: pull the real value out before theorising about the
-  cause.)
+  (7.5.3 and 7.5.4 were instrumentation and carry no git tag: they were
+  published from working trees that were never committed on their own. Three
+  guesses were wrong before the cause came out, which is the lesson already
+  written down: pull the real value out before theorising about it.)
 
 ## 7.5.2
 
