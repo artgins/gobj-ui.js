@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.6.1
+
+- **fix: fitting a wide fan produced a hairline.** A schema treedb is one topic
+  and a hundred columns, and dagre spreads it far enough that fitting lands at
+  about 0.2 zoom — technically the whole graph, and worth nothing. The fit
+  stops at a legible zoom and centres instead: you read a part, and the minimap
+  such a graph always has says where that part is.
+
 ## 7.6.0
 
 - **feat: a graph laid out by us opens WHOLE.** dagre spreads a 126-node

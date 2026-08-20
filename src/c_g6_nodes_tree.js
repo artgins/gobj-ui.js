@@ -2104,6 +2104,32 @@ async function graph_fitview(gobj)
     await graph.fitView();
 }
 
+/*  Below this the cards carry no readable text at all. */
+const MIN_READABLE_ZOOM = 0.5;
+
+/************************************************************
+ *  Fit the graph in the viewport, but never zoom out past the point
+ *  where nothing on a card can be read.
+ *
+ *  A wide fan — a schema treedb is one topic and a hundred columns —
+ *  fits at about 0.2, which is a hairline strip: technically the whole
+ *  graph, and worth nothing. Stopping at a legible zoom and centring
+ *  shows a part you can actually read, and the minimap (which such a
+ *  graph always has) says where that part is.
+ ************************************************************/
+async function graph_fit_readable(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    await graph.fitView();
+
+    if(graph.getZoom() < MIN_READABLE_ZOOM) {
+        await graph.zoomTo(MIN_READABLE_ZOOM);
+        await graph.fitCenter();
+    }
+}
+
 /************************************************************
  *  Focus the graph on one topic: highlight (amber 'active' state)
  *  every node of that topic and centre the viewport on them. An
@@ -5886,7 +5912,7 @@ function ac_load_data(gobj, event, kw, src)
                      *  118 more. Only when WE laid it out — a saved
                      *  arrangement includes where its owner was looking. */
                     if(auto_laid) {
-                        graph_fitview(gobj).catch((e) => {
+                        graph_fit_readable(gobj).catch((e) => {
                             log_error(`${gobj_short_name(gobj)}: cannot fit the graph: ${e}`);
                         });
                     }
