@@ -148,6 +148,7 @@ let PRIVATE_DATA = {
     records:            {},
     gobj_nodes_tree:    null,
     find_timer:         null,       // rate-limits the find box (see make_toolbar)
+    focus_topic:        "",         // topic the graph is focused on (marks the legend)
     gobj_treedb_tables: null,
     hook_data_viewer:   null,
     json_gobj:          null,   /*  C_YUI_JSON viewer of the raw tranger (or null)  */
@@ -354,6 +355,13 @@ function build_ui(gobj)
         // Don't use is-flex, don't work well with is-hidden
         ['div', {class: 'C_YUI_TREEDB_GRAPH', style: `height:100%; display:flex; flex-direction:column;`}, [
             ['div', {class: 'GRAPH_TOOLBAR_ROW is-flex-grow-0 is-flex is-align-items-center'}, row_items],
+            /*  Topic colour legend: a strip, not an overlay. It is opened to
+             *  be READ against the graph, and an overlay would cover the
+             *  thing it explains. Built on first open (the colours are the
+             *  child's, assigned when the schema arrives). */
+            ['div', {class: 'GRAPH_LEGEND is-hidden is-flex-grow-0',
+                     style: 'display:flex; flex-wrap:wrap; align-items:center; ' +
+                            'gap:.4rem; padding:.35rem .5rem;'}, []],
             ['div', {class: `GRAPH_BODY is-flex-grow-1 ${padding}`, style: 'height:100%; min-height:0; overflow:hidden;'}, [
                 ['div', {id: priv.canvas_id, class: `GRAPH_CANVAS graph-container`, style: 'height:100%; min-height:0;border: 1px solid var(--bulma-border-weak);border-radius:0.2rem;'}, [
                 ]]
@@ -493,6 +501,23 @@ function make_toolbar(gobj)
             click: (evt) => {
                 evt.stopPropagation();
                 gobj_send_event(gobj, "EV_REFRESH_TREEDB", {evt}, gobj);
+            }
+        }],
+
+        /*  Which colour is which topic. The port colour of a node encodes
+         *  the topic it links to, which is the whole point of the graph and
+         *  which nothing on screen explained. Clicking an entry focuses that
+         *  topic, so the legend is also the way to say "show me these" —
+         *  and clicking the focused one again clears it.  */
+        ['button', {class: 'GRAPH_LEGEND_BTN button ml-2',
+                    title: t('legend'), 'aria-label': t('legend'),
+                    'data-i18n-title': 'legend', 'data-i18n-aria-label': 'legend'}, [
+            ['i', {class: 'yi-square'}],
+            ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'legend'}, 'legend']
+        ], {
+            click: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_TOGGLE_LEGEND", {}, gobj);
             }
         }],
 
@@ -2195,6 +2220,115 @@ function ac_set_operation_mode(gobj, event, kw, src)
  *  until its data is loaded).
  ************************************************************/
 /************************************************************
+ *  Fill the legend strip with one entry per topic: a swatch in the
+ *  topic's colour and its name. The colours belong to the graph child —
+ *  it assigns them from its palette when the schema arrives — so they
+ *  are read from there and never guessed twice.
+ *
+ *  An entry is a BUTTON: clicking it focuses that topic, clicking the
+ *  focused one clears the focus. The focus travels the same way a topic
+ *  card's graph icon travels — as EV_TOPIC_SELECTED, which the host turns
+ *  into the URL, so what you are looking at stays linkable.
+ ************************************************************/
+function refresh_legend(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    let $legend = $container.querySelector(".GRAPH_LEGEND");
+    if(!$legend) {
+        return;
+    }
+
+    let descs = priv.gobj_nodes_tree?
+        gobj_read_attr(priv.gobj_nodes_tree, "descs") : null;
+    $legend.textContent = "";
+    if(!descs) {
+        return;
+    }
+
+    for(const [topic_name, desc] of Object.entries(descs)) {
+        if(topic_name.substring(0, 2) === "__") {
+            continue;       /*  the internal topics are not drawn  */
+        }
+        if(!desc || !desc.color) {
+            continue;
+        }
+        let focused = (priv.focus_topic === topic_name);
+        let $item = createElement2(
+            ['button', {
+                class: 'GRAPH_LEGEND_ITEM button is-small' +
+                       (focused? ' is-primary' : ''),
+                title: topic_name,
+                'aria-label': topic_name,
+                'aria-pressed': focused? 'true' : 'false'
+            }, [
+                ['span', {class: 'GRAPH_LEGEND_SWATCH',
+                          style: `display:inline-block; width:.8rem; height:.8rem; ` +
+                                 `border-radius:3px; margin-right:.4rem; ` +
+                                 `background:${desc.color}; ` +
+                                 `border:1px solid rgba(0,0,0,.25);`}],
+                /*  The topic name is DATA: it carries no i18n key and is
+                 *  never translated. */
+                ['span', {}, topic_name]
+            ], {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_LEGEND_TOPIC", {topic: topic_name}, gobj);
+                }
+            }]
+        );
+        $legend.appendChild($item);
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function ac_toggle_legend(gobj, event, kw, src)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return 0;
+    }
+    let $legend = $container.querySelector(".GRAPH_LEGEND");
+    if(!$legend) {
+        log_error(`${gobj_short_name(gobj)}: no legend strip to toggle`);
+        return -1;
+    }
+    if($legend.classList.contains("is-hidden")) {
+        refresh_legend(gobj);
+        $legend.classList.remove("is-hidden");
+    } else {
+        $legend.classList.add("is-hidden");
+    }
+    return 0;
+}
+
+/************************************************************
+ *  A legend entry was clicked: focus that topic, or clear the focus if
+ *  it was already the focused one. Published UP rather than applied
+ *  here, so the URL follows — the host owns the route.
+ ************************************************************/
+function ac_legend_topic(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let topic = (kw && kw.topic) || "";
+    if(!topic) {
+        log_error(`${gobj_short_name(gobj)}: legend click with no topic`);
+        return -1;
+    }
+    gobj_publish_event(
+        gobj,
+        "EV_TOPIC_SELECTED",
+        {topic: (priv.focus_topic === topic)? "" : topic}
+    );
+    return 0;
+}
+
+/************************************************************
  *  Forward the find down to the graph child.
  ************************************************************/
 function ac_find_nodes(gobj, event, kw, src)
@@ -2242,13 +2376,21 @@ function ac_find_result(gobj, event, kw, src)
 function ac_set_focus_topic(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    priv.focus_topic = (kw && kw.topic) || "";
     if(priv.gobj_nodes_tree) {
         gobj_send_event(
             priv.gobj_nodes_tree,
             "EV_FOCUS_TOPIC",
-            {topic: kw && kw.topic},
+            {topic: priv.focus_topic},
             gobj
         );
+    }
+    /*  Keep the legend's mark on the topic that is actually focused —
+     *  including when the focus arrives from the URL and not from a click. */
+    let $container = gobj_read_attr(gobj, "$container");
+    let $legend = $container? $container.querySelector(".GRAPH_LEGEND") : null;
+    if($legend && !$legend.classList.contains("is-hidden")) {
+        refresh_legend(gobj);
     }
     return 0;
 }
@@ -2339,6 +2481,8 @@ function create_gclass(gclass_name)
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
             ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
             ["EV_FIND_NODES",               ac_find_nodes,              null],
+            ["EV_TOGGLE_LEGEND",            ac_toggle_legend,           null],
+            ["EV_LEGEND_TOPIC",             ac_legend_topic,            null],
             ["EV_FIND_RESULT",              ac_find_result,             null],
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
@@ -2376,6 +2520,10 @@ function create_gclass(gclass_name)
         ["EV_SET_FOCUS_TOPIC",          0],
         ["EV_FIND_NODES",               0],
         ["EV_FIND_RESULT",              0],
+        ["EV_TOGGLE_LEGEND",            0],
+        ["EV_LEGEND_TOPIC",             0],
+        ["EV_TOPIC_SELECTED",
+            event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_OPERATION_MODE_CHANGED",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_RECORD_WRITTEN",

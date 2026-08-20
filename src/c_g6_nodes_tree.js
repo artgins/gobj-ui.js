@@ -31,6 +31,7 @@ import {
     gobj_read_attr,
     gobj_read_str_attr,
     gobj_read_bool_attr,
+    gobj_read_integer_attr,
     gobj_write_attr,
     gobj_write_str_attr,
     gobj_parent,
@@ -93,7 +94,7 @@ import {
     register,
 } from '@antv/g6';
 
-import {Circle as CircleGeometry} from '@antv/g';
+import {Circle as CircleGeometry, Rect as RectGeometry} from '@antv/g';
 import i18next, {t} from "i18next";
 
 import {inject_svg_icons} from "./lib_icons.js";
@@ -218,6 +219,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include tre
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  true,   "Use gridline plugin"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_fullscreen",      0,  true,   "Use fullscreen plugin"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",         0,  true,   "Use toolbar plugin"),
+SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes",    0,  30,     "Show the minimap from this many nodes on (0 = never). A minimap of a graph that fits on screen is decoration; one of two hundred cards is the only way to know where you are"),
 SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "right-top",
     "Toolbar position: top-left, top-right, bottom-left, bottom-right, left-top, right-top"),
 SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
@@ -4482,6 +4484,81 @@ function show_node_detail_popover(gobj, node_id)
  *  junction diamonds get their neutral fill/stroke re-themed.
  ************************************************************/
 /************************************************************
+ *  Show or hide the minimap, deciding by the SIZE of the graph.
+ *
+ *  A minimap of a graph that already fits on screen is decoration; one
+ *  of two hundred cards is the only way to know where you are. So it is
+ *  not a preference the reader has to find and set — it appears when
+ *  there is something to be lost in, from `minimap_min_nodes` on.
+ *
+ *  Its shapes are drawn by hand. G6's minimap clones each element's key
+ *  shape into its own canvas, and every node here is an `html` node
+ *  whose key shape is a DOM element — the same reason the `active`
+ *  state never painted (see HIGHLIGHT_COLOR). A block in the topic's
+ *  colour is also what a minimap of cards SHOULD show: at that scale a
+ *  card is a rectangle anyway.
+ ************************************************************/
+function refresh_minimap(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph) {
+        return;
+    }
+
+    let threshold = gobj_read_integer_attr(gobj, "minimap_min_nodes");
+    let n = 0;
+    try {
+        let data = graph.getData() || {};
+        n = is_array(data.nodes)? data.nodes.length : 0;
+    } catch(e) {
+        n = 0;
+    }
+
+    if(!threshold || n < threshold) {
+        graph_remove_plugin(gobj, "minimap");
+        return;
+    }
+
+    if(graph_get_plugin(gobj, "minimap")) {
+        return;         /*  already up  */
+    }
+
+    graph_add_plugin(
+        gobj,
+        "minimap",
+        {
+            size: [200, 140],
+            position: "bottom-left",
+            shape: (id, element_type, element) => {
+                if(element_type !== "node") {
+                    return element;     /*  edges clone themselves fine  */
+                }
+                try {
+                    let nd = graph.getNodeData(id);
+                    let size = (nd && nd.style && nd.style.size) || [120, 60];
+                    let color = (nd && nd.data && nd.data.desc && nd.data.desc.color)
+                        || "#94a3b8";
+                    return new RectGeometry({
+                        style: {
+                            x: -size[0] / 2,
+                            y: -size[1] / 2,
+                            width: size[0],
+                            height: size[1],
+                            fill: color,
+                            radius: 4
+                        }
+                    });
+                } catch(e) {
+                    log_error(`${gobj_short_name(gobj)}: minimap shape failed: ${e}`);
+                    return element;
+                }
+            }
+        }
+    );
+}
+
+/************************************************************
  *  The innerHTML of ONE node, in the given theme and highlight state.
  *  The three treedb tiers (hierarchical / extended / child) each have
  *  their own card, and both the theme refresh and the highlight need the
@@ -5686,6 +5763,9 @@ function ac_load_data(gobj, event, kw, src)
                     } else {
                         graph_remove_plugin(gobj, "history");
                     }
+                    /*  The graph knows its size now: a minimap appears only
+                     *  when there is something to be lost in. */
+                    refresh_minimap(gobj);
                     /*  Nodes exist and are positioned now: apply a focus
                      *  requested before the data was ready (deep link). */
                     if(priv._pending_focus_topic !== null) {

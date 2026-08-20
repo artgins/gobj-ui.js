@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.4.0
+
+- **feat: a legend that says which colour is which topic — and focuses it.**
+  A node's port colour encodes the topic it links to; that is a deliberate,
+  functional cue, and nothing on screen said what any colour meant.
+  `C_YUI_TREEDB_GRAPH` gets a legend strip (toolbar toggle): one swatch per
+  topic, in the colour the graph child assigned it.
+
+  It is a strip and not an overlay because it is opened to be READ against the
+  graph, and an overlay would cover the thing it explains. Each entry is a
+  button: it focuses that topic, and the focused one clears it. The focus
+  travels UP as `EV_TOPIC_SELECTED`, the same way a topic card's graph icon
+  travels, so the host turns it into the URL and what you are looking at stays
+  linkable.
+
+- **feat: a minimap, from `minimap_min_nodes` (30) nodes on.** A minimap of a
+  graph that already fits on screen is decoration; one of two hundred cards is
+  the only way to know where you are. So it is not a preference to find and
+  set — it appears when there is something to be lost in, and leaves when
+  there is not.
+
+  Its shapes are drawn by hand, a block in the topic's colour. G6's minimap
+  clones each element's KEY SHAPE, and every node here is an `html` node —
+  the same reason the `active` state never painted (7.3.0). At minimap scale
+  a card is a rectangle anyway.
+
 ## 7.3.0
 
 - **fix: the graph highlight never actually appeared.** `EV_FOCUS_TOPIC` has
