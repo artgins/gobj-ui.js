@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.0.1
+
+- **docs: say why `unsubscribe_treedb()` has no caller.** It reads like dead
+  code and it is not. A topic subscribed once stays subscribed for the life of
+  the view, and the whole set goes when the view and its transport are
+  destroyed — nothing leaks, so no caller is owed on that account. What the
+  function holds is the exact shape the remote subscription was made with (the
+  three events, `__service__`, the treedb+topic filter), and a remote
+  unsubscribe only lands if it matches the subscribe verbatim.
+
 ## 7.0.0
 
 **BREAKING (dependency only — no API moved).** The `maplibre-gl` peer floor
