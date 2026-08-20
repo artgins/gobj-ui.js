@@ -574,13 +574,10 @@ function build_graph(gobj)
         gobj_send_event(gobj, "EV_NODE_CLICK", {node_id: node_id}, gobj);
     });
 
-    graph.render().then(() => {
-        try {
-            graph.fitView();
-        } catch(e) {
-            // best-effort centring
-        }
-    }).catch((e) => {
+    /*  No fitView: the diagram is drawn at its own scale and stays there.
+     *  Zooming it to the container the moment it appears rewrites the size
+     *  the reader just saw, and does it differently for every treedb. */
+    graph.render().catch((e) => {
         log_error(`${gobj_short_name(gobj)}: schema graph render failed: ${e}`);
     });
 }
@@ -659,8 +656,10 @@ function ac_node_click(gobj, event, kw, src)
 }
 
 /************************************************************
- *   Shown by the host: (re)fit the view now the container is
- *   visible and sized (G6 renders at 0×0 while display:none).
+ *   Shown by the host: match the canvas to the container now it
+ *   is visible and sized (G6 renders at 0×0 while display:none).
+ *   A resize only, never a fit: the camera stays where it was, so
+ *   the diagram keeps its scale and the user's pan/zoom.
  ************************************************************/
 function ac_show(gobj, event, kw, src)
 {
@@ -670,7 +669,7 @@ function ac_show(gobj, event, kw, src)
         return 0;
     }
     try {
-        priv.graph.fitView();
+        priv.graph.resize();
     } catch(e) {
         // best-effort
     }
