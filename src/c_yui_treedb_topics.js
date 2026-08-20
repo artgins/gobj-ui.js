@@ -1238,7 +1238,19 @@ function subscribe_treedb(gobj, topic_name)
 }
 
 /************************************************************
+ *   The counterpart of subscribe_treedb(), and NOBODY CALLS IT
+ *   today: a topic subscribed once stays subscribed for the life
+ *   of the view, and the whole set is released when the view (and
+ *   with it its transport) is destroyed. So there is no leak to
+ *   fix, and no caller to add on that account.
  *
+ *   It is kept deliberately. It is the only place that knows the
+ *   exact shape the remote subscription was made with — the three
+ *   events, `__service__` and the `treedb_name`+`topic_name`
+ *   filter — and a remote unsubscribe only lands if it matches
+ *   the subscribe verbatim. Deleting it would not remove that
+ *   knowledge, it would move it to whoever needs it next, to be
+ *   rederived from the subscribe side and got right again.
  ************************************************************/
 function unsubscribe_treedb(gobj, topic_name)
 {
