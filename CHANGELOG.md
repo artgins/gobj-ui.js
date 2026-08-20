@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 6.3.1
+
+- **fix: the schema diagram keeps the size it was drawn at.** Selecting
+  Diagram in `C_YUI_TREEDB_SCHEMA` drew the graph at its own scale and then, a
+  frame later, zoomed it to the container. The reader saw one size and got
+  another, and which one they ended up with depended on how many topics the
+  treedb had.
+
+  The `fitView()` after `render()` is gone, and `EV_SHOW` now calls `resize()`
+  instead of `fitView()`: the canvas still follows the container — G6 draws at
+  0×0 while `display:none`, so that part is needed — but the camera does not
+  move, so the scale and the user's pan/zoom survive being hidden and shown
+  again.
+
 ## 6.3.0
 
 - **feat: a topics view can say which backend it browses (`source_url`).**
