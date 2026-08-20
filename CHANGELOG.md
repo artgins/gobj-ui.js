@@ -21,7 +21,10 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   says so instead of simply not appearing.
 
   (7.4.3 and 7.4.4 were steps of this hunt: an explicit `graph.draw()` after
-  adding, which fires too early to help, and a round of instrumentation.)
+  adding, which fires too early to help, and a round of instrumentation.
+  **7.4.4 carries no git tag on purpose** — it was published from a working
+  tree that was never committed on its own, and a tag pointing anywhere else
+  would claim a source it does not have.)
 
 ## 7.4.2
 
