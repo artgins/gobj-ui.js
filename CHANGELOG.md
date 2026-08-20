@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.5.5
+
+- **fix: the dagre default, third time.** One saved coordinate was being read
+  as "somebody arranged this treedb". The treedb that forced the whole change
+  had exactly ONE node of 126 carrying a geometry — and it was
+  `{x: 100, y: 100}`, the FIRST cascade slot, saved. The app stores a position
+  it invented as readily as one a human chose, so a single stored coordinate
+  proves nothing; the test is now whether MOST of the nodes carry one.
+
+  (7.5.3 and 7.5.4 were the instrumentation that found it, and carry no git
+  tag: they were published from working trees that were never committed on
+  their own. Two guesses had been wrong before them — the lesson being the one
+  already written down: pull the real value out before theorising about the
+  cause.)
+
 ## 7.5.2
 
 - **fix: the dagre default still never fired.** "Has anybody arranged this

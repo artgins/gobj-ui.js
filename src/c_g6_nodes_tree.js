@@ -4495,52 +4495,50 @@ function show_node_detail_popover(gobj, node_id)
  *  junction diamonds get their neutral fill/stroke re-themed.
  ************************************************************/
 /************************************************************
- *  Has anybody ever PLACED a node of this treedb?
- *
- *  Saved positions live in `__graphs__` (per topic, per node) and, on
- *  older data, in a `_geometry` on the record itself. Both are read.
+ *  How many nodes of this treedb carry a saved position, and how many
+ *  there are. Positions live in `__graphs__` (per topic, per node) and,
+ *  on older data, in a `_geometry` on the record itself; both are read.
  ************************************************************/
 function geometry_has_position(g)
 {
-    /*  An EMPTY object is not a position. A treedb hands back `_geometry: {}`
-     *  for a record nobody ever moved, and a node entry can hold a port size
-     *  with no coordinates — both are objects, and taking either for "this
-     *  was arranged" is what kept the cascade in place. Only x or y counts. */
+    /*  An EMPTY object is not a position. A treedb hands back
+     *  `_geometry: {}` for a record nobody ever moved, and a `__graphs__`
+     *  node entry can hold a port size with no coordinates — both are
+     *  objects, and taking either for "this was placed" is wrong. */
     if(!is_object(g)) {
         return false;
     }
     return is_number(g.x) || is_number(g.y);
 }
 
-function has_saved_geometry(gobj)
+function count_saved_geometry(gobj)
 {
     let priv = gobj.priv;
-
-    for(let topic of Object.keys(priv._graph_properties || {})) {
-        let props = priv._graph_properties[topic];
-        if(!props || !is_object(props.nodes)) {
-            continue;
-        }
-        for(let node_id of Object.keys(props.nodes)) {
-            if(geometry_has_position(props.nodes[node_id])) {
-                return true;
-            }
-        }
-    }
+    let saved = 0;
+    let total = 0;
 
     for(let topic of Object.keys(priv.records || {})) {
         let records = priv.records[topic];
         if(!is_array(records)) {
             continue;
         }
+        let props = priv._graph_properties? priv._graph_properties[topic] : null;
+        let nodes = (props && is_object(props.nodes))? props.nodes : null;
+
         for(let record of records) {
-            if(record && geometry_has_position(record._geometry)) {
-                return true;
+            if(!record) {
+                continue;
+            }
+            total++;
+            if(nodes && geometry_has_position(nodes[record.id])) {
+                saved++;
+            } else if(geometry_has_position(record._geometry)) {
+                saved++;
             }
         }
     }
 
-    return false;
+    return {saved: saved, total: total};
 }
 
 /************************************************************
@@ -4565,7 +4563,15 @@ function auto_layout(gobj)
     if(priv._layout_asked) {
         return;         /*  the user picked one for this treedb  */
     }
-    if(has_saved_geometry(gobj)) {
+    /*  MOST of the nodes, not one of them.
+     *
+     *  The app saves the position it invented as readily as one a human
+     *  chose, so a single stored coordinate proves nothing: the treedb
+     *  that forced this had exactly ONE node of 126 carrying a geometry,
+     *  and it was `{x:100, y:100}` — the first cascade slot, saved. One
+     *  leftover is not an arrangement. A majority is. */
+    let g = count_saved_geometry(gobj);
+    if(g.total > 0 && g.saved * 2 > g.total) {
         return;         /*  somebody arranged it: leave it alone  */
     }
     if(!priv.graph) {
