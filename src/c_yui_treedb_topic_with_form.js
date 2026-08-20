@@ -860,6 +860,15 @@ function create_tabulator(gobj)
                 }
                 break;
         }
+
+        /*  A column carrying a text box needs room for the box. The table
+         *  lays out `fitDataFill`, which sizes a column to its DATA: a
+         *  `Role` column holding "root" came out narrower than its own
+         *  filter, whose placeholder was cut to "filtrar c". The tick of a
+         *  boolean is not a box and stays as narrow as it wants.  */
+        if(colDef.headerFilter && colDef.headerFilter !== "tickCross") {
+            colDef.minWidth = 120;
+        }
     }
 
     for (let i = 0; i < desc.cols.length; i++) {

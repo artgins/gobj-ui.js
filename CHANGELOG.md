@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.2.2
+
+- **fix: a filtered column now has room for its filter.** The table lays out
+  `fitDataFill`, which sizes a column to its DATA, so a `Role` column holding
+  "root" came out narrower than the box it had just been given and the
+  placeholder read "filtrar c". Columns carrying a text or list filter get a
+  `minWidth`; a boolean's tick is not a box and stays as narrow as it wants.
+
 ## 7.2.1
 
 - **fix: the graph's match count showed with an empty find box.** Its element
