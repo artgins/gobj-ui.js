@@ -491,6 +491,37 @@ The buttons of that toolbar never shrink. When the row runs out of room, the
 url is what gives way, cut with an ellipsis, and the whole value stays in the
 `title` and the `aria-label`.
 
+### Reading a topic table: filters, columns, CSV
+
+`C_YUI_TREEDB_TOPIC_WITH_FORM` had one global search box over the loaded rows.
+Three tools join it, each behind its own flag, all **on** by default:
+
+| attr | what it adds |
+|---|---|
+| `with_header_filters` | a filter box in the header of each column a match means something on |
+| `with_columns_button` | a dialog that ticks which columns the table shows |
+| `with_export_button` | downloads what the table holds as CSV |
+
+**Not every column gets a filter box, on purpose.** A hook holds children, a
+dict holds a subtree, and a date cell shows a formatted string over an epoch
+number — a text match against the raw value there answers a question nobody
+asked, so those columns get no box rather than a box that lies. A `boolean`
+gets a tristate tick, an `enum` gets a list of its own values, and an `fkey`
+gets a box whose match stringifies the value first, because *which rows point
+at X* is the question fkey columns exist to answer and a fkey arrives as a ref
+string, a list of them or a dict.
+
+The search box and the header filters are **separate layers**: clearing the
+search does not silently drop the column filters. The CSV carries what the
+table HOLDS — the loaded rows, the visible columns, both filters applied, which
+is what the reader is looking at. It is not the topic: a server-side dump of
+every node is not something this view can stream, and the button's title says
+so.
+
+Searching is a user action, so it crosses the FSM (`EV_SEARCH`) like the rest;
+it used to call `tabulator.setFilter` straight from the DOM handler, where the
+`machine` trace could not see it.
+
 ### Read-only treedbs: `readonly`
 
 `C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` take a **`readonly`** attr; the

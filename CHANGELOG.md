@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.1.0
+
+- **feat: a topic table you can actually read.** `C_YUI_TREEDB_TOPIC_WITH_FORM`
+  had a single global search box, while the tranger browser next door — the
+  read-only one — had per-column filters, a column chooser and a CSV export.
+  The richer table was the one that cannot write. Three flags close the gap,
+  all default `true`: `with_header_filters`, `with_columns_button`,
+  `with_export_button`.
+
+  The filter boxes are **not** put on every column. A hook holds children, a
+  dict holds a subtree, a date cell shows a formatted string over an epoch: a
+  text match against the raw value there is a box that lies, so those columns
+  get none. `boolean` gets a tristate tick, `enum` a list of its own values,
+  and `fkey` a box that stringifies the value first — *which rows point at X*
+  is what an fkey column is for.
+
+  Search and header filters are separate layers (`clearFilter()` with no
+  argument drops only the search), and the CSV carries what the table HOLDS:
+  loaded rows, visible columns, both filters applied.
+
+- **fix: searching crosses the FSM.** The search input called
+  `tabulator.setFilter` directly from its DOM handler, so the one action a
+  reader performs most often was invisible to the `machine` trace. It is
+  `EV_SEARCH` now, like every other action in the view.
+
 ## 7.0.1
 
 - **docs: say why `unsubscribe_treedb()` has no caller.** It reads like dead

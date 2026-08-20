@@ -108,6 +108,9 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_paste_button",         0,  true,   "Button
 SDATA(data_type_t.DTP_BOOLEAN,  "with_refresh_button",       0,  true,   "Button toolbar REFRESH"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_search_button",        0,  true,   "Button toolbar SEARCH"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_schema_button",        0,  true,   "Button toolbar SCHEMA (show the topic's desc)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_columns_button",       0,  true,   "Button toolbar COLUMNS (choose which columns the table shows)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_export_button",        0,  true,   "Button toolbar EXPORT (download as CSV what the table holds)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_header_filters",       0,  true,   "Per-column filter box in the table header, on the columns a text/number match means something (not hooks, fkeys or json)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a last column with internal EDIT/DELETE icon"),
 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
@@ -496,6 +499,8 @@ function build_ui(gobj)
     let with_refresh_button     = gobj_read_bool_attr(gobj, "with_refresh_button");
     let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
     let with_schema_button      = gobj_read_bool_attr(gobj, "with_schema_button");
+    let with_columns_button     = gobj_read_bool_attr(gobj, "with_columns_button");
+    let with_export_button      = gobj_read_bool_attr(gobj, "with_export_button");
 
     if(with_search_button) {
         let search_id = `${toolbar_id}_search`;
@@ -521,27 +526,16 @@ function build_ui(gobj)
          *  filter below re-runs (empty term → clearFilter).  */
         attach_clear($search_box, $search_input);
         if($search_input) {
+            /*  The DOM handler's only job is to turn the keystroke into an
+             *  event: searching is a user action, so it crosses the FSM and
+             *  shows up in the `machine` trace like every other one. */
             $search_input.addEventListener('input', (event) => {
-                let searchText = event.target.value.trim().toLowerCase();
-                let tabulator = gobj_read_attr(gobj, "tabulator");
-                if(!tabulator) {
-                    return;
-                }
-                if(searchText) {
-                    tabulator.setFilter(function(data) {
-                        return Object.entries(data).some(([key, val]) => {
-                            if(key.startsWith('_')) {
-                                return false;
-                            }
-                            if(val === null || val === undefined) {
-                                return false;
-                            }
-                            return String(val).toLowerCase().includes(searchText);
-                        });
-                    });
-                } else {
-                    tabulator.clearFilter();
-                }
+                gobj_send_event(
+                    gobj,
+                    "EV_SEARCH",
+                    {text: event.target.value.trim()},
+                    gobj
+                );
             });
         }
         $view_toolbar.appendChild($search_box);
@@ -581,6 +575,48 @@ function build_ui(gobj)
             }]
         );
         $view_toolbar.appendChild($schema);
+    }
+
+    if(with_columns_button) {
+        /*  A topic with a dozen columns is wider than the screen, and until
+         *  now the reader could not decide WHICH of them to keep: the table
+         *  simply scrolled sideways for ever. */
+        let $columns = createElement2(
+            ['button', {class: 'TREEDB_TABLE_COLUMNS button mr-1',
+                        title: t('choose the columns to show'),
+                        'data-i18n-title': 'choose the columns to show',
+                        'aria-label': t('columns'), 'data-i18n-aria-label': 'columns'}, [
+                ['i', {class: 'yi-table'}],
+                ['span', {class: 'is-hidden-mobile', i18n: 'columns', style: 'padding-left:5px;'}, 'columns']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    gobj_send_event(gobj, "EV_OPEN_COLUMNS", {}, gobj);
+                }
+            }]
+        );
+        $view_toolbar.appendChild($columns);
+    }
+
+    if(with_export_button) {
+        /*  What the TABLE holds, filters and column choice applied — not the
+         *  topic. A server-side dump of every node is not something this view
+         *  can stream, and the title says so. */
+        let $export = createElement2(
+            ['button', {class: 'TREEDB_TABLE_EXPORT button mr-1',
+                        title: t('download the rows loaded in this table as csv'),
+                        'data-i18n-title': 'download the rows loaded in this table as csv',
+                        'aria-label': t('export'), 'data-i18n-aria-label': 'export'}, [
+                ['i', {class: 'yi-download'}],
+                ['span', {class: 'is-hidden-mobile', i18n: 'export', style: 'padding-left:5px;'}, 'export']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    gobj_send_event(gobj, "EV_EXPORT_TABLE", {}, gobj);
+                }
+            }]
+        );
+        $view_toolbar.appendChild($export);
     }
 
     /*----------------------------------------------*
@@ -693,6 +729,7 @@ function create_tabulator(gobj)
 {
     let table_id = gobj_read_str_attr(gobj, "table_id");
     let desc = gobj_read_attr(gobj, "desc");
+    let with_header_filters = gobj_read_bool_attr(gobj, "with_header_filters");
 
     let columns = [];
 
@@ -771,6 +808,58 @@ function create_tabulator(gobj)
             {row_id: row_id, col_id: cell.getField()},
             gobj
         );
+    }
+
+    /*  A filter box per column, on the columns where a text/number match
+     *  MEANS something. A hook holds children, a dict holds a subtree and a
+     *  date cell shows a formatted string over an epoch number — matching
+     *  the raw value there answers a question nobody asked, so those columns
+     *  get no box rather than a box that lies. An fkey does get one: "which
+     *  rows point at X" is the question fkey columns exist to answer, and its
+     *  value is stringified first because a fkey can arrive as a ref string,
+     *  a list of them or a dict.
+     */
+    const FILTERABLE = [
+        "string", "integer", "real", "rowid", "uuid", "qualified",
+        "email", "url", "tel", "id", "hex", "currency", "percent"
+    ];
+
+    function fkey_matches(term, value)
+    {
+        if(term === "" || term === null || term === undefined) {
+            return true;
+        }
+        if(value === null || value === undefined) {
+            return false;
+        }
+        let text = (typeof value === "string")? value : JSON.stringify(value);
+        return text.toLowerCase().includes(String(term).toLowerCase());
+    }
+
+    function apply_header_filter(colDef, field_desc)
+    {
+        switch(field_desc.type) {
+            case "boolean":
+                colDef.headerFilter = "tickCross";
+                colDef.headerFilterParams = {tristate: true};
+                break;
+            case "enum":
+                colDef.headerFilter = "list";
+                colDef.headerFilterParams = {
+                    values: field_desc.enum_list || [],
+                    clearable: true
+                };
+                break;
+            case "fkey":
+                colDef.headerFilter = "input";
+                colDef.headerFilterFunc = fkey_matches;
+                break;
+            default:
+                if(FILTERABLE.includes(field_desc.type)) {
+                    colDef.headerFilter = "input";
+                }
+                break;
+        }
     }
 
     for (let i = 0; i < desc.cols.length; i++) {
@@ -866,6 +955,9 @@ function create_tabulator(gobj)
             hozAlign: hozAlign,
             formatter: colFormatter,
         };
+        if(with_header_filters) {
+            apply_header_filter(colDef, field_desc);
+        }
         if(vertAlign) {
             colDef.vertAlign = vertAlign;
         }
@@ -2720,6 +2812,151 @@ function ac_show_schema(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Filter the loaded rows by a term matched against every non-internal
+ *  field. `clearFilter()` with no argument drops only THIS filter: the
+ *  per-column header filters are a separate layer and survive, so a
+ *  cleared search box does not silently undo them.
+ ************************************************************/
+function ac_search(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: no table to search`);
+        return -1;
+    }
+
+    let term = ((kw && kw.text) || "").toLowerCase();
+    if(!term) {
+        tabulator.clearFilter();
+        return 0;
+    }
+
+    tabulator.setFilter(function(data) {
+        return Object.entries(data).some(([key, val]) => {
+            if(key.startsWith('_')) {
+                return false;
+            }
+            if(val === null || val === undefined) {
+                return false;
+            }
+            return String(val).toLowerCase().includes(term);
+        });
+    });
+
+    return 0;
+}
+
+/************************************************************
+ *  Which columns the table shows: one checkbox per column, the current
+ *  visibility ticked. The internal columns (`_check_box_state_`,
+ *  `_operation`) are not offered — they are chrome, not data.
+ ************************************************************/
+function ac_open_columns(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: no table, no columns to choose`);
+        return -1;
+    }
+
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${gobj_short_name(gobj)}: no shell, cannot open the column chooser`);
+        return -1;
+    }
+
+    let $list = createElement2(['div', {class: 'TREEDB_COLUMNS_LIST'}]);
+    let columns = tabulator.getColumns();
+    for(let i = 0; i < columns.length; i++) {
+        let column = columns[i];
+        let field = column.getField();
+        if(!field || field[0] === '_') {
+            continue;
+        }
+        let $cb = createElement2(['input', {type: 'checkbox', class: 'mr-2'}]);
+        $cb.checked = column.isVisible();
+        $cb.addEventListener('change', () => {
+            gobj_send_event(
+                gobj,
+                "EV_TOGGLE_COLUMN",
+                {field: field, visible: $cb.checked},
+                gobj
+            );
+        });
+        $list.appendChild(createElement2(
+            ['label', {class: 'checkbox is-block mb-1 TREEDB_COLUMN_ITEM'}, [
+                $cb,
+                ['span', {class: 'ml-2'}, column.getDefinition().title || field]
+            ]]
+        ));
+    }
+
+    yui_shell_show_modal(shell, $list, {
+        dialog:        true,
+        logical_class: "TREEDB_COLUMNS_DIALOG",
+        title_prefix:  gobj_read_str_attr(gobj, "topic_name"),
+        title:         "columns",
+        t:             t
+    });
+
+    return 0;
+}
+
+/************************************************************
+ *  Show / hide one column.
+ ************************************************************/
+function ac_toggle_column(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    let field = (kw && kw.field) || "";
+    if(!tabulator || !field) {
+        log_error(`${gobj_short_name(gobj)}: no column '${field}' to toggle`);
+        return -1;
+    }
+
+    try {
+        if(kw.visible) {
+            tabulator.showColumn(field);
+        } else {
+            tabulator.hideColumn(field);
+        }
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot toggle column '${field}': ${e}`);
+        return -1;
+    }
+
+    return 0;
+}
+
+/************************************************************
+ *  Download what the table HOLDS as CSV: the loaded rows, the visible
+ *  columns, search and header filters applied — which is what the reader
+ *  is looking at. Not the topic: a server-side dump of every node is not
+ *  something this view can stream.
+ ************************************************************/
+function ac_export_table(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: no table to export`);
+        return -1;
+    }
+
+    let name = `${gobj_read_str_attr(gobj, "treedb_name")}-` +
+               `${gobj_read_str_attr(gobj, "topic_name")}.csv`;
+    name = name.replace(/[^\w.\-]+/g, "_");
+
+    try {
+        tabulator.download("csv", name);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: CSV export failed: ${e}`);
+        return -1;
+    }
+
+    return 0;
+}
+
+/************************************************************
  *  {
  *      href: href
  *  }
@@ -2795,6 +3032,10 @@ function create_gclass(gclass_name)
             ["EV_CHANGE_LOCALE",        ac_change_locale,      null],
             ["EV_REFRESH",              ac_refresh,            null],
             ["EV_SHOW_SCHEMA",          ac_show_schema,        null],
+            ["EV_SEARCH",               ac_search,             null],
+            ["EV_OPEN_COLUMNS",         ac_open_columns,       null],
+            ["EV_TOGGLE_COLUMN",        ac_toggle_column,      null],
+            ["EV_EXPORT_TABLE",         ac_export_table,       null],
             ["EV_SHOW",                 ac_show,               null],
             ["EV_HIDE",                 ac_hide,               null]
         ]]
@@ -2823,6 +3064,10 @@ function create_gclass(gclass_name)
         ["EV_CHANGE_LOCALE",        0],
         ["EV_REFRESH",              0],
         ["EV_SHOW_SCHEMA",          0],
+        ["EV_SEARCH",               0],
+        ["EV_OPEN_COLUMNS",         0],
+        ["EV_TOGGLE_COLUMN",        0],
+        ["EV_EXPORT_TABLE",         0],
 
         ["EV_CREATE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UPDATE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
