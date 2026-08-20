@@ -47,6 +47,7 @@ import {
     is_array,
     empty_string,
     is_object,
+    is_number,
     kw_get_int,
     kw_get_str,
     kw_get_dict_value,
@@ -4499,14 +4500,31 @@ function show_node_detail_popover(gobj, node_id)
  *  Saved positions live in `__graphs__` (per topic, per node) and, on
  *  older data, in a `_geometry` on the record itself. Both are read.
  ************************************************************/
+function geometry_has_position(g)
+{
+    /*  An EMPTY object is not a position. A treedb hands back `_geometry: {}`
+     *  for a record nobody ever moved, and a node entry can hold a port size
+     *  with no coordinates — both are objects, and taking either for "this
+     *  was arranged" is what kept the cascade in place. Only x or y counts. */
+    if(!is_object(g)) {
+        return false;
+    }
+    return is_number(g.x) || is_number(g.y);
+}
+
 function has_saved_geometry(gobj)
 {
     let priv = gobj.priv;
 
     for(let topic of Object.keys(priv._graph_properties || {})) {
         let props = priv._graph_properties[topic];
-        if(props && is_object(props.nodes) && Object.keys(props.nodes).length > 0) {
-            return true;
+        if(!props || !is_object(props.nodes)) {
+            continue;
+        }
+        for(let node_id of Object.keys(props.nodes)) {
+            if(geometry_has_position(props.nodes[node_id])) {
+                return true;
+            }
         }
     }
 
@@ -4516,7 +4534,7 @@ function has_saved_geometry(gobj)
             continue;
         }
         for(let record of records) {
-            if(record && is_object(record._geometry)) {
+            if(record && geometry_has_position(record._geometry)) {
                 return true;
             }
         }
