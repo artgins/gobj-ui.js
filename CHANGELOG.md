@@ -5,13 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.2.5
+
+- **fix: the footer STILL lied under a filter.** Subscribing to `dataFiltered`
+  (7.2.4) was not enough: Tabulator dispatches that event from inside its own
+  `filter()`, which only RETURNS the surviving rows to the pipeline
+  afterwards — so `getDataCount("active")` answers the pre-filter set there.
+  The event hands the rows it just kept; that is the number the footer takes
+  now. Whether the paginator is drawn is derived from the same count, since
+  `getPageMax()` is stale in that path for the identical reason.
+
 ## 7.2.4
 
 - **fix: the row-count footer lied under a filter.** It read "5 Filas" over
   four visible rows: filtering fires `dataFiltered`, and the footer was hooked
-  only to `dataProcessed` and `dataChanged`. Nobody had noticed while the only
-  filter was the global search box — a filter per column turned it into a
-  claim you read on every keystroke.
+  only to `dataProcessed` and `dataChanged` — and `dataProcessed` fires on
+  `setData`, not on a filter. Nobody had noticed while the only filter was the
+  global search box; a filter per column turned it into a claim you read on
+  every keystroke. (Incomplete — see 7.2.5.)
 
 ## 7.2.3
 

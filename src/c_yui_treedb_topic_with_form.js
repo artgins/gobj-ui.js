@@ -1082,24 +1082,40 @@ function create_tabulator(gobj)
     /*  Keep the footer in sync with the visible (active) row count,
      *  and hide the pagination chrome while everything fits in one
      *  page (it comes back as soon as a second page exists). */
-    function update_rowcount() {
+    /*  `explicit_count` is for the ONE caller that cannot ask the table:
+     *  `dataFiltered` is dispatched from INSIDE Tabulator's filter(), which
+     *  only RETURNS the surviving rows to the pipeline afterwards — so
+     *  `getDataCount("active")` still answers the pre-filter set there and
+     *  the footer claimed "5 rows" over four. The event hands us the rows
+     *  it just kept; that is the number. Every other caller passes nothing
+     *  and the table is asked. The `typeof` guard matters because
+     *  `dataProcessed` / `dataChanged` are registered directly and hand a
+     *  DATA ARRAY as their first argument.  */
+    function update_rowcount(explicit_count) {
         let $rc = tabulator.element &&
             tabulator.element.querySelector(".yui-tabulator-rowcount");
         if(!$rc) {
             return;
         }
         let n = 0;
-        try {
-            n = tabulator.getDataCount("active");
-        } catch(e) {
-            n = 0;
+        if(typeof explicit_count === "number") {
+            n = explicit_count;
+        } else {
+            try {
+                n = tabulator.getDataCount("active");
+            } catch(e) {
+                n = 0;
+            }
         }
         $rc.textContent = `${n} ${t("rows")}`;
 
+        /*  Derived from the count and the page size rather than read from
+         *  getPageMax(), which is stale in the filter path for the same
+         *  reason. getPageSize() throws with pagination off -> one page. */
         let single_page = true;
         try {
-            let max = tabulator.getPageMax();   // false = pagination off
-            single_page = (max === false) || max <= 1;
+            let size = tabulator.getPageSize();
+            single_page = !size || n <= size;
         } catch(e) {
             single_page = true;
         }
@@ -1123,7 +1139,9 @@ function create_tabulator(gobj)
      *  box; a filter per column made it a claim you read on every keystroke. */
     tabulator.on("dataProcessed", update_rowcount);
     tabulator.on("dataChanged", update_rowcount);
-    tabulator.on("dataFiltered", update_rowcount);
+    tabulator.on("dataFiltered", function(filters, rows) {
+        update_rowcount(Array.isArray(rows)? rows.length : undefined);
+    });
     tabulator.on("rowSelected", function(row) {
         gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row.getData()]}, gobj);
     });
