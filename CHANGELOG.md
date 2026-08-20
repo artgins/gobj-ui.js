@@ -26,6 +26,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   whose select was filled before the data arrived and was still claiming
   `manual`.
 
+  Worth knowing for anything that asks "did the host set this attr?":
+  `gobj_write_attr()` writes the private field of the same name too, so
+  `priv.layout` stopped answering that question the moment `select_layout()`
+  resolved the empty preference to `manual` and stored it. The asked-for
+  value is captured in `mt_create`, before anything can overwrite it.
+
 ## 7.4.5
 
 - **fix: the minimap was instantiated, bound, and never painted.** It was added

@@ -291,6 +291,7 @@ let PRIVATE_DATA = {
     _focus_ids:         [],         // node ids carrying the focus 'active' state
     _pending_focus_topic: null,     // focus requested before data was loaded
     _pending_find:      null,       // find requested before data was loaded
+    _layout_asked:      "",         // layout the host asked for at create (see mt_create)
 };
 
 let __gclass__ = null;
@@ -311,6 +312,15 @@ let __gclass__ = null;
 function mt_create(gobj)
 {
     let priv = gobj.priv;
+
+    /*  What the HOST asked for, captured before anything overwrites it.
+     *
+     *  `gobj_write_attr()` also writes the private field of the same name,
+     *  so the moment select_layout() resolves the empty preference to
+     *  `manual` and stores it, `priv.layout` reads "manual" and no longer
+     *  says whether anybody ever chose it. auto_layout() needs exactly that
+     *  distinction. */
+    priv._layout_asked = gobj_read_str_attr(gobj, "layout") || "";
 
     /*
      *  CHILD subscription model
@@ -4534,7 +4544,7 @@ function auto_layout(gobj)
 {
     let priv = gobj.priv;
 
-    if(priv.layout) {
+    if(priv._layout_asked) {
         return;         /*  the user picked one for this treedb  */
     }
     if(has_saved_geometry(gobj)) {
