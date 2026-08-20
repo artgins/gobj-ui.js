@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.6.0
+
+- **feat: a graph laid out by us opens WHOLE.** dagre spreads a 126-node
+  treedb over some 19000px and the camera stays wherever it was, so "opens
+  laid out" still meant eight cards in the top-left corner and no reason to
+  think there were 118 more. The view is fitted after an automatic layout —
+  and only after an automatic one: a saved arrangement includes where its
+  owner was looking.
+
 ## 7.5.7
 
 - **fix: the dagre default, and this time the actual cause.** Every node of

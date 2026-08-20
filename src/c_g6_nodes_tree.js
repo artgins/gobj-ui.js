@@ -4544,7 +4544,7 @@ function auto_layout(gobj)
     let priv = gobj.priv;
 
     if(priv._layout_asked) {
-        return;         /*  the user picked one for this treedb  */
+        return false;   /*  the user picked one for this treedb  */
     }
     /*  MOST of the nodes, not one of them.
      *
@@ -4557,10 +4557,10 @@ function auto_layout(gobj)
      *  invented as readily as one a human chose, so a single stored
      *  coordinate proves nothing. One leftover is not an arrangement. */
     if(priv._nodes_total > 0 && priv._nodes_placed * 2 > priv._nodes_total) {
-        return;         /*  somebody arranged it: leave it alone  */
+        return false;   /*  somebody arranged it: leave it alone  */
     }
     if(!priv.graph) {
-        return;
+        return false;
     }
 
     let name = "dagre";
@@ -4569,11 +4569,12 @@ function auto_layout(gobj)
         priv.graph.setLayout(_layouts[name]);
     } catch(e) {
         log_error(`${gobj_short_name(gobj)}: cannot set the '${name}' layout: ${e}`);
-        return;
+        return false;
     }
     /*  The toolbar's select was filled before the data arrived, so it is
      *  still showing `manual`: tell it what the graph is actually doing. */
     gobj_publish_event(gobj, "EV_LAYOUT_AUTOSET", {layout: name});
+    return true;
 }
 
 /************************************************************
@@ -5871,12 +5872,24 @@ function ac_load_data(gobj, event, kw, src)
                 /*  Before the layout runs, and only now: whether anybody has
                  *  ever placed a node of this treedb is not known until its
                  *  records and __graphs__ are in. */
+                let auto_laid = false;
                 try {
-                    auto_layout(gobj);
+                    auto_laid = auto_layout(gobj);
                 } catch(e) {
                     log_error(`${gobj_short_name(gobj)}: auto_layout failed: ${e}`);
                 }
                 graph_layout(gobj).then(() => {
+                    /*  A graph laid out by us opens WHOLE. dagre spreads a
+                     *  126-node treedb over some 19000px, and the camera is
+                     *  wherever it was: without this you get eight cards in
+                     *  the top-left corner and no reason to think there are
+                     *  118 more. Only when WE laid it out — a saved
+                     *  arrangement includes where its owner was looking. */
+                    if(auto_laid) {
+                        graph_fitview(gobj).catch((e) => {
+                            log_error(`${gobj_short_name(gobj)}: cannot fit the graph: ${e}`);
+                        });
+                    }
                     if(priv.edit_mode) {
                         graph_add_plugin(gobj, "history");
                     } else {
