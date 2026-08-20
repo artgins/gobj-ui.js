@@ -81,6 +81,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "readonly",         0,  false,  "The whole treed
 SDATA(data_type_t.DTP_JSON,     "card_action_routes",0, null,   "Per-card hash-route templates {info, table, graph} with a {topic} placeholder (host-supplied, route-agnostic). Present ⇒ cards show 3 icon actions; absent ⇒ a single card that opens the table."),
 SDATA(data_type_t.DTP_JSON,     "landing_routes",   0,  null,   "Host-supplied hashes for the two landing sub-views {cards, schema}; the toggle navigates to them so the landing is URL-addressable (ROUTING.md). Absent ⇒ toggle flips in-view only (legacy)."),
 SDATA(data_type_t.DTP_STRING,   "base_route",       0,  "",     "This view's base route (host-supplied); used to declare its sub-routes (topics / info / schema) to the site map (ROUTING.md contributor)."),
+SDATA(data_type_t.DTP_STRING,   "source_url",       0,  "",     "The backend this view browses (host-supplied, typically the wss url of the connection), shown in the toolbar. A tab label names the TREEDB, and the same treedb name lives on more than one node, so the node has to be readable somewhere -- and a tab is too narrow to carry a url. Empty ⇒ nothing is shown."),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Root HTML element, show/hide managed by external routing"),
 SDATA(data_type_t.DTP_POINTER,  "$current_item",    0,  null,   "Currently selected item"),
 SDATA(data_type_t.DTP_STRING,   "last_selection",   0,  null,   "Last href selection"),
@@ -245,6 +246,8 @@ function cmd_get_topic_data(gobj, cmd, kw, src)
  ************************************************************/
 function build_ui(gobj)
 {
+    let source_url = gobj_read_str_attr(gobj, "source_url") || "";
+
     /*----------------------------------------------*
      *  Layout Schema
      *----------------------------------------------*/
@@ -287,6 +290,19 @@ function build_ui(gobj)
                             gobj_send_event(gobj, "EV_TOGGLE_LANDING_VIEW", {}, gobj);
                         }
                     }],
+                    /*  The backend this view browses. The tab that hosts this
+                     *  view is labelled with the TREEDB name, and the same
+                     *  treedb name lives on more than one node — two tabs
+                     *  reading `treedb_yuneta_agent` are two different
+                     *  machines. A tab label cannot carry a url without
+                     *  becoming unreadable, so the url is here, where there is
+                     *  room for it. Hidden when the host supplies none. */
+                    ['div', {class: source_url?
+                                'TREEDB_TOPICS_SOURCE' : 'TREEDB_TOPICS_SOURCE is-hidden',
+                             title: source_url, 'aria-label': source_url}, [
+                        ['span', {class: 'icon'}, [['i', {class: 'yi-cloudversify'}]]],
+                        ['span', {class: 'TREEDB_TOPICS_SOURCE_URL'}, source_url]
+                    ]],
                     /*  Inspect the treedb's raw tranger json (whole service,
                      *  print-tranger, lazy drill). Last + margin-left:auto:
                      *  flush right, away from the back arrow it sat next to. */

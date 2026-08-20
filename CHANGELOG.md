@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 6.3.0
+
+- **feat: a topics view can say which backend it browses (`source_url`).**
+  `C_YUI_TREEDB_TOPICS` takes an optional url and prints it in its toolbar. The
+  tab that hosts the view is labelled with the TREEDB name, and a treedb name is
+  not unique across backends: two tabs reading `treedb_yuneta_agent` are two
+  different machines, and telling them apart was left to whoever opened them.
+
+  It goes in the toolbar and not in the tab label because a tab wide enough for
+  `wss://artgins.yunetacontrol.com:1996` is a tab bar with room for one tab. The
+  buttons of the toolbar never shrink now, so the url is what gives way when the
+  row runs out of room — cut with an ellipsis, whole in the `title` and the
+  `aria-label`. An empty value renders nothing, so every host that does not pass
+  it sees the toolbar it had.
+
 ## 6.2.1
 
 - **fix: the remembered item is highlighted again.** `C_YUI_NAV` marks the

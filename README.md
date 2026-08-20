@@ -468,6 +468,24 @@ It needs the descriptor to carry `pkey2s`, which `tranger2_topic_desc()` only
 clones from **SDK > 7.13.0**. Against an older node the desc has no `pkey2s`, the
 label falls back to the id, and nothing else changes.
 
+### Which backend a view browses: `source_url`
+
+`C_YUI_TREEDB_TOPICS` takes an optional **`source_url`** string and prints it in
+its toolbar, between the left buttons and the *raw json* one. A host passes the
+url of the connection the view reads through (`wss://host:port`), and an empty
+value renders nothing.
+
+The tab that hosts the view is labelled with the **treedb** name, and a treedb
+name is not unique across backends: two tabs reading `treedb_yuneta_agent` are
+two different machines, and a wrong assumption there is a write on the wrong
+node. The url is what tells them apart, and it does not fit in a tab label —
+a tab wide enough for `wss://artgins.yunetacontrol.com:1996` is a tab bar with
+room for one tab. So the view carries it, where there is a whole row for it.
+
+The buttons of that toolbar never shrink. When the row runs out of room, the
+url is what gives way, cut with an ellipsis, and the whole value stays in the
+`title` and the `aria-label`.
+
 ### Read-only treedbs: `readonly`
 
 `C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` take a **`readonly`** attr; the

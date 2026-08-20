@@ -71,3 +71,31 @@
     background: transparent;
     padding: 0;
 }
+
+/*  The backend url in the toolbar, between the left buttons and the
+ *  json button (which keeps itself flush right with margin-left:auto).
+ *  The buttons never shrink: when the row runs out of room it is the
+ *  url that gives way, one character at a time, down to its icon. */
+.TREEDB_TOPICS_TOOLBAR > .button {
+    flex: none;
+}
+.TREEDB_TOPICS_SOURCE {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--bulma-text-weak, #7a7a7a);
+}
+.TREEDB_TOPICS_SOURCE .icon {
+    flex: none;
+}
+/*  One line, cut with an ellipsis. The whole url stays in the title. */
+.TREEDB_TOPICS_SOURCE .TREEDB_TOPICS_SOURCE_URL {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
