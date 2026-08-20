@@ -111,6 +111,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_schema_button",        0,  true,   "Button
 SDATA(data_type_t.DTP_BOOLEAN,  "with_columns_button",       0,  true,   "Button toolbar COLUMNS (choose which columns the table shows)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_export_button",        0,  true,   "Button toolbar EXPORT (download as CSV what the table holds)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_header_filters",       0,  true,   "Per-column filter box in the table header, on the columns a text/number match means something (not hooks, fkeys or json)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_inline_edit",          0,  true,   "Edit a writable scalar cell in place while in edition mode (the record form keeps the rest)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a last column with internal EDIT/DELETE icon"),
 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
@@ -730,6 +731,7 @@ function create_tabulator(gobj)
     let table_id = gobj_read_str_attr(gobj, "table_id");
     let desc = gobj_read_attr(gobj, "desc");
     let with_header_filters = gobj_read_bool_attr(gobj, "with_header_filters");
+    let with_inline_edit = gobj_read_bool_attr(gobj, "with_inline_edit");
 
     let columns = [];
 
@@ -819,6 +821,62 @@ function create_tabulator(gobj)
      *  value is stringified first because a fkey can arrive as a ref string,
      *  a list of them or a dict.
      */
+    /*  A cell you can type into, and the ones you cannot.
+     *
+     *  Editing in place is for a SCALAR the table can round-trip. A hook
+     *  holds children and an fkey IS a link — both are edited by linking,
+     *  not by typing — a dict or a list is a document (the form has an
+     *  editor for it), and a date cell shows a formatted string over an
+     *  epoch, so typing into it would write the string. Those stay with
+     *  the form, which is one click away on the same row.
+     *
+     *  The schema decides the rest: only a column flagged `writable` is
+     *  offered, and never the pkey — renaming what a record is KEYED by
+     *  is not a field edit.
+     */
+    const INLINE_EDITABLE = [
+        "string", "integer", "real",
+        "email", "url", "tel", "id", "hex", "currency", "percent", "uuid"
+    ];
+
+    function inline_editor_for(colDef, col, field_desc)
+    {
+        if(!field_desc.is_writable) {
+            return;
+        }
+        if(col.id === (desc.pkey || "id")) {
+            return;
+        }
+
+        switch(field_desc.type) {
+            case "boolean":
+                colDef.editor = "tickCross";
+                break;
+            case "enum":
+                colDef.editor = "list";
+                colDef.editorParams = {values: field_desc.enum_list || []};
+                break;
+            case "integer":
+            case "real":
+                colDef.editor = "number";
+                break;
+            default:
+                if(!INLINE_EDITABLE.includes(field_desc.type)) {
+                    return;
+                }
+                colDef.editor = "input";
+                break;
+        }
+
+        /*  A FUNCTION, not a flag: edition mode is toggled on a table that
+         *  is already built (ac_edition_mode only shows and hides columns),
+         *  so the answer has to be asked for at the moment of the click. */
+        colDef.editable = function() {
+            return gobj_read_bool_attr(gobj, "editable") &&
+                   !gobj_read_bool_attr(gobj, "readonly");
+        };
+    }
+
     const FILTERABLE = [
         "string", "integer", "real", "rowid", "uuid", "qualified",
         "email", "url", "tel", "id", "hex", "currency", "percent"
@@ -973,6 +1031,9 @@ function create_tabulator(gobj)
         };
         if(with_header_filters) {
             apply_header_filter(colDef, field_desc);
+        }
+        if(with_inline_edit) {
+            inline_editor_for(colDef, col, field_desc);
         }
         if(vertAlign) {
             colDef.vertAlign = vertAlign;
@@ -1139,6 +1200,33 @@ function create_tabulator(gobj)
      *  box; a filter per column made it a claim you read on every keystroke. */
     tabulator.on("dataProcessed", update_rowcount);
     tabulator.on("dataChanged", update_rowcount);
+    /*  A cell edited in place. Announced as ONE FIELD of one record — not
+     *  as the row — and that is the whole safety of it: the host writes it
+     *  with a partial update and no `autolink`, so nothing but that field
+     *  moves. `autolink` wipes a node's links and rebuilds them from the
+     *  fkeys the record carries, so sending a row that the table shaped for
+     *  DISPLAY would unlink the node and answer success.  */
+    tabulator.on("cellEdited", function(cell) {
+        let pkey = (gobj_read_attr(gobj, "desc") || {}).pkey || "id";
+        let data = cell.getRow().getData();
+        let id = data ? data[pkey] : undefined;
+        if(id === undefined || id === null) {
+            log_error(`${gobj_short_name(gobj)}: edited a row with no '${pkey}'`);
+            cell.restoreOldValue();
+            return;
+        }
+        gobj_send_event(
+            gobj,
+            "EV_CELL_EDITED",
+            {
+                id:    id,
+                field: cell.getField(),
+                value: cell.getValue()
+            },
+            gobj
+        );
+    });
+
     tabulator.on("dataFiltered", function(filters, rows) {
         update_rowcount(Array.isArray(rows)? rows.length : undefined);
     });
@@ -2846,6 +2934,28 @@ function ac_show_cell_json(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  One cell of one record changed. Publish it UP as a field write;
+ *  the host owns the treedb command and its options.
+ ************************************************************/
+function ac_cell_edited(gobj, event, kw, src)
+{
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
+    gobj_publish_event(
+        gobj,
+        "EV_UPDATE_FIELD",
+        {
+            topic_name: gobj_read_str_attr(gobj, "topic_name"),
+            id:         kw.id,
+            field:      kw.field,
+            value:      kw.value
+        }
+    );
+    return 0;
+}
+
+/************************************************************
  *  Show the schema (desc) of this topic
  ************************************************************/
 function ac_show_schema(gobj, event, kw, src)
@@ -3076,6 +3186,7 @@ function create_gclass(gclass_name)
             ["EV_CHANGE_LOCALE",        ac_change_locale,      null],
             ["EV_REFRESH",              ac_refresh,            null],
             ["EV_SHOW_SCHEMA",          ac_show_schema,        null],
+            ["EV_CELL_EDITED",          ac_cell_edited,        null],
             ["EV_SEARCH",               ac_search,             null],
             ["EV_OPEN_COLUMNS",         ac_open_columns,       null],
             ["EV_TOGGLE_COLUMN",        ac_toggle_column,      null],
@@ -3108,6 +3219,8 @@ function create_gclass(gclass_name)
         ["EV_CHANGE_LOCALE",        0],
         ["EV_REFRESH",              0],
         ["EV_SHOW_SCHEMA",          0],
+        ["EV_CELL_EDITED",          0],
+        ["EV_UPDATE_FIELD",         event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_SEARCH",               0],
         ["EV_OPEN_COLUMNS",         0],
         ["EV_TOGGLE_COLUMN",        0],

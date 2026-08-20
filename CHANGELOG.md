@@ -5,6 +5,39 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.8.0
+
+- **feat: edit a cell in place.** Changing one field meant opening the record
+  form, changing it, saving and closing — four clicks for a word. A writable
+  scalar is editable in the table now, in edition mode (`with_inline_edit`).
+
+  Which cells: the schema decides (`writable` only, never the pkey — renaming
+  what a record is KEYED by is not a field edit) and the type decides the
+  rest. A hook holds children and an fkey IS a link, so both are edited by
+  linking; a dict or a list is a document the form has an editor for; a date
+  cell shows a formatted string over an epoch, so typing into it would write
+  the string. Those stay with the form, one click away on the same row.
+  `boolean` gets a tick, `enum` the list of its own values, numbers a number
+  editor.
+
+  **The write is a PARTIAL update with no `autolink`, and that is the whole
+  safety of it.** `treedb_update_node()` merges (`json_object_update`), so the
+  fields it does not carry are left alone; `autolink` is what wipes a node's
+  links to rebuild them from the fkeys the record carries, and on a partial
+  record it reads that as "no parents", DETACHES the node and answers success.
+  So a cell edit travels as its own event (`EV_UPDATE_FIELD`) rather than
+  reusing `EV_UPDATE_RECORD`, which does send autolink and may — the form
+  hands it the whole record with its fkeys in it.
+
+  `editable` is a FUNCTION on the column, not a flag: edition mode is toggled
+  on a table that is already built, so the answer has to be asked for at the
+  moment of the click.
+
+- **fix: a refused write left the table showing what the operator typed.**
+  Tolerable for a form, which stays open on the values it failed with; not for
+  a cell edited in place, which looks saved. A refused `update-node` /
+  `create-node` now puts the topic back to what the treedb actually has.
+
 ## 7.7.1
 
 - **fix: marking a field wrong recursed for ever.** `checkValidity()` FIRES

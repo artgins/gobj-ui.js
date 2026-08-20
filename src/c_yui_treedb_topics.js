@@ -1740,6 +1740,18 @@ function ac_mt_command_answer(gobj, event, kw, src)
             show_load_error(gobj, t(comment));
         } else {
             yui_shell_show_error(yui_shell_of(gobj), comment, {t: t});
+            /*  A refused write leaves the TABLE showing what the operator
+             *  typed and the store holding what it had. That is tolerable
+             *  for a form (it stays open on the values it failed with) and
+             *  is not for a cell edited in place, which looks saved. Put the
+             *  topic back to what the treedb actually has. */
+            if(command === "update-node" || command === "create-node") {
+                let failed_topic = kw_get_str(gobj, kw_command, "topic_name", "", 0);
+                if(failed_topic) {
+                    treedb_nodes(gobj, gobj_read_str_attr(gobj, "treedb_name"),
+                                 failed_topic, {list_dict: true});
+                }
+            }
         }
         return 0;
     }
@@ -2127,6 +2139,49 @@ function ac_create_record(gobj, event, kw, src)
 }
 
 /********************************************
+ *  Event from formtable: ONE field of one record, edited in place.
+ *
+ *  Written as a PARTIAL update and, deliberately, with NO `autolink`.
+ *  `treedb_update_node()` merges (`json_object_update`), so the fields
+ *  it does not carry are left alone; and `autolink` is what wipes a
+ *  node's links to rebuild them from the fkeys the record carries — on
+ *  a partial record that reads as "no parents" and DETACHES the node,
+ *  answering success. A cell edit changes a scalar and must not be able
+ *  to touch a link at all.
+ *
+ *  This is why it is its own event and not EV_UPDATE_RECORD: that one
+ *  DOES send autolink, and may, because the form hands it the whole
+ *  record with its fkeys in it.
+ ********************************************/
+function ac_update_field(gobj, event, kw, src)
+{
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
+    let topic_name = kw.topic_name || gobj_read_attr(src, "topic_name");
+    let descs = gobj_read_attr(gobj, "descs") || {};
+    let desc = descs[topic_name];
+    let pkey = (desc && desc.pkey) || "id";
+
+    if(kw.id === undefined || kw.id === null || !kw.field) {
+        log_error(`${gobj_short_name(gobj)}: a field write with no id or no field`);
+        return -1;
+    }
+
+    let record = {};
+    record[pkey] = kw.id;
+    record[kw.field] = kw.value;
+
+    return treedb_update_node(
+        gobj,
+        gobj_read_str_attr(gobj, "treedb_name"),
+        topic_name,
+        record,
+        {list_dict: true}
+    );
+}
+
+/********************************************
  *  Event from formtable
  *  kw: {
  *      topic_name,
@@ -2292,6 +2347,7 @@ function create_gclass(gclass_name)
             ["EV_TREEDB_NODE_DELETED",  ac_treedb_node_deleted,     null],
             ["EV_CREATE_RECORD",        ac_create_record,           null],
             ["EV_UPDATE_RECORD",        ac_update_record,           null],
+            ["EV_UPDATE_FIELD",         ac_update_field,            null],
             ["EV_DELETE_RECORD",        ac_delete_record,           null],
             ["EV_REFRESH_TOPIC",        ac_refresh_topic,           null],
             ["EV_OPEN_JSON",            ac_open_json,               null],
@@ -2318,6 +2374,7 @@ function create_gclass(gclass_name)
         ["EV_TREEDB_NODE_DELETED",  event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_CREATE_RECORD",        0],
         ["EV_UPDATE_RECORD",        0],
+        ["EV_UPDATE_FIELD",         0],
         ["EV_DELETE_RECORD",        0],
         ["EV_RECORD_WRITTEN",       event_flag_t.EVF_OUTPUT_EVENT|
                                     event_flag_t.EVF_NO_WARN_SUBS],
