@@ -4484,6 +4484,80 @@ function show_node_detail_popover(gobj, node_id)
  *  junction diamonds get their neutral fill/stroke re-themed.
  ************************************************************/
 /************************************************************
+ *  Has anybody ever PLACED a node of this treedb?
+ *
+ *  Saved positions live in `__graphs__` (per topic, per node) and, on
+ *  older data, in a `_geometry` on the record itself. Both are read.
+ ************************************************************/
+function has_saved_geometry(gobj)
+{
+    let priv = gobj.priv;
+
+    for(let topic of Object.keys(priv._graph_properties || {})) {
+        let props = priv._graph_properties[topic];
+        if(props && is_object(props.nodes) && Object.keys(props.nodes).length > 0) {
+            return true;
+        }
+    }
+
+    for(let topic of Object.keys(priv.records || {})) {
+        let records = priv.records[topic];
+        if(!is_array(records)) {
+            continue;
+        }
+        for(let record of records) {
+            if(record && is_object(record._geometry)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/************************************************************
+ *  Choose a layout for a treedb nobody has arranged yet.
+ *
+ *  `manual` means "leave every node where it was put", and where none
+ *  was put it means a cascade: get_default_ne_xy() walks x and y
+ *  together, so a treedb opened for the first time was a diagonal pile
+ *  of cards — 126 of them on a real one — and the only way out was to
+ *  know to pick a layout by hand. It is the right default only once
+ *  there ARE saved positions to leave alone.
+ *
+ *  So: nothing saved and no preference of the user's ⇒ dagre. The pick
+ *  is deliberately NOT persisted — it is a default, not a choice, and
+ *  the moment the user drags one node the geometry exists and `manual`
+ *  becomes right again by itself.
+ ************************************************************/
+function auto_layout(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.layout) {
+        return;         /*  the user picked one for this treedb  */
+    }
+    if(has_saved_geometry(gobj)) {
+        return;         /*  somebody arranged it: leave it alone  */
+    }
+    if(!priv.graph) {
+        return;
+    }
+
+    let name = "dagre";
+    gobj_write_attr(gobj, "layout", name);
+    try {
+        priv.graph.setLayout(_layouts[name]);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot set the '${name}' layout: ${e}`);
+        return;
+    }
+    /*  The toolbar's select was filled before the data arrived, so it is
+     *  still showing `manual`: tell it what the graph is actually doing. */
+    gobj_publish_event(gobj, "EV_LAYOUT_AUTOSET", {layout: name});
+}
+
+/************************************************************
  *  Show or hide the minimap, deciding by the SIZE of the graph.
  *
  *  A minimap of a graph that already fits on screen is decoration; one
@@ -5770,6 +5844,14 @@ function ac_load_data(gobj, event, kw, src)
         graph_draw(gobj).then(() => { // draw nodes, else the link fails
             create_links(gobj);
             graph_draw(gobj).then(() => {
+                /*  Before the layout runs, and only now: whether anybody has
+                 *  ever placed a node of this treedb is not known until its
+                 *  records and __graphs__ are in. */
+                try {
+                    auto_layout(gobj);
+                } catch(e) {
+                    log_error(`${gobj_short_name(gobj)}: auto_layout failed: ${e}`);
+                }
                 graph_layout(gobj).then(() => {
                     if(priv.edit_mode) {
                         graph_add_plugin(gobj, "history");
@@ -6563,6 +6645,7 @@ function create_gclass(gclass_name)
         ["EV_FOCUS_TOPIC",              0],
         ["EV_FIND_NODES",               0],
         ["EV_FIND_RESULT",              event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_LAYOUT_AUTOSET",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],

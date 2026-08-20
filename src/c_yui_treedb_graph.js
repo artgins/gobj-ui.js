@@ -2338,6 +2338,27 @@ function ac_legend_topic(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The child chose a layout for a treedb nobody has arranged yet.
+ *  Only the SELECT is moved: the pick is a default, not the user's
+ *  choice, so it is not persisted — the day somebody drags a node the
+ *  saved geometry exists and `manual` is right again.
+ ************************************************************/
+function ac_layout_autoset(gobj, event, kw, src)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return 0;
+    }
+    let $select = $container.querySelector(".GRAPH_LAYOUT_SELECT");
+    let layout = (kw && kw.layout) || "";
+    if(!$select || !layout) {
+        return 0;
+    }
+    $select.value = layout;
+    return 0;
+}
+
+/************************************************************
  *  Forward the find down to the graph child.
  ************************************************************/
 function ac_find_nodes(gobj, event, kw, src)
@@ -2490,6 +2511,7 @@ function create_gclass(gclass_name)
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
             ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
             ["EV_FIND_NODES",               ac_find_nodes,              null],
+            ["EV_LAYOUT_AUTOSET",           ac_layout_autoset,          null],
             ["EV_TOGGLE_LEGEND",            ac_toggle_legend,           null],
             ["EV_LEGEND_TOPIC",             ac_legend_topic,            null],
             ["EV_FIND_RESULT",              ac_find_result,             null],
@@ -2529,6 +2551,7 @@ function create_gclass(gclass_name)
         ["EV_SET_FOCUS_TOPIC",          0],
         ["EV_FIND_NODES",               0],
         ["EV_FIND_RESULT",              0],
+        ["EV_LAYOUT_AUTOSET",           0],
         ["EV_TOGGLE_LEGEND",            0],
         ["EV_LEGEND_TOPIC",             0],
         ["EV_TOPIC_SELECTED",

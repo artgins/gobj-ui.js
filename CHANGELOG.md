@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.5.0
+
+- **feat: a treedb nobody has arranged opens laid out, not piled up.**
+  `manual` means "leave every node where it was put", and where none was put
+  it means a cascade — `get_default_ne_xy()` walks x and y together, so a
+  treedb opened for the first time was a diagonal pile of cards (126 of them
+  on a real one) and the only way out was knowing to pick a layout by hand.
+  `manual` is the right default only once there ARE saved positions to leave
+  alone.
+
+  So: no saved geometry and no preference of the user's ⇒ **dagre**. The pick
+  is deliberately NOT persisted — it is a default, not a choice, and the
+  moment somebody drags one node the geometry exists and `manual` becomes
+  right again by itself. Saved positions are read from `__graphs__` and from
+  the legacy `_geometry` on the record alike.
+
+  The decision can only be made once the records and `__graphs__` are in, so
+  it runs there, and the child tells the toolbar (`EV_LAYOUT_AUTOSET`) —
+  whose select was filled before the data arrived and was still claiming
+  `manual`.
+
 ## 7.4.5
 
 - **fix: the minimap was instantiated, bound, and never painted.** It was added
