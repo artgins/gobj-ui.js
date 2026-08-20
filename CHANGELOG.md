@@ -5,6 +5,40 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.7.0
+
+- **fix: pressing Save on a form with a bad field did nothing at all.** The
+  branch that refuses the save set `abort_close` and `warning` on the CLICK's
+  own kw, which nobody reads — that pair belongs to the close path. The button
+  simply looked broken.
+
+  It calls `reportValidity()` now, which fires `invalid` on EVERY bad field
+  (so all of them are marked, not just the one last touched) and puts the
+  caret and the viewport on the first — on a long form, the difference between
+  "it did nothing" and "it is that one, up there".
+
+- **fix: the validation message was the browser's, in the browser's
+  language.** `input.validationMessage` gave a Spanish form on an English
+  Firefox "Please fill out this field." and no i18n could reach it. The empty
+  required field — by far the common case — has its own key now; the rest
+  still falls back to the browser, whose wording for a bad pattern or an
+  out-of-range number is better than anything generic.
+
+- **fix: two dialogs of the editing flow were untranslatable, and one was a
+  duplicate.** `yui_shell_confirm_*` renders its message as an i18n KEY, so
+  the English sentences passed in were keys nobody had defined: they render as
+  themselves, in every language, and **no locale validator can see a key that
+  travels as data**. They are keys now (`all changes will be lost`), and the
+  unsaved-changes confirm takes the message the FORM returned instead of
+  keeping a second copy of it.
+
+  New keys to define in consumers: `this field is required`,
+  `all changes will be lost`.
+
+- **refactor: one place marks a field wrong.** The same three lines lived in
+  the `invalid` and `blur` handlers of every field kind
+  (`mark_field_validity()`).
+
 ## 7.6.1
 
 - **fix: fitting a wide fan produced a hairline.** A schema treedb is one topic

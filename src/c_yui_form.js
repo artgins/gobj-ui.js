@@ -1168,26 +1168,13 @@ function create_form_field(
             }
             let extend = ['input', attrs, '', {
                 'invalid': function (evt) {
-                    this.classList.add('is-danger');
-                    let $h = this.parentNode.querySelector('.help');
-                    $h.textContent = this.validationMessage;
-                    $h.style.display = 'block';
+                    mark_field_validity(this);
                 },
                 'input': function (evt) {
                     gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
                 },
                 'blur': function (evt) {
-                    if (!this.checkValidity()) {
-                        this.classList.add('is-danger');
-                        let $h = this.parentNode.querySelector('.help');
-                        $h.textContent = this.validationMessage;
-                        $h.style.display = 'block';
-                    } else {
-                        this.classList.remove('is-danger');
-                        let $h = this.parentNode.querySelector('.help');
-                        $h.textContent = '';
-                        $h.style.display = 'none';
-                    }
+                    mark_field_validity(this);
                 }
             }];
 
@@ -1977,6 +1964,57 @@ function template2columns(gobj, columns, template, sub_elements)
 }
 
 /************************************************************
+ *  What is wrong with a field, in the APP's language.
+ *
+ *  `input.validationMessage` is the BROWSER's sentence in the BROWSER's
+ *  locale: a Spanish form on an English Firefox says "Please fill out
+ *  this field." and no i18n reaches it. The one case worth owning is
+ *  the empty required field — by far the common one — and the rest
+ *  falls back to the browser, whose wording for a bad pattern or an
+ *  out-of-range number is more precise than anything generic here.
+ ************************************************************/
+function field_validation_message($input)
+{
+    let v = $input.validity;
+    if(v && v.valueMissing) {
+        return t("this field is required");
+    }
+    return $input.validationMessage;
+}
+
+/************************************************************
+ *  Mark a field as wrong, or clear the mark. One place: the same
+ *  three lines lived in the `invalid` and `blur` handlers of every
+ *  field kind.
+ ************************************************************/
+function mark_field_validity($input)
+{
+    let $h = $input.parentNode? $input.parentNode.querySelector('.help') : null;
+    let ok = true;
+    try {
+        ok = $input.checkValidity();
+    } catch(e) {
+        ok = true;      /*  not a validatable control  */
+    }
+
+    if(ok) {
+        $input.classList.remove('is-danger');
+        if($h) {
+            $h.textContent = '';
+            $h.style.display = 'none';
+        }
+        return true;
+    }
+
+    $input.classList.add('is-danger');
+    if($h) {
+        $h.textContent = field_validation_message($input);
+        $h.style.display = 'block';
+    }
+    return false;
+}
+
+/************************************************************
  *
  ************************************************************/
 function validate_form(gobj, $form)
@@ -2718,7 +2756,11 @@ function ac_window_to_close(gobj, event, kw, src)
 {
     if(gobj_read_bool_attr(gobj, "changes")) {
         kw.abort_close = true; // Don't close the window until fields repaired
-        kw.warning = "All changes will be lost. Are you sure?";
+        /*  An i18n KEY, not a sentence: the dialog renders its message with
+         *  `i18n: message`. The English sentence that was here was a key
+         *  nobody had defined, so it rendered as itself in every language —
+         *  and no locale validator can see a key that travels as data. */
+        kw.warning = "all changes will be lost";
     }
     return 0;
 }
@@ -2754,11 +2796,32 @@ function ac_save_record(gobj, event, kw, src)
         let values = get_form_values(gobj, $form);
         gobj_publish_event(gobj, "EV_SAVE_RECORD", values);
         set_changed_stated(gobj, false);
-
-    } else {
-        kw.abort_close = true; // Don't close the window until fields repaired
-        kw.warning = "Cannot save with wrong fields";
+        return 0;
     }
+
+    /*  Pressing Save on a form with a bad field used to do NOTHING: the
+     *  `abort_close` / `warning` this branch set were written on the click's
+     *  own kw, which nobody reads — that pair belongs to the close path, not
+     *  to this one. The button looked broken.
+     *
+     *  reportValidity() is what the form owed the reader: it fires `invalid`
+     *  on EVERY bad field (so all of them get marked, not just the one last
+     *  touched) and puts the caret and the viewport on the first, which on a
+     *  long form is the difference between "it did nothing" and "it is that
+     *  one, up there".  */
+    try {
+        $form.reportValidity();
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot report the form's validity: ${e}`);
+    }
+
+    /*  reportValidity() stops at the first field the BROWSER validates, and
+     *  the nested tables validate themselves; mark every input we own so the
+     *  count of red fields is the true one. */
+    $form.querySelectorAll('.yui-form-data-input').forEach(($input) => {
+        mark_field_validity($input);
+    });
+
     return 0;
 }
 

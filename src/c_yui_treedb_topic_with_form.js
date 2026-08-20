@@ -1527,9 +1527,14 @@ function form_may_close(gobj)
         let kw = {};
         gobj_send_event(priv.form, "EV_WINDOW_TO_CLOSE", kw, gobj);
         if(kw.abort_close) {
+            /*  The message the FORM returned, not a copy of it. The dialog
+             *  takes its message as an i18n KEY, so a second literal here is
+             *  a second key to define — and the one that was here had never
+             *  been defined in any locale, which renders as the English
+             *  sentence itself, in every language, for ever. */
             yui_shell_confirm_yesnocancel(
                 yui_shell_of(gobj),
-                'All changes will be lost. Are you sure?',
+                kw.warning || "all changes will be lost",
                 {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
             ).then(function(answer) {
                 if(answer === "yes" && priv.form_modal) {
