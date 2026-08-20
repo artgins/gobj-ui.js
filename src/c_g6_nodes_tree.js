@@ -4556,6 +4556,16 @@ function refresh_minimap(gobj)
             }
         }
     );
+
+    /*  The plugin builds its canvas on its FIRST render, and it renders off
+     *  the graph's draw events — which have all already happened by the time
+     *  the node count is known and this runs. Without a draw of its own it
+     *  sits there having never painted, with no container in the DOM at all.  */
+    try {
+        graph.draw();
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot draw the minimap: ${e}`);
+    }
 }
 
 /************************************************************
