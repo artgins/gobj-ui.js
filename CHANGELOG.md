@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.7.1
+
+- **fix: marking a field wrong recursed for ever.** `checkValidity()` FIRES
+  the `invalid` event, and the new one-place marker was what that event's
+  handler calls: each asked the other until the page filled with "too much
+  recursion". Reading `validity.valid` asks the same question and fires
+  nothing. (The code this replaced was safe by accident — it never asked.)
+
 ## 7.7.0
 
 - **fix: pressing Save on a form with a bad field did nothing at all.** The

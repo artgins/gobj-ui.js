@@ -1990,12 +1990,16 @@ function field_validation_message($input)
 function mark_field_validity($input)
 {
     let $h = $input.parentNode? $input.parentNode.querySelector('.help') : null;
-    let ok = true;
-    try {
-        ok = $input.checkValidity();
-    } catch(e) {
-        ok = true;      /*  not a validatable control  */
-    }
+
+    /*  `validity.valid`, NEVER `checkValidity()`.
+     *
+     *  checkValidity() FIRES the `invalid` event, and this function is what
+     *  that event's handler calls: one asks the other for ever. It cost a
+     *  page full of "too much recursion" the first time Save reported a bad
+     *  field. Reading `validity` asks the same question and fires nothing.
+     *  A control with no `validity` (a wrapper div) is not invalid.  */
+    let v = $input.validity;
+    let ok = !v || v.valid;
 
     if(ok) {
         $input.classList.remove('is-danger');
