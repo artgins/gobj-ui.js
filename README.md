@@ -582,6 +582,15 @@ Two details that are not decoration:
 The find and the topic focus **share the highlight**: starting one clears the
 other. Two amber sets at once would say nothing about either.
 
+The highlight is painted **into the card's own html**, not with G6's `active`
+element state. That state is an amber `stroke` + `halo`, both properties of a
+node's KEY SHAPE — and every node here is an `html` node, whose key shape is a
+DOM element. There was nothing for either property to paint on, so the amber
+had never appeared, for the topic focus either. Only the cards whose state
+changes are repainted, and a theme switch carries the highlight across (it
+rebuilds every card, and rebuilding them without it would clear what is on
+screen).
+
 Wiring: the box sends `EV_FIND_NODES {text}` to the view, which forwards it to
 `C_G6_NODES_TREE`; the graph answers `EV_FIND_RESULT {term, matches}`, which the
 view declares like every other event its child publishes.

@@ -147,6 +147,7 @@ let PRIVATE_DATA = {
     topics:             [],
     records:            {},
     gobj_nodes_tree:    null,
+    find_timer:         null,       // rate-limits the find box (see make_toolbar)
     gobj_treedb_tables: null,
     hook_data_viewer:   null,
     json_gobj:          null,   /*  C_YUI_JSON viewer of the raw tranger (or null)  */
@@ -310,6 +311,14 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    let priv = gobj.priv;
+    /*  The find box rate-limits itself with a timer; a view torn down
+     *  between the keystroke and the send would fire an event into a
+     *  destroyed gobj. */
+    if(priv.find_timer) {
+        clearTimeout(priv.find_timer);
+        priv.find_timer = null;
+    }
     destroy_ui(gobj);
 }
 
@@ -530,14 +539,21 @@ function make_toolbar(gobj)
                 ['i', {class: 'yi-magnifying-glass'}]
             ]]
         ], {
+            /*  Rate-limited, not delayed for effect: a match repaints the
+             *  cards it lands on, and on a large treedb the first letter
+             *  typed can match hundreds. This is input plumbing — the
+             *  event still carries every action to the FSM, just not one
+             *  per keystroke. */
             input: (evt) => {
                 evt.stopPropagation();
-                gobj_send_event(
-                    gobj,
-                    "EV_FIND_NODES",
-                    {text: evt.target.value.trim()},
-                    gobj
-                );
+                let text = evt.target.value.trim();
+                if(priv.find_timer) {
+                    clearTimeout(priv.find_timer);
+                }
+                priv.find_timer = setTimeout(function() {
+                    priv.find_timer = null;
+                    gobj_send_event(gobj, "EV_FIND_NODES", {text: text}, gobj);
+                }, 250);
             }
         }],
         /*  Two spans, not one string: the number is DATA and "matches" is

@@ -140,6 +140,14 @@ ensure_drag_canvas_patch();
  ***************************************************************/
 const GCLASS_NAME = "C_G6_NODES_TREE";
 
+/*  The highlight of a focused topic / a find match. It is drawn INTO the
+ *  node's own html, not with G6's `active` element state: every node here
+ *  is an `html` node, whose key shape is a DOM element — the state's
+ *  `stroke` / `halo` have nothing to paint on and the amber never
+ *  appeared, for the topic focus either.  */
+const HIGHLIGHT_COLOR = "#f0a020";
+const HIGHLIGHT_HALO  = "rgba(240,160,32,0.35)";
+
 /***************************************************************
  *  Internal layout and operation mode definitions
  ***************************************************************/
@@ -2113,6 +2121,7 @@ function graph_focus_topic(gobj, topic)
             states[id] = ['active'];
         }
     }
+    let prev_ids = priv._focus_ids || [];
     priv._focus_ids = ids;
     priv._focus_topic = topic || null;
 
@@ -2120,6 +2129,7 @@ function graph_focus_topic(gobj, topic)
         if(typeof graph.setElementState === "function") {
             graph.setElementState(states);
         }
+        apply_node_highlight(gobj, prev_ids, ids);
         if(ids.length && typeof graph.focusElement === "function") {
             graph.focusElement(ids);
         }
@@ -2194,6 +2204,7 @@ function graph_find_nodes(gobj, term)
         }
     }
 
+    let prev_ids = priv._focus_ids || [];
     priv._focus_ids = ids;
     priv._focus_topic = null;       /*  a find takes over the highlight  */
 
@@ -2201,6 +2212,7 @@ function graph_find_nodes(gobj, term)
         if(typeof graph.setElementState === "function") {
             graph.setElementState(states);
         }
+        apply_node_highlight(gobj, prev_ids, ids);
         if(ids.length && typeof graph.focusElement === "function") {
             graph.focusElement(ids);
         }
@@ -4469,6 +4481,79 @@ function show_node_detail_popover(gobj, node_id)
  *  not re-themed by setTheme()) are regenerated; structural
  *  junction diamonds get their neutral fill/stroke re-themed.
  ************************************************************/
+/************************************************************
+ *  The innerHTML of ONE node, in the given theme and highlight state.
+ *  The three treedb tiers (hierarchical / extended / child) each have
+ *  their own card, and both the theme refresh and the highlight need the
+ *  same three-way choice — it lived inline in the theme refresh and is
+ *  shared now. Returns null for a node that carries no desc.
+ ************************************************************/
+function node_innerHTML_of(nd, theme, highlight)
+{
+    if(!nd || !nd.data || !nd.data.desc) {
+        return null;
+    }
+    let desc = nd.data.desc;
+    let record = nd.data.record || {};
+    let label = node_label(desc, record);
+
+    switch(desc.node_treedb_type) {
+        case 'child':
+            return build_chip_innerHTML(
+                desc.color, theme, record.icon, label, record.id, highlight
+            );
+        case 'extended':
+            return build_node_innerHTML(
+                desc.color, theme, record.icon, label,
+                desc.topic_name, true, record.id, highlight
+            );
+        case 'hierarchical':
+            return build_node_innerHTML(
+                desc.color, theme, record.icon, label,
+                desc.topic_name, false, record.id, highlight
+            );
+    }
+    return null;
+}
+
+/************************************************************
+ *  Repaint the cards whose highlight state CHANGES: the ones that had it
+ *  and lose it, plus the ones that gain it. Only those — a treedb graph
+ *  is redrawn per keystroke of the find box otherwise.
+ ************************************************************/
+function apply_node_highlight(gobj, prev_ids, next_ids)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph) {
+        return;
+    }
+
+    let next = new Set(next_ids || []);
+    let touched = new Set([...(prev_ids || []), ...next]);
+    if(touched.size === 0) {
+        return;
+    }
+
+    let updates = [];
+    for(let id of touched) {
+        let nd = graph.getNodeData(id);
+        let html = node_innerHTML_of(nd, priv.theme, next.has(id));
+        if(html !== null) {
+            updates.push({id: id, style: {innerHTML: html}});
+        }
+    }
+    if(!updates.length) {
+        return;
+    }
+    try {
+        graph.updateNodeData(updates);
+        graph.draw();
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot repaint the highlight: ${e}`);
+    }
+}
+
 function refresh_html_nodes_theme(gobj, theme)
 {
     let priv = gobj.priv;
@@ -4477,46 +4562,16 @@ function refresh_html_nodes_theme(gobj, theme)
         return;
     }
     let nodes = graph.getData().nodes || [];
+    /*  The highlight is part of the card's html, so a theme switch that
+     *  rebuilt every card without it would silently CLEAR the focus or the
+     *  find that is on screen. Carry it across. */
+    let highlighted = new Set(priv._focus_ids || []);
     let updates = [];
     for(let i = 0; i < nodes.length; i++) {
-        let nd = graph.getNodeData(nodes[i].id);
-        if(!nd || !nd.data || !nd.data.desc) {
-            continue;
-        }
-        let tt = nd.data.desc.node_treedb_type;
-        let record = nd.data.record || {};
-        if(tt === 'hierarchical') {
-            updates.push({
-                id: nodes[i].id,
-                style: {
-                    innerHTML: build_node_innerHTML(
-                        nd.data.desc.color, theme, record.icon,
-                        node_label(nd.data.desc, record),
-                        nd.data.desc.topic_name, false, record.id
-                    )
-                }
-            });
-        } else if(tt === 'child') {
-            updates.push({
-                id: nodes[i].id,
-                style: {
-                    innerHTML: build_chip_innerHTML(
-                        nd.data.desc.color, theme, record.icon,
-                        node_label(nd.data.desc, record), record.id
-                    )
-                }
-            });
-        } else if(tt === 'extended') {
-            updates.push({
-                id: nodes[i].id,
-                style: {
-                    innerHTML: build_node_innerHTML(
-                        nd.data.desc.color, theme, record.icon,
-                        node_label(nd.data.desc, record),
-                        nd.data.desc.topic_name, true, record.id
-                    )
-                }
-            });
+        let id = nodes[i].id;
+        let html = node_innerHTML_of(graph.getNodeData(id), theme, highlighted.has(id));
+        if(html !== null) {
+            updates.push({id: id, style: {innerHTML: html}});
         }
     }
     if(updates.length > 0) {
@@ -4559,7 +4614,7 @@ function refresh_default_edges_theme(gobj, theme)
  *  but lighter (1px border, no shadow, single line). The name is
  *  always legible (ellipsis + native title tooltip on overflow).
  ************************************************************/
-function build_chip_innerHTML(color, theme, icon, label, key)
+function build_chip_innerHTML(color, theme, icon, label, key, highlight)
 {
     let title = key || label;
     let dark = (theme === "dark");
@@ -4571,6 +4626,9 @@ function build_chip_innerHTML(color, theme, icon, label, key)
         ? `color-mix(in srgb, ${color} 85%, #ffffff)`
         : color;
     let text_color = dark ? "#e8eaed" : "#0f172a";
+    if(highlight) {
+        border = HIGHLIGHT_COLOR;
+    }
 
     let icon_html = "";
     if(icon) {
@@ -4586,7 +4644,8 @@ function build_chip_innerHTML(color, theme, icon, label, key)
     width: 100%;
     height: 100%;
     background: ${bg};
-    border: 1px solid ${border};
+    border: ${highlight? "3px" : "1px"} solid ${border};
+    ${highlight? `box-shadow: 0 0 0 4px ${HIGHLIGHT_HALO};` : ""}
     border-radius: 8px;
     color: ${text_color};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -4613,7 +4672,7 @@ function build_chip_innerHTML(color, theme, icon, label, key)
  *  colour is kept (per-topic differentiation) but softened via
  *  color-mix instead of a harsh saturated fill. Theme-aware.
  ************************************************************/
-function build_node_innerHTML(color, theme, icon, label, topic_name, structural, key)
+function build_node_innerHTML(color, theme, icon, label, topic_name, structural, key, highlight)
 {
     let title = key || label;
     let dark = (theme === "dark");
@@ -4637,6 +4696,10 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
         border = dark
             ? `color-mix(in srgb, ${color} 85%, #ffffff)`
             : color;
+        border_style = "solid";
+    }
+    if(highlight) {
+        border = HIGHLIGHT_COLOR;
         border_style = "solid";
     }
     let title_color = dark ? "#e8eaed" : "#0f172a";
@@ -4670,9 +4733,9 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
     width: 100%;
     height: 100%;
     background: ${bg};
-    border: 1.5px ${border_style} ${border};
+    border: ${highlight? "3px" : "1.5px"} ${border_style} ${border};
     border-radius: 10px;
-    box-shadow: ${shadow};
+    box-shadow: ${highlight? `0 0 0 4px ${HIGHLIGHT_HALO}, ${shadow}` : shadow};
     color: ${title_color};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     display: flex;

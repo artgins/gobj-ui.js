@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.3.0
+
+- **fix: the graph highlight never actually appeared.** `EV_FOCUS_TOPIC` has
+  been setting G6's `active` element state since the topic-cards landing, and
+  the state is defined as an amber `stroke` + `halo` — properties of a node's
+  KEY SHAPE. Every node in this graph is an `html` node, whose key shape is a
+  DOM element, so there was nothing for either property to paint on. The topic
+  focus centred the viewport and highlighted nothing; the find box inherited
+  the same silence.
+
+  The highlight is drawn into the card's own html now (amber border + halo),
+  which is where these nodes are drawn at all. Only the cards whose state
+  CHANGES are repainted — the ones losing it and the ones gaining it — so the
+  graph is not rebuilt per keystroke, and the find box rate-limits its input
+  on top of that.
+
+  A theme switch carries the highlight across: it rebuilds every card, and
+  rebuilding them without it would silently clear the focus on screen.
+
+- **refactor: one place decides a node's html.** The three treedb tiers
+  (hierarchical / extended / child) were chosen inline inside the theme
+  refresh; `node_innerHTML_of()` holds that choice now, for the theme refresh
+  and the highlight alike.
+
 ## 7.2.5
 
 - **fix: the footer STILL lied under a filter.** Subscribing to `dataFiltered`
