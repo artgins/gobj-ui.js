@@ -13,8 +13,13 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > routing contract (URL = source of truth, push/replace history, the
 > position/preference/transient litmus).
 >
+> **BREAKING (7.0.0):** a **dependency-only major** — no component API moved.
+> The `maplibre-gl` peer floor rises to `^6.4.1`, which is where `DOM.sanitize`
+> stops leaving dangerous attributes behind when several sit next to each other.
+> Raise the range in every consumer that declares maplibre.
+>
 > **BREAKING (5.0.0):** a **dependency-only major** — no component API moved.
-> The peer floors are now `maplibre-gl` `^6.0.0`, `@yuneta/gobj-js` `^7.8.7`,
+> The peer floors moved to `maplibre-gl` `^6.0.0` (see 7.0.0 above), `@yuneta/gobj-js` `^7.8.7`,
 > `i18next` `^26.3.6`, `tom-select` `^2.6.2`, `vanilla-jsoneditor` `^3.13.0`.
 > maplibre v6 is ESM-only with no default export, so a consumer imports it as
 > `import * as maplibregl`; bundling the map with Vite 8 also means emitting

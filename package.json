@@ -1,6 +1,6 @@
 {
   "name": "@yuneta/gobj-ui",
-  "version": "6.3.2",
+  "version": "7.0.0",
   "type": "module",
   "main": "dist/gobj-ui.cjs.js",
   "module": "dist/gobj-ui.es.js",
@@ -38,7 +38,7 @@
     "@yuneta/gobj-js": "^7.13.2",
     "bulma": "^1.0.4",
     "i18next": "^26.3.6",
-    "maplibre-gl": "^6.1.0",
+    "maplibre-gl": "^6.4.1",
     "tabulator-tables": "^6.5.2",
     "tom-select": "^2.6.2",
     "uplot": "^1.6.32",

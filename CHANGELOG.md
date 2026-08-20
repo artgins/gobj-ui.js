@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.0.0
+
+**BREAKING (dependency only — no API moved).** The `maplibre-gl` peer floor
+rises from `^6.1.0` to `^6.4.1`. Raise the range in every consumer that
+declares maplibre; nothing in this library's own contract changed.
+
+- **chore: maplibre-gl `^6.4.1`.** 6.4.1 fixes `DOM.sanitize` leaving dangerous
+  attributes behind when several of them sit next to each other: the function
+  iterated a live `NamedNodeMap` while removing from it, so each removal skipped
+  the attribute right after it and an `ontoggle` could survive the scrub. A
+  floor is what stops a consumer from resolving to a version without that fix,
+  so the floor is what moves.
+
+  The one place on this line that mounts a map is the demo `test-app`, whose
+  `maplibre_worker_assets` plugin reads the worker out of `node_modules` in
+  lockstep with the installed version — it now ships the 6.4.1 worker.
+
 ## 6.3.2
 
 - **fix: the schema diagram's arrows point at the parent, not at the child.**
