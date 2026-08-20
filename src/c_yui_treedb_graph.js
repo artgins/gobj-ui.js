@@ -504,9 +504,51 @@ function make_toolbar(gobj)
     ];
 
     /*
-     *  Center, common controls
+     *  Center: find a node.
+     *
+     *  A graph of a few hundred records has no other way in: the only way
+     *  to locate one was to read every card. The box highlights every
+     *  match with the same amber the topic focus uses and centres the
+     *  viewport on them, and it SAYS how many it found — a graph that did
+     *  not move looks the same whether nothing matched or the match was
+     *  already on screen.
      */
-    let center_items = [];
+    let center_items = [
+        ['div', {class: 'GRAPH_FIND control has-icons-left',
+                 style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
+            ['input', {
+                class: 'GRAPH_FIND_INPUT input',
+                type: 'text',
+                /*  A placeholder is not a text node, so the data-i18n walk
+                 *  cannot reach it: it needs its own key. */
+                placeholder: t('search'),
+                'data-i18n-placeholder': 'search',
+                'aria-label': t('search'),
+                'data-i18n-aria-label': 'search'
+            }],
+            ['span', {class: 'icon is-left'}, [
+                ['i', {class: 'yi-magnifying-glass'}]
+            ]]
+        ], {
+            input: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(
+                    gobj,
+                    "EV_FIND_NODES",
+                    {text: evt.target.value.trim()},
+                    gobj
+                );
+            }
+        }],
+        /*  Two spans, not one string: the number is DATA and "matches" is
+         *  the word, so a language switch re-translates the half that is a
+         *  word. Spaced with CSS because createElement2 trims text nodes. */
+        ['div', {class: 'GRAPH_FIND_RESULT is-hidden is-flex is-align-items-center',
+                 style: 'gap:.3rem; margin-right:.5rem; font-size:.85rem;'}, [
+            ['span', {class: 'GRAPH_FIND_COUNT'}, ''],
+            ['span', {i18n: 'matches'}, 'matches']
+        ]]
+    ];
 
     /*
      *  Right, fill in set_mode
@@ -2129,6 +2171,51 @@ function ac_set_operation_mode(gobj, event, kw, src)
  *  tree, which centres + highlights that topic's nodes (deferring
  *  until its data is loaded).
  ************************************************************/
+/************************************************************
+ *  Forward the find down to the graph child.
+ ************************************************************/
+function ac_find_nodes(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(
+            priv.gobj_nodes_tree,
+            "EV_FIND_NODES",
+            {text: (kw && kw.text) || ""},
+            gobj
+        );
+    }
+    return 0;
+}
+
+/************************************************************
+ *  How many nodes the term matched, from the graph child. Zero with a
+ *  term typed is an ANSWER and is shown; an empty box shows nothing.
+ ************************************************************/
+function ac_find_result(gobj, event, kw, src)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return 0;
+    }
+    let $result = $container.querySelector(".GRAPH_FIND_RESULT");
+    let $count = $container.querySelector(".GRAPH_FIND_COUNT");
+    if(!$result || !$count) {
+        return 0;
+    }
+
+    let term = (kw && kw.term) || "";
+    if(!term) {
+        $result.classList.add("is-hidden");
+        $count.textContent = "";
+        return 0;
+    }
+
+    $count.textContent = String((kw && kw.matches) || 0);
+    $result.classList.remove("is-hidden");
+    return 0;
+}
+
 function ac_set_focus_topic(gobj, event, kw, src)
 {
     let priv = gobj.priv;
@@ -2228,6 +2315,8 @@ function create_gclass(gclass_name)
             ["EV_SET_LAYOUT",               ac_set_layout,              null],
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
             ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
+            ["EV_FIND_NODES",               ac_find_nodes,              null],
+            ["EV_FIND_RESULT",              ac_find_result,             null],
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
             ["EV_TRANSPORT_STATE",          ac_transport_state,         null],
@@ -2262,6 +2351,8 @@ function create_gclass(gclass_name)
         ["EV_SET_LAYOUT",               0],
         ["EV_SET_OPERATION_MODE",       0],
         ["EV_SET_FOCUS_TOPIC",          0],
+        ["EV_FIND_NODES",               0],
+        ["EV_FIND_RESULT",              0],
         ["EV_OPERATION_MODE_CHANGED",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_RECORD_WRITTEN",

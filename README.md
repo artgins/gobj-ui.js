@@ -561,6 +561,31 @@ Two implementation notes worth keeping:
   still arrive from a keyboard path or a form that outlived the flag, and an
   ignored write is exactly the behaviour this whole change exists to stop.
 
+### Finding a node in the graph
+
+`C_YUI_TREEDB_GRAPH` carries a find box in the middle of its toolbar. It
+matches the term against the node's **label**, its id and its topic name, puts
+every match in the same amber `active` state the topic focus uses, and centres
+the viewport on them.
+
+Two details that are not decoration:
+
+- it matches the **label**, not only the id. On a topic keyed by `rowid`,
+  `uuid` or `qualified` the id is a counter or a path and the name a human
+  knows the record by lives in a secondary key — the same reason `node_label()`
+  exists.
+- it **says how many** it found. A graph that did not move looks identical
+  whether nothing matched or the only match was already on screen, so the count
+  is shown next to the box (hidden while the box is empty; a typed term that
+  matches nothing shows `0`, which is an answer).
+
+The find and the topic focus **share the highlight**: starting one clears the
+other. Two amber sets at once would say nothing about either.
+
+Wiring: the box sends `EV_FIND_NODES {text}` to the view, which forwards it to
+`C_G6_NODES_TREE`; the graph answers `EV_FIND_RESULT {term, matches}`, which the
+view declares like every other event its child publishes.
+
 ### C_YUI_TREEDB_SCHEMA — the treedb drawn the way its `.c` draws it
 
 A landing view that draws a treedb the way its schema literal draws it in ASCII

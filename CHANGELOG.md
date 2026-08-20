@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.2.0
+
+- **feat: find a node in the graph.** A treedb graph of a few hundred records
+  had no way in but reading every card. `C_YUI_TREEDB_GRAPH` gets a find box:
+  it matches the term against the node's label, id and topic, highlights every
+  match with the amber `active` state and centres on them.
+
+  It matches the **label** and not only the id, because a topic keyed by
+  `rowid` / `uuid` / `qualified` is keyed by a counter or a path while the name
+  a human knows is in a secondary key. And it **says how many** it found: a
+  graph that did not move looks the same whether nothing matched or the match
+  was already on screen.
+
+  The find shares the highlight with the topic focus — one clears the other,
+  since two amber sets at once say nothing about either.
+
+  New events: `EV_FIND_NODES` (view and `C_G6_NODES_TREE`) and the graph's
+  `EV_FIND_RESULT {term, matches}`.
+
 ## 7.1.0
 
 - **feat: a topic table you can actually read.** `C_YUI_TREEDB_TOPIC_WITH_FORM`

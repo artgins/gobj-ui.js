@@ -280,6 +280,7 @@ let PRIVATE_DATA = {
     _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
     _focus_ids:         [],         // node ids carrying the focus 'active' state
     _pending_focus_topic: null,     // focus requested before data was loaded
+    _pending_find:      null,       // find requested before data was loaded
 };
 
 let __gclass__ = null;
@@ -2125,6 +2126,89 @@ function graph_focus_topic(gobj, topic)
     } catch(e) {
         log_error(`${gobj_short_name(gobj)}: focus topic apply failed: ${e}`);
     }
+}
+
+/************************************************************
+ *  Find the nodes whose name, id or topic contains `term`, highlight
+ *  them with the same amber 'active' state the topic focus uses, and
+ *  centre the viewport on them. Returns how many matched, which is the
+ *  half the toolbar needs: a search that finds nothing must SAY so,
+ *  because a graph that did not move is also what a graph looks like
+ *  when the match is off-screen.
+ *
+ *  It shares the highlight slot with graph_focus_topic on purpose —
+ *  two amber sets at once would say nothing about either. An empty
+ *  term clears it. Matching reads the node's LABEL and not only its
+ *  id: on a topic keyed by rowid or by a qualified path, the id is a
+ *  counter and the name a human knows is elsewhere (see node_label).
+ ************************************************************/
+function graph_find_nodes(gobj, term)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph || !priv.graph_rendered) {
+        priv._pending_find = term;
+        return 0;
+    }
+
+    let data = {};
+    try {
+        data = graph.getData() || {};
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: graph.getData() failed: ${e}`);
+        return 0;
+    }
+    let nodes = is_array(data.nodes) ? data.nodes : [];
+
+    let states = {};
+    for(let id of (priv._focus_ids || [])) {
+        states[id] = [];
+    }
+
+    let ids = [];
+    if(!empty_string(term)) {
+        let needle = String(term).toLowerCase();
+        for(let n of nodes) {
+            if(!n || !n.data) {
+                continue;
+            }
+            let record = n.data.record || {};
+            let label = "";
+            try {
+                label = node_label(n.data.desc || {}, record) || "";
+            } catch(e) {
+                label = "";
+            }
+            let haystack = [
+                label,
+                record.id,
+                n.data.topic_name
+            ].filter((v) => typeof v === "string").join(" ").toLowerCase();
+
+            if(haystack.includes(needle)) {
+                ids.push(n.id);
+            }
+        }
+        for(let id of ids) {
+            states[id] = ['active'];
+        }
+    }
+
+    priv._focus_ids = ids;
+    priv._focus_topic = null;       /*  a find takes over the highlight  */
+
+    try {
+        if(typeof graph.setElementState === "function") {
+            graph.setElementState(states);
+        }
+        if(ids.length && typeof graph.focusElement === "function") {
+            graph.focusElement(ids);
+        }
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: find apply failed: ${e}`);
+    }
+
+    return ids.length;
 }
 
 async function graph_zoom_in(gobj)
@@ -5546,6 +5630,11 @@ function ac_load_data(gobj, event, kw, src)
                         priv._pending_focus_topic = null;
                         graph_focus_topic(gobj, ft);
                     }
+                    if(priv._pending_find !== null) {
+                        let term = priv._pending_find;
+                        priv._pending_find = null;
+                        publish_find_result(gobj, term, graph_find_nodes(gobj, term));
+                    }
                 });
             });
         });
@@ -5888,6 +5977,27 @@ function ac_auto_fit(gobj, event, kw, src)
 function ac_focus_topic(gobj, event, kw, src)
 {
     graph_focus_topic(gobj, kw && kw.topic);
+    return 0;
+}
+
+/************************************************************
+ *  Tell whoever asked how many nodes the term matched. The count is
+ *  the answer to the question the box asks; without it "nothing moved"
+ *  and "nothing matched" look the same.
+ ************************************************************/
+function publish_find_result(gobj, term, matches)
+{
+    gobj_publish_event(gobj, "EV_FIND_RESULT", {term: term, matches: matches});
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function ac_find_nodes(gobj, event, kw, src)
+{
+    let term = (kw && kw.text) || "";
+    let matches = graph_find_nodes(gobj, term);
+    publish_find_result(gobj, term, matches);
     return 0;
 }
 
@@ -6254,6 +6364,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
             ["EV_AUTO_FIT",                 ac_auto_fit,            null],
             ["EV_FOCUS_TOPIC",              ac_focus_topic,         null],
+            ["EV_FIND_NODES",               ac_find_nodes,          null],
             ["EV_CENTER",                   ac_center,              null],
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_SET_LAYOUT",               ac_set_layout,          null],
@@ -6297,6 +6408,8 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_RESET",               0],
         ["EV_AUTO_FIT",                 0],
         ["EV_FOCUS_TOPIC",              0],
+        ["EV_FIND_NODES",               0],
+        ["EV_FIND_RESULT",              event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],
