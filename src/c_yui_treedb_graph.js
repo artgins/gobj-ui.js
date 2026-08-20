@@ -2320,11 +2320,17 @@ function ac_legend_topic(gobj, event, kw, src)
         log_error(`${gobj_short_name(gobj)}: legend click with no topic`);
         return -1;
     }
-    gobj_publish_event(
-        gobj,
-        "EV_TOPIC_SELECTED",
-        {topic: (priv.focus_topic === topic)? "" : topic}
-    );
+
+    let next = (priv.focus_topic === topic)? "" : topic;
+
+    /*  APPLY, then announce — in that order, and both halves are needed.
+     *  The host mirrors the announcement into the URL and remembers the
+     *  segment it just wrote, so the route change it causes comes back
+     *  DEDUPED: a legend that only announced moved the URL and focused
+     *  nothing. This is the same contract the topics view keeps, where
+     *  clicking a topic shows it and says so.  */
+    gobj_send_event(gobj, "EV_SET_FOCUS_TOPIC", {topic: next}, gobj);
+    gobj_publish_event(gobj, "EV_TOPIC_SELECTED", {topic: next});
     return 0;
 }
 

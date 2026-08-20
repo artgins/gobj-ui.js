@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.4.1
+
+- **fix: a legend click moved the URL and focused nothing.** It only ANNOUNCED
+  the topic. The host mirrors that announcement into the route and remembers
+  the segment it just wrote, so the route change it causes comes back deduped
+  and nobody ever applied the focus. The action applies it first and announces
+  second — the contract the topics view already keeps, where clicking a topic
+  shows it and says so.
+
 ## 7.4.0
 
 - **feat: a legend that says which colour is which topic — and focuses it.**
