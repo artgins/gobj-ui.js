@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.4.5
+
+- **fix: the minimap was instantiated, bound, and never painted.** It was added
+  once the node count was known — which is AFTER the last draw. The plugin
+  builds its canvas on its first render and renders off the graph's draw
+  events, so it sat there fully registered with no container in the DOM at
+  all, and nothing anywhere said so: the failure was a `.then()` away from any
+  console error, since an exception in a promise chain is not a console error
+  and not a pageerror.
+
+  The decision moved to BEFORE the draws — the node count is already known
+  there, the records having just become nodes — so the minimap rides the two
+  draws and the layout that follow. The call is guarded, so a future failure
+  says so instead of simply not appearing.
+
+  (7.4.3 and 7.4.4 were steps of this hunt: an explicit `graph.draw()` after
+  adding, which fires too early to help, and a round of instrumentation.)
+
 ## 7.4.2
 
 - **fix: the focused legend entry hid its own swatch.** A solid `is-primary`

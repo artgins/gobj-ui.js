@@ -4556,16 +4556,6 @@ function refresh_minimap(gobj)
             }
         }
     );
-
-    /*  The plugin builds its canvas on its FIRST render, and it renders off
-     *  the graph's draw events — which have all already happened by the time
-     *  the node count is known and this runs. Without a draw of its own it
-     *  sits there having never painted, with no container in the DOM at all.  */
-    try {
-        graph.draw();
-    } catch(e) {
-        log_error(`${gobj_short_name(gobj)}: cannot draw the minimap: ${e}`);
-    }
 }
 
 /************************************************************
@@ -5764,6 +5754,19 @@ function ac_load_data(gobj, event, kw, src)
     }
 
     if(do_links && priv.graph) {
+        /*  Decided BEFORE the drawing, not after it.
+         *
+         *  The plugin builds its canvas on its FIRST render, and it renders
+         *  off the graph's draw events — so a minimap added after the last
+         *  draw is instantiated, bound, and never painted: no container in
+         *  the DOM at all, and nothing anywhere says so. Added here it rides
+         *  the two draws and the layout that follow. The node count it needs
+         *  is already known: the records were turned into nodes above.  */
+        try {
+            refresh_minimap(gobj);
+        } catch(e) {
+            log_error(`${gobj_short_name(gobj)}: refresh_minimap failed: ${e}`);
+        }
         graph_draw(gobj).then(() => { // draw nodes, else the link fails
             create_links(gobj);
             graph_draw(gobj).then(() => {
@@ -5773,9 +5776,6 @@ function ac_load_data(gobj, event, kw, src)
                     } else {
                         graph_remove_plugin(gobj, "history");
                     }
-                    /*  The graph knows its size now: a minimap appears only
-                     *  when there is something to be lost in. */
-                    refresh_minimap(gobj);
                     /*  Nodes exist and are positioned now: apply a focus
                      *  requested before the data was ready (deep link). */
                     if(priv._pending_focus_topic !== null) {
