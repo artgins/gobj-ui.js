@@ -543,8 +543,15 @@ function make_toolbar(gobj)
         /*  Two spans, not one string: the number is DATA and "matches" is
          *  the word, so a language switch re-translates the half that is a
          *  word. Spaced with CSS because createElement2 trims text nodes. */
-        ['div', {class: 'GRAPH_FIND_RESULT is-hidden is-flex is-align-items-center',
-                 style: 'gap:.3rem; margin-right:.5rem; font-size:.85rem;'}, [
+        /*  `display:flex` inline and NOT the `is-flex` helper: both Bulma
+         *  helpers carry !important, so `is-hidden is-flex` on one element
+         *  is decided by whichever lands later in the stylesheet — and the
+         *  count showed with an empty box. An inline rule loses to
+         *  `is-hidden`'s !important and applies the moment it is removed,
+         *  which is the toggle this needs. */
+        ['div', {class: 'GRAPH_FIND_RESULT is-hidden',
+                 style: 'display:flex; align-items:center; gap:.3rem; ' +
+                        'margin-right:.5rem; font-size:.85rem;'}, [
             ['span', {class: 'GRAPH_FIND_COUNT'}, ''],
             ['span', {i18n: 'matches'}, 'matches']
         ]]

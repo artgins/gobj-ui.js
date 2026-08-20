@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.2.1
+
+- **fix: the graph's match count showed with an empty find box.** Its element
+  carried `is-hidden is-flex`, and both Bulma helpers are `!important`, so the
+  winner is whichever lands later in the stylesheet — not the one the code
+  toggles. The layout is an inline `display:flex` now, which loses to
+  `is-hidden` and applies the moment it is removed.
+
 ## 7.2.0
 
 - **feat: find a node in the graph.** A treedb graph of a few hundred records
