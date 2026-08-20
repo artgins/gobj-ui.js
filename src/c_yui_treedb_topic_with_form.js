@@ -865,9 +865,16 @@ function create_tabulator(gobj)
          *  lays out `fitDataFill`, which sizes a column to its DATA: a
          *  `Role` column holding "root" came out narrower than its own
          *  filter, whose placeholder was cut to "filtrar c". The tick of a
-         *  boolean is not a box and stays as narrow as it wants.  */
+         *  boolean is not a box and stays as narrow as it wants.
+         *
+         *  150 and not a rounder number: it is what the placeholder needs
+         *  in the LONGEST locale ("filtrar columna...", ~18 characters).
+         *  The placeholder cannot be shortened per column — it comes from
+         *  the shared Tabulator locale, which is exactly what re-renders it
+         *  on a language switch; a per-column one would freeze in the
+         *  language it was built in.  */
         if(colDef.headerFilter && colDef.headerFilter !== "tickCross") {
-            colDef.minWidth = 120;
+            colDef.minWidth = 150;
         }
     }
 

@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.2.3
+
+- **fix: the filter placeholder still did not fit.** 7.2.2's `minWidth` of 120
+  left "filtrar columna..." cut to "filtrar colum...". It is 150 now, which is
+  what the placeholder needs in the LONGEST locale — the measure that decides,
+  since the width cannot follow the language.
+
+  The placeholder cannot be shortened per column instead: it comes from the
+  shared Tabulator locale, which is exactly what re-renders it on a language
+  switch, so a per-column one would freeze in the language it was built in.
+
 ## 7.2.2
 
 - **fix: a filtered column now has room for its filter.** The table lays out
