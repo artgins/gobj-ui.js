@@ -1115,10 +1115,15 @@ function create_tabulator(gobj)
             delete tabulator._pendingData;
         }
     });
-    /*  dataProcessed: after load/filter/sort.  dataChanged: rows
-     *  added/removed/edited.  Both keep the count truthful. */
+    /*  dataProcessed: after load/sort.  dataChanged: rows added/removed/
+     *  edited.  dataFiltered: after a filter runs — and that one is the
+     *  reason the footer used to LIE. It read "5 Filas" over four visible
+     *  rows, because filtering fires its own event and neither of the other
+     *  two. Nobody had noticed while the only filter was the global search
+     *  box; a filter per column made it a claim you read on every keystroke. */
     tabulator.on("dataProcessed", update_rowcount);
     tabulator.on("dataChanged", update_rowcount);
+    tabulator.on("dataFiltered", update_rowcount);
     tabulator.on("rowSelected", function(row) {
         gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row.getData()]}, gobj);
     });

@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.2.4
+
+- **fix: the row-count footer lied under a filter.** It read "5 Filas" over
+  four visible rows: filtering fires `dataFiltered`, and the footer was hooked
+  only to `dataProcessed` and `dataChanged`. Nobody had noticed while the only
+  filter was the global search box — a filter per column turned it into a
+  claim you read on every keystroke.
+
 ## 7.2.3
 
 - **fix: the filter placeholder still did not fit.** 7.2.2's `minWidth` of 120
