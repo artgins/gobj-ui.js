@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.5.2
+
+- **fix: the dagre default still never fired.** "Has anybody arranged this
+  treedb?" was answered by the mere PRESENCE of a geometry object — and a
+  treedb hands back `_geometry: {}` for a record nobody ever moved. An empty
+  object, and an object all the same, so every graph looked arranged and kept
+  its cascade. A saved position now has to carry an `x` or a `y`; the same
+  tightening applies to a `__graphs__` node entry, which can hold a port size
+  and no coordinates at all.
+
+## 7.5.1
+
+- **fix: the dagre default never fired.** The guard asked `priv.layout`
+  whether the user had a preference, and **`gobj_write_attr()` writes the
+  private field of the same name too** — so the moment `select_layout()`
+  resolved the empty preference to `manual` and stored it, `priv.layout` read
+  "manual" and the guard bailed every time. A private field is not a record of
+  what the HOST asked for; the asked-for value is captured in `mt_create`,
+  before anything can overwrite it.
+
 ## 7.5.0
 
 - **feat: a treedb nobody has arranged opens laid out, not piled up.**
@@ -26,11 +46,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   whose select was filled before the data arrived and was still claiming
   `manual`.
 
-  Worth knowing for anything that asks "did the host set this attr?":
-  `gobj_write_attr()` writes the private field of the same name too, so
-  `priv.layout` stopped answering that question the moment `select_layout()`
-  resolved the empty preference to `manual` and stored it. The asked-for
-  value is captured in `mt_create`, before anything can overwrite it.
+  **7.5.0 shipped this not working, and it took two more releases to land —
+  both worth reading, because both traps are general.**
 
 ## 7.4.5
 
