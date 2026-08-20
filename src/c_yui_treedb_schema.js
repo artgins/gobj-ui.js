@@ -4,9 +4,11 @@
  *      Schema-graph landing: the treedb drawn the way its `.c` literal
  *      draws it in ASCII (treedb_schema_*.c, treedb_system_schema.c) —
  *      one CARD per topic listing its fields in schema order, one edge
- *      per hook, from the row that declares the hook to the fkey row of
- *      the child it names. Built from the schema `descs` alone: no data,
- *      no backend calls.
+ *      per hook, between the row that declares the hook and the fkey row
+ *      of the child it names — arrowhead on the HOOK, as the `.c` draws
+ *      it and as the `↖` of the fkey mark says: the reference is the
+ *      child's and it points at its parent. Built from the schema
+ *      `descs` alone: no data, no backend calls.
  *
  *      WHY THE CARD AND NOT A DOT. A topic is its fields; a schema is
  *      read to find out what a topic holds and what links to what. A
@@ -380,14 +382,17 @@ ${rows_html}    </div>
  *   Derive {nodes, edges} from the schema.
  *
  *   Node = a topic, drawn as the card the `.c` literal draws in
- *   ASCII: its name and its fields. Edge = a hook, from the row
- *   that declares it to the fkey row of the child it names —
- *   `'hook': {'users': 'departments'}` says both ends, so the
- *   arrow can land where the `.c` drawing lands it. An fkey
- *   whose parent declares no hook still gets its edge, or a
+ *   ASCII: its name and its fields. Edge = a hook, between the
+ *   row that declares it and the fkey row of the child it names
+ *   — `'hook': {'users': 'departments'}` says both ends, so the
+ *   edge can land on the rows the `.c` drawing lands it on. An
+ *   fkey whose parent declares no hook still gets its edge, or a
  *   half-declared schema would draw as disconnected.
  *
- *   Left-to-right dagre follows the parent -> child data flow.
+ *   An edge is declared parent -> child so left-to-right dagre
+ *   ranks the parent first, the order the `.c` literal lists
+ *   them in. The ARROWHEAD is the other way (see edge_style):
+ *   the fkey points at the hook, never the hook at the fkey.
  ************************************************************/
 function schema_to_graph(gobj)
 {
@@ -509,13 +514,21 @@ function schema_to_graph(gobj)
  *   the graph is built and re-applied on a theme switch
  *   (ac_theme), which restyles the LIVE graph — rebuilding it
  *   would drop the user's zoom/pan and any dragged node.
+ *
+ *   The arrowhead is at the START of the edge, on the parent's
+ *   hook — the direction the `.c` literals draw and the `↖` of
+ *   the fkey mark names: the reference is held by the CHILD and
+ *   points at its parent. The edge is still declared parent ->
+ *   child, which is what ranks the parent to the left; only the
+ *   marker says who points at whom.
  ************************************************************/
 function edge_style(dark)
 {
     return {
         stroke:   dark ? "#7a8593" : "#9aa4b2",
         lineWidth: 1.2,
-        endArrow: true,
+        startArrow: true,
+        endArrow:   false,
     };
 }
 

@@ -529,9 +529,13 @@ Two implementation notes worth keeping:
 
 A landing view that draws a treedb the way its schema literal draws it in ASCII
 (`treedb_schema_*.c`, `treedb_system_schema.c`): **one card per topic**,
-listing its fields in schema order, and **one edge per hook**, leaving the row
-that declares the hook and landing on the fkey row of the child it names. Built
-from the schema `descs` **alone**: no data, no backend calls. It is the "every
+listing its fields in schema order, and **one edge per hook**, between the row
+that declares the hook and the fkey row of the child it names. The **arrowhead
+is on the hook**, the way the `.c` draws it and the way the `↖` of the fkey
+mark reads: the reference is held by the child and points at its parent. The
+edge itself is declared parent → child, which is what ranks the parent to the
+left, first, as the literal lists it. Built from the schema `descs` **alone**:
+no data, no backend calls. It is the "every
 treedb is a graph" rule applied to the schema itself, and an alternate landing
 to the topic cards. A node click opens that topic's table through a real hash
 navigation, so the graph is a navigation surface rather than a picture.

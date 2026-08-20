@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 6.3.2
+
+- **fix: the schema diagram's arrows point at the parent, not at the child.**
+  `C_YUI_TREEDB_SCHEMA` exists to draw a treedb the way its `.c` literal draws
+  it in ASCII, and the `.c` puts the arrowhead on the parent's HOOK row: the
+  reference is the child's fkey and it points up at the parent — which is what
+  the `↖` in the `(↖)` / `[↖]` / `{↖}` marks the same view prints has always
+  said. The graph drew it the other way round, hook pointing at fkey, so the
+  drawing and the source it claims to mirror disagreed about who references
+  whom.
+
+  The edge is still declared parent -> child, because that is what ranks the
+  parent first under left-to-right dagre, the order the literal lists them in.
+  Only the marker moved: `startArrow` instead of `endArrow`.
+
 ## 6.3.1
 
 - **fix: the schema diagram keeps the size it was drawn at.** Selecting
