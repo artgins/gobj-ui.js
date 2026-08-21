@@ -1803,12 +1803,14 @@ function ac_mt_command_answer(gobj, event, kw, src)
                  *  backend that cannot page: the whole list arrives as one
                  *  page, which is the truth. */
                 let answer = nodes_answer(data);
-                /*  The correlation id travels in `__md_command__` of the kw
-                 *  that was SENT — the same place `topic_name` rides — so it
-                 *  is read back from the command stack and never sent to the
-                 *  backend as a parameter it does not know. */
-                let md = kw_get_dict(gobj, kw_command, "__md_command__", {}, 0);
-                let req_id = kw_get_str(gobj, md, "req_id", "", 0);
+                /*  The correlation id rides in `__md_command__`, which is the
+                 *  same place `topic_name` rides — and `kw_command` IS that
+                 *  object: C_IEVENT_CLI EXTRACTS `__md_command__` from the kw
+                 *  and pushes it as the command stack's `kw`. So it is read
+                 *  flat, one level up from where the sent kw put it, and it
+                 *  never travels to the backend as a parameter it does not
+                 *  know. */
+                let req_id = kw_get_str(gobj, kw_command, "req_id", "", 0);
                 if(req_id) {
                     gobj_send_event(
                         gobj_topic_form,

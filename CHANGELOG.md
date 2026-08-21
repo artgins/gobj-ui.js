@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.9.2
+
+- **fix: the paginator hid itself on every FULL page.** Whether there is more
+  was derived from the row count against the page size — which is right for
+  local pagination and nonsense for remote: 50 rows of a 50-row page reads as
+  "it all fits" and it does not. Remote paging asks `getPageMax()`, which is
+  the `last_page` the answer carried.
+
+- **fix: the row count said "50 rows" of a topic with 114.** With remote
+  paging the count is the PAGE, so the footer says `50 / 114` when there is
+  more behind it.
+
+## 7.9.1
+
+- **fix: a page answer never found the table that asked for it.** The
+  correlation id rides in `__md_command__`, and `C_IEVENT_CLI` **extracts**
+  that object and pushes it as the command stack's `kw` — so `kw_command` IS
+  it, and reading `kw_command.__md_command__.req_id` was one level too deep.
+  Every page request timed out with the answer sitting right there.
+
 ## 7.9.0
 
 - **feat: a topic table can pull its rows a PAGE at a time**

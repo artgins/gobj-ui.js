@@ -151,6 +151,7 @@ SDATA_END()
 let PRIVATE_DATA = {
     _pending_pages:     null,       // req_id -> {resolve, reject, timer}
     _page_seq:          0,          // correlation id of a page request
+    _page_total:        null,       // rows the topic HAS, from the last page answer
     $container:         null,
     treedb_name:        "",
     topic_name:         "",
@@ -1203,15 +1204,33 @@ function create_tabulator(gobj)
                 n = 0;
             }
         }
-        $rc.textContent = `${n} ${t("rows")}`;
+        /*  Remote paging: `n` is the PAGE, so saying "50 rows" of a topic
+         *  with 114 would be a lie by omission. Say both. */
+        let paged = gobj_read_bool_attr(gobj, "with_remote_paging");
+        let total = gobj.priv._page_total;
+        if(paged && typeof total === "number" && total > n) {
+            $rc.textContent = `${n} / ${total} ${t("rows")}`;
+        } else {
+            $rc.textContent = `${n} ${t("rows")}`;
+        }
 
-        /*  Derived from the count and the page size rather than read from
-         *  getPageMax(), which is stale in the filter path for the same
-         *  reason. getPageSize() throws with pagination off -> one page. */
         let single_page = true;
         try {
-            let size = tabulator.getPageSize();
-            single_page = !size || n <= size;
+            if(paged) {
+                /*  Tabulator knows the last page from the answer's
+                 *  `last_page`, and that is the only thing that says whether
+                 *  there is more. Deriving it from the row count instead —
+                 *  which is what the local path does — hid the paginator on
+                 *  every FULL page: 50 rows of a 50-row page reads as "it all
+                 *  fits" and it does not.  */
+                let max = tabulator.getPageMax();
+                single_page = (max === false) || max <= 1;
+            } else {
+                /*  Derived from the count and the page size rather than read
+                 *  from getPageMax(), which is stale in the filter path. */
+                let size = tabulator.getPageSize();
+                single_page = !size || n <= size;
+            }
         } catch(e) {
             single_page = true;
         }
@@ -3089,6 +3108,9 @@ function ac_repull_page(gobj, event, kw, src)
  ************************************************************/
 function ac_page_loaded(gobj, event, kw, src)
 {
+    if(typeof kw.total === "number") {
+        gobj.priv._page_total = kw.total;
+    }
     settle_page(gobj, kw.req_id, {
         data:      is_array(kw.rows)? kw.rows : [],
         last_page: kw.pages || 1,
