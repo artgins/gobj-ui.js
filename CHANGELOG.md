@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.10.2
+
+- **fix: "detached from 1 parents".** The counted words take a `count`, so
+  i18next picks the singular; the plural stays on the BASE key, which is what
+  the locale validators look for (they know nothing of `_one` / `_other`), so
+  a consumer only has to add the singular. Safe against a language switch
+  because this is a MODAL — a dialog with a backdrop never sees one, the
+  language button is behind it.
+
+  New keys: `parents_one`, `children will be unlinked, not deleted_one`.
+
+## 7.10.1
+
+- **fix: the composed question lost its spaces.** `createElement2` TRIMS text
+  nodes, so the `["span", {}, " "]` separators vanished and the question read
+  "BorrarDeveloper". Each line is a flex row with a **gap** now: spacing is CSS
+  anywhere text is composed from keys.
+
 ## 7.10.0
 
 - **feat: a delete says what it takes with it.** The question was `are you
@@ -43,11 +61,6 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   New keys for consumers: `records`, `parents`,
   `children will be unlinked, not deleted`, `it will be detached from`,
   `neither record is deleted`.
-
-  Each line is a flex row with a **gap**, and the words carry no spaces of
-  their own: `createElement2` TRIMS text nodes, so a `["span", {}, " "]`
-  separator vanishes and the question reads "BorrarDeveloper". Spacing is CSS
-  anywhere text is composed from keys.
 
 ## 7.9.2
 
