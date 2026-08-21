@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.10.4
+
+- **fix: the map asks for its source, it does not guess it from the style.**
+  `C_YUI_MAP`'s refresh guarded itself with `map.isStyleLoaded()` and then
+  called `map.getSource('devices').setData(...)`. The style is the wrong
+  milestone: `devices` is added by `load_devices()` on the map `load` event,
+  and `load` fires **one render frame after** `isStyleLoaded()` turns true. A
+  refresh landing in that frame threw *"can't access property setData,
+  map.getSource(...) is undefined"* — and the throw is not contained: it
+  unwinds through `gobj_publish_event` and aborts the publisher's own loop, so
+  the caller stops processing the rest of its batch.
+
+  Measured against maplibre-gl 5.24.0 in Firefox: style + tiles take 577-934 ms
+  and the dangerous window is **exactly one frame**, 10-42 ms, on every run —
+  cold cache, warm cache and a `display:none` container alike.
+
+  Testing the style was wrong in the other direction too. `style.loaded()`
+  requires every tile manager to be loaded, so it goes back to FALSE while new
+  tiles come in: once the map was up, every refresh during a pan or a zoom was
+  silently dropped and the devices stopped moving until the tiles settled.
+
+  Nothing is lost by skipping — `load_devices()` reads the same `devices` attr
+  when it runs. Found on estadodelaire, which consumes the v1 line; the same
+  fix ships there as `1.0.2`.
+
 ## 7.10.3
 
 - **fix: the singular still lost.** `yui_shell_show_modal` calls
