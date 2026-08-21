@@ -44,6 +44,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   `children will be unlinked, not deleted`, `it will be detached from`,
   `neither record is deleted`.
 
+  Each line is a flex row with a **gap**, and the words carry no spaces of
+  their own: `createElement2` TRIMS text nodes, so a `["span", {}, " "]`
+  separator vanishes and the question reads "BorrarDeveloper". Spacing is CSS
+  anywhere text is composed from keys.
+
 ## 7.9.2
 
 - **fix: the paginator hid itself on every FULL page.** Whether there is more

@@ -3040,6 +3040,11 @@ function build_delete_question(gobj, records)
     let desc = gobj_read_attr(gobj, "desc");
     let impact = delete_impact(desc, records);
 
+    /*  Every line is a flex row with a GAP, and the words carry no spaces of
+     *  their own: `createElement2` TRIMS text nodes, so a `["span", {}, " "]`
+     *  separator vanishes and the question reads "BorrarDeveloper". Spacing
+     *  is CSS here, as it has to be anywhere text is composed from keys. */
+    const ROW = "display:flex; align-items:baseline; gap:.35rem; flex-wrap:wrap;";
     let lines = [];
 
     /*  What is being deleted: one named record, or how many. */
@@ -3047,17 +3052,14 @@ function build_delete_question(gobj, records)
     let one = (impact.records === 1 && Array.isArray(records))? records[0] :
               (impact.records === 1? records : null);
     if(one && one[pkey] !== undefined && one[pkey] !== null) {
-        lines.push(["p", {class: "DELETE_ASK_WHAT"}, [
+        lines.push(["p", {class: "DELETE_ASK_WHAT", style: ROW}, [
             ["span", {i18n: "delete"}, t("delete")],
-            ["span", {}, " "],
             ["strong", {}, String(one[pkey])]
         ]]);
     } else {
-        lines.push(["p", {class: "DELETE_ASK_WHAT"}, [
+        lines.push(["p", {class: "DELETE_ASK_WHAT", style: ROW}, [
             ["span", {i18n: "delete"}, t("delete")],
-            ["span", {}, " "],
             ["strong", {}, String(impact.records)],
-            ["span", {}, " "],
             ["span", {i18n: "records"}, t("records")]
         ]]);
     }
@@ -3065,19 +3067,17 @@ function build_delete_question(gobj, records)
     /*  What goes with it. Said only when there IS something: a loose
      *  record must not be dressed up as a dangerous one. */
     if(impact.children > 0) {
-        lines.push(["p", {class: "DELETE_ASK_CHILDREN has-text-weight-semibold"}, [
+        lines.push(["p", {class: "DELETE_ASK_CHILDREN has-text-weight-semibold",
+                          style: ROW}, [
             ["strong", {}, String(impact.children)],
-            ["span", {}, " "],
             ["span", {i18n: "children will be unlinked, not deleted"},
                 t("children will be unlinked, not deleted")]
         ]]);
     }
     if(impact.parents > 0) {
-        lines.push(["p", {class: "DELETE_ASK_PARENTS"}, [
+        lines.push(["p", {class: "DELETE_ASK_PARENTS", style: ROW}, [
             ["span", {i18n: "it will be detached from"}, t("it will be detached from")],
-            ["span", {}, " "],
             ["strong", {}, String(impact.parents)],
-            ["span", {}, " "],
             ["span", {i18n: "parents"}, t("parents")]
         ]]);
     }
