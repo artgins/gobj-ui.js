@@ -58,6 +58,7 @@ import "./c_yui_treedb_topics.css";
 
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {yui_shell_of, yui_shell_set_sub_routes} from "./c_yui_shell.js";
+import {nodes_answer} from "./nodes_answer.js";
 
 import {t} from "i18next";
 
@@ -1770,10 +1771,18 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 let gobj_topic_form = gobj_find_child(gobj, {
                     __gobj_name__: `${gobj_name(gobj)}?${topic_name}`
                 });
+                /*  `nodes` answers a plain list, or — when asked for a page —
+                 *  the {total_rows, pages, data} envelope. Both shapes are
+                 *  alive at once and will be for a long time: this SPA talks
+                 *  to backends the operator configures, and an older one
+                 *  answers the plain list whatever is asked of it. Reading
+                 *  the shape rather than assuming it is what keeps the table
+                 *  from rendering an object's keys as rows the day a backend
+                 *  upgrades. */
                 gobj_send_event(
                     gobj_topic_form,
                     "EV_LOAD_NODES",
-                    data,
+                    nodes_answer(data).rows,
                     gobj
                 );
             }

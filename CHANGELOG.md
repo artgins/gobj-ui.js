@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.8.1
+
+- **fix: the topic table reads the SHAPE of a `nodes` answer.** `nodes` now
+  answers a plain list, or — when asked for a page — the
+  `{total_rows, pages, data}` envelope (SDK `c_node.c`). Both shapes are alive
+  at once and will be for a long time: this SPA talks to backends the operator
+  configures, and an older one answers the plain list whatever is asked of it.
+  The view read the answer as an array, so the day a backend upgraded it would
+  have rendered an object's keys as rows — a break that looks like a bug in
+  the app.
+
+  The reading is a pure, tested helper (`nodes_answer.js`), because it is
+  exactly the sort of thing that cannot be exercised until the other side
+  moves.
+
 ## 7.8.0
 
 - **feat: edit a cell in place.** Changing one field meant opening the record
