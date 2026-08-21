@@ -78,6 +78,7 @@ import {yui_tabulator_lang, yui_tabulator_relocalize} from "./yui_tabulator_i18n
 import {t} from "i18next";
 
 import {plan_treedb_writes} from "./treedb_write_plan.js";
+import {delete_impact} from "./delete_impact.js";
 
 import "./c_yui_treedb_topic_with_form.css";
 import "./tabulator.css";
@@ -2724,7 +2725,7 @@ function ac_delete_rows(gobj, event, kw, src)
         }
 
         yui_shell_confirm_yesnocancel(
-            yui_shell_of(gobj), 'are you sure',
+            yui_shell_of(gobj), build_delete_question(gobj, rows),
             {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
         ).then(function(answer) {
             if(answer === "yes") {
@@ -2748,7 +2749,7 @@ function ac_delete_rows(gobj, event, kw, src)
          *  {index: , row: }
          *----------------------------*/
         yui_shell_confirm_yesnocancel(
-            yui_shell_of(gobj), 'are you sure',
+            yui_shell_of(gobj), build_delete_question(gobj, kw.row),
             {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
         ).then(function(answer) {
             if(answer === "yes") {
@@ -3017,6 +3018,73 @@ function ac_show_schema(gobj, event, kw, src)
     open_schema_dialog(gobj);
 
     return 0;
+}
+
+/************************************************************
+ *  The question a delete deserves.
+ *
+ *  These views delete with `force`, and `force` on a treedb node does
+ *  not only remove it: its children are UNLINKED — they survive, loose
+ *  — and it is cleaned off its parents. So "delete this row" can mean
+ *  "detach eleven records from their only parent", and `are you sure`
+ *  said none of it.
+ *
+ *  Built as DOM, not as a string, and that is forced rather than
+ *  chosen: the dialog renders its message AS AN I18N KEY, so a
+ *  composed sentence could never be one. Each translatable half
+ *  carries its own key and the numbers sit between them as data —
+ *  which is also the only way the question survives a language switch.
+ ************************************************************/
+function build_delete_question(gobj, records)
+{
+    let desc = gobj_read_attr(gobj, "desc");
+    let impact = delete_impact(desc, records);
+
+    let lines = [];
+
+    /*  What is being deleted: one named record, or how many. */
+    let pkey = (desc && desc.pkey) || "id";
+    let one = (impact.records === 1 && Array.isArray(records))? records[0] :
+              (impact.records === 1? records : null);
+    if(one && one[pkey] !== undefined && one[pkey] !== null) {
+        lines.push(["p", {class: "DELETE_ASK_WHAT"}, [
+            ["span", {i18n: "delete"}, t("delete")],
+            ["span", {}, " "],
+            ["strong", {}, String(one[pkey])]
+        ]]);
+    } else {
+        lines.push(["p", {class: "DELETE_ASK_WHAT"}, [
+            ["span", {i18n: "delete"}, t("delete")],
+            ["span", {}, " "],
+            ["strong", {}, String(impact.records)],
+            ["span", {}, " "],
+            ["span", {i18n: "records"}, t("records")]
+        ]]);
+    }
+
+    /*  What goes with it. Said only when there IS something: a loose
+     *  record must not be dressed up as a dangerous one. */
+    if(impact.children > 0) {
+        lines.push(["p", {class: "DELETE_ASK_CHILDREN has-text-weight-semibold"}, [
+            ["strong", {}, String(impact.children)],
+            ["span", {}, " "],
+            ["span", {i18n: "children will be unlinked, not deleted"},
+                t("children will be unlinked, not deleted")]
+        ]]);
+    }
+    if(impact.parents > 0) {
+        lines.push(["p", {class: "DELETE_ASK_PARENTS"}, [
+            ["span", {i18n: "it will be detached from"}, t("it will be detached from")],
+            ["span", {}, " "],
+            ["strong", {}, String(impact.parents)],
+            ["span", {}, " "],
+            ["span", {i18n: "parents"}, t("parents")]
+        ]]);
+    }
+
+    lines.push(["p", {class: "DELETE_ASK_SURE", i18n: "are you sure"}, t("are you sure")]);
+
+    return createElement2(["div", {class: "DELETE_ASK"}, lines]);
 }
 
 /************************************************************

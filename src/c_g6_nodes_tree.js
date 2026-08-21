@@ -81,6 +81,7 @@ import {
 } from "./lib_graph.js";
 
 import {node_label} from "./treedb_node_label.js";
+import {delete_impact} from "./delete_impact.js";
 
 import {
     BaseLayout,
@@ -2782,7 +2783,9 @@ function show_confirm_popover(gobj, target_el, message, confirm_text, confirm_co
 
     // Message
     let msg = document.createElement('div');
-    msg.style.cssText = 'margin-bottom:10px;font-weight:500;';
+    /*  pre-line: a confirmation that has to say what it takes with it needs
+     *  a second line, and textContent alone would run it together. */
+    msg.style.cssText = 'margin-bottom:10px;font-weight:500;white-space:pre-line;';
     msg.textContent = message;
     popover.appendChild(msg);
 
@@ -5001,8 +5004,23 @@ function show_delete_confirm(gobj, nodeData)
     let record = nodeData.data.record || {};
     let topic_name = nodeData.data.desc.topic_name;
 
+    /*  What the delete takes with it. These views delete with `force`, and
+     *  `force` UNLINKS a node's children — they survive, loose — and cleans
+     *  it off its parents. A question that names only the node lets an
+     *  operator detach eleven records believing they removed one. */
+    let impact = delete_impact(nodeData.data.desc, record);
+    let question = t('delete') + ' ' + topic_name + ': ' + record.id + '?';
+    if(impact.children > 0) {
+        question += '\n' + impact.children + ' ' +
+                    t('children will be unlinked, not deleted');
+    }
+    if(impact.parents > 0) {
+        question += '\n' + t('it will be detached from') + ' ' +
+                    impact.parents + ' ' + t('parents');
+    }
+
     show_confirm_popover(gobj, priv._node_delete_el,
-        t('delete') + ' ' + topic_name + ': ' + record.id + '?',
+        question,
         'delete', '#ff4d4f',
         () => execute_delete_node(gobj, nodeData),
         '_delete_confirm_el'
@@ -5254,8 +5272,12 @@ function show_unlink_confirm(gobj, edgeData)
     let priv = gobj.priv;
     const d = edgeData.data;
 
+    /*  The reassurance is the point: an unlink removes the LINK and nothing
+     *  else, and next to a delete button painted the same red, that is not
+     *  obvious. */
     show_confirm_popover(gobj, priv._edge_delete_el,
-        t('unlink') + ' ' + d.child_id + ' → ' + d.parent_id + '?',
+        t('unlink') + ' ' + d.child_id + ' → ' + d.parent_id + '?' +
+        '\n' + t('neither record is deleted'),
         'unlink', '#ff4d4f',
         () => execute_unlink_edge(gobj, edgeData),
         '_unlink_confirm_el'

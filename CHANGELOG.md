@@ -5,6 +5,45 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.10.0
+
+- **feat: a delete says what it takes with it.** The question was `are you
+  sure` — the same words for one loose record and for twelve with children
+  hanging off them. And these views delete with **`force`**, which on a treedb
+  node does not only remove it: its children are **UNLINKED** (they survive,
+  loose) and it is cleaned off its parents. An operator could detach eleven
+  records believing they had removed one.
+
+  The confirmation now names what is going (the record's key, or how many),
+  and says the two things that are at stake, each only when there is
+  something at stake — a loose record must not be dressed up as a dangerous
+  one:
+
+  - *N children will be UNLINKED, not deleted*
+  - *It will be detached from M parents*
+
+  Counted off the record the table already has (`list_dict` fills the hook and
+  fkey columns), so asking costs no round trip. The counting is a pure, tested
+  helper (`delete_impact.js`) because the shapes are the fiddly part: a hook or
+  fkey value arrives as a list of refs, a dict keyed by id, or a single ref
+  string, and a column can be BOTH hook and fkey — which counts on both sides,
+  because the delete does both things.
+
+  In the graph, the node-delete popover gains the same two lines, and the
+  **unlink** popover gains the reassurance that is its whole point: *neither
+  record is deleted*. Next to a delete button painted the same red, that is
+  not obvious.
+
+  Built as DOM rather than a string in the table's dialog, and that is forced
+  rather than chosen: `yui_shell_confirm_*` renders its message AS AN I18N KEY,
+  so a composed sentence could never be one. Each translatable half carries its
+  own key and the numbers sit between them as data — which is also the only way
+  the question survives a language switch.
+
+  New keys for consumers: `records`, `parents`,
+  `children will be unlinked, not deleted`, `it will be detached from`,
+  `neither record is deleted`.
+
 ## 7.9.2
 
 - **fix: the paginator hid itself on every FULL page.** Whether there is more
