@@ -3070,15 +3070,20 @@ function build_delete_question(gobj, records)
         lines.push(["p", {class: "DELETE_ASK_CHILDREN has-text-weight-semibold",
                           style: ROW}, [
             ["strong", {}, String(impact.children)],
+            /*  `count` picks the singular: i18next looks for the `_one`
+             *  variant and falls back to the base key for the plural, so
+             *  the validator still sees a key it can find. Safe against a
+             *  language switch because this is a MODAL — a dialog with a
+             *  backdrop never sees one; the language button is behind it. */
             ["span", {i18n: "children will be unlinked, not deleted"},
-                t("children will be unlinked, not deleted")]
+                t("children will be unlinked, not deleted", {count: impact.children})]
         ]]);
     }
     if(impact.parents > 0) {
         lines.push(["p", {class: "DELETE_ASK_PARENTS", style: ROW}, [
             ["span", {i18n: "it will be detached from"}, t("it will be detached from")],
             ["strong", {}, String(impact.parents)],
-            ["span", {i18n: "parents"}, t("parents")]
+            ["span", {i18n: "parents"}, t("parents", {count: impact.parents})]
         ]]);
     }
 

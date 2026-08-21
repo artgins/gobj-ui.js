@@ -5012,11 +5012,11 @@ function show_delete_confirm(gobj, nodeData)
     let question = t('delete') + ' ' + topic_name + ': ' + record.id + '?';
     if(impact.children > 0) {
         question += '\n' + impact.children + ' ' +
-                    t('children will be unlinked, not deleted');
+                    t('children will be unlinked, not deleted', {count: impact.children});
     }
     if(impact.parents > 0) {
         question += '\n' + t('it will be detached from') + ' ' +
-                    impact.parents + ' ' + t('parents');
+                    impact.parents + ' ' + t('parents', {count: impact.parents});
     }
 
     show_confirm_popover(gobj, priv._node_delete_el,
