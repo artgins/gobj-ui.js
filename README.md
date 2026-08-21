@@ -491,6 +491,41 @@ The buttons of that toolbar never shrink. When the row runs out of room, the
 url is what gives way, cut with an ellipsis, and the whole value stays in the
 `title` and the `aria-label`.
 
+### Reading a topic a page at a time
+
+`C_YUI_TREEDB_TOPICS` takes **`with_remote_paging`** (off by default) and
+forwards it to every topic table: the table pulls the page it is showing
+instead of the host pushing the whole topic down. It needs the SDK's `nodes`
+with `from` / `limit` (see `YUNO_TREEDB.md` §5.3).
+
+**The page size is generous on purpose** (`page_size`, 200). A treedb that
+fits in one page behaves exactly as it did — paginator hidden, every filter
+seeing every row — so nothing that exists today changes. Only a topic that
+does NOT fit pays for paging, and for that one loading it whole was never an
+option.
+
+**Safe against a backend that cannot page:** it answers the whole list, which
+`nodes_answer()` reads as one page. That is the truth, and it is why the table
+can ask without knowing what it is talking to.
+
+`filterMode: "local"` says the plain truth: the header filters and the search
+box work on the page that is loaded. Same as the tranger browser's Rows card,
+and for the same reason — the alternative is pushing every filter to the
+backend and changing what "search" means.
+
+Who does what: the transport belongs to the HOST, so the table asks with
+`EV_REQUEST_PAGE` and the answer comes back as `EV_PAGE_LOADED`, correlated by
+an id echoed in `__md_command__`. **Read that id flat off the command stack**
+(`kw_command.req_id`): `C_IEVENT_CLI` EXTRACTS `__md_command__` and pushes it
+AS the stack's `kw`, so one level deeper is a level too far — and the symptom
+is every request timing out with its answer sitting right there.
+
+The promise Tabulator wants is parked in the table (`ajaxRequestFunc` must
+RETURN a promise — it is a data source, not an event), with a watchdog,
+because the link can stay up and an answer still never land. A refresh
+re-pulls the page the reader is on rather than throwing them back to the
+first.
+
 ### Editing a topic table in place
 
 A writable scalar is editable in the table, in edition mode
