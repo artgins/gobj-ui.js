@@ -776,10 +776,24 @@ function ac_refresh(gobj, event, kw, src)
     let devices = gobj_read_attr(gobj, "devices");
 
     let map = priv.xmap;
-    if (map.isStyleLoaded()) {
-        const geojson_data = devices2geojson(gobj, devices);
-        map.getSource('devices').setData(geojson_data);
+
+    /*
+     *  Ask for the source, do not infer it from the style. 'devices' is added
+     *  by load_devices() on the map 'load' event, which is a LATER milestone:
+     *  isStyleLoaded() is already true one render frame before 'load' fires,
+     *  and getSource() is undefined in that frame. Nothing is lost by
+     *  skipping, load_devices() reads the same attr.
+     *
+     *  Testing the style was also wrong the other way: it goes back to false
+     *  while new tiles load, so every refresh during a pan or a zoom was
+     *  silently dropped and the devices stopped moving.
+     */
+    const source = map.getSource('devices');
+    if(!source) {
+        return 0;
     }
+
+    source.setData(devices2geojson(gobj, devices));
     return 0;
 }
 
