@@ -3071,11 +3071,16 @@ function build_delete_question(gobj, records)
                           style: ROW}, [
             ["strong", {}, String(impact.children)],
             /*  `count` picks the singular: i18next looks for the `_one`
-             *  variant and falls back to the base key for the plural, so
-             *  the validator still sees a key it can find. Safe against a
-             *  language switch because this is a MODAL — a dialog with a
-             *  backdrop never sees one; the language button is behind it. */
-            ["span", {i18n: "children will be unlinked, not deleted"},
+             *  variant and falls back to the base key for the plural, so the
+             *  validator still sees a key it can find.
+             *
+             *  And NO `i18n` attribute on a counted word: refresh_language()
+             *  re-translates whatever carries one, calling t() WITHOUT the
+             *  count — which put the plural straight back over the singular.
+             *  A counted word cannot be re-translated from its key alone.
+             *  Nothing is lost: this is a MODAL, and a dialog with a backdrop
+             *  never sees a language change — the button is behind it. */
+            ["span", {},
                 t("children will be unlinked, not deleted", {count: impact.children})]
         ]]);
     }
@@ -3083,7 +3088,7 @@ function build_delete_question(gobj, records)
         lines.push(["p", {class: "DELETE_ASK_PARENTS", style: ROW}, [
             ["span", {i18n: "it will be detached from"}, t("it will be detached from")],
             ["strong", {}, String(impact.parents)],
-            ["span", {i18n: "parents"}, t("parents", {count: impact.parents})]
+            ["span", {}, t("parents", {count: impact.parents})]
         ]]);
     }
 

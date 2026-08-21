@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.10.3
+
+- **fix: the singular still lost.** `yui_shell_show_modal` calls
+  `refresh_language()` on the dialog's content, which re-translates anything
+  carrying an `i18n` attribute — calling `t()` **without the count** and
+  putting the plural straight back over the singular. A counted word cannot be
+  re-translated from its key alone, so it carries no `i18n` attribute. Nothing
+  is lost: a dialog with a backdrop never sees a language change.
+
 ## 7.10.2
 
 - **fix: "detached from 1 parents".** The counted words take a `count`, so
