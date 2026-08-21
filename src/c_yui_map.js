@@ -305,7 +305,7 @@ function get_coordinates(gobj, device)
      *  Coordinates can be set in device.settings or in device
      *  If devices.settings are null then get it from device
      */
-    let coordinates = decod_coordinates(gobj, device.settings.coordinates);
+    let coordinates = decod_coordinates(gobj, device.settings?.coordinates);
     if(coordinates.lng === 0 && coordinates.lat === 0) {
         coordinates = decod_coordinates(gobj, device.coordinates);
     }
@@ -381,7 +381,18 @@ function devices2geojson(gobj, devices)
                 id: device.id,
                 name: device.name,
                 image: device.image,
-                connected: device.connected,
+                /*
+                 *  A REAL boolean. Four style expressions test this with
+                 *  ['case', ...], and maplibre asserts a STRICT boolean
+                 *  there, so null, absent, or the 1/0 a backend may send all
+                 *  fail the assertion. The consequences are not cosmetic:
+                 *  the point paints with the property default instead of
+                 *  green/red, and the cluster accumulator turns NULL, which
+                 *  the cluster colour compares against point_count -- never
+                 *  equal, so the whole cluster stays red as if something were
+                 *  disconnected.
+                 */
+                connected: !!device.connected,
                 gobj_service_name: device.gobj_service_name,
             }
         };
