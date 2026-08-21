@@ -48,6 +48,7 @@ import {
     gclass_find_by_name,
     gobj_write_attr,
     gobj_read_bool_attr,
+    gobj_read_integer_attr,
     gobj_read_str_attr,
     gobj_write_bool_attr,
     gobj_publish_event,
@@ -112,6 +113,8 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_columns_button",       0,  true,   "Button
 SDATA(data_type_t.DTP_BOOLEAN,  "with_export_button",        0,  true,   "Button toolbar EXPORT (download as CSV what the table holds)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_header_filters",       0,  true,   "Per-column filter box in the table header, on the columns a text/number match means something (not hooks, fkeys or json)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_inline_edit",          0,  true,   "Edit a writable scalar cell in place while in edition mode (the record form keeps the rest)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_remote_paging",        0,  false,  "Pull the topic a PAGE at a time from the backend (`nodes` from/limit) instead of loading it whole. Needs a backend that pages"),
+SDATA(data_type_t.DTP_INTEGER,  "page_size",                 0,  200,    "Rows per page when with_remote_paging. Generous on purpose: a treedb that fits in one page behaves exactly as it did, paginator hidden and every filter seeing every row"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a last column with internal EDIT/DELETE icon"),
 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
@@ -146,6 +149,8 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
+    _pending_pages:     null,       // req_id -> {resolve, reject, timer}
+    _page_seq:          0,          // correlation id of a page request
     $container:         null,
     treedb_name:        "",
     topic_name:         "",
@@ -1094,6 +1099,36 @@ function create_tabulator(gobj)
     let selectable = with_checkbox ? "highlight" : (with_radio ? 1 : false);
 
     let tabulator_settings = json_deep_copy(gobj_read_attr(gobj, "tabulator_settings"));
+
+    /*  Remote paging: the TABLE pulls, instead of the host pushing the whole
+     *  topic down. The page size is generous on purpose — a treedb that fits
+     *  in one page behaves exactly as it did before, with the paginator
+     *  hidden and every filter seeing every row. Only a topic that does NOT
+     *  fit pays for paging, and for that one loading it whole was never an
+     *  option anyway.
+     *
+     *  `filterMode: "local"` says the plain truth: the header filters and the
+     *  search box work on the page that is loaded. Same as the tranger
+     *  browser's Rows card, and for the same reason — the alternative is
+     *  pushing every filter to the backend and changing what "search" means.
+     */
+    if(gobj_read_bool_attr(gobj, "with_remote_paging")) {
+        let page_size = gobj_read_integer_attr(gobj, "page_size") || 200;
+        Object.assign(tabulator_settings, {
+            pagination:             true,
+            paginationMode:         "remote",
+            filterMode:             "local",
+            paginationSize:         page_size,
+            paginationSizeSelector: [50, 100, 200, 500],
+            ajaxURL:                "nodes",   /*  dummy: only fires the func  */
+            ajaxRequestFunc: function(url, config, params) {
+                /*  Widget plumbing, not an action: Tabulator wants a PROMISE
+                 *  back — it is a data source. The action is the event this
+                 *  parks on. */
+                return request_page(gobj, params.page || 1, params.size || page_size);
+            }
+        });
+    }
 
     Object.assign(tabulator_settings, {
         index: pkey,
@@ -2966,6 +3001,125 @@ function ac_show_schema(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Ask the host for one page and park the promise Tabulator wants.
+ *
+ *  The transport belongs to the HOST, so the request goes up as an event
+ *  and the answer comes back down as one; what lives here is only the
+ *  promise, keyed by a correlation id the host echoes.
+ *
+ *  Rejected right away when there is nobody to ask: a request that can
+ *  never be answered would leave the table spinning for ever and leak
+ *  one entry per attempt. Same for the watchdog — the link can stay up
+ *  and the answer still never land.
+ ************************************************************/
+const PAGE_TIMEOUT_MS = 20000;
+
+function request_page(gobj, page, size)
+{
+    let priv = gobj.priv;
+
+    return new Promise(function(resolve, reject) {
+        if(!priv._pending_pages) {
+            priv._pending_pages = {};
+        }
+        let req_id = `p${++priv._page_seq}`;
+
+        let timer = window.setTimeout(function() {
+            gobj_send_event(gobj, "EV_PAGE_TIMEOUT", {req_id: req_id}, gobj);
+        }, PAGE_TIMEOUT_MS);
+
+        priv._pending_pages[req_id] = {resolve: resolve, reject: reject, timer: timer};
+
+        gobj_publish_event(
+            gobj,
+            "EV_REQUEST_PAGE",
+            {
+                topic_name: gobj_read_str_attr(gobj, "topic_name"),
+                req_id:     req_id,
+                from:       (page - 1) * size + 1,   /*  `nodes` counts from 1  */
+                limit:      size
+            }
+        );
+    });
+}
+
+/************************************************************
+ *  Settle a parked page request, however it ended.
+ ************************************************************/
+function settle_page(gobj, req_id, value, error)
+{
+    let priv = gobj.priv;
+    let pend = priv._pending_pages? priv._pending_pages[req_id] : null;
+    if(!pend) {
+        return;     /*  already settled: a late answer after a timeout  */
+    }
+    delete priv._pending_pages[req_id];
+    if(pend.timer) {
+        window.clearTimeout(pend.timer);
+    }
+    if(error) {
+        pend.reject(new Error(error));
+        return;
+    }
+    pend.resolve(value);
+}
+
+/************************************************************
+ *  Pull the current page again. `replaceData()` re-runs
+ *  ajaxRequestFunc for the page the reader is on, so a refresh keeps
+ *  their position instead of throwing them back to the first page.
+ ************************************************************/
+function ac_repull_page(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        return 0;
+    }
+    try {
+        tabulator.replaceData();
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot re-pull the page: ${e}`);
+        return -1;
+    }
+    return 0;
+}
+
+/************************************************************
+ *  The host answered a page.
+ ************************************************************/
+function ac_page_loaded(gobj, event, kw, src)
+{
+    settle_page(gobj, kw.req_id, {
+        data:      is_array(kw.rows)? kw.rows : [],
+        last_page: kw.pages || 1,
+        last_row:  (typeof kw.total === "number")? kw.total : 0
+    }, null);
+    return 0;
+}
+
+/************************************************************
+ *  The host could not answer it.
+ ************************************************************/
+function ac_page_failed(gobj, event, kw, src)
+{
+    let why = (kw && kw.error) || "page request failed";
+    log_error(`${gobj_short_name(gobj)}: ${why}`);
+    settle_page(gobj, kw.req_id, null, why);
+    return 0;
+}
+
+/************************************************************
+ *  Nobody answered in time.
+ ************************************************************/
+function ac_page_timeout(gobj, event, kw, src)
+{
+    log_error(`${gobj_short_name(gobj)}: no answer for page request ` +
+              `'${kw.req_id}' in ${PAGE_TIMEOUT_MS}ms`);
+    settle_page(gobj, kw.req_id, null, "page request timed out");
+    return 0;
+}
+
+/************************************************************
  *  Filter the loaded rows by a term matched against every non-internal
  *  field. `clearFilter()` with no argument drops only THIS filter: the
  *  per-column header filters are a separate layer and survive, so a
@@ -3187,6 +3341,10 @@ function create_gclass(gclass_name)
             ["EV_REFRESH",              ac_refresh,            null],
             ["EV_SHOW_SCHEMA",          ac_show_schema,        null],
             ["EV_CELL_EDITED",          ac_cell_edited,        null],
+            ["EV_REPULL_PAGE",          ac_repull_page,        null],
+            ["EV_PAGE_LOADED",          ac_page_loaded,        null],
+            ["EV_PAGE_FAILED",          ac_page_failed,        null],
+            ["EV_PAGE_TIMEOUT",         ac_page_timeout,       null],
             ["EV_SEARCH",               ac_search,             null],
             ["EV_OPEN_COLUMNS",         ac_open_columns,       null],
             ["EV_TOGGLE_COLUMN",        ac_toggle_column,      null],
@@ -3220,7 +3378,12 @@ function create_gclass(gclass_name)
         ["EV_REFRESH",              0],
         ["EV_SHOW_SCHEMA",          0],
         ["EV_CELL_EDITED",          0],
+        ["EV_REPULL_PAGE",          0],
+        ["EV_PAGE_LOADED",          0],
+        ["EV_PAGE_FAILED",          0],
+        ["EV_PAGE_TIMEOUT",         0],
         ["EV_UPDATE_FIELD",         event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_REQUEST_PAGE",         event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_SEARCH",               0],
         ["EV_OPEN_COLUMNS",         0],
         ["EV_TOGGLE_COLUMN",        0],

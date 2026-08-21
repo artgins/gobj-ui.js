@@ -5,6 +5,36 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.9.0
+
+- **feat: a topic table can pull its rows a PAGE at a time**
+  (`with_remote_paging` on `C_YUI_TREEDB_TOPICS`, forwarded to every topic
+  table; off by default). The SDK's `nodes` takes `from` / `limit` and answers
+  `{total_rows, pages, data}`; the table asks for the page it is showing
+  instead of the host pushing the whole topic down.
+
+  **The page size is generous on purpose** (200): a treedb that fits in one
+  page behaves exactly as it did — paginator hidden, every filter seeing every
+  row — so nothing that exists today changes. Only a topic that does NOT fit
+  pays for paging, and for that one loading it whole was never an option.
+
+  `filterMode: "local"` says the plain truth: the header filters and the
+  search box work on the page that is loaded. Same as the tranger browser's
+  Rows card, and for the same reason — the alternative is pushing every filter
+  to the backend and changing what "search" means.
+
+  **Safe against a backend that cannot page:** it answers the whole list,
+  which the table reads as one page. That is the truth, and it is why the
+  table can ask without knowing what it is talking to.
+
+  Who does what: the transport belongs to the HOST, so the table asks with
+  `EV_REQUEST_PAGE` and the answer comes back as `EV_PAGE_LOADED`, correlated
+  by an id echoed in `__md_command__`. The promise Tabulator wants is parked
+  in the table (`ajaxRequestFunc` must RETURN a promise — it is a data source,
+  not an event), with a watchdog, because the link can stay up and an answer
+  still never land. A refresh is a re-pull of the page the reader is on, not a
+  jump back to the first.
+
 ## 7.8.1
 
 - **fix: the topic table reads the SHAPE of a `nodes` answer.** `nodes` now

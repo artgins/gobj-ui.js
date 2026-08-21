@@ -75,6 +75,7 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of o
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote yuno for data fetching"),
 SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote TreeDB service name"),
 SDATA(data_type_t.DTP_JSON,     "descs",            0,  null,   "Description of topics"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_remote_paging",   0,  false,  "Each topic table pulls its rows a PAGE at a time (`nodes` from/limit) instead of loading the topic whole. Safe against a backend that cannot page: it answers the whole list, which the table reads as one page"),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
 SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth", "Bulma tab styling"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_cards_landing",0, false,  "Land on a grid of topic cards (list->detail): a card opens its table, with the tabs bar + a back-to-grid button. Off = tabs only (legacy)."),
@@ -1037,7 +1038,8 @@ function process_treedb_descs(gobj)
 
             treedb_name: treedb_name,
             topic_name: key,
-            desc: desc
+            desc: desc,
+            with_remote_paging: gobj_read_bool_attr(gobj, "with_remote_paging")
         };
 
         let id = `${gobj_name(gobj)}?${desc.topic_name}`;
@@ -1171,8 +1173,15 @@ function get_nodes(gobj, topic_name)
     subscribe_treedb(gobj, topic_name);
 
     /*
-     *  Get data
+     *  Get data — unless the table pulls its own pages, in which case it has
+     *  already asked (or is about to) and a second whole-topic fetch would be
+     *  the very transfer paging exists to avoid.
      */
+    let gobj_topic_form = get_gobj_formtable(gobj, topic_name);
+    if(gobj_topic_form && gobj_read_bool_attr(gobj_topic_form, "with_remote_paging")) {
+        return;
+    }
+
     treedb_nodes(
         gobj,
         treedb_name,
@@ -1328,7 +1337,7 @@ function get_gobj_formtable(gobj, topic_name)
 /************************************************************
  *  Command to remote service
  ************************************************************/
-function treedb_nodes(gobj, treedb_name, topic_name, options)
+function treedb_nodes(gobj, treedb_name, topic_name, options, page)
 {
     let command = "nodes";
 
@@ -1344,6 +1353,16 @@ function treedb_nodes(gobj, treedb_name, topic_name, options)
         topic_name: topic_name,
     };
 
+    /*  A PAGE, when the table asked for one. `from` is 1-based and a
+     *  backend that does not know these two answers the whole list, which
+     *  nodes_answer() reads as one page — so an old backend degrades to
+     *  exactly what it always did. */
+    if(page) {
+        kw.from = page.from;
+        kw.limit = page.limit;
+        kw.__md_command__.req_id = page.req_id;
+    }
+
     // TODO review msg_iev_write_key(kw, "__topic_name__", topic_name);
 
     let ret = gobj_command(
@@ -1354,7 +1373,9 @@ function treedb_nodes(gobj, treedb_name, topic_name, options)
     );
     if(ret) {
         log_error(ret);
+        return -1;
     }
+    return 0;
 }
 
 /************************************************************
@@ -1749,8 +1770,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
             if(command === "update-node" || command === "create-node") {
                 let failed_topic = kw_get_str(gobj, kw_command, "topic_name", "", 0);
                 if(failed_topic) {
-                    treedb_nodes(gobj, gobj_read_str_attr(gobj, "treedb_name"),
-                                 failed_topic, {list_dict: true});
+                    gobj_send_event(gobj, "EV_REFRESH_TOPIC",
+                        {topic_name: failed_topic}, gobj);
                 }
             }
         }
@@ -1778,13 +1799,36 @@ function ac_mt_command_answer(gobj, event, kw, src)
                  *  answers the plain list whatever is asked of it. Reading
                  *  the shape rather than assuming it is what keeps the table
                  *  from rendering an object's keys as rows the day a backend
-                 *  upgrades. */
-                gobj_send_event(
-                    gobj_topic_form,
-                    "EV_LOAD_NODES",
-                    nodes_answer(data).rows,
-                    gobj
-                );
+                 *  upgrades — and it is what lets a paging table survive a
+                 *  backend that cannot page: the whole list arrives as one
+                 *  page, which is the truth. */
+                let answer = nodes_answer(data);
+                /*  The correlation id travels in `__md_command__` of the kw
+                 *  that was SENT — the same place `topic_name` rides — so it
+                 *  is read back from the command stack and never sent to the
+                 *  backend as a parameter it does not know. */
+                let md = kw_get_dict(gobj, kw_command, "__md_command__", {}, 0);
+                let req_id = kw_get_str(gobj, md, "req_id", "", 0);
+                if(req_id) {
+                    gobj_send_event(
+                        gobj_topic_form,
+                        "EV_PAGE_LOADED",
+                        {
+                            req_id: req_id,
+                            rows:   answer.rows,
+                            pages:  answer.pages,
+                            total:  answer.total
+                        },
+                        gobj
+                    );
+                } else {
+                    gobj_send_event(
+                        gobj_topic_form,
+                        "EV_LOAD_NODES",
+                        answer.rows,
+                        gobj
+                    );
+                }
             }
             break;
 
@@ -2148,6 +2192,40 @@ function ac_create_record(gobj, event, kw, src)
 }
 
 /********************************************
+ *  A topic table wants a page.
+ *
+ *  The transport is ours, so the table asks and we fetch; the answer
+ *  finds its way back by the `req_id` we echo. A backend that cannot
+ *  page answers the whole list, which the table takes as one page —
+ *  which is the truth, and is why the table can ask without knowing
+ *  what it is talking to.
+ ********************************************/
+function ac_request_page(gobj, event, kw, src)
+{
+    let topic_name = kw.topic_name || gobj_read_attr(src, "topic_name");
+    if(!topic_name || !kw.req_id) {
+        log_error(`${gobj_short_name(gobj)}: a page request with no topic or no id`);
+        return -1;
+    }
+
+    let ret = treedb_nodes(
+        gobj,
+        gobj_read_str_attr(gobj, "treedb_name"),
+        topic_name,
+        {list_dict: true},
+        {from: kw.from, limit: kw.limit, req_id: kw.req_id}
+    );
+
+    if(ret < 0) {
+        /*  The command never went out, so no answer will ever come: tell the
+         *  table now instead of leaving it spinning until its watchdog. */
+        gobj_send_event(src, "EV_PAGE_FAILED",
+            {req_id: kw.req_id, error: "cannot reach the backend"}, gobj);
+    }
+    return 0;
+}
+
+/********************************************
  *  Event from formtable: ONE field of one record, edited in place.
  *
  *  Written as a PARTIAL update and, deliberately, with NO `autolink`.
@@ -2256,6 +2334,14 @@ function ac_delete_record(gobj, event, kw, src)
  ********************************************/
 function ac_refresh_topic(gobj, event, kw, src)
 {
+    let gobj_topic_form = get_gobj_formtable(gobj, kw.topic_name);
+    if(gobj_topic_form && gobj_read_bool_attr(gobj_topic_form, "with_remote_paging")) {
+        /*  A table that pulls refreshes by pulling: pushing a whole topic
+         *  into a paged table would replace its page with everything. */
+        gobj_send_event(gobj_topic_form, "EV_REPULL_PAGE", {}, gobj);
+        return 0;
+    }
+
     let options = {
         list_dict: true
     };
@@ -2357,6 +2443,7 @@ function create_gclass(gclass_name)
             ["EV_CREATE_RECORD",        ac_create_record,           null],
             ["EV_UPDATE_RECORD",        ac_update_record,           null],
             ["EV_UPDATE_FIELD",         ac_update_field,            null],
+            ["EV_REQUEST_PAGE",         ac_request_page,            null],
             ["EV_DELETE_RECORD",        ac_delete_record,           null],
             ["EV_REFRESH_TOPIC",        ac_refresh_topic,           null],
             ["EV_OPEN_JSON",            ac_open_json,               null],
@@ -2384,6 +2471,7 @@ function create_gclass(gclass_name)
         ["EV_CREATE_RECORD",        0],
         ["EV_UPDATE_RECORD",        0],
         ["EV_UPDATE_FIELD",         0],
+        ["EV_REQUEST_PAGE",         0],
         ["EV_DELETE_RECORD",        0],
         ["EV_RECORD_WRITTEN",       event_flag_t.EVF_OUTPUT_EVENT|
                                     event_flag_t.EVF_NO_WARN_SUBS],
