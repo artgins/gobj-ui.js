@@ -5,6 +5,43 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.10.5
+
+- **fix: the GeoJSON owes maplibre a real boolean.** `devices2geojson` copied
+  `device.connected` into the feature properties verbatim. Four style
+  expressions test that property with `['case', ...]`, and maplibre asserts a
+  **strict** boolean there — so a device carrying `null`, carrying nothing, or
+  carrying the `1`/`0` a backend may send fails the assertion.
+
+  Reproduced against maplibre's own expression engine
+  (`@maplibre/maplibre-gl-style-spec`, the same `createExpression` the worker
+  runs). With `connected` null:
+
+  ```
+  clusterProperties map    ['+', ['case', ['get','connected'], 1, 0]]
+      -> "Expected value to be of type boolean, but found null instead."
+      -> returns NULL, so the cluster property is null
+  clusterProperties reduce ['+', ['accumulated'], ['get','connected']]
+      -> "Expected value to be of type number, but found null instead."
+  ```
+
+  **The damage is not the console.** A null accumulator poisons the cluster,
+  and the cluster colour compares it against `point_count` — never equal, so
+  the cluster paints **red**, as if a device were down. The unclustered point
+  and its label lose their colour expression too and fall back to the property
+  default, black, instead of green or red. The map was reporting a state that
+  was not true.
+
+  `connected` is now `!!device.connected`, which also makes the `1`/`0` case
+  work rather than merely stop erroring: absent means not connected, and it
+  says so.
+
+- **fix: `get_coordinates` asks for `settings` instead of assuming it.** It
+  read `device.settings.coordinates` while its own comment says `settings` may
+  be null — a TypeError that would unwind out of `devices2geojson`.
+
+Both ship on the frozen v1 line as `1.0.3`, where estadodelaire hit them.
+
 ## 7.10.4
 
 - **fix: the map asks for its source, it does not guess it from the style.**
