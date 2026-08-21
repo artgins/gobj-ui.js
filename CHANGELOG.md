@@ -25,6 +25,10 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   it, and reading `kw_command.__md_command__.req_id` was one level too deep.
   Every page request timed out with the answer sitting right there.
 
+  **No git tag on purpose**: it was published from a working tree that was
+  never committed on its own, and a tag pointing at the commit that also
+  carries 7.9.2 would claim a source it does not have.
+
 ## 7.9.0
 
 - **feat: a topic table can pull its rows a PAGE at a time**
