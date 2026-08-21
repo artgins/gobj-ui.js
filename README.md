@@ -526,6 +526,45 @@ because the link can stay up and an answer still never land. A refresh
 re-pulls the page the reader is on rather than throwing them back to the
 first.
 
+### What a delete takes with it
+
+A treedb delete is not one thing, and these views delete with **`force`**.
+`force` on a node does not only remove it: its children are **UNLINKED** —
+they survive, loose — and it is cleaned off its parents. So "delete this row"
+can mean "detach eleven records from their only parent", and the question that
+used to be asked, `are you sure`, said none of it.
+
+The confirmation names what is going (the record's key, or how many) and adds
+a line per thing at stake, **each only when there is something at stake** — a
+loose record must not be dressed up as a dangerous one:
+
+- *N children will be UNLINKED, not deleted*
+- *It will be detached from M parents*
+
+Counted off the record the table already has (`list_dict` fills the hook and
+fkey columns), so asking costs no round trip. The counting is
+`delete_impact.js`, pure and tested, because the shapes are the fiddly part: a
+hook or fkey value arrives as a list of refs, a dict keyed by id, or a single
+ref string — and a column can be BOTH hook and fkey, which counts on both
+sides, because the delete does both things.
+
+In the graph the node-delete popover carries the same two lines, and the
+**unlink** popover carries the reassurance that is its whole point: *neither
+record is deleted*. Next to a delete button painted the same red, that is not
+obvious.
+
+Three things this cost, worth knowing before composing any message from keys:
+
+- `yui_shell_confirm_*` renders its message **as an i18n key**, so a composed
+  sentence can never be one. Pass DOM instead — the helper takes it.
+- `createElement2` **trims text nodes**, so a `["span", {}, " "]` separator
+  vanishes and the question reads "BorrarDeveloper". Space with CSS.
+- a **counted** word carries no `i18n` attribute: `yui_shell_show_modal` calls
+  `refresh_language()` on the dialog's content, which re-translates from the
+  key alone — without the count — and puts the plural back over the singular.
+  Nothing is lost, because a dialog with a backdrop never sees a language
+  change.
+
 ### Editing a topic table in place
 
 A writable scalar is editable in the table, in edition mode
