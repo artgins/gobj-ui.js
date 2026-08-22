@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.14.3
+
+- **chore: six actions and methods answer the contract they are written
+  against.** The boolean/int trap that cost gobj-js three releases needs two
+  halves — someone answering off-contract, and someone comparing that answer
+  with a number. An audit of this library's 343 actions and framework methods
+  found **no comparison** of the second kind (every numeric comparison here is
+  on a count, a length or a coordinate, and `remote_command()` states its own
+  `0`/`-1` contract), and **six** answers of the first: a bare `return;` where
+  the contract says a number.
+
+  They are `return 0` where the early exit is benign (`C_YUI_NODE.mt_start` on
+  a non-root node, `C_YUI_SHELL.mt_stop` with no priv) and `return -1` where it
+  is a failure that was already logged (`C_YUI_NODE.mt_start` with no shell to
+  route with, `C_YUI_SHELL.mt_start` on an invalid config, and the two
+  `ac_mt_command_answer` that catch a malformed answer).
+
+  Nothing changes today — nobody was reading those returns — which is exactly
+  why it is worth doing now rather than the day someone does.
+
 ## 7.14.2
 
 - **fix: after deleting the selected rows, the selection was still described.**

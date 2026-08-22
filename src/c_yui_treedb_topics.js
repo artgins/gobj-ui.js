@@ -1721,7 +1721,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
         data = webix_msg.data;
     } catch (e) {
         log_error(e);
-        return;
+        return -1;
     }
     let __command__  = msg_iev_get_stack(gobj, kw, "command_stack", true);
     let command = kw_get_str(gobj, __command__, "command", "", kw_flag_t.KW_REQUIRED);

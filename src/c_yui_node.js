@@ -275,7 +275,7 @@ function mt_start(gobj)
     }
 
     if(!priv.is_root) {
-        return;
+        return 0;
     }
 
     /*
@@ -287,7 +287,7 @@ function mt_start(gobj)
     let shell = yui_shell_of(gobj);
     if(!shell) {
         log_error(`${GCLASS_NAME}: no shell — the tree cannot route`);
-        return;
+        return -1;
     }
     gobj_subscribe_event(shell, "EV_ROUTE_CHANGED", {}, gobj);
     publish_sub_routes(gobj);

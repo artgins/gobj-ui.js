@@ -226,7 +226,7 @@ function mt_start(gobj)
                 ]
             ));
         }
-        return;
+        return -1;
     }
 
     /*  Declarative sugar over the attr, which stays the runtime truth:
@@ -364,7 +364,7 @@ function mt_stop(gobj)
 {
     let priv = gobj.priv;
     if(!priv) {
-        return;
+        return 0;
     }
 
     /*  Tear down any toolbar dropdown that was open at stop time so its
