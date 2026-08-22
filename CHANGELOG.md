@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.14.2
+
+- **fix: after deleting the selected rows, the selection was still described.**
+  A `//tabulator.deselectRow(); // TODO ??? is necessary?` had been sitting in
+  `ac_node_deleted` for years. It is not necessary — Tabulator's own SelectRow
+  module subscribes to `row-deleting` and deselects the row it is about to
+  remove, so a deleted row cannot stay in the selection. But that deselect is
+  **silent** (`_deselectRow(row, true)`): no `rowDeselected`, no
+  `EV_UNSELECT_ROWS`, so everything the selection drives kept describing rows
+  that were gone — the bar saying "3 selected" over a table with none, and
+  Delete and Copy still enabled.
+
+  The comment is replaced by the line that WAS missing, and what the selection
+  drives is now read from the table in one place (`render_selection_state()`)
+  instead of the same block copied into the select and unselect actions.
+
 ## 7.14.1
 
 - **fix: the Undo button never appeared.** 7.14.0 dropped the remembered order

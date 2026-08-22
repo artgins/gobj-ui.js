@@ -680,6 +680,35 @@ function build_ui(gobj)
 }
 
 /************************************************************
+ *   What the SELECTION drives: the two toolbar buttons that act
+ *   on it, and the bar that counts it.
+ *
+ *   Read from the table every time, never from a running tally:
+ *   rows leave the selection by routes that do not announce it
+ *   (deleting a selected row deselects it SILENTLY, see
+ *   ac_node_deleted).
+ ************************************************************/
+function render_selection_state(gobj)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    let $delete = $container ? $container.querySelector(`.button-delete-record`) : null;
+    let $copy = $container ? $container.querySelector(`.button-copy-record`) : null;
+
+    if($delete && $copy) {
+        let some = yui_selected_rows(gobj_read_attr(gobj, "tabulator")).length > 0;
+        if(some && gobj_read_bool_attr(gobj, "editable")) {
+            $delete.removeAttribute("disabled");
+            $copy.removeAttribute("disabled");
+        } else {
+            $delete.setAttribute("disabled", true);
+            $copy.setAttribute("disabled", true);
+        }
+    }
+
+    render_selection_bar(gobj);
+}
+
+/************************************************************
  *   How many rows are ticked, on the bar.
  *
  *   Only while the table is EDITABLE: outside edition its checkbox
@@ -2625,7 +2654,6 @@ function ac_node_deleted(gobj, event, kw, src)
     }
 
     let tabulator = gobj_read_attr(gobj, "tabulator");
-    //tabulator.deselectRow(); // unselectAll TODO ??? is necessary?
 
     if(tabulator) {
         for(let record of data) {
@@ -2638,6 +2666,18 @@ function ac_node_deleted(gobj, event, kw, src)
             }
         }
     }
+
+    /*  There WAS a commented-out `deselectRow()` here, asking whether it was
+     *  needed. It is not: Tabulator's own SelectRow module subscribes to
+     *  `row-deleting` and deselects the row it is about to remove, so a
+     *  deleted row cannot stay in the selection.
+     *
+     *  What IS needed is this line. That deselect is SILENT
+     *  (`_deselectRow(row, true)`), so no `rowDeselected` arrives, no
+     *  EV_UNSELECT_ROWS is sent, and everything the selection drives would
+     *  keep describing rows that are gone: the bar saying "3 selected" over a
+     *  table with none, and Delete and Copy still enabled.  */
+    render_selection_state(gobj);
 
     return 0;
 }
@@ -2928,26 +2968,7 @@ function ac_form_save_record(gobj, event, kw, src)
  ************************************************************/
 function ac_select_rows(gobj, event, kw, src)
 {
-    let tabulator = gobj_read_attr(gobj, "tabulator");
-    let $container = gobj_read_attr(gobj, "$container");
-
-    /*
-     *  Update button DELETE, only enable if some row is selected
-     */
-    let $button_delete_record = $container.querySelector(`.button-delete-record`);
-    let $button_copy_record = $container.querySelector(`.button-copy-record`);
-    if($button_delete_record) {
-        let selectedRows = yui_selected_rows(tabulator);
-        if (selectedRows.length && gobj_read_bool_attr(gobj, "editable")) {
-            $button_delete_record.removeAttribute("disabled");
-            $button_copy_record.removeAttribute("disabled");
-        } else {
-            $button_delete_record.setAttribute("disabled", true);
-            $button_copy_record.setAttribute("disabled", true);
-        }
-    }
-
-    render_selection_bar(gobj);
+    render_selection_state(gobj);
 
     if(gobj_read_bool_attr(gobj, "broadcast_select_rows_event")) {
         gobj_publish_event(gobj, event, kw);
@@ -2961,26 +2982,7 @@ function ac_select_rows(gobj, event, kw, src)
  ************************************************************/
 function ac_unselect_rows(gobj, event, kw, src)
 {
-    let tabulator = gobj_read_attr(gobj, "tabulator");
-    let $container = gobj_read_attr(gobj, "$container");
-
-    /*
-     *  Update button DELETE, only enable if some row is selected
-     */
-    let $button_delete_record = $container.querySelector(`.button-delete-record`);
-    let $button_copy_record = $container.querySelector(`.button-copy-record`);
-    if($button_delete_record) {
-        let selectedRows = yui_selected_rows(tabulator);
-        if (selectedRows.length && gobj_read_bool_attr(gobj, "editable")) {
-            $button_delete_record.removeAttribute("disabled");
-            $button_copy_record.removeAttribute("disabled");
-        } else {
-            $button_delete_record.setAttribute("disabled", true);
-            $button_copy_record.setAttribute("disabled", true);
-        }
-    }
-
-    render_selection_bar(gobj);
+    render_selection_state(gobj);
 
     // WARNING with radio, there is no unselect event.
 
