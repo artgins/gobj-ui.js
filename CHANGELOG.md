@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.13.4
+
+- **fix: the schema editor's buttons and icons are the size of buttons.** Every
+  control in `C_YUI_SCHEMA_EDITOR` was `is-small` — the toolbar (Diagrama,
+  Comprobar, Exportar, Importar, Nuevo topic, Recargar), the back button, the
+  per-row edit/delete icons (`is-small` twice: the button AND the icon inside
+  it), the version-bump button, the drag handle, and the buttons of the column,
+  topic, export and import dialogs. Next to the card's own toolbar, which is
+  default-sized, they read as a different, lesser control set, and the row icons
+  were a 12px target.
+
+  All of them are default size now. The standing rule in this repo is default
+  or larger; `is-small` on a button is not a style choice here, it is a defect.
+  What stays small is text that is DATA in bulk — the report tables, the export
+  and import textareas holding a C literal or a JSON dump — where fitting more
+  on screen is the whole point.
+
 ## 7.13.3
 
 - **fix: our Tabulator fixes were being emitted BEFORE the theme they fix.**

@@ -680,7 +680,7 @@ function show_notice(gobj, key, detail)
  ***************************************************************/
 function toolbar_button(logical, icon, key, event, disabled)
 {
-    return ["button", el_attrs({class: `${logical} button is-small`,
+    return ["button", el_attrs({class: `${logical} button`,
                        type: "button",
                        disabled: disabled ? "disabled" : undefined,
                        title: t(key), "aria-label": t(key),
@@ -719,7 +719,7 @@ function render_toolbar(gobj)
      *----------------------------------------------*/
     let $left = [];
     if(priv.treedb_id) {
-        $left.push(["button", {class: "SCHEMA_BACK button is-small",
+        $left.push(["button", {class: "SCHEMA_BACK button",
                                type: "button",
                                title: t("back"), "aria-label": t("back"),
                                "data-i18n-title": "back", "data-i18n-aria-label": "back"}, [
@@ -1041,11 +1041,11 @@ function render_topics(gobj, $body)
  ***************************************************************/
 function row_icon(gobj, logical, icon, key, event, kw)
 {
-    return ["button", {class: `${logical} button is-small is-ghost`,
+    return ["button", {class: `${logical} button is-ghost`,
                        type: "button",
                        title: t(key), "aria-label": t(key),
                        "data-i18n-title": key, "data-i18n-aria-label": key}, [
-        ["span", {class: "icon is-small"}, [["i", {class: icon}]]]
+        ["span", {class: "icon"}, [["i", {class: icon}]]]
     ], {
         click: (evt) => {
             evt.stopPropagation();
@@ -1178,7 +1178,7 @@ function version_banner(gobj, topic)
             ["span", {class: "icon"}, [["i", {class: "yi-triangle-exclamation"}]]],
             ["span", {class: "SCHEMA_VERSION_TEXT is-size-7", i18n: "version not raised"},
                 t("version not raised")],
-            ["button", {class: "SCHEMA_VERSION_BUMP button is-small is-warning",
+            ["button", {class: "SCHEMA_VERSION_BUMP button is-warning",
                         type: "button",
                         style: "margin-left:auto;",
                         title: t("raise the version"), "aria-label": t("raise the version"),
@@ -1242,7 +1242,7 @@ function column_row(gobj, topic, col, index, readonly, twice)
         ["tr", {class: "SCHEMA_COL_ROW", "data-index": `${index}`,
                 draggable: readonly ? "false" : "true"}, [
             ["td", {class: "SCHEMA_COL_HANDLE"},
-                readonly ? [] : [["span", {class: "icon is-small has-text-grey"},
+                readonly ? [] : [["span", {class: "icon has-text-grey"},
                     [["i", {class: "yi-grip-vertical"}]]]]],
             ["td", {class: "SCHEMA_COL_NAME"}, [
                 ["code", {}, `${col.name}`],
@@ -1661,9 +1661,9 @@ function open_column_form(gobj, topic, col, prefill)
                 text_input("description", record.description, "")),
             ["div", {class: "SCHEMA_COL_FORM_ACTIONS is-flex mt-4",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
-                ["button", {class: "SCHEMA_COL_FORM_CANCEL button is-small", type: "button"},
+                ["button", {class: "SCHEMA_COL_FORM_CANCEL button", type: "button"},
                     [["span", {i18n: "cancel"}, t("cancel")]]],
-                ["button", {class: "SCHEMA_COL_FORM_SAVE button is-small is-primary", type: "button"},
+                ["button", {class: "SCHEMA_COL_FORM_SAVE button is-primary", type: "button"},
                     [["span", {class: "icon"}, [["i", {class: "yi-floppy-disk"}]]],
                      ["span", {i18n: "save"}, t("save")]]]
             ]]
@@ -1771,9 +1771,9 @@ function open_topic_form(gobj, treedb, topic)
             ]],
             ["div", {class: "SCHEMA_TOPIC_FORM_ACTIONS is-flex mt-4",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
-                ["button", {class: "SCHEMA_TOPIC_FORM_CANCEL button is-small", type: "button"},
+                ["button", {class: "SCHEMA_TOPIC_FORM_CANCEL button", type: "button"},
                     [["span", {i18n: "cancel"}, t("cancel")]]],
-                ["button", {class: "SCHEMA_TOPIC_FORM_SAVE button is-small is-primary",
+                ["button", {class: "SCHEMA_TOPIC_FORM_SAVE button is-primary",
                             type: "button"},
                     [["span", {class: "icon"}, [["i", {class: "yi-floppy-disk"}]]],
                      ["span", {i18n: "save"}, t("save")]]]
@@ -1860,7 +1860,7 @@ function open_export(gobj, treedb)
 
     let $content = createElement2(
         ["div", {class: "SCHEMA_EXPORT box"}, [
-            ["div", {class: "SCHEMA_EXPORT_TABS tabs is-small is-toggle mb-2"}, [
+            ["div", {class: "SCHEMA_EXPORT_TABS tabs is-toggle mb-2"}, [
                 ["ul", {}, [
                     ["li", {class: "SCHEMA_EXPORT_TAB is-active", "data-pane": "c"},
                         [["a", {}, [["span", {}, "C"]]]]],
@@ -1875,7 +1875,7 @@ function open_export(gobj, treedb)
                           rows: "18", readonly: "readonly", spellcheck: "false"}, c_text],
             ["div", {class: "SCHEMA_EXPORT_ACTIONS is-flex mt-3",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
-                ["button", {class: "SCHEMA_EXPORT_COPY button is-small", type: "button"}, [
+                ["button", {class: "SCHEMA_EXPORT_COPY button", type: "button"}, [
                     ["span", {class: "icon"}, [["i", {class: "yi-copy"}]]],
                     ["span", {i18n: "copy"}, t("copy")]
                 ]]
@@ -1948,12 +1948,12 @@ function open_import(gobj, treedb)
             ["div", {class: "SCHEMA_IMPORT_PLAN mt-3"}, []],
             ["div", {class: "SCHEMA_IMPORT_ACTIONS is-flex mt-3",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
-                ["button", {class: "SCHEMA_IMPORT_CANCEL button is-small", type: "button"},
+                ["button", {class: "SCHEMA_IMPORT_CANCEL button", type: "button"},
                     [["span", {i18n: "cancel"}, t("cancel")]]],
-                ["button", {class: "SCHEMA_IMPORT_PREVIEW button is-small", type: "button"},
+                ["button", {class: "SCHEMA_IMPORT_PREVIEW button", type: "button"},
                     [["span", {class: "icon"}, [["i", {class: "yi-eye"}]]],
                      ["span", {i18n: "preview"}, t("preview")]]],
-                ["button", {class: "SCHEMA_IMPORT_RUN button is-small is-warning",
+                ["button", {class: "SCHEMA_IMPORT_RUN button is-warning",
                             type: "button", disabled: "disabled"},
                     [["span", {class: "icon"}, [["i", {class: "yi-upload"}]]],
                      ["span", {i18n: "import"}, t("import")]]]
