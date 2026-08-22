@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.14.1
+
+- **fix: the Undo button never appeared.** 7.14.0 dropped the remembered order
+  in `build_model()`, and that runs on the record patch after EVERY write — so
+  the drag's own answer erased what the undo was about, and the button was
+  computed as "nothing to go back to". The order is dropped where it was meant
+  to be dropped: when records arrive from the STORE (the initial load and the
+  refresh).
+
 ## 7.14.0
 
 - **feat: a column drag can be undone.** Dragging a row by its handle is a
@@ -17,8 +26,10 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   the third.
 
   It shows only while there is somewhere to go back to (drag a row back by hand
-  and it goes away), it is spent when used, and a refresh drops it — what it
+  and it goes away), it is spent when used, and a **refresh** drops it — what it
   names is what was on screen, and a reload brings the stored order instead.
+  Only a refresh: the model is also rebuilt by the patch that follows every
+  write, which is precisely when the undo has to survive.
 
   Undoing is another write, like the drag: the rows whose place changes are
   rewritten, and the versions move with them. It does not pretend nothing

@@ -528,9 +528,6 @@ function build_model(gobj)
     let priv = gobj.priv;
 
     priv.model = build_schema_model(priv.records);
-    /*  The order to go back to is the one that was on screen; a reload
-     *  brings the stored one, so what was on screen is gone. */
-    priv.order_undo = {};
     priv.baseline = {};
     for(let treedb of priv.model.treedbs) {
         for(let topic of treedb.topics) {
@@ -2166,7 +2163,10 @@ function remember_order(gobj, topic)
 {
     let priv = gobj.priv;
 
-    if(!topic || !priv.order_undo || priv.order_undo[topic.id]) {
+    if(!priv.order_undo) {
+        priv.order_undo = {};
+    }
+    if(!topic || priv.order_undo[topic.id]) {
         return;     /*  the first drag already said where we started  */
     }
     priv.order_undo[topic.id] = topic.cols.map((col) => {
@@ -2528,6 +2528,11 @@ function ac_mt_command_answer(gobj, event, kw, src)
             render(gobj);
             return 0;
         }
+        /*  Records straight from the store: what an undo would name is the
+         *  order that was ON SCREEN, and this is the stored one arriving.
+         *  (NOT in build_model(): that also runs on the patch after every
+         *  write, which is exactly when the undo has to survive.)  */
+        priv.order_undo = {};
         build_model(gobj);
         /*  Back to where the operator was: the load may be a refresh, or
          *  the answer to a deep link that arrived before the model.  */
