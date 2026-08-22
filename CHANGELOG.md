@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.12.0
+
+- **feat/fix: the treedb topic table uses the shared selection facility — and
+  its "select all" stops reaching past the filters.** That table is where both
+  of the facility's decisions were learned, and it was the one table not
+  applying the second one. Its header checkbox carried no `rowRange`, which in
+  Tabulator means `selectRow(undefined)` → **every row loaded**, the ones the
+  header filters hide included. The button next to it DELETES. Filter a topic
+  down to the three rows you mean, tick the header, press Delete, and the
+  confirmation is about every row in the page.
+
+  It now ticks the **active** rows, the ones on screen. The column, the
+  `selectableRows` value and every read of the selection come from
+  `yui_table_select.js`, so the two decisions live in one place instead of
+  two. The column stays hidden until edit mode (`showColumn`) and keeps its
+  40px: that part is the table's own design.
+
+  `yui_selection_column()` takes `visible` for exactly that case. The RADIO
+  column stays where it was: picking one row is a different widget, and the
+  header checkbox, the count and the bar all mean nothing there.
+
 ## 7.11.1
 
 - **fix: the selection bar is not there when nothing is selected.** It carried

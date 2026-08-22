@@ -75,6 +75,12 @@ import {attach_clear} from "./yui_inputs.js";
 
 import {yui_tabulator_lang, yui_tabulator_relocalize} from "./yui_tabulator_i18n.js";
 
+import {
+    yui_selection_column,
+    yui_selection_settings,
+    yui_selected_rows,
+} from "./yui_table_select.js";
+
 import {t} from "i18next";
 
 import {plan_treedb_writes} from "./treedb_write_plan.js";
@@ -748,16 +754,20 @@ function create_tabulator(gobj)
     let with_checkbox = gobj_read_bool_attr(gobj, "with_checkbox");
     let with_radio = gobj_read_bool_attr(gobj, "with_radio");
     if(with_checkbox) {
-        columns.push({
-            formatter: "rowSelection",
-            titleFormatter: "rowSelection",
-            field: "_check_box_state_",  // WARNING _check_box_state_ widely used
-            hozAlign: "center",
-            headerHozAlign: "center",
-            width: 40,
-            visible: false,
-            headerSort: false
-        });
+        /*  The SHARED column (yui_table_select.js), not a copy of it: this
+         *  table is where its two decisions were learned, and it was the one
+         *  table not applying the second. Its header checkbox took
+         *  `selectRow(undefined)` -- Tabulator's "every row LOADED", the ones
+         *  the header filters hide included -- and the button beside it
+         *  DELETES. It now ticks the active rows, the ones on screen.
+         *
+         *  Still `visible: false` and still 40px wide: this table reveals the
+         *  column in edit mode (`showColumn`), and the geometry is its own.  */
+        columns.push(yui_selection_column({
+            field:   "_check_box_state_",  // WARNING _check_box_state_ widely used
+            width:   40,
+            visible: false
+        }));
     } else if(with_radio) {
         columns.push({
             formatter: "rowSelection",
@@ -1098,7 +1108,12 @@ function create_tabulator(gobj)
      *  (it calls toggleSelect() directly) while disabling click-to-select,
      *  so opening the edit (yi-pen) form no longer implicitly ticks the
      *  row. Radio keeps single click-select (its own widget).  */
-    let selectable = with_checkbox ? "highlight" : (with_radio ? 1 : false);
+    let selectable = false;
+    if(with_checkbox) {
+        selectable = yui_selection_settings().selectableRows;
+    } else if(with_radio) {
+        selectable = 1;     /*  pick ONE: the radio's own widget  */
+    }
 
     let tabulator_settings = json_deep_copy(gobj_read_attr(gobj, "tabulator_settings"));
 
@@ -2623,7 +2638,7 @@ function ac_edition_mode(gobj, event, kw, src)
         $button_new_record.removeAttribute("disabled");
         $button_paste_record.removeAttribute("disabled");
 
-        let rows = tabulator.getSelectedData();
+        let rows = yui_selected_rows(tabulator);
         if (rows.length) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");
@@ -2715,7 +2730,7 @@ function ac_delete_rows(gobj, event, kw, src)
         /*----------------------------*
          *  Delete selected rows
          *----------------------------*/
-        let rows = tabulator.getSelectedData();
+        let rows = yui_selected_rows(tabulator);
         if (!rows.length) {
             yui_shell_confirm_ok(
                 yui_shell_of(gobj), 'please select some row',
@@ -2778,7 +2793,7 @@ function ac_copy_rows(gobj, event, kw, src)
     /*----------------------------*
      *  Copy selected rows
      *----------------------------*/
-    let rows = tabulator.getSelectedData();
+    let rows = yui_selected_rows(tabulator);
     if (!rows.length) {
         yui_shell_confirm_ok(
             yui_shell_of(gobj), 'please select some row',
@@ -2875,7 +2890,7 @@ function ac_select_rows(gobj, event, kw, src)
     let $button_delete_record = $container.querySelector(`.button-delete-record`);
     let $button_copy_record = $container.querySelector(`.button-copy-record`);
     if($button_delete_record) {
-        let selectedRows = tabulator.getSelectedData();
+        let selectedRows = yui_selected_rows(tabulator);
         if (selectedRows.length && gobj_read_bool_attr(gobj, "editable")) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");
@@ -2906,7 +2921,7 @@ function ac_unselect_rows(gobj, event, kw, src)
     let $button_delete_record = $container.querySelector(`.button-delete-record`);
     let $button_copy_record = $container.querySelector(`.button-copy-record`);
     if($button_delete_record) {
-        let selectedRows = tabulator.getSelectedData();
+        let selectedRows = yui_selected_rows(tabulator);
         if (selectedRows.length && gobj_read_bool_attr(gobj, "editable")) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");

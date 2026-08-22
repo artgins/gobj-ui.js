@@ -38,8 +38,16 @@ import {createElement2, log_error} from "@yuneta/gobj-js";
  *      The checkbox column. Put it FIRST in the column list.
  *
  *      opts:
- *          field   the (virtual) field name, default "_select"
- *          width   default 44
+ *          field    the (virtual) field name, default "_select"
+ *          width    default 44
+ *          visible  default true; `false` for a table that reveals
+ *                   the column only in an edit mode (the treedb topic
+ *                   table shows it with `showColumn(field)`)
+ *
+ *      This is the SELECT-MANY widget. A table that lets you pick ONE
+ *      row uses a radio column of its own (`formatter: "rowSelection"`
+ *      with no `titleFormatter`, `selectableRows: 1`): the header
+ *      checkbox, the count and the bar all mean nothing there.
  ***************************************************************/
 function yui_selection_column(opts)
 {
@@ -49,6 +57,7 @@ function yui_selection_column(opts)
         field:                o.field || "_select",
         width:                o.width || 44,
         minWidth:             o.width || 44,
+        visible:              o.visible !== false,
         hozAlign:             "center",
         headerHozAlign:       "center",
         headerSort:           false,

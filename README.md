@@ -1031,6 +1031,14 @@ from the view's `EV_LANGUAGE_CHANGED` action.
 table that is not built yet or is already gone. Clear the selection after
 acting on it: the rows it names are no longer there.
 
+`yui_selection_column({visible: false})` is for a table that reveals the column
+only in an edit mode — `C_YUI_TREEDB_TOPIC_WITH_FORM` shows it with
+`showColumn("_check_box_state_")`, and takes its `selectableRows` and every
+read of its selection from here too. A **radio** column (pick ONE row) is not
+this facility: it is `formatter: "rowSelection"` with no `titleFormatter` and
+`selectableRows: 1`, and the header checkbox, the count and the bar all mean
+nothing there.
+
 ## Conventions
 
 ### i18n: a string must be able to CHANGE language, not just be translated once
