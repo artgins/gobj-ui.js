@@ -247,7 +247,11 @@
  * ==================================================================== */
 .tabulator .tabulator-header .tabulator-header-filter input,
 .tabulator .tabulator-header .tabulator-header-filter select {
-    border: 1px solid var(--bulma-border-weak, #e8eaee);
+    /*  A neutral translucent grey, NOT `--bulma-border`: that token does not
+     *  flip with the theme here -- it stays #dbdbdb, which is a hairline on
+     *  white and a bright line on near-black. 35% mid-grey reads as the same
+     *  quiet hairline over both, and needs no per-theme rule.  */
+    border: 1px solid rgba(128, 128, 128, 0.35);
     border-radius: 3px;
     background-color: transparent;
 }
@@ -260,7 +264,6 @@
 
 [data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input,
 [data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter select {
-    border-color: var(--bulma-border, #3a3f4a);
     color: var(--bulma-text-strong, #f5f6f7);
     caret-color: var(--bulma-text-strong, #f5f6f7);
 }
@@ -362,7 +365,6 @@
     /*  same furniture-not-editor rule as [data-theme=dark] above  */
     [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input,
     [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter select {
-        border-color: var(--bulma-border, #3a3f4a);
         color: var(--bulma-text-strong, #f5f6f7);
         caret-color: var(--bulma-text-strong, #f5f6f7);
     }

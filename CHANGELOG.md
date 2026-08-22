@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.13.1
+
+- **fix: the filter box hairline is neutral, so it is quiet in BOTH themes.**
+  7.13.0 gave it `--bulma-border`, and that token does not flip with the theme
+  here: it stays `#dbdbdb`, a hairline over white and a bright line over
+  near-black — the same shouting, one theme along. A translucent mid-grey
+  (`rgba(128,128,128,.35)`) reads the same over both and needs no per-theme
+  rule. Caught on the deployed console with the theme switched.
+
 ## 7.13.0
 
 - **feat: the treedb topic table can show the selection bar
