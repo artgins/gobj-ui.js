@@ -970,6 +970,67 @@ the middle, and **a toolbar left with a single group is centred**. An unknown
 name is reported, not silently dropped: a typo would otherwise remove the save
 button with no trace of why.
 
+### Selecting rows in any table — `yui_table_select.js`
+
+Deleting twenty rows one confirmation at a time is not a workflow. Any view
+whose table can remove (or export, or act on) a row eventually needs to do it
+to several at once, so the checkbox column, the settings behind it and the bar
+that appears while something is ticked live here once:
+
+```js
+import {
+    yui_selection_column,
+    yui_selection_settings,
+    yui_selection_bar,
+    yui_wire_selection,
+    yui_selected_rows,
+    yui_clear_selection,
+} from "@yuneta/gobj-ui/src/yui_table_select.js";
+
+/*  1. the column, FIRST in the list  */
+let columns = [yui_selection_column(), ...my_columns];
+
+/*  2. the settings it needs  */
+let table = new Tabulator($div, {...yui_selection_settings(), columns: columns, ...});
+
+/*  3. the bar. Every button's job is to SEND AN EVENT  */
+priv.bar = yui_selection_bar(t, {
+    name:    "CONNECTIONS",
+    actions: [{
+        label:    "remove selected",        /*  an i18n KEY  */
+        icon:     "yi-trash",
+        class:    "is-danger",
+        on_click: () => gobj_send_event(gobj, "EV_REMOVE_SELECTED", {}, gobj)
+    }],
+    on_clear: () => gobj_send_event(gobj, "EV_CLEAR_SELECTION", {}, gobj)
+});
+$container.appendChild(priv.bar.$el);
+
+/*  4. the table tells the bar how many are ticked  */
+yui_wire_selection(table, (n) => gobj_send_event(gobj, "EV_SELECTION_CHANGED",
+    {count: n}, gobj));
+```
+
+Two decisions are baked in, both learned in the treedb topic table:
+
+- **Selection is driven only by the checkbox** (`selectableRows: "highlight"`),
+  never by clicking the row. A row is full of things to click — an editor, an
+  icon, a nested table — and click-to-select ticks a row every time you reach
+  for one of them.
+- **The header checkbox covers the ACTIVE rows**, the ones the filters leave on
+  screen (`titleFormatterParams: {rowRange: "active"}`). "Select all" over rows
+  nobody can see is how a filtered delete takes the whole topic with it.
+
+The bar takes its words from the HOST's `t` (this library translates through
+the app's i18next): the app must define **`"{{n}} selected"`** and
+**`"clear selection"`**, and each action's own key. The count is composed at
+render time, so `refresh_language()` cannot reach it — call `bar.refresh()`
+from the view's `EV_LANGUAGE_CHANGED` action.
+
+`yui_selected_rows(table)` and `yui_clear_selection(table)` answer safely on a
+table that is not built yet or is already gone. Clear the selection after
+acting on it: the rows it names are no longer there.
+
 ## Conventions
 
 ### i18n: a string must be able to CHANGE language, not just be translated once

@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.11.0
+
+- **feat: selecting rows is a facility now, not a thing each table reinvents
+  (`yui_table_select.js`).** A table that can remove a row is eventually asked
+  to remove twenty, and doing it one confirmation at a time is not a workflow.
+  The checkbox column, the settings behind it, and the bar that appears while
+  something is ticked ("3 selected", the actions, a way out) are one module:
+  `yui_selection_column()`, `yui_selection_settings()`, `yui_selection_bar()`,
+  `yui_wire_selection()`, `yui_selected_rows()`, `yui_clear_selection()`.
+
+  Two decisions travel with it, both learned in the treedb topic table.
+  Selection is driven **only by the checkbox** (`selectableRows: "highlight"`),
+  never by clicking the row — a row is full of things to click, and
+  click-to-select ticks it every time you reach for one of them. And the header
+  checkbox covers the **active** rows, the ones the filters leave on screen:
+  "select all" over rows nobody can see is how a filtered delete takes the whole
+  topic with it.
+
+  The bar translates through the HOST's `t`, so the app owns the keys — it needs
+  `"{{n}} selected"` and `"clear selection"` — and it exposes `refresh()`,
+  because a count composed at render time cannot re-translate itself.
+
+  No existing behaviour moves: this is a new module nothing imported yet.
+
 ## 7.10.5
 
 - **fix: the GeoJSON owes maplibre a real boolean.** `devices2geojson` copied
