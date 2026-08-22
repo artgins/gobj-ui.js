@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.13.2
+
+- **fix: that hairline rule never LANDED.** `tabulator_bulma.css` paints the
+  filter border at `.tabulator .tabulator-header .tabulator-col
+  .tabulator-header-filter input` — one class more than the selector 7.13.1
+  used — so the cascade kept the theme's `#dbdbdb` and the box looked exactly
+  as before, in both themes. The selector carries `.tabulator-col` now, which
+  is the whole fix. Caught by reading the COMPUTED border on the deployed
+  console instead of trusting the stylesheet.
+
 ## 7.13.1
 
 - **fix: the filter box hairline is neutral, so it is quiet in BOTH themes.**

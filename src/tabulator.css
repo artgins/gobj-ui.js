@@ -245,8 +245,13 @@
  *  wash of its own -- and only the FOCUSED one stands out, which is the one
  *  you are typing in.
  * ==================================================================== */
-.tabulator .tabulator-header .tabulator-header-filter input,
-.tabulator .tabulator-header .tabulator-header-filter select {
+/*  `.tabulator-col` is in the selector to MATCH tabulator_bulma.css, which
+ *  paints this border at `.tabulator .tabulator-header .tabulator-col
+ *  .tabulator-header-filter input`. Without that one class the rule below
+ *  loses the cascade by specificity and nothing here has any effect --
+ *  which is exactly what happened the first time.  */
+.tabulator .tabulator-header .tabulator-col .tabulator-header-filter input,
+.tabulator .tabulator-header .tabulator-col .tabulator-header-filter select {
     /*  A neutral translucent grey, NOT `--bulma-border`: that token does not
      *  flip with the theme here -- it stays #dbdbdb, which is a hairline on
      *  white and a bright line on near-black. 35% mid-grey reads as the same
@@ -256,21 +261,16 @@
     background-color: transparent;
 }
 
-.tabulator .tabulator-header .tabulator-header-filter input:focus,
-.tabulator .tabulator-header .tabulator-header-filter select:focus {
+.tabulator .tabulator-header .tabulator-col .tabulator-header-filter input:focus,
+.tabulator .tabulator-header .tabulator-col .tabulator-header-filter select:focus {
     border-color: var(--bulma-link, #4a9eff);
     outline: none;
 }
 
-[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input,
-[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter select {
+[data-theme=dark] .tabulator .tabulator-header .tabulator-col .tabulator-header-filter input,
+[data-theme=dark] .tabulator .tabulator-header .tabulator-col .tabulator-header-filter select {
     color: var(--bulma-text-strong, #f5f6f7);
     caret-color: var(--bulma-text-strong, #f5f6f7);
-}
-
-[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input:focus,
-[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter select:focus {
-    border-color: var(--bulma-link, #4a9eff);
 }
 
 [data-theme=dark] .tabulator-row.tabulator-selected {
@@ -363,14 +363,10 @@
         color: var(--bulma-text-weak, #8a8f98);
     }
     /*  same furniture-not-editor rule as [data-theme=dark] above  */
-    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input,
-    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter select {
+    [data-theme=system] .tabulator .tabulator-header .tabulator-col .tabulator-header-filter input,
+    [data-theme=system] .tabulator .tabulator-header .tabulator-col .tabulator-header-filter select {
         color: var(--bulma-text-strong, #f5f6f7);
         caret-color: var(--bulma-text-strong, #f5f6f7);
-    }
-    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input:focus,
-    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter select:focus {
-        border-color: var(--bulma-link, #4a9eff);
     }
     [data-theme=system] .tabulator-row.tabulator-selected {
         background-color: var(--bulma-link) !important;
