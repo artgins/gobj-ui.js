@@ -202,6 +202,7 @@ let PRIVATE_DATA = {
      *  version still has to move.  */
     baseline:       null,   /*  {topic id: topic_version} at load time  */
     written:        null,   /*  {topic id: true}  */
+    order_undo:     null,   /*  {topic id: [{id, order}]} before the first drag  */
 
     /*  Children and overlays  */
     diagram_gobj:   null,
@@ -527,6 +528,9 @@ function build_model(gobj)
     let priv = gobj.priv;
 
     priv.model = build_schema_model(priv.records);
+    /*  The order to go back to is the one that was on screen; a reload
+     *  brings the stored one, so what was on screen is gone. */
+    priv.order_undo = {};
     priv.baseline = {};
     for(let treedb of priv.model.treedbs) {
         for(let topic of treedb.topics) {
@@ -768,6 +772,12 @@ function render_toolbar(gobj)
         }
     }
     if(priv.topic_name && !readonly && !priv.diagram) {
+        /*  Only while there IS somewhere to go back to: a drag is a write,
+         *  and this is the way back from one. */
+        if(undo_order_writes(gobj, current_topic(gobj)).length > 0) {
+            $right.push(toolbar_button("SCHEMA_UNDO_ORDER_BTN", "yi-arrow-rotate-left",
+                "undo the order", "EV_UNDO_ORDER", false));
+        }
         $right.push(toolbar_button("SCHEMA_ADD_COL_BTN", "yi-plus",
             "new column", "EV_ADD_COLUMN", false));
     }
@@ -2140,6 +2150,56 @@ function version_writes(gobj, topic)
 }
 
 /***************************************************************
+ *  WHERE THE COLUMNS WERE before this session started moving them.
+ *
+ *  A drag is a WRITE: the order is a field of the column, so the drop
+ *  lands in the store the moment you let go, and the only way back used
+ *  to be dragging every row to where you thought it was. The order is
+ *  remembered once per topic -- before the FIRST drag, not before each
+ *  one -- because the operator who tries three arrangements wants the
+ *  one they started from, not the third.
+ *
+ *  A reload drops it (see build_model): what it names is what was on
+ *  screen, and a reload brings the stored order instead.
+ ***************************************************************/
+function remember_order(gobj, topic)
+{
+    let priv = gobj.priv;
+
+    if(!topic || !priv.order_undo || priv.order_undo[topic.id]) {
+        return;     /*  the first drag already said where we started  */
+    }
+    priv.order_undo[topic.id] = topic.cols.map((col) => {
+        return {id: col.id, order: col.order};
+    });
+}
+
+/***************************************************************
+ *  The writes that would put the remembered order back, or an
+ *  empty list when there is nothing to undo (no snapshot, or the
+ *  columns are already where they were).
+ ***************************************************************/
+function undo_order_writes(gobj, topic)
+{
+    let priv = gobj.priv;
+    let snapshot = (topic && priv.order_undo) ? priv.order_undo[topic.id] : null;
+
+    if(!snapshot) {
+        return [];
+    }
+    let writes = [];
+    for(let was of snapshot) {
+        let col = topic.cols.find((c) => c && c.id === was.id);
+        if(!col || col.order === was.order) {
+            continue;
+        }
+        writes.push({op: "update", topic_name: T_COLS,
+                     record: {id: was.id, order: was.order}});
+    }
+    return writes;
+}
+
+/***************************************************************
  *  Run a list of writes, one at a time, and say so while it
  *  runs. One at a time because each answer patches the model the
  *  next one is computed against, and because a treedb that
@@ -2797,6 +2857,8 @@ function ac_move_column(gobj, event, kw, src)
         return -1;
     }
 
+    remember_order(gobj, topic);
+
     let from = kw.from;
     let to = kw.to;
     let list = topic.cols.slice();
@@ -2814,6 +2876,35 @@ function ac_move_column(gobj, event, kw, src)
     if(writes.length === 0) {
         return 0;       /*  dropped where it already was  */
     }
+    return queue_writes(gobj, writes.concat(version_writes(gobj, topic)));
+}
+
+/***************************************************************
+ *  Put the columns back where they were before the dragging
+ *  started. Another write, because the drag was one.
+ ***************************************************************/
+function ac_undo_order(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let topic = current_topic(gobj);
+
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(!topic) {
+        log_error(`${gobj_short_name(gobj)}: ${event} with no topic open`);
+        return -1;
+    }
+
+    let writes = undo_order_writes(gobj, topic);
+    if(writes.length === 0) {
+        /*  The button is not there in this case; the event can still
+         *  arrive from a keyboard path. */
+        log_warning(`${gobj_short_name(gobj)}: nothing to undo in ${topic.name}`);
+        return 0;
+    }
+    /*  Spent: what it named is where the columns are about to be. */
+    delete priv.order_undo[topic.id];
     return queue_writes(gobj, writes.concat(version_writes(gobj, topic)));
 }
 
@@ -3209,6 +3300,7 @@ function create_gclass(gclass_name)
             ["EV_DELETE_COLUMN",    ac_delete_column,       null],
             ["EV_SAVE_COLUMN",      ac_save_column,         null],
             ["EV_MOVE_COLUMN",      ac_move_column,         null],
+            ["EV_UNDO_ORDER",       ac_undo_order,          null],
             ["EV_BUMP_VERSION",     ac_bump_version,        null]
         ])],
 
@@ -3251,6 +3343,7 @@ function create_gclass(gclass_name)
         ["EV_DELETE_COLUMN",        0],
         ["EV_SAVE_COLUMN",          0],
         ["EV_MOVE_COLUMN",          0],
+        ["EV_UNDO_ORDER",           0],
         ["EV_BUMP_VERSION",         0],
         ["EV_VALIDATE",             0],
         ["EV_EXPORT",               0],

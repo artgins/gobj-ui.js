@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.14.0
+
+- **feat: a column drag can be undone.** Dragging a row by its handle is a
+  WRITE — `order` is a field of the column, so the drop lands in the store the
+  moment you let go — and the only way back was dragging every row to where you
+  thought it had been. There is a button now, `Undo the order`, and it puts the
+  columns back where they were **before the dragging started**: the order is
+  remembered once per topic, before the FIRST drag and not before each one,
+  because whoever tries three arrangements wants the one they started from, not
+  the third.
+
+  It shows only while there is somewhere to go back to (drag a row back by hand
+  and it goes away), it is spent when used, and a refresh drops it — what it
+  names is what was on screen, and a reload brings the stored order instead.
+
+  Undoing is another write, like the drag: the rows whose place changes are
+  rewritten, and the versions move with them. It does not pretend nothing
+  happened, because something did.
+
+  **The host needs one key: `"undo the order"`.**
+
 ## 7.13.6
 
 - **fix: 12rem was not enough for a treedb card** (see 7.13.5): the name

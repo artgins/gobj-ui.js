@@ -866,6 +866,14 @@ id on `.`, which works right up to the first name that carries one),
 `schema_validate.js`, `schema_descs.js`, `schema_to_c.js`, `schema_import.js`,
 `schema_flags.js`, `schema_write_options.js`. Since 6.1.0.
 
+**A drag can be undone.** Reordering a column is a WRITE — `order` is a field —
+so the drop lands in the store the moment you let go. The toolbar grows an
+`Undo the order` button that puts the columns back where they were **before the
+dragging started** (remembered once per topic, before the FIRST drag), shown
+only while there is somewhere to go back to, spent when used, and dropped by a
+refresh. Undoing is another write, like the drag. The host must define the key
+`"undo the order"`.
+
 ### Frontend view — `setup_frontend_view`
 
 `setup_frontend_view(self)` opens the **gobj tree of the app's own yuno** in a
