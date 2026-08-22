@@ -5,6 +5,13 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.13.6
+
+- **fix: 12rem was not enough for a treedb card** (see 7.13.5): the name
+  shares its row with the icon and the card's padding, so it gets some 60px
+  less than the card is wide. `14rem` is what puts `treedb_yuneta_agent` on
+  one line.
+
 ## 7.13.5
 
 - **fix: the schema editor's FORM controls grow with its buttons.** 7.13.4 left
@@ -16,7 +23,7 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 - **fix: a treedb card is wide enough for a treedb name.** The shell's card
   grid starts at `9rem` (144px), and `treedb_yuneta_agent` breaks into three
-  lines inside its own card. The editor's grid starts at `12rem`. The shell
+  lines inside its own card. The editor's grid starts at `14rem` — the name shares its row with the icon and the card's padding, so what it gets is some 60px less than the card, and 12rem still broke it in two. The shell
   default is untouched — it also serves grids of short labels, where 12rem
   would be a lot of air.
 
