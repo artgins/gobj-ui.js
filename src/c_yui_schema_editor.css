@@ -72,6 +72,14 @@
     cursor: pointer;
 }
 
+/*  ...but they hold NAMES, and a treedb name is long: at the shell's 9rem
+ *  (144px) `treedb_yuneta_agent` breaks into three lines inside its own
+ *  card. Start wider here. The shell default is left alone -- it also
+ *  serves grids of short labels, where 12rem would be a lot of air.  */
+.C_YUI_SCHEMA_EDITOR .yui-nav-cards {
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+}
+
 /*  The flag grid: as many columns as fit, never fewer than one.  */
 .SCHEMA_FLAGS .SCHEMA_FLAG_LIST {
     display: grid;

@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.13.5
+
+- **fix: the schema editor's FORM controls grow with its buttons.** 7.13.4 left
+  the labels, inputs, selects, textareas and flag checkboxes of the column and
+  topic dialogs at `is-small`/`is-size-7` — a dialog you type into, wearing the
+  one size the rest of the editor had just stopped using. They are default size
+  now. What stays small is still what is data in bulk: the report tables, the
+  crumbs, and the export/import textareas holding a C literal or a JSON dump.
+
+- **fix: a treedb card is wide enough for a treedb name.** The shell's card
+  grid starts at `9rem` (144px), and `treedb_yuneta_agent` breaks into three
+  lines inside its own card. The editor's grid starts at `12rem`. The shell
+  default is untouched — it also serves grids of short labels, where 12rem
+  would be a lot of air.
+
 ## 7.13.4
 
 - **fix: the schema editor's buttons and icons are the size of buttons.** Every

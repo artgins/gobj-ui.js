@@ -1480,7 +1480,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
 function field(logical, name, label, $control, help)
 {
     return ["div", {class: `${logical} field mb-3`}, [
-        ["label", {class: "label is-small", i18n: label}, t(label)],
+        ["label", {class: "label", i18n: label}, t(label)],
         ["div", {class: "control"}, [$control]],
         help
             ? ["p", {class: "help", i18n: help}, t(help)]
@@ -1490,7 +1490,7 @@ function field(logical, name, label, $control, help)
 
 function text_input(name, value, placeholder, disabled)
 {
-    return ["input", el_attrs({class: "input is-small", type: "text",
+    return ["input", el_attrs({class: "input", type: "text",
                       "data-name": name,
                       value: value === undefined || value === null ? "" : `${value}`,
                       placeholder: placeholder || "",
@@ -1499,7 +1499,7 @@ function text_input(name, value, placeholder, disabled)
 
 function number_input(name, value)
 {
-    return ["input", {class: "input is-small", type: "number",
+    return ["input", {class: "input", type: "number",
                       "data-name": name,
                       value: (value === undefined || value === null || value === "")
                           ? "" : `${value}`}];
@@ -1513,14 +1513,14 @@ function select_input(name, value, options)
             `${option}`];
     });
 
-    return ["div", {class: "select is-small is-fullwidth"}, [
+    return ["div", {class: "select is-fullwidth"}, [
         ["select", {"data-name": name}, $options]
     ]];
 }
 
 function textarea_input(name, value, rows, placeholder)
 {
-    return ["textarea", {class: "textarea is-small", "data-name": name,
+    return ["textarea", {class: "textarea", "data-name": name,
                          rows: `${rows || 3}`,
                          placeholder: placeholder || ""},
         value === undefined || value === null ? "" : `${value}`];
@@ -1561,7 +1561,7 @@ function flags_field(gobj, type, current)
 
     for(let group of grouped_flags(type, current)) {
         let $boxes = group.flags.map((flag) => {
-            return ["label", el_attrs({class: "SCHEMA_FLAG checkbox is-size-7 " +
+            return ["label", el_attrs({class: "SCHEMA_FLAG checkbox " +
                                      (flag.meaningful ? "" : "SCHEMA_FLAG_DIM has-text-grey-light"),
                               title: flag.desc ? t(flag.desc) : "",
                               "data-i18n-title": flag.desc || undefined}), [
@@ -1573,7 +1573,7 @@ function flags_field(gobj, type, current)
         });
 
         $groups.push(["div", {class: "SCHEMA_FLAG_GROUP mb-2"}, [
-            ["p", {class: "SCHEMA_FLAG_GROUP_NAME is-size-7 has-text-weight-semibold has-text-grey",
+            ["p", {class: "SCHEMA_FLAG_GROUP_NAME has-text-weight-semibold has-text-grey",
                    i18n: group.group}, t(group.group)],
             ["div", {class: "SCHEMA_FLAG_LIST"}, $boxes]
         ]]);
@@ -1638,11 +1638,11 @@ function open_column_form(gobj, topic, col, prefill)
             field("SCHEMA_COL_FORM_FILLSPACE", "fillspace", "fillspace",
                 number_input("fillspace", record.fillspace)),
             ["div", {class: "SCHEMA_COL_FORM_FLAGS field mb-3"}, [
-                ["label", {class: "label is-small", i18n: "flags"}, t("flags")],
+                ["label", {class: "label", i18n: "flags"}, t("flags")],
                 flags_field(gobj, type, col_flags(record))
             ]],
             ["div", {class: "SCHEMA_COL_FORM_HOOK field mb-3"}, [
-                ["label", {class: "label is-small", i18n: "hook"}, t("hook")],
+                ["label", {class: "label", i18n: "hook"}, t("hook")],
                 ["div", {class: "is-flex", style: "gap:.4rem;"}, [
                     select_input("hook_topic", hook_topic, [""].concat(sibling_topics)),
                     text_input("hook_col", hook_col, t("the fkey column of the child"))
@@ -1763,7 +1763,7 @@ function open_topic_form(gobj, treedb, topic)
                     record.topic_version === undefined ? 1 : record.topic_version),
                 "raising it is what publishes a change of the columns"),
             ["div", {class: "SCHEMA_TOPIC_FORM_SYSTEM field mb-3"}, [
-                ["label", {class: "checkbox is-size-7"}, [
+                ["label", {class: "checkbox"}, [
                     ["input", el_attrs({type: "checkbox", "data-name": "system_topic",
                                checked: record.system_topic ? "checked" : undefined})],
                     ["span", {class: "ml-1", i18n: "system topic"}, t("system topic")]
@@ -1940,7 +1940,7 @@ function open_import(gobj, treedb)
             ["textarea", {class: "SCHEMA_IMPORT_TEXT textarea is-small is-family-monospace",
                           rows: "12", spellcheck: "false",
                           placeholder: '{"id": "...", "schema_version": "1", "topics": []}'}, ""],
-            ["label", {class: "SCHEMA_IMPORT_PRUNE checkbox is-size-7 mt-2"}, [
+            ["label", {class: "SCHEMA_IMPORT_PRUNE checkbox mt-2"}, [
                 ["input", {type: "checkbox", class: "SCHEMA_IMPORT_PRUNE_BOX", checked: "checked"}],
                 ["span", {class: "ml-1", i18n: "delete what the pasted schema does not declare"},
                     t("delete what the pasted schema does not declare")]
