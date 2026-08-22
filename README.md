@@ -1031,6 +1031,15 @@ from the view's `EV_LANGUAGE_CHANGED` action.
 table that is not built yet or is already gone. Clear the selection after
 acting on it: the rows it names are no longer there.
 
+**In the treedb topic table** (`C_YUI_TREEDB_TOPIC_WITH_FORM`, and through it
+`C_YUI_TREEDB_TOPICS`) the bar is **opt-in**: pass `with_selection_bar: true`.
+It is off by default because the bar takes its words from the HOST's i18n, and
+a host that has not defined `"{{n}} selected"` and `"clear selection"` renders
+the keys. It shows only while the table is in **edition mode** — outside it the
+checkbox column is hidden, and a count of rows nobody can see or untick is a
+count you cannot act on. The bar carries no action there: the table's own
+toolbar already has Delete and Copy, and they act on the selection.
+
 `yui_selection_column({visible: false})` is for a table that reveals the column
 only in an edit mode — `C_YUI_TREEDB_TOPIC_WITH_FORM` shows it with
 `showColumn("_check_box_state_")`, and takes its `selectableRows` and every

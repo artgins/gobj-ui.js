@@ -5,6 +5,34 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.13.0
+
+- **feat: the treedb topic table can show the selection bar
+  (`with_selection_bar`, off by default).** With 200 rows to a page, the
+  checkboxes that answer "how many did I tick?" are not all on screen, and
+  nothing else answered it: the toolbar buttons only go enabled or disabled.
+  The bar says the count and offers the way out; it carries no action, because
+  Delete and Copy are already in the toolbar above it and act on the selection.
+
+  It shows only while the table is in **edition mode** — outside it the checkbox
+  column is hidden, and a count of rows nobody can see or untick is a count you
+  cannot act on. The selection itself is left alone: coming back to edition
+  finds it, and the bar recounts from the table.
+
+  **Off by default on purpose.** The bar takes its words from the HOST's
+  i18n, so a host that turns it on must define `"{{n}} selected"` and
+  `"clear selection"` — a host that has not would render the keys.
+  `C_YUI_TREEDB_TOPICS` forwards the flag to every topic table it builds.
+
+- **fix: the header filter box is furniture again, not an open editor.** It
+  shared its rules with the cell editor, and an editor is a MODE — one cell,
+  while you type into it, deliberately the brightest thing on screen. A filter
+  box is permanent and there is one per column, so a header of eight columns
+  drew eight hard boxes across the top of every table, **link-blue** in dark
+  theme. Now a hairline in the theme's weakest border colour with no wash of
+  its own, and only the FOCUSED one takes the link border — the one you are
+  typing in.
+
 ## 7.12.0
 
 - **feat/fix: the treedb topic table uses the shared selection facility — and

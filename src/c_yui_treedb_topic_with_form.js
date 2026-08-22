@@ -78,7 +78,9 @@ import {yui_tabulator_lang, yui_tabulator_relocalize} from "./yui_tabulator_i18n
 import {
     yui_selection_column,
     yui_selection_settings,
+    yui_selection_bar,
     yui_selected_rows,
+    yui_clear_selection,
 } from "./yui_table_select.js";
 
 import {t} from "i18next";
@@ -129,6 +131,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"
 /*---------------- Selection Mode ----------------*/
 SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",        0,  true,   "Auxiliary first column to select rows"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_radio",           0,  false,  "Auxiliary first column to select one row"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_selection_bar",   0,  false,  "Show the shared selection bar (\"N selected\" + a way out) above the table while in edition mode. OFF by default: the bar takes its words from the HOST's i18n, and a host that has not defined \"{{n}} selected\" and \"clear selection\" would render the keys"),
 SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_select_rows_event",   0,  false, "Broadcast select rows event"),
 SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_unselect_rows_event", 0,  false, "Broadcast unselect rows event"),
 
@@ -148,6 +151,7 @@ SDATA(data_type_t.DTP_JSON,     "tabulator_settings",   0,  {
 /*---------------- Internal Attributes ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "HTML container for UI"),
 SDATA(data_type_t.DTP_POINTER,  "tabulator",            0,  null,   "Tabulator instance"),
+SDATA(data_type_t.DTP_POINTER,  "selection_bar",        0,  null,   "The selection bar (yui_table_select.js), when with_selection_bar"),
 SDATA(data_type_t.DTP_STRING,   "table_id",             0,  null,   "Table div ID"),
 SDATA(data_type_t.DTP_STRING,   "toolbar_id",           0,  null,   "Toolbar ID"),
 SDATA(data_type_t.DTP_STRING,   "popup_id",             0,  null,   "Edit form popup ID"),
@@ -648,6 +652,21 @@ function build_ui(gobj)
             ]
         ]]
     );
+    /*  The shared selection bar, between the toolbar and the table. It is
+     *  the only thing that says HOW MANY rows are ticked: with 200 rows to a
+     *  page, the checkboxes that answer that question are not all on screen.
+     *  Opt-in, because it takes its words from the host's i18n.  */
+    if(gobj_read_bool_attr(gobj, "with_checkbox") &&
+            gobj_read_bool_attr(gobj, "with_selection_bar")) {
+        let bar = yui_selection_bar(t, {
+            name:     "TREEDB_TABLE",
+            actions:  [],   /*  the toolbar above already carries them  */
+            on_clear: () => gobj_send_event(gobj, "EV_CLEAR_SELECTION", {}, gobj)
+        });
+        gobj_write_attr(gobj, "selection_bar", bar);
+        $container.insertBefore(bar.$el, $container.querySelector(`#${table_id}`));
+    }
+
     let $toolbar_slot = $container.querySelector('.toolbar_tabulator_table');
     if($table_toolbar instanceof Element) {
         $toolbar_slot.appendChild($table_toolbar);
@@ -658,6 +677,28 @@ function build_ui(gobj)
 
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
+}
+
+/************************************************************
+ *   How many rows are ticked, on the bar.
+ *
+ *   Only while the table is EDITABLE: outside edition its checkbox
+ *   column is hidden (`hideColumn`), and a count of rows nobody can
+ *   see or untick is a count you cannot act on. The selection itself
+ *   is left alone -- coming back to edition finds it, and the bar
+ *   recounts from the table.
+ ************************************************************/
+function render_selection_bar(gobj)
+{
+    let bar = gobj_read_attr(gobj, "selection_bar");
+    if(!bar) {
+        return;
+    }
+    if(!gobj_read_bool_attr(gobj, "editable")) {
+        bar.set_count(0);
+        return;
+    }
+    bar.set_count(yui_selected_rows(gobj_read_attr(gobj, "tabulator")).length);
 }
 
 /************************************************************
@@ -2435,6 +2476,10 @@ function refuse_if_readonly(gobj, event)
  ***************************************************************/
 function ac_language_changed(gobj, event, kw, src)
 {
+    let bar = gobj_read_attr(gobj, "selection_bar");
+    if(bar) {
+        bar.refresh();      /*  a count composed at render time  */
+    }
     let tabulator = gobj_read_attr(gobj, "tabulator");
     if(!tabulator) {
         return 0;
@@ -2660,6 +2705,8 @@ function ac_edition_mode(gobj, event, kw, src)
         $button_copy_record.setAttribute("disabled", true);
         $button_paste_record.setAttribute("disabled", true);
     }
+
+    render_selection_bar(gobj);
 
     return 0;
 }
@@ -2900,6 +2947,8 @@ function ac_select_rows(gobj, event, kw, src)
         }
     }
 
+    render_selection_bar(gobj);
+
     if(gobj_read_bool_attr(gobj, "broadcast_select_rows_event")) {
         gobj_publish_event(gobj, event, kw);
     }
@@ -2931,11 +2980,24 @@ function ac_unselect_rows(gobj, event, kw, src)
         }
     }
 
+    render_selection_bar(gobj);
+
     // WARNING with radio, there is no unselect event.
+
     if(gobj_read_bool_attr(gobj, "broadcast_select_rows_event")) {
         gobj_publish_event(gobj, event, kw);
     }
 
+    return 0;
+}
+
+/************************************************************
+ *  The way out of a selection (the bar's clear button).
+ ************************************************************/
+function ac_clear_selection(gobj, event, kw, src)
+{
+    yui_clear_selection(gobj_read_attr(gobj, "tabulator"));
+    render_selection_bar(gobj);
     return 0;
 }
 
@@ -3447,6 +3509,7 @@ function create_gclass(gclass_name)
             ["EV_NEW_ROW",              ac_new_row,            null],
             ["EV_DELETE_ROWS",          ac_delete_rows,        null],
             ["EV_SELECT_ROWS",          ac_select_rows,        null],
+            ["EV_CLEAR_SELECTION",      ac_clear_selection,    null],
             ["EV_UNSELECT_ROWS",        ac_unselect_rows,      null],
             ["EV_COPY_ROWS",            ac_copy_rows,          null],
             ["EV_PASTE_ROWS",           ac_paste_rows,         null],
@@ -3485,6 +3548,7 @@ function create_gclass(gclass_name)
         ["EV_DELETE_ROWS",          0],
         ["EV_COPY_ROWS",            0],
         ["EV_PASTE_ROWS",           0],
+        ["EV_CLEAR_SELECTION",      0],
         ["EV_SELECT_ROWS",          event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UNSELECT_ROWS",        event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_SHOW_HOOK_DATA",       event_flag_t.EVF_OUTPUT_EVENT],

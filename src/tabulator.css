@@ -220,9 +220,7 @@
  */
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing input,
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing select,
-[data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing textarea,
-[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input,
-[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter select {
+[data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing textarea {
     background-color: var(--bulma-grey-darker, #2b2f38);
     color: var(--bulma-text-strong, #f5f6f7) !important;
     caret-color: var(--bulma-text-strong, #f5f6f7);
@@ -232,6 +230,44 @@
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
 [data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input::placeholder {
     color: var(--bulma-text-weak, #8a8f98);
+}
+
+/* ====================================================================
+ *  The HEADER FILTER box is FURNITURE, not an open editor.
+ *
+ *  Both are inputs inside the table, so they shared these rules -- but an
+ *  editor is a MODE: one cell, while you type into it, and deliberately the
+ *  brightest thing on screen. A filter box is permanent and there is one per
+ *  column, so wearing the editor's border a header of eight columns drew
+ *  eight hard boxes across the top of every table, link-BLUE in dark theme.
+ *
+ *  Discreet at rest -- a hairline in the theme's weakest border colour, no
+ *  wash of its own -- and only the FOCUSED one stands out, which is the one
+ *  you are typing in.
+ * ==================================================================== */
+.tabulator .tabulator-header .tabulator-header-filter input,
+.tabulator .tabulator-header .tabulator-header-filter select {
+    border: 1px solid var(--bulma-border-weak, #e8eaee);
+    border-radius: 3px;
+    background-color: transparent;
+}
+
+.tabulator .tabulator-header .tabulator-header-filter input:focus,
+.tabulator .tabulator-header .tabulator-header-filter select:focus {
+    border-color: var(--bulma-link, #4a9eff);
+    outline: none;
+}
+
+[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input,
+[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter select {
+    border-color: var(--bulma-border, #3a3f4a);
+    color: var(--bulma-text-strong, #f5f6f7);
+    caret-color: var(--bulma-text-strong, #f5f6f7);
+}
+
+[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input:focus,
+[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter select:focus {
+    border-color: var(--bulma-link, #4a9eff);
 }
 
 [data-theme=dark] .tabulator-row.tabulator-selected {
@@ -313,9 +349,7 @@
     /*  same editor fix as [data-theme=dark] above  */
     [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing input,
     [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing select,
-    [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing textarea,
-    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input,
-    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter select {
+    [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing textarea {
         background-color: var(--bulma-grey-darker, #2b2f38);
         color: var(--bulma-text-strong, #f5f6f7) !important;
         caret-color: var(--bulma-text-strong, #f5f6f7);
@@ -324,6 +358,17 @@
     [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
     [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input::placeholder {
         color: var(--bulma-text-weak, #8a8f98);
+    }
+    /*  same furniture-not-editor rule as [data-theme=dark] above  */
+    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input,
+    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter select {
+        border-color: var(--bulma-border, #3a3f4a);
+        color: var(--bulma-text-strong, #f5f6f7);
+        caret-color: var(--bulma-text-strong, #f5f6f7);
+    }
+    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input:focus,
+    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter select:focus {
+        border-color: var(--bulma-link, #4a9eff);
     }
     [data-theme=system] .tabulator-row.tabulator-selected {
         background-color: var(--bulma-link) !important;

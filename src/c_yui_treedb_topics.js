@@ -76,6 +76,7 @@ SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote yuno for
 SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote TreeDB service name"),
 SDATA(data_type_t.DTP_JSON,     "descs",            0,  null,   "Description of topics"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_remote_paging",   0,  false,  "Each topic table pulls its rows a PAGE at a time (`nodes` from/limit) instead of loading the topic whole. Safe against a backend that cannot page: it answers the whole list, which the table reads as one page"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_selection_bar",   0,  false,  "Each topic table shows the shared selection bar (\"N selected\" + a way out) above it while in edition mode. OFF by default: the bar takes its words from the HOST's i18n, so a host that turns it on must define \"{{n}} selected\" and \"clear selection\""),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
 SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth", "Bulma tab styling"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_cards_landing",0, false,  "Land on a grid of topic cards (list->detail): a card opens its table, with the tabs bar + a back-to-grid button. Off = tabs only (legacy)."),
@@ -1039,7 +1040,8 @@ function process_treedb_descs(gobj)
             treedb_name: treedb_name,
             topic_name: key,
             desc: desc,
-            with_remote_paging: gobj_read_bool_attr(gobj, "with_remote_paging")
+            with_remote_paging: gobj_read_bool_attr(gobj, "with_remote_paging"),
+            with_selection_bar: gobj_read_bool_attr(gobj, "with_selection_bar")
         };
 
         let id = `${gobj_name(gobj)}?${desc.topic_name}`;
