@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.11.1
+
+- **fix: the selection bar is not there when nothing is selected.** It carried
+  `is-flex` AND `is-hidden`, and every Bulma helper is `!important`: two
+  equally-weighted declarations, decided by the stylesheet's order — `is-flex`
+  wins, so the bar sat under every table saying "0 selected". The layout is
+  inline now (a plain declaration, which `is-hidden !important` beats whenever
+  the class is on) and only `is-hidden` toggles. Caught on the deployed app;
+  jsdom cannot catch it, it does not load Bulma.
+
 ## 7.11.0
 
 - **feat: selecting rows is a facility now, not a thing each table reinvents

@@ -179,10 +179,16 @@ function yui_selection_bar(t, opts)
     );
     $clear._yui_label = "clear selection";
 
+    /*  NOT `is-flex` in the class list: Bulma's helpers all carry
+     *  `!important`, so `is-flex` and `is-hidden` would fight as equals and
+     *  the stylesheet's order would decide -- `is-flex` wins, and the bar
+     *  sits there saying "0 selected" for ever. The layout goes inline (a
+     *  plain declaration, which `is-hidden !important` beats whenever the
+     *  class is on), and only `is-hidden` toggles.  */
     let $el = createElement2(
-        ["div", {class: `${name}_SELECTION_BAR is-flex is-align-items-center `
+        ["div", {class: `${name}_SELECTION_BAR is-align-items-center `
                       + "is-flex-wrap-wrap mb-2 is-hidden",
-                 style: "gap:0.5rem;"},
+                 style: "display:flex; gap:0.5rem;"},
             [$count].concat($buttons, [$clear])]
     );
 
