@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.13.3
+
+- **fix: our Tabulator fixes were being emitted BEFORE the theme they fix.**
+  `c_yui_form.js` imported `./tabulator.css` and then
+  `tabulator-tables/dist/css/tabulator_bulma.css`, so in the bundle the theme
+  landed last and won every tie — and a "fix on top of the theme" that does not
+  out-specify it is nothing but a tie. That is why 7.13.1 and 7.13.2 both left
+  the filter border exactly as it was, in both themes: the rule was right and
+  never applied. The imports are the other way round now, which is the actual
+  fix; the whole of `tabulator.css` was in the same position.
+
 ## 7.13.2
 
 - **fix: that hairline rule never LANDED.** `tabulator_bulma.css` paints the

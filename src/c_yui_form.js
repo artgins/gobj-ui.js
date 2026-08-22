@@ -62,10 +62,15 @@ import {plan_toolbar} from "./form_toolbar_plan.js";
  *  dialog rebuilds the form on every open, and re-rendering a form under
  *  the user mid-edit would throw away what they typed. */
 import {yui_is_dark} from "./yui_theme.js";
-import "./tabulator.css";
-
+/*  ORDER MATTERS, and it is this way round: `tabulator.css` is OUR sheet of
+ *  fixes ON TOP of Tabulator's theme, and at equal specificity the cascade is
+ *  decided by which one the bundle emits last. Imported before the theme (as
+ *  it was), every fix that does not out-specify the theme silently loses --
+ *  the header-filter border did, in every app that mounts a form.  */
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";
+
+import "./tabulator.css";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
 // import { Tabulator } from "tabulator-tables";  // Import light Tabulator JS
 
