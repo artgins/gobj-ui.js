@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.20.1
+
+- **fix: `7.20.0` made `tree view` a key no validator could demand.** The view
+    switch set its label with `t(key)` where `key` was a ternary, so the string
+    `"tree view"` never appeared inside a `t(…)` call. Every consumer app's
+    `validate-locales` scans for `t("literal")`, so it saw `text view` (spelled
+    out in the button spec) and was blind to its twin — and a key nothing
+    demands is a key that goes missing, after which i18next answers with the
+    key ITSELF: the button would read lower-case `tree view` in every language
+    and never change. Exactly the invisible failure the validator exists to
+    catch, introduced in the same release that added the keys.
+
+    Both literals are spelled out now. Found by wattyzer's validator on the
+    range bump — the first consumer that had not been handed the keys already.
+
 ## 7.20.0
 
 - **`C_YUI_JSON` shows the same document as raw text.** The viewer had one way

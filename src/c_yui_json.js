@@ -396,15 +396,22 @@ function apply_view_mode(gobj)
 
     if(priv.$mode_btn) {
         let icon = text_mode? "yi-sitemap": "yi-code";
+        /*  Both keys spelled out inside t(), never t(variable): the apps'
+         *  validate-locales scans for t("literal"), and a key it cannot
+         *  see is a key it cannot demand — i18next then answers an
+         *  undefined key with the key ITSELF, so the button renders in
+         *  lower-case English and never changes language.  `key` still
+         *  carries the data-i18n-* attrs refresh_language() reads. */
         let key = text_mode? "tree view": "text view";
+        let label = text_mode? t("tree view"): t("text view");
         let $i = priv.$mode_btn.querySelector('i');
         if($i) {
             $i.className = icon;
         }
         priv.$mode_btn.setAttribute("data-i18n-title", key);
         priv.$mode_btn.setAttribute("data-i18n-aria-label", key);
-        priv.$mode_btn.setAttribute("title", t(key));
-        priv.$mode_btn.setAttribute("aria-label", t(key));
+        priv.$mode_btn.setAttribute("title", label);
+        priv.$mode_btn.setAttribute("aria-label", label);
     }
 }
 
