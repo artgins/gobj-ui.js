@@ -912,6 +912,10 @@ function update_toolbar(gobj)
             key: 'toolbar-edit',
         });
     }
+
+    /*  A re-render rebuilds the innerHTML, so a button whose enabled
+     *  state is not part of getItems() has to be told again.  */
+    update_zoom_selection_button(gobj);
 }
 
 /************************************************************
@@ -1031,6 +1035,20 @@ function configure_toolbar(gobj)
                     { text: '1:1', value: 'reset', className: 'EV_ZOOM_RESET', title: t('actual size') },
                 ];
 
+                /*  Only in edition, because that is where a selection
+                 *  can exist: a button that is permanently disabled is
+                 *  not a control, it is furniture. Disabled while the
+                 *  selection is empty -- `paint_selection` is the one
+                 *  funnel every change goes through, so it is the one
+                 *  place that has to say so.  */
+                if(priv.edit_mode) {
+                    items.push({
+                        id: 'g6-icon-fit-selection', value: 'fit-selection',
+                        className: 'EV_ZOOM_SELECTION',
+                        title: t('zoom to selection'), disabled: true
+                    });
+                }
+
                 if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
                     /*  Full screen is a WINDOW control, not a camera one:
                      *  it goes in its own group.  */
@@ -1061,6 +1079,9 @@ function configure_toolbar(gobj)
                         break;
                     case 'auto-fit':
                         gobj_send_event(gobj, "EV_AUTO_FIT", {}, gobj);
+                        break;
+                    case 'fit-selection':
+                        gobj_send_event(gobj, "EV_ZOOM_SELECTION", {}, gobj);
                         break;
                     case 'center':
                         gobj_send_event(gobj, "EV_CENTER", {}, gobj);
@@ -2291,6 +2312,65 @@ async function graph_fit_readable(gobj)
 }
 
 /************************************************************
+ *  Put the viewport on the selection: what `fit` does, for a part.
+ *
+ *  Computed rather than delegated because `fitView()` fits the whole
+ *  graph and there is no subset form of it. The bounds come from the
+ *  elements themselves, so a node's real card size is what is
+ *  measured, not an assumed one; the zoom is clamped to the graph's
+ *  own `zoomRange`, which is the only limit that is not invented
+ *  here. A selection of one card filling the view is not a bug --
+ *  that is what zooming to it means, and it is what every editor
+ *  that offers the action does.
+ ************************************************************/
+async function graph_fit_selection(gobj, ids)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph || !ids || !ids.length) {
+        return;
+    }
+
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    let found = 0;
+    for(let id of ids) {
+        let bounds;
+        try {
+            bounds = graph.getElementRenderBounds(id);
+        } catch(e) {
+            continue;       /* gone since it was selected */
+        }
+        if(!bounds || !bounds.min || !bounds.max) {
+            continue;
+        }
+        minx = Math.min(minx, bounds.min[0]);
+        miny = Math.min(miny, bounds.min[1]);
+        maxx = Math.max(maxx, bounds.max[0]);
+        maxy = Math.max(maxy, bounds.max[1]);
+        found++;
+    }
+    if(!found) {
+        log_error(`${gobj_short_name(gobj)}: the selection has no bounds to fit`);
+        return;
+    }
+
+    const MARGIN = 48;
+    let size = graph.getSize();
+    let vw = Math.max(1, size[0] - MARGIN * 2);
+    let vh = Math.max(1, size[1] - MARGIN * 2);
+    let bw = Math.max(1, maxx - minx);
+    let bh = Math.max(1, maxy - miny);
+
+    let zoom = Math.min(vw / bw, vh / bh);
+    let range = graph.getZoomRange() || [0.2, 4];
+    zoom = Math.max(range[0], Math.min(range[1], zoom));
+
+    await graph.zoomTo(zoom);
+    await graph.focusElement(ids);
+}
+
+/************************************************************
  *  Focus the graph on one topic: highlight (amber 'active' state)
  *  every node of that topic and centre the viewport on them. An
  *  empty topic clears the highlight. If the graph is not rendered
@@ -3049,6 +3129,36 @@ function paint_selection(gobj, ids)
     priv._selected_paint_ids = next;
 
     repaint_cards(gobj, new Set([...prev, ...next]));
+    update_zoom_selection_button(gobj);
+}
+
+/************************************************************
+ *  Zoom-to-selection can only act on a selection.
+ *
+ *  The attribute is toggled on the element instead of re-rendering
+ *  the toolbar, which would rebuild its innerHTML -- and with it
+ *  drop the disabled state of every OTHER button -- each time a
+ *  card is ticked.
+ ************************************************************/
+function update_zoom_selection_button(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+
+    if(!$container) {
+        return;
+    }
+
+    let $btn = $container.querySelector(".EV_ZOOM_SELECTION");
+    if(!$btn) {
+        return;     /* no toolbar, or not in edition: nothing to enable */
+    }
+
+    if((priv._selected_paint_ids || []).length > 0) {
+        enableElements($container, ".EV_ZOOM_SELECTION");
+    } else {
+        disableElements($container, ".EV_ZOOM_SELECTION");
+    }
 }
 
 /************************************************************
@@ -6774,6 +6884,25 @@ function ac_auto_fit(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *  Zoom to what is selected.
+ ************************************************************/
+function ac_zoom_selection(gobj, event, kw, src)
+{
+    let ids = gobj.priv._selected_paint_ids || [];
+
+    if(!ids.length) {
+        /*  The button is disabled without a selection, so getting here
+         *  means the event came from somewhere else.  */
+        log_error(`${gobj_short_name(gobj)}: zoom to selection with nothing selected`);
+        return -1;
+    }
+
+    graph_fit_selection(gobj, ids);
+
+    return 0;
+}
+
 function ac_focus_topic(gobj, event, kw, src)
 {
     graph_focus_topic(gobj, kw && kw.topic);
@@ -7232,6 +7361,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_OUT",                 ac_zoom_out,            null],
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
             ["EV_AUTO_FIT",                 ac_auto_fit,            null],
+            ["EV_ZOOM_SELECTION",           ac_zoom_selection,      null],
             ["EV_FOCUS_TOPIC",              ac_focus_topic,         null],
             ["EV_FIND_NODES",               ac_find_nodes,          null],
             ["EV_CENTER",                   ac_center,              null],
@@ -7278,6 +7408,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_OUT",                 0],
         ["EV_ZOOM_RESET",               0],
         ["EV_AUTO_FIT",                 0],
+        ["EV_ZOOM_SELECTION",           0],
         ["EV_FOCUS_TOPIC",              0],
         ["EV_FIND_NODES",               0],
         ["EV_FIND_RESULT",              event_flag_t.EVF_OUTPUT_EVENT],

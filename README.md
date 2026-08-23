@@ -680,6 +680,8 @@ Two implementation notes worth keeping:
 | fit | `fitView()`: the whole graph in the viewport |
 | **`1:1`** | `zoomTo(1)`: actual size |
 | ── | |
+| **fit to selection** | `fit`, for the part that is selected (edition only, disabled while nothing is) |
+| ── | |
 | full screen | the container, not the camera |
 
 Two of those rows are the answer to a real complaint, and the reasoning
@@ -695,6 +697,14 @@ generalises:
   that offers it, because there is no glyph anybody recognises for it.
 - **the zoom level is shown** because `1:1` is a jump to a number, and a jump
   to a number is only meaningful next to the number you are on.
+- **fit to selection** wears the `fit` icon with a marked object inside it,
+  drawn rather than borrowed: the two sit next to each other and are the same
+  action at two scopes, so they have to read as a family. It appears only in
+  edition — a button that can never be enabled is furniture, not a control —
+  and is disabled while nothing is selected. `fitView()` has no subset form,
+  so the bounds are measured off the elements and the zoom is clamped to the
+  graph's own `zoomRange`, the only limit that is not invented here. One card
+  filling the view is not a bug: that is what zooming to it means.
 
 The **separators are gaps, not lines**: every item already carries a hairline
 against its neighbour, so one more line would not group anything. Full screen
@@ -705,8 +715,9 @@ Both toolbars (this one and the edit one) **follow the theme**. They used to be
 pinned to a light background in both themes, with the icon colour pinned dark
 so it survived that — two light islands over a dark canvas.
 
-**New keys for consumers: `actual size`, `zoom level`** (both tooltips, so a
-host that has not defined them shows the key on hover and nothing else breaks).
+**New keys for consumers: `actual size`, `zoom level`, `zoom to selection`**
+(all tooltips, so a host that has not defined them shows the key on hover and
+nothing else breaks).
 
 ### Selecting several nodes, and moving them together
 
@@ -719,6 +730,7 @@ clicked":
 | **shift + click** | adds that node to the selection, or takes it out |
 | **shift + drag on the canvas** | rubber band: the selection becomes what it enclosed |
 | **ctrl/cmd + A** | every node |
+| the **fit-to-selection** button | puts the viewport on what is selected |
 | drag any selected node | **moves the whole selection**, as one undo |
 | **Delete** / **Backspace** | deletes the selection, after a confirmation that counts what it takes |
 | **Esc**, or a click on the canvas | clears it |

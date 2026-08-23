@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.18.0
+
+- **feat: zoom to the selection.** `fit` gives back the whole graph; with a
+  selection there is now the same action for the part of it you are working
+  on — a button in the camera group of the toolbar, next to `fit`.
+
+  Its icon is the `fit` brackets **with a marked object inside**, drawn rather
+  than borrowed from an icon set: the two sit side by side and are one action
+  at two scopes, so they have to read as a family. It appears **only in
+  edition**, because that is where a selection can exist and a button that can
+  never be enabled is furniture rather than a control, and it is **disabled
+  while nothing is selected** — toggled on the element, not by re-rendering the
+  toolbar, which would drop every other button's disabled state each time a
+  card is ticked.
+
+  The camera move is computed rather than delegated: `fitView()` fits the whole
+  graph and has no subset form. The bounds are measured off the elements
+  themselves, so a card's real size is what is used and not an assumed one, and
+  the zoom is clamped to the graph's own `zoomRange` — the only limit here that
+  is not invented. A selection of one card filling the viewport is not a bug:
+  that is what zooming to it means, and it is what every editor offering the
+  action does.
+
+  **New key for consumers: `zoom to selection`** (a tooltip).
+
 ## 7.17.0
 
 - **feat: the selection gets the three keys it was missing.** `7.16.0` gave the
