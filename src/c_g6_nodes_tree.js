@@ -105,11 +105,22 @@ import {yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
- *  and disabled support.
+ *  and disabled support, plus three item kinds G6 does not have.
  *
  *  Each item in getItems() may carry:
  *    className  — CSS class added to the div (e.g. 'EV_SAVE_GRAPH')
  *    disabled   — boolean; sets the 'disabled' attribute initially
+ *    text       — render this text instead of a sprite symbol; a
+ *                 label is the only readable way to say `1:1`, and
+ *                 every editor that offers actual-size writes it
+ *    readout    — a text item that REPORTS instead of acting (the
+ *                 zoom level); it is not a button
+ *    separator  — a group divider, not an item
+ *
+ *  The base class fires onClick only for elements whose class list
+ *  contains `g6-toolbar-item`, so a separator and a readout carry
+ *  their own class and are inert by construction, with no guard in
+ *  the click handler.
  *
  *  With className set to the event name, the lib_graph.js state
  *  functions (set_submit_state, disableElements, …) work on toolbar
@@ -122,14 +133,36 @@ class YuiToolbar extends Toolbar
     {
         const items = await this.options.getItems();
         return items.map((item) => {
+            if(item.separator) {
+                return `<div class="g6-toolbar-sep" aria-hidden="true"></div>`;
+            }
+
             const extra_class = item.className ? ` ${item.className}` : '';
-            const disabled    = item.disabled  ? ' disabled'          : '';
+            const title       = item.title ?? '';
+
+            if(item.readout) {
+                return (
+                    `<div class="g6-toolbar-readout${extra_class}"` +
+                    ` title="${title}" aria-label="${title}">` +
+                    `${item.text ?? ''}` +
+                    `</div>`
+                );
+            }
+
+            const disabled = item.disabled ? ' disabled' : '';
+            const is_text   = (item.text !== undefined);
+            const kind_class = is_text ? ' g6-toolbar-item-text' : '';
+            const body = is_text
+                ? `<span class="g6-toolbar-text">${item.text}</span>`
+                : `<svg aria-hidden="true" focusable="false">` +
+                  `<use xlink:href="#${item.id}"></use>` +
+                  `</svg>`;
+
             return (
-                `<div class="g6-toolbar-item${extra_class}"` +
-                ` value="${item.value}" title="${item.title ?? ''}"${disabled}>` +
-                `<svg aria-hidden="true" focusable="false">` +
-                `<use xlink:href="#${item.id}"></use>` +
-                `</svg>` +
+                `<div class="g6-toolbar-item${kind_class}${extra_class}"` +
+                ` value="${item.value}" title="${title}"` +
+                ` aria-label="${title}"${disabled}>` +
+                `${body}` +
                 `</div>`
             );
         }).join('');
@@ -732,6 +765,7 @@ function configure_events(gobj)
         update_edge_icon_position(gobj);
         update_node_icon_position(gobj);
         update_link_icon_position(gobj);
+        update_zoom_readout(gobj);
     });
 
     // Re-render G6 toolbars when language changes
@@ -863,6 +897,79 @@ function update_toolbar(gobj)
     }
 }
 
+/************************************************************
+ *  The floating toolbars follow the theme.
+ *
+ *  They used to be pinned to a light background in BOTH themes,
+ *  with the icon colour pinned dark so it survived that -- two
+ *  light islands sitting over a dark canvas. The tokens do the
+ *  flipping now; the fallbacks are the old forced-light values, so
+ *  a host without Bulma gets exactly what it had.
+ ************************************************************/
+function toolbar_style(extra)
+{
+    return Object.assign({
+        backgroundColor: 'var(--bulma-scheme-main, #f5f5f5)',
+        color:           'var(--bulma-text-strong, #333)',
+        padding:         '8px',
+        boxShadow:       '0 2px 8px rgba(0, 0, 0, 0.15)',
+        borderRadius:    '8px',
+        border:          '1px solid var(--bulma-border-weak, #e8e8e8)',
+        opacity:         '0.85',
+    }, extra || {});
+}
+
+/************************************************************
+ *  The zoom level as a percentage, the way every editor that
+ *  shows one writes it. Empty while the graph cannot be asked --
+ *  the toolbar is built before the first draw, and a viewport
+ *  that does not exist yet has no zoom to report.
+ ************************************************************/
+function zoom_percent_text(gobj)
+{
+    let graph = gobj.priv.graph;
+
+    if(!graph || typeof graph.getZoom !== "function") {
+        return "";
+    }
+
+    let zoom;
+    try {
+        zoom = graph.getZoom();
+    } catch(e) {
+        return "";
+    }
+    if(!zoom) {
+        return "";
+    }
+
+    return `${Math.round(zoom * 100)}%`;
+}
+
+/************************************************************
+ *  Repaint the zoom readout in place.
+ *
+ *  The text node is patched instead of re-rendering the plugin:
+ *  the readout follows the wheel, and updatePlugin() rebuilds the
+ *  whole toolbar's innerHTML -- which would also drop the disabled
+ *  state of the edit buttons on every notch of the wheel.
+ ************************************************************/
+function update_zoom_readout(gobj)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+
+    if(!$container) {
+        return;
+    }
+
+    let $readout = $container.querySelector(".G6_ZOOM_LEVEL");
+    if(!$readout) {
+        return;     /* no toolbar (with_toolbar false): nobody to report to */
+    }
+
+    $readout.textContent = zoom_percent_text(gobj);
+}
+
 function configure_toolbar(gobj)
 {
     let priv = gobj.priv;
@@ -880,28 +987,37 @@ function configure_toolbar(gobj)
             type: 'yui-toolbar',
             className: 'g6-toolbar-large',
             position: toolbar_position,
-            style: {
-                backgroundColor: '#f5f5f5',
-                /*  Forced-light bg in both themes → pin dark icon
-                 *  color (currentColor) so it stays visible in dark. */
-                color: '#333',
-                padding: '8px',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                borderRadius: '8px',
-                border: '1px solid #e8e8e8',
-                opacity: '0.85',
-                marginTop: '12px',
+            style: toolbar_style({
+                marginTop:  '12px',
                 marginLeft: '12px',
-            },
+            }),
             getItems: () => {
                 let items = [
                     { id: 'g6-icon-zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',  title: t('zoom in')  },
                     { id: 'g6-icon-zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT', title: t('zoom out') },
+                    /*  What the two buttons above change. Every editor
+                     *  that offers a zoom shows the number; without it
+                     *  `1:1` is a jump to a value nobody was told.  */
+                    { readout: true, className: 'G6_ZOOM_LEVEL',
+                      text: zoom_percent_text(gobj), title: t('zoom level') },
+                    { separator: true },
                     { id: 'g6-icon-fit',      value: 'auto-fit', className: 'EV_AUTO_FIT', title: t('auto fit') },
-                    { id: 'g6-icon-home', value: 'reset', className: 'EV_ZOOM_RESET', title: t('reset zoom') },
+                    /*  `1:1`, not a house. The action is `zoomTo(1)`: it
+                     *  sets the SCALE and leaves the camera where it was,
+                     *  which is neither of the two things a house means
+                     *  anywhere -- a map's initial extent, an editor's
+                     *  starting view. Sitting under `fit`, the house read
+                     *  as a second way to get the whole graph back, and
+                     *  answered with the same corner of it at 100%.
+                     *  Actual size is WRITTEN in every editor that offers
+                     *  it, never drawn: there is no glyph for it.  */
+                    { text: '1:1', value: 'reset', className: 'EV_ZOOM_RESET', title: t('actual size') },
                 ];
 
                 if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
+                    /*  Full screen is a WINDOW control, not a camera one:
+                     *  it goes in its own group.  */
+                    items.push({ separator: true });
                     if(priv.is_fullscreen) {
                         items.push(
                             { id: 'g6-icon-fullscreen-exit', value: 'exit-fullscreen', className: 'EV_EXIT_FULLSCREEN', title: t('exit full screen') }
@@ -976,18 +1092,7 @@ function configure_toolbar_edit(gobj)
             type: 'yui-toolbar',
             className: 'g6-toolbar-large',
             position: 'left-top',
-            style: {
-                backgroundColor: '#f5f5f5',
-                /*  Toolbar bg is forced light in BOTH themes; icons
-                 *  use currentColor, so pin a dark color or in dark
-                 *  theme they'd be light-on-light (invisible). */
-                color: '#333',
-                padding: '8px',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                borderRadius: '8px',
-                border: '1px solid #e8e8e8',
-                opacity: '0.85',
-            },
+            style: toolbar_style(),
             getItems: () => {
                 return [
                     { id: 'g6-icon-plus',  value: 'create-node', className: 'EV_CREATE_NODE_BTN color_create_state', title: t('create node') },

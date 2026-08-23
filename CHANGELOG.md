@@ -5,6 +5,50 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.15.0
+
+- **feat/fix: the graph's viewport toolbar says what it does.** The button that
+  people reach for when they want the graph back was a **house**, and it never
+  gave it to them: the action behind it is `zoomTo(1)`, which sets the SCALE
+  and leaves the camera where it was — so from a corner of a large graph it
+  answered with the same corner at 100%. A house means *the initial extent* in
+  a map and *the starting view* in an editor, never a scale, and this one sat
+  directly under `fit`, so the two read as two ways of doing one thing and one
+  of them lied.
+
+  The action is right, so only what it is called changes: it is **`1:1`** now,
+  written and not drawn, which is how every editor that offers actual size
+  labels it — there is no glyph anybody recognises for it. `fit` keeps the
+  corner-brackets icon it already had, and it is the one that gives the whole
+  graph back.
+
+  Around that:
+
+  - **the zoom level is shown** (`85%`, a readout, not a button). `1:1` is a
+    jump to a number and only means something next to the number you are on.
+    It follows the wheel by patching its own text node, not by re-rendering the
+    toolbar — a rebuild would drop the disabled state of the edit buttons on
+    every notch.
+  - **group separators**, which are GAPS and not lines: every item already
+    carries a hairline against its neighbour, so one more line groups nothing.
+    Full screen goes behind one of them, being a window control that happens to
+    live in a camera toolbar.
+  - **both toolbars follow the theme.** They were pinned to a light background
+    in BOTH themes, with the icon colour pinned dark so it survived that — two
+    light islands sitting over a dark canvas. The tokens flip them now, and the
+    fallbacks are the old forced-light values, so a host without Bulma gets
+    exactly what it had. Same for the hairlines and the hover, which were a
+    hex each.
+
+  `YuiToolbar` grows the three item kinds this needed — `text`, `readout` and
+  `separator`. A readout and a separator carry their own class rather than
+  `g6-toolbar-item`, which is what G6's own click handler keys off, so they are
+  inert by construction instead of by a guard.
+
+  **New keys for consumers: `actual size`, `zoom level`.** Both are tooltips: a
+  host that has not defined them shows the key on hover, and nothing else
+  changes.
+
 ## 7.14.3
 
 - **chore: six actions and methods answer the contract they are written

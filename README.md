@@ -668,6 +668,46 @@ Two implementation notes worth keeping:
   still arrive from a keyboard path or a form that outlived the flag, and an
   ignored write is exactly the behaviour this whole change exists to stop.
 
+### The graph's viewport toolbar
+
+`C_G6_NODES_TREE` floats a vertical toolbar over the canvas:
+
+| control | what it does |
+|---|---|
+| zoom in / zoom out | one step of scale |
+| **the zoom level** | a readout, not a button — `85%` |
+| ── | |
+| fit | `fitView()`: the whole graph in the viewport |
+| **`1:1`** | `zoomTo(1)`: actual size |
+| ── | |
+| full screen | the container, not the camera |
+
+Two of those rows are the answer to a real complaint, and the reasoning
+generalises:
+
+- **`1:1` used to be a house**, and the house was the thing people reached for
+  when they wanted the graph back. It never gave it to them: the action is
+  `zoomTo(1)`, which sets the **scale** and leaves the camera where it was, so
+  from a corner of a large graph it answered with the same corner at 100%. A
+  house means *the initial extent* in a map and *the starting view* in an
+  editor — never a scale — and this one sat directly under `fit`, so the pair
+  read as two ways to do one thing. Actual size is **written** in every editor
+  that offers it, because there is no glyph anybody recognises for it.
+- **the zoom level is shown** because `1:1` is a jump to a number, and a jump
+  to a number is only meaningful next to the number you are on.
+
+The **separators are gaps, not lines**: every item already carries a hairline
+against its neighbour, so one more line would not group anything. Full screen
+is behind the second one because it is a window control that happens to live in
+a camera toolbar.
+
+Both toolbars (this one and the edit one) **follow the theme**. They used to be
+pinned to a light background in both themes, with the icon colour pinned dark
+so it survived that — two light islands over a dark canvas.
+
+**New keys for consumers: `actual size`, `zoom level`** (both tooltips, so a
+host that has not defined them shows the key on hover and nothing else breaks).
+
 ### Finding a node in the graph
 
 `C_YUI_TREEDB_GRAPH` carries a find box in the middle of its toolbar. It
