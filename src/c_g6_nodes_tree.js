@@ -462,7 +462,10 @@ function mt_destroy(gobj)
 
     if(priv._on_pointerdown_focus) {
         priv.$container.removeEventListener(
-            "pointerdown", priv._on_pointerdown_focus
+            "pointerdown", priv._on_pointerdown_focus, true
+        );
+        priv.$container.removeEventListener(
+            "click", priv._on_pointerdown_focus, true
         );
         priv._on_pointerdown_focus = null;
     }
@@ -818,12 +821,22 @@ function configure_events(gobj)
                 return;
             }
         }
-        let $canvas = priv.$container.querySelector("canvas");
+        let $canvas = main_canvas_of(priv.$container);
         if($canvas && typeof $canvas.focus === "function") {
             $canvas.focus({preventScroll: true});
         }
     };
-    priv.$container.addEventListener("pointerdown", priv._on_pointerdown_focus);
+    /*  Capture, and on the click as well as the press. Capture because
+     *  the cards are DOM and may stop the press from bubbling; the
+     *  click too because the browser does its OWN focus handling on
+     *  mousedown, after ours, and it sends the focus to <body> when
+     *  what was pressed cannot take it -- which a card cannot.  */
+    priv.$container.addEventListener(
+        "pointerdown", priv._on_pointerdown_focus, true
+    );
+    priv.$container.addEventListener(
+        "click", priv._on_pointerdown_focus, true
+    );
 
     /*  The canvas carries a `tabIndex` of its own, so a keydown reaches
      *  us only while the GRAPH has focus. That is what keeps Ctrl+A in
@@ -3123,6 +3136,30 @@ function perform_history_op(gobj, is_redo)
         update_resize_handles_position(gobj);
         sync_history_to_backend(gobj, cmd ? cmd.original : null);
     }
+}
+
+/************************************************************
+ *  The canvas G6 listens on.
+ *
+ *  A G6 graph stacks four canvases and gives every one of them a
+ *  `tabIndex`, so `querySelector("canvas")` finds a focusable
+ *  element that receives nothing: only the MAIN layer carries the
+ *  listeners, and it is the only one G6 leaves with pointer events
+ *  (`configCanvasDom` sets `pointerEvents: none` on the rest).
+ *  Focusing the wrong one looks exactly like focusing the right one
+ *  and delivers no key.
+ ************************************************************/
+function main_canvas_of($container)
+{
+    let canvases = $container.querySelectorAll("canvas");
+
+    for(let i = 0; i < canvases.length; i++) {
+        if(window.getComputedStyle(canvases[i]).pointerEvents !== "none") {
+            return canvases[i];
+        }
+    }
+
+    return canvases[0] || null;
 }
 
 /************************************************************

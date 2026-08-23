@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.18.2
+
+- **fix: 7.18.1 put the focus back on the wrong canvas.** A G6 graph stacks
+  **four** canvases and gives every one of them a `tabIndex`, so
+  `querySelector("canvas")` finds a focusable element that receives nothing:
+  only the MAIN layer carries the listeners, and it is the only one G6 leaves
+  with pointer events (`configCanvasDom` sets `pointerEvents: none` on the
+  rest). Focusing the wrong one looks exactly like focusing the right one and
+  delivers no key. It now picks the layer by that property.
+
+  The listener also moves to the **capture** phase and is added on the `click`
+  as well as the press: the cards are DOM and may stop a press from bubbling,
+  and the browser does its own focus handling on mousedown — after ours — which
+  sends the focus to `<body>` when what was pressed cannot take it. A card
+  cannot.
+
+  Both were found by measuring instead of reasoning: a probe reporting
+  `document.activeElement` and every keydown said `BODY` after a card click and
+  showed the Escape arriving at the document with nothing focused. 7.18.1 was
+  the right diagnosis of the wrong half.
+
 ## 7.18.1
 
 - **fix: after clicking a node, the keys did nothing.** The keyboard reaches
