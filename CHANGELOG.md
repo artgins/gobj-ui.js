@@ -5,6 +5,35 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.17.0
+
+- **feat: the selection gets the three keys it was missing.** `7.16.0` gave the
+  graph a selection and left it reachable only by pointer. **Esc** clears it,
+  **ctrl/cmd+A** takes every node, and **Delete** / **Backspace** deletes it.
+
+  **The delete asks the same question the per-node icon asks**, built by the
+  same function rather than a second copy of it: the record's key when it is
+  one, the count when there are more, and then the two lines that are actually
+  at stake — *N children will be UNLINKED, not deleted*, *it will be detached
+  from M parents* — where over a set the numbers are the **sums**. These views
+  delete with `force`, so someone pressing Delete over twelve cards has to read
+  the eleven children they are about to detach. **No new keys**: this is the
+  sentence `7.10.0` already defined, and the single-node path now reads it from
+  the same place, so the two cannot drift. The question has no icon to hang
+  off, so `show_confirm_popover` learns to centre itself in the graph when it
+  is given no anchor — which also replaces a silent `return` on a missing one.
+
+  **The keys reach the graph only while the graph has FOCUS**, G6 giving its
+  canvas a `tabIndex`. That is not a detail: it is what keeps `ctrl+A` typed in
+  the find box a selection of the text and not of every node in the treedb, and
+  it comes for free rather than from a list of element types to ignore.
+
+  They arrive as `EV_KEY_DOWN` and the action decides, so a key is as visible
+  in the `machine` trace as a click. The two full-screen keys move into that
+  action with them — they were the reason a keydown listener existed at all,
+  and they were wired straight to the plugin from the callback, which is the
+  one thing this gclass asks every other gesture not to do.
+
 ## 7.16.0
 
 - **feat: several nodes can be selected, and they move together.** A treedb

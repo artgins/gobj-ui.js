@@ -718,8 +718,16 @@ clicked":
 | click a node | selects it **and opens it**: resize handles, ports, popovers |
 | **shift + click** | adds that node to the selection, or takes it out |
 | **shift + drag on the canvas** | rubber band: the selection becomes what it enclosed |
+| **ctrl/cmd + A** | every node |
 | drag any selected node | **moves the whole selection**, as one undo |
-| click the canvas | clears it |
+| **Delete** / **Backspace** | deletes the selection, after a confirmation that counts what it takes |
+| **Esc**, or a click on the canvas | clears it |
+
+The keys reach the graph only while the **graph has focus** — G6 gives its
+canvas a `tabIndex` of its own — which is what keeps `ctrl+A` inside the find
+box a selection of the TEXT and not of every node: the focus is in the input,
+and the input is not inside the canvas. They arrive as `EV_KEY_DOWN` and the
+action decides, so a key is as visible in the `machine` trace as a click.
 
 Three decisions are worth knowing, because each one is where this could have
 gone wrong:
@@ -751,6 +759,17 @@ Panning gives way while **Shift** is held (`drag-canvas` takes an `enable`
 predicate), or the canvas would pan under the rubber band — G6 binds
 `drag-canvas` straight to the drag events, and its own docs warn that the two
 gestures cannot both be a plain drag.
+
+**A delete says what it takes, whether it is one or twenty.** The Delete key
+asks the same question the per-node delete icon asks, built by the same
+function: the record's key when there is one, the count when there are more,
+and then the two lines that are actually at stake — *N children will be
+UNLINKED, not deleted* and *it will be detached from M parents* — where over a
+set the numbers are the sums. These views delete with `force`, so an operator
+pressing Delete over twelve cards has to read eleven detached children, not
+"are you sure". It needs no new keys: the sentence is the one `7.10.0` already
+defined. The question has no icon to hang off, so it is asked in the middle of
+the graph it is about.
 
 **A marquee selects, it does not open.** Even when it encloses exactly one
 node, the handles and ports stay away: `_selected_node_id` means *the node

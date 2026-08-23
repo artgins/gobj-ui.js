@@ -787,20 +787,24 @@ function configure_events(gobj)
     };
     i18next.on('languageChanged', priv._on_language_changed);
 
-    if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
-        graph.on("keydown", (evt) => {
-            const key = evt.key;
-            const fullscreen = graph_get_plugin(gobj, "fullscreen");
-            if(!fullscreen) {
-                return;
+    /*  The canvas carries a `tabIndex` of its own, so a keydown reaches
+     *  us only while the GRAPH has focus. That is what keeps Ctrl+A in
+     *  the find box a text selection and not a selection of every node:
+     *  the focus is in the input, and the input is not inside the
+     *  canvas. The callback only translates -- the work is in the
+     *  action, like every other gesture here.  */
+    graph.on("keydown", (evt) => {
+        let ctrl = !!(evt.ctrlKey || evt.metaKey);
+
+        if(ctrl && (evt.key === "a" || evt.key === "A")) {
+            /*  Or the browser selects the page's text underneath.  */
+            if(typeof evt.preventDefault === "function") {
+                evt.preventDefault();
             }
-            if(key === "F" || key === "f") {
-                fullscreen.request();
-            } else if(key === "Escape") {
-                fullscreen.exit();
-            }
-        });
-    }
+        }
+
+        gobj_send_event(gobj, "EV_KEY_DOWN", {key: evt.key, ctrl: ctrl}, gobj);
+    });
 }
 
 /************************************************************
@@ -2925,14 +2929,19 @@ function show_confirm_popover(gobj, target_el, message, confirm_text, confirm_co
     hide_overlay(gobj, priv_key);
 
     let priv = gobj.priv;
-    if(!target_el) {
-        return;
-    }
-
-    let iconRect = target_el.getBoundingClientRect();
     let containerRect = priv.$container.getBoundingClientRect();
-    let left = iconRect.right - containerRect.left + 6;
-    let top = iconRect.top - containerRect.top - 4;
+    let left, top;
+
+    if(target_el) {
+        let iconRect = target_el.getBoundingClientRect();
+        left = iconRect.right - containerRect.left + 6;
+        top  = iconRect.top   - containerRect.top  - 4;
+    } else {
+        /*  A question about a SET has no icon to hang off: it is asked
+         *  in the middle of the graph it is about.  */
+        left = Math.round(containerRect.width / 2) - 110;
+        top  = Math.round(containerRect.height / 4);
+    }
 
     const popover = create_popover_base(left, top, 'g6-confirm-popover', '#ff4d4f', 160);
 
@@ -5347,31 +5356,151 @@ function execute_delete_node(gobj, nodeData)
 }
 
 /************************************************************
+ *  Every node in the graph.
+ ************************************************************/
+function select_all_nodes(gobj)
+{
+    let graph = gobj.priv.graph;
+
+    if(!graph) {
+        return;
+    }
+
+    let nodes = (graph.getData() || {}).nodes || [];
+    set_selection(gobj, nodes.map((nd) => nd.id));
+}
+
+/************************************************************
+ *  The nodes currently selected, as their node data.
+ ************************************************************/
+function selected_nodes_data(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let ids = new Set(selected_node_ids(gobj));
+    for(let id of (priv._selected_paint_ids || [])) {
+        ids.add(id);
+    }
+    if(priv._selected_node_id) {
+        ids.add(priv._selected_node_id);
+    }
+
+    let out = [];
+    for(let id of ids) {
+        let nd;
+        try {
+            nd = graph.getNodeData(id);
+        } catch(e) {
+            continue;       /* gone since it was selected */
+        }
+        if(nd && nd.data && nd.data.desc) {
+            out.push(nd);
+        }
+    }
+
+    return out;
+}
+
+/************************************************************
+ *  What a delete takes with it, for ONE node or for a set.
+ *
+ *  Same sentence in both cases and the same keys, because it is the
+ *  same warning: these views delete with `force`, which UNLINKS the
+ *  children (they survive, loose) and cleans the node off its
+ *  parents. Over a set the two numbers are the sums -- an operator
+ *  about to detach eleven records has to read eleven, not "are you
+ *  sure".
+ ************************************************************/
+function delete_question(nodes)
+{
+    let children = 0;
+    let parents = 0;
+
+    for(let nd of nodes) {
+        let impact = delete_impact(nd.data.desc, nd.data.record || {});
+        children += impact.children;
+        parents  += impact.parents;
+    }
+
+    let question;
+    if(nodes.length === 1) {
+        let nd = nodes[0];
+        question = t('delete') + ' ' + nd.data.desc.topic_name + ': ' +
+                   (nd.data.record || {}).id + '?';
+    } else {
+        question = t('delete') + ' ' + nodes.length + ' ' + t('records') + '?';
+    }
+
+    if(children > 0) {
+        question += '\n' + children + ' ' +
+                    t('children will be unlinked, not deleted', {count: children});
+    }
+    if(parents > 0) {
+        question += '\n' + t('it will be detached from') + ' ' +
+                    parents + ' ' + t('parents', {count: parents});
+    }
+
+    return question;
+}
+
+/************************************************************
+ *  Delete every selected node (the Delete key).
+ ************************************************************/
+function request_delete_selection(gobj)
+{
+    let nodes = selected_nodes_data(gobj);
+
+    if(!nodes.length) {
+        return;     /* nothing selected: the key means nothing here */
+    }
+
+    if(!gobj_read_bool_attr(gobj, "confirm_delete_node")) {
+        execute_delete_selection(gobj, nodes);
+        return;
+    }
+
+    /*  No anchor: the set has no icon of its own, so the question is
+     *  asked in the middle of the graph.  */
+    show_confirm_popover(gobj, null,
+        delete_question(nodes),
+        'delete', '#ff4d4f',
+        () => execute_delete_selection(gobj, nodes),
+        '_delete_confirm_el'
+    );
+}
+
+function execute_delete_selection(gobj, nodes)
+{
+    let priv = gobj.priv;
+
+    hide_delete_confirm(gobj);
+
+    /*  One event per node: a treedb deletes records, it has no bulk
+     *  delete, and the host turns each of these into its own command
+     *  exactly as the topic table's bulk delete does.  */
+    for(let nd of nodes) {
+        gobj_publish_event(gobj, "EV_DELETE_NODE", {
+            treedb_name: priv.treedb_name,
+            topic_name: nd.data.desc.topic_name,
+            record: nd.data.record,
+        });
+    }
+
+    deselect_node(gobj);
+}
+
+/************************************************************
  *  Show a confirmation popover next to the delete icon.
  ************************************************************/
 function show_delete_confirm(gobj, nodeData)
 {
     let priv = gobj.priv;
-    let record = nodeData.data.record || {};
-    let topic_name = nodeData.data.desc.topic_name;
 
-    /*  What the delete takes with it. These views delete with `force`, and
-     *  `force` UNLINKS a node's children — they survive, loose — and cleans
-     *  it off its parents. A question that names only the node lets an
-     *  operator detach eleven records believing they removed one. */
-    let impact = delete_impact(nodeData.data.desc, record);
-    let question = t('delete') + ' ' + topic_name + ': ' + record.id + '?';
-    if(impact.children > 0) {
-        question += '\n' + impact.children + ' ' +
-                    t('children will be unlinked, not deleted', {count: impact.children});
-    }
-    if(impact.parents > 0) {
-        question += '\n' + t('it will be detached from') + ' ' +
-                    impact.parents + ' ' + t('parents', {count: impact.parents});
-    }
-
+    /*  Same sentence as the Delete key's, from the same place: the
+     *  warning does not depend on how the delete was asked for.  */
     show_confirm_popover(gobj, priv._node_delete_el,
-        question,
+        delete_question([nodeData]),
         'delete', '#ff4d4f',
         () => execute_delete_node(gobj, nodeData),
         '_delete_confirm_el'
@@ -6724,6 +6853,53 @@ function ac_node_drag_end(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  A key, while the graph has focus.
+ *
+ *  Full screen keeps the two keys it always had. The rest belong to
+ *  the selection, so they only mean anything in edition -- outside
+ *  it there is nothing selected to clear, select or delete.
+ ************************************************************/
+function ac_key_down(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let key = (kw && kw.key) || "";
+
+    if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
+        let fullscreen = graph_get_plugin(gobj, "fullscreen");
+        if(fullscreen) {
+            if(key === "F" || key === "f") {
+                fullscreen.request();
+            } else if(key === "Escape") {
+                /*  Escape also clears the selection below, and both are
+                 *  right: the browser exits full screen on Escape
+                 *  whatever we do, so refusing to clear as well would
+                 *  only make the key do less than it appears to.  */
+                fullscreen.exit();
+            }
+        }
+    }
+
+    if(!priv.edit_mode) {
+        return 0;
+    }
+
+    if(key === "Escape") {
+        deselect_node(gobj);
+        return 0;
+    }
+    if(kw.ctrl && (key === "a" || key === "A")) {
+        select_all_nodes(gobj);
+        return 0;
+    }
+    if(key === "Delete" || key === "Backspace") {
+        request_delete_selection(gobj);
+        return 0;
+    }
+
+    return 0;
+}
+
+/************************************************************
  *  The rubber band let go: these are the nodes it enclosed.
  *
  *  They arrive in the kw because `onSelect` runs BEFORE G6 writes
@@ -7049,6 +7225,7 @@ function create_gclass(gclass_name)
             ["EV_CANVAS_CLICK",             ac_canvas_click,        null],
             ["EV_NODE_DRAG_END",            ac_node_drag_end,       null],
             ["EV_BRUSH_SELECT",             ac_brush_select,        null],
+            ["EV_KEY_DOWN",                 ac_key_down,            null],
 
             /*--- Toolbar events ---*/
             ["EV_ZOOM_IN",                  ac_zoom_in,             null],
@@ -7094,6 +7271,7 @@ function create_gclass(gclass_name)
         ["EV_CANVAS_CLICK",             0],
         ["EV_NODE_DRAG_END",            0],
         ["EV_BRUSH_SELECT",             0],
+        ["EV_KEY_DOWN",                 0],
 
         /*--- Toolbar (internal) ---*/
         ["EV_ZOOM_IN",                  0],
