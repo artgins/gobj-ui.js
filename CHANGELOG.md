@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.18.3
+
+- **fix: and the focus was being taken away again right after.** Focusing the
+  canvas on pointerdown is not enough on its own, which a probe made plain: the
+  press DOES focus it, and then the browser runs its own focus handling for the
+  mousedown — after ours — and a card is not focusable, so it moves the focus
+  to `<body>`. The graph went deaf immediately after the click that selected
+  something, which is the worst possible moment for it.
+
+  It is put back on `focusout`, and **only when the focus goes nowhere**
+  (`relatedTarget` null). A focus moving to a real element — the find box, a
+  dialog, the next tab stop — is the user leaving, and is left alone.
+
+  The `click` listener 7.18.2 added is gone: it never fired. Selecting repaints
+  the card between the press and the release, so the element the mouseup lands
+  on is not the one the mousedown started on and no click is generated at all.
+
 ## 7.18.2
 
 - **fix: 7.18.1 put the focus back on the wrong canvas.** A G6 graph stacks

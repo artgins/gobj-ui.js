@@ -37,6 +37,7 @@ import {
     gobj_parent,
     gobj_name,
     gobj_short_name,
+    gobj_is_destroying,
     gobj_subscribe_event,
     gobj_publish_event,
     gobj_send_event,
@@ -334,6 +335,7 @@ let PRIVATE_DATA = {
     _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
     _focus_ids:         [],         // node ids carrying the focus 'active' state
     _on_pointerdown_focus: null,    // listener keeping the keyboard on the canvas
+    _on_focusout_restore: null,     // ...and putting it back when it goes nowhere
     _selected_paint_ids: [],        // node ids whose card is PAINTED selected
                                     // (G6's 'selected' state is the selection
                                     //  itself; this is what is on screen, and
@@ -464,10 +466,14 @@ function mt_destroy(gobj)
         priv.$container.removeEventListener(
             "pointerdown", priv._on_pointerdown_focus, true
         );
-        priv.$container.removeEventListener(
-            "click", priv._on_pointerdown_focus, true
-        );
         priv._on_pointerdown_focus = null;
+    }
+
+    if(priv._on_focusout_restore) {
+        priv.$container.removeEventListener(
+            "focusout", priv._on_focusout_restore
+        );
+        priv._on_focusout_restore = null;
     }
 
     if(priv.theme_observer) {
@@ -826,17 +832,38 @@ function configure_events(gobj)
             $canvas.focus({preventScroll: true});
         }
     };
-    /*  Capture, and on the click as well as the press. Capture because
-     *  the cards are DOM and may stop the press from bubbling; the
-     *  click too because the browser does its OWN focus handling on
-     *  mousedown, after ours, and it sends the focus to <body> when
-     *  what was pressed cannot take it -- which a card cannot.  */
+    /*  Capture: the cards are DOM and may stop the press from
+     *  bubbling.  */
     priv.$container.addEventListener(
         "pointerdown", priv._on_pointerdown_focus, true
     );
-    priv.$container.addEventListener(
-        "click", priv._on_pointerdown_focus, true
-    );
+
+    /*  And put it back when it is taken away to NOWHERE.
+     *
+     *  Focusing on pointerdown is not enough on its own, which is
+     *  measurable: the press does focus the canvas, and then the
+     *  browser runs its own focus handling for the mousedown -- after
+     *  ours -- and a card is not focusable, so it moves the focus to
+     *  <body>. The graph goes deaf right after the click that
+     *  selected something, which is the worst possible moment.
+     *
+     *  Only when it goes nowhere (`relatedTarget` null). A focus
+     *  moving to a REAL element -- the find box, a dialog, the next
+     *  tab stop -- is the user leaving, and is left alone.
+     */
+    priv._on_focusout_restore = (ev) => {
+        if(ev.relatedTarget) {
+            return;
+        }
+        if(gobj_is_destroying(gobj)) {
+            return;
+        }
+        let $canvas = main_canvas_of(priv.$container);
+        if($canvas && $canvas.isConnected && document.activeElement !== $canvas) {
+            $canvas.focus({preventScroll: true});
+        }
+    };
+    priv.$container.addEventListener("focusout", priv._on_focusout_restore);
 
     /*  The canvas carries a `tabIndex` of its own, so a keydown reaches
      *  us only while the GRAPH has focus. That is what keeps Ctrl+A in
