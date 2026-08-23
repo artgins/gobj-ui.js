@@ -47,28 +47,34 @@
 }
 
 /*
- *  Who YIELDS when the toolbar runs out of room.  The search box does:
- *  it grows to `max-width` when there is space and shrinks to nothing
- *  when there is not, while the buttons keep their size.  A narrow
- *  search box still accepts what you type; a button pushed past the
- *  edge can only be reached by scrolling the toolbar, and the view
- *  switch is the last control that should be hiding.
+ *  Who YIELDS when the toolbar runs out of room — and how far.
  *
- *  Measured at 390px: without this the search took 294 of 320 visible
- *  pixels and every button sat outside.
+ *  The search box yields, and the buttons keep their size: a button
+ *  pushed past the edge is harder to reach than a narrower input.  But
+ *  it yields down to a FLOOR, not to nothing.  Letting it shrink freely
+ *  did make everything fit on a phone, and the result was worse than
+ *  the overflow it cured: the box collapsed to 58px — the magnifier and
+ *  no room to read what you typed — and, because nothing overflowed any
+ *  more, `yui_toolbar` stopped offering its scroll arrows, so the row
+ *  had no way to show you anything else either.
+ *
+ *  With the floor the toolbar overflows again on a narrow screen, which
+ *  is the state yui_toolbar is built for: the container is
+ *  `overflow-x: auto` and the arrows appear.
  */
-.C_YUI_JSON .yui-horizontal-toolbar-section.left {
-    flex: 1 1 auto;
-    min-width: 0;
+/*  Neither section shrinks below its content.  With `min-width: 0` here
+ *  the left section shrank to 70px while the search box inside it kept
+ *  its floor — so the input was painted UNDERNEATH the buttons, and the
+ *  container, whose own children all fitted, reported no overflow to
+ *  scroll.  Sized to content, the container overflows honestly. */
+.C_YUI_JSON .yui-horizontal-toolbar-section.left,
+.C_YUI_JSON .yui-horizontal-toolbar-section.right {
+    flex: 0 0 auto;
 }
 
 .C_YUI_JSON .JSON_SEARCH_CONTROL {
     flex: 1 1 auto;
-    min-width: 0;
-}
-
-.C_YUI_JSON .yui-horizontal-toolbar-section.right {
-    flex: 0 0 auto;
+    min-width: 11rem;
 }
 
 .C_YUI_JSON .JSON_TREE {

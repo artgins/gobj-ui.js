@@ -5,6 +5,51 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.22.0
+
+- **`C_YUI_JSON_GRAPH` gets a find box and expand/collapse.** The graph had
+    zoom, centre and refresh — five ways to move the camera and none to find
+    anything or to make the picture smaller. A graph of a real document is
+    mostly cards nobody is looking at, and the only way to locate a key was to
+    read every one of them.
+
+    **Find** (`EV_FIND_NODES {text}`, rate-limited at 250ms) highlights every
+    matching row, outlines the card it is in, and SAYS how many matched. It does
+    not move the camera: a find is a way of reading what is on screen, and a
+    viewport that jumps on every keystroke is unusable — the count is what tells
+    you whether there is anything to look for elsewhere, and it shows `0` rather
+    than hiding, because a graph that did not move looks the same whether
+    nothing matched or the match was already in view. A complex value is matched
+    in its OWN card, never through its `{3}` summary, or every ancestor of every
+    hit would light up.
+
+    **Expand/collapse** (`EV_EXPAND_ALL` / `EV_COLLAPSE_ALL`) folds every card
+    but the root and marks each cut with `▸ N`. A cut that is not marked reads
+    as a document that ends there — the same rule the lazy tree follows for a
+    `__collapsed__` sentinel. The badge is a glyph and a number on purpose: the
+    card is an `innerHTML` string, where a word could carry no i18n key and
+    would sit there in English forever.
+
+    The highlight is baked into the card's markup and NOT set as a G6 node
+    state: the key shape of an `html` node is a DOM element and G6 paints no
+    state style on it, so `active` would select correctly and show nothing —
+    the same silent failure the amber focus had until `7.3.0`.
+
+    `register_c_yui_json_graph()` needs the i18n keys `search`, `matches`,
+    `expand all` and `collapse all`.
+
+- **fix: `7.21.0` left the toolbar with a search box that vanished and no way
+    to scroll.** Letting the search shrink freely did make everything fit on a
+    phone, and the cure was worse than the overflow: the box collapsed to 58px
+    — the magnifier and no room to read what you typed — and, because nothing
+    overflowed any more, `yui_toolbar` stopped offering its scroll arrows, so
+    the row had no way to show you anything else either. Worse, the fix was
+    only apparently working: with `min-width: 0` on the section the box kept
+    its own floor and was painted UNDERNEATH the buttons. The search has a
+    floor now (`11rem`) and neither section shrinks below its content, so the
+    toolbar overflows honestly and scrolls, which is the state `yui_toolbar` is
+    built for.
+
 ## 7.21.1
 
 - **The view switch reads `text · tree · graph`.** Requested order; the row now

@@ -96,6 +96,15 @@ let PRIVATE_DATA = {
     theme_observer: null,   // MutationObserver on <html data-theme>
     resize_observer: null,  // ResizeObserver on the canvas mount element
     _resize_raf: 0,         // rAF id debouncing resize -> EV_RESIZE
+
+    /*---------------- find + collapse ----------------*/
+    search:         "",     // current find term, lower-cased
+    collapsed:      null,   // Set<string> of paths whose children are hidden
+    match_count:    0,      // matches of the last find, for the count chip
+    find_timer:     null,   // rate-limits the find box
+    $find_input:    null,
+    $find_result:   null,
+    $find_count:    null,
 };
 
 let __gclass__ = null;
@@ -180,6 +189,9 @@ function mt_create(gobj)
 {
     let priv = gobj.priv;
 
+    priv.collapsed = new Set();
+    priv.search = "";
+
     let name = clean_name(gobj_name(gobj));
     priv.canvas_id = "json-canvas-" + name;
     gobj_write_str_attr(gobj, "canvas_id", priv.canvas_id);
@@ -233,6 +245,10 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    if(gobj.priv.find_timer) {
+        clearTimeout(gobj.priv.find_timer);
+        gobj.priv.find_timer = null;
+    }
     let priv = gobj.priv;
 
     if(priv.theme_observer) {
@@ -286,6 +302,11 @@ function build_ui(gobj)
     );
 
     gobj_write_attr(gobj, "$container", $container);
+
+    priv.$find_input = $container.querySelector('.JSON_GRAPH_FIND_INPUT');
+    priv.$find_result = $container.querySelector('.JSON_GRAPH_FIND_RESULT');
+    priv.$find_count = $container.querySelector('.JSON_GRAPH_FIND_COUNT');
+
     refresh_language($container, t);
 }
 
@@ -304,6 +325,30 @@ function destroy_ui(gobj)
 }
 
 /************************************************************
+ *   One fold button.  `open` rotates the chevron to the open
+ *   state, mirroring the per-node toggle of the lazy tree.
+ ************************************************************/
+function graph_fold_button(gobj, event_name, label_key, open)
+{
+    let icon_style = 'font-size:1.5em; color:inherit;' +
+        (open? ' transform: rotate(90deg);': '');
+
+    return ['button', {class: `button ${event_name}`,
+                       type: 'button',
+                       style: {height: gobj_read_attr(gobj, "wide"), width: '2.5em'},
+                       title: t(label_key), 'data-i18n-title': label_key,
+                       'aria-label': t(label_key), 'data-i18n-aria-label': label_key},
+        ['i', {style: icon_style, class: 'yi-chevron-right'}],
+        {
+            click: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, event_name, {}, gobj);
+            }
+        }
+    ];
+}
+
+/************************************************************
  *   Toolbar
  ************************************************************/
 function make_toolbar(gobj)
@@ -311,7 +356,62 @@ function make_toolbar(gobj)
     let priv = gobj.priv;
     let toolbar_wide = gobj_read_attr(gobj, "wide");
 
-    let left_items = [];
+    /*
+     *  Left: find a node.
+     *
+     *  A graph of a large document has no other way in — the only way to
+     *  locate a key was to read every card.  Same shape as the treedb
+     *  graph's box: a rate-limited input into EV_FIND_NODES, and a count
+     *  that SAYS how many matched, because a graph that did not move
+     *  looks the same whether nothing matched or the match was already
+     *  on screen.
+     */
+    let left_items = [
+        ['div', {class: 'JSON_GRAPH_FIND control has-icons-left',
+                 style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
+            ['input', {
+                class: 'JSON_GRAPH_FIND_INPUT input',
+                type: 'text',
+                /*  A placeholder is not a text node, so the data-i18n
+                 *  walk cannot reach it: it needs its own key. */
+                placeholder: t('search'),
+                'data-i18n-placeholder': 'search',
+                'aria-label': t('search'),
+                'data-i18n-aria-label': 'search'
+            }],
+            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
+        ], {
+            /*  Rate-limited, not delayed for effect: every keystroke
+             *  REBUILDS the cards — an html node paints no G6 state, so
+             *  the highlight has to live in the card's own markup — and
+             *  the first letter typed can match most of a document.
+             *  Input plumbing: the action still crosses the FSM, just
+             *  not once per keystroke. */
+            input: (evt) => {
+                evt.stopPropagation();
+                let text = evt.target.value.trim();
+                if(priv.find_timer) {
+                    clearTimeout(priv.find_timer);
+                }
+                priv.find_timer = setTimeout(function() {
+                    priv.find_timer = null;
+                    gobj_send_event(gobj, "EV_FIND_NODES", {text: text}, gobj);
+                }, 250);
+            }
+        }],
+        /*  Two spans, not one string: the number is DATA and "matches"
+         *  is the word, so a language switch re-translates the half that
+         *  is a word.  Spaced with CSS because createElement2 trims text
+         *  nodes.  `display:flex` inline and NOT the `is-flex` helper —
+         *  both Bulma helpers carry !important, so `is-hidden is-flex` on
+         *  one element is decided by stylesheet order. */
+        ['div', {class: 'JSON_GRAPH_FIND_RESULT is-hidden',
+                 style: 'display:flex; align-items:center; gap:.3rem; ' +
+                        'margin-right:.5rem; font-size:.85rem;'}, [
+            ['span', {class: 'JSON_GRAPH_FIND_COUNT'}, ''],
+            ['span', {i18n: 'matches'}, 'matches']
+        ]]
+    ];
     let center_items = [];
 
     let c_icons = [
@@ -347,10 +447,24 @@ function make_toolbar(gobj)
         );
     }
 
+    /*
+     *  Right: fold the tree.
+     *
+     *  A JSON graph of anything real is mostly cards nobody is looking
+     *  at.  "Collapse all" leaves the root and marks every cut with a
+     *  count, so the shape stays legible and you can see WHERE the rest
+     *  went; "expand all" puts it back.  Same chevron as the lazy tree,
+     *  rotated to point down for the open state.
+     */
+    let right_items = [
+        graph_fold_button(gobj, "EV_EXPAND_ALL", "expand all", true),
+        graph_fold_button(gobj, "EV_COLLAPSE_ALL", "collapse all", false),
+    ];
+
     const $toolbar = yui_toolbar({}, [
         ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],
         ['div', {class: 'yui-horizontal-toolbar-section center'}, center_items],
-        ['div', {class: 'yui-horizontal-toolbar-section right'}, []],
+        ['div', {class: 'yui-horizontal-toolbar-section right'}, right_items],
     ]);
 
     refresh_language($toolbar, t);
@@ -440,7 +554,7 @@ function build_graph(gobj)
 /************************************************************
  *  Build cell value HTML (matching old mx_json_viewer colors)
  ************************************************************/
-function build_cell_html(key, value, type, dark)
+function build_cell_html(key, value, type, dark, matched)
 {
     let color = type_color(type, dark);
     let key_color = json_card_style(GROUP_COLORS.dict, dark).key;
@@ -470,7 +584,46 @@ function build_cell_html(key, value, type, dark)
             break;
     }
 
-    return `<span style="color:${key_color}">• ${escapeHtml(String(key))}: </span><span style="color:${color}">${display_value}</span>`;
+    let row = `<span style="color:${key_color}">• ${escapeHtml(String(key))}: </span>` +
+              `<span style="color:${color}">${display_value}</span>`;
+
+    if(matched) {
+        /*  The highlight is baked into the card's MARKUP and not set as
+         *  a G6 node state: the key shape of an `html` node is a DOM
+         *  element, and G6 paints no state style on it.  Setting
+         *  'active' here would select correctly and show nothing. */
+        row = `<span style="background:${dark? "#7a5d00": "#ffe082"}; ` +
+              `border-radius:2px; padding:0 2px;">${row}</span>`;
+    }
+    return row;
+}
+
+/************************************************************
+ *  Does this key/value pair match the find term?
+ *
+ *  Scalars are matched on what the card SHOWS.  A complex value
+ *  is not: its contents are a card of their own and match there,
+ *  so matching the `{3}` summary too would light up every
+ *  ancestor of every hit.
+ ************************************************************/
+function cell_matches(key, value, type, needle)
+{
+    if(empty_string(needle)) {
+        return false;
+    }
+    if(String(key).toLowerCase().includes(needle)) {
+        return true;
+    }
+    switch(type) {
+        case "string":
+        case "number":
+        case "boolean":
+            return String(value).toLowerCase().includes(needle);
+        case "null":
+            return "null".includes(needle);
+        default:
+            return false;
+    }
 }
 
 /************************************************************
@@ -541,15 +694,23 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
      *  The theme is read live as the card is drawn (like the gobj-tree's
      *  cards): ac_theme rebuilds on a switch, so this is always current.
      */
+    let priv = gobj.priv;
+    let needle = priv.search || "";
     let dark = yui_is_dark();
     let lines = [];
     let pending_complex = [];
+    let card_matched = false;
 
     let entries = is_dict ? Object.entries(kw) : kw.map((v, i) => [i, v]);
 
     for(let [key, value] of entries) {
         let type = get_json_type(value);
-        let html = build_cell_html(key, value, type, dark);
+        let matched = cell_matches(key, value, type, needle);
+        if(matched) {
+            card_matched = true;
+            priv.match_count++;
+        }
+        let html = build_cell_html(key, value, type, dark, matched);
         lines.push(html);
 
         if((is_object(value) && json_object_size(value) > 0) ||
@@ -559,9 +720,27 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
     }
 
     let label = get_group_label(path) || (is_dict ? "{}" : "[]");
+
+    /*
+     *  Folded: keep the card, drop the branch, and SAY how much went
+     *  with it.  A cut that is not marked reads as a document that ends
+     *  there — the same rule the lazy tree follows for a `__collapsed__`
+     *  sentinel.  The badge is a glyph and a number on purpose: the card
+     *  is an innerHTML string, where a word could carry no i18n key and
+     *  would sit there in English forever.
+     */
+    let folded = priv.collapsed.has(path) && pending_complex.length > 0;
+    if(folded) {
+        lines.push(
+            `<span style="color:${type_color("number", dark)}; font-weight:bold;">` +
+            `&#9656; ${pending_complex.length}</span>`
+        );
+    }
     let colors = json_card_style(
         is_dict ? GROUP_COLORS.dict : GROUP_COLORS.list, dark
     );
+    let border_color = card_matched? (dark? "#ffb300": "#ff8f00"): colors.border;
+    let border_width = card_matched? 2: 1;
 
     /*
      *  Build node HTML content
@@ -576,7 +755,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
 <div style="
     min-width: ${min_width}px;
     background: ${colors.bg};
-    border: 1px ${is_dict ? 'dashed' : 'solid'} ${colors.border};
+    border: ${border_width}px ${is_dict ? 'dashed' : 'solid'} ${border_color};
     border-radius: ${is_dict ? '6px' : '0'};
     opacity: 0.9;
     overflow: hidden;
@@ -623,8 +802,11 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
     }
 
     /*
-     *  Recurse into complex children
+     *  Recurse into complex children — unless this card is folded.
      */
+    if(folded) {
+        return group_id;
+    }
     for(let pending of pending_complex) {
         build_json_nodes(
             gobj,
@@ -663,6 +845,7 @@ function load_json(gobj)
     }
 
     priv.node_counter = 0;
+    priv.match_count = 0;
 
     let nodes = [];
     let edges = [];
@@ -680,6 +863,57 @@ function load_json(gobj)
             }
         });
     }
+}
+
+/************************************************************
+ *  Every path that HAS a branch to fold, in the same recursion
+ *  build_json_nodes uses — so "collapse all" can never name a
+ *  card that does not exist.  The root is excluded: folding it
+ *  would leave an empty canvas.
+ ************************************************************/
+function collect_foldable_paths(value, path, out, is_root)
+{
+    let is_dict = is_object(value);
+    let is_list = is_array(value);
+    if(!is_dict && !is_list) {
+        return false;
+    }
+
+    let has_branch = false;
+    let entries = is_dict ? Object.entries(value) : value.map((v, i) => [i, v]);
+    for(let [key, child] of entries) {
+        if((is_object(child) && json_object_size(child) > 0) ||
+           (is_array(child) && child.length > 0)) {
+            has_branch = true;
+            collect_foldable_paths(child, add_segment(path, key), out, false);
+        }
+    }
+
+    if(has_branch && !is_root) {
+        out.push(path);
+    }
+    return has_branch;
+}
+
+/************************************************************
+ *  Show the find count, or hide the chip when there is no
+ *  term.  Zero is a RESULT and must show: a graph that did not
+ *  move looks the same whether nothing matched or the match
+ *  was already on screen.
+ ************************************************************/
+function update_find_result(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv.$find_result || !priv.$find_count) {
+        return;
+    }
+    if(empty_string(priv.search)) {
+        priv.$find_result.classList.add("is-hidden");
+        priv.$find_count.textContent = "";
+        return;
+    }
+    priv.$find_count.textContent = String(priv.match_count);
+    priv.$find_result.classList.remove("is-hidden");
 }
 
 /************************************************************
@@ -863,6 +1097,66 @@ function ac_refresh(gobj, event, kw, src)
 
 /************************************************************
  *  {theme: "dark"|"light"} — the app switched theme.
+ *  EV_FIND_NODES { text }
+ *
+ *  The camera does NOT move: a find is a way of reading what is
+ *  already on screen, and a viewport that jumps on every
+ *  keystroke is unusable.  The count says whether there is
+ *  anything to look for elsewhere.
+ ************************************************************/
+function ac_find_nodes(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    priv.search = ((kw && kw.text) || "").trim().toLowerCase();
+    refresh_json(gobj, {preserve_view: true});
+    update_find_result(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  EV_EXPAND_ALL
+ ************************************************************/
+function ac_expand_all(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.collapsed.size === 0) {
+        return 0;   // nothing folded; a relayout would only move the camera
+    }
+    priv.collapsed.clear();
+    refresh_json(gobj);
+    update_find_result(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  EV_COLLAPSE_ALL — fold every card but the root.
+ ************************************************************/
+function ac_collapse_all(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    let json_data = gobj_read_attr(gobj, "json_data");
+    if(!json_data) {
+        return 0;
+    }
+
+    let paths = [];
+    let path = gobj_read_str_attr(gobj, "path") || "`";
+    if(empty_string(path)) {
+        path = "`";
+    }
+    collect_foldable_paths(json_data, path, paths, true);
+
+    priv.collapsed = new Set(paths);
+    refresh_json(gobj);
+    update_find_result(gobj);
+    return 0;
+}
+
+/************************************************************
+ *
  ************************************************************/
 function ac_theme(gobj, event, kw, src)
 {
@@ -1054,6 +1348,9 @@ function create_gclass(gclass_name)
         ["ST_IDLE", [
             ["EV_LOAD_DATA",            ac_load_data,           null],
             ["EV_REFRESH",              ac_refresh,             null],
+            ["EV_FIND_NODES",           ac_find_nodes,          null],
+            ["EV_EXPAND_ALL",           ac_expand_all,          null],
+            ["EV_COLLAPSE_ALL",         ac_collapse_all,        null],
             ["EV_THEME",                ac_theme,               null],
             ["EV_ZOOM_IN",              ac_zoom_in,             null],
             ["EV_ZOOM_OUT",             ac_zoom_out,            null],
@@ -1072,6 +1369,9 @@ function create_gclass(gclass_name)
     const event_types = [
         ["EV_LOAD_DATA",            0],
         ["EV_REFRESH",              0],
+        ["EV_FIND_NODES",           0],
+        ["EV_EXPAND_ALL",           0],
+        ["EV_COLLAPSE_ALL",         0],
         ["EV_THEME",                0],
         ["EV_ZOOM_IN",              0],
         ["EV_ZOOM_OUT",             0],

@@ -439,6 +439,20 @@ the order of arrival: the viewer opens on the **tree** (`view_mode` default).
 | `tree` | *where is this value, and what is around it* | the lazy view; the only one that can drill; the default |
 | `graph` | *what shape is this* | a hosted `C_YUI_JSON_GRAPH` child (AntV/G6) |
 
+The graph carries **its own** toolbar, and since `7.22.0` that toolbar has the
+same two facilities the tree has: a **find box** (rate-limited, `EV_FIND_NODES`)
+that highlights matching rows and outlines the cards they are in and says how
+many matched, and **expand-all / collapse-all** (`EV_EXPAND_ALL` /
+`EV_COLLAPSE_ALL`) that fold every card but the root, marking each cut with
+`▸ N` so the shape stays legible and you can see where the rest went. A find
+does not move the camera — a viewport that jumps on every keystroke is
+unusable — which is why the count is there.
+
+Note **where the highlight lives**: baked into the card's own markup, never set
+as a G6 node state. The key shape of an `html` node is a DOM element and G6
+paints no state style on it, so setting `active` selects correctly and shows
+nothing.
+
 - **Neither text nor graph is lazy.** Both show what the client currently
   holds, `__collapsed__` sentinels included, because that is honestly what it
   has. Drill in the tree and they grow with it.
