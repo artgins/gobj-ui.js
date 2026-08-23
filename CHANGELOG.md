@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.19.2
+
+- **fix: shift+clicking a card also smeared a text selection across the
+  graph.** Shift+click is the browser's own *extend the text selection*
+  gesture, and these cards are DOM — so the moment `7.16.0` gave that gesture a
+  meaning here, marking three nodes also painted their labels blue, and the
+  wash stayed until the next click somewhere else. The canvas is a canvas:
+  nothing in it is prose, so it is `user-select: none` now.
+
+  Except what IS there to be read or typed into: the popovers this gclass
+  appends to the same container carry record data an operator may well want to
+  copy, and inputs need a caret. Those keep it.
+
+  One CSS rule on the container rather than a property in every card's inline
+  style — a treedb graph is two hundred of them, and the html is rebuilt on
+  every repaint.
+
 ## 7.19.1
 
 - **fix: `1:1` was a dead button.** It fired nothing at all — no event, no

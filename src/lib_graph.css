@@ -30,6 +30,36 @@
  *  G6 injects `:not(:root):fullscreen::backdrop { background: transparent }`
  *  with lower specificity, so class + pseudo-class wins without !important.
  */
+/*
+ *  A shift+click on a card must SELECT THE CARD, not smear a text
+ *  selection across the graph.
+ *
+ *  Shift+click is the browser's own "extend the text selection"
+ *  gesture, and the cards are DOM. So the moment shift+click came to
+ *  mean something here, marking three nodes also painted their labels
+ *  blue -- and the wash stayed until the next click somewhere else.
+ *  The canvas is a canvas: nothing in it is prose.
+ *
+ *  Except what IS there to be read or typed into. The popovers this
+ *  gclass appends to the same container carry record data an operator
+ *  may well want to copy, and inputs need a caret.
+ */
+.graph-container {
+    -webkit-user-select: none;
+    user-select: none;
+}
+.graph-container input,
+.graph-container textarea,
+.graph-container select,
+.graph-container [contenteditable],
+.graph-container .g6-confirm-popover,
+.graph-container .g6-create-popover,
+.graph-container .g6-node-popover,
+.graph-container .g6-edge-popover {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
 .graph-container:fullscreen {
     background-color: var(--bulma-background, #fff);
 }
