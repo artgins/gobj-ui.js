@@ -426,42 +426,66 @@ with limits, or any equivalent), and hands the subtree back via
 the DOM, so the tree stays bounded regardless of document size. With no
 sentinels present it degrades to a plain client-side collapsible tree.
 
-**Two views, one document.** The toolbar switch (and the `view_mode` attr,
-`"tree"` | `"text"`) turns the tree into the **raw text** of the same working
-document — `JSON.stringify(…, 4)`, four characters per level like every other
-indentation in the house. It is the view for reading a document as it is
-written, selecting a slab of it, or searching it with the browser's own Ctrl+F.
-Two consequences worth knowing:
+**Three views, one document.** The toolbar switch (and the `view_mode` attr,
+`"tree"` | `"text"` | `"graph"`) picks which. They answer three different
+questions:
 
-- Nothing there is lazy. The text prints what the client currently holds,
-  `__collapsed__` sentinels included, because that is honestly what it has.
-  Expand a branch in the tree and the text grows with it.
-- The tree-only controls (search, expand-loaded, collapse-all) hide with the
-  tree; copy stays. A control that can answer nothing is worse than an absent
-  one.
+| view | question | notes |
+|---|---|---|
+| `tree` | *where is this value, and what is around it* | the lazy view; the only one that can drill |
+| `text` | *what does this document say, verbatim* | `JSON.stringify(…, 4)`, four characters per level |
+| `graph` | *what shape is this* | a hosted `C_YUI_JSON_GRAPH` child (AntV/G6) |
 
-Long lines scroll sideways **inside** the viewer (`white-space: pre` on a
-`max-content`-wide `<pre>`), never on the page body: in a raw dump the
-indentation *is* the structure, and a wrapped line restarts at column 0 and
-lies about the depth of everything under it.
+- **Neither text nor graph is lazy.** Both show what the client currently
+  holds, `__collapsed__` sentinels included, because that is honestly what it
+  has. Drill in the tree and they grow with it.
+- **The tree-only controls** (search, expand-loaded, collapse-all) hide with
+  the tree; copy stays. A control that can answer nothing is worse than an
+  absent one. The graph brings its own zoom/centre toolbar.
+- **The graph child is built on first entry** into graph mode, never in
+  `build_ui`: G6 sizes itself from its container, so a graph created behind
+  `is-hidden` comes up 0×0. `register_c_yui_json()` auto-registers
+  `C_YUI_JSON_GRAPH` (and that register is idempotent, so an app may also
+  register it itself, in either order).
+
+Two layout facts the browser taught this component, both worth keeping:
+
+- In the text view long lines scroll sideways **inside** the viewer
+  (`white-space: pre` on a `max-content`-wide `<pre>`), never on the page body:
+  in a raw dump the indentation *is* the structure, and a wrapped line restarts
+  at column 0 and lies about the depth of everything under it. The `<pre>` must
+  be `max-content` wide or the container reports no overflow and the tail of
+  every long line is unreachable.
+- The graph body carries a **definite `height`** (`24rem`, with
+  `flex: 1 1 auto` so a constrained host still wins). Not `min-height`: a
+  percentage height does not resolve against a box sized by a minimum, and the
+  tree and the text push their own height while a canvas pushes none — so in an
+  unconstrained host the graph came up as a 2px hairline.
 
 **Contract:**
 
-- Attributes: `subscriber`, `title` (i18n key, optional), `json_data` (initial
-  JSON, optional), `view_mode` (`"tree"` default | `"text"`), `$container`
-  (mounted by the parent).
+- Attributes: `subscriber`, `title` (i18n key, optional — hidden on mobile,
+  where the toolbar cannot hold it as well as the buttons), `json_data`
+  (initial JSON, optional), `view_mode` (`"tree"` default | `"text"` |
+  `"graph"`), `$container` (mounted by the parent).
 - Input events: `EV_SET_JSON {json}` (replace the whole document; `ST_EMPTY` →
   `ST_READY`), `EV_SUBTREE_LOADED {path, json}` (splice a fetched subtree),
   `EV_SUBTREE_ERROR {path, error}`, `EV_SET_VIEW_MODE {mode}` (`"tree"` /
-  `"text"`; **no mode = toggle**, which is what the toolbar button sends), plus
-  `EV_REFRESH` / `EV_SHOW` / `EV_HIDE` / `EV_LANGUAGE_CHANGED`.
-- Output event: `EV_EXPAND_PATH {path, size}` (`EVF_OUTPUT_EVENT`) — the parent
-  must declare it in its own FSM (CHILD subscription model).
+  `"text"` / `"graph"`; **no mode advances** to the next view, which is what
+  the two-view toggle did when the list was two long), plus `EV_REFRESH` /
+  `EV_SHOW` / `EV_HIDE` / `EV_LANGUAGE_CHANGED`.
+- Output events: `EV_EXPAND_PATH {path, size}` (`EVF_OUTPUT_EVENT`) — the parent
+  must declare it in its own FSM (CHILD subscription model) — and
+  `EV_JSON_ITEM_CLICKED`, republished from the graph child so the host has one
+  contract and never has to know that child exists (`EVF_NO_WARN_SUBS`: most
+  hosts do not care).
 - Internal (DOM → FSM): `EV_TOGGLE_NODE`, `EV_EXPAND_COLLAPSED`, `EV_SEARCH`,
   `EV_EXPAND_ALL`, `EV_COLLAPSE_ALL`, `EV_COPY_ALL`. Every kw carries only a
   `path` string — never a DOM node or gobj.
-- i18n keys added by the text view: `text view`, `tree view`,
-  `text truncated; collapse some branches`.
+- i18n keys the switch needs: `tree view`, `text view`, `graph view`,
+  `text truncated; collapse some branches`. All spelled out inside `t()` in
+  `view_label()` — never `t(VIEWS[i].key)`, which no `validate-locales` can
+  see (that shipped once, in `7.20.0`).
 - Paths use the kernel delimiter (backtick) and index arrays numerically, so a
   path emitted by the viewer round-trips through `kw_find_path` on the backend.
 

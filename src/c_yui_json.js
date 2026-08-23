@@ -24,19 +24,32 @@
  *  Only expanded containers are materialised in the DOM, so the tree
  *  stays bounded no matter how large the source document is.
  *
- *  TWO VIEWS over the same working document, chosen by the `view_mode`
- *  attr ("tree" | "text") and switched from the toolbar: the lazy tree
- *  above, and the raw `JSON.stringify(…, 4)` dump of what is currently
- *  loaded.  The text view is what you reach for to read a document as
- *  it is written, to select a slab of it, or to search it with the
- *  browser's own Ctrl+F; it shows the `__collapsed__` sentinels
- *  verbatim, because that is honestly what the client holds.  The
+ *  THREE VIEWS over the same working document, chosen by the
+ *  `view_mode` attr ("tree" | "text" | "graph") and switched from the
+ *  toolbar.  They answer three different questions:
+ *
+ *      tree    where is this value, and what is around it — the lazy
+ *              view above, the only one that can drill.
+ *      text    what does this document SAY, verbatim — for reading it
+ *              as written, selecting a slab of it, or searching it with
+ *              the browser's own Ctrl+F.
+ *      graph   what SHAPE is this — nesting as a hierarchy, drawn by a
+ *              hosted C_YUI_JSON_GRAPH child (AntV/G6).
+ *
+ *  Neither text nor graph is lazy: both show what the client currently
+ *  holds, `__collapsed__` sentinels included, because that is honestly
+ *  what it has.  Drill in the tree and they grow with it.  The
  *  tree-only controls (search, expand/collapse) hide with the tree.
  *
+ *  The graph child is built on FIRST entry into graph mode and not
+ *  before: G6 measures its container, so a graph created behind
+ *  `is-hidden` comes up 0x0, and a viewer nobody switches to graph
+ *  should not pay for a canvas.
+ *
  *  DOM is self-describing (UPPER_SNAKE logical classes): JSON_VIEWER /
- *  JSON_TOOLBAR / JSON_SEARCH / JSON_VIEW_MODE / JSON_TREE / JSON_TEXT /
- *  JSON_TEXT_BODY / JSON_ROW / JSON_KEY / JSON_VALUE / JSON_SUMMARY /
- *  JSON_COLLAPSED / JSON_TIME.
+ *  JSON_TOOLBAR / JSON_SEARCH / JSON_VIEW_SWITCH / JSON_VIEW_MODE /
+ *  JSON_TREE / JSON_TEXT / JSON_TEXT_BODY / JSON_GRAPH / JSON_ROW /
+ *  JSON_KEY / JSON_VALUE / JSON_SUMMARY / JSON_COLLAPSED / JSON_TIME.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -52,6 +65,14 @@ import {
     gobj_read_pointer_attr,
     gobj_parent,
     gobj_subscribe_event,
+    gobj_create_pure_child,
+    gobj_start,
+    gobj_stop,
+    gobj_destroy,
+    gobj_is_running,
+    gobj_short_name,
+    clean_name,
+    gobj_name,
     gobj_read_attr,
     gobj_write_attr,
     gobj_read_str_attr,
@@ -76,6 +97,7 @@ import {
 } from "./json_view_helpers.js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {register_c_yui_json_graph} from "./c_yui_json_graph.js";
 import {attach_clear} from "./yui_inputs.js";
 
 import {t} from "i18next";
@@ -103,6 +125,17 @@ const MAX_RENDER_ROWS = 5000;
  */
 const MAX_TEXT_CHARS = 2000000;
 
+/*
+ *  The three views, in switch order.  EV_SET_VIEW_MODE with no mode
+ *  advances along this list, which is what the old two-view toggle did
+ *  when the list was two long.
+ */
+const VIEWS = [
+    {mode: "tree",  icon: "yi-sitemap",       key: "tree view"},
+    {mode: "text",  icon: "yi-code",          key: "text view"},
+    {mode: "graph", icon: "yi-hexagon-nodes", key: "graph view"},
+];
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -113,7 +146,7 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of outpu
 /*---------------- Config ----------------*/
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Optional header title (i18n key)"),
 SDATA(data_type_t.DTP_JSON,     "json_data",    0,  null,   "Initial JSON to render (usually already collapsed)"),
-SDATA(data_type_t.DTP_STRING,   "view_mode",    0,  "tree", "View: 'tree' (lazy tree) or 'text' (raw JSON dump)"),
+SDATA(data_type_t.DTP_STRING,   "view_mode",    0,  "tree", "View: 'tree' (lazy tree), 'text' (raw dump) or 'graph'"),
 
 /*---------------- UI ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "HTMLElement root, mounted by the parent"),
@@ -129,11 +162,13 @@ let PRIVATE_DATA = {
     $tree:      null,   // the scrollable tree body element
     $text:      null,   // the scrollable text body element
     $text_body: null,   // the <pre> inside it
+    $graph:     null,   // the graph body element
+    graph_gobj: null,   // hosted C_YUI_JSON_GRAPH child (built on first use)
     $search:    null,   // the search input element
     $search_ctl: null,  // the search control (hidden in text view)
     $expand_btn: null,  // "expand loaded" button (hidden in text view)
     $collapse_btn: null,// "collapse all" button (hidden in text view)
-    $mode_btn:  null,   // the tree/text switch
+    $mode_btns: null,   // Map<mode, HTMLElement> of the view switch
 };
 
 let __gclass__ = null;
@@ -198,6 +233,7 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    teardown_graph_child(gobj);
     destroy_ui(gobj);
 }
 
@@ -227,7 +263,12 @@ function build_ui(gobj)
             ['div', {class: 'JSON_TREE is-flex-grow-1',
                      style: 'flex:1 1 auto; min-height:0; overflow:auto;'}, []],
             ['div', {class: 'JSON_TEXT is-flex-grow-1 is-hidden',
-                     style: 'flex:1 1 auto; min-height:0; overflow:auto;'}, []]
+                     style: 'flex:1 1 auto; min-height:0; overflow:auto;'}, []],
+            /*  The graph body does NOT scroll: G6 owns its viewport and
+             *  pans inside it.  An `overflow:auto` here would give the
+             *  canvas a second, competing scroller.  */
+            ['div', {class: 'JSON_GRAPH is-flex-grow-1 is-hidden',
+                     style: 'flex:1 1 auto; overflow:hidden;'}, []]
         ]]
     );
 
@@ -238,7 +279,14 @@ function build_ui(gobj)
     priv.$search_ctl = $container.querySelector('.JSON_SEARCH_CONTROL');
     priv.$expand_btn = $container.querySelector('.EV_EXPAND_ALL');
     priv.$collapse_btn = $container.querySelector('.EV_COLLAPSE_ALL');
-    priv.$mode_btn = $container.querySelector('.JSON_VIEW_MODE');
+    priv.$graph = $container.querySelector('.JSON_GRAPH');
+    priv.$mode_btns = new Map();
+    VIEWS.forEach(function(v) {
+        let $btn = $container.querySelector('.JSON_VIEW_MODE_' + v.mode.toUpperCase());
+        if($btn) {
+            priv.$mode_btns.set(v.mode, $btn);
+        }
+    });
 
     refresh_language($container, t);
 }
@@ -259,11 +307,12 @@ function destroy_ui(gobj)
     priv.$tree = null;
     priv.$text = null;
     priv.$text_body = null;
+    priv.$graph = null;
     priv.$search = null;
     priv.$search_ctl = null;
     priv.$expand_btn = null;
     priv.$collapse_btn = null;
-    priv.$mode_btn = null;
+    priv.$mode_btns = null;
 }
 
 /************************************************************
@@ -277,7 +326,11 @@ function make_toolbar(gobj)
     let left_items = [];
     if(title) {
         left_items.push(
-            ['span', {class: 'JSON_TITLE is-flex is-align-items-center px-2',
+            /*  is-hidden-mobile: on a phone the toolbar cannot hold the
+             *  title AND a usable search AND six buttons, and the title
+             *  is the one thing the host usually repeats — a dialog
+             *  header, a card heading — so it is the one that goes. */
+            ['span', {class: 'JSON_TITLE is-flex is-align-items-center px-2 is-hidden-mobile',
                       style: 'font-weight:600;', 'data-i18n': title}, title]
         );
     }
@@ -301,7 +354,7 @@ function make_toolbar(gobj)
     left_items.push($search_control);
 
     let right_items = [
-        view_mode_button(gobj),
+        view_mode_switch(gobj),
         icon_button(gobj, "yi-chevron-right",  "EV_EXPAND_ALL",   "expand loaded"),
         icon_button(gobj, "yi-chevron-right",  "EV_COLLAPSE_ALL", "collapse all"),
         icon_button(gobj, "yi-copy",           "EV_COPY_ALL",     "copy json"),
@@ -337,34 +390,64 @@ function icon_button(gobj, icon, event_name, label_key)
 }
 
 /************************************************************
- *   The tree/text switch.
+ *   The view switch: one button per view, the current one marked.
  *
- *   It shows the view it takes you TO — the `code` glyph while the
- *   tree is on screen, the `sitemap` glyph while the text is — and
- *   sends EV_SET_VIEW_MODE with no mode, which the action reads as
- *   "toggle".  apply_view_mode() keeps the icon and its i18n keys in
- *   step with the attr.
+ *   Three views do not fit a toggle.  A button that CYCLES cannot be
+ *   aimed — reaching the graph from the tree would mean passing
+ *   through the text and rebuilding it on the way — so each view gets
+ *   its own button and says where it goes.  apply_view_mode() moves
+ *   the `is-active` mark.
  ************************************************************/
-function view_mode_button(gobj)
+function view_mode_switch(gobj)
 {
-    return ['button', {class: 'button JSON_VIEW_MODE', style: 'width:2.5em;',
-                       title: t("text view"), 'data-i18n-title': "text view",
-                       'aria-label': t("text view"), 'data-i18n-aria-label': "text view"}, [
-        ['span', {class: 'icon'}, [['i', {class: 'yi-code'}]]]
-    ], {
-        click: function(evt) {
-            evt.stopPropagation();
-            gobj_send_event(gobj, "EV_SET_VIEW_MODE", {}, gobj);
-        }
-    }];
+    let buttons = VIEWS.map(function(v) {
+        let label = view_label(v.mode);
+        return ['button', {class: `button JSON_VIEW_MODE JSON_VIEW_MODE_${v.mode.toUpperCase()}`,
+                           type: 'button', style: 'width:2.5em;',
+                           title: label, 'data-i18n-title': v.key,
+                           'aria-label': label, 'data-i18n-aria-label': v.key}, [
+            ['span', {class: 'icon'}, [['i', {class: v.icon}]]]
+        ], {
+            click: function(evt) {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_SET_VIEW_MODE", {mode: v.mode}, gobj);
+            }
+        }];
+    });
+
+    return ['div', {class: 'buttons has-addons is-flex-wrap-nowrap mb-0 JSON_VIEW_SWITCH'},
+            buttons];
 }
 
 /************************************************************
- *   The current view, normalised.  Anything but "text" is the tree.
+ *   The label of a view, with every key SPELLED OUT inside t().
+ *
+ *   Never t(VIEWS[i].key): the apps' validate-locales scans for
+ *   t("literal"), so a key reached through a variable is a key it
+ *   cannot demand — and i18next answers an undefined key with the key
+ *   ITSELF, which renders in lower-case English and never changes
+ *   language.  That shipped once already (7.20.0, `tree view`); this
+ *   table would have hidden all three.
+ ************************************************************/
+function view_label(mode)
+{
+    switch(mode) {
+        case "text":
+            return t("text view");
+        case "graph":
+            return t("graph view");
+        default:
+            return t("tree view");
+    }
+}
+
+/************************************************************
+ *   The current view, normalised.  Anything unknown is the tree.
  ************************************************************/
 function current_view_mode(gobj)
 {
-    return (gobj_read_str_attr(gobj, "view_mode") === "text")? "text": "tree";
+    let mode = gobj_read_str_attr(gobj, "view_mode");
+    return VIEWS.some((v) => v.mode === mode)? mode: "tree";
 }
 
 /************************************************************
@@ -373,45 +456,32 @@ function current_view_mode(gobj)
 function apply_view_mode(gobj)
 {
     let priv = gobj.priv;
-    let text_mode = current_view_mode(gobj) === "text";
+    let mode = current_view_mode(gobj);
 
-    if(priv.$tree) {
-        priv.$tree.classList.toggle('is-hidden', text_mode);
-    }
-    if(priv.$text) {
-        priv.$text.classList.toggle('is-hidden', !text_mode);
+    let bodies = {tree: priv.$tree, text: priv.$text, graph: priv.$graph};
+    for(let [m, $el] of Object.entries(bodies)) {
+        if($el) {
+            $el.classList.toggle('is-hidden', m !== mode);
+        }
     }
 
     /*
-     *  Search and expand/collapse act on TREE rows; in the text view
-     *  they have nothing to act on, and a control that answers nothing
-     *  is worse than an absent one.  A <pre> is searched with the
-     *  browser's own Ctrl+F.
+     *  Search and expand/collapse act on TREE rows; the other two views
+     *  have no rows to act on, and a control that answers nothing is
+     *  worse than an absent one.  A <pre> is searched with the browser's
+     *  own Ctrl+F, and the graph carries its own controls.
      */
     [priv.$search_ctl, priv.$expand_btn, priv.$collapse_btn].forEach(function($el) {
         if($el) {
-            $el.classList.toggle('is-hidden', text_mode);
+            $el.classList.toggle('is-hidden', mode !== "tree");
         }
     });
 
-    if(priv.$mode_btn) {
-        let icon = text_mode? "yi-sitemap": "yi-code";
-        /*  Both keys spelled out inside t(), never t(variable): the apps'
-         *  validate-locales scans for t("literal"), and a key it cannot
-         *  see is a key it cannot demand — i18next then answers an
-         *  undefined key with the key ITSELF, so the button renders in
-         *  lower-case English and never changes language.  `key` still
-         *  carries the data-i18n-* attrs refresh_language() reads. */
-        let key = text_mode? "tree view": "text view";
-        let label = text_mode? t("tree view"): t("text view");
-        let $i = priv.$mode_btn.querySelector('i');
-        if($i) {
-            $i.className = icon;
+    if(priv.$mode_btns) {
+        for(let [m, $btn] of priv.$mode_btns) {
+            $btn.classList.toggle('is-active', m === mode);
+            $btn.setAttribute("aria-pressed", (m === mode)? "true": "false");
         }
-        priv.$mode_btn.setAttribute("data-i18n-title", key);
-        priv.$mode_btn.setAttribute("data-i18n-aria-label", key);
-        priv.$mode_btn.setAttribute("title", label);
-        priv.$mode_btn.setAttribute("aria-label", label);
     }
 }
 
@@ -420,10 +490,105 @@ function apply_view_mode(gobj)
  ************************************************************/
 function render_view(gobj)
 {
-    if(current_view_mode(gobj) === "text") {
-        render_text(gobj);
-    } else {
-        render_tree(gobj);
+    switch(current_view_mode(gobj)) {
+        case "text":
+            render_text(gobj);
+            break;
+        case "graph":
+            render_graph(gobj);
+            break;
+        default:
+            render_tree(gobj);
+            break;
+    }
+}
+
+/************************************************************
+ *   Render the graph view.
+ *
+ *   The C_YUI_JSON_GRAPH child is built HERE, on first entry, and
+ *   never in build_ui: G6 sizes itself from its container, and a
+ *   container behind `is-hidden` measures 0x0.  By the time this
+ *   runs apply_view_mode() has already revealed the body.
+ ************************************************************/
+function render_graph(gobj)
+{
+    let priv = gobj.priv;
+    let $graph = priv.$graph;
+    if(!$graph) {
+        return;
+    }
+
+    if(priv.root === null || priv.root === undefined) {
+        teardown_graph_child(gobj);
+        $graph.textContent = "";
+        $graph.appendChild(createElement2(
+            ['div', {class: 'JSON_EMPTY has-text-grey p-3', 'data-i18n': 'no data'}, 'no data']
+        ));
+        refresh_language($graph, t);
+        return;
+    }
+
+    if(!priv.graph_gobj) {
+        $graph.textContent = "";
+        if(!build_graph_child(gobj)) {
+            return;   // Error already logged
+        }
+    }
+
+    /*  The document, and then the size: the container may have changed
+     *  while this view was hidden, and G6 does not watch it. */
+    gobj_send_event(priv.graph_gobj, "EV_LOAD_DATA",
+        {data: priv.root, path: gobj_read_str_attr(gobj, "title") || ""}, gobj);
+    gobj_send_event(priv.graph_gobj, "EV_RESIZE", {}, gobj);
+}
+
+/************************************************************
+ *   Build and mount the hosted graph child.  Returns true on
+ *   success; every failure path logs.
+ ************************************************************/
+function build_graph_child(gobj)
+{
+    let priv = gobj.priv;
+
+    let graph = gobj_create_pure_child(
+        "graph_" + clean_name(gobj_name(gobj)),
+        "C_YUI_JSON_GRAPH",
+        {},
+        gobj
+    );
+    if(!graph) {
+        log_error(`${gobj_short_name(gobj)}: cannot create the graph viewer`);
+        return false;
+    }
+
+    let $box = gobj_read_attr(graph, "$container");
+    if(!$box) {
+        log_error(`${gobj_short_name(gobj)}: the graph viewer built no $container`);
+        gobj_destroy(graph);
+        return false;
+    }
+
+    /*  Mounted BEFORE gobj_start: mt_start builds the G6 graph and
+     *  measures the canvas, which is 0x0 while it is still detached. */
+    priv.$graph.appendChild($box);
+    priv.graph_gobj = graph;
+    gobj_start(graph);
+    return true;
+}
+
+/************************************************************
+ *   Destroy the hosted graph child, if any.
+ ************************************************************/
+function teardown_graph_child(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.graph_gobj) {
+        if(gobj_is_running(priv.graph_gobj)) {
+            gobj_stop(priv.graph_gobj);
+        }
+        gobj_destroy(priv.graph_gobj);
+        priv.graph_gobj = null;
     }
 }
 
@@ -977,25 +1142,44 @@ function ac_copy_all(gobj, event, kw, src)
 }
 
 /************************************************************
- *   EV_SET_VIEW_MODE { mode } — "tree" | "text".
+ *   EV_SET_VIEW_MODE { mode } — "tree" | "text" | "graph".
  *
- *   With no mode it toggles, which is what the toolbar button sends.
+ *   With no mode it ADVANCES to the next view in VIEWS order, which
+ *   is what the two-view toggle did when the list was two long.  The
+ *   toolbar buttons always name their mode.
  ************************************************************/
 function ac_set_view_mode(gobj, event, kw, src)
 {
     let mode = kw.mode;
 
     if(mode === undefined || mode === null || mode === "") {
-        mode = (current_view_mode(gobj) === "text")? "tree": "text";
-    } else if(mode !== "tree" && mode !== "text") {
+        let i = VIEWS.findIndex((v) => v.mode === current_view_mode(gobj));
+        mode = VIEWS[(i + 1) % VIEWS.length].mode;
+    } else if(!VIEWS.some((v) => v.mode === mode)) {
         log_error(`${GCLASS_NAME}: unknown view_mode '${mode}'`);
         return -1;
+    }
+
+    if(mode === current_view_mode(gobj)) {
+        return 0;   // already there; re-rendering the graph would relayout it
     }
 
     gobj_write_attr(gobj, "view_mode", mode);
 
     apply_view_mode(gobj);
     render_view(gobj);
+    return 0;
+}
+
+/************************************************************
+ *   EV_JSON_ITEM_CLICKED — from the hosted graph child.
+ *
+ *   Republished under this gclass's own name so the host has ONE
+ *   contract and never has to know the child exists.
+ ************************************************************/
+function ac_json_item_clicked(gobj, event, kw, src)
+{
+    gobj_publish_event(gobj, "EV_JSON_ITEM_CLICKED", kw);
     return 0;
 }
 
@@ -1091,6 +1275,7 @@ function create_gclass(gclass_name)
         ]],
         ["ST_READY", [
             ["EV_SET_JSON",         ac_set_json,            null],
+            ["EV_JSON_ITEM_CLICKED", ac_json_item_clicked,  null],
             ["EV_SUBTREE_LOADED",   ac_subtree_loaded,      null],
             ["EV_SUBTREE_ERROR",    ac_subtree_error,       null],
             ["EV_TOGGLE_NODE",      ac_toggle_node,         null],
@@ -1121,6 +1306,7 @@ function create_gclass(gclass_name)
         ["EV_COLLAPSE_ALL",     0],
         ["EV_COPY_ALL",         0],
         ["EV_SET_VIEW_MODE",    0],
+        ["EV_JSON_ITEM_CLICKED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_LANGUAGE_CHANGED", 0],
         ["EV_REFRESH",          0],
         ["EV_SHOW",             0],
@@ -1160,6 +1346,12 @@ function register_c_yui_json()
      *  "GClass ALREADY created".  */
     if(gclass_find_by_name(GCLASS_NAME, false)) {
         return 0;
+    }
+    /*  The graph view hosts a C_YUI_JSON_GRAPH child: make sure its
+     *  gclass exists even if the app never registered it (same
+     *  arrangement C_YUI_TREEDB_TOPIC_WITH_FORM makes for this one).  */
+    if(!gclass_find_by_name("C_YUI_JSON_GRAPH", false)) {
+        register_c_yui_json_graph();
     }
     return create_gclass(GCLASS_NAME);
 }

@@ -5,6 +5,50 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.21.0
+
+- **`C_YUI_JSON` shows the same document as a GRAPH.** Third view, after the
+    lazy tree and the raw text, and the three answer three different questions:
+    the tree *where is this value and what is around it*, the text *what does
+    this document say, verbatim*, the graph *what shape is this*. It hosts a
+    `C_YUI_JSON_GRAPH` child (AntV/G6) — the component that already drew JSON
+    as a hierarchy — so nothing about that drawing is new; what is new is that
+    you no longer have to leave the viewer to get it.
+
+    `view_mode` takes `"graph"`, and the switch is now one button per view with
+    the current one marked. Three views do not fit a toggle: a cycling button
+    cannot be aimed, and reaching the graph from the tree would mean passing
+    through the text and rebuilding it on the way. `EV_SET_VIEW_MODE` with no
+    mode still advances one step, which is what the old toggle did when the
+    list was two long.
+
+    The child is built on FIRST entry and never in `build_ui`. `register_c_yui_json()`
+    auto-registers `C_YUI_JSON_GRAPH`, the same arrangement
+    `C_YUI_TREEDB_TOPIC_WITH_FORM` makes for this gclass — and
+    `register_c_yui_json_graph()` is idempotent now, so an app may still
+    register it itself, in either order. It republishes the child's
+    `EV_JSON_ITEM_CLICKED` under its own name, so a host has one contract and
+    never has to know the child exists.
+
+- **fix: the graph body needs a DEFINITE height, not a minimum.** Found while
+    building the above, and it is the kind of thing only a browser tells you.
+    The tree and the text push their own height; a canvas pushes none, so in a
+    host that does not constrain the viewer the chain of `height: 100%` down to
+    G6's container resolved against `auto` and the graph came up **1061×2** — a
+    hairline. `min-height` does not fix it: a percentage height does not
+    resolve against a box sized by a minimum, and the container stayed at 4px,
+    its two borders. `height: 24rem` with `flex: 1 1 auto` does: a floor in an
+    unconstrained host, and a constrained one still wins.
+
+- **fix: at 390px the toolbar pushed every button off the edge.** The search
+    box took 294 of 320 visible pixels because nothing told it to yield, and
+    with a sixth button the whole right section sat outside, reachable only by
+    scrolling the toolbar — with the view switch the first thing to go. The
+    search yields now (`flex: 1 1 auto; min-width: 0`) and the buttons keep
+    their size; the title goes `is-hidden-mobile`, being the one thing a host
+    usually repeats in a dialog header or a card heading. A narrow search box
+    still accepts what you type; a button past the edge does nothing.
+
 ## 7.20.1
 
 - **fix: `7.20.0` made `tree view` a key no validator could demand.** The view

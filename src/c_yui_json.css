@@ -1,7 +1,7 @@
 /***********************************************************************
  *          c_yui_json.css
  *
- *      Styling for C_YUI_JSON (lazy JSON tree viewer + raw text view).
+ *      Styling for C_YUI_JSON (lazy tree + raw text + hosted graph).
  *      Monospace tree, type-coloured leaves, dark-aware.
  *      No transitions/animations by design (lib-yui convention).
  *
@@ -44,6 +44,31 @@
 
 .C_YUI_JSON .JSON_TOOLBAR {
     border-bottom: 1px solid var(--bulma-border-weak, #e0e0e0);
+}
+
+/*
+ *  Who YIELDS when the toolbar runs out of room.  The search box does:
+ *  it grows to `max-width` when there is space and shrinks to nothing
+ *  when there is not, while the buttons keep their size.  A narrow
+ *  search box still accepts what you type; a button pushed past the
+ *  edge can only be reached by scrolling the toolbar, and the view
+ *  switch is the last control that should be hiding.
+ *
+ *  Measured at 390px: without this the search took 294 of 320 visible
+ *  pixels and every button sat outside.
+ */
+.C_YUI_JSON .yui-horizontal-toolbar-section.left {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.C_YUI_JSON .JSON_SEARCH_CONTROL {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.C_YUI_JSON .yui-horizontal-toolbar-section.right {
+    flex: 0 0 auto;
 }
 
 .C_YUI_JSON .JSON_TREE {
@@ -186,6 +211,58 @@
     /*  The dump is there to be read AND taken: a plain <pre> in some
      *  host stylesheets is unselectable chrome. */
     user-select: text;
+}
+
+/*
+ *  Graph view: the hosted C_YUI_JSON_GRAPH fills the body.  No
+ *  overflow here — G6 owns its viewport and pans inside it; a scroller
+ *  on this box would compete with the canvas for the same drag.
+ */
+/*
+ *  The graph body carries a DEFINITE height, and that is the whole
+ *  trick.  The tree and the text push their own height; a canvas
+ *  pushes NOTHING, so in a host that does not constrain the viewer the
+ *  chain of `height:100%` down to G6's container resolved against auto
+ *  and the graph came up 1061x2 — a hairline.
+ *
+ *  It has to be `height`, not `min-height`: a percentage height does
+ *  not resolve against a box whose size comes from a minimum, so
+ *  `min-height` here left the container at 4px (its two borders).
+ *  Measured both ways in the browser.
+ *
+ *  `flex: 1 1 auto` keeps this a FLOOR and not a cage: in a host that
+ *  does constrain the viewer — a modal, a C_YUI_WINDOW — the item
+ *  grows past it and the graph follows the host.
+ */
+.C_YUI_JSON .JSON_GRAPH {
+    height: 24rem;
+}
+
+.C_YUI_JSON .JSON_GRAPH > .C_YUI_JSON_GRAPH {
+    height: 100%;
+}
+
+/*
+ *  The view switch.  Bulma's `.buttons` gives every child a
+ *  margin-bottom for the rows it expects to wrap; this strip never
+ *  wraps, so that margin is only a gap that pushes the toolbar taller.
+ */
+.C_YUI_JSON .JSON_VIEW_SWITCH {
+    margin-bottom: 0;
+}
+
+.C_YUI_JSON .JSON_VIEW_SWITCH .button {
+    margin-bottom: 0;
+}
+
+/*  Bulma's `.button.is-active` only borrows the :active border, which on a
+ *  three-way switch is not enough to say WHICH view you are looking at.
+ *  Fill it instead — the mark has to survive a glance. */
+.C_YUI_JSON .JSON_VIEW_MODE.is-active {
+    background-color: var(--bulma-link, #3273dc);
+    border-color: var(--bulma-link, #3273dc);
+    color: var(--bulma-link-invert, #fff);
+    z-index: 1;
 }
 
 /*
