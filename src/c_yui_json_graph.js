@@ -67,6 +67,13 @@ import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_JSON_GRAPH";
 
+/*
+ *  What a click on a fold handle has to swallow so G6 never turns it
+ *  into a node click.  `click` is the one that ACTS; the rest are cut
+ *  because G6 assembles its own click from the pointer sequence.
+ */
+const FOLD_SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "click"];
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -102,6 +109,7 @@ let PRIVATE_DATA = {
     collapsed:      null,   // Set<string> of paths whose children are hidden
     match_count:    0,      // matches of the last find, for the count chip
     find_timer:     null,   // rate-limits the find box
+    fold_listener:  null,   // delegated click on the card fold handles
     $find_input:    null,
     $find_result:   null,
     $find_count:    null,
@@ -303,6 +311,46 @@ function build_ui(gobj)
 
     gobj_write_attr(gobj, "$container", $container);
 
+    /*
+     *  The fold handles live inside an `innerHTML` string, so no handler
+     *  can be attached to them: the click is delegated from the canvas
+     *  mount, in the CAPTURE phase, over FOUR event types.
+     *
+     *  Capture because G6 binds on the html node ELEMENT, a descendant
+     *  of this one: in the bubble phase G6 has already run by the time
+     *  this listener sees the event, so stopping it there stops nothing.
+     *
+     *  Four types because G6 does not use the DOM `click` at all — it
+     *  builds its own from the POINTER sequence.  Swallowing `click`
+     *  alone left the fold working and the card ALSO reporting an item
+     *  click; `pointerdown`/`pointerup` are the pair that has to be cut,
+     *  and `mousedown` goes with them for a browser that still sends it.
+     *  Measured by instrumenting the mount, not guessed.
+     */
+    let $mount = $container.querySelector('#' + priv.canvas_id);
+    if($mount) {
+        priv.fold_listener = function(evt) {
+            let $handle = evt.target && evt.target.closest
+                ? evt.target.closest('[data-fold-path]')
+                : null;
+            if(!$handle) {
+                return;
+            }
+            evt.stopPropagation();
+            evt.preventDefault();
+            if(evt.type !== "click") {
+                return;     /*  swallowed so G6 never sees a node click  */
+            }
+            gobj_send_event(gobj, "EV_TOGGLE_FOLD",
+                {path: $handle.getAttribute('data-fold-path')}, gobj);
+        };
+        for(let type of FOLD_SWALLOWED_EVENTS) {
+            $mount.addEventListener(type, priv.fold_listener, true);
+        }
+    } else {
+        log_error(`${gobj_short_name(gobj)}: no canvas mount, fold handles are dead`);
+    }
+
     priv.$find_input = $container.querySelector('.JSON_GRAPH_FIND_INPUT');
     priv.$find_result = $container.querySelector('.JSON_GRAPH_FIND_RESULT');
     priv.$find_count = $container.querySelector('.JSON_GRAPH_FIND_COUNT');
@@ -315,7 +363,19 @@ function build_ui(gobj)
  ************************************************************/
 function destroy_ui(gobj)
 {
+    let priv = gobj.priv;
     let $container = gobj_read_attr(gobj, "$container");
+
+    if(priv.fold_listener) {
+        let $mount = $container? $container.querySelector('#' + priv.canvas_id): null;
+        if($mount) {
+            for(let type of FOLD_SWALLOWED_EVENTS) {
+                $mount.removeEventListener(type, priv.fold_listener, true);
+            }
+        }
+        priv.fold_listener = null;
+    }
+
     if($container) {
         if($container.parentNode) {
             $container.parentNode.removeChild($container);
@@ -599,6 +659,36 @@ function build_cell_html(key, value, type, dark, matched)
 }
 
 /************************************************************
+ *  The per-node fold handle, drawn in the card's header.
+ *
+ *  Only a card with a BRANCH gets one — a leaf has nothing to
+ *  fold, and a handle that does nothing is worse than none.
+ *  It carries the path in `data-fold-path`, which is what the
+ *  delegated listener in build_ui reads; the card is an
+ *  innerHTML string, so there is no other way to hang a
+ *  handler on it.
+ *
+ *  Folded it shows the glyph AND the count of branches hidden
+ *  under it; open, just the glyph.  No word, no title: a word
+ *  inside this string could carry no i18n key.
+ ************************************************************/
+function fold_toggle_html(path, foldable, folded, branches)
+{
+    if(!foldable) {
+        /*  A spacer, so the label of a leaf card stays centred on the
+         *  same axis as the label of a foldable one.  */
+        return `<span style="width:1.1em; flex:0 0 auto;"></span>`;
+    }
+
+    let glyph = folded? "&#9656;": "&#9662;";       /*  right / down  */
+    let text = folded? `${glyph} ${branches}`: glyph;
+
+    return `<span data-fold-path="${escapeHtml(path)}" ` +
+        `style="flex:0 0 auto; cursor:pointer; user-select:none; ` +
+        `padding:0 .2em; min-width:1.1em; text-align:left;">${text}</span>`;
+}
+
+/************************************************************
  *  Does this key/value pair match the find term?
  *
  *  Scalars are matched on what the card SHOWS.  A complex value
@@ -725,17 +815,12 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
      *  Folded: keep the card, drop the branch, and SAY how much went
      *  with it.  A cut that is not marked reads as a document that ends
      *  there — the same rule the lazy tree follows for a `__collapsed__`
-     *  sentinel.  The badge is a glyph and a number on purpose: the card
+     *  sentinel.  The mark is a glyph and a number on purpose: the card
      *  is an innerHTML string, where a word could carry no i18n key and
      *  would sit there in English forever.
      */
-    let folded = priv.collapsed.has(path) && pending_complex.length > 0;
-    if(folded) {
-        lines.push(
-            `<span style="color:${type_color("number", dark)}; font-weight:bold;">` +
-            `&#9656; ${pending_complex.length}</span>`
-        );
-    }
+    let foldable = pending_complex.length > 0;
+    let folded = foldable && priv.collapsed.has(path);
     let colors = json_card_style(
         is_dict ? GROUP_COLORS.dict : GROUP_COLORS.list, dark
     );
@@ -766,8 +851,10 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
         font-weight: bold;
         font-size: 12px;
         padding: 3px 8px;
-        text-align: center;
-    ">${escapeHtml(label)}</div>
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    ">${fold_toggle_html(path, foldable, folded, pending_complex.length)}<span style="flex:1 1 auto; text-align:center;">${escapeHtml(label)}</span></div>
     ${content_html}
 </div>`;
 
@@ -1097,6 +1184,35 @@ function ac_refresh(gobj, event, kw, src)
 
 /************************************************************
  *  {theme: "dark"|"light"} — the app switched theme.
+ *  EV_TOGGLE_FOLD { path } — fold or unfold ONE card.
+ *
+ *  The camera does not move: folding one branch is a local
+ *  edit of the picture, and refitting the whole graph for it
+ *  would throw away where the reader was looking.  The toolbar
+ *  pair, which changes everything at once, does refit.
+ ************************************************************/
+function ac_toggle_fold(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let path = (kw && kw.path) || "";
+
+    if(empty_string(path)) {
+        log_error(`${gobj_short_name(gobj)}: EV_TOGGLE_FOLD with no path`);
+        return -1;
+    }
+
+    if(priv.collapsed.has(path)) {
+        priv.collapsed.delete(path);
+    } else {
+        priv.collapsed.add(path);
+    }
+
+    refresh_json(gobj, {preserve_view: true});
+    update_find_result(gobj);
+    return 0;
+}
+
+/************************************************************
  *  EV_FIND_NODES { text }
  *
  *  The camera does NOT move: a find is a way of reading what is
@@ -1349,6 +1465,7 @@ function create_gclass(gclass_name)
             ["EV_LOAD_DATA",            ac_load_data,           null],
             ["EV_REFRESH",              ac_refresh,             null],
             ["EV_FIND_NODES",           ac_find_nodes,          null],
+            ["EV_TOGGLE_FOLD",          ac_toggle_fold,         null],
             ["EV_EXPAND_ALL",           ac_expand_all,          null],
             ["EV_COLLAPSE_ALL",         ac_collapse_all,        null],
             ["EV_THEME",                ac_theme,               null],
@@ -1370,6 +1487,7 @@ function create_gclass(gclass_name)
         ["EV_LOAD_DATA",            0],
         ["EV_REFRESH",              0],
         ["EV_FIND_NODES",           0],
+        ["EV_TOGGLE_FOLD",          0],
         ["EV_EXPAND_ALL",           0],
         ["EV_COLLAPSE_ALL",         0],
         ["EV_THEME",                0],

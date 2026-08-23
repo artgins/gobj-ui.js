@@ -5,6 +5,39 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.0
+
+- **Every non-leaf card in the JSON graph folds on its own.** `7.22.0` gave the
+    graph the toolbar pair, which is all-or-nothing; a graph you can only open
+    whole or close whole is not navigable. Each card that HAS a branch now
+    carries a handle in its header — `▾` open, `▸ N` folded, where N is what
+    goes with it — and a leaf gets a spacer instead, so labels stay on one axis
+    and a handle never appears where it would do nothing (`EV_TOGGLE_FOLD
+    {path}`). A single toggle does NOT refit the camera: folding one branch is
+    a local edit of the picture, and refitting would throw away where the
+    reader was looking. The toolbar pair, which changes everything at once,
+    still refits.
+
+    The handle is delegated from the canvas mount in the **capture** phase and
+    over four event types. Capture because the card is an `innerHTML` string —
+    nothing can be bound to it directly — and G6 binds on the node element
+    below, so a bubble-phase listener runs after G6 has already decided. Four
+    types because G6 does not use the DOM `click` at all: it assembles its own
+    from the pointer sequence, so swallowing `click` alone left the fold
+    working and the card ALSO reporting an item click. Measured by
+    instrumenting the mount, not guessed.
+
+- **fix: `7.21.0` made a graph click an FSM error in every host.** It had
+    `C_YUI_JSON` republish the graph child's `EV_JSON_ITEM_CLICKED` "so the host
+    has one contract", which gets the framework backwards: the viewer is a
+    CHILD of its host and subscribes it to everything it publishes, so a new
+    output event is a new MANDATORY declaration in every host's FSM. None of
+    the six gclasses that mount this viewer asked for node clicks, and every one
+    of them answered a click on a graph card with *"Event NOT DEFINED in
+    state"*. The event stops at the viewer now. A host that wants node clicks
+    mounts `C_YUI_JSON_GRAPH` itself — that gclass publishes them, and a host
+    that mounts it has declared them.
+
 ## 7.22.0
 
 - **`C_YUI_JSON_GRAPH` gets a find box and expand/collapse.** The graph had

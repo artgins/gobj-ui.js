@@ -444,7 +444,16 @@ same two facilities the tree has: a **find box** (rate-limited, `EV_FIND_NODES`)
 that highlights matching rows and outlines the cards they are in and says how
 many matched, and **expand-all / collapse-all** (`EV_EXPAND_ALL` /
 `EV_COLLAPSE_ALL`) that fold every card but the root, marking each cut with
-`▸ N` so the shape stays legible and you can see where the rest went. A find
+`▸ N` so the shape stays legible and you can see where the rest went. Since
+`7.23.0` each card that HAS a branch also carries its own handle in its header
+(`▾` open, `▸ N` folded, `EV_TOGGLE_FOLD {path}`); a leaf gets a spacer instead,
+because a handle that does nothing is worse than none.
+
+The handle is delegated from the canvas mount in the **capture** phase, over
+`pointerdown`/`pointerup`/`mousedown`/`click`: the card is an `innerHTML`
+string so nothing can be bound to it directly, G6 binds on the node element
+below, and G6 builds its click from the POINTER sequence — swallowing `click`
+alone leaves the fold working and the card also reporting an item click. A find
 does not move the camera — a viewport that jumps on every keystroke is
 unusable — which is why the count is there.
 
@@ -491,11 +500,13 @@ Two layout facts the browser taught this component, both worth keeping:
   `"text"` / `"graph"`; **no mode advances** to the next view, which is what
   the two-view toggle did when the list was two long), plus `EV_REFRESH` /
   `EV_SHOW` / `EV_HIDE` / `EV_LANGUAGE_CHANGED`.
-- Output events: `EV_EXPAND_PATH {path, size}` (`EVF_OUTPUT_EVENT`) — the parent
-  must declare it in its own FSM (CHILD subscription model) — and
-  `EV_JSON_ITEM_CLICKED`, republished from the graph child so the host has one
-  contract and never has to know that child exists (`EVF_NO_WARN_SUBS`: most
-  hosts do not care).
+- Output event: `EV_EXPAND_PATH {path, size}` (`EVF_OUTPUT_EVENT`) — the parent
+  must declare it in its own FSM (CHILD subscription model). That is the ONLY
+  one, on purpose: this viewer is a child of its host and subscribes it to
+  everything it publishes, so every output event is a mandatory declaration in
+  every host's FSM. The graph child's `EV_JSON_ITEM_CLICKED` stops here
+  (`7.21.0` forwarded it and broke exactly that way); a host that wants node
+  clicks mounts `C_YUI_JSON_GRAPH` itself.
 - Internal (DOM → FSM): `EV_TOGGLE_NODE`, `EV_EXPAND_COLLAPSED`, `EV_SEARCH`,
   `EV_EXPAND_ALL`, `EV_COLLAPSE_ALL`, `EV_COPY_ALL`. Every kw carries only a
   `path` string — never a DOM node or gobj.

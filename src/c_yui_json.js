@@ -1175,12 +1175,21 @@ function ac_set_view_mode(gobj, event, kw, src)
 /************************************************************
  *   EV_JSON_ITEM_CLICKED — from the hosted graph child.
  *
- *   Republished under this gclass's own name so the host has ONE
- *   contract and never has to know the child exists.
+ *   It STOPS here, and that is deliberate.  7.21.0 republished
+ *   it "so the host has one contract", which got the framework
+ *   backwards: this viewer is a CHILD of its host and subscribes
+ *   it to everything it publishes, so a new output event is a
+ *   new MANDATORY declaration in every host's FSM.  None of the
+ *   six that mount this viewer asked for node clicks, and every
+ *   one of them answered a click on a graph card with
+ *   "Event NOT DEFINED in state".
+ *
+ *   A host that wants node clicks mounts C_YUI_JSON_GRAPH
+ *   itself — that gclass publishes them, and a host that mounts
+ *   it has declared them.
  ************************************************************/
 function ac_json_item_clicked(gobj, event, kw, src)
 {
-    gobj_publish_event(gobj, "EV_JSON_ITEM_CLICKED", kw);
     return 0;
 }
 
@@ -1307,7 +1316,7 @@ function create_gclass(gclass_name)
         ["EV_COLLAPSE_ALL",     0],
         ["EV_COPY_ALL",         0],
         ["EV_SET_VIEW_MODE",    0],
-        ["EV_JSON_ITEM_CLICKED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_JSON_ITEM_CLICKED", 0],
         ["EV_LANGUAGE_CHANGED", 0],
         ["EV_REFRESH",          0],
         ["EV_SHOW",             0],
