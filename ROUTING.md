@@ -258,10 +258,22 @@ reads as an accident.
 
 | `redirect` | What the shell does | Use for |
 |---|---|---|
-| `"back"` | Restore the **previous resting view route** (URL included), **then** fire the event. The URL never lingers on the action route. | A **floating window / panel** the app opens itself (`/devtools`, `/sitemap`). |
+| `"back"` | Restore the **previous resting URL, subpath included** (see the note), **then** fire the event. The URL never lingers on the action route. | A **floating window / panel** the app opens itself (`/devtools`, `/sitemap`). |
 | `"stay"` | Fire the event and **keep the URL on this route** so it is deep-linkable. The URL is *not* restored. (On a deep-link/reload the shell first mounts the default view underneath and re-pushes the hash — see below.) | A **modal the app closes through `yui_shell_unpark_route`** (see the trap below). |
 | `"<route>"` | Fire the event, then navigate to that route. | `logout → "/"`. |
-| `"none"` / `""` | `replaceState` the URL back to the previous resting route, **then** fire the event. The app takes over. | The app tears the shell down itself (logout). |
+| `"none"` / `""` | `replaceState` the URL back to the previous resting **URL, subpath included**, **then** fire the event. The app takes over. | The app tears the shell down itself (logout). |
+
+> **"Previous resting URL", not "previous resting ROUTE" — the distinction is
+> the whole of a bug that shipped.** A view is mounted at a DECLARED route, and
+> under a `C_YUI_NODE` tree everything below that is subpath the node owns. The
+> shell used to restore the mount (`stages.main.active_route`), so switching
+> the theme from a graph five levels down landed on the workspace root with the
+> position gone — and the same held for `/preferences`, `/sitemap` and every
+> other action route. It restores `current_route` now: the same route WITH its
+> subpath, which is what a deep link resolves and therefore what can be
+> restored. An app whose views are all declared routes never sees the
+> difference, which is why it took a node tree to surface it (`gobj-ui`
+> 7.19.4).
 
 > **Ordering matters** whenever a restore happens: the URL is restored
 > **before** the event fires, so an overlay opened by the handler registers its
