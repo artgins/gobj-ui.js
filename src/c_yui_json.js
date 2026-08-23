@@ -24,9 +24,19 @@
  *  Only expanded containers are materialised in the DOM, so the tree
  *  stays bounded no matter how large the source document is.
  *
+ *  TWO VIEWS over the same working document, chosen by the `view_mode`
+ *  attr ("tree" | "text") and switched from the toolbar: the lazy tree
+ *  above, and the raw `JSON.stringify(…, 4)` dump of what is currently
+ *  loaded.  The text view is what you reach for to read a document as
+ *  it is written, to select a slab of it, or to search it with the
+ *  browser's own Ctrl+F; it shows the `__collapsed__` sentinels
+ *  verbatim, because that is honestly what the client holds.  The
+ *  tree-only controls (search, expand/collapse) hide with the tree.
+ *
  *  DOM is self-describing (UPPER_SNAKE logical classes): JSON_VIEWER /
- *  JSON_TOOLBAR / JSON_SEARCH / JSON_TREE / JSON_ROW / JSON_KEY /
- *  JSON_VALUE / JSON_SUMMARY / JSON_COLLAPSED / JSON_TIME.
+ *  JSON_TOOLBAR / JSON_SEARCH / JSON_VIEW_MODE / JSON_TREE / JSON_TEXT /
+ *  JSON_TEXT_BODY / JSON_ROW / JSON_KEY / JSON_VALUE / JSON_SUMMARY /
+ *  JSON_COLLAPSED / JSON_TIME.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -62,6 +72,7 @@ import {
     subtree_matches,
     is_time_field,
     format_epoch,
+    json_text_dump,
 } from "./json_view_helpers.js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
@@ -84,6 +95,14 @@ const GCLASS_NAME = "C_YUI_JSON";
  */
 const MAX_RENDER_ROWS = 5000;
 
+/*
+ *  Hard cap on characters painted by the text view.  Same guard as
+ *  MAX_RENDER_ROWS, one layer down: a document the tree renders lazily
+ *  is dumped whole here, so the cap is announced under the text and
+ *  never applied silently.
+ */
+const MAX_TEXT_CHARS = 2000000;
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -94,6 +113,7 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of outpu
 /*---------------- Config ----------------*/
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Optional header title (i18n key)"),
 SDATA(data_type_t.DTP_JSON,     "json_data",    0,  null,   "Initial JSON to render (usually already collapsed)"),
+SDATA(data_type_t.DTP_STRING,   "view_mode",    0,  "tree", "View: 'tree' (lazy tree) or 'text' (raw JSON dump)"),
 
 /*---------------- UI ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "HTMLElement root, mounted by the parent"),
@@ -107,7 +127,13 @@ let PRIVATE_DATA = {
     errors:     null,   // Map<string,string> of per-path expand errors
     search:     "",     // current search term (lower-cased)
     $tree:      null,   // the scrollable tree body element
+    $text:      null,   // the scrollable text body element
+    $text_body: null,   // the <pre> inside it
     $search:    null,   // the search input element
+    $search_ctl: null,  // the search control (hidden in text view)
+    $expand_btn: null,  // "expand loaded" button (hidden in text view)
+    $collapse_btn: null,// "collapse all" button (hidden in text view)
+    $mode_btn:  null,   // the tree/text switch
 };
 
 let __gclass__ = null;
@@ -140,6 +166,7 @@ function mt_create(gobj)
     }
 
     build_ui(gobj);
+    apply_view_mode(gobj);
 
     /*
      *  CHILD subscription model
@@ -156,7 +183,7 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
-    render_tree(gobj);
+    render_view(gobj);
 }
 
 /***************************************************************
@@ -198,13 +225,20 @@ function build_ui(gobj)
                  style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'JSON_TOOLBAR is-flex-grow-0'}, [$toolbar]],
             ['div', {class: 'JSON_TREE is-flex-grow-1',
+                     style: 'flex:1 1 auto; min-height:0; overflow:auto;'}, []],
+            ['div', {class: 'JSON_TEXT is-flex-grow-1 is-hidden',
                      style: 'flex:1 1 auto; min-height:0; overflow:auto;'}, []]
         ]]
     );
 
     gobj_write_attr(gobj, "$container", $container);
     priv.$tree = $container.querySelector('.JSON_TREE');
+    priv.$text = $container.querySelector('.JSON_TEXT');
     priv.$search = $container.querySelector('.JSON_SEARCH');
+    priv.$search_ctl = $container.querySelector('.JSON_SEARCH_CONTROL');
+    priv.$expand_btn = $container.querySelector('.EV_EXPAND_ALL');
+    priv.$collapse_btn = $container.querySelector('.EV_COLLAPSE_ALL');
+    priv.$mode_btn = $container.querySelector('.JSON_VIEW_MODE');
 
     refresh_language($container, t);
 }
@@ -223,11 +257,18 @@ function destroy_ui(gobj)
         gobj_write_attr(gobj, "$container", null);
     }
     priv.$tree = null;
+    priv.$text = null;
+    priv.$text_body = null;
     priv.$search = null;
+    priv.$search_ctl = null;
+    priv.$expand_btn = null;
+    priv.$collapse_btn = null;
+    priv.$mode_btn = null;
 }
 
 /************************************************************
- *   Toolbar: search + expand-all / collapse-all / copy
+ *   Toolbar: search + tree/text switch + expand-all /
+ *   collapse-all / copy
  ************************************************************/
 function make_toolbar(gobj)
 {
@@ -251,7 +292,8 @@ function make_toolbar(gobj)
             }
         }]);
     let $search_control = createElement2(
-        ['div', {class: 'control has-icons-left', style: 'max-width:22em;'}, [
+        ['div', {class: 'control has-icons-left JSON_SEARCH_CONTROL',
+                 style: 'max-width:22em;'}, [
             $search_input,
             ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
         ]]);
@@ -259,6 +301,7 @@ function make_toolbar(gobj)
     left_items.push($search_control);
 
     let right_items = [
+        view_mode_button(gobj),
         icon_button(gobj, "yi-chevron-right",  "EV_EXPAND_ALL",   "expand loaded"),
         icon_button(gobj, "yi-chevron-right",  "EV_COLLAPSE_ALL", "collapse all"),
         icon_button(gobj, "yi-copy",           "EV_COPY_ALL",     "copy json"),
@@ -291,6 +334,141 @@ function icon_button(gobj, icon, event_name, label_key)
             gobj_send_event(gobj, event_name, {}, gobj);
         }
     }];
+}
+
+/************************************************************
+ *   The tree/text switch.
+ *
+ *   It shows the view it takes you TO — the `code` glyph while the
+ *   tree is on screen, the `sitemap` glyph while the text is — and
+ *   sends EV_SET_VIEW_MODE with no mode, which the action reads as
+ *   "toggle".  apply_view_mode() keeps the icon and its i18n keys in
+ *   step with the attr.
+ ************************************************************/
+function view_mode_button(gobj)
+{
+    return ['button', {class: 'button JSON_VIEW_MODE', style: 'width:2.5em;',
+                       title: t("text view"), 'data-i18n-title': "text view",
+                       'aria-label': t("text view"), 'data-i18n-aria-label': "text view"}, [
+        ['span', {class: 'icon'}, [['i', {class: 'yi-code'}]]]
+    ], {
+        click: function(evt) {
+            evt.stopPropagation();
+            gobj_send_event(gobj, "EV_SET_VIEW_MODE", {}, gobj);
+        }
+    }];
+}
+
+/************************************************************
+ *   The current view, normalised.  Anything but "text" is the tree.
+ ************************************************************/
+function current_view_mode(gobj)
+{
+    return (gobj_read_str_attr(gobj, "view_mode") === "text")? "text": "tree";
+}
+
+/************************************************************
+ *   Show the chrome of the current view and hide the other's.
+ ************************************************************/
+function apply_view_mode(gobj)
+{
+    let priv = gobj.priv;
+    let text_mode = current_view_mode(gobj) === "text";
+
+    if(priv.$tree) {
+        priv.$tree.classList.toggle('is-hidden', text_mode);
+    }
+    if(priv.$text) {
+        priv.$text.classList.toggle('is-hidden', !text_mode);
+    }
+
+    /*
+     *  Search and expand/collapse act on TREE rows; in the text view
+     *  they have nothing to act on, and a control that answers nothing
+     *  is worse than an absent one.  A <pre> is searched with the
+     *  browser's own Ctrl+F.
+     */
+    [priv.$search_ctl, priv.$expand_btn, priv.$collapse_btn].forEach(function($el) {
+        if($el) {
+            $el.classList.toggle('is-hidden', text_mode);
+        }
+    });
+
+    if(priv.$mode_btn) {
+        let icon = text_mode? "yi-sitemap": "yi-code";
+        let key = text_mode? "tree view": "text view";
+        let $i = priv.$mode_btn.querySelector('i');
+        if($i) {
+            $i.className = icon;
+        }
+        priv.$mode_btn.setAttribute("data-i18n-title", key);
+        priv.$mode_btn.setAttribute("data-i18n-aria-label", key);
+        priv.$mode_btn.setAttribute("title", t(key));
+        priv.$mode_btn.setAttribute("aria-label", t(key));
+    }
+}
+
+/************************************************************
+ *   Render whichever view is current.
+ ************************************************************/
+function render_view(gobj)
+{
+    if(current_view_mode(gobj) === "text") {
+        render_text(gobj);
+    } else {
+        render_tree(gobj);
+    }
+}
+
+/************************************************************
+ *   Render the text view: the whole loaded document, verbatim.
+ *
+ *   Unlike the tree, nothing here is lazy — what the client holds is
+ *   what it prints, `__collapsed__` sentinels included.  Over
+ *   MAX_TEXT_CHARS the dump is cut and the cut is announced.
+ ************************************************************/
+function render_text(gobj)
+{
+    let priv = gobj.priv;
+    let $text = priv.$text;
+    if(!$text) {
+        return;
+    }
+
+    let scroll_top = $text.scrollTop;
+    $text.textContent = "";
+    priv.$text_body = null;
+
+    if(priv.root === null || priv.root === undefined) {
+        $text.appendChild(createElement2(
+            ['div', {class: 'JSON_EMPTY has-text-grey p-3', 'data-i18n': 'no data'}, 'no data']
+        ));
+        return;
+    }
+
+    let dump = json_text_dump(priv.root, MAX_TEXT_CHARS);
+    if(dump.error) {
+        log_error(`${GCLASS_NAME}: cannot dump the document as text: ${dump.error}`);
+    }
+
+    /*  textContent, not a createElement2 child: the dump is raw text
+     *  that must reach the DOM untouched, and createElement2 trims its
+     *  text nodes. */
+    let $pre = createElement2(['pre', {class: 'JSON_TEXT_BODY'}, []]);
+    $pre.textContent = dump.text;
+    $text.appendChild($pre);
+    priv.$text_body = $pre;
+
+    if(dump.capped) {
+        $text.appendChild(createElement2(
+            ['div', {class: 'JSON_CAPPED has-text-warning p-2',
+                     'data-i18n': 'text truncated; collapse some branches'},
+             'text truncated; collapse some branches']
+        ));
+    }
+
+    refresh_language($text, t);
+    $text.scrollTop = scroll_top;
 }
 
 /************************************************************
@@ -629,7 +807,7 @@ function ac_set_json(gobj, event, kw, src)
     priv.pending.clear();
     priv.errors.clear();
 
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -655,7 +833,7 @@ function ac_subtree_loaded(gobj, event, kw, src)
         priv.expanded.add(path);   // reveal what we just loaded
     }
 
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -672,7 +850,7 @@ function ac_subtree_error(gobj, event, kw, src)
 
     log_error(`${GCLASS_NAME}: subtree load failed at '${path}': ${kw.error || ""}`);
 
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -690,7 +868,7 @@ function ac_toggle_node(gobj, event, kw, src)
         priv.expanded.add(path);
     }
 
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -709,7 +887,7 @@ function ac_expand_collapsed(gobj, event, kw, src)
     priv.pending.add(path);
     priv.errors.delete(path);
 
-    render_tree(gobj);   // show the "loading…" state
+    render_view(gobj);   // show the "loading…" state
 
     gobj_publish_event(gobj, "EV_EXPAND_PATH", {path: path, size: kw.size});
     return 0;
@@ -722,7 +900,7 @@ function ac_search(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     priv.search = (kw.text || "").trim().toLowerCase();
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -751,7 +929,7 @@ function ac_expand_all(gobj, event, kw, src)
         priv.expanded.add(p);
     });
 
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -762,7 +940,7 @@ function ac_collapse_all(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     priv.expanded.clear();
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -775,7 +953,12 @@ function ac_copy_all(gobj, event, kw, src)
     if(priv.root === null || priv.root === undefined) {
         return 0;
     }
-    let text = JSON.stringify(priv.root, null, 4);
+    let dump = json_text_dump(priv.root, 0);
+    if(dump.error) {
+        log_error(`${GCLASS_NAME}: cannot copy the document: ${dump.error}`);
+        return -1;
+    }
+    let text = dump.text;
     if(navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).catch(function(e) {
             log_error(`${GCLASS_NAME}: clipboard write failed: ${e}`);
@@ -783,6 +966,29 @@ function ac_copy_all(gobj, event, kw, src)
     } else {
         log_error(`${GCLASS_NAME}: clipboard API unavailable`);
     }
+    return 0;
+}
+
+/************************************************************
+ *   EV_SET_VIEW_MODE { mode } — "tree" | "text".
+ *
+ *   With no mode it toggles, which is what the toolbar button sends.
+ ************************************************************/
+function ac_set_view_mode(gobj, event, kw, src)
+{
+    let mode = kw.mode;
+
+    if(mode === undefined || mode === null || mode === "") {
+        mode = (current_view_mode(gobj) === "text")? "tree": "text";
+    } else if(mode !== "tree" && mode !== "text") {
+        log_error(`${GCLASS_NAME}: unknown view_mode '${mode}'`);
+        return -1;
+    }
+
+    gobj_write_attr(gobj, "view_mode", mode);
+
+    apply_view_mode(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -798,8 +1004,9 @@ function ac_language_changed(gobj, event, kw, src)
         if(priv.$search) {
             priv.$search.setAttribute("placeholder", t("search"));
         }
+        apply_view_mode(gobj);
     }
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -829,7 +1036,7 @@ function ac_hide(gobj, event, kw, src)
  ************************************************************/
 function ac_refresh(gobj, event, kw, src)
 {
-    render_tree(gobj);
+    render_view(gobj);
     return 0;
 }
 
@@ -869,6 +1076,7 @@ function create_gclass(gclass_name)
     const states = [
         ["ST_EMPTY", [
             ["EV_SET_JSON",         ac_set_json,            "ST_READY"],
+            ["EV_SET_VIEW_MODE",    ac_set_view_mode,       null],
             ["EV_LANGUAGE_CHANGED", ac_language_changed,    null],
             ["EV_REFRESH",          ac_refresh,             null],
             ["EV_SHOW",             ac_show,                null],
@@ -884,6 +1092,7 @@ function create_gclass(gclass_name)
             ["EV_EXPAND_ALL",       ac_expand_all,          null],
             ["EV_COLLAPSE_ALL",     ac_collapse_all,        null],
             ["EV_COPY_ALL",         ac_copy_all,            null],
+            ["EV_SET_VIEW_MODE",    ac_set_view_mode,       null],
             ["EV_LANGUAGE_CHANGED", ac_language_changed,    null],
             ["EV_REFRESH",          ac_refresh,             null],
             ["EV_SHOW",             ac_show,                null],
@@ -904,6 +1113,7 @@ function create_gclass(gclass_name)
         ["EV_EXPAND_ALL",       0],
         ["EV_COLLAPSE_ALL",     0],
         ["EV_COPY_ALL",         0],
+        ["EV_SET_VIEW_MODE",    0],
         ["EV_LANGUAGE_CHANGED", 0],
         ["EV_REFRESH",          0],
         ["EV_SHOW",             0],

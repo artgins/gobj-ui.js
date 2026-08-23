@@ -5,6 +5,39 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.20.0
+
+- **`C_YUI_JSON` shows the same document as raw text.** The viewer had one way
+  to read a document — the lazy tree — and a tree is the wrong shape for some
+  of what people do with JSON: read it as it is written, take a slab of it,
+  find a string with the browser's own Ctrl+F. A toolbar switch now turns it
+  into a `JSON.stringify(…, 4)` dump of the working document, four characters
+  per level like every other indentation here; the `view_mode` attr
+  (`"tree"` | `"text"`, default `"tree"`) lets a host open straight into it,
+  and `EV_SET_VIEW_MODE {mode}` moves it at runtime — with no mode it toggles,
+  which is what the button sends.
+
+  Nothing in the text view is lazy: it prints what the client currently holds,
+  `__collapsed__` sentinels included, because that is honestly what it has.
+  Expand a branch in the tree and the text grows with it. Over 2M characters
+  the dump is cut and the cut is announced, the same guard the tree has had
+  against an accidental expand-all.
+
+  Search and expand/collapse hide with the tree — they act on tree ROWS and
+  have nothing to act on here. Copy stays.
+
+  Long lines scroll sideways inside the viewer rather than wrapping: in a raw
+  dump the indentation IS the structure, and a wrapped continuation line
+  restarts at column 0 and lies about the depth of everything under it — on a
+  phone that is most of the document. The `<pre>` is `max-content` wide so the
+  scroll range actually exists; a plain block takes the container's width and
+  its text spills out of a box that reports no overflow, leaving the tail of
+  every long line unreachable.
+
+  New i18n keys for consumers: `text view`, `tree view`,
+  `text truncated; collapse some branches`. New icons in the set: `yi-code`,
+  `yi-sitemap`.
+
 ## 7.19.4
 
 - **fix: an action route came back to the MOUNT, not to where you were.** With

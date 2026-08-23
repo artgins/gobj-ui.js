@@ -4,8 +4,8 @@
  *      Pure, testable logic behind C_YUI_JSON (the lazy JSON tree
  *      viewer).  Kept out of the gclass so it can be unit-tested with
  *      no DOM: collapsed-sentinel detection, path (segments) algebra,
- *      search matching, timestamp recognition/formatting and the JSON
- *      type discriminator.
+ *      search matching, timestamp recognition/formatting, the JSON
+ *      type discriminator and the text view's capped dump.
  *
  *      Path convention mirrors the C kernel (kw_collapse / kw_find_path
  *      in kwid.c): segments are joined by the backtick delimiter, arrays
@@ -211,4 +211,34 @@ export function format_epoch(value)
         return null;
     }
     return d.toLocaleString();
+}
+
+
+/************************************************************
+ *   The text view's payload: the document as text, indented
+ *   four characters, cut at `max_chars`.
+ *
+ *   Returns {text, capped}.  `capped` is what the caller
+ *   announces under the dump — a cut that is not announced
+ *   reads as a document that ends there.
+ ************************************************************/
+export function json_text_dump(root, max_chars)
+{
+    let text;
+    try {
+        text = JSON.stringify(root, null, 4);
+    } catch(e) {
+        return {text: "", capped: false, error: String(e)};
+    }
+
+    if(text === undefined) {
+        /*  JSON.stringify() answers undefined for a value that has no
+         *  JSON form at all (a function, a bare undefined). */
+        return {text: "", capped: false, error: "not representable as JSON"};
+    }
+
+    if(typeof max_chars === "number" && max_chars > 0 && text.length > max_chars) {
+        return {text: text.slice(0, max_chars), capped: true};
+    }
+    return {text: text, capped: false};
 }

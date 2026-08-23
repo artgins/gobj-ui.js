@@ -426,19 +426,42 @@ with limits, or any equivalent), and hands the subtree back via
 the DOM, so the tree stays bounded regardless of document size. With no
 sentinels present it degrades to a plain client-side collapsible tree.
 
+**Two views, one document.** The toolbar switch (and the `view_mode` attr,
+`"tree"` | `"text"`) turns the tree into the **raw text** of the same working
+document — `JSON.stringify(…, 4)`, four characters per level like every other
+indentation in the house. It is the view for reading a document as it is
+written, selecting a slab of it, or searching it with the browser's own Ctrl+F.
+Two consequences worth knowing:
+
+- Nothing there is lazy. The text prints what the client currently holds,
+  `__collapsed__` sentinels included, because that is honestly what it has.
+  Expand a branch in the tree and the text grows with it.
+- The tree-only controls (search, expand-loaded, collapse-all) hide with the
+  tree; copy stays. A control that can answer nothing is worse than an absent
+  one.
+
+Long lines scroll sideways **inside** the viewer (`white-space: pre` on a
+`max-content`-wide `<pre>`), never on the page body: in a raw dump the
+indentation *is* the structure, and a wrapped line restarts at column 0 and
+lies about the depth of everything under it.
+
 **Contract:**
 
 - Attributes: `subscriber`, `title` (i18n key, optional), `json_data` (initial
-  JSON, optional), `$container` (mounted by the parent).
+  JSON, optional), `view_mode` (`"tree"` default | `"text"`), `$container`
+  (mounted by the parent).
 - Input events: `EV_SET_JSON {json}` (replace the whole document; `ST_EMPTY` →
   `ST_READY`), `EV_SUBTREE_LOADED {path, json}` (splice a fetched subtree),
-  `EV_SUBTREE_ERROR {path, error}`, plus `EV_REFRESH` / `EV_SHOW` / `EV_HIDE` /
-  `EV_LANGUAGE_CHANGED`.
+  `EV_SUBTREE_ERROR {path, error}`, `EV_SET_VIEW_MODE {mode}` (`"tree"` /
+  `"text"`; **no mode = toggle**, which is what the toolbar button sends), plus
+  `EV_REFRESH` / `EV_SHOW` / `EV_HIDE` / `EV_LANGUAGE_CHANGED`.
 - Output event: `EV_EXPAND_PATH {path, size}` (`EVF_OUTPUT_EVENT`) — the parent
   must declare it in its own FSM (CHILD subscription model).
 - Internal (DOM → FSM): `EV_TOGGLE_NODE`, `EV_EXPAND_COLLAPSED`, `EV_SEARCH`,
   `EV_EXPAND_ALL`, `EV_COLLAPSE_ALL`, `EV_COPY_ALL`. Every kw carries only a
   `path` string — never a DOM node or gobj.
+- i18n keys added by the text view: `text view`, `tree view`,
+  `text truncated; collapse some branches`.
 - Paths use the kernel delimiter (backtick) and index arrays numerically, so a
   path emitted by the viewer round-trips through `kw_find_path` on the backend.
 

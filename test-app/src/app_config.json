@@ -1231,7 +1231,7 @@
                         "lifecycle": "lazy_destroy",
                         "kw": {
                             "title": "JSON tree",
-                            "lead": "C_YUI_JSON renders a value as a lazily expanded tree. Indentation is four characters per level and each ancestor draws a guide line, the same as the site map: past level two the eye follows the guide, not the offset."
+                            "lead": "C_YUI_JSON renders a value as a lazily expanded tree. Indentation is four characters per level and each ancestor draws a guide line, the same as the site map: past level two the eye follows the guide, not the offset. The toolbar switch turns the tree into the raw text of the same document, for reading it as written or taking a slab of it."
                         }
                     }
                 },

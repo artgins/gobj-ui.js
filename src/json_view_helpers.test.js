@@ -15,6 +15,7 @@ import {
     subtree_matches,
     is_time_field,
     format_epoch,
+    json_text_dump,
 } from "./json_view_helpers.js";
 
 
@@ -132,4 +133,45 @@ test("format_epoch handles seconds, milliseconds and the unset case", () => {
     expect(format_epoch("x")).toBeNull();
     expect(typeof format_epoch(1700000000)).toBe("string");        // seconds
     expect(typeof format_epoch(1700000000000)).toBe("string");     // milliseconds
+});
+
+
+/*============================================================
+ *      text view dump
+ *============================================================*/
+test("json_text_dump indents four characters, like every other tree", () => {
+    let d = json_text_dump({a: {b: 1}}, 0);
+    expect(d.capped).toBe(false);
+    expect(d.error).toBeUndefined();
+    expect(d.text).toBe('{\n    "a": {\n        "b": 1\n    }\n}');
+});
+
+test("json_text_dump prints a collapsed sentinel verbatim", () => {
+    let d = json_text_dump({rows: {__collapsed__: {path: "rows", size: 900}}}, 0);
+    expect(d.text).toContain("__collapsed__");
+    expect(d.text).toContain("900");
+});
+
+test("json_text_dump cuts at max_chars and says so", () => {
+    let d = json_text_dump({a: "x".repeat(500)}, 100);
+    expect(d.capped).toBe(true);
+    expect(d.text.length).toBe(100);
+});
+
+test("json_text_dump does not cap when max_chars is absent or zero", () => {
+    let big = {a: "x".repeat(500)};
+    expect(json_text_dump(big, 0).capped).toBe(false);
+    expect(json_text_dump(big).capped).toBe(false);
+});
+
+test("json_text_dump reports a document with no JSON form instead of printing nothing", () => {
+    let circular = {};
+    circular.self = circular;
+    let d = json_text_dump(circular, 0);
+    expect(d.text).toBe("");
+    expect(typeof d.error).toBe("string");
+
+    let d2 = json_text_dump(undefined, 0);
+    expect(d2.text).toBe("");
+    expect(typeof d2.error).toBe("string");
 });

@@ -1,7 +1,7 @@
 /***********************************************************************
  *          c_yui_json.css
  *
- *      Styling for C_YUI_JSON (lazy JSON tree viewer).
+ *      Styling for C_YUI_JSON (lazy JSON tree viewer + raw text view).
  *      Monospace tree, type-coloured leaves, dark-aware.
  *      No transitions/animations by design (lib-yui convention).
  *
@@ -149,6 +149,43 @@
 .C_YUI_JSON .JSON_COLLAPSED.is-pending {
     cursor: progress;
     opacity: 0.7;
+}
+
+/*
+ *  Text view: the same document as a raw dump, monospace like the tree.
+ */
+.C_YUI_JSON .JSON_TEXT {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1em;
+    line-height: 1.5;
+    padding: 0.25rem 0.5rem;
+}
+
+.C_YUI_JSON .JSON_TEXT_BODY {
+    margin: 0;
+    padding: 0;
+    background: none;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    /*  `pre`, NOT `pre-wrap`: the indentation IS the structure here, and
+     *  a wrapped continuation line restarts at column 0 and lies about
+     *  the depth of everything under it — on a phone that is most of the
+     *  document.  Long lines scroll sideways inside .JSON_TEXT (which
+     *  owns the overflow), never on the page body. */
+    white-space: pre;
+    /*  And the <pre> must GROW to its longest line: as a plain block it
+     *  takes the container's width, its text spills out of a box that
+     *  reports no overflow, and .JSON_TEXT gets no scroll range to
+     *  offer — the tail of every long line is simply unreachable.
+     *  `min-width: 100%` keeps it filling the container when the
+     *  document is narrower. */
+    width: max-content;
+    min-width: 100%;
+    /*  The dump is there to be read AND taken: a plain <pre> in some
+     *  host stylesheets is unselectable chrome. */
+    user-select: text;
 }
 
 /*

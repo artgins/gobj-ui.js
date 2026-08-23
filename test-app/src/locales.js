@@ -182,7 +182,7 @@ const es_translation = {
     "pick how to read this topic": "elige cómo leer este topic",
     "Go to Meter 1 · series": "Ir a Contador 1 · serie",
     "JSON tree": "Árbol JSON",
-    "C_YUI_JSON renders a value as a lazily expanded tree. Indentation is four characters per level and each ancestor draws a guide line, the same as the site map: past level two the eye follows the guide, not the offset.": "C_YUI_JSON pinta un valor como árbol de expansión perezosa. La indentación es de cuatro caracteres por nivel y cada ancestro dibuja una guía, igual que el mapa del sitio: pasado el nivel dos el ojo sigue la guía, no el sangrado.",
+    "C_YUI_JSON renders a value as a lazily expanded tree. Indentation is four characters per level and each ancestor draws a guide line, the same as the site map: past level two the eye follows the guide, not the offset. The toolbar switch turns the tree into the raw text of the same document, for reading it as written or taking a slab of it.": "C_YUI_JSON pinta un valor como árbol de expansión perezosa. La indentación es de cuatro caracteres por nivel y cada ancestro dibuja una guía, igual que el mapa del sitio: pasado el nivel dos el ojo sigue la guía, no el sangrado. El interruptor de la barra convierte el árbol en el texto crudo del mismo documento, para leerlo tal cual está escrito o llevarse un trozo.",
     "sample": "muestra",
     "Breadcrumb": "Miga de pan",
     "stack, back or path": "tiras, back o traza",
