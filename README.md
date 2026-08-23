@@ -430,10 +430,13 @@ sentinels present it degrades to a plain client-side collapsible tree.
 `"tree"` | `"text"` | `"graph"`) picks which. They answer three different
 questions:
 
+The switch reads `text · tree · graph`, flattest reading first — which is not
+the order of arrival: the viewer opens on the **tree** (`view_mode` default).
+
 | view | question | notes |
 |---|---|---|
-| `tree` | *where is this value, and what is around it* | the lazy view; the only one that can drill |
 | `text` | *what does this document say, verbatim* | `JSON.stringify(…, 4)`, four characters per level |
+| `tree` | *where is this value, and what is around it* | the lazy view; the only one that can drill; the default |
 | `graph` | *what shape is this* | a hosted `C_YUI_JSON_GRAPH` child (AntV/G6) |
 
 - **Neither text nor graph is lazy.** Both show what the client currently

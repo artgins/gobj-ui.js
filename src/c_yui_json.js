@@ -126,13 +126,14 @@ const MAX_RENDER_ROWS = 5000;
 const MAX_TEXT_CHARS = 2000000;
 
 /*
- *  The three views, in switch order.  EV_SET_VIEW_MODE with no mode
- *  advances along this list, which is what the old two-view toggle did
- *  when the list was two long.
+ *  The three views, in switch order — this table IS the order of the
+ *  buttons, and EV_SET_VIEW_MODE with no mode advances along it.
+ *  Note the order is not the default: the viewer still OPENS on the
+ *  tree (the `view_mode` attr default), it just sits second in the row.
  */
 const VIEWS = [
-    {mode: "tree",  icon: "yi-sitemap",       key: "tree view"},
     {mode: "text",  icon: "yi-code",          key: "text view"},
+    {mode: "tree",  icon: "yi-sitemap",       key: "tree view"},
     {mode: "graph", icon: "yi-hexagon-nodes", key: "graph view"},
 ];
 

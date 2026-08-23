@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.21.1
+
+- **The view switch reads `text · tree · graph`.** Requested order; the row now
+    goes from the flattest reading of the document to the most structured.
+    The order of the row is not the order of arrival: the viewer still OPENS on
+    the tree (`view_mode` default), the tree just sits in the middle now.
+    `EV_SET_VIEW_MODE` with no mode advances along the same list, so its cycle
+    follows.
+
 ## 7.21.0
 
 - **`C_YUI_JSON` shows the same document as a GRAPH.** Third view, after the
