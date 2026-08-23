@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.18.1
+
+- **fix: after clicking a node, the keys did nothing.** The keyboard reaches
+  the graph through G6's canvas, which is the element carrying a `tabIndex` —
+  and a card is a DOM element INSIDE the container, so clicking one takes the
+  focus off the canvas. Select two nodes by clicking them, press Escape, and
+  nothing happened: the most ordinary way there is to reach for that key.
+
+  Found on the deployed app, and only because the test that caught it asked two
+  questions instead of one — *did the ring clear?* as well as *did the button
+  follow?* The button was right all along; what never arrived was the key. A
+  test that had checked only the button would have blamed the button.
+
+  Every pointerdown inside the graph now puts the focus back on the canvas,
+  except on what is there to be typed into — the popovers this gclass appends
+  to its own container carry inputs, and stealing their focus on pointerdown
+  would make them impossible to fill in.
+
+- **fix: full screen is only left when it was entered.** `Escape` asked the
+  plugin to exit whether or not anything was in full screen. Harmless as it
+  stood (the plugin checks `document.fullscreenElement` and returns), but this
+  moved from a listener into an ACTION in `7.17.0`, where anything thrown takes
+  the rest of the key with it.
+
 ## 7.18.0
 
 - **feat: zoom to the selection.** `fit` gives back the whole graph; with a

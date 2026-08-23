@@ -333,6 +333,7 @@ let PRIVATE_DATA = {
     _link_saved_styles: [],         // saved port styles to restore on cancel
     _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
     _focus_ids:         [],         // node ids carrying the focus 'active' state
+    _on_pointerdown_focus: null,    // listener keeping the keyboard on the canvas
     _selected_paint_ids: [],        // node ids whose card is PAINTED selected
                                     // (G6's 'selected' state is the selection
                                     //  itself; this is what is on screen, and
@@ -457,6 +458,13 @@ function mt_destroy(gobj)
     if(priv._on_language_changed) {
         i18next.off('languageChanged', priv._on_language_changed);
         priv._on_language_changed = null;
+    }
+
+    if(priv._on_pointerdown_focus) {
+        priv.$container.removeEventListener(
+            "pointerdown", priv._on_pointerdown_focus
+        );
+        priv._on_pointerdown_focus = null;
     }
 
     if(priv.theme_observer) {
@@ -786,6 +794,36 @@ function configure_events(gobj)
         update_toolbar(gobj);
     };
     i18next.on('languageChanged', priv._on_language_changed);
+
+    /*  Clicking a CARD is clicking a DOM element inside the container,
+     *  and that takes the keyboard away from G6's canvas -- the only
+     *  element that receives keydown. Selecting two nodes by clicking
+     *  them and then pressing Escape did nothing, which is the most
+     *  ordinary way there is to reach for it. The focus goes back on
+     *  every press inside the graph.
+     *
+     *  Except on what is there to be typed into: the popovers this
+     *  gclass appends to its own container carry inputs, and stealing
+     *  their focus on pointerdown would make them impossible to fill
+     *  in.
+     */
+    priv._on_pointerdown_focus = (ev) => {
+        let target = ev.target;
+        if(target && typeof target.closest === "function") {
+            if(target.closest("input, textarea, select, [contenteditable]")) {
+                return;
+            }
+            if(target.closest(".g6-confirm-popover, .g6-create-popover," +
+                              ".g6-node-popover, .g6-edge-popover")) {
+                return;
+            }
+        }
+        let $canvas = priv.$container.querySelector("canvas");
+        if($canvas && typeof $canvas.focus === "function") {
+            $canvas.focus({preventScroll: true});
+        }
+    };
+    priv.$container.addEventListener("pointerdown", priv._on_pointerdown_focus);
 
     /*  The canvas carries a `tabIndex` of its own, so a keydown reaches
      *  us only while the GRAPH has focus. That is what keeps Ctrl+A in
@@ -6998,11 +7036,17 @@ function ac_key_down(gobj, event, kw, src)
         if(fullscreen) {
             if(key === "F" || key === "f") {
                 fullscreen.request();
-            } else if(key === "Escape") {
-                /*  Escape also clears the selection below, and both are
-                 *  right: the browser exits full screen on Escape
-                 *  whatever we do, so refusing to clear as well would
-                 *  only make the key do less than it appears to.  */
+            } else if(key === "Escape" && priv.is_fullscreen) {
+                /*  Only while actually IN full screen. Asking to leave
+                 *  a full screen nobody entered throws, and since this
+                 *  is now an action rather than a listener, that throw
+                 *  takes the rest of the key with it -- which is how
+                 *  Escape stopped clearing the selection.
+                 *
+                 *  Escape does both when both apply, and that is right:
+                 *  the browser leaves full screen on Escape whatever we
+                 *  do, so refusing to clear as well would only make the
+                 *  key do less than it appears to.  */
                 fullscreen.exit();
             }
         }
