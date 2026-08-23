@@ -5166,6 +5166,43 @@ function refresh_minimap(gobj)
         {
             size: [200, 140],
             position: "bottom-left",
+            /*
+             *  The anchor has to be CSS, not the pixels G6 computes.
+             *
+             *  `createPluginCanvas` turns `position` into `left`/`top`
+             *  in PIXELS, once, from the canvas size at creation
+             *  (`xRatio * (W - width)`). The container then grows --
+             *  full screen, a window resize, a panel closing -- and the
+             *  minimap stays at the `top` it was given: measured going
+             *  full screen, `top` was still `511px` over a container
+             *  that had become 768 tall, which put it floating halfway
+             *  up the left edge, on top of the graph it is there to
+             *  explain.
+             *
+             *  `containerStyle` is merged AFTER those pixels, so
+             *  `top: auto` + `bottom` is a real anchor the browser
+             *  keeps for every size the container ever takes.
+             *
+             *  And it follows the theme: G6's default is a `#fff` box
+             *  with a `#ddd` border in BOTH themes, which over a
+             *  near-black canvas is the brightest thing on screen.
+             */
+            containerStyle: {
+                top:          "auto",
+                bottom:       "12px",
+                left:         "12px",
+                background:   "var(--bulma-scheme-main, #fff)",
+                border:       "1px solid var(--bulma-border-weak, #ddd)",
+                borderRadius: "6px",
+                boxShadow:    "0 2px 8px rgba(0, 0, 0, 0.15)",
+            },
+            /*  The viewport rectangle: G6 washes it in black, which is
+             *  invisible over a dark minimap. A link-coloured outline
+             *  reads on both.  */
+            maskStyle: {
+                border:     "2px solid var(--bulma-link, #3b82f6)",
+                background: "rgba(59, 130, 246, 0.12)",
+            },
             shape: (id, element_type, element) => {
                 if(element_type !== "node") {
                     return element;     /*  edges clone themselves fine  */

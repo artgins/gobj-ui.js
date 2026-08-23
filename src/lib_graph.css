@@ -95,6 +95,17 @@
     min-width: 20px;
 }
 .g6-toolbar.g6-toolbar-large .g6-toolbar-text {
+    /*
+     *  The click has to land on the ITEM, not on this.
+     *
+     *  G6's toolbar fires `onClick` only when the pressed element's own
+     *  class list contains `g6-toolbar-item` -- which is why its CSS
+     *  gives the icon `<svg>` `pointer-events: none`. A text glyph
+     *  needs the same rule for the same reason: without it the press
+     *  lands on this span, the class does not match, and the button is
+     *  simply dead. `1:1` shipped that way.
+     */
+    pointer-events: none;
     display: block;
     line-height: 20px;
     font-size: 0.8125rem;

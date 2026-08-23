@@ -5,6 +5,37 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.19.1
+
+- **fix: `1:1` was a dead button.** It fired nothing at all — no event, no
+  trace line. G6's toolbar calls `onClick` only when the PRESSED element's own
+  class list contains `g6-toolbar-item`, which is why its own CSS gives the
+  icon `<svg>` `pointer-events: none`. The text glyph `7.15.0` introduced had
+  no such rule, so a real click landed on the `<span>`, the class did not
+  match, and nothing happened.
+
+  It survived a live check because that check clicked it the only way that
+  works: `element.click()` from a page script dispatches on the element you
+  named, so it reached the item div and did what a mouse never could. A press
+  goes where the pointer is; a scripted click goes where it is told.
+
+- **fix: the minimap floated into the middle of the graph in full screen.**
+  `createPluginCanvas` turns `position` into `left`/`top` in PIXELS, once, from
+  the canvas size at creation. The container then grows — full screen, a window
+  resize, a panel closing — and the minimap stays at the `top` it was given:
+  measured going full screen, `top` was still `511px` over a container that had
+  become 768 tall, which put it halfway up the left edge, on top of the graph
+  it is there to explain.
+
+  `containerStyle` is merged after those pixels, so `top: auto` + `bottom` is a
+  real anchor the browser keeps for every size the container ever takes. It is
+  also inset 12px rather than flush against the edge.
+
+- **fix: the minimap follows the theme.** G6's default container is `#fff` with
+  a `#ddd` border in BOTH themes — over a near-black canvas, the brightest
+  thing on screen. Same for the viewport mask, washed in black and invisible
+  over a dark minimap: it is a link-coloured outline now, which reads on both.
+
 ## 7.19.0
 
 - **feat: the two decisions a runtime-opened tab costs its url, in one place
