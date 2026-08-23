@@ -1282,7 +1282,24 @@ function navigate_to(gobj, route, depth, no_drain)
             }
         };
         let config = gobj_read_attr(gobj, "config") || {};
-        let prev = (priv.stages && priv.stages.main &&
+        /*  Where the user actually WAS, which is the url and not the
+         *  mount.
+         *
+         *  `stages.main.active_route` is the DECLARED route the view is
+         *  mounted at, and under a `C_YUI_NODE` tree everything below it
+         *  is subpath the node owns -- so restoring THAT restores the
+         *  tree's root and throws the position away. Switching the theme
+         *  from a graph five levels down answered with the workspace
+         *  landing, and so would every other action route: preferences,
+         *  the site map, the dev tools.
+         *
+         *  `current_route` is the same route WITH its subpath, and it is
+         *  only ever written for a RESTING route (an action returns
+         *  before that line), so it cannot be an action route itself.
+         *  It is what a deep link resolves, and therefore what can be
+         *  restored.  */
+        let prev = gobj_read_attr(gobj, "current_route") ||
+                   (priv.stages && priv.stages.main &&
                     priv.stages.main.active_route) ||
                    gobj_read_attr(gobj, "default_route") ||
                    (config.shell && config.shell.stages &&

@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.19.4
+
+- **fix: an action route came back to the MOUNT, not to where you were.** With
+  `redirect: "back"` or `"none"` the shell restores the previous resting route
+  — and it read that off `stages.main.active_route`, which is the route the
+  view is DECLARED at. Under a `C_YUI_NODE` tree everything below that is
+  subpath the node owns, so switching the theme from a graph five levels down
+  answered by landing on the workspace root, position gone. Reported on a
+  treedb graph; the same held for every other action route an app declares —
+  preferences, the site map, the dev tools.
+
+  It restores `current_route` now: the same route WITH its subpath, which is
+  what a deep link resolves and therefore what can be restored. That attr is
+  only ever written for a RESTING route — an action returns before that line —
+  so it cannot be an action route itself.
+
+  An app whose views are all declared routes never saw this, which is why it
+  took a node tree to surface it.
+
 ## 7.19.3
 
 - **fix: `7.19.2` made the record popover unreadable too.** Its re-enable list
