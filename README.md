@@ -719,6 +719,41 @@ so it survived that — two light islands over a dark canvas.
 (all tooltips, so a host that has not defined them shows the key on hover and
 nothing else breaks).
 
+### Tabs opened at runtime, and the two decisions their url costs
+
+`yui_tab_routes.js`. A workspace whose tabs are opened by the operator —
+`/<ws>/<home>/<id>`, with whatever the tab is showing below it — pays for that
+url twice, and both apps in this family learned the same two lessons, one of
+them the hard way.
+
+**`yui_tab_split_subpath(subpath)` → `{id, tail}`.** On a cold load the tab's
+route does not exist yet: it is registered when the tab is opened, so a reload
+on `/<ws>/<home>/<id>/<tail>` resolves only as far as the workspace home and the
+shell hands the WHOLE rest over as the subpath — `<id>/<tail>`, not `<id>`.
+Reading all of it as the id matches nothing, and an app that then falls back to
+its first tab **answers a reload with somebody else's default**. It hides well:
+a bare tab route survives, because there the subpath IS the id, so only the deep
+case breaks and only for whoever reloads on one.
+
+Only the id segment is decoded. These ids are composite (`<node>`+`0x1F`+
+`<yuno>`, `<conn>`+`0x1F`+`<treedb>`) and reach the url percent-encoded, so
+decoding the whole tail first would turn an encoded slash inside an id into a
+separator and cut it in two.
+
+**`yui_tab_position_plan(prev_base, base, subpath, remembered)` →
+`{record, replay}`.** A tab's nav item is a FIXED route —
+`yui_shell_set_submenu()` registers it, and that route is where the view is
+mounted — so the position inside a tab cannot travel in the item and has to be
+replayed when the tab is entered again. "Entered again" is the whole subtlety:
+arriving at the root of the tab you were ALREADY in is the way OUT of whatever
+was open, and replaying the position there would make that button do nothing.
+
+**What is NOT here: the wiring.** One host restores on its transport's
+`EV_ON_OPEN`, another normalizes the route as it arrives, and both are right for
+what they know about when their tabs become real. These are the decisions, not
+the plumbing — which is also why they are pure and tested rather than three
+lines inside an action.
+
 ### Selecting several nodes, and moving them together
 
 In **edition** mode the graph has a real selection, not just "the node you

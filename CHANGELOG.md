@@ -5,6 +5,38 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.19.0
+
+- **feat: the two decisions a runtime-opened tab costs its url, in one place
+  (`yui_tab_routes.js`).** Both consoles in this family have a workspace whose
+  tabs the operator opens — `/<ws>/<home>/<id>` — and both had to answer the
+  same two questions in their own `c_app.js`. One of them answered the first
+  one wrong for as long as nobody reloaded on a deep route.
+
+  **`yui_tab_split_subpath()`** is the one that bit. On a cold load the tab's
+  route does not exist yet — it is registered when the tab is opened — so the
+  shell resolves only as far as the workspace home and hands the WHOLE rest
+  over as the subpath: `<id>/<tail>`, not `<id>`. Reading all of it as the id
+  matches nothing, and falling back to the first tab answers a reload with
+  somebody else's default. It hides well: a bare tab route survives, because
+  there the subpath IS the id.
+
+  Only the id segment is decoded, and that is not a detail: these ids are
+  composite (`<node>`+`0x1F`+`<yuno>`, `<conn>`+`0x1F`+`<treedb>`) and travel
+  percent-encoded, so decoding the whole tail first would turn an encoded slash
+  inside an id into a separator.
+
+  **`yui_tab_position_plan()`** is the one both already had right, moved here
+  from the treedb browser with its tests: a tab's nav item is a fixed route, so
+  the position inside it is replayed when the tab is entered AGAIN — and
+  arriving at the root of the tab you were already in is the way out of what
+  was open, not a return to it.
+
+  **The wiring stays in the hosts.** One restores on its transport's
+  `EV_ON_OPEN`, the other normalizes the route as it arrives, and both are
+  right about when their own tabs become real. What was shared was the
+  deciding, and that is what moved.
+
 ## 7.18.3
 
 - **fix: and the focus was being taken away again right after.** Focusing the
