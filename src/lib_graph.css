@@ -42,7 +42,12 @@
  *
  *  Except what IS there to be read or typed into. The popovers this
  *  gclass appends to the same container carry record data an operator
- *  may well want to copy, and inputs need a caret.
+ *  may well want to copy, and inputs need a caret. `g6-node-detail`
+ *  above all: that one exists ONLY to be read.
+ *
+ *  The list is every class `create_popover_base()` is called with. A
+ *  new popover that forgets to join it is unreadable in a way nothing
+ *  reports -- so add it here in the same commit.
  */
 .graph-container {
     -webkit-user-select: none;
@@ -55,7 +60,8 @@
 .graph-container .g6-confirm-popover,
 .graph-container .g6-create-popover,
 .graph-container .g6-node-popover,
-.graph-container .g6-edge-popover {
+.graph-container .g6-edge-popover,
+.graph-container .g6-node-detail {
     -webkit-user-select: text;
     user-select: text;
 }

@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.19.3
+
+- **fix: `7.19.2` made the record popover unreadable too.** Its re-enable list
+  named four popover classes and missed `g6-node-detail` — the one that exists
+  ONLY to be read, and the likeliest thing in the whole graph an operator wants
+  to copy out of. Caught by measuring the computed `user-select` on the real
+  popover instead of trusting the list.
+
+  The list is now every class `create_popover_base()` is called with, and says
+  so, because a new popover that forgets to join it is unreadable in a way
+  nothing reports.
+
 ## 7.19.2
 
 - **fix: shift+clicking a card also smeared a text selection across the
