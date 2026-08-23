@@ -184,6 +184,15 @@ const GCLASS_NAME = "C_G6_NODES_TREE";
 const HIGHLIGHT_COLOR = "#f0a020";
 const HIGHLIGHT_HALO  = "rgba(240,160,32,0.35)";
 
+/*
+ *  The selection ring. Deliberately NOT the amber of the highlight:
+ *  a node can be a find match AND be selected, and two amber rings
+ *  would say nothing about either. Blue is what a selection is in
+ *  every editor, and the ring is drawn OUTSIDE the highlight's halo
+ *  so the two compose instead of overwriting one another.
+ */
+const SELECT_RING = "rgba(59,130,246,0.95)";
+
 /***************************************************************
  *  Internal layout and operation mode definitions
  ***************************************************************/
@@ -324,6 +333,10 @@ let PRIVATE_DATA = {
     _link_saved_styles: [],         // saved port styles to restore on cancel
     _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
     _focus_ids:         [],         // node ids carrying the focus 'active' state
+    _selected_paint_ids: [],        // node ids whose card is PAINTED selected
+                                    // (G6's 'selected' state is the selection
+                                    //  itself; this is what is on screen, and
+                                    //  it exists to diff the repaint)
     _pending_focus_topic: null,     // focus requested before data was loaded
     _pending_find:      null,       // find requested before data was loaded
     _layout_asked:      "",         // layout the host asked for at create (see mt_create)
@@ -1182,9 +1195,46 @@ function configure_behaviour(gobj)
         case "edition":
             priv.edit_mode = true;
             behaviors = [
-                "drag-canvas",
+                /*  Panning gives way while Shift is held: that is the
+                 *  marquee's gesture, and G6 binds drag-canvas straight
+                 *  to the drag events, so without this the canvas pans
+                 *  under the rubber band.  */
+                {
+                    type: "drag-canvas",
+                    key: "drag-canvas",
+                    enable: (event) => !event.shiftKey,
+                },
                 "zoom-canvas",
+                /*  Moves EVERY node in the `selected` state, not just
+                 *  the one under the pointer, and wraps the whole move
+                 *  in one history batch -- so a group move is one drag
+                 *  and one undo. Nothing to configure: `selected` is
+                 *  already its default `state`.  */
                 "drag-element",
+                /*  Shift+drag on the canvas: the rubber band. The
+                 *  GESTURE is G6's, its RESULT enters the machine --
+                 *  `onSelect` fires before G6 writes the state, so the
+                 *  ids travel with the event and the action does not
+                 *  have to race it.  */
+                {
+                    type: "brush-select",
+                    key: "brush-select",
+                    trigger: ["shift"],
+                    enableElements: ["node"],
+                    /*  Left at G6's default (false): the set is read at
+                     *  pointerup, not on every pointermove. Each answer
+                     *  repaints the cards it touches, and doing that per
+                     *  frame of a rubber band over a hundred nodes is
+                     *  paid for nothing -- the band already shows what
+                     *  it covers.  */
+                    immediately: false,
+                    onSelect: (states) => {
+                        let ids = Object.keys(states || {}).filter(
+                            (id) => (states[id] || []).includes("selected")
+                        );
+                        gobj_send_event(gobj, "EV_BRUSH_SELECT", {ids: ids}, gobj);
+                    },
+                },
             ];
             break;
         case "operation":
@@ -2948,6 +2998,126 @@ function perform_history_op(gobj, is_redo)
     }
 }
 
+/************************************************************
+ *  The selection.
+ *
+ *  G6's `selected` element state IS the selection: `drag-element`
+ *  reads it (`getElementDataByState`) to decide what a drag moves,
+ *  so keeping the set anywhere else would be a second truth the
+ *  drag does not consult. What this gclass keeps is what is
+ *  PAINTED -- an html node draws no state style at all (its key
+ *  shape is a DOM element), so the ring lives in the card's own
+ *  html, exactly like the find highlight, and the painted set
+ *  exists to diff the repaint.
+ ************************************************************/
+function selected_node_ids(gobj)
+{
+    let graph = gobj.priv.graph;
+
+    if(!graph) {
+        return [];
+    }
+
+    let data;
+    try {
+        data = graph.getElementDataByState('node', 'selected') || [];
+    } catch(e) {
+        return [];      /* asked before there is a graph to ask */
+    }
+
+    return data.map((nd) => nd.id);
+}
+
+/************************************************************
+ *  Move the ring to these nodes and off the ones that had it.
+ ************************************************************/
+function paint_selection(gobj, ids)
+{
+    let priv = gobj.priv;
+    let prev = priv._selected_paint_ids || [];
+    let next = ids || [];
+
+    priv._selected_paint_ids = next;
+
+    repaint_cards(gobj, new Set([...prev, ...next]));
+}
+
+/************************************************************
+ *  Select a SET of nodes: what a marquee and a shift-click do.
+ *
+ *  It leaves `_selected_node_id` null even for a set of one,
+ *  because that field is not "the selection", it is "the node
+ *  opened for editing" -- the resize handles, the ports and the
+ *  popovers hang off it, and none of them means anything over a
+ *  set. Clicking a node is what opens one (`select_node`); a
+ *  marquee selects, it does not open.
+ ************************************************************/
+function set_selection(gobj, ids)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let next = [];
+    for(let id of (ids || [])) {
+        try {
+            if(graph.getNodeData(id)) {
+                next.push(id);
+            }
+        } catch(e) {
+            /*  An id the graph does not have: a brush answers with what
+             *  it enclosed, and a node can be gone by the time we ask.  */
+        }
+    }
+
+    deselect_node(gobj);        /* the state, the paint and the affordances */
+
+    if(!next.length) {
+        return;
+    }
+
+    history_pause(gobj);
+    try {
+        let states = {};
+        for(let id of next) {
+            states[id] = ['selected'];
+        }
+        graph.setElementState(states);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot set the selection: ${e}`);
+    }
+
+    paint_selection(gobj, next);
+
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
+}
+
+/************************************************************
+ *  Add a node to the selection, or take it out of it.
+ ************************************************************/
+function toggle_in_selection(gobj, node_id)
+{
+    let priv = gobj.priv;
+
+    /*  The union of the two views of the same thing. A brush clears
+     *  G6's state on pointerdown without telling anybody, so reading
+     *  only the state could drop a card that is on screen wearing a
+     *  ring.  */
+    let current = new Set(selected_node_ids(gobj));
+    for(let id of (priv._selected_paint_ids || [])) {
+        current.add(id);
+    }
+
+    if(current.has(node_id)) {
+        current.delete(node_id);
+    } else {
+        current.add(node_id);
+    }
+
+    set_selection(gobj, [...current]);
+}
+
 function select_node(gobj, node_id)
 {
     let priv = gobj.priv;
@@ -2962,6 +3132,7 @@ function select_node(gobj, node_id)
         graph.setElementState(node_id, ['selected']);
     } catch(e) {}
     priv._selected_node_id = node_id;
+    paint_selection(gobj, [node_id]);
 
     // Show resize handles and properties icon
     show_resize_handles(gobj);
@@ -2984,12 +3155,28 @@ function deselect_node(gobj)
     hide_delete_confirm(gobj);
     hide_unlink_confirm(gobj);
 
+    /*  Both views of the selection, because either can hold an id the
+     *  other lost: G6's state is what a drag moves, the painted set is
+     *  what the reader can see.  */
+    let clearing = new Set([
+        ...selected_node_ids(gobj),
+        ...(priv._selected_paint_ids || [])
+    ]);
     if(priv._selected_node_id) {
+        clearing.add(priv._selected_node_id);
+    }
+
+    if(clearing.size) {
         history_pause(gobj);
         try {
-            graph.setElementState(priv._selected_node_id, []);
+            let states = {};
+            for(let id of clearing) {
+                states[id] = [];
+            }
+            graph.setElementState(states);
         } catch(e) {}
         priv._selected_node_id = null;
+        paint_selection(gobj, []);
 
         graph_draw(gobj).then(() => {
             history_resume(gobj);
@@ -4793,7 +4980,7 @@ function refresh_minimap(gobj)
  *  same three-way choice — it lived inline in the theme refresh and is
  *  shared now. Returns null for a node that carries no desc.
  ************************************************************/
-function node_innerHTML_of(nd, theme, highlight)
+function node_innerHTML_of(nd, theme, highlight, selected)
 {
     if(!nd || !nd.data || !nd.data.desc) {
         return null;
@@ -4805,20 +4992,63 @@ function node_innerHTML_of(nd, theme, highlight)
     switch(desc.node_treedb_type) {
         case 'child':
             return build_chip_innerHTML(
-                desc.color, theme, record.icon, label, record.id, highlight
+                desc.color, theme, record.icon, label, record.id,
+                highlight, selected
             );
         case 'extended':
             return build_node_innerHTML(
                 desc.color, theme, record.icon, label,
-                desc.topic_name, true, record.id, highlight
+                desc.topic_name, true, record.id, highlight, selected
             );
         case 'hierarchical':
             return build_node_innerHTML(
                 desc.color, theme, record.icon, label,
-                desc.topic_name, false, record.id, highlight
+                desc.topic_name, false, record.id, highlight, selected
             );
     }
     return null;
+}
+
+/************************************************************
+ *  Repaint these cards with the flags they carry RIGHT NOW.
+ *
+ *  One place, because the flags are independent and each used to
+ *  be written by whoever repainted last: a find that repainted its
+ *  matches erased the selection ring off them, and a selection
+ *  repainted over a match erased the amber. Both are read here
+ *  from where they live.
+ ************************************************************/
+function repaint_cards(gobj, ids)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph || !ids || !ids.size) {
+        return;
+    }
+
+    let focus    = new Set(priv._focus_ids || []);
+    let selected = new Set(priv._selected_paint_ids || []);
+
+    let updates = [];
+    for(let id of ids) {
+        let html = node_innerHTML_of(
+            graph.getNodeData(id), priv.theme, focus.has(id), selected.has(id)
+        );
+        if(html !== null) {
+            updates.push({id: id, style: {innerHTML: html}});
+        }
+    }
+    if(!updates.length) {
+        return;
+    }
+
+    try {
+        graph.updateNodeData(updates);
+        graph.draw();
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot repaint the cards: ${e}`);
+    }
 }
 
 /************************************************************
@@ -4840,23 +5070,7 @@ function apply_node_highlight(gobj, prev_ids, next_ids)
         return;
     }
 
-    let updates = [];
-    for(let id of touched) {
-        let nd = graph.getNodeData(id);
-        let html = node_innerHTML_of(nd, priv.theme, next.has(id));
-        if(html !== null) {
-            updates.push({id: id, style: {innerHTML: html}});
-        }
-    }
-    if(!updates.length) {
-        return;
-    }
-    try {
-        graph.updateNodeData(updates);
-        graph.draw();
-    } catch(e) {
-        log_error(`${gobj_short_name(gobj)}: cannot repaint the highlight: ${e}`);
-    }
+    repaint_cards(gobj, touched);
 }
 
 function refresh_html_nodes_theme(gobj, theme)
@@ -4871,10 +5085,13 @@ function refresh_html_nodes_theme(gobj, theme)
      *  rebuilt every card without it would silently CLEAR the focus or the
      *  find that is on screen. Carry it across. */
     let highlighted = new Set(priv._focus_ids || []);
+    let selected = new Set(priv._selected_paint_ids || []);
     let updates = [];
     for(let i = 0; i < nodes.length; i++) {
         let id = nodes[i].id;
-        let html = node_innerHTML_of(graph.getNodeData(id), theme, highlighted.has(id));
+        let html = node_innerHTML_of(
+            graph.getNodeData(id), theme, highlighted.has(id), selected.has(id)
+        );
         if(html !== null) {
             updates.push({id: id, style: {innerHTML: html}});
         }
@@ -4914,12 +5131,41 @@ function refresh_default_edges_theme(gobj, theme)
 }
 
 /************************************************************
+ *  The rings a card can wear, composed into one `box-shadow`.
+ *
+ *  A node can be a find match and be selected at the same time, so
+ *  neither ring may be written by overwriting the other: the amber
+ *  halo hugs the card and the blue selection ring is drawn outside
+ *  it, which is also the order that reads correctly when only one
+ *  of them is on.
+ ************************************************************/
+function ring_shadow(highlight, selected, base_shadow)
+{
+    let rings = [];
+
+    if(highlight) {
+        rings.push(`0 0 0 4px ${HIGHLIGHT_HALO}`);
+    }
+    if(selected) {
+        rings.push(`0 0 0 ${highlight? "7px" : "3px"} ${SELECT_RING}`);
+    }
+    if(base_shadow) {
+        rings.push(base_shadow);
+    }
+    if(!rings.length) {
+        return "";
+    }
+
+    return `box-shadow: ${rings.join(", ")};`;
+}
+
+/************************************************************
  *  Build innerHTML for pure-child (leaf) nodes: a compact
  *  chip-card. Same colour/typography family as the entity card
  *  but lighter (1px border, no shadow, single line). The name is
  *  always legible (ellipsis + native title tooltip on overflow).
  ************************************************************/
-function build_chip_innerHTML(color, theme, icon, label, key, highlight)
+function build_chip_innerHTML(color, theme, icon, label, key, highlight, selected)
 {
     let title = key || label;
     let dark = (theme === "dark");
@@ -4950,7 +5196,7 @@ function build_chip_innerHTML(color, theme, icon, label, key, highlight)
     height: 100%;
     background: ${bg};
     border: ${highlight? "3px" : "1px"} solid ${border};
-    ${highlight? `box-shadow: 0 0 0 4px ${HIGHLIGHT_HALO};` : ""}
+    ${ring_shadow(highlight, selected, "")}
     border-radius: 8px;
     color: ${text_color};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -4977,7 +5223,7 @@ function build_chip_innerHTML(color, theme, icon, label, key, highlight)
  *  colour is kept (per-topic differentiation) but softened via
  *  color-mix instead of a harsh saturated fill. Theme-aware.
  ************************************************************/
-function build_node_innerHTML(color, theme, icon, label, topic_name, structural, key, highlight)
+function build_node_innerHTML(color, theme, icon, label, topic_name, structural, key, highlight, selected)
 {
     let title = key || label;
     let dark = (theme === "dark");
@@ -5040,7 +5286,7 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
     background: ${bg};
     border: ${highlight? "3px" : "1.5px"} ${border_style} ${border};
     border-radius: 10px;
-    box-shadow: ${highlight? `0 0 0 4px ${HIGHLIGHT_HALO}, ${shadow}` : shadow};
+    ${ring_shadow(highlight, selected, shadow)}
     color: ${title_color};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     display: flex;
@@ -6478,6 +6724,20 @@ function ac_node_drag_end(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The rubber band let go: these are the nodes it enclosed.
+ *
+ *  They arrive in the kw because `onSelect` runs BEFORE G6 writes
+ *  the state, so asking the graph here would answer the previous
+ *  selection.
+ ************************************************************/
+function ac_brush_select(gobj, event, kw, src)
+{
+    set_selection(gobj, (kw && kw.ids) || []);
+
+    return 0;
+}
+
+/************************************************************
  *  Node click - publish vertex clicked event
  ************************************************************/
 function ac_node_click(gobj, event, kw, src)
@@ -6495,7 +6755,13 @@ function ac_node_click(gobj, event, kw, src)
                 record: nodedata.data.record
             });
 
-            if(priv.edit_mode) {
+            if(priv.edit_mode && kw.evt.shiftKey) {
+                /*  Shift+click extends the selection, the way it does
+                 *  everywhere. It never looks for a port: a port is a
+                 *  one-node affordance, and this gesture is about the
+                 *  set.  */
+                toggle_in_selection(gobj, node_id);
+            } else if(priv.edit_mode) {
                 // Check if click hits a port
                 // Convert client coords to viewport (container-relative) then to canvas
                 let containerRect = priv.$container.getBoundingClientRect();
@@ -6782,6 +7048,7 @@ function create_gclass(gclass_name)
             ["EV_NODE_CONTEXT_MENU",        ac_node_context_menu,   null],
             ["EV_CANVAS_CLICK",             ac_canvas_click,        null],
             ["EV_NODE_DRAG_END",            ac_node_drag_end,       null],
+            ["EV_BRUSH_SELECT",             ac_brush_select,        null],
 
             /*--- Toolbar events ---*/
             ["EV_ZOOM_IN",                  ac_zoom_in,             null],
@@ -6826,6 +7093,7 @@ function create_gclass(gclass_name)
         ["EV_NODE_CONTEXT_MENU",        0],
         ["EV_CANVAS_CLICK",             0],
         ["EV_NODE_DRAG_END",            0],
+        ["EV_BRUSH_SELECT",             0],
 
         /*--- Toolbar (internal) ---*/
         ["EV_ZOOM_IN",                  0],

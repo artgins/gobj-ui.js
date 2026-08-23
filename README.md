@@ -708,6 +708,56 @@ so it survived that — two light islands over a dark canvas.
 **New keys for consumers: `actual size`, `zoom level`** (both tooltips, so a
 host that has not defined them shows the key on hover and nothing else breaks).
 
+### Selecting several nodes, and moving them together
+
+In **edition** mode the graph has a real selection, not just "the node you
+clicked":
+
+| gesture | what it does |
+|---|---|
+| click a node | selects it **and opens it**: resize handles, ports, popovers |
+| **shift + click** | adds that node to the selection, or takes it out |
+| **shift + drag on the canvas** | rubber band: the selection becomes what it enclosed |
+| drag any selected node | **moves the whole selection**, as one undo |
+| click the canvas | clears it |
+
+Three decisions are worth knowing, because each one is where this could have
+gone wrong:
+
+- **G6's `selected` element state IS the selection.** `drag-element` decides
+  what a drag moves by asking the graph for it
+  (`getElementDataByState('node', 'selected')`), so a set kept anywhere else
+  would be a second truth the drag never consults — the ring would say five and
+  one would move. It also batches the move, so a group drag is one history
+  entry rather than one per node.
+
+- **The ring is painted into the card's own html**, and it had to be. A state
+  style paints on a node's KEY SHAPE, and every node here is an `html` node
+  whose key shape is a DOM element — the same reason the amber highlight had
+  never appeared before `7.3.0`. Selecting with `brush-select` and nothing else
+  would have selected correctly and shown **nothing**. The ring is blue and
+  drawn OUTSIDE the amber halo, so a node that is both a find match and
+  selected wears both; one function composes them (`ring_shadow`), because
+  before it each repaint wrote its own flag and erased the other's.
+
+- **The gesture is G6's, the result is an event.** `brush-select` gets an
+  `onSelect` that sends `EV_BRUSH_SELECT` with the ids, and the action does the
+  work — so a marquee shows up in the `machine` trace like every other action.
+  Shift+click is not G6's `click-select` at all: this gclass already owns
+  `EV_NODE_CLICK`, and adding a second selection owner outside the FSM is how
+  the two end up disagreeing.
+
+Panning gives way while **Shift** is held (`drag-canvas` takes an `enable`
+predicate), or the canvas would pan under the rubber band — G6 binds
+`drag-canvas` straight to the drag events, and its own docs warn that the two
+gestures cannot both be a plain drag.
+
+**A marquee selects, it does not open.** Even when it encloses exactly one
+node, the handles and ports stay away: `_selected_node_id` means *the node
+opened for editing*, and only a click sets it. Everything that hangs off a
+single node reads that field, so a multiple selection puts all of it away by
+construction rather than by a check in twenty places.
+
 ### Finding a node in the graph
 
 `C_YUI_TREEDB_GRAPH` carries a find box in the middle of its toolbar. It
