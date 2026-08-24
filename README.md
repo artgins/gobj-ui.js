@@ -459,6 +459,11 @@ written in every editor that offers it and never drawn. Fold is the chevron
 pair, from the lazy tree viewer's own toolbar. The readout hangs off G6's
 `aftertransform`, the one hook that also covers the wheel.
 
+Both graph toolbars are arranged the same way (`7.23.6`): camera and refresh in
+the centre, layout picker and the fold pair on the right. The middle is the
+camera — a fold changes the DOCUMENT, not the view of it, and among the camera
+buttons it read as two more of them.
+
 The graph carries **its own** toolbar, a **layout picker**
 (`EV_CHANGE_LAYOUT {layout}`: `vertical tree`, `dagre top-down`,
 `dagre left-right` — the layout and the edge type move together), and since

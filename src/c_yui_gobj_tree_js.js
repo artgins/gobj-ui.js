@@ -550,8 +550,7 @@ function make_toolbar(gobj)
      *  console shows this graph and the JSON one side by side, so the
      *  drawings have to be the same drawings.
      */
-    center_items = yui_graph_camera_items(gobj, priv.graph, toolbar_wide)
-        .concat(yui_graph_fold_items(gobj, toolbar_wide));
+    center_items = yui_graph_camera_items(gobj, priv.graph, toolbar_wide);
     center_items.push(yui_graph_refresh_item(gobj, toolbar_wide));
 
     /*
@@ -583,6 +582,12 @@ function make_toolbar(gobj)
     );
     priv.$layout_select = $select;
     right_items.push($select);
+
+    /*  Fold on the RIGHT, past the layout picker — where the JSON graph
+     *  already put it.  The camera is what the middle is for: the fold
+     *  pair changes the DOCUMENT, not the view of it, and sitting in the
+     *  middle it read as two more camera buttons.  */
+    right_items.push(...yui_graph_fold_items(gobj, toolbar_wide));
 
     const $toolbar = yui_toolbar({}, [
         ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],

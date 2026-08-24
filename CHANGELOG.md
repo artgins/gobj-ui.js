@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.6
+
+- **The fold pair sits on the RIGHT in both graphs.** `7.23.4` gave the gobj
+    tree and the JSON graph the same drawings but left them in different
+    PLACES: the JSON graph had expand/collapse past its layout picker on the
+    right, the gobj tree had them in the middle of the camera cluster. Same two
+    buttons, two positions, one console showing both.
+
+    Right is where they belong, and not only for the sake of matching: the
+    middle is the CAMERA. The fold pair changes the document, not the view of
+    it, and sitting between `1:1` and refresh it read as two more camera
+    buttons. Both toolbars are now camera + refresh in the centre, layout
+    picker + fold on the right.
+
 ## 7.23.5
 
 - **`C_YUI_TREEDB_GRAPH` auto-registers its engine.** It creates a
