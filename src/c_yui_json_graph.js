@@ -67,6 +67,7 @@ import {
 } from '@antv/g6';
 
 import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
+import { ensure_pinch_zoom_patch } from "./g6_touch_gestures.js";
 import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
 
 /***************************************************************
@@ -301,6 +302,7 @@ function mt_create(gobj)
     build_ui(gobj);
 
     ensure_drag_canvas_patch();
+    ensure_pinch_zoom_patch();
 
     if(!__layout_registered__) {
         register(ExtensionCategory.LAYOUT, 'json-tree-layout', JsonTreeLayout);

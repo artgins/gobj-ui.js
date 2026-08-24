@@ -68,6 +68,29 @@ let __gclass__ = null;
 
 
 
+                    /***************************
+                     *      Actions
+                     ***************************/
+
+
+
+
+/************************************************************
+ *   Nothing to do with it here.
+ *
+ *   Declared rather than left out: an undeclared event is a
+ *   LOUD error by design, and the loudness is the point --
+ *   what a host must never do is answer it with silence it
+ *   did not choose.
+ ************************************************************/
+function ac_ignore(gobj, event, kw, src)
+{
+    return 0;
+}
+
+
+
+
                     /******************************
                      *      Framework Methods
                      ******************************/
@@ -221,11 +244,34 @@ function create_gclass(gclass_name)
         return -1;
     }
 
+    /*
+     *  C_YUI_TREEDB_GRAPH is hosted here as a CHILD, so it subscribes
+     *  this gclass to EVERYTHING it publishes -- and an event a host
+     *  does not declare is answered with "Event NOT DEFINED in state".
+     *
+     *  `EV_OPERATION_MODE_CHANGED` fires on ANY change of the mode
+     *  selector, and `readonly` only removes `edition` from that list:
+     *  the other three are offered here, so every mode change in this
+     *  demo logged an FSM error. Declared and swallowed -- the demo has
+     *  one view and nothing to tell about a mode change.
+     */
     const states = [
-        ["ST_IDLE", []]
+        ["ST_IDLE", [
+            ["EV_OPERATION_MODE_CHANGED",   ac_ignore,  null],
+            ["EV_TOPIC_SELECTED",           ac_ignore,  null],
+            ["EV_RECORD_WRITTEN",           ac_ignore,  null],
+        ]]
     ];
 
-    const event_types = [];
+    /*  Declared as INPUT events too: a state may only name an event
+     *  that is in this table, and an empty one made the three above
+     *  "state's event NOT in input_events" at registration -- which
+     *  fails the whole gclass, not just the event.  */
+    const event_types = [
+        ["EV_OPERATION_MODE_CHANGED",   0],
+        ["EV_TOPIC_SELECTED",           0],
+        ["EV_RECORD_WRITTEN",           0],
+    ];
 
     __gclass__ = gclass_create(
         gclass_name,

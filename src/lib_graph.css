@@ -177,6 +177,25 @@
     background-color: var(--bulma-background, #f0f0f0);
 }
 
+/*
+ *  Touch: the context menu is a LIST OF COMMANDS, and G6 sizes its
+ *  rows with `padding: 8px 12px` -- 34px, which is a mouse row. The
+ *  menu is now reachable by a long press (g6_touch_gestures.js), so
+ *  its rows have to be reachable by the same finger that opened it.
+ *  `font-size` with it: 12px is a caption, not a command.
+ */
+@media (pointer: coarse) {
+    .g6-contextmenu {
+        font-size: 14px;
+    }
+    .g6-contextmenu-li {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        padding: 8px 16px;
+    }
+}
+
 /* No transient effects: open/move popups immediately (user pref).
  * G6 injects its own .g6-contextmenu / .g6-tooltip CSS with a
  * left/top/visibility transition that makes them glide into place.

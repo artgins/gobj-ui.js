@@ -41,6 +41,12 @@
  *          every graph (tree, json, treedb, editor) is fixed without
  *          touching each consumer's behaviors list.
  *
+ *          It also has to keep the ONE guard the base class has and
+ *          this replacement dropped: G6's `onDrag` refuses to pan
+ *          while a pinch is in progress. See `is_pinching` in
+ *          `g6_touch_gestures.js`, which is where the pinch that
+ *          matters is now recognised.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -50,6 +56,8 @@ import {
     ExtensionCategory,
     register,
 } from '@antv/g6';
+
+import {is_pinching} from './g6_touch_gestures.js';
 
 /************************************************************
  *  Custom drag-canvas: same behavior, reliable delta source
@@ -71,6 +79,19 @@ class DragCanvasTouch extends DragCanvas {
          */
         this._onDragTouch = (event) => {
             if(!this.isDragging) {
+                this._lastVP = null;
+                return;
+            }
+            /*
+             *  Two fingers on the glass is a PINCH, not a pan. G6's
+             *  own onDrag guards on `PinchHandler.isPinching` and
+             *  this replacement dropped it, which cost nothing while
+             *  no graph answered the pinch -- and would have panned
+             *  the canvas out from under the zoom the day one did.
+             *  `null` so the next one-finger frame re-seeds instead
+             *  of jumping the camera by the whole gesture.
+             */
+            if(is_pinching(this.context.graph)) {
                 this._lastVP = null;
                 return;
             }

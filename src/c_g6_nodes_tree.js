@@ -103,6 +103,10 @@ import i18next, {t} from "i18next";
 
 import {inject_svg_icons} from "./lib_icons.js";
 import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
+import {
+    ensure_pinch_zoom_patch,
+    install_long_press_contextmenu,
+} from "./g6_touch_gestures.js";
 import {yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 
 /***************************************************************
@@ -172,6 +176,7 @@ class YuiToolbar extends Toolbar
 }
 register(ExtensionCategory.PLUGIN, 'yui-toolbar', YuiToolbar);
 ensure_drag_canvas_patch();
+ensure_pinch_zoom_patch();
 
 /***************************************************************
  *              Constants
@@ -336,6 +341,9 @@ let PRIVATE_DATA = {
     _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
     _focus_ids:         [],         // node ids carrying the focus 'active' state
     _on_pointerdown_focus: null,    // listener keeping the keyboard on the canvas
+    _uninstall_long_press: null,    // touch door to the context menu
+    toolbar_collapsed:  true,       // floating toolbars folded (narrow only)
+    _toolbars_could_collapse: null, // last answer, to notice it changed
     _on_focusout_restore: null,     // ...and putting it back when it goes nowhere
     _selected_paint_ids: [],        // node ids whose card is PAINTED selected
                                     // (G6's 'selected' state is the selection
@@ -489,6 +497,11 @@ function mt_destroy(gobj)
     if(priv._resize_raf) {
         cancelAnimationFrame(priv._resize_raf);
         priv._resize_raf = 0;
+    }
+
+    if(priv._uninstall_long_press) {
+        priv._uninstall_long_press();
+        priv._uninstall_long_press = null;
     }
 
     if(priv.graph) {
@@ -943,6 +956,19 @@ function configure_plugins(gobj)
         }
     );
 
+    /*
+     *  The menu above is the way to link, unlink, delete and resize,
+     *  and `contextmenu` is a RIGHT CLICK -- G6 synthesises it from
+     *  `pointerdown` with `button === 2` and reads nothing from the
+     *  DOM event of the same name. So on a touch screen those
+     *  commands had no door at all, whatever the browser does with a
+     *  long press. Give them one.
+     */
+    if(priv._uninstall_long_press) {
+        priv._uninstall_long_press();
+    }
+    priv._uninstall_long_press = install_long_press_contextmenu(priv.graph);
+
     if(gobj_read_bool_attr(gobj, "with_toolbar")) {
         configure_toolbar(gobj);
         configure_toolbar_edit(gobj);
@@ -1006,6 +1032,67 @@ function update_toolbar(gobj)
  *  flipping now; the fallbacks are the old forced-light values, so
  *  a host without Bulma gets exactly what it had.
  ************************************************************/
+/************************************************************
+ *  Is the canvas too narrow to give both floating toolbars a
+ *  strip of it?
+ *
+ *  They are drawn INSIDE the canvas, one on each edge. On a
+ *  desktop that is a corner; on a 356px-wide phone canvas the
+ *  two of them take a third of the drawing area and stand on
+ *  top of the nodes -- and a node under a toolbar cannot be
+ *  read, tapped or dragged out from under it.
+ *
+ *  Measured on the CONTAINER, not on the window: the same
+ *  graph is a full page in one app and a card in a column in
+ *  another, and it is the box it actually got that decides.
+ ************************************************************/
+const TOOLBAR_COLLAPSE_WIDTH = 480;
+
+function toolbars_can_collapse(gobj)
+{
+    let $container = gobj.priv.$container;
+
+    if(!$container) {
+        return false;
+    }
+    let width = $container.getBoundingClientRect().width;
+    if(!width) {
+        return false;   /*  not laid out yet: decided on the first resize  */
+    }
+    return width < TOOLBAR_COLLAPSE_WIDTH;
+}
+
+/************************************************************
+ *  Are they folded RIGHT NOW?  Wide enough and the question
+ *  does not arise -- the desktop toolbar never grows a button
+ *  it does not need.
+ ************************************************************/
+function toolbars_collapsed(gobj)
+{
+    if(!toolbars_can_collapse(gobj)) {
+        return false;
+    }
+    return gobj.priv.toolbar_collapsed !== false;
+}
+
+/************************************************************
+ *  The one item a folded toolbar shows, and the one an
+ *  unfolded narrow toolbar adds to fold itself again.
+ ************************************************************/
+function toolbar_fold_item(gobj)
+{
+    if(toolbars_collapsed(gobj)) {
+        return {
+            id: 'g6-icon-toolbar-show', value: 'toolbar-toggle',
+            className: 'EV_TOGGLE_TOOLBARS', title: t('show toolbar')
+        };
+    }
+    return {
+        id: 'g6-icon-toolbar-hide', value: 'toolbar-toggle',
+        className: 'EV_TOGGLE_TOOLBARS', title: t('hide toolbar')
+    };
+}
+
 function toolbar_style(extra)
 {
     return Object.assign({
@@ -1092,6 +1179,12 @@ function configure_toolbar(gobj)
                 marginLeft: '12px',
             }),
             getItems: () => {
+                /*  Folded: ONE button, and it is the one that
+                 *  unfolds. Everything else is behind it.  */
+                if(toolbars_collapsed(gobj)) {
+                    return [toolbar_fold_item(gobj)];
+                }
+
                 let items = [
                     { id: 'g6-icon-zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',  title: t('zoom in')  },
                     { id: 'g6-icon-zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT', title: t('zoom out') },
@@ -1143,6 +1236,14 @@ function configure_toolbar(gobj)
                     }
                 }
 
+                /*  Getting the canvas back is a window control too,
+                 *  and the last thing in the strip: it is where the
+                 *  single folded button will be.  */
+                if(toolbars_can_collapse(gobj)) {
+                    items.push({ separator: true });
+                    items.push(toolbar_fold_item(gobj));
+                }
+
                 return items;
             },
             onClick: (value) => {
@@ -1171,6 +1272,9 @@ function configure_toolbar(gobj)
                     case 'exit-fullscreen':
                         gobj_send_event(gobj, "EV_EXIT_FULLSCREEN", {}, gobj);
                         break;
+                    case 'toolbar-toggle':
+                        gobj_send_event(gobj, "EV_TOGGLE_TOOLBARS", {}, gobj);
+                        break;
                 }
             },
         }
@@ -1185,7 +1289,11 @@ function configure_toolbar_edit(gobj)
 {
     let priv = gobj.priv;
 
-    if(!priv.edit_mode) {
+    /*  Folded with the camera strip: the two of them are the same
+     *  wall over the canvas, and hiding one is half a fix. Removed
+     *  rather than emptied -- an empty toolbar is still a card with
+     *  a border sitting on the graph.  */
+    if(!priv.edit_mode || toolbars_collapsed(gobj)) {
         // Remove edit toolbar when not in edit mode
         graph_remove_plugin(gobj, 'toolbar-edit');
         return;
@@ -1343,6 +1451,16 @@ function configure_behaviour(gobj)
             break;
         case "operation":
             priv.edit_mode = false;
+            /*  The camera is not an edit affordance: a mode that
+             *  cannot pan or zoom is a picture, and this one was one
+             *  -- `behaviors` was left empty here while `reading` and
+             *  `writing` next door both fill it. On a desktop the
+             *  toolbar still zooms and nothing pans; on a phone,
+             *  where the gestures ARE the camera, the graph froze.  */
+            behaviors = [
+                "drag-canvas",
+                "zoom-canvas",
+            ];
             break;
         default:
             log_error(`operation mode unknown: ${operation_mode}`);
@@ -2824,6 +2942,26 @@ const RESIZE_HANDLE_SIZE = 8;
 const RESIZE_MIN_VP = 20;
 const RESIZE_MIN_WORLD = 30;
 
+/*
+ *  A handle is TWO boxes: the one you see and the one you can
+ *  hit.  They are the same box for a mouse, and on a touch
+ *  screen the hit box grows to a fingertip while the mark stays
+ *  a mark -- a 44px white square on each corner would hide the
+ *  node it is there to resize.
+ */
+const RESIZE_HANDLE_VISUAL_COARSE = 14;
+const RESIZE_HANDLE_HIT_COARSE    = 44;
+
+function resize_handle_visual()
+{
+    return coarse_pointer()? RESIZE_HANDLE_VISUAL_COARSE: RESIZE_HANDLE_SIZE;
+}
+
+function resize_handle_hit()
+{
+    return coarse_pointer()? RESIZE_HANDLE_HIT_COARSE: RESIZE_HANDLE_SIZE;
+}
+
 /************************************************************
  *  SVG icons for floating action buttons (28×28 circles).
  *  Each value is a raw SVG string sized 18×18 in a 24×24 viewBox.
@@ -2871,7 +3009,68 @@ const SVG_ICONS = {
 };
 
 /************************************************************
- *  Create a 28×28 floating circular icon button.
+ *  Is the primary pointer a FINGER?
+ *
+ *  Everything this gclass draws over the canvas is sized from
+ *  this answer.  A mouse is a pixel and can hit an 8px square;
+ *  a fingertip covers about 40, and the overlay it lands on
+ *  decides between "open the properties" and "delete the node".
+ *
+ *  Asked per call, not cached: a tablet with a keyboard dock
+ *  changes the answer without reloading the page.
+ ************************************************************/
+function coarse_pointer()
+{
+    if(typeof window.matchMedia !== "function") {
+        return false;
+    }
+    try {
+        return window.matchMedia("(pointer: coarse)").matches === true;
+    } catch(e) {
+        return false;
+    }
+}
+
+/************************************************************
+ *  The size of the round floating buttons (properties,
+ *  delete, link), and the GAP between two of them.
+ *
+ *  The gap matters as much as the size: `node properties` and
+ *  `delete node` are drawn one under the other, and at 28px
+ *  with 4px between them a fingertip covers both -- with the
+ *  destructive one underneath.
+ ************************************************************/
+function floating_icon_size()
+{
+    return coarse_pointer()? 44: 28;
+}
+
+function floating_icon_gap()
+{
+    return coarse_pointer()? 12: 4;
+}
+
+/*  Centre-to-top offset: the anchor names a point, the button
+ *  hangs centred on it.  */
+function floating_icon_dy()
+{
+    return -floating_icon_size() / 2;
+}
+
+/*  How far below the first button the second one starts.  */
+function floating_icon_step()
+{
+    return floating_icon_size() + floating_icon_gap();
+}
+
+/*  Where a popover opens: clear of the button column.  */
+function floating_popover_dx()
+{
+    return 4 + floating_icon_size() + 4;
+}
+
+/************************************************************
+ *  Create a floating circular icon button.
  *  @param {string} svgKey   - key into SVG_ICONS
  *  @param {string} color    - border & text color (e.g. '#1890ff')
  *  @param {number} left     - CSS left in px
@@ -2882,19 +3081,34 @@ const SVG_ICONS = {
  ************************************************************/
 function create_floating_icon(svgKey, color, left, top, title, onClick)
 {
+    const size = floating_icon_size();
     const el = document.createElement('div');
     el.title = title;
+    el.setAttribute('aria-label', title);
     el.innerHTML = SVG_ICONS[svgKey] || '';
     el.style.cssText =
         'position:absolute;' +
         'left:' + left + 'px;' +
         'top:' + top + 'px;' +
-        'width:28px;height:28px;' +
+        'width:' + size + 'px;height:' + size + 'px;' +
         'display:flex;align-items:center;justify-content:center;' +
         'background:#fff;border:1px solid ' + color + ';border-radius:50%;' +
         'cursor:pointer;pointer-events:all;z-index:11;' +
+        /*  The button is a drag handle in one case (the link icon)
+         *  and the browser would claim that gesture as a scroll.  */
+        'touch-action:none;' +
         'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
         'color:' + color + ';';
+
+    /*  The glyphs are authored 18×18; on the bigger button that
+     *  leaves a ring of empty white, so scale with the button.  */
+    const $svg = el.querySelector('svg');
+    if($svg) {
+        const glyph = Math.round(size * 0.5);
+        $svg.setAttribute('width',  String(glyph));
+        $svg.setAttribute('height', String(glyph));
+    }
+
     el.addEventListener('click', (e) => {
         e.stopPropagation();
         onClick();
@@ -2954,7 +3168,7 @@ function show_dual_icons(gobj, x, y, gear_title, gear_click, trash_title, trash_
     priv.$container.appendChild(icon_el);
 
     const delete_el = create_floating_icon(
-        'trash', '#ff4d4f', x, y + 32, trash_title, trash_click
+        'trash', '#ff4d4f', x, y + floating_icon_step(), trash_title, trash_click
     );
     priv.$container.appendChild(delete_el);
 
@@ -2987,6 +3201,32 @@ function create_popover_base(left, top, className, borderColor, minWidth)
     return popover;
 }
 
+/************************************************************
+ *  Extra CSS every control inside a popover carries on a
+ *  touch screen.
+ *
+ *  A popover is where the graph is TYPED into -- a colour, a
+ *  radius, an id -- and its controls were sized by their
+ *  padding alone, which lands them at 25-30px.  A finger needs
+ *  44, and the number is not ours: it is the floor both Apple
+ *  and Google publish, and the one every native control on the
+ *  device already meets.
+ ************************************************************/
+function touch_control_css()
+{
+    if(!coarse_pointer()) {
+        return '';
+    }
+    return 'min-height:44px;font-size:16px;';
+}
+
+/*
+ *  16px is not a taste: iOS Safari ZOOMS the whole page when a
+ *  text field smaller than that takes focus, and the page never
+ *  zooms back -- the graph is left half off screen after typing
+ *  one id.
+ */
+
 function create_form_label(parent, text)
 {
     let label = document.createElement('label');
@@ -3004,7 +3244,7 @@ function create_form_color_input(parent, value, onInput)
     input.style.cssText =
         'width:100%;height:30px;padding:0;' +
         'border:1px solid var(--bulma-border-weak, #d9d9d9);border-radius:4px;' +
-        'cursor:pointer;margin-bottom:10px;';
+        'cursor:pointer;margin-bottom:10px;' + touch_control_css();
     if(onInput) {
         input.addEventListener('input', onInput);
     }
@@ -3028,7 +3268,7 @@ function create_form_number_input(parent, value, min, max, onInput)
         'background:var(--bulma-scheme-main-bis, #fff);' +
         'color:var(--bulma-text-strong, #333);' +
         'border:1px solid var(--bulma-border-weak, #d9d9d9);border-radius:4px;' +
-        'box-sizing:border-box;margin-bottom:10px;';
+        'box-sizing:border-box;margin-bottom:10px;' + touch_control_css();
     if(onInput) {
         input.addEventListener('input', onInput);
     }
@@ -3044,7 +3284,8 @@ function create_form_select(parent, options, marginBottom)
         'background:var(--bulma-scheme-main-bis, #fff);' +
         'color:var(--bulma-text-strong, #333);' +
         'border:1px solid var(--bulma-border-weak, #d9d9d9);border-radius:4px;' +
-        'box-sizing:border-box;margin-bottom:' + (marginBottom || '12px') + ';';
+        'box-sizing:border-box;margin-bottom:' + (marginBottom || '12px') + ';' +
+        touch_control_css();
     for(let opt of options) {
         let o = document.createElement('option');
         o.value = opt.value;
@@ -3068,7 +3309,7 @@ function create_form_button_row(parent, buttons)
     for(let {text, style, onClick} of buttons) {
         let btn = document.createElement('button');
         btn.textContent = t(text);
-        btn.style.cssText = style;
+        btn.style.cssText = style + touch_control_css();
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             onClick();
@@ -3448,7 +3689,7 @@ function show_resize_handles(gobj)
     container.appendChild(selRect);
 
     // 8 resize handles: nw, n, ne, w, e, sw, s, se
-    const handle_defs = [
+    let handle_defs = [
         { cursor: 'nw-resize', mx: -1, my: -1 },
         { cursor: 'n-resize',  mx:  0, my: -1 },
         { cursor: 'ne-resize', mx:  1, my: -1 },
@@ -3459,18 +3700,46 @@ function show_resize_handles(gobj)
         { cursor: 'se-resize', mx:  1, my:  1 },
     ];
 
+    /*
+     *  On a touch screen, the CORNERS only.  Eight fingertip-sized
+     *  hit boxes around a node 90px wide overlap into one blob, and
+     *  the edge handles are the ones that lose -- a corner resizes
+     *  both axes anyway, so nothing is out of reach.
+     */
+    const hit    = resize_handle_hit();
+    const visual = resize_handle_visual();
+    if(coarse_pointer()) {
+        handle_defs = handle_defs.filter((def) => def.mx !== 0 && def.my !== 0);
+    }
+
     const handles = [];
     for(const def of handle_defs) {
+        /*  The box that catches the finger: transparent, and never
+         *  in front of the mark of a NEIGHBOURING handle.  */
         const el = document.createElement('div');
         el.style.cssText =
             'position:absolute;' +
-            'width:' + RESIZE_HANDLE_SIZE + 'px;' +
-            'height:' + RESIZE_HANDLE_SIZE + 'px;' +
-            'background:#fff;' +
-            'border:1px solid #1890ff;' +
+            'width:' + hit + 'px;' +
+            'height:' + hit + 'px;' +
+            'display:flex;align-items:center;justify-content:center;' +
             'cursor:' + def.cursor + ';' +
             'pointer-events:all;' +
+            /*  Without this the browser reads the drag as a scroll
+             *  and cancels the pointer mid-resize.  */
+            'touch-action:none;' +
             'box-sizing:border-box;';
+
+        /*  The box you see.  */
+        const mark = document.createElement('div');
+        mark.style.cssText =
+            'width:' + visual + 'px;' +
+            'height:' + visual + 'px;' +
+            'background:#fff;' +
+            'border:1px solid #1890ff;' +
+            'pointer-events:none;' +
+            'box-sizing:border-box;';
+        el.appendChild(mark);
+
         el.addEventListener('pointerdown', (e) => {
             start_node_resize(gobj, e, def.mx, def.my);
         });
@@ -3523,7 +3792,7 @@ function update_resize_handles_position(gobj)
 function apply_handles_to_rect(gobj, rect)
 {
     let priv = gobj.priv;
-    const HALF = RESIZE_HANDLE_SIZE / 2;
+    const HALF = resize_handle_hit() / 2;
 
     const left = rect.left;
     const top = rect.top;
@@ -3544,23 +3813,15 @@ function apply_handles_to_rect(gobj, rect)
             'box-sizing:border-box;';
     }
 
-    // Handle positions: nw, n, ne, w, e, sw, s, se
-    const positions = [
-        { x: left,       y: top },
-        { x: left + w/2, y: top },
-        { x: left + w,   y: top },
-        { x: left,       y: top + h/2 },
-        { x: left + w,   y: top + h/2 },
-        { x: left,       y: top + h },
-        { x: left + w/2, y: top + h },
-        { x: left + w,   y: top + h },
-    ];
-
-    for(let i = 0; i < priv._resize_handles.length; i++) {
-        const handle = priv._resize_handles[i];
-        const p = positions[i];
-        handle.el.style.left = (p.x - HALF) + 'px';
-        handle.el.style.top = (p.y - HALF) + 'px';
+    /*  Each handle carries the corner it is: -1 / 0 / +1 maps to
+     *  the near edge, the middle and the far edge.  Read from the
+     *  handle instead of a parallel table, because the table is
+     *  not the same length on a touch screen.  */
+    for(const handle of priv._resize_handles) {
+        const x = left + ((handle.mx + 1) / 2) * w;
+        const y = top  + ((handle.my + 1) / 2) * h;
+        handle.el.style.left = (x - HALF) + 'px';
+        handle.el.style.top  = (y - HALF) + 'px';
     }
 }
 
@@ -3680,6 +3941,26 @@ function start_node_resize(gobj, e, mx, my)
  ************************************************************/
 const PORT_HANDLE_SIZE = 8;
 
+/*
+ *  Same two-box idea as the node handles.  Kept smaller than a
+ *  full 44: these four sit on the RIM of a port that is often a
+ *  6px dot, so a fingertip-sized box on each would cover the
+ *  neighbouring ports as well -- and picking a port is how a
+ *  link is started.
+ */
+const PORT_HANDLE_VISUAL_COARSE = 12;
+const PORT_HANDLE_HIT_COARSE    = 32;
+
+function port_handle_visual()
+{
+    return coarse_pointer()? PORT_HANDLE_VISUAL_COARSE: PORT_HANDLE_SIZE;
+}
+
+function port_handle_hit()
+{
+    return coarse_pointer()? PORT_HANDLE_HIT_COARSE: PORT_HANDLE_SIZE;
+}
+
 /************************************************************
  *  Compute the canvas (world) position of a port on a node.
  *  Returns {x, y} in world coordinates.
@@ -3732,6 +4013,28 @@ function get_port_radius(gobj, node_id, port_key)
 }
 
 /************************************************************
+ *  How much wider than the port itself its hit area is,
+ *  measured on the SCREEN and converted to world units.
+ *
+ *  It used to be a flat `+4` in WORLD units, which is a
+ *  different target on every zoom: at the 50% a phone lands on
+ *  after fit, a 6-unit port plus 4 is a 5px radius -- one
+ *  fifth of a fingertip, and picking a port is the first step
+ *  of every link.
+ ************************************************************/
+function port_hit_slop_world(graph)
+{
+    let slop = coarse_pointer()? 22: 6;
+    let zoom = 1;
+    try {
+        zoom = graph.getZoom() || 1;
+    } catch(e) {
+        zoom = 1;
+    }
+    return slop / zoom;
+}
+
+/************************************************************
  *  Detect if a click in canvas coordinates hits a port.
  *  Returns the port key string, or null if no port hit.
  ************************************************************/
@@ -3749,6 +4052,7 @@ function detect_port_click(gobj, node_id, canvasX, canvasY)
 
     let best_key = null;
     let best_dist = Infinity;
+    let slop = port_hit_slop_world(graph);
 
     for(let i = 0; i < ports.length; i++) {
         let pl = ports[i].placement || [0.5, 0.5];
@@ -3760,8 +4064,9 @@ function detect_port_click(gobj, node_id, canvasX, canvasY)
         let dy = canvasY - py;
         let dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Hit area is the port radius + a tolerance of 4 world units
-        if(dist <= r + 4 && dist < best_dist) {
+        /*  Nearest wins, so the enlarged areas of two ports
+         *  overlapping is not a tie -- it is the closer one.  */
+        if(dist <= r + slop && dist < best_dist) {
             best_dist = dist;
             best_key = ports[i].key;
         }
@@ -3838,7 +4143,8 @@ function show_link_icon_if_fkey(gobj)
     let vp = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
 
     let icon = create_floating_icon(
-        'link', '#52c41a', vp[0] + 18, vp[1] - 14,
+        'link', '#52c41a',
+        vp[0] + floating_icon_size() / 2 + 4, vp[1] + floating_icon_dy(),
         t('link to hook'), () => {
             // Click (no drag) toggles linking mode
             if(!priv._linking_mode) {
@@ -3877,8 +4183,9 @@ function update_link_icon_position(gobj)
             return;
         }
         let vp = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
-        priv._link_icon_el.style.left = (vp[0] + 18) + 'px';
-        priv._link_icon_el.style.top = (vp[1] - 14) + 'px';
+        priv._link_icon_el.style.left =
+            (vp[0] + floating_icon_size() / 2 + 4) + 'px';
+        priv._link_icon_el.style.top = (vp[1] + floating_icon_dy()) + 'px';
     } catch(e) {
         hide_link_icon(gobj);
     }
@@ -4262,19 +4569,33 @@ function show_port_resize_handles(gobj)
         { cursor: 'w-resize',  dx: -1, dy:  0 },
     ];
 
+    const hit    = port_handle_hit();
+    const visual = port_handle_visual();
+
     const handles = [];
     for(const def of handle_defs) {
         const el = document.createElement('div');
         el.style.cssText =
             'position:absolute;' +
-            'width:' + PORT_HANDLE_SIZE + 'px;' +
-            'height:' + PORT_HANDLE_SIZE + 'px;' +
+            'width:' + hit + 'px;' +
+            'height:' + hit + 'px;' +
+            'display:flex;align-items:center;justify-content:center;' +
+            'cursor:' + def.cursor + ';' +
+            'pointer-events:all;' +
+            'touch-action:none;' +
+            'box-sizing:border-box;';
+
+        const mark = document.createElement('div');
+        mark.style.cssText =
+            'width:' + visual + 'px;' +
+            'height:' + visual + 'px;' +
             'background:#fff;' +
             'border:1px solid #fa8c16;' +
             'border-radius:50%;' +
-            'cursor:' + def.cursor + ';' +
-            'pointer-events:all;' +
+            'pointer-events:none;' +
             'box-sizing:border-box;';
+        el.appendChild(mark);
+
         el.addEventListener('pointerdown', (e) => {
             start_port_resize(gobj, e);
         });
@@ -4342,7 +4663,7 @@ function update_port_resize_handles_position(gobj)
 function apply_port_handles(gobj, cx, cy, vpR)
 {
     let priv = gobj.priv;
-    const HALF = PORT_HANDLE_SIZE / 2;
+    const HALF = port_handle_hit() / 2;
 
     // Dashed ring
     const ring = priv._port_ring;
@@ -4534,7 +4855,7 @@ function show_edge_icon(gobj)
         return;
     }
 
-    let icons = show_dual_icons(gobj, mid.x + 4, mid.y - 14,
+    let icons = show_dual_icons(gobj, mid.x + 4, mid.y + floating_icon_dy(),
         t('edge properties'), () => toggle_edge_popover(gobj),
         t('unlink'), () => request_unlink_edge(gobj)
     );
@@ -4562,16 +4883,18 @@ function update_edge_icon_position(gobj)
             return;
         }
         priv._edge_icon_el.style.left = (mid.x + 4) + 'px';
-        priv._edge_icon_el.style.top = (mid.y - 14) + 'px';
+        priv._edge_icon_el.style.top = (mid.y + floating_icon_dy()) + 'px';
         if(priv._edge_delete_el) {
             priv._edge_delete_el.style.left = (mid.x + 4) + 'px';
-            priv._edge_delete_el.style.top = (mid.y + 18) + 'px';
+            priv._edge_delete_el.style.top =
+                (mid.y + floating_icon_dy() + floating_icon_step()) + 'px';
         }
 
         // Reposition popover if open
         if(priv._edge_popover_el) {
-            priv._edge_popover_el.style.left = (mid.x + 36) + 'px';
-            priv._edge_popover_el.style.top = (mid.y - 14) + 'px';
+            priv._edge_popover_el.style.left =
+                (mid.x + floating_popover_dx()) + 'px';
+            priv._edge_popover_el.style.top = (mid.y + floating_icon_dy()) + 'px';
             clamp_popover_position(gobj, priv._edge_popover_el);
         }
     } catch(e) {
@@ -4631,7 +4954,10 @@ function show_edge_popover(gobj)
         return;
     }
 
-    const popover = create_popover_base(mid.x + 36, mid.y - 14, 'g6-edge-popover', '#d9d9d9', 180);
+    const popover = create_popover_base(
+        mid.x + floating_popover_dx(), mid.y + floating_icon_dy(),
+        'g6-edge-popover', '#d9d9d9', 180
+    );
 
     // Live preview: update the selected edge in real time
     function preview_edge() {
@@ -4747,7 +5073,7 @@ function show_node_icon(gobj)
         return;
     }
 
-    let icons = show_dual_icons(gobj, rect.right + 4, rect.top - 14,
+    let icons = show_dual_icons(gobj, rect.right + 4, rect.top + floating_icon_dy(),
         t('node properties'), () => toggle_node_popover(gobj),
         t('delete node'), () => request_delete_node(gobj)
     );
@@ -4781,16 +5107,18 @@ function update_node_icon_position(gobj)
             return;
         }
         priv._node_icon_el.style.left = (rect.right + 4) + 'px';
-        priv._node_icon_el.style.top = (rect.top - 14) + 'px';
+        priv._node_icon_el.style.top = (rect.top + floating_icon_dy()) + 'px';
         if(priv._node_delete_el) {
             priv._node_delete_el.style.left = (rect.right + 4) + 'px';
-            priv._node_delete_el.style.top = (rect.top + 18) + 'px';
+            priv._node_delete_el.style.top =
+                (rect.top + floating_icon_dy() + floating_icon_step()) + 'px';
         }
 
         // Reposition popover if open
         if(priv._node_popover_el) {
-            priv._node_popover_el.style.left = (rect.right + 36) + 'px';
-            priv._node_popover_el.style.top = (rect.top - 14) + 'px';
+            priv._node_popover_el.style.left =
+                (rect.right + floating_popover_dx()) + 'px';
+            priv._node_popover_el.style.top = (rect.top + floating_icon_dy()) + 'px';
             clamp_popover_position(gobj, priv._node_popover_el);
         }
     } catch(e) {
@@ -4843,7 +5171,10 @@ function show_node_popover(gobj)
         return;
     }
 
-    const popover = create_popover_base(rect.right + 36, rect.top - 14, 'g6-node-popover', '#d9d9d9', 180);
+    const popover = create_popover_base(
+        rect.right + floating_popover_dx(), rect.top + floating_icon_dy(),
+        'g6-node-popover', '#d9d9d9', 180
+    );
 
     let node_graph_type = nodeData.data && nodeData.data.desc ?
         nodeData.data.desc.node_treedb_type : null;
@@ -5831,7 +6162,7 @@ function show_create_popover(gobj)
     let topicSelect = document.createElement('select');
     topicSelect.style.cssText =
         'width:100%;padding:6px;border:1px solid #d9d9d9;border-radius:4px;' +
-        'font-size:13px;margin-bottom:8px;';
+        'font-size:13px;margin-bottom:8px;' + touch_control_css();
     for(let i = 0; i < topics.length; i++) {
         let opt = document.createElement('option');
         opt.value = topics[i].topic_name;
@@ -5874,7 +6205,8 @@ function show_create_popover(gobj)
     idInput.placeholder = t('node id');
     idInput.style.cssText =
         'width:100%;padding:6px;border:1px solid #d9d9d9;border-radius:4px;' +
-        'font-size:13px;margin-bottom:10px;box-sizing:border-box;';
+        'font-size:13px;margin-bottom:10px;box-sizing:border-box;' +
+        touch_control_css();
     popover.appendChild(idInput);
 
     // Error message area
@@ -6960,6 +7292,16 @@ function ac_resize(gobj, event, kw, src)
         }
     }
 
+    /*  Crossing the width where the toolbars start folding changes
+     *  what they contain -- a fold button appears or goes away --
+     *  and nothing else would ever rebuild them. Only on the
+     *  CROSSING: a resize fires on every frame of a drag.  */
+    let can_collapse = toolbars_can_collapse(gobj);
+    if(can_collapse !== priv._toolbars_could_collapse) {
+        priv._toolbars_could_collapse = can_collapse;
+        update_toolbar(gobj);
+    }
+
     return 0;
 }
 
@@ -7015,6 +7357,22 @@ function ac_zoom_reset(gobj, event, kw, src)
     let graph = priv.graph;
 
     graph.zoomTo(1);
+    return 0;
+}
+
+/************************************************************
+ *  Fold / unfold the floating toolbars.
+ *
+ *  One flag for BOTH: they are one wall over the canvas, and
+ *  the button that unfolds them has to be the same button
+ *  whichever edge the user reaches for.
+ ************************************************************/
+function ac_toggle_toolbars(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    priv.toolbar_collapsed = !toolbars_collapsed(gobj);
+    update_toolbar(gobj);
     return 0;
 }
 
@@ -7506,6 +7864,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_IN",                  ac_zoom_in,             null],
             ["EV_ZOOM_OUT",                 ac_zoom_out,            null],
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
+            ["EV_TOGGLE_TOOLBARS",          ac_toggle_toolbars,     null],
             ["EV_AUTO_FIT",                 ac_auto_fit,            null],
             ["EV_ZOOM_SELECTION",           ac_zoom_selection,      null],
             ["EV_FOCUS_TOPIC",              ac_focus_topic,         null],
@@ -7553,6 +7912,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_IN",                  0],
         ["EV_ZOOM_OUT",                 0],
         ["EV_ZOOM_RESET",               0],
+        ["EV_TOGGLE_TOOLBARS",          0],
         ["EV_AUTO_FIT",                 0],
         ["EV_ZOOM_SELECTION",           0],
         ["EV_FOCUS_TOPIC",              0],

@@ -830,6 +830,59 @@ so it survived that — two light islands over a dark canvas.
 (all tooltips, so a host that has not defined them shows the key on hover and
 nothing else breaks).
 
+### The graphs on a touch screen
+
+The three G6 graphs (`C_G6_NODES_TREE` under the treedb view,
+`C_YUI_JSON_GRAPH`, `C_YUI_GOBJ_TREE_JS`) have always DRAWN correctly on a
+phone. What they could not be was **operated** on one, for reasons that were
+structural rather than cosmetic — and none of them is visible in the CSS:
+
+- **There is no wheel on a phone**, and `zoom-canvas` binds the wheel and
+  nothing else, so the only zoom was the toolbar's `+`/`−`. G6 ships a pinch
+  recogniser, but `trigger: ['pinch']` REPLACES the wheel (its `bindEvents` is
+  an `if/else`), and its `PinchHandler` keeps its instance and callbacks in
+  **statics** — with two graphs on a page the second registers against the
+  first one's emitter, so pinching one zooms both and pinching the other does
+  nothing. `g6_touch_gestures.js` recognises the gesture per graph and
+  registers a `zoom-canvas` that keeps the wheel, the same pattern
+  `g6_drag_canvas_touch.js` already uses for `drag-canvas`. **Every graph gets
+  it with no change to its `behaviors` list.**
+- **G6 does not read the DOM's `contextmenu` event.** Its `BehaviorController`
+  synthesises the event from `pointerdown` with `button === 2`, so the context
+  menu was a right click and only a right click, whatever the browser does
+  with a long press. The same module gives it a **long press** (500ms, 10px of
+  slop) that re-emits G6's own forwarded event under the name the plugin
+  listens for — so `getItems(e)` sees exactly what a right click gives it,
+  including the port under the finger.
+
+Everything a finger has to LAND on is sized off `(pointer: coarse)`, which
+means **a mouse sees no change at all**: node resize handles become a 14px
+mark in a 44px box and drop to the four corners (eight fingertip-sized boxes
+around a 90px node overlap into one blob, and a corner resizes both axes);
+`node properties` and `delete node` go from two 28px circles 4px apart —
+one fingertip covered both, with the destructive one underneath — to 44px
+and 12px apart; a port's hit area stops being a flat `+4` in **world** units
+(a different target at every zoom, and 5 screen px at the 50% a phone lands
+on after fit) and becomes a screen measurement converted to world; popover
+controls and context-menu rows get a 44px floor at 16px, under which iOS
+Safari zooms the page on focus and never zooms back.
+
+And the two **floating toolbars fold**. They are drawn inside the canvas, one
+on each edge: on a 356px-wide phone canvas they took a third of the drawing
+area and stood on top of the nodes. Under **480px of container** — measured on
+the container, not the window, because the same graph is a full page in one
+app and a card in a column in another — they collapse behind a single `⋮`,
+and the edit strip is removed rather than emptied (an empty toolbar is still
+a card with a border sitting on the graph). Above that width nothing changes.
+
+**New keys for consumers: `show toolbar`, `hide toolbar`.**
+
+What is still desktop-only, deliberately: **multi-selection**. `brush-select`
+is bound to `shift`, and `drag-canvas` stands aside for the same key — there
+is no shift on a phone, and giving the rubber band a touch gesture means
+taking one away from panning. Selecting nodes one at a time works on a phone;
+selecting a region does not.
+
 ### Tabs opened at runtime, and the two decisions their url costs
 
 `yui_tab_routes.js`. A workspace whose tabs are opened by the operator —

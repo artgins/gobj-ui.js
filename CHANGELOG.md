@@ -5,6 +5,70 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.9
+
+The G6 graphs on a phone. They have always DRAWN correctly on one; what
+they could not be was operated. Five things, found by measuring a real
+touch context rather than by reading the CSS.
+
+- **Pinch to zoom, in all three graphs.** There is no wheel on a phone, and
+    `zoom-canvas` binds the wheel and nothing else, so the only zoom was the
+    toolbar's `+`/`−`. G6 does ship a pinch recogniser, but opting into it
+    (`trigger: ['pinch']`) REPLACES the wheel — its `bindEvents` is an
+    `if/else` — and its `PinchHandler` keeps its instance and callback list in
+    statics, so on a page with two graphs the second registers against the
+    first one's emitter: pinching graph A zooms both, pinching graph B does
+    nothing. New `g6_touch_gestures.js` recognises the gesture per graph and
+    registers a `zoom-canvas` that keeps the wheel, the same way
+    `g6_drag_canvas_touch.js` already replaces `drag-canvas` — so every graph
+    gets it with no change to its behaviors list.
+
+    With it, the guard our `drag-canvas` replacement had dropped:
+    G6's own `onDrag` refuses to pan while `PinchHandler.isPinching`, and
+    ours only checked `isDragging`. Free of charge while nothing answered the
+    pinch; a canvas panning out from under the zoom the moment one did.
+
+- **A long press opens the context menu.** It never could: G6 does not read
+    the DOM's `contextmenu` event at all — its `BehaviorController`
+    SYNTHESISES the event from `pointerdown` with `button === 2`, so the menu
+    was a right click and only a right click, on every platform. The press
+    re-emits G6's own forwarded event under the name the plugin listens for,
+    so `getItems(e)` and `enable(e)` see exactly what a right click gives
+    them — including the port under the finger, which is what tells the port
+    menu from the node one. The tap that ends the press is swallowed in the
+    capture phase, or the plugin's own document listener would close the menu
+    the press just opened.
+
+- **`operation` mode could not pan or zoom.** Its arm of the `switch` in
+    `configure_behaviour` left `behaviors` empty while `reading` and `writing`
+    next door both fill it. On a desktop the toolbar still zoomed and nothing
+    panned; on a phone, where the gestures ARE the camera, the graph was a
+    picture.
+
+- **Touch targets, everywhere a finger has to land.** Sized off
+    `(pointer: coarse)`, so nothing changes for a mouse:
+
+    - Node resize handles were **8×8**, eight of them. Now a 14px mark in a
+      44px hit box, and the CORNERS only — eight fingertip-sized boxes around
+      a 90px node overlap into one blob, and a corner resizes both axes
+      anyway.
+    - `node properties` and `delete node` were two 28px circles **4px apart**;
+      a fingertip covered both, with the destructive one underneath. 44px and
+      12px apart.
+    - A port's hit area was its radius plus a flat `+4` in WORLD units — a
+      different target at every zoom, and 5 screen px at the 50% a phone lands
+      on after fit. It is a screen measurement converted to world now.
+    - Popover controls (a colour, a radius, an id) were 25-30px tall. 44, at
+      16px — under which iOS Safari zooms the page on focus and never zooms
+      back. Context-menu rows too, in CSS.
+
+- **The floating toolbars fold.** They are drawn INSIDE the canvas, one on
+    each edge; on a 356px-wide phone canvas the two of them took a third of
+    the drawing area and stood on top of the nodes. Under 480px of container
+    they collapse to a single button, and the edit strip is removed rather
+    than emptied. Above it, nothing changes: the desktop toolbar never grows
+    a button it does not need.
+
 ## 7.23.8
 
 - **The lazy tree's global fold moves left too.** `7.23.7` put it ahead of the
