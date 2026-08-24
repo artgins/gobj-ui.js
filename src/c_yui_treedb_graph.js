@@ -453,6 +453,56 @@ function destroy_ui(gobj)
 }
 
 /************************************************************
+ *  The label of an option of the two selects of the toolbar.
+ *
+ *  Both of them used to render their RAW names -- `reading`,
+ *  `edition`, `dagre`, `manual` -- in every language, because
+ *  neither went through `t()` at all. Not a missing key: a
+ *  missing call.
+ *
+ *  Written as one literal per case, and deliberately not as
+ *  `t(name)`: a consumer's `validate-locales.mjs` reads
+ *  LITERALS, so a variable key is invisible to it -- the app
+ *  ships without the entry and nothing says so, because
+ *  i18next answers an unknown key with the key itself, which
+ *  is exactly the English word that was there before. The
+ *  same reason the keys are listed in the README.
+ *
+ *  The default is what a host that adds a layout of its own
+ *  gets: the name it chose, which is what all of them got
+ *  until now.
+ ************************************************************/
+function option_label(name)
+{
+    switch(name) {
+        /*  Operation modes (`operation_modes` attr).  */
+        case "reading":
+            return t("reading");
+        case "operation":
+            return t("operation");
+        case "writing":
+            return t("writing");
+        case "edition":
+            return t("edition");
+
+        /*  Layouts (`layout_names` of the G6 child).  */
+        case "manual":
+            return t("manual");
+        case "dagre":
+            return t("dagre");
+        case "antv-dagre":
+            return t("antv-dagre");
+        case "d3-force":
+            return t("d3-force");
+        case "force-atlas2":
+            return t("force-atlas2");
+
+        default:
+            return name;
+    }
+}
+
+/************************************************************
  *
  ************************************************************/
 function make_toolbar(gobj)
@@ -468,7 +518,14 @@ function make_toolbar(gobj)
          *  one that draws the create / delete / link affordances.  */
         modes = modes.filter(mode => mode !== "edition");
     }
-    let mode_options = modes.map(item => ['option', {}, item]);
+    /*  `value` EXPLICIT, and that is not decoration: an <option>
+     *  with no value attribute answers with its own TEXT, so the
+     *  moment the label is translated `evt.target.value` becomes
+     *  "Edición" and the mode the FSM is told to enter is a word
+     *  no `switch` of this gclass knows.  */
+    let mode_options = modes.map(item =>
+        ['option', {value: item, 'data-i18n': item}, option_label(item)]
+    );
 
     /*
      *  Left: layout and mode selectors
@@ -876,7 +933,12 @@ function populate_nodes_tree_options(gobj)
         for(let name of layout_names) {
             let option = document.createElement('option');
             option.value = name;
-            option.textContent = name;
+            /*  The key travels in the attribute so a language change
+             *  re-translates it: `refresh_language()` only touches a
+             *  node that carries its own key, and this select is built
+             *  once, after the child answers with its layouts.  */
+            option.setAttribute('data-i18n', name);
+            option.textContent = option_label(name);
             $layout_select.appendChild(option);
         }
         // Restore persisted layout selection

@@ -896,6 +896,19 @@ key. Leaving edition turns it off, and it is not persisted.
 
 **New key for consumers: `selection mode`.**
 
+**The two selects of the toolbar speak the app's language** (`7.23.13`). They
+rendered their raw names — `reading`, `edition`, `dagre`, `manual` — in every
+language, because neither went through `t()` at all: not a missing key, a
+missing call. The label is translated and carries its own `data-i18n`, so it
+follows a language change; the option's `value` is now set EXPLICITLY, because
+an `<option>` with no value answers with its own text and a translated label
+would have sent `"Edición"` to the FSM as the mode to enter.
+
+**New keys for consumers: `reading`, `operation`, `writing`, `edition`,
+`manual`, `dagre`, `antv-dagre`, `d3-force`, `force-atlas2`.** A host that adds
+a layout of its own gets its name untranslated, which is what all of them got
+until now.
+
 ### Tabs opened at runtime, and the two decisions their url costs
 
 `yui_tab_routes.js`. A workspace whose tabs are opened by the operator —

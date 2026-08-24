@@ -5,6 +5,36 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.13
+
+**The two selects of the treedb graph's toolbar speak the app's language.**
+The layout one and the operation-mode one rendered their raw names --
+`reading`, `operation`, `writing`, `edition`, `manual`, `dagre` -- in every
+language, in every app. Not a missing key: a missing call. Neither went
+through `t()` at all, so the Spanish console of a production node said
+*"Modo de operación: reading"*, with the label translated and its value not.
+
+Two things this cost, both worth knowing:
+
+- **The option's `value` is set EXPLICITLY now.** An `<option>` with no value
+    attribute answers with its own TEXT, so translating the label alone would
+    have sent `"Edición"` to the FSM as the mode to enter -- a word no `switch`
+    of this gclass knows. The mode select had never set one, and worked
+    precisely because the label was the raw name.
+
+- **The labels are literals, one `case` per name, not `t(name)`.** A
+    consumer's `validate-locales.mjs` reads LITERALS: a variable key is
+    invisible to it, so the app would ship without the entries and nothing
+    would say so -- i18next answers an unknown key with the key itself, which
+    is exactly the English word that was there before. With the literals in
+    place the four consumers' validators demanded the nine keys, which is how
+    this is kept honest.
+
+**New keys for consumers: `reading`, `operation`, `writing`, `edition`,
+`manual`, `dagre`, `antv-dagre`, `d3-force`, `force-atlas2`.** A host that adds
+a layout of its own gets its name untranslated, which is what all of them got
+until now.
+
 ## 7.23.12
 
 **A toggle looks pressed, it does not change category.** The selection mode
