@@ -448,6 +448,13 @@ stays. Note the close contract: `C_YUI_WINDOW.close_window()` calls `on_close`
 and THEN destroys itself, so a host must drop its reference rather than destroy
 the window too.
 
+Its camera speaks the **same vocabulary as the treedb graph** (`7.23.3`): zoom
+in / zoom out, a live **zoom readout**, `yi-fit` for fit — the same corner
+brackets the SVG sprite draws for `g6-icon-fit` — and the WRITTEN `1:1` for
+actual size, which is written in every editor that offers it and never drawn.
+The readout hangs off G6's `aftertransform`, the one hook that also covers the
+wheel.
+
 The graph carries **its own** toolbar, a **layout picker**
 (`EV_CHANGE_LAYOUT {layout}`: `vertical tree`, `dagre top-down`,
 `dagre left-right` — the layout and the edge type move together), and since

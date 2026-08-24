@@ -179,6 +179,7 @@ let PRIVATE_DATA = {
     find_timer:     null,   // rate-limits the find box
     fold_listener:  null,   // delegated click on the card fold handles
     $layout_select: null,   // the layout picker
+    $zoom_readout:  null,   // the zoom percentage
     $find_input:    null,
     $find_result:   null,
     $find_count:    null,
@@ -455,6 +456,53 @@ function destroy_ui(gobj)
 }
 
 /************************************************************
+ *   One camera button.
+ ************************************************************/
+function camera_button(gobj, icon, event_name, label_key, wide)
+{
+    return ['button', {class: `button ${event_name}`, type: 'button',
+                       style: {height: wide, width: '2.5em'},
+                       title: t(label_key), 'data-i18n-title': label_key,
+                       'aria-label': t(label_key), 'data-i18n-aria-label': label_key},
+        ['i', {style: 'font-size:1.5em; color:inherit;', class: icon}],
+        {
+            click: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, event_name, {evt: evt}, gobj);
+            }
+        }
+    ];
+}
+
+/************************************************************
+ *   The zoom, as a percentage.  What the two magnifiers
+ *   change: an editor that offers a zoom shows the number.
+ ************************************************************/
+function zoom_percent_text(gobj)
+{
+    let graph = gobj.priv.graph;
+    if(!graph) {
+        return "100%";
+    }
+    try {
+        return Math.round(graph.getZoom() * 100) + "%";
+    } catch(e) {
+        return "100%";
+    }
+}
+
+/************************************************************
+ *   Repaint the readout after anything that moves the camera.
+ ************************************************************/
+function update_zoom_readout(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.$zoom_readout) {
+        priv.$zoom_readout.textContent = zoom_percent_text(gobj);
+    }
+}
+
+/************************************************************
  *   One fold button.  `open` rotates the chevron to the open
  *   state, mirroring the per-node toggle of the lazy tree.
  ************************************************************/
@@ -544,38 +592,55 @@ function make_toolbar(gobj)
     ];
     let center_items = [];
 
+    /*
+     *  The camera, in the SAME vocabulary the treedb graph uses
+     *  (`c_g6_nodes_tree.js`): zoom in / zoom out, then what those two
+     *  change — the zoom READOUT, because without it "1:1" is a jump to
+     *  a value nobody was told — then fit, then actual size.
+     *
+     *  Two of these used to be a different picture for the same action
+     *  in a sibling view, which is the worst thing an icon can be:
+     *  `EV_ZOOM_RESET` was a bare magnifier and `EV_CENTER` was
+     *  `yi-arrows-to-eye`.  Now fit is the same bracket glyph as the
+     *  sprite's `g6-icon-fit`, and actual size is WRITTEN — `1:1` is
+     *  written in every editor that offers it, never drawn, because
+     *  there is no glyph for it.
+     */
     let c_icons = [
-        ["yi-magnifying-glass-plus", "EV_ZOOM_IN",       false, 'i'],
-        ["yi-magnifying-glass",      "EV_ZOOM_RESET",    false, 'i'],
-        ["yi-magnifying-glass-minus","EV_ZOOM_OUT",      false, 'i'],
-        ["yi-arrows-to-eye",         "EV_CENTER",        false, 'i'],
-        ["yi-arrows-rotate",         "EV_REFRESH",       false, 'i'],
+        ["yi-magnifying-glass-plus",  "EV_ZOOM_IN",  "zoom in"],
+        ["yi-magnifying-glass-minus", "EV_ZOOM_OUT", "zoom out"],
     ];
 
     for(let item of c_icons) {
-        let icon_name = item[0];
-        let event_name = item[1];
-        let disabled = item[2];
-
-        let button = {
-            class: `button ${event_name}`,
-            style: {height: toolbar_wide, width: '2.5em'}
-        };
-        if(disabled) {
-            button.disabled = true;
-        }
-        center_items.push(
-            ['button', button,
-                ['i', {style: 'font-size:1.5em; color:inherit;', class: icon_name}],
-                {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        gobj_send_event(gobj, event_name, {evt: evt}, gobj);
-                    }
-                }
-            ]
-        );
+        center_items.push(camera_button(gobj, item[0], item[1], item[2], toolbar_wide));
     }
+
+    priv.$zoom_readout = createElement2(
+        ['span', {class: 'JSON_GRAPH_ZOOM_LEVEL is-flex is-align-items-center px-2 has-text-grey',
+                  style: 'font-size:.85rem; min-width:3.5em; justify-content:center;',
+                  title: t('zoom level'), 'data-i18n-title': 'zoom level'},
+         zoom_percent_text(gobj)]
+    );
+    center_items.push(priv.$zoom_readout);
+
+    center_items.push(camera_button(gobj, "yi-fit", "EV_CENTER", "auto fit", toolbar_wide));
+
+    /*  Written, not drawn — see above.  */
+    center_items.push(
+        ['button', {class: 'button EV_ZOOM_RESET', type: 'button',
+                    style: {height: toolbar_wide, width: '2.5em'},
+                    title: t('actual size'), 'data-i18n-title': 'actual size',
+                    'aria-label': t('actual size'), 'data-i18n-aria-label': 'actual size'},
+         ['span', {style: 'font-weight:700;'}, '1:1'],
+         {
+             click: (evt) => {
+                 evt.stopPropagation();
+                 gobj_send_event(gobj, "EV_ZOOM_RESET", {evt: evt}, gobj);
+             }
+         }]
+    );
+
+    center_items.push(camera_button(gobj, "yi-arrows-rotate", "EV_REFRESH", "refresh", toolbar_wide));
 
     /*
      *  Right: fold the tree.
@@ -675,6 +740,15 @@ function build_graph(gobj)
 
     graph.on(NodeEvent.CLICK, (evt) => {
         gobj_send_event(gobj, "EV_NODE_CLICK", {evt: evt}, gobj);
+    });
+
+    /*  ONE hook for the readout, the same one the treedb graph uses:
+     *  G6 fires it on any camera change, and the WHEEL is a camera
+     *  change that passes through no action of ours — patching the text
+     *  node from each zoom action would have left the readout lying
+     *  after every notch.  */
+    graph.on('aftertransform', () => {
+        update_zoom_readout(gobj);
     });
 
     graph.on(CanvasEvent.CLICK, (evt) => {
@@ -1071,6 +1145,7 @@ function load_json(gobj)
             if(!preserve_view) {
                 graph.fitView();
             }
+            update_zoom_readout(gobj);
         });
     }
 }

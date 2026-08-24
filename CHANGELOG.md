@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.3
+
+- **One action, one drawing: the JSON graph's camera speaks the treedb graph's
+    vocabulary.** Two buttons were a different picture for the same thing in a
+    sibling view — the worst thing an icon can be. `EV_ZOOM_RESET` was a bare
+    magnifier and is now the WRITTEN `1:1`, for the reason the treedb graph
+    already gives: the action is `zoomTo(1)`, actual size is written in every
+    editor that offers it and never drawn, because there is no glyph for it.
+    `EV_CENTER` was `yi-arrows-to-eye` and is now `yi-fit`, the same corner
+    brackets the SVG sprite draws for `g6-icon-fit`.
+
+    The **zoom readout** comes with them, and it is not decoration: without it
+    `1:1` is a jump to a value nobody was told. It hangs off G6's
+    `aftertransform`, the one hook that also covers the WHEEL — a camera change
+    that passes through no action of ours, so patching the text from each zoom
+    action would have left the readout lying after every notch.
+
+    New icon in the set: `yi-fit`. No new i18n keys — `zoom level`, `auto fit`
+    and `actual size` were already there, being the treedb graph's own.
+
 ## 7.23.2
 
 - **The JSON popups of a treedb topic are WINDOWS on a laptop.** The schema
