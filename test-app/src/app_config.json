@@ -1204,6 +1204,22 @@
                     }
                 },
                 {
+                    "id": "treedbgraph",
+                    "name": "TreeDB graph",
+                    "icon": "yi-hexagon-nodes",
+                    "tooltip": "The real C_YUI_TREEDB_GRAPH against an in-page backend",
+                    "route": "/treedbgraph",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_DEMO_TREEDB_GRAPH",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "TreeDB graph",
+                            "lead": "C_YUI_TREEDB_GRAPH draws a treedb as what it is, a graph: topics as nodes, hook/fkey columns as edges. It is the component the other two graphs here borrow their camera from, and the only one that needs a BACKEND \u2014 so this chapter gives it one, C_DEMO_BACKEND, which answers `descs` and `nodes` in the page with no wire underneath. Read-only: there is nothing to write to."
+                        }
+                    }
+                },
+                {
                     "id": "json",
                     "name": "JSON graph",
                     "icon": "yi-square-js",
@@ -1404,6 +1420,12 @@
                     "name": "Frontend view",
                     "icon": "yi-hexagon-nodes",
                     "route": "/tree"
+                },
+                {
+                    "id": "treedbgraph",
+                    "name": "TreeDB graph",
+                    "icon": "yi-hexagon-nodes",
+                    "route": "/treedbgraph"
                 },
                 {
                     "id": "json",

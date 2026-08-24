@@ -78,6 +78,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {register_c_g6_nodes_tree} from "./c_g6_nodes_tree.js";
 import {
     removeChildElements,
     disableElements,
@@ -2594,6 +2595,17 @@ function create_gclass(gclass_name)
  ***************************************************************************/
 function register_c_yui_treedb_graph()
 {
+    if(gclass_find_by_name(GCLASS_NAME, false)) {
+        return 0;
+    }
+    /*  This view hosts a C_G6_NODES_TREE child — the graph ENGINE — and
+     *  creates it BY NAME.  Without its gclass the view builds fine, the
+     *  child does not, and the failure lands as "GClass not registered"
+     *  from inside a component the host never named.  Same arrangement
+     *  C_YUI_JSON makes for C_YUI_JSON_GRAPH.  */
+    if(!gclass_find_by_name("C_G6_NODES_TREE", false)) {
+        register_c_g6_nodes_tree();
+    }
     return create_gclass(GCLASS_NAME);
 }
 

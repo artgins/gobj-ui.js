@@ -33,6 +33,8 @@ import {register_c_yui_form}         from "@yuneta/gobj-ui/src/c_yui_form.js";
 import {register_c_yui_uplot}        from "@yuneta/gobj-ui/src/c_yui_uplot.js";
 import {register_c_yui_gobj_tree_js} from "@yuneta/gobj-ui/src/c_yui_gobj_tree_js.js";
 import {register_c_yui_json_graph}   from "@yuneta/gobj-ui/src/c_yui_json_graph.js";
+import {register_c_yui_treedb_graph}
+    from "@yuneta/gobj-ui/src/c_yui_treedb_graph.js";
 import {register_c_yui_wizard}       from "@yuneta/gobj-ui/src/c_yui_wizard.js";
 import {register_c_yui_pager}        from "@yuneta/gobj-ui/src/c_yui_pager.js";
 import {register_c_yui_period}       from "@yuneta/gobj-ui/src/c_yui_period.js";
@@ -50,6 +52,8 @@ import {register_c_demo_table}  from "./c_demo_table.js";
 import {register_c_demo_treedb} from "./c_demo_treedb.js";
 import {register_c_demo_chart}  from "./c_demo_chart.js";
 import {register_c_demo_tree}   from "./c_demo_tree.js";
+import {register_c_demo_backend} from "./c_demo_backend.js";
+import {register_c_demo_treedb_graph} from "./c_demo_treedb_graph.js";
 import {register_c_demo_json}   from "./c_demo_json.js";
 import {register_c_demo_jsontree} from "./c_demo_jsontree.js";
 import {register_c_demo_wizard} from "./c_demo_wizard.js";
@@ -104,6 +108,7 @@ function main()
     register_c_yui_uplot();
     register_c_yui_gobj_tree_js();
     register_c_yui_json_graph();
+    register_c_yui_treedb_graph();  // brings C_G6_NODES_TREE, the graph engine
     register_c_yui_wizard();
     register_c_yui_pager();
     register_c_yui_period();
@@ -119,6 +124,8 @@ function main()
     register_c_demo_treedb();
     register_c_demo_chart();
     register_c_demo_tree();
+    register_c_demo_backend();      // the fake remote yuno the treedb graph asks
+    register_c_demo_treedb_graph();
     register_c_demo_json();
     register_c_demo_jsontree();
     register_c_demo_wizard();

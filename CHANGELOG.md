@@ -5,6 +5,38 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.5
+
+- **`C_YUI_TREEDB_GRAPH` auto-registers its engine.** It creates a
+    `C_G6_NODES_TREE` child BY NAME, so without that gclass the view builds
+    fine, the child does not, and the failure lands as *"GClass not
+    registered"* from inside a component the host never named.
+    `register_c_g6_nodes_tree()` is idempotent now, so an app may still
+    register it itself, in either order — the same arrangement `C_YUI_JSON`
+    makes for `C_YUI_JSON_GRAPH`.
+
+- **The demo can finally show the treedb graph** (`test-app`), which mattered
+    more than it sounds: it is the component the other two graphs borrow their
+    camera vocabulary from, and it was the one graph nobody could see there.
+    It was missing because it is the one that needs a BACKEND — it does not ask
+    its parent for data like the topic table, it calls `gobj_command()` on a
+    `gobj_remote_yuno`.
+
+    So the demo grew one: `C_DEMO_BACKEND`, a remote yuno with no wire under
+    it. Three things about that protocol are worth knowing, and each cost a
+    run to find: `mt_command_parser` must return **0** (a non-falsy return is
+    read by the caller as an error string); the answer travels as
+    `EV_MT_COMMAND_ANSWER` with a `command_stack` pushed by
+    `msg_iev_push_stack`, which is how the caller knows which command it is
+    reading; and it must be **posted**, not sent, because `gobj_command()` runs
+    inside the caller's own action.
+
+    A note for anyone writing a treedb schema by hand: the engine classifies a
+    topic by counting hooks and fkeys — hooks but NO fkeys makes it
+    `extended`, and `draw_link` draws no edge to an extended parent, silently,
+    because that is not an error. The demo's first schema had exactly that
+    shape: every node appeared and not one edge did.
+
 ## 7.23.4
 
 - **Every graph's camera is built in ONE place** — new module

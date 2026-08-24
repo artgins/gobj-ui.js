@@ -24,6 +24,7 @@ import {
     sdata_flag_t,
     gclass_flag_t,
     gclass_create,
+    gclass_find_by_name,
     log_error,
     log_warning,
     trace_msg,
@@ -7633,6 +7634,12 @@ function create_gclass(gclass_name)
  ***************************************************************************/
 function register_c_g6_nodes_tree()
 {
+    /*  Idempotent: C_YUI_TREEDB_GRAPH auto-registers this engine, so an
+     *  app that also registers it explicitly (in either order) must not
+     *  trip "GClass ALREADY created".  */
+    if(gclass_find_by_name(GCLASS_NAME, false)) {
+        return 0;
+    }
     return create_gclass(GCLASS_NAME);
 }
 
