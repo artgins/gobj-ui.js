@@ -668,24 +668,47 @@ function build_cell_html(key, value, type, dark, matched)
  *  innerHTML string, so there is no other way to hang a
  *  handler on it.
  *
- *  Folded it shows the glyph AND the count of branches hidden
- *  under it; open, just the glyph.  No word, no title: a word
- *  inside this string could carry no i18n key.
+ *  A filled CHIP, the same one the gobj tree draws
+ *  (`c_yui_gobj_tree_js.js`, render_toggle_html): background,
+ *  border, radius, and `+N` / `−` rather than a triangle.  It
+ *  shipped once as a bare `▾` and on a phone it was invisible —
+ *  a glyph is a couple of pixels of ink at the zoom that fits a
+ *  document on screen, while a filled chip stays a visible blob
+ *  and reads as something you press.  `+N` also carries the
+ *  count of what is hidden, which the open state does not need.
+ *
+ *  No `title`: it would be a word inside an innerHTML string,
+ *  where it could carry no i18n key and would sit in English
+ *  forever.  `+3` and `−` need no language.
  ************************************************************/
-function fold_toggle_html(path, foldable, folded, branches)
+function fold_toggle_html(path, foldable, folded, branches, colors)
 {
     if(!foldable) {
-        /*  A spacer, so the label of a leaf card stays centred on the
-         *  same axis as the label of a foldable one.  */
-        return `<span style="width:1.1em; flex:0 0 auto;"></span>`;
+        /*  A spacer the width of the chip, so the label of a leaf card
+         *  stays on the same axis as the label of a foldable one.  */
+        return `<span style="width:24px; flex:0 0 auto;"></span>`;
     }
 
-    let glyph = folded? "&#9656;": "&#9662;";       /*  right / down  */
-    let text = folded? `${glyph} ${branches}`: glyph;
+    let label = folded? ("+" + branches): "&#8722;";        /*  +N / −  */
 
-    return `<span data-fold-path="${escapeHtml(path)}" ` +
-        `style="flex:0 0 auto; cursor:pointer; user-select:none; ` +
-        `padding:0 .2em; min-width:1.1em; text-align:left;">${text}</span>`;
+    return `<span data-fold-path="${escapeHtml(path)}" style="
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 16px;
+        padding: 0 5px;
+        background: ${colors.bg};
+        color: ${colors.border};
+        border: 1px solid ${colors.bg};
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        user-select: none;
+    ">${label}</span>`;
 }
 
 /************************************************************
@@ -854,7 +877,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
         display: flex;
         align-items: center;
         gap: 6px;
-    ">${fold_toggle_html(path, foldable, folded, pending_complex.length)}<span style="flex:1 1 auto; text-align:center;">${escapeHtml(label)}</span></div>
+    ">${fold_toggle_html(path, foldable, folded, pending_complex.length, colors)}<span style="flex:1 1 auto; text-align:center;">${escapeHtml(label)}</span></div>
     ${content_html}
 </div>`;
 

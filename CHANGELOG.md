@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.1
+
+- **fix: the per-node fold handle was invisible on a phone.** `7.23.0` drew it
+    as a bare `▾`, and at the zoom that fits a document on screen a glyph is a
+    couple of pixels of ink — reported as "I do not see the per-node
+    expand/collapse". It is now the same **filled chip the gobj tree** already
+    draws (`render_toggle_html` in `c_yui_gobj_tree_js.js`): background, border,
+    radius, and `+N` folded / `−` open instead of a triangle. At the same 4×3
+    pixels a chip is still a visible blob where a glyph is nothing, and `+N`
+    carries the count of what is hidden. One library, one idiom for the same
+    control.
+
+    Measured at 390px in both: the gobj tree's own chip renders at exactly the
+    same 4×3 — so this was never about the JSON graph scaling worse, only about
+    what survives being drawn that small.
+
 ## 7.23.0
 
 - **Every non-leaf card in the JSON graph folds on its own.** `7.22.0` gave the

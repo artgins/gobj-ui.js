@@ -446,8 +446,16 @@ many matched, and **expand-all / collapse-all** (`EV_EXPAND_ALL` /
 `EV_COLLAPSE_ALL`) that fold every card but the root, marking each cut with
 `▸ N` so the shape stays legible and you can see where the rest went. Since
 `7.23.0` each card that HAS a branch also carries its own handle in its header
-(`▾` open, `▸ N` folded, `EV_TOGGLE_FOLD {path}`); a leaf gets a spacer instead,
-because a handle that does nothing is worse than none.
+(`EV_TOGGLE_FOLD {path}`); a leaf gets a spacer of the same width instead,
+because a handle that does nothing is worse than none and the labels should
+stay on one axis.
+
+That handle is the **same filled chip the gobj tree draws** (`+N` folded, `−`
+open — see `render_toggle_html` in `c_yui_gobj_tree_js.js`), and it is a chip
+for a reason: `7.23.0` shipped it as a bare `▾` and on a phone it was
+invisible. At the zoom that fits a document on screen a glyph is a couple of
+pixels of ink; a filled chip is still a visible blob and reads as something you
+press. `+N` also carries the count of what is hidden.
 
 The handle is delegated from the canvas mount in the **capture** phase, over
 `pointerdown`/`pointerup`/`mousedown`/`click`: the card is an `innerHTML`
