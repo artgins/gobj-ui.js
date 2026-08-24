@@ -47,6 +47,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {attach_clear} from "./yui_inputs.js";
 import {
     yui_graph_camera_items,
     yui_graph_fold_items,
@@ -478,27 +479,25 @@ function make_toolbar(gobj)
      *  looks the same whether nothing matched or the match was already
      *  on screen.
      */
-    let left_items = yui_graph_fold_items(gobj, toolbar_wide).concat([
-        ['div', {class: 'JSON_GRAPH_FIND control has-icons-left',
-                 style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
-            ['input', {
-                class: 'JSON_GRAPH_FIND_INPUT input',
-                type: 'text',
-                /*  A placeholder is not a text node, so the data-i18n
-                 *  walk cannot reach it: it needs its own key. */
-                placeholder: t('search'),
-                'data-i18n-placeholder': 'search',
-                'aria-label': t('search'),
-                'data-i18n-aria-label': 'search'
-            }],
-            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
-        ], {
+    /*  Materialised, not a spec: attach_clear() hangs the NORM clear (✕)
+     *  on a real element.  Clearing dispatches a synthetic `input`, which
+     *  goes through the same rate-limited handler and fires EV_FIND_NODES
+     *  with an empty term — the box and the highlight clear together.  */
+    let $find_input = createElement2(
+        ['input', {
+            class: 'JSON_GRAPH_FIND_INPUT input',
+            type: 'text',
+            /*  A placeholder is not a text node, so the data-i18n walk
+             *  cannot reach it: it needs its own key. */
+            placeholder: t('search'),
+            'data-i18n-placeholder': 'search',
+            'aria-label': t('search'),
+            'data-i18n-aria-label': 'search'
+        }, [], {
             /*  Rate-limited, not delayed for effect: every keystroke
              *  REBUILDS the cards — an html node paints no G6 state, so
              *  the highlight has to live in the card's own markup — and
-             *  the first letter typed can match most of a document.
-             *  Input plumbing: the action still crosses the FSM, just
-             *  not once per keystroke. */
+             *  the first letter typed can match most of a document. */
             input: (evt) => {
                 evt.stopPropagation();
                 let text = evt.target.value.trim();
@@ -510,13 +509,32 @@ function make_toolbar(gobj)
                     gobj_send_event(gobj, "EV_FIND_NODES", {text: text}, gobj);
                 }, 250);
             }
-        }],
+        }]);
+
+    let $find_control = createElement2(
+        ['div', {class: 'JSON_GRAPH_FIND control has-icons-left',
+                 style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
+            $find_input,
+            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
+        ]]);
+    attach_clear($find_control, $find_input);
+
+    /*
+     *  Left: the global fold leads the row, then find a node.
+     *
+     *  A graph of a large document has no other way in — the only way to
+     *  locate a key was to read every card.  The count SAYS how many
+     *  matched, because a graph that did not move looks the same whether
+     *  nothing matched or the match was already on screen.
+     */
+    let left_items = yui_graph_fold_items(gobj, toolbar_wide).concat([
+        $find_control,
         /*  Two spans, not one string: the number is DATA and "matches"
          *  is the word, so a language switch re-translates the half that
-         *  is a word.  Spaced with CSS because createElement2 trims text
-         *  nodes.  `display:flex` inline and NOT the `is-flex` helper —
-         *  both Bulma helpers carry !important, so `is-hidden is-flex` on
-         *  one element is decided by stylesheet order. */
+         *  is a word.  `display:flex` inline and NOT the `is-flex`
+         *  helper — both Bulma helpers carry !important, so
+         *  `is-hidden is-flex` on one element is decided by stylesheet
+         *  order. */
         ['div', {class: 'JSON_GRAPH_FIND_RESULT is-hidden',
                  style: 'display:flex; align-items:center; gap:.3rem; ' +
                         'margin-right:.5rem; font-size:.85rem;'}, [

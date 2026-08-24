@@ -78,6 +78,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {attach_clear} from "./yui_inputs.js";
 import {register_c_g6_nodes_tree} from "./c_g6_nodes_tree.js";
 import {
     removeChildElements,
@@ -548,23 +549,21 @@ function make_toolbar(gobj)
      *  not move looks the same whether nothing matched or the match was
      *  already on screen.
      */
-    let center_items = [
-        ['div', {class: 'GRAPH_FIND control has-icons-left',
-                 style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
-            ['input', {
-                class: 'GRAPH_FIND_INPUT input',
-                type: 'text',
-                /*  A placeholder is not a text node, so the data-i18n walk
-                 *  cannot reach it: it needs its own key. */
-                placeholder: t('search'),
-                'data-i18n-placeholder': 'search',
-                'aria-label': t('search'),
-                'data-i18n-aria-label': 'search'
-            }],
-            ['span', {class: 'icon is-left'}, [
-                ['i', {class: 'yi-magnifying-glass'}]
-            ]]
-        ], {
+    /*  Materialised, not a spec: attach_clear() hangs the NORM clear (✕)
+     *  on a real element.  Clearing dispatches a synthetic `input`, which
+     *  goes through the same rate-limited handler and fires EV_FIND_NODES
+     *  with an empty term — the box and the highlight clear together.  */
+    let $find_input = createElement2(
+        ['input', {
+            class: 'GRAPH_FIND_INPUT input',
+            type: 'text',
+            /*  A placeholder is not a text node, so the data-i18n walk
+             *  cannot reach it: it needs its own key. */
+            placeholder: t('search'),
+            'data-i18n-placeholder': 'search',
+            'aria-label': t('search'),
+            'data-i18n-aria-label': 'search'
+        }, [], {
             /*  Rate-limited, not delayed for effect: a match repaints the
              *  cards it lands on, and on a large treedb the first letter
              *  typed can match hundreds. This is input plumbing — the
@@ -581,7 +580,18 @@ function make_toolbar(gobj)
                     gobj_send_event(gobj, "EV_FIND_NODES", {text: text}, gobj);
                 }, 250);
             }
-        }],
+        }]);
+
+    let $find_control = createElement2(
+        ['div', {class: 'GRAPH_FIND control has-icons-left',
+                 style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
+            $find_input,
+            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
+        ]]);
+    attach_clear($find_control, $find_input);
+
+    let center_items = [
+        $find_control,
         /*  Two spans, not one string: the number is DATA and "matches" is
          *  the word, so a language switch re-translates the half that is a
          *  word. Spaced with CSS because createElement2 trims text nodes. */

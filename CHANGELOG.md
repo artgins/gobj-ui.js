@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.8
+
+- **The lazy tree's global fold moves left too.** `7.23.7` put it ahead of the
+    find box in both GRAPHS and left the tree viewer's own toolbar as it was,
+    with the pair on the right past the view switch — so switching from tree to
+    graph moved the same two buttons across the row. They lead the row in all
+    three now.
+
+- **fix: neither graph's find box had a clear (✕).** The tree viewer's has had
+    one since it was written; both graph find boxes were built by hand without
+    it, so a term could only be removed by selecting it and deleting. Both are
+    materialised and given `attach_clear` now — clearing dispatches a synthetic
+    `input`, which goes through the same rate-limited handler and fires
+    `EV_FIND_NODES` with an empty term, so the box, the highlight and the match
+    count clear together.
+
+    Reported on a phone, where it is worst: there is no keyboard shortcut to
+    fall back on.
+
 ## 7.23.7
 
 - **The two folds are two different things, and now they sit in two different

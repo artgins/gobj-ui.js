@@ -365,14 +365,20 @@ function make_toolbar(gobj)
             $search_input,
             ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
         ]]);
+    /*  The GLOBAL fold leads the row, ahead of the find box — the same
+     *  place both graphs put theirs.  It opens the whole document; the
+     *  per-row toggles live in the rows.  */
+    left_items.push(
+        icon_button(gobj, "yi-chevron-right", "EV_EXPAND_ALL",   "expand loaded"),
+        icon_button(gobj, "yi-chevron-right", "EV_COLLAPSE_ALL", "collapse all")
+    );
+
     attach_clear($search_control, $search_input);
     left_items.push($search_control);
 
     let right_items = [
         view_mode_switch(gobj),
-        icon_button(gobj, "yi-chevron-right",  "EV_EXPAND_ALL",   "expand loaded"),
-        icon_button(gobj, "yi-chevron-right",  "EV_COLLAPSE_ALL", "collapse all"),
-        icon_button(gobj, "yi-copy",           "EV_COPY_ALL",     "copy json"),
+        icon_button(gobj, "yi-copy", "EV_COPY_ALL", "copy json"),
     ];
 
     const $toolbar = yui_toolbar({}, [
