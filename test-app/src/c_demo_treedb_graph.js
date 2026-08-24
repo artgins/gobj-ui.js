@@ -33,6 +33,8 @@ import {
     gobj_stop_children,
 } from "@yuneta/gobj-js";
 
+import {yui_mount_service_view} from "@yuneta/gobj-ui/src/c_yui_service_view.js";
+
 import {lead_block} from "./demo_lead.js";
 
 import {t} from "i18next";
@@ -132,17 +134,39 @@ function mt_start(gobj)
     priv.backend = backend;
     gobj_start(backend);
 
-    /*  Unique name → unique internal canvas id. */
-    let tree = gobj_create_pure_child(
-        "demo_treedbgraph_" + (++__instance_counter__),
-        "C_YUI_TREEDB_GRAPH",
-        {
-            gobj_remote_yuno: backend,
-            treedb_name:      "demo_treedb",
-            readonly:         true
-        },
-        gobj
-    );
+    /*
+     *  A NAMED SERVICE, not a pure child, and through the library's own
+     *  helper -- which is how both real consumers mount this view.
+     *
+     *  A view that talks to a backend has to be a service twice over:
+     *  `C_IEVENT_CLI` routes an answer back with
+     *  `gobj_find_service(gobj_name(src))`, which only finds registered
+     *  ones, and `gobj_save_persistent_attrs()` refuses a gobj that is
+     *  not one. The graph's `operation_mode` is `SDF_PERSIST`, so
+     *  mounting it as a pure child logged "Only gobj services can
+     *  load/save writable-persistent" on every change of the mode
+     *  selector -- on the public demo, in front of everybody.
+     *
+     *  The name has to be UNIQUE per mount: a duplicate is not fatal,
+     *  which is the danger -- gobj-js rebinds the name and the answers
+     *  of one view would land in the other.
+     *
+     *  It is still a CHILD in the tree (the host is its parent), so the
+     *  graph's CHILD subscription model still subscribes this gclass to
+     *  what it publishes, and `gobj_stop_children` still stops it.
+     */
+    let tree = yui_mount_service_view(gobj, {
+        gclass:    "C_YUI_TREEDB_GRAPH",
+        name:      "demo_treedbgraph_" + (++__instance_counter__),
+        transport: backend,
+        kw: {
+            treedb_name: "demo_treedb",
+            readonly:    true
+        }
+    });
+    if(!tree) {
+        return;     /*  Error already logged  */
+    }
     priv.tree = tree;
 
     let $tree = gobj_read_attr(tree, "$container");

@@ -42,6 +42,7 @@ import {
     event_flag_t,
     log_error,
     gobj_post_event,
+    gobj_find_service, gobj_name,
     gobj_read_attr, gobj_write_attr,
     json_deep_copy,
     msg_iev_push_stack,
@@ -194,9 +195,28 @@ let __gclass__ = null;
  *   `__md_command__` is the caller's own echo box: whatever it
  *   put there comes back in the stack, and it is how an answer
  *   about `users` is told apart from one about `teams`.
+ *
+ *   The destination is resolved BY NAME, and that is not a
+ *   detour: `C_IEVENT_CLI` has the caller's gobj on the far
+ *   side of a socket and can only find it again with
+ *   `gobj_find_service(gobj_name(src))`, which finds
+ *   REGISTERED SERVICES and nothing else.  Answering the
+ *   pointer we were handed would work here and model a
+ *   contract that does not exist -- a view mounted as a pure
+ *   child would run in this demo and receive not one answer in
+ *   production.  So the demo fails the same way the wire does.
  ************************************************************/
 function answer(gobj, src, command, kw, result, comment, data, schema)
 {
+    let dst = gobj_find_service(gobj_name(src), false);
+    if(!dst) {
+        log_error(
+            `${GCLASS_NAME}: '${gobj_name(src)}' is not a registered service; ` +
+            `a real backend could not answer it either`
+        );
+        return;
+    }
+
     let answer_kw = {
         result:  result,
         comment: comment || "",
@@ -215,7 +235,7 @@ function answer(gobj, src, command, kw, result, comment, data, schema)
     );
 
     /*  POSTED: gobj_command() runs inside the caller's action.  */
-    gobj_post_event(src, "EV_MT_COMMAND_ANSWER", answer_kw, gobj);
+    gobj_post_event(dst, "EV_MT_COMMAND_ANSWER", answer_kw, gobj);
 }
 
 
