@@ -105,3 +105,12 @@ npm line still serves estadodelaire/hidraulia.
   stacking).  Switch to `jsdom` or `happy-dom` only if a real edge
   case appears (Shadow DOM, `inert`, native `<dialog>`, `tabindex`
   derived from CSS, etc.).
+
+- **The banners of `set_submit_state()` / `set_active_state()` name the
+  wrong colours.**  They say green and orange; `lib_graph.css`, which is
+  what actually paints, gives them orange (`#fa8c16`, pending changes) and
+  violet (`#722ed1`, undo/redo).  The doc page (`api/gobj-ui/dom.md`) was
+  corrected at `7.23.12`; the source comments were left alone in that round
+  because editing the file would have moved the line anchors the published
+  doc links point at, and they are pinned to the tag.  Fix them in the next
+  round that changes `lib_graph.js` for a real reason, and repin.
