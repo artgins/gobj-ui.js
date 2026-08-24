@@ -47,6 +47,12 @@ import {
 } from "@yuneta/gobj-js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {
+    yui_graph_camera_items,
+    yui_graph_fold_items,
+    yui_graph_refresh_item,
+    yui_graph_update_zoom,
+} from "./yui_graph_camera.js";
 
 import {t} from "i18next";
 
@@ -179,7 +185,6 @@ let PRIVATE_DATA = {
     find_timer:     null,   // rate-limits the find box
     fold_listener:  null,   // delegated click on the card fold handles
     $layout_select: null,   // the layout picker
-    $zoom_readout:  null,   // the zoom percentage
     $find_input:    null,
     $find_result:   null,
     $find_count:    null,
@@ -456,77 +461,6 @@ function destroy_ui(gobj)
 }
 
 /************************************************************
- *   One camera button.
- ************************************************************/
-function camera_button(gobj, icon, event_name, label_key, wide)
-{
-    return ['button', {class: `button ${event_name}`, type: 'button',
-                       style: {height: wide, width: '2.5em'},
-                       title: t(label_key), 'data-i18n-title': label_key,
-                       'aria-label': t(label_key), 'data-i18n-aria-label': label_key},
-        ['i', {style: 'font-size:1.5em; color:inherit;', class: icon}],
-        {
-            click: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, event_name, {evt: evt}, gobj);
-            }
-        }
-    ];
-}
-
-/************************************************************
- *   The zoom, as a percentage.  What the two magnifiers
- *   change: an editor that offers a zoom shows the number.
- ************************************************************/
-function zoom_percent_text(gobj)
-{
-    let graph = gobj.priv.graph;
-    if(!graph) {
-        return "100%";
-    }
-    try {
-        return Math.round(graph.getZoom() * 100) + "%";
-    } catch(e) {
-        return "100%";
-    }
-}
-
-/************************************************************
- *   Repaint the readout after anything that moves the camera.
- ************************************************************/
-function update_zoom_readout(gobj)
-{
-    let priv = gobj.priv;
-    if(priv.$zoom_readout) {
-        priv.$zoom_readout.textContent = zoom_percent_text(gobj);
-    }
-}
-
-/************************************************************
- *   One fold button.  `open` rotates the chevron to the open
- *   state, mirroring the per-node toggle of the lazy tree.
- ************************************************************/
-function graph_fold_button(gobj, event_name, label_key, open)
-{
-    let icon_style = 'font-size:1.5em; color:inherit;' +
-        (open? ' transform: rotate(90deg);': '');
-
-    return ['button', {class: `button ${event_name}`,
-                       type: 'button',
-                       style: {height: gobj_read_attr(gobj, "wide"), width: '2.5em'},
-                       title: t(label_key), 'data-i18n-title': label_key,
-                       'aria-label': t(label_key), 'data-i18n-aria-label': label_key},
-        ['i', {style: icon_style, class: 'yi-chevron-right'}],
-        {
-            click: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, event_name, {}, gobj);
-            }
-        }
-    ];
-}
-
-/************************************************************
  *   Toolbar
  ************************************************************/
 function make_toolbar(gobj)
@@ -593,54 +527,12 @@ function make_toolbar(gobj)
     let center_items = [];
 
     /*
-     *  The camera, in the SAME vocabulary the treedb graph uses
-     *  (`c_g6_nodes_tree.js`): zoom in / zoom out, then what those two
-     *  change — the zoom READOUT, because without it "1:1" is a jump to
-     *  a value nobody was told — then fit, then actual size.
-     *
-     *  Two of these used to be a different picture for the same action
-     *  in a sibling view, which is the worst thing an icon can be:
-     *  `EV_ZOOM_RESET` was a bare magnifier and `EV_CENTER` was
-     *  `yi-arrows-to-eye`.  Now fit is the same bracket glyph as the
-     *  sprite's `g6-icon-fit`, and actual size is WRITTEN — `1:1` is
-     *  written in every editor that offers it, never drawn, because
-     *  there is no glyph for it.
+     *  The camera and the fold pair come from yui_graph_camera.js: the
+     *  same drawings the gobj tree uses, because the two graphs sit in
+     *  the same console and a copied toolbar drifts.
      */
-    let c_icons = [
-        ["yi-magnifying-glass-plus",  "EV_ZOOM_IN",  "zoom in"],
-        ["yi-magnifying-glass-minus", "EV_ZOOM_OUT", "zoom out"],
-    ];
-
-    for(let item of c_icons) {
-        center_items.push(camera_button(gobj, item[0], item[1], item[2], toolbar_wide));
-    }
-
-    priv.$zoom_readout = createElement2(
-        ['span', {class: 'JSON_GRAPH_ZOOM_LEVEL is-flex is-align-items-center px-2 has-text-grey',
-                  style: 'font-size:.85rem; min-width:3.5em; justify-content:center;',
-                  title: t('zoom level'), 'data-i18n-title': 'zoom level'},
-         zoom_percent_text(gobj)]
-    );
-    center_items.push(priv.$zoom_readout);
-
-    center_items.push(camera_button(gobj, "yi-fit", "EV_CENTER", "auto fit", toolbar_wide));
-
-    /*  Written, not drawn — see above.  */
-    center_items.push(
-        ['button', {class: 'button EV_ZOOM_RESET', type: 'button',
-                    style: {height: toolbar_wide, width: '2.5em'},
-                    title: t('actual size'), 'data-i18n-title': 'actual size',
-                    'aria-label': t('actual size'), 'data-i18n-aria-label': 'actual size'},
-         ['span', {style: 'font-weight:700;'}, '1:1'],
-         {
-             click: (evt) => {
-                 evt.stopPropagation();
-                 gobj_send_event(gobj, "EV_ZOOM_RESET", {evt: evt}, gobj);
-             }
-         }]
-    );
-
-    center_items.push(camera_button(gobj, "yi-arrows-rotate", "EV_REFRESH", "refresh", toolbar_wide));
+    center_items = yui_graph_camera_items(gobj, priv.graph, toolbar_wide);
+    center_items.push(yui_graph_refresh_item(gobj, toolbar_wide));
 
     /*
      *  Right: fold the tree.
@@ -681,11 +573,8 @@ function make_toolbar(gobj)
         }]
     );
 
-    let right_items = [
-        $layout_select,
-        graph_fold_button(gobj, "EV_EXPAND_ALL", "expand all", true),
-        graph_fold_button(gobj, "EV_COLLAPSE_ALL", "collapse all", false),
-    ];
+    let right_items = [$layout_select].concat(
+        yui_graph_fold_items(gobj, toolbar_wide));
 
     const $toolbar = yui_toolbar({}, [
         ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],
@@ -748,7 +637,7 @@ function build_graph(gobj)
      *  node from each zoom action would have left the readout lying
      *  after every notch.  */
     graph.on('aftertransform', () => {
-        update_zoom_readout(gobj);
+        yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
     });
 
     graph.on(CanvasEvent.CLICK, (evt) => {
@@ -1145,7 +1034,7 @@ function load_json(gobj)
             if(!preserve_view) {
                 graph.fitView();
             }
-            update_zoom_readout(gobj);
+            yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
         });
     }
 }

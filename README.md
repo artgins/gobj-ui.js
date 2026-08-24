@@ -448,12 +448,16 @@ stays. Note the close contract: `C_YUI_WINDOW.close_window()` calls `on_close`
 and THEN destroys itself, so a host must drop its reference rather than destroy
 the window too.
 
-Its camera speaks the **same vocabulary as the treedb graph** (`7.23.3`): zoom
-in / zoom out, a live **zoom readout**, `yi-fit` for fit — the same corner
-brackets the SVG sprite draws for `g6-icon-fit` — and the WRITTEN `1:1` for
-actual size, which is written in every editor that offers it and never drawn.
-The readout hangs off G6's `aftertransform`, the one hook that also covers the
-wheel.
+Its camera comes from **`yui_graph_camera.js`** (`7.23.4`), the one place every
+DOM-toolbar graph asks for one — this gclass and the gobj tree both, so a
+cloned toolbar cannot drift apart again. The vocabulary is the treedb graph's
+(`c_g6_nodes_tree.js`, which draws its toolbar as a G6 plugin over an SVG
+sprite and so cannot share the code, only the decisions): zoom in / zoom out, a
+live **zoom readout**, `yi-fit` for fit — the same corner brackets the sprite
+draws for `g6-icon-fit` — and the WRITTEN `1:1` for actual size, which is
+written in every editor that offers it and never drawn. Fold is the chevron
+pair, from the lazy tree viewer's own toolbar. The readout hangs off G6's
+`aftertransform`, the one hook that also covers the wheel.
 
 The graph carries **its own** toolbar, a **layout picker**
 (`EV_CHANGE_LAYOUT {layout}`: `vertical tree`, `dagre top-down`,

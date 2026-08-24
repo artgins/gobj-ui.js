@@ -40,6 +40,12 @@ import {
 } from "@yuneta/gobj-js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {
+    yui_graph_camera_items,
+    yui_graph_fold_items,
+    yui_graph_refresh_item,
+    yui_graph_update_zoom,
+} from "./yui_graph_camera.js";
 
 import {t} from "i18next";
 
@@ -535,40 +541,18 @@ function make_toolbar(gobj)
     let center_items = [];
     let right_items = [];
 
-    let c_icons = [
-        ["yi-magnifying-glass-plus",  "EV_ZOOM_IN",      false, 'i'],
-        ["yi-magnifying-glass",       "EV_ZOOM_RESET",   false, 'i'],
-        ["yi-magnifying-glass-minus", "EV_ZOOM_OUT",     false, 'i'],
-        ["yi-arrows-to-eye",          "EV_CENTER",       false, 'i'],
-        ["yi-eye",                    "EV_EXPAND_ALL",   false, 'i'],
-        ["yi-eye-slash",              "EV_COLLAPSE_ALL", false, 'i'],
-        ["yi-arrows-rotate",          "EV_REFRESH",      false, 'i'],
-    ];
-
-    for(let item of c_icons) {
-        let icon_name = item[0];
-        let event_name = item[1];
-        let disabled = item[2];
-
-        let button = {
-            class: `button ${event_name}`,
-            style: {height: toolbar_wide, width: '2.5em'}
-        };
-        if(disabled) {
-            button.disabled = true;
-        }
-        center_items.push(
-            ['button', button,
-                ['i', {style: 'font-size:1.5em; color:inherit;', class: icon_name}],
-                {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        gobj_send_event(gobj, event_name, {evt: evt}, gobj);
-                    }
-                }
-            ]
-        );
-    }
+    /*
+     *  The camera and the fold pair come from yui_graph_camera.js.
+     *
+     *  This toolbar used to draw two of these its own way — a bare
+     *  magnifier for actual size, `arrows-to-eye` for fit — and fold as
+     *  an eye, which means show/hide and not open/closed.  The same
+     *  console shows this graph and the JSON one side by side, so the
+     *  drawings have to be the same drawings.
+     */
+    center_items = yui_graph_camera_items(gobj, priv.graph, toolbar_wide)
+        .concat(yui_graph_fold_items(gobj, toolbar_wide));
+    center_items.push(yui_graph_refresh_item(gobj, toolbar_wide));
 
     /*
      *  Layout selector
@@ -650,6 +634,12 @@ function build_graph(gobj)
     if(priv.theme) {
         graph.setTheme(priv.theme);
     }
+
+    /*  The readout follows ANY camera change, the wheel included — a
+     *  wheel notch passes through no action of ours.  */
+    graph.on('aftertransform', () => {
+        yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+    });
 
     graph.on(NodeEvent.CLICK, (evt) => {
         gobj_send_event(gobj, "EV_NODE_CLICK", {evt: evt}, gobj);

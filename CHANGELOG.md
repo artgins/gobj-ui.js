@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.4
+
+- **Every graph's camera is built in ONE place** — new module
+    `yui_graph_camera.js`. `7.23.3` unified the JSON graph against the treedb
+    graph and stopped there; the gobj tree (**Frontend view**) still had the
+    whole old vocabulary, which is exactly how it got there in the first place:
+    two files cloned from one, drifting separately. Now neither owns a camera —
+    they ask for one.
+
+    Frontend view changes three drawings: actual size from a bare magnifier to
+    the written `1:1`, fit from `yi-arrows-to-eye` to `yi-fit`, and fold from
+    `yi-eye` / `yi-eye-slash` to the chevron pair. The eye was the worst of the
+    three — it means *show/hide*, which is a different idea from *open/closed*,
+    and the chevrons are what the lazy tree viewer's own toolbar already used.
+    It also gains the zoom readout, on the same `aftertransform` hook, so the
+    wheel moves the number there too.
+
+    The module is deliberately not the whole toolbar: it returns the camera
+    items, the fold pair and a refresh item, and each graph arranges them with
+    whatever else it has (a layout picker, a find box). What is shared is the
+    vocabulary, not the layout.
+
 ## 7.23.3
 
 - **One action, one drawing: the JSON graph's camera speaks the treedb graph's
