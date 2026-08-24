@@ -478,7 +478,7 @@ function make_toolbar(gobj)
      *  looks the same whether nothing matched or the match was already
      *  on screen.
      */
-    let left_items = [
+    let left_items = yui_graph_fold_items(gobj, toolbar_wide).concat([
         ['div', {class: 'JSON_GRAPH_FIND control has-icons-left',
                  style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
             ['input', {
@@ -523,7 +523,7 @@ function make_toolbar(gobj)
             ['span', {class: 'JSON_GRAPH_FIND_COUNT'}, ''],
             ['span', {i18n: 'matches'}, 'matches']
         ]]
-    ];
+    ]);
     let center_items = [];
 
     /*
@@ -573,8 +573,7 @@ function make_toolbar(gobj)
         }]
     );
 
-    let right_items = [$layout_select].concat(
-        yui_graph_fold_items(gobj, toolbar_wide));
+    let right_items = [$layout_select];
 
     const $toolbar = yui_toolbar({}, [
         ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],
@@ -731,6 +730,11 @@ function build_cell_html(key, value, type, dark, matched)
  *  innerHTML string, so there is no other way to hang a
  *  handler on it.
  *
+ *  On the RIGHT of the header, and last, where the gobj tree
+ *  puts its own — with a spacer of the same width on the left
+ *  so the label stays centred on its own axis instead of
+ *  drifting by the width of a chip that only some cards have.
+ *
  *  A filled CHIP, the same one the gobj tree draws
  *  (`c_yui_gobj_tree_js.js`, render_toggle_html): background,
  *  border, radius, and `+N` / `−` rather than a triangle.  It
@@ -744,12 +748,12 @@ function build_cell_html(key, value, type, dark, matched)
  *  where it could carry no i18n key and would sit in English
  *  forever.  `+3` and `−` need no language.
  ************************************************************/
+const FOLD_SPACER = `<span style="width:24px; flex:0 0 auto;"></span>`;
+
 function fold_toggle_html(path, foldable, folded, branches, colors)
 {
     if(!foldable) {
-        /*  A spacer the width of the chip, so the label of a leaf card
-         *  stays on the same axis as the label of a foldable one.  */
-        return `<span style="width:24px; flex:0 0 auto;"></span>`;
+        return FOLD_SPACER;
     }
 
     let label = folded? ("+" + branches): "&#8722;";        /*  +N / −  */
@@ -940,7 +944,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
         display: flex;
         align-items: center;
         gap: 6px;
-    ">${fold_toggle_html(path, foldable, folded, pending_complex.length, colors)}<span style="flex:1 1 auto; text-align:center;">${escapeHtml(label)}</span></div>
+    ">${FOLD_SPACER}<span style="flex:1 1 auto; text-align:center;">${escapeHtml(label)}</span>${fold_toggle_html(path, foldable, folded, pending_complex.length, colors)}</div>
     ${content_html}
 </div>`;
 

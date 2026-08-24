@@ -537,7 +537,11 @@ function make_toolbar(gobj)
     let toolbar_wide = gobj_read_attr(gobj, "wide");
     let current_layout = gobj_read_str_attr(gobj, "layout");
 
-    let left_items = [];
+    /*  The GLOBAL fold opens the whole tree; it is not a camera control
+     *  and not a per-node one, so it sits on its own at the left — ahead
+     *  of a find box where the toolbar has one.  The per-node handles
+     *  live inside the cards, on the right of each header.  */
+    let left_items = yui_graph_fold_items(gobj, toolbar_wide);
     let center_items = [];
     let right_items = [];
 
@@ -582,12 +586,6 @@ function make_toolbar(gobj)
     );
     priv.$layout_select = $select;
     right_items.push($select);
-
-    /*  Fold on the RIGHT, past the layout picker — where the JSON graph
-     *  already put it.  The camera is what the middle is for: the fold
-     *  pair changes the DOCUMENT, not the view of it, and sitting in the
-     *  middle it read as two more camera buttons.  */
-    right_items.push(...yui_graph_fold_items(gobj, toolbar_wide));
 
     const $toolbar = yui_toolbar({}, [
         ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],

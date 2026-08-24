@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.7
+
+- **The two folds are two different things, and now they sit in two different
+    places.** `7.23.6` put the GLOBAL fold on the right in both graphs, which
+    was the wrong half of the problem. The arrangement is:
+
+    - **Global expand/collapse: leftmost in the toolbar**, ahead of the find
+      box. It is not a camera control and not a per-node one; it opens the
+      whole document, so it leads the row.
+    - **Per-node fold: on the RIGHT of the card's own header**, last, where the
+      gobj tree has always put its `+N` / `−`. A spacer of the same width on
+      the left keeps the label centred on its own axis instead of drifting by
+      the width of a chip only some cards have.
+
+    The JSON graph had the chip on the LEFT of its header, which is the one
+    place a reader compares it against the gobj tree card sitting in the next
+    chapter.
+
 ## 7.23.6
 
 - **The fold pair sits on the RIGHT in both graphs.** `7.23.4` gave the gobj
