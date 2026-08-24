@@ -5,6 +5,46 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.10
+
+The treedb graph's edition mode: three things that made a group move look
+like a broken one. Found where they always are, by measuring the graph
+before and after a drag instead of watching it.
+
+- **Dragging a card also PANNED the canvas.** Edition's `drag-canvas` is
+    configured with an `enable` that gives way to Shift (the marquee's
+    gesture), and an `enable` REPLACES G6's default -- which is the
+    `targetType === 'canvas'` test, the one thing that keeps panning off a
+    node drag. Without it both behaviours ran on the same gesture: the card
+    followed the pointer AND the camera followed it too, so the card moved at
+    twice the pointer and the whole graph slid underneath it. Measured: a
+    150px drag moved the card 255px and every other card 105px. With a
+    SELECTION it reads as the selection moving at random, which is how it was
+    reported -- and the saved result was right all along, because a pan
+    writes nothing. Both halves of the condition are stated now.
+
+- **Undo never lit on a graph entered through the mode selector.** The
+    history plugin was installed at one MOMENT -- the arrival of the last
+    topic of the load -- and only if the graph was in edition right then.
+    Reaching edition afterwards, which is the ordinary way (the graph opens
+    in reading, the selector is next to it), left the graph with no history
+    at all: dead Undo and Redo buttons that never even lit, and a
+    `history_pause()` with no `beforeAddCommand` to answer. What still lit
+    was Save, from `mark_graph_dirty()` -- which is exactly the report: a
+    move offers Save and not Undo. The plugin follows the MODE now, so both
+    ways in give the same graph.
+
+- **A click on the background made the graph dirty.** G6's `brush-select`
+    also keeps the `selected` state, and on EVERY canvas click it rewrites
+    the state of every node and every edge, whether or not any of them
+    carried it -- behind the gclass that owns the selection, and outside the
+    history pause with which that gclass sets and clears it. The history
+    recorded the redraw as a command whose `original` and `current` are
+    identical: an undo entry that undoes nothing, and a lit Save on a graph
+    nobody had touched. New `g6_brush_select_owned.js` keeps the band and
+    drops the bookkeeping; the selection still clears on a canvas click,
+    through `EV_CANVAS_CLICK`, where this gclass has always cleared it.
+
 ## 7.23.9
 
 The G6 graphs on a phone. They have always DRAWN correctly on one; what

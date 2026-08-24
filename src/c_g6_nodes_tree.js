@@ -104,6 +104,10 @@ import i18next, {t} from "i18next";
 import {inject_svg_icons} from "./lib_icons.js";
 import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
 import {
+    ensure_brush_select_owned,
+    BRUSH_SELECT_OWNED,
+} from "./g6_brush_select_owned.js";
+import {
     ensure_pinch_zoom_patch,
     install_long_press_contextmenu,
 } from "./g6_touch_gestures.js";
@@ -176,6 +180,7 @@ class YuiToolbar extends Toolbar
 }
 register(ExtensionCategory.PLUGIN, 'yui-toolbar', YuiToolbar);
 ensure_drag_canvas_patch();
+ensure_brush_select_owned();
 ensure_pinch_zoom_patch();
 
 /***************************************************************
@@ -1410,11 +1415,28 @@ function configure_behaviour(gobj)
                 /*  Panning gives way while Shift is held: that is the
                  *  marquee's gesture, and G6 binds drag-canvas straight
                  *  to the drag events, so without this the canvas pans
-                 *  under the rubber band.  */
+                 *  under the rubber band.
+                 *
+                 *  And it gives way to a NODE drag, which is what G6's
+                 *  own default `enable` says and what this one has to
+                 *  repeat: `enable` REPLACES it, it does not add to it.
+                 *  Dropping the `targetType` half made every drag of a
+                 *  card pan the canvas as well as move the card -- the
+                 *  card ran at twice the pointer and the whole graph
+                 *  slid underneath it, on a move whose RESULT was
+                 *  right, because a pan writes nothing.  */
                 {
                     type: "drag-canvas",
                     key: "drag-canvas",
-                    enable: (event) => !event.shiftKey,
+                    enable: (event) => {
+                        if(event.shiftKey) {
+                            return false;
+                        }
+                        if('targetType' in event) {
+                            return event.targetType === 'canvas';
+                        }
+                        return true;    /* a key, not a pointer */
+                    },
                 },
                 "zoom-canvas",
                 /*  Moves EVERY node in the `selected` state, not just
@@ -1429,7 +1451,12 @@ function configure_behaviour(gobj)
                  *  ids travel with the event and the action does not
                  *  have to race it.  */
                 {
-                    type: "brush-select",
+                    /*  Ours: the built-in also rewrites the state of
+                     *  EVERY element on a canvas click, behind the
+                     *  gclass's back and outside its history pause --
+                     *  a command that changed nothing, and a Save
+                     *  button lit on a graph nobody had touched.  */
+                    type: BRUSH_SELECT_OWNED,
                     key: "brush-select",
                     trigger: ["shift"],
                     enableElements: ["node"],
@@ -2371,6 +2398,42 @@ function history_resume(gobj)
 }
 
 /************************************************************
+ *  The history plugin exists while the graph is in EDITION,
+ *  and only there.
+ *
+ *  It used to be installed at one MOMENT -- the arrival of the
+ *  last topic of the load -- and only if the graph happened to
+ *  be in edition right then. Entering edition afterwards, which
+ *  is the ordinary way in (the graph opens in reading and the
+ *  mode selector is next to it), left no history at all: Undo
+ *  and Redo were dead buttons that never even lit, `history_
+ *  pause()` had no `beforeAddCommand` to answer, and the Save
+ *  button was told the graph was dirty by `mark_graph_dirty()`
+ *  alone -- which is why a move offered Save without Undo.
+ *
+ *  So it follows the MODE, and every place that changes the
+ *  mode calls this.
+ ************************************************************/
+function sync_history_plugin(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv.graph || !priv.graph_rendered) {
+        /*  Nothing to hang a plugin on yet: the load path calls
+         *  this again once the graph is drawn.  */
+        return;
+    }
+
+    if(priv.edit_mode) {
+        graph_add_plugin(gobj, "history");
+    } else {
+        graph_remove_plugin(gobj, "history");
+    }
+
+    update_history_buttons(gobj);
+}
+
+/************************************************************
  *
  ************************************************************/
 function update_history_buttons(gobj)
@@ -2775,6 +2838,7 @@ function graph_add_plugin(gobj, plugin_key, options)
     let graph = priv.graph;
 
     let plugin = graph_get_plugin(gobj, plugin_key);
+    let existed = !!plugin;
     if(!plugin) {
         let plugin_def = {
             key: plugin_key,
@@ -2790,7 +2854,11 @@ function graph_add_plugin(gobj, plugin_key, options)
 
     switch(plugin_key) {
         case "history":
-            if(plugin) {
+            /*  Wired once per INSTANCE: this is called again on every
+             *  load and on every entry into edition, and a second
+             *  listener on the same emitter is a second repaint of the
+             *  same two buttons.  */
+            if(plugin && !existed) {
                 plugin.on(HistoryEvent.CHANGE, () => {
                     update_history_buttons(gobj);
                 });
@@ -3563,10 +3631,10 @@ function toggle_in_selection(gobj, node_id)
 {
     let priv = gobj.priv;
 
-    /*  The union of the two views of the same thing. A brush clears
-     *  G6's state on pointerdown without telling anybody, so reading
-     *  only the state could drop a card that is on screen wearing a
-     *  ring.  */
+    /*  The union of the two views of the same thing: either can hold
+     *  an id the other lost -- G6's state is what a drag moves, the
+     *  painted set is what the reader can see -- and a card on screen
+     *  wearing a ring belongs to the selection whichever view has it.  */
     let current = new Set(selected_node_ids(gobj));
     for(let id of (priv._selected_paint_ids || [])) {
         current.add(id);
@@ -7000,11 +7068,7 @@ function ac_load_data(gobj, event, kw, src)
                             log_error(`${gobj_short_name(gobj)}: cannot fit the graph: ${e}`);
                         });
                     }
-                    if(priv.edit_mode) {
-                        graph_add_plugin(gobj, "history");
-                    } else {
-                        graph_remove_plugin(gobj, "history");
-                    }
+                    sync_history_plugin(gobj);
                     /*  Nodes exist and are positioned now: apply a focus
                      *  requested before the data was ready (deep link). */
                     if(priv._pending_focus_topic !== null) {
@@ -7462,6 +7526,10 @@ function ac_set_operation_mode(gobj, event, kw, src)
     gobj_write_attr(gobj, "operation_mode", kw.operation_mode);
     configure_behaviour(gobj);
     update_toolbar(gobj);
+
+    /*  `configure_behaviour` is what decides `edit_mode`, and the
+     *  history plugin belongs to that decision.  */
+    sync_history_plugin(gobj);
     return 0;
 }
 

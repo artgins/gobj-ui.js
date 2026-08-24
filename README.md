@@ -964,12 +964,28 @@ gone wrong:
   work — so a marquee shows up in the `machine` trace like every other action.
   Shift+click is not G6's `click-select` at all: this gclass already owns
   `EV_NODE_CLICK`, and adding a second selection owner outside the FSM is how
-  the two end up disagreeing.
+  the two end up disagreeing. The band comes from `g6_brush_select_owned.js`,
+  a `brush-select` under our own id with ONE half removed: the built-in also
+  rewrites the `selected` state of every node and every edge on each canvas
+  click, behind the gclass and outside the history pause with which it sets
+  and clears the selection — a recorded command whose before and after are
+  identical, which is a lit Save on a graph nobody has touched (`7.23.10`).
 
-Panning gives way while **Shift** is held (`drag-canvas` takes an `enable`
-predicate), or the canvas would pan under the rubber band — G6 binds
-`drag-canvas` straight to the drag events, and its own docs warn that the two
-gestures cannot both be a plain drag.
+Panning gives way while **Shift** is held AND while the pointer is on a card
+(`drag-canvas` takes an `enable` predicate) — the first because the canvas
+would otherwise pan under the rubber band, the second because it would
+otherwise pan under the node being dragged. That second half is G6's own
+default, and an `enable` REPLACES the default rather than adding to it: while
+it was missing, a drag moved the card at twice the pointer and slid the whole
+graph underneath it (`7.23.10`).
+
+**Undo, Redo and Save are the history plugin, and it follows the MODE.** It is
+installed on entering edition and removed on leaving it — including when
+edition is reached through the mode selector on a graph whose data is already
+loaded, which is the ordinary way in. Before `7.23.10` it was installed at the
+arrival of the last topic of the load and only if the graph was in edition
+right then, so that ordinary way left the graph with dead Undo/Redo buttons
+and a `history_pause()` nothing answered, while Save still lit on its own.
 
 **A delete says what it takes, whether it is one or twenty.** The Delete key
 asks the same question the per-node delete icon asks, built by the same
