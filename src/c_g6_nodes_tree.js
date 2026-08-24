@@ -350,6 +350,9 @@ let PRIVATE_DATA = {
     toolbar_collapsed:  true,       // floating toolbars folded (narrow only)
     _toolbars_could_collapse: null, // last answer, to notice it changed
     _on_focusout_restore: null,     // ...and putting it back when it goes nowhere
+    selection_mode:     false,      // taps pick cards, a canvas drag is the band
+                                    // (edition only, transient: a mode nobody
+                                    //  can see is a mode nobody can leave)
     _selected_paint_ids: [],        // node ids whose card is PAINTED selected
                                     // (G6's 'selected' state is the selection
                                     //  itself; this is what is on screen, and
@@ -1026,6 +1029,7 @@ function update_toolbar(gobj)
     /*  A re-render rebuilds the innerHTML, so a button whose enabled
      *  state is not part of getItems() has to be told again.  */
     update_zoom_selection_button(gobj);
+    update_selection_mode_button(gobj);
 }
 
 /************************************************************
@@ -1326,6 +1330,19 @@ function configure_toolbar_edit(gobj)
             getItems: () => {
                 return [
                     { id: 'g6-icon-plus',  value: 'create-node', className: 'EV_CREATE_NODE_BTN color_create_state', title: t('create node') },
+                    /*  The mode is carried in the class getItems()
+                     *  returns, not only pushed onto the element after
+                     *  the fact: this toolbar is rebuilt whole (a fold,
+                     *  a language change), and the rebuilt DOM is not
+                     *  there yet when the rebuild returns -- so a
+                     *  button told afterwards came back OFF while the
+                     *  graph was still listening for a selection.  */
+                    {
+                        id: 'g6-icon-select-mode', value: 'selection-mode',
+                        className: 'EV_TOGGLE_SELECTION_MODE' +
+                            (priv.selection_mode? ' color_active_state' : ''),
+                        title: t('selection mode')
+                    },
                     { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: t('save'), disabled: true },
                     { id: 'g6-icon-undo', value: 'undo', className: 'EV_HISTORY_UNDO', title: t('undo'), disabled: true },
                     { id: 'g6-icon-redo', value: 'redo', className: 'EV_HISTORY_REDO', title: t('redo'), disabled: true },
@@ -1335,6 +1352,9 @@ function configure_toolbar_edit(gobj)
                 switch(value) {
                     case 'create-node':
                         toggle_create_popover(gobj);
+                        break;
+                    case 'selection-mode':
+                        gobj_send_event(gobj, "EV_TOGGLE_SELECTION_MODE", {}, gobj);
                         break;
                     case 'undo':
                         gobj_send_event(gobj, "EV_HISTORY_UNDO", {}, gobj);
@@ -1429,7 +1449,7 @@ function configure_behaviour(gobj)
                     type: "drag-canvas",
                     key: "drag-canvas",
                     enable: (event) => {
-                        if(event.shiftKey) {
+                        if(event.shiftKey || priv.selection_mode) {
                             return false;
                         }
                         if('targetType' in event) {
@@ -1458,7 +1478,18 @@ function configure_behaviour(gobj)
                      *  button lit on a graph nobody had touched.  */
                     type: BRUSH_SELECT_OWNED,
                     key: "brush-select",
-                    trigger: ["shift"],
+                    /*  There is no Shift on a phone. The toolbar's
+                     *  selection mode is that key made into a state:
+                     *  with it on, the band needs no modifier -- and
+                     *  panning stands aside above, because the two
+                     *  cannot both be a plain drag.  */
+                    trigger: priv.selection_mode ? [] : ["shift"],
+                    /*  A band starts on the BACKGROUND. G6's default
+                     *  (`enable: true`) does not look at what is under
+                     *  the pointer, so a drag that begins on a card
+                     *  drew a band and moved the card at the same
+                     *  time.  */
+                    enable: (event) => event.targetType === 'canvas',
                     enableElements: ["node"],
                     /*  Left at G6's default (false): the set is read at
                      *  pointerup, not on every pointermove. Each answer
@@ -1494,6 +1525,9 @@ function configure_behaviour(gobj)
             break;
     }
     if(!priv.edit_mode) {
+        /*  The selection and the mode that picks it both belong to
+         *  edition, and neither survives leaving it.  */
+        priv.selection_mode = false;
         deselect_node(gobj);
     }
     graph_write_behaviors(gobj, behaviors);
@@ -3571,6 +3605,30 @@ function update_zoom_selection_button(gobj)
     } else {
         disableElements($container, ".EV_ZOOM_SELECTION");
     }
+}
+
+/************************************************************
+ *  The selection mode is a state, so it has to LOOK like one.
+ *
+ *  Toggled on the element rather than re-rendered with the
+ *  toolbar, for the same reason as the button above: a
+ *  re-render rebuilds the innerHTML and drops what every OTHER
+ *  button was told.
+ ************************************************************/
+function update_selection_mode_button(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+
+    if(!$container) {
+        return;
+    }
+
+    if(!$container.querySelector(".EV_TOGGLE_SELECTION_MODE")) {
+        return;     /* no edit toolbar: not in edition, or folded away */
+    }
+
+    set_active_state($container, ".EV_TOGGLE_SELECTION_MODE", priv.selection_mode);
 }
 
 /************************************************************
@@ -7534,6 +7592,51 @@ function ac_set_operation_mode(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Selection mode on/off, from the edit toolbar.
+ *
+ *  Shift is what the selection is built on, and a telephone has
+ *  no Shift: the marquee and the add-to-selection click were a
+ *  desktop feature by construction. This makes that key a MODE
+ *  -- while it is on, a tap picks a card and a drag on the
+ *  background draws the band, so the same two gestures are
+ *  reachable with one finger.
+ *
+ *  It costs panning while it is on, and deliberately: G6 binds
+ *  both to a plain drag, and a gesture cannot be two things.
+ *  That is why it is a button and not a heuristic -- the reader
+ *  turns it off to move the camera, and the toolbar says which
+ *  of the two the graph is listening for.
+ ************************************************************/
+function ac_toggle_selection_mode(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(!priv.edit_mode) {
+        log_error(`${gobj_short_name(gobj)}: selection mode asked outside edition`);
+        return 0;
+    }
+
+    priv.selection_mode = !priv.selection_mode;
+
+    if(priv.selection_mode) {
+        /*  A set has no handles, no ports and no popover: those hang
+         *  off `_selected_node_id`, the node OPENED for editing, and
+         *  in this mode a tap no longer opens one. The selection
+         *  itself stays -- entering the mode is not a way to lose it.  */
+        deselect_port(gobj);
+        hide_node_icon(gobj);
+        hide_node_popover(gobj);
+        hide_resize_handles(gobj);
+        priv._selected_node_id = null;
+    }
+
+    configure_behaviour(gobj);
+    update_selection_mode_button(gobj);
+
+    return 0;
+}
+
+/************************************************************
  *  Node drag end
  ************************************************************/
 function ac_node_drag_end(gobj, event, kw, src)
@@ -7632,11 +7735,13 @@ function ac_node_click(gobj, event, kw, src)
                 record: nodedata.data.record
             });
 
-            if(priv.edit_mode && kw.evt.shiftKey) {
+            if(priv.edit_mode && (kw.evt.shiftKey || priv.selection_mode)) {
                 /*  Shift+click extends the selection, the way it does
-                 *  everywhere. It never looks for a port: a port is a
-                 *  one-node affordance, and this gesture is about the
-                 *  set.  */
+                 *  everywhere -- and so does a plain tap while the
+                 *  toolbar's selection mode is on, which is that key
+                 *  for a finger. It never looks for a port: a port is
+                 *  a one-node affordance, and this gesture is about
+                 *  the set.  */
                 toggle_in_selection(gobj, node_id);
             } else if(priv.edit_mode) {
                 // Check if click hits a port
@@ -7941,6 +8046,7 @@ function create_gclass(gclass_name)
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_SET_LAYOUT",               ac_set_layout,          null],
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,  null],
+            ["EV_TOGGLE_SELECTION_MODE",    ac_toggle_selection_mode, null],
             ["EV_SAVE_GRAPH",               ac_save_graph,          null],
             ["EV_HISTORY_UNDO",             ac_history_undo,        null],
             ["EV_HISTORY_REDO",             ac_history_redo,        null],
@@ -7991,6 +8097,7 @@ function create_gclass(gclass_name)
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],
         ["EV_SET_OPERATION_MODE",       0],
+        ["EV_TOGGLE_SELECTION_MODE",    0],
         ["EV_HISTORY_UNDO",             0],
         ["EV_HISTORY_REDO",             0],
         ["EV_SAVE_GRAPH",               0],

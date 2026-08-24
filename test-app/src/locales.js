@@ -77,6 +77,7 @@ const es_translation = {
     "notes": "notas",
     "save": "Guardar",
     "undo": "Deshacer",
+    "selection mode": "Modo selección",
     "clear": "Limpiar",
     "copy": "Copiar",
     "paste": "Pegar",

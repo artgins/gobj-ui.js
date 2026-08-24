@@ -5,6 +5,40 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.11
+
+**Multi-selection reaches a finger.** Both of its gestures hang off Shift --
+shift+click adds a card, shift+drag draws the rubber band -- and a phone has
+no Shift, so on one the selection could only ever be built one card at a time,
+and the band not at all. There is no spare gesture to give them either: G6
+binds panning and the band to the same plain drag, so one of the two has to
+stand aside.
+
+So Shift becomes a MODE. The edit toolbar carries a **selection mode** toggle
+(a dashed marquee, next to `+`): while it is on, a tap picks a card and a drag
+on the background draws the band, and panning is what stands aside. A button
+rather than a heuristic, deliberately -- the toolbar says which of the two the
+graph is listening for, and turning it off gives the camera back. It is not
+device-specific: it spares a desktop reader the key just as well. Entering it
+puts away the handles and ports of any node left OPEN, because those belong to
+one node and this mode is about the set; leaving edition turns it off, and it
+is not persisted.
+
+Two things had to be right for it to work at all:
+
+- The rubber band now refuses a drag that starts on a CARD
+    (`enable: targetType === 'canvas'`). G6's default is a bare `true`, which
+    does not look at what is under the pointer -- so with the band on a plain
+    drag, dragging a card drew a band and moved the card at the same time. The
+    same shape of defect as `7.23.10`'s pan, one behaviour further along.
+- The button's state is carried in what `getItems()` returns, not only pushed
+    onto the element afterwards. This toolbar is rebuilt whole -- a fold on a
+    narrow container, a language change -- and the rebuilt DOM is not there yet
+    when the rebuild returns, so a button told afterwards came back OFF while
+    the graph was still listening for a selection.
+
+**New key for consumers: `selection mode`.**
+
 ## 7.23.10
 
 The treedb graph's edition mode: three things that made a group move look

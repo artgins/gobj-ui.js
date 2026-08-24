@@ -877,11 +877,19 @@ a card with a border sitting on the graph). Above that width nothing changes.
 
 **New keys for consumers: `show toolbar`, `hide toolbar`.**
 
-What is still desktop-only, deliberately: **multi-selection**. `brush-select`
-is bound to `shift`, and `drag-canvas` stands aside for the same key — there
-is no shift on a phone, and giving the rubber band a touch gesture means
-taking one away from panning. Selecting nodes one at a time works on a phone;
-selecting a region does not.
+**Multi-selection reaches a finger through a MODE, not through a gesture**
+(`7.23.11`). Both halves of it — shift+click to add a card, shift+drag for the
+rubber band — hang off a key a phone does not have, and there is no spare
+gesture to give them: G6 binds panning and the band to the same plain drag, so
+one of the two has to stand aside. The edit toolbar carries a **selection
+mode** toggle (the dashed marquee, next to `+`): while it is on, a tap picks a
+card and a drag on the background draws the band, and panning is what stands
+aside. It is deliberately a button and not a heuristic — the toolbar says which
+of the two the graph is listening for, and turning it off gives the camera
+back. It is not device-specific: the same button spares a desktop reader the
+key. Leaving edition turns it off, and it is not persisted.
+
+**New key for consumers: `selection mode`.**
 
 ### Tabs opened at runtime, and the two decisions their url costs
 
@@ -928,6 +936,7 @@ clicked":
 | click a node | selects it **and opens it**: resize handles, ports, popovers |
 | **shift + click** | adds that node to the selection, or takes it out |
 | **shift + drag on the canvas** | rubber band: the selection becomes what it enclosed |
+| the **selection mode** button | makes those two the PLAIN gestures — a tap picks, a canvas drag is the band — for as long as it is on (panning stands aside meanwhile) |
 | **ctrl/cmd + A** | every node |
 | the **fit-to-selection** button | puts the viewport on what is selected |
 | drag any selected node | **moves the whole selection**, as one undo |
