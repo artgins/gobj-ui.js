@@ -14,9 +14,21 @@
  *      graph's `gobj_remote_yuno`, which is the whole trick: the graph
  *      does not know or care that its remote yuno is in the same page.
  *
- *      Read-only on purpose (`readonly: true`): there is nothing behind
- *      this to write to, and the graph's edition mode draws affordances
- *      for writes that would only be refused.
+ *      EDITION is on (`readonly: false`), and it is real for the thing
+ *      edition edits in a GRAPH: the arrangement.  Moving cards, the
+ *      selection mode, undo/redo and Save all end in one write --
+ *      `update-node` on `__graphs__` -- and C_DEMO_BACKEND takes that
+ *      one, so the arrangement is stored for the life of the page.
+ *
+ *      To see it come BACK, put the layout on `manual` first: the graph
+ *      opens on `dagre` because nobody has arranged this treedb yet
+ *      (`auto_layout`), and an automatic layout re-arranges on every
+ *      load, saved geometry or not.  That is not a demo limitation, it
+ *      is what the layout selector means.
+ *
+ *      The RECORD writes (create, delete, link) answer their refusal:
+ *      see the header of the backend for why answering yes would be
+ *      worse.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -161,7 +173,7 @@ function mt_start(gobj)
         transport: backend,
         kw: {
             treedb_name: "demo_treedb",
-            readonly:    true
+            readonly:    false
         }
     });
     if(!tree) {

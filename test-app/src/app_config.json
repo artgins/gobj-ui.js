@@ -1215,7 +1215,7 @@
                         "lifecycle": "keep_alive",
                         "kw": {
                             "title": "TreeDB graph",
-                            "lead": "C_YUI_TREEDB_GRAPH draws a treedb as what it is, a graph: topics as nodes, hook/fkey columns as edges. It is the component the other two graphs here borrow their camera from, and the only one that needs a BACKEND \u2014 so this chapter gives it one, C_DEMO_BACKEND, which answers `descs` and `nodes` in the page with no wire underneath. Read-only: there is nothing to write to."
+                            "lead": "C_YUI_TREEDB_GRAPH draws a treedb as what it is, a graph: topics as nodes, hook/fkey columns as edges. It is the component the other two graphs here borrow their camera from, and the only one that needs a BACKEND \u2014 so this chapter gives it one, C_DEMO_BACKEND, which answers `descs` and `nodes` in the page with no wire underneath. Pick `edition` in the mode selector: moving cards, the selection mode and Save are real here \u2014 the backend takes the one write they end in, `update-node` on `__graphs__`. Arrange it, press Save, then put the layout on `manual`: from there a refresh comes back to where you left the cards, while `dagre` re-arranges on every load. Creating, deleting and linking answer a refusal instead: there is nothing behind this to write records to."
                         }
                     }
                 },

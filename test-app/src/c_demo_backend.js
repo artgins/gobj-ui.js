@@ -28,10 +28,23 @@
  *          same direction as production, not in a comfortable one.
  *
  *      Commands: `descs` (the whole schema) and `nodes` (one topic's
- *      rows).  Those are the two the graph needs to draw.  The writes
- *      (create/update/delete/link/unlink) answer a refusal rather than
- *      pretending: this demo has no backend to write to, and a silent
- *      success that changes nothing is worse than a visible "no".
+ *      rows).  Those are the two the graph needs to draw.
+ *
+ *      Plus ONE write: `update-node` on `__graphs__`, the topic the
+ *      graph keeps its own arrangement in.  That is what makes the
+ *      chapter's EDITION mode real -- moving cards, the selection, undo
+ *      and Save all end there -- and it is not pretending to be a
+ *      backend, because that topic is the view's bookkeeping and this
+ *      is exactly what a backend does with it.
+ *
+ *      The RECORD writes (create/delete/link/unlink, and `update-node`
+ *      on anything else) answer a refusal rather than pretending: there
+ *      is nothing behind this to write to, a silent success that
+ *      changes nothing is worse than a visible "no", and here it would
+ *      be worse still -- the graph draws a created or deleted node from
+ *      the treedb's own node events, which a backend living in one page
+ *      does not send, so the write would answer yes and the graph would
+ *      not move.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -96,6 +109,32 @@ const DESCS = {
              flag: ["hook"], hook: {"users": "teams"}}
         ]
     },
+    /*
+     *  The topic the GRAPH keeps its own arrangement in: one record per
+     *  topic, holding where its cards were left.  It is not the
+     *  operator's data -- it is this view's bookkeeping -- and it is
+     *  the only topic this demo lets anybody WRITE, which is what makes
+     *  its edition mode worth offering: the layout is what edition
+     *  edits.
+     *
+     *  A treedb that does not declare it simply never gets asked for it
+     *  (`process_treedb_descs` walks the descs), which is why the demo
+     *  worked without it while it was read-only.
+     */
+    __graphs__: {
+        topic_name: "__graphs__",
+        pkey: "id",
+        cols: [
+            {id: "id",         header: "Id",         type: "string",
+             flag: ["persistent", "required"]},
+            {id: "topic",      header: "Topic",      type: "string",
+             flag: ["persistent", "writable"]},
+            {id: "active",     header: "Active",     type: "boolean",
+             flag: ["persistent", "writable"]},
+            {id: "properties", header: "Properties", type: "dict",
+             flag: ["persistent", "writable"]}
+        ]
+    },
     users: {
         topic_name: "users",
         pkey: "id",
@@ -152,6 +191,11 @@ const RECORDS = {
         {id: "field", name: "Field",
          department: "departments^operations^teams"}
     ],
+    /*  Empty: nobody has arranged this graph yet, so it opens laid out
+     *  by dagre.  Saving in edition mode fills it, and a refresh then
+     *  comes back to where the cards were left -- for the life of the
+     *  page, which is as long as this backend lives.  */
+    __graphs__: [],
     users: [
         {id: "ada",   name: "Ada Lovelace", age: 36,
          department: "departments^engineering^users",
@@ -271,16 +315,55 @@ function mt_command_parser(gobj, command, kw, src)
             break;
         }
 
+        case "update-node": {
+            /*
+             *  The ONE write this demo takes, and only on `__graphs__`:
+             *  where the cards were left.  That topic is the view's own
+             *  bookkeeping, so storing it here is not pretending to be a
+             *  backend -- it is the same thing a backend does with it,
+             *  and it is what makes the edition mode of this chapter
+             *  real rather than a menu of refusals.
+             */
+            let topic_name = kw && kw.topic_name;
+            if(topic_name !== "__graphs__") {
+                answer(gobj, src, command, kw, -1,
+                    "this demo has no backend to write records to", null);
+                break;
+            }
+            let record = (kw && kw.record) || {};
+            let id = record.id;
+            if(!id) {
+                answer(gobj, src, command, kw, -1,
+                    "update-node without a pkey", null);
+                break;
+            }
+            let rows = RECORDS.__graphs__;
+            let i = rows.findIndex((r) => r.id === id);
+            if(i >= 0) {
+                /*  Replaced whole, the way treedb replaces an object
+                 *  field: a partial record is not a merge there, and a
+                 *  demo that merged would teach the wrong thing.  */
+                rows[i] = json_deep_copy(record);
+            } else {
+                rows.push(json_deep_copy(record));
+            }
+            answer(gobj, src, command, kw, 0, "", json_deep_copy(rows[i >= 0? i : rows.length-1]));
+            break;
+        }
+
         case "create-node":
-        case "update-node":
         case "delete-node":
         case "link-nodes":
         case "unlink-nodes":
             /*  Refused, and SAID.  There is nothing behind this demo to
-             *  write to, and a write that silently changes nothing is
-             *  worse than one that answers no.  */
+             *  write RECORDS to, and a write that silently changes
+             *  nothing is worse than one that answers no -- here it
+             *  would be worse still, because the graph draws a created
+             *  or deleted node from the treedb's own node events, which
+             *  no backend of one page sends: the write would answer yes
+             *  and the graph would not move.  */
             answer(gobj, src, command, kw, -1,
-                "this demo has no backend to write to", null);
+                "this demo has no backend to write records to", null);
             break;
 
         default:
