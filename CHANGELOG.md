@@ -5,6 +5,50 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.2
+
+- **The JSON popups of a treedb topic are WINDOWS on a laptop.** The schema
+    sheet and the cell-JSON sheet were modals, which is the wrong shape for a
+    document you read *while* looking at the table it came from: a modal cannot
+    be moved, cannot be resized, cannot be maximised, and it darkens exactly the
+    rows you opened the cell from. Both go through one presenter now — a
+    floating `C_YUI_WINDOW` (movable, resizable, maximise, position remembered)
+    on a laptop, and the modal sheet unchanged on a phone, where there is no
+    room to arrange anything and the sheet already carries the shell's Escape
+    and Back.
+
+- **The JSON graph offers a choice of layout**, the way the gobj tree does:
+    `vertical tree` (this gclass's own, which sizes each level from the real
+    card widths), `dagre top-down` and `dagre left-right` — the last one being
+    the house direction for reading a topology, and much better use of the
+    width on a wide, shallow document. `EV_CHANGE_LAYOUT {layout}` moves the
+    layout AND the edge type together, because a vertical layout with
+    horizontal cubics draws every edge the wrong way round.
+
+    `compact-box` was tried and left out: it lays out from a fixed node size,
+    and an `html` card is nothing like it — every card landed on top of the
+    next. A layout that draws the document unreadable is worse than one option
+    fewer.
+
+- **fix: closing a JSON popup logged two errors.** `Destroying a RUNNING gobj`
+    for the graph child, then `gobj NULL or DESTROYED`. Two causes, both about
+    ORDER:
+
+    `gobj_destroy()` destroys the children BEFORE calling `mt_destroy()`, so
+    `C_YUI_JSON` tearing its graph child down there arrived after the framework
+    had already destroyed it — while it was still running. The teardown moved
+    to `mt_stop()`, where everything is still whole; the child's life is now
+    exactly the viewer's running state, and a switch back to the graph rebuilds
+    it through the same lazy path a first entry takes.
+
+    And `C_YUI_WINDOW.close_window()` calls `on_close` and THEN stops and
+    destroys itself, so a host that also destroys the window destroys it twice.
+    The ✕ path is the window retiring itself; the host drops its reference and
+    keeps its hands off.
+
+- New i18n keys: `layout`, `vertical tree`, `dagre top-down`,
+    `dagre left-right`.
+
 ## 7.23.1
 
 - **fix: the per-node fold handle was invisible on a phone.** `7.23.0` drew it

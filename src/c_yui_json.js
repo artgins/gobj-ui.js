@@ -227,6 +227,21 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    /*
+     *  The graph child dies with the parent's RUNNING state, not with
+     *  its destruction, and the difference is not cosmetic:
+     *  gobj_destroy() destroys the children BEFORE calling mt_destroy(),
+     *  so tearing it down there arrived after the framework had already
+     *  destroyed it — while it was still running.  Closing the window
+     *  logged "Destroying a RUNNING gobj" for the child and then
+     *  "gobj NULL or DESTROYED" for this gobj's own attempt to stop it.
+     *
+     *  Here it is stopped and destroyed while everything is still whole,
+     *  and gobj_destroy() finds no child left to rescue.  A later
+     *  gobj_start + a switch back to the graph rebuilds it, which is the
+     *  same lazy path a first entry takes.
+     */
+    teardown_graph_child(gobj);
 }
 
 /***************************************************************
@@ -234,7 +249,6 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
-    teardown_graph_child(gobj);
     destroy_ui(gobj);
 }
 

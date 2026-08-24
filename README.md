@@ -439,8 +439,19 @@ the order of arrival: the viewer opens on the **tree** (`view_mode` default).
 | `tree` | *where is this value, and what is around it* | the lazy view; the only one that can drill; the default |
 | `graph` | *what shape is this* | a hosted `C_YUI_JSON_GRAPH` child (AntV/G6) |
 
-The graph carries **its own** toolbar, and since `7.22.0` that toolbar has the
-same two facilities the tree has: a **find box** (rate-limited, `EV_FIND_NODES`)
+Since `7.23.2` the schema and cell-JSON popups of `C_YUI_TREEDB_TOPIC_WITH_FORM`
+present that viewer as a floating `C_YUI_WINDOW` on a laptop — movable,
+resizable, maximisable, position remembered — and keep the modal sheet on a
+phone. A JSON document is read *while* looking at the table it came from, which
+a modal cannot allow; a phone has no room to arrange anything, so the sheet
+stays. Note the close contract: `C_YUI_WINDOW.close_window()` calls `on_close`
+and THEN destroys itself, so a host must drop its reference rather than destroy
+the window too.
+
+The graph carries **its own** toolbar, a **layout picker**
+(`EV_CHANGE_LAYOUT {layout}`: `vertical tree`, `dagre top-down`,
+`dagre left-right` — the layout and the edge type move together), and since
+`7.22.0` the same two facilities the tree has: a **find box** (rate-limited, `EV_FIND_NODES`)
 that highlights matching rows and outlines the cards they are in and says how
 many matched, and **expand-all / collapse-all** (`EV_EXPAND_ALL` /
 `EV_COLLAPSE_ALL`) that fold every card but the root, marking each cut with

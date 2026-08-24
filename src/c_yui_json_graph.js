@@ -74,6 +74,73 @@ const GCLASS_NAME = "C_YUI_JSON_GRAPH";
  */
 const FOLD_SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "click"];
 
+/*
+ *  Layouts, same shape the gobj tree's registry uses
+ *  (`c_yui_gobj_tree_js.js`): a G6 layout config plus the edge type
+ *  that matches its direction — a vertical layout with horizontal
+ *  cubics draws every edge going the wrong way round.
+ *
+ *  `json-tree` is this gclass's own layout, the one it always had, and
+ *  it stays the default: it sizes each level from the real card widths,
+ *  which a generic layout cannot do with `html` nodes.  The dagre pair
+ *  is there for the documents it does badly — a wide, shallow object
+ *  reads better left→right, which is also the house direction for a
+ *  topology.
+ */
+const LAYOUTS = {
+    "json-tree": {
+        label: "vertical tree",
+        g6_layout: {type: 'json-tree-layout'},
+        edge_type: 'cubic-vertical',
+    },
+    "dagre-tb": {
+        label: "dagre top-down",
+        g6_layout: {type: 'antv-dagre', rankdir: 'TB', nodesep: 20, ranksep: 40},
+        edge_type: 'polyline',
+    },
+    "dagre-lr": {
+        label: "dagre left-right",
+        g6_layout: {type: 'antv-dagre', rankdir: 'LR', nodesep: 20, ranksep: 40},
+        edge_type: 'polyline',
+    },
+    /*  `compact-box` is NOT here on purpose: it lays out from a fixed
+     *  node size, and an `html` card is nothing like it — every card
+     *  landed on top of the next.  A layout that draws the document
+     *  unreadable is worse than one option fewer.  dagre reads the real
+     *  sizes, which is why both of its directions are here.  */
+};
+
+const DEFAULT_LAYOUT = "json-tree";
+
+function get_layout_cfg(key)
+{
+    return LAYOUTS[key] || LAYOUTS[DEFAULT_LAYOUT];
+}
+
+/************************************************************
+ *  A layout's label, with every key SPELLED OUT inside t().
+ *
+ *  Never t(LAYOUTS[key].label) nor a `data-i18n` fed from that
+ *  table: the apps' validate-locales scans for t("literal"),
+ *  so a key reached through a variable is a key it cannot
+ *  demand — and i18next answers an undefined key with the key
+ *  itself, which renders in lower-case English and never
+ *  changes language.  Twice already in this component's
+ *  history (7.20.0 `tree view`, and this table on its first
+ *  draft).
+ ************************************************************/
+function layout_label(key)
+{
+    switch(key) {
+        case "dagre-tb":
+            return t("dagre top-down");
+        case "dagre-lr":
+            return t("dagre left-right");
+        default:
+            return t("vertical tree");
+    }
+}
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -91,6 +158,7 @@ SDATA(data_type_t.DTP_STRING,   "canvas_id",        0,  "",     "Canvas ID"),
 
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_STRING,   "wide",             0,  "36px", "Height of header"),
+SDATA(data_type_t.DTP_STRING,   "layout",           0,  "json-tree", "Layout key (see LAYOUTS)"),
 
 SDATA_END()
 ];
@@ -110,6 +178,7 @@ let PRIVATE_DATA = {
     match_count:    0,      // matches of the last find, for the count chip
     find_timer:     null,   // rate-limits the find box
     fold_listener:  null,   // delegated click on the card fold handles
+    $layout_select: null,   // the layout picker
     $find_input:    null,
     $find_result:   null,
     $find_count:    null,
@@ -351,6 +420,7 @@ function build_ui(gobj)
         log_error(`${gobj_short_name(gobj)}: no canvas mount, fold handles are dead`);
     }
 
+    priv.$layout_select = $container.querySelector('.JSON_GRAPH_LAYOUT');
     priv.$find_input = $container.querySelector('.JSON_GRAPH_FIND_INPUT');
     priv.$find_result = $container.querySelector('.JSON_GRAPH_FIND_RESULT');
     priv.$find_count = $container.querySelector('.JSON_GRAPH_FIND_COUNT');
@@ -516,7 +586,38 @@ function make_toolbar(gobj)
      *  went; "expand all" puts it back.  Same chevron as the lazy tree,
      *  rotated to point down for the open state.
      */
+    /*
+     *  A layout picker, same shape as the gobj tree's.  One layout
+     *  cannot serve every document: the built-in one sizes each level
+     *  from the real card widths, dagre packs a wide shallow object
+     *  far better, and left→right is the house direction for reading a
+     *  topology.
+     */
+    let current_layout = gobj_read_str_attr(gobj, "layout") || DEFAULT_LAYOUT;
+    let options = Object.keys(LAYOUTS).map(function(key) {
+        let attrs = {value: key, 'data-i18n': LAYOUTS[key].label};
+        if(key === current_layout) {
+            attrs.selected = "selected";
+        }
+        return ['option', attrs, layout_label(key)];
+    });
+
+    let $layout_select = createElement2(
+        ['select', {
+            class: 'JSON_GRAPH_LAYOUT select',
+            style: {height: toolbar_wide, "margin-left": "0.5em"},
+            title: t("layout"), 'data-i18n-title': "layout",
+            'aria-label': t("layout"), 'data-i18n-aria-label': "layout"
+        }, options, {
+            change: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_CHANGE_LAYOUT", {layout: evt.target.value}, gobj);
+            }
+        }]
+    );
+
     let right_items = [
+        $layout_select,
         graph_fold_button(gobj, "EV_EXPAND_ALL", "expand all", true),
         graph_fold_button(gobj, "EV_COLLAPSE_ALL", "collapse all", false),
     ];
@@ -537,6 +638,7 @@ function make_toolbar(gobj)
 function build_graph(gobj)
 {
     let priv = gobj.priv;
+    let layout_cfg = get_layout_cfg(gobj_read_str_attr(gobj, "layout"));
 
     const graph = priv.graph = new Graph({
         container: priv.canvas_id,
@@ -551,7 +653,7 @@ function build_graph(gobj)
         },
 
         edge: {
-            type: 'cubic-vertical',
+            type: layout_cfg.edge_type,
             style: {
                 stroke: '#999',
                 lineWidth: 1,
@@ -559,9 +661,7 @@ function build_graph(gobj)
             },
         },
 
-        layout: {
-            type: 'json-tree-layout',
-        },
+        layout: layout_cfg.g6_layout,
 
         behaviors: [
             'drag-canvas',
@@ -1207,6 +1307,47 @@ function ac_refresh(gobj, event, kw, src)
 
 /************************************************************
  *  {theme: "dark"|"light"} — the app switched theme.
+ *  EV_CHANGE_LAYOUT { layout }
+ *
+ *  The layout AND the edge type move together — a vertical
+ *  layout with horizontal cubics draws every edge the wrong way
+ *  round — and then the graph is rebuilt and refitted, because a
+ *  new layout is a new shape and the old camera framed the old
+ *  one.
+ ************************************************************/
+function ac_change_layout(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let key = (kw && kw.layout) || "";
+
+    if(!LAYOUTS[key]) {
+        log_error(`${gobj_short_name(gobj)}: unknown layout '${key}'`);
+        return -1;
+    }
+    if(key === gobj_read_str_attr(gobj, "layout")) {
+        return 0;
+    }
+
+    gobj_write_str_attr(gobj, "layout", key);
+
+    /*  Keep the picker in step when the event came from elsewhere.  */
+    if(priv.$layout_select && priv.$layout_select.value !== key) {
+        priv.$layout_select.value = key;
+    }
+
+    let cfg = get_layout_cfg(key);
+    if(priv.graph) {
+        priv.graph.setOptions({
+            layout: cfg.g6_layout,
+            edge: {type: cfg.edge_type},
+        });
+    }
+    refresh_json(gobj);
+    update_find_result(gobj);
+    return 0;
+}
+
+/************************************************************
  *  EV_TOGGLE_FOLD { path } — fold or unfold ONE card.
  *
  *  The camera does not move: folding one branch is a local
@@ -1489,6 +1630,7 @@ function create_gclass(gclass_name)
             ["EV_REFRESH",              ac_refresh,             null],
             ["EV_FIND_NODES",           ac_find_nodes,          null],
             ["EV_TOGGLE_FOLD",          ac_toggle_fold,         null],
+            ["EV_CHANGE_LAYOUT",        ac_change_layout,       null],
             ["EV_EXPAND_ALL",           ac_expand_all,          null],
             ["EV_COLLAPSE_ALL",         ac_collapse_all,        null],
             ["EV_THEME",                ac_theme,               null],
@@ -1511,6 +1653,7 @@ function create_gclass(gclass_name)
         ["EV_REFRESH",              0],
         ["EV_FIND_NODES",           0],
         ["EV_TOGGLE_FOLD",          0],
+        ["EV_CHANGE_LAYOUT",        0],
         ["EV_EXPAND_ALL",           0],
         ["EV_COLLAPSE_ALL",         0],
         ["EV_THEME",                0],

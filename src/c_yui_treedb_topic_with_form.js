@@ -42,6 +42,8 @@ import {
     kwid_get_ids,
     gobj_create_pure_child,
     gobj_start,
+    gobj_create_service,
+    gobj_is_destroying,
     gobj_stop,
     gobj_destroy,
     gobj_is_running,
@@ -170,9 +172,11 @@ let PRIVATE_DATA = {
     form:               null,   // hosted C_YUI_FORM child (while dialog open)
     form_modal:         null,   // { close } handle of the adaptive dialog
     schema_gobj:        null,   // hosted C_YUI_JSON child (while schema open)
-    schema_modal:       null,   // { close } handle of the schema dialog
+    schema_modal:       null,   // { close } handle of the schema dialog (phone)
+    schema_win:         null,   // C_YUI_WINDOW presenting it (laptop)
     cell_json_gobj:     null,   // hosted C_YUI_JSON child (while a cell is open)
-    cell_json_modal:    null,   // { close } handle of the cell dialog
+    cell_json_modal:    null,   // { close } handle of the cell dialog (phone)
+    cell_json_win:      null,   // C_YUI_WINDOW presenting it (laptop)
 };
 
 let __gclass__ = null;
@@ -184,6 +188,120 @@ let __gclass__ = null;
  *  stacking context below body-level modals).  The legacy
  *  C_YUI_MAIN "#popup-layer" and document.body (Bulma `.modal` is
  *  position:fixed) remain the shell-less fallbacks. */
+/*  True on a phone-width viewport (Bulma's mobile breakpoint).  */
+function is_mobile()
+{
+    return typeof window !== "undefined" && window.innerWidth <= 768;
+}
+
+/************************************************************
+ *  Present a JSON viewer's $container.
+ *
+ *  On a LAPTOP a floating C_YUI_WINDOW: a JSON document is
+ *  something you read WHILE looking at the table behind it —
+ *  you move it, you resize it, you maximise it when the
+ *  document is big.  A modal can do none of that, and it
+ *  darkens exactly the rows you opened the cell from.
+ *
+ *  On a phone the modal sheet stays: there is no room to
+ *  arrange anything, and the sheet already carries the shell's
+ *  Escape / Back handling.
+ *
+ *  Returns {win, modal} — exactly one of them is set.
+ ************************************************************/
+function present_json_popup(gobj, $box, opts)
+{
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${gobj_short_name(gobj)}: no shell, cannot present the json`);
+        return null;
+    }
+
+    if(is_mobile()) {
+        return {
+            modal: yui_shell_show_modal(shell, $box, {
+                dialog:        true,
+                logical_class: opts.logical_class + "_SHEET",
+                title_prefix:  opts.title_prefix,
+                title:         opts.title,
+                t:             t,
+                on_close:      opts.on_close
+            }),
+            win: null
+        };
+    }
+
+    let win = gobj_create_service(
+        opts.name,
+        "C_YUI_WINDOW",
+        {
+            $parent:    popup_mount_layer(gobj),
+            subscriber: null,
+            modal:      false,
+            showMax:    true,
+            showFooter: false,
+            resizable:  true,
+            center:     true,
+            auto_save_size_and_position: true,
+            width:      720,
+            height:     620,
+            logical_class: opts.logical_class + "_WINDOW",
+            title_prefix:  opts.title_prefix,
+            title:         opts.title,
+            icon:          opts.icon,
+            body:          $box,
+            manager:       null,
+            /*  C_YUI_WINDOW.close_window() calls this and THEN stops and
+             *  destroys itself, so a teardown that also destroys the
+             *  window destroys it twice — two "gobj NULL or DESTROYED".
+             *  `opts.forget_window()` drops the host's reference first;
+             *  the ✕ path is the window retiring ITSELF.  */
+            on_close:      function() {
+                if(gobj_is_destroying(gobj)) {
+                    return;
+                }
+                opts.forget_window();
+                opts.on_close();
+            }
+        },
+        gobj
+    );
+    if(!win) {
+        log_error(`${gobj_short_name(gobj)}: cannot create the json window`);
+        return null;
+    }
+    gobj_start(win);
+    return {win: win, modal: null};
+}
+
+/************************************************************
+ *  Retire a presenting window: reference cleared FIRST, then
+ *  stop, then destroy.
+ *
+ *  The order is the whole content of this function.  The ✕ of
+ *  the window calls back into the teardown that calls this, so
+ *  clearing the reference first is what stops the recursion.
+ *  And it is STOP then destroy because the window was started
+ *  on open: handing a running gobj to gobj_destroy() makes the
+ *  framework rescue it and say so — "Destroying a RUNNING
+ *  gobj" — which is a caller's bug, not a framework message.
+ *  Same lesson `c_tranger_view.close_json_viewer` carries.
+ ************************************************************/
+function retire_popup_window(win)
+{
+    if(!win) {
+        return;
+    }
+    try {
+        if(gobj_is_running(win)) {
+            gobj_stop(win);
+        }
+        gobj_destroy(win);
+    } catch(e) {
+        log_warning(`${GCLASS_NAME}: json window already gone: ${e}`);
+    }
+}
+
 function popup_mount_layer(gobj)
 {
     let $layer = yui_shell_popup_layer(yui_shell_of(gobj));
@@ -1864,16 +1982,25 @@ function open_schema_dialog(gobj)
     /*  Title split in two halves: the topic name is DATA (never
      *  translated) and "schema" is the kind (carries its i18n key), so
      *  the header re-translates on a language switch. */
-    priv.schema_modal = yui_shell_show_modal(shell, $box, {
-        dialog:        true,
-        logical_class: "TREEDB_SCHEMA_SHEET",
+    let presented = present_json_popup(gobj, $box, {
+        name:          "schemawin_" + clean_name(gobj_name(gobj)),
+        logical_class: "TREEDB_SCHEMA",
         title_prefix:  gobj_read_str_attr(gobj, "topic_name"),
         title:         "schema",
-        t:             t,
+        icon:          "yi-table",
+        forget_window: function() {
+            priv.schema_win = null;
+        },
         on_close:      function() {
             teardown_schema_child(gobj);
         }
     });
+    if(!presented) {
+        teardown_schema_child(gobj);    // Error already logged
+        return;
+    }
+    priv.schema_modal = presented.modal;
+    priv.schema_win = presented.win;
 
     /*  EV_SET_JSON and not the `json_data` attr: the attr renders the
      *  tree but leaves the viewer in ST_IDLE, where a click to expand a
@@ -1896,6 +2023,9 @@ function teardown_schema_child(gobj)
         gobj_destroy(priv.schema_gobj);
         priv.schema_gobj = null;
     }
+    let win = priv.schema_win;
+    priv.schema_win = null;
+    retire_popup_window(win);
     priv.schema_modal = null;
 }
 
@@ -1982,16 +2112,25 @@ function open_cell_json_dialog(gobj, row_id, col_id)
      *  i18n key — the shared `col.id` one, so the header re-translates on a
      *  language switch and reads as the raw id where the app defines no key
      *  (exactly what an untranslated column header already shows). */
-    priv.cell_json_modal = yui_shell_show_modal(shell, $box, {
-        dialog:        true,
-        logical_class: "TREEDB_CELL_JSON_SHEET",
+    let presented = present_json_popup(gobj, $box, {
+        name:          "cellwin_" + clean_name(gobj_name(gobj)),
+        logical_class: "TREEDB_CELL_JSON",
         title_prefix:  String(row_id),
         title:         col_id,
-        t:             t,
+        icon:          "yi-js-square",
+        forget_window: function() {
+            priv.cell_json_win = null;
+        },
         on_close:      function() {
             teardown_cell_json_child(gobj);
         }
     });
+    if(!presented) {
+        teardown_cell_json_child(gobj);     // Error already logged
+        return;
+    }
+    priv.cell_json_modal = presented.modal;
+    priv.cell_json_win = presented.win;
 
     /*  EV_SET_JSON and not the `json_data` attr: the attr renders the
      *  tree but leaves the viewer in ST_IDLE, where a click to expand a
@@ -2014,6 +2153,9 @@ function teardown_cell_json_child(gobj)
         gobj_destroy(priv.cell_json_gobj);
         priv.cell_json_gobj = null;
     }
+    let win = priv.cell_json_win;
+    priv.cell_json_win = null;
+    retire_popup_window(win);
     priv.cell_json_modal = null;
 }
 
