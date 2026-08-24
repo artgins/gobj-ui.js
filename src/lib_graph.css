@@ -178,6 +178,32 @@
 }
 
 /*
+ *  A TOGGLE that is on looks PRESSED, it does not take a colour from
+ *  the palette at the top of this file: each of those names a kind of
+ *  ACTION, and "the graph is listening for a selection" is not one --
+ *  borrowing undo/redo's violet for it put the same colour on two
+ *  neighbouring buttons for two different reasons.
+ *
+ *  Inverted neutral, and deliberately hue-free: it cannot be mistaken
+ *  for the hover tint declared just above (a much lighter wash of the
+ *  same surface), it reads at a glance even when the glyph is a thin
+ *  outline rather than a solid silhouette, and it says what it says
+ *  without a hue -- which is the same reason the palette above is
+ *  documented as colour-blind safe.
+ *
+ *  The `:hover` half is not decoration: without it, hovering a pressed
+ *  button would hand it back to the rule above (equal specificity,
+ *  declared earlier, so this one wins only where both match) and the
+ *  toggle would appear to switch off under the pointer.
+ */
+.g6-toolbar.g6-toolbar-large .g6-toolbar-item.pressed_state,
+.g6-toolbar.g6-toolbar-large .g6-toolbar-item.pressed_state:hover {
+    background-color: var(--bulma-text, #2e333d);
+    color: var(--bulma-background, #ffffff);
+    border-radius: 4px;
+}
+
+/*
  *  Touch: the context menu is a LIST OF COMMANDS, and G6 sizes its
  *  rows with `padding: 8px 12px` -- 34px, which is a mouse row. The
  *  menu is now reachable by a long press (g6_touch_gestures.js), so

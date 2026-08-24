@@ -884,7 +884,12 @@ gesture to give them: G6 binds panning and the band to the same plain drag, so
 one of the two has to stand aside. The edit toolbar carries a **selection
 mode** toggle (the dashed marquee, next to `+`): while it is on, a tap picks a
 card and a drag on the background draws the band, and panning is what stands
-aside. It is deliberately a button and not a heuristic — the toolbar says which
+aside. It looks **pressed** while it is on (`pressed_state`, an inverted
+neutral chip) rather than taking one of the palette's colours: each of those
+names a KIND of action, and `7.23.11` borrowed undo/redo's violet for it —
+which put the same colour on two neighbouring buttons for two different
+reasons, and carried the whole state change in the hairline of an outline
+glyph. It is deliberately a button and not a heuristic — the toolbar says which
 of the two the graph is listening for, and turning it off gives the camera
 back. It is not device-specific: the same button spares a desktop reader the
 key. Leaving edition turns it off, and it is not persisted.

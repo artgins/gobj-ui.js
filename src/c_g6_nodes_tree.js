@@ -79,6 +79,7 @@ import {
     set_submit_state,
     set_cancel_state,
     set_active_state,
+    set_pressed_state,
     getStrokeColor,
 } from "./lib_graph.js";
 
@@ -1340,7 +1341,7 @@ function configure_toolbar_edit(gobj)
                     {
                         id: 'g6-icon-select-mode', value: 'selection-mode',
                         className: 'EV_TOGGLE_SELECTION_MODE' +
-                            (priv.selection_mode? ' color_active_state' : ''),
+                            (priv.selection_mode? ' pressed_state' : ''),
                         title: t('selection mode')
                     },
                     { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: t('save'), disabled: true },
@@ -3608,7 +3609,9 @@ function update_zoom_selection_button(gobj)
 }
 
 /************************************************************
- *  The selection mode is a state, so it has to LOOK like one.
+ *  The selection mode is a state, so it has to LOOK like one:
+ *  a PRESSED toggle, not a button wearing one of the palette's
+ *  action colours (see `pressed_state` in lib_graph.css).
  *
  *  Toggled on the element rather than re-rendered with the
  *  toolbar, for the same reason as the button above: a
@@ -3628,7 +3631,7 @@ function update_selection_mode_button(gobj)
         return;     /* no edit toolbar: not in edition, or folded away */
     }
 
-    set_active_state($container, ".EV_TOGGLE_SELECTION_MODE", priv.selection_mode);
+    set_pressed_state($container, ".EV_TOGGLE_SELECTION_MODE", priv.selection_mode);
 }
 
 /************************************************************

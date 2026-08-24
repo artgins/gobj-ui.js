@@ -114,7 +114,7 @@ export {
 /*
  *  Libraries and utilities
  */
-export { addClasses, removeClasses, toggleClasses, removeChildElements, disableElements, enableElements, set_submit_state, set_cancel_state, set_active_state, getStrokeColor } from "./src/lib_graph.js";
+export { addClasses, removeClasses, toggleClasses, removeChildElements, disableElements, enableElements, set_submit_state, set_cancel_state, set_active_state, set_pressed_state, getStrokeColor } from "./src/lib_graph.js";
 export { inject_svg_icons } from "./src/lib_icons.js";
 export { EditControl, MarkerControl } from "./src/lib_maplibre.js";
 export { yui_toolbar } from "./src/yui_toolbar.js";

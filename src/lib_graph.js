@@ -109,6 +109,24 @@ function set_active_state($container, selector, set)
     }
 }
 
+/************************************************************
+ *  Set or reset the 'pressed' state of a TOGGLE.
+ *
+ *  Not one of the colours above: each of those names a KIND of
+ *  action (create, pending, history, destructive), and a toggle
+ *  is not an action -- it is a state the control is IN. So it
+ *  looks pressed instead of changing category, which also keeps
+ *  it out of the way of a neighbour wearing the same hue.
+ ************************************************************/
+function set_pressed_state($container, selector, set)
+{
+    if(set) {
+        addClasses($container, selector, "pressed_state");
+    } else {
+        removeClasses($container, selector, "pressed_state");
+    }
+}
+
 /**
  * Returns a smart stroke color in `rgba()` format based on:
  * - The given fill color (hex or rgb[a])
@@ -187,5 +205,6 @@ export {
     set_submit_state,
     set_cancel_state,
     set_active_state,
+    set_pressed_state,
     getStrokeColor,
 };

@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.12
+
+**A toggle looks pressed, it does not change category.** The selection mode
+button of `7.23.11` was painted with `color_active_state`, and the palette at
+the top of `lib_graph.css` gives every one of its colours a MEANING: blue
+creates, orange means pending changes, violet is undo/redo, red destroys. So
+the toggle wore undo/redo's violet — two neighbouring buttons in the same
+strip, the same colour, two different reasons — and, since its glyph is a
+dashed outline rather than a solid silhouette, the whole state change was
+carried in a hairline.
+
+New `set_pressed_state()` / `pressed_state` (exported alongside the four colour
+setters): an inverted neutral chip, `--bulma-text` on `--bulma-background`, so
+it says what it says with no hue at all — the same reason the palette above it
+is documented as colour-blind safe — and it cannot be mistaken for the hover
+tint, which is a light wash of the same surface. Its `:hover` half is not
+decoration: without it the hover rule would take a pressed button back and the
+toggle would appear to switch off under the pointer.
+
 ## 7.23.11
 
 **Multi-selection reaches a finger.** Both of its gestures hang off Shift --
