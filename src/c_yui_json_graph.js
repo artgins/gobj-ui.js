@@ -50,6 +50,9 @@ import {yui_toolbar} from "./yui_toolbar.js";
 import {attach_clear} from "./yui_inputs.js";
 import {
     yui_graph_camera_items,
+    yui_graph_anchor_item,
+    yui_graph_update_anchor,
+    yui_graph_center_on,
     yui_graph_fold_items,
     yui_graph_refresh_item,
     yui_graph_update_zoom,
@@ -190,6 +193,12 @@ let PRIVATE_DATA = {
     $find_input:    null,
     $find_result:   null,
     $find_count:    null,
+
+    /*---------------- camera anchor ----------------*/
+    anchor_id:      "",     // the node the camera keeps in the middle
+    anchor_path:    "",     // its path, so a rebuild can find it again
+    anchor_state:   "off",  // "off" | "arming" | "on"
+    last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
 };
 
 let __gclass__ = null;
@@ -592,6 +601,7 @@ function make_toolbar(gobj)
      *  the same console and a copied toolbar drifts.
      */
     center_items = yui_graph_camera_items(gobj, priv.graph, toolbar_wide);
+    center_items.push(yui_graph_anchor_item(gobj, toolbar_wide));
     center_items.push(yui_graph_refresh_item(gobj, toolbar_wide));
 
     /*
@@ -697,6 +707,30 @@ function build_graph(gobj)
      *  after every notch.  */
     graph.on('aftertransform', () => {
         yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+
+        /*
+         *  A ZOOM re-centres on the anchor; a PAN does not.
+         *  `aftertransform` fires for both, and an anchor that also
+         *  answered a drag would make the graph impossible to move
+         *  while it is set. The zoom LEVEL is what tells them apart:
+         *  it changes on a wheel notch and never on a drag.
+         *
+         *  No recursion: the centring translates without zooming, so
+         *  the level it fires back with is the one just stored.
+         */
+        let z = priv.last_zoom;
+        try {
+            z = priv.graph.getZoom();
+        } catch(e) {
+            return;
+        }
+        if(z === priv.last_zoom) {
+            return;
+        }
+        priv.last_zoom = z;
+        if(priv.anchor_state === "on" && priv.anchor_id) {
+            yui_graph_center_on(priv.graph, priv.anchor_id);
+        }
     });
 
     graph.on(CanvasEvent.CLICK, (evt) => {
@@ -960,16 +994,33 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
             card_matched = true;
             priv.match_count++;
         }
-        let html = build_cell_html(key, value, type, dark, matched);
-        lines.push(html);
 
+        /*
+         *  A non-empty container gets a CARD OF ITS OWN, so a row for it
+         *  here would be the same thing drawn twice -- and the second
+         *  drawing is the one that does not scale.  An array of 14 dicts
+         *  printed fourteen `0: {13}` rows above fourteen cards saying
+         *  the same; an array of a thousand prints a thousand-row card
+         *  nobody can read, beside the thousand cards it duplicates.
+         *
+         *  What is left in the body is exactly the SCALARS: what this
+         *  node IS.  What it CONTAINS is the edges, and the count now
+         *  rides in the header for the case where the body comes out
+         *  empty.
+         */
         if((is_object(value) && json_object_size(value) > 0) ||
            (is_array(value) && value.length > 0)) {
             pending_complex.push({key: key, value: value});
+            continue;
         }
+
+        lines.push(build_cell_html(key, value, type, dark, matched));
     }
 
     let label = get_group_label(path) || (is_dict ? "{}" : "[]");
+    if(pending_complex.length > 0) {
+        label += is_dict? ` {${pending_complex.length}}`: ` [${pending_complex.length}]`;
+    }
 
     /*
      *  Folded: keep the card, drop the branch, and SAY how much went
@@ -1103,12 +1154,36 @@ function load_json(gobj)
     priv.pending_preserve_view = false;
 
     if(nodes.length > 0) {
+        let root_id = nodes[0].id;      /*  built before its children  */
         graph.setData({nodes: nodes, edges: edges});
         graph.render().then(() => {
-            if(!preserve_view) {
-                graph.fitView();
+            /*  Ids are generated per build: point the anchor at its path
+             *  again before anybody asks the camera to go there.  */
+            reanchor(gobj);
+
+            if(preserve_view) {
+                yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+                return;
             }
-            yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+
+            /*
+             *  ACTUAL SIZE, not fit.  A JSON graph of anything real does
+             *  not fit at a zoom anybody can read: the schema of one
+             *  topic fits at 37%, where every card is grey texture.
+             *  Fitting answered "where is everything" when the question
+             *  on opening is "what does this say".
+             *
+             *  Centred on the ANCHOR if there is one, else on the ROOT
+             *  -- never parked at the layout's origin, which is a corner
+             *  with nothing in it and is where `1:1` used to land.
+             */
+            Promise.resolve(graph.zoomTo(1)).then(() => {
+                if(!yui_graph_center_on(graph, priv.anchor_id)) {
+                    yui_graph_center_on(graph, root_id);
+                }
+                priv.last_zoom = 1;
+                yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+            });
         });
     }
 }
@@ -1491,6 +1566,93 @@ function ac_theme(gobj, event, kw, src)
 }
 
 /************************************************************
+ *   Every camera action ends the same way once an anchor is
+ *   set: the thing you were reading goes back to the middle.
+ *
+ *   Chained on the promise G6 returns rather than run beside it
+ *   -- centring before the zoom has finished centres the OLD
+ *   view, and the reader watches the node slide away and come
+ *   back.
+ ************************************************************/
+function after_camera(gobj, moved)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state !== "on" || !priv.anchor_id) {
+        return;
+    }
+    Promise.resolve(moved).then(function() {
+        yui_graph_center_on(priv.graph, priv.anchor_id);
+    }).catch(function() {
+        /*  a camera move that never finished has nothing to centre  */
+    });
+}
+
+/************************************************************
+ *   Point the anchor back at its node after a rebuild.
+ *
+ *   Node ids are generated per build, so the id the reader
+ *   chose does not survive a refresh, a fold or a layout
+ *   change -- the PATH does, and it is what the anchor really
+ *   means: "this place in the document", not "this card".
+ *
+ *   A path that is no longer drawn (its parent got folded)
+ *   releases the anchor rather than leaving a button that says
+ *   it is locked onto something invisible.
+ ************************************************************/
+function reanchor(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state !== "on" || !priv.anchor_path) {
+        return;
+    }
+
+    let found = "";
+    try {
+        for(let node of priv.graph.getNodeData()) {
+            if(node && node.data && node.data.path === priv.anchor_path) {
+                found = node.id;
+                break;
+            }
+        }
+    } catch(e) {
+        return;     /*  between renders: keep what we have and try later  */
+    }
+
+    priv.anchor_id = found;
+    if(!found) {
+        priv.anchor_state = "off";
+        priv.anchor_path = "";
+    }
+    yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+}
+
+/************************************************************
+ *   Arm the anchor, or let it go.
+ *
+ *   Three states and one button, so a press ADVANCES: with no
+ *   target it starts waiting for one, and with a target it
+ *   releases.  Pressing it while it waits is a cancel, which is
+ *   what somebody who pressed it by mistake will try.
+ ************************************************************/
+function ac_toggle_anchor(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state === "off") {
+        priv.anchor_state = "arming";
+    } else {
+        priv.anchor_state = "off";
+        priv.anchor_id = "";
+        priv.anchor_path = "";
+    }
+
+    yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+    return 0;
+}
+
+/************************************************************
  *
  ************************************************************/
 function ac_zoom_in(gobj, event, kw, src)
@@ -1498,7 +1660,7 @@ function ac_zoom_in(gobj, event, kw, src)
     let graph = gobj.priv.graph;
     if(graph) {
         let z = graph.getZoom();
-        graph.zoomTo(z * 1.2);
+        after_camera(gobj, graph.zoomTo(z * 1.2));
     }
     return 0;
 }
@@ -1511,7 +1673,7 @@ function ac_zoom_out(gobj, event, kw, src)
     let graph = gobj.priv.graph;
     if(graph) {
         let z = graph.getZoom();
-        graph.zoomTo(z * 0.8);
+        after_camera(gobj, graph.zoomTo(z * 0.8));
     }
     return 0;
 }
@@ -1521,10 +1683,21 @@ function ac_zoom_out(gobj, event, kw, src)
  ************************************************************/
 function ac_zoom_reset(gobj, event, kw, src)
 {
-    let graph = gobj.priv.graph;
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
     if(graph && graph.rendered) {
-        graph.zoomTo(1);
-        graph.translateTo([0, 0]);
+        /*
+         *  With an anchor, actual size means "this node, life size".
+         *  Without one it means the layout's origin, which is where
+         *  `1:1` always landed -- a corner nobody was looking at.
+         */
+        if(priv.anchor_state === "on" && priv.anchor_id) {
+            after_camera(gobj, graph.zoomTo(1));
+        } else {
+            graph.zoomTo(1);
+            graph.translateTo([0, 0]);
+        }
     }
     return 0;
 }
@@ -1555,6 +1728,21 @@ function ac_node_click(gobj, event, kw, src)
     try {
         nodedata = graph.getNodeData(node_id);
     } catch(e) {}
+
+    /*
+     *  A waiting anchor TAKES the click: it is what the reader armed
+     *  the button for, and letting the same press also open the item
+     *  would make picking a target a side effect of doing something
+     *  else.
+     */
+    if(priv.anchor_state === "arming") {
+        priv.anchor_id = node_id;
+        priv.anchor_path = (nodedata && nodedata.data)? nodedata.data.path: "";
+        priv.anchor_state = "on";
+        yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+        yui_graph_center_on(graph, node_id);
+        return 0;
+    }
 
     if(nodedata && nodedata.data) {
         gobj_publish_event(gobj, "EV_JSON_ITEM_CLICKED", {
@@ -1677,6 +1865,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_RESET",           ac_zoom_reset,          null],
             ["EV_CENTER",               ac_center,              null],
             ["EV_NODE_CLICK",           ac_node_click,          null],
+            ["EV_TOGGLE_ANCHOR",        ac_toggle_anchor,       null],
             ["EV_RESIZE",               ac_resize,              null],
             ["EV_SHOW",                 ac_show,                null],
             ["EV_HIDE",                 ac_hide,                null],
@@ -1700,6 +1889,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_RESET",           0],
         ["EV_CENTER",               0],
         ["EV_NODE_CLICK",           0],
+        ["EV_TOGGLE_ANCHOR",        0],
         ["EV_RESIZE",               0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],

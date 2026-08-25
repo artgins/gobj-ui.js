@@ -140,6 +140,13 @@ const ICONS = `<svg xmlns="http://www.w3.org/2000/svg">
             stroke="currentColor" stroke-width="40"
             stroke-dasharray="59 36"/>
     </symbol>
+    <!-- location-crosshairs (anchor the camera on one element).
+         The SAME path as the DOM toolbars and their yi-location-crosshairs
+         mask: the two toolbars sit in one console, and a control that
+         does one thing has to be drawn one way. -->
+    <symbol id="g6-icon-anchor" viewBox="0 0 576 512">
+        <path fill="currentColor" d="M288-16c17.7 0 32 14.3 32 32l0 18.3c98.1 14 175.7 91.6 189.7 189.7l18.3 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-18.3 0c-14 98.1-91.6 175.7-189.7 189.7l0 18.3c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-18.3C157.9 463.7 80.3 386.1 66.3 288L48 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l18.3 0C80.3 125.9 157.9 48.3 256 34.3L256 16c0-17.7 14.3-32 32-32zM128 256a160 160 0 1 0 320 0 160 160 0 1 0 -320 0zm160-96a96 96 0 1 1 0 192 96 96 0 1 1 0-192z"/>
+    </symbol>
     <!-- floppy-disk (save) -->
     <symbol id="g6-icon-save" viewBox="0 0 448 512">
         <path fill="currentColor" d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-242.7c0-17-6.7-33.3-18.7-45.3L352 50.7C340 38.7 323.7 32 306.7 32L64 32zm32 96c0-17.7 14.3-32 32-32l160 0c17.7 0 32 14.3 32 32l0 64c0 17.7-14.3 32-32 32l-160 0c-17.7 0-32-14.3-32-32l0-64zM224 288a64 64 0 1 1 0 128 64 64 0 1 1 0-128z"/>

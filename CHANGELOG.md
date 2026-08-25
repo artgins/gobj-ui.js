@@ -5,6 +5,55 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.19
+
+### Added
+
+- **An ANCHOR: pick one element and every zoom leaves it in the middle.** In
+    all three node viewers (`C_YUI_JSON_GRAPH`, `C_YUI_GOBJ_TREE_JS`,
+    `C_G6_NODES_TREE`), from the same crosshairs button in each one's toolbar.
+
+    Why it was needed: a graph that FITS on screen is unreadable at the zoom
+    that makes it fit -- one topic's schema fits at 37%, where every card is
+    grey texture -- and the zoom that makes it readable does not fit. So the
+    useful view is always a fraction of the document, and WHICH fraction was
+    nobody's decision: `1:1` translated to the layout's origin, a corner with
+    nothing in it, and the reader then hunted for the node they had been
+    looking at.
+
+    Three states, because two could not say what a press does: `off`, `arming`
+    (waiting for you to click the element you mean) and `on`. Both live states
+    look pressed; only the waiting one takes a palette colour, because it is
+    the one that needs you to do something next. An armed anchor TAKES the
+    next node click -- before selection, before ports, before the popover --
+    since letting the same press also do the graph's own thing would make
+    picking a target a side effect of doing something else.
+
+    A ZOOM re-centres; a PAN does not. `aftertransform` fires for both, and an
+    anchor that also answered a drag would make the graph impossible to move
+    while it is set, so the zoom LEVEL is what tells them apart: it changes on
+    a wheel notch and never on a drag.
+
+    The anchor is remembered by IDENTITY, not by node id: the JSON graph
+    generates ids per build, so a fold or a refresh would otherwise drop it.
+    It survives on the `path` there and on the `full_name` in the gobj tree; a
+    target that is no longer drawn releases the anchor rather than leaving a
+    button claiming to be locked onto something invisible.
+
+### Changed
+
+- **The node viewers open at ACTUAL SIZE, not fitted**, centred on the anchor
+    if there is one and on the ROOT otherwise. Fitting answered "where is
+    everything" when the question on opening is "what does this say".
+
+- **A JSON card no longer lists the containers it already draws.** An array of
+    dicts printed one `0: {13}` row per element, directly above the cards
+    saying the same thing -- and an array of a thousand prints a
+    thousand-row card nobody can read beside the thousand cards it duplicates.
+    A card body is now exactly the SCALARS (what this node IS); what it
+    CONTAINS is the edges, and the count moved into the header for the case
+    where the body comes out empty.
+
 ## 7.23.18
 
 **Highlighting a `true` made it HARDER to read than not highlighting it.**

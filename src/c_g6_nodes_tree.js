@@ -85,6 +85,7 @@ import {
 
 import {node_label} from "./treedb_node_label.js";
 import {delete_impact} from "./delete_impact.js";
+import {yui_graph_center_on} from "./yui_graph_camera.js";
 
 import {
     BaseLayout,
@@ -295,6 +296,11 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
+    /*---------------- camera anchor ----------------*/
+    anchor_id:      "",     // the node the camera keeps in the middle
+    anchor_state:   "off",  // "off" | "arming" | "on"
+    last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
+
     _xy:                100,
     _edge_seq:          0,
     _history_paused:    false,
@@ -833,6 +839,27 @@ function configure_events(gobj)
         update_node_icon_position(gobj);
         update_link_icon_position(gobj);
         update_zoom_readout(gobj);
+
+        /*
+         *  A ZOOM re-centres on the anchor; a PAN does not.
+         *  `aftertransform` fires for both, and an anchor that also
+         *  answered a drag would make the graph impossible to move
+         *  while it is set. The zoom LEVEL is what tells them apart:
+         *  it changes on a wheel notch and never on a drag.
+         */
+        let z = priv.last_zoom;
+        try {
+            z = priv.graph.getZoom();
+        } catch(e) {
+            return;
+        }
+        if(z === priv.last_zoom) {
+            return;
+        }
+        priv.last_zoom = z;
+        if(priv.anchor_state === "on" && priv.anchor_id) {
+            yui_graph_center_on(priv.graph, priv.anchor_id);
+        }
     });
 
     // Re-render G6 toolbars when language changes
@@ -1236,6 +1263,19 @@ function configure_toolbar(gobj)
                      *  Actual size is WRITTEN in every editor that offers
                      *  it, never drawn: there is no glyph for it.  */
                     { text: '1:1', value: 'reset', className: 'EV_ZOOM_RESET', title: t('actual size') },
+                    /*  Pick one node and every zoom leaves it in the
+                     *  middle. The pressed classes are baked in HERE and
+                     *  not set afterwards, for the same reason the
+                     *  selection-mode button bakes its own: this list is
+                     *  rebuilt asynchronously, and a button told after
+                     *  the rebuild came back OFF.  */
+                    {
+                        id: 'g6-icon-anchor', value: 'anchor',
+                        className: 'EV_TOGGLE_ANCHOR' +
+                            (priv.anchor_state !== "off"? ' pressed_state' : '') +
+                            (priv.anchor_state === "arming"? ' color_pending_state' : ''),
+                        title: anchor_title(priv.anchor_state)
+                    },
                 ];
 
                 /*  Only in edition, because that is where a selection
@@ -1287,6 +1327,9 @@ function configure_toolbar(gobj)
                         break;
                     case 'reset':
                         gobj_send_event(gobj, "EV_ZOOM_RESET", {}, gobj);
+                        break;
+                    case 'anchor':
+                        gobj_send_event(gobj, "EV_TOGGLE_ANCHOR", {}, gobj);
                         break;
                     case 'auto-fit':
                         gobj_send_event(gobj, "EV_AUTO_FIT", {}, gobj);
@@ -2839,7 +2882,7 @@ async function graph_zoom_in(gobj)
     let graph = priv.graph;
 
     const z = graph.getZoom();
-    await graph.zoomTo(z * 1.1);
+    after_camera(gobj, graph.zoomTo(z * 1.1));
 }
 
 async function graph_zoom_out(gobj)
@@ -2848,7 +2891,7 @@ async function graph_zoom_out(gobj)
     let graph = priv.graph;
 
     const z = graph.getZoom();
-    await graph.zoomTo(z * 0.9);
+    after_camera(gobj, graph.zoomTo(z * 0.9));
 }
 
 async function graph_render(gobj)
@@ -7502,7 +7545,79 @@ function ac_zoom_reset(gobj, event, kw, src)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    graph.zoomTo(1);
+    /*
+     *  With an anchor, actual size means "this node, life size";
+     *  without one it leaves the camera where it was, as before.
+     */
+    if(priv.anchor_state === "on" && priv.anchor_id) {
+        after_camera(gobj, graph.zoomTo(1));
+    } else {
+        graph.zoomTo(1);
+    }
+    return 0;
+}
+
+/************************************************************
+ *  What the anchor button says it will do next.
+ ************************************************************/
+function anchor_title(state)
+{
+    if(state === "arming") {
+        return t('click the element to centre on');
+    }
+    if(state === "on") {
+        return t('centred: click to release');
+    }
+    return t('anchor view');
+}
+
+/************************************************************
+ *  Every camera action ends the same way once an anchor is
+ *  set: the thing you were reading goes back to the middle.
+ *
+ *  Chained on the promise G6 returns rather than run beside it
+ *  -- centring before the zoom has finished centres the OLD
+ *  view, and the reader watches the node slide away and come
+ *  back.
+ ************************************************************/
+function after_camera(gobj, moved)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state !== "on" || !priv.anchor_id) {
+        return;
+    }
+    Promise.resolve(moved).then(function() {
+        yui_graph_center_on(priv.graph, priv.anchor_id);
+    }).catch(function() {
+        /*  a camera move that never finished has nothing to centre  */
+    });
+}
+
+/************************************************************
+ *  Arm the anchor, or let it go.
+ *
+ *  Three states and one button, so a press ADVANCES: with no
+ *  target it starts waiting for one, and with a target it
+ *  releases.  Pressing it while it waits is a cancel, which is
+ *  what somebody who pressed it by mistake will try.
+ *
+ *  Unlike the DOM toolbars, the button is not repainted in
+ *  place: this toolbar is a G6 plugin that rebuilds its whole
+ *  item list, and the pressed classes are baked into that list.
+ ************************************************************/
+function ac_toggle_anchor(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state === "off") {
+        priv.anchor_state = "arming";
+    } else {
+        priv.anchor_state = "off";
+        priv.anchor_id = "";
+    }
+
+    update_toolbar(gobj);
     return 0;
 }
 
@@ -7749,6 +7864,21 @@ function ac_node_click(gobj, event, kw, src)
     let priv = gobj.priv;
     let graph = priv.graph;
     let node_id = kw.evt.target.id;
+
+    /*
+     *  A waiting anchor TAKES the click, before selection, before
+     *  ports, before linking: it is what the reader armed the button
+     *  for, and letting the same press also do the graph's own thing
+     *  would make picking a target a side effect of doing something
+     *  else.
+     */
+    if(priv.anchor_state === "arming") {
+        priv.anchor_id = node_id;
+        priv.anchor_state = "on";
+        update_toolbar(gobj);
+        yui_graph_center_on(graph, node_id);
+        return 0;
+    }
 
     try {
         let nodedata = graph.getNodeData(node_id);
@@ -8061,6 +8191,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_IN",                  ac_zoom_in,             null],
             ["EV_ZOOM_OUT",                 ac_zoom_out,            null],
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
+            ["EV_TOGGLE_ANCHOR",            ac_toggle_anchor,       null],
             ["EV_TOGGLE_TOOLBARS",          ac_toggle_toolbars,     null],
             ["EV_AUTO_FIT",                 ac_auto_fit,            null],
             ["EV_ZOOM_SELECTION",           ac_zoom_selection,      null],
@@ -8110,6 +8241,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_IN",                  0],
         ["EV_ZOOM_OUT",                 0],
         ["EV_ZOOM_RESET",               0],
+        ["EV_TOGGLE_ANCHOR",            0],
         ["EV_TOGGLE_TOOLBARS",          0],
         ["EV_AUTO_FIT",                 0],
         ["EV_ZOOM_SELECTION",           0],

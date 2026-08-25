@@ -39,6 +39,8 @@ import {createElement2, gobj_send_event} from "@yuneta/gobj-js";
 
 import {t} from "i18next";
 
+import {set_pressed_state} from "./lib_graph.js";
+
 
 /************************************************************
  *   One icon button that fires `event_name`.
@@ -139,6 +141,99 @@ export function yui_graph_fold_items(gobj, wide)
             ' transform: rotate(90deg);'),
         camera_button(gobj, "yi-chevron-right", "EV_COLLAPSE_ALL", "collapse all", wide),
     ];
+}
+
+/************************************************************
+ *   The ANCHOR toggle: pick one element and every camera move
+ *   from then on leaves it in the MIDDLE.
+ *
+ *   Why it exists: a graph that fits on screen is unreadable at
+ *   the zoom that makes it fit, and the zoom that makes it
+ *   readable does not fit -- so the useful view is always a
+ *   fraction of the document, and which fraction is the whole
+ *   question.  Without an anchor, `1:1` lands wherever the
+ *   layout's origin happens to be and the reader hunts for the
+ *   node they were looking at.
+ *
+ *   Crosshairs and not a thumbtack.  A tack says "do not move
+ *   this", which is what a pinned NODE would mean in a graph you
+ *   can drag nodes around in; this pins the CAMERA to a target,
+ *   which is what a crosshair says and what every map that
+ *   offers it draws.  It is also in the icon set already, and a
+ *   `yi-*` class that is not is a black square.
+ *
+ *   Three states, because two would not say what a press does:
+ *
+ *      off      no target; the camera behaves as it always did
+ *      arming   waiting for you to click the element you mean
+ *      on       locked; every zoom re-centres on it
+ ************************************************************/
+export function yui_graph_anchor_item(gobj, wide)
+{
+    return camera_button(gobj, "yi-location-crosshairs", "EV_TOGGLE_ANCHOR",
+                         "anchor view", wide);
+}
+
+/************************************************************
+ *   Paint the anchor button.  `state` is "off" | "arming" | "on".
+ *
+ *   Both live states look PRESSED, because both are states the
+ *   control is IN rather than actions; what separates them is the
+ *   colour, and only the waiting one takes a palette colour --
+ *   it is the one that needs the reader to do something next.
+ ************************************************************/
+export function yui_graph_update_anchor($container, state)
+{
+    if(!$container) {
+        return;
+    }
+    let $btn = $container.querySelector('.EV_TOGGLE_ANCHOR');
+    if(!$btn) {
+        return;     /*  a toolbar without the control: nothing to paint  */
+    }
+    set_pressed_state($container, '.EV_TOGGLE_ANCHOR', state !== "off");
+    $btn.classList.toggle('color_pending_state', state === "arming");
+    $btn.setAttribute("aria-pressed", (state === "on")? "true": "false");
+
+    let key = (state === "arming")? "click the element to centre on"
+            : (state === "on")? "centred: click to release"
+            : "anchor view";
+    $btn.setAttribute("title", t(key));
+    $btn.setAttribute("data-i18n-title", key);
+    $btn.setAttribute("aria-label", t(key));
+    $btn.setAttribute("data-i18n-aria-label", key);
+}
+
+/************************************************************
+ *   Put `node_id` back in the middle of the viewport.
+ *
+ *   Called AFTER the camera moved, never instead of moving it:
+ *   the zoom is what the reader asked for, the centring is what
+ *   keeps the thing they are reading under their eyes.
+ *
+ *   Guarded on every side because it runs on every wheel notch:
+ *   a graph mid-rebuild, an anchor whose node went away with a
+ *   fold, a G6 version without `focusElement` -- none of those is
+ *   an error worth a log line per notch, they are all "there is
+ *   nothing to centre right now".
+ ************************************************************/
+export function yui_graph_center_on(graph, node_id)
+{
+    if(!graph || !node_id) {
+        return false;
+    }
+    try {
+        if(typeof graph.getElementData === "function" && !graph.getElementData(node_id)) {
+            return false;
+        }
+        if(typeof graph.focusElement !== "function") {
+            return false;
+        }
+        graph.focusElement(node_id);
+        return true;
+    } catch(e) {
+        return false;   /*  the element is gone, or the graph is between renders  */
+    }
 }
 
 /************************************************************

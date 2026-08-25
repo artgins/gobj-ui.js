@@ -42,6 +42,9 @@ import {
 import {yui_toolbar} from "./yui_toolbar.js";
 import {
     yui_graph_camera_items,
+    yui_graph_anchor_item,
+    yui_graph_update_anchor,
+    yui_graph_center_on,
     yui_graph_fold_items,
     yui_graph_refresh_item,
     yui_graph_update_zoom,
@@ -100,6 +103,19 @@ let PRIVATE_DATA = {
     collapse_state: null,   // map of full_name -> "collapsed" | "expanded"
     resize_observer: null,  // ResizeObserver on the canvas mount element
     _resize_raf: 0,         // rAF id debouncing resize -> EV_RESIZE
+
+    /*---------------- camera anchor ----------------*/
+    /*
+     *  NOT `pending_anchor`, which is a different job with the same
+     *  word: that one keeps a node at the SAME SCREEN SPOT across a
+     *  re-render, so expanding a branch does not throw the reader off
+     *  the node they expanded. This one keeps a node in the MIDDLE
+     *  across a ZOOM, and the reader chooses it from the toolbar.
+     */
+    anchor_id:      "",     // the node the camera keeps in the middle
+    anchor_name:    "",     // its full_name, which survives a rebuild
+    anchor_state:   "off",  // "off" | "arming" | "on"
+    last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
 };
 
 let __gclass__ = null;
@@ -557,6 +573,7 @@ function make_toolbar(gobj)
      *  drawings have to be the same drawings.
      */
     center_items = yui_graph_camera_items(gobj, priv.graph, toolbar_wide);
+    center_items.push(yui_graph_anchor_item(gobj, toolbar_wide));
     center_items.push(yui_graph_refresh_item(gobj, toolbar_wide));
 
     /*
@@ -644,6 +661,27 @@ function build_graph(gobj)
      *  wheel notch passes through no action of ours.  */
     graph.on('aftertransform', () => {
         yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+
+        /*
+         *  A ZOOM re-centres on the anchor; a PAN does not.
+         *  `aftertransform` fires for both, and an anchor that also
+         *  answered a drag would make the graph impossible to move
+         *  while it is set. The zoom LEVEL is what tells them apart:
+         *  it changes on a wheel notch and never on a drag.
+         */
+        let z = priv.last_zoom;
+        try {
+            z = priv.graph.getZoom();
+        } catch(e) {
+            return;
+        }
+        if(z === priv.last_zoom) {
+            return;
+        }
+        priv.last_zoom = z;
+        if(priv.anchor_state === "on" && priv.anchor_id) {
+            yui_graph_center_on(priv.graph, priv.anchor_id);
+        }
     });
 
     graph.on(NodeEvent.CLICK, (evt) => {
@@ -1071,13 +1109,40 @@ function load_tree(gobj)
     build_gobj_nodes(gobj, yuno, nodes, edges, null, true, layout_cfg.compact);
 
     if(nodes.length > 0) {
+        let root_id = nodes[0].id;      /*  built before its children  */
         graph.setData({nodes: nodes, edges: edges});
         graph.render().then(() => {
+            /*  Ids are generated per build: point the camera anchor at
+             *  its gobj again before anybody asks the camera to go
+             *  there.  (`anchor` below is the OTHER one -- see the
+             *  note in PRIVATE_DATA.)  */
+            reanchor(gobj);
+
             if(anchor) {
                 restore_view_anchored(gobj, anchor);
-            } else if(!preserve_view) {
-                graph.fitView();
+                return;
             }
+            if(preserve_view) {
+                return;
+            }
+
+            /*
+             *  ACTUAL SIZE, not fit.  A tree of anything real does not
+             *  fit at a zoom anybody can read, so fitting answered
+             *  "where is everything" when the question on opening is
+             *  "what does this say".
+             *
+             *  Centred on the ANCHOR if there is one, else on the ROOT
+             *  -- never parked at the layout's origin, which is a
+             *  corner with nothing in it.
+             */
+            Promise.resolve(graph.zoomTo(1)).then(() => {
+                if(!yui_graph_center_on(graph, priv.anchor_id)) {
+                    yui_graph_center_on(graph, root_id);
+                }
+                priv.last_zoom = 1;
+                yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+            });
         });
     }
 }
@@ -1862,6 +1927,91 @@ function ac_collapse_all(gobj, event, kw, src)
 }
 
 /************************************************************
+ *   Every camera action ends the same way once an anchor is
+ *   set: the thing you were reading goes back to the middle.
+ *
+ *   Chained on the promise G6 returns rather than run beside it
+ *   -- centring before the zoom has finished centres the OLD
+ *   view, and the reader watches the node slide away and come
+ *   back.
+ ************************************************************/
+function after_camera(gobj, moved)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state !== "on" || !priv.anchor_id) {
+        return;
+    }
+    Promise.resolve(moved).then(function() {
+        yui_graph_center_on(priv.graph, priv.anchor_id);
+    }).catch(function() {
+        /*  a camera move that never finished has nothing to centre  */
+    });
+}
+
+/************************************************************
+ *   Point the anchor back at its node after a rebuild.
+ *
+ *   Node ids are generated per build, so the id the reader chose
+ *   does not survive an expand, a collapse or a refresh -- the
+ *   `full_name` does, and it is what the anchor really means:
+ *   "this gobj", not "this card".
+ *
+ *   A gobj no longer drawn (its branch got collapsed, or it went
+ *   away) releases the anchor rather than leaving a button that
+ *   claims to be locked onto something invisible.
+ ************************************************************/
+function reanchor(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state !== "on" || !priv.anchor_name) {
+        return;
+    }
+
+    let found = "";
+    if(priv.node_by_id) {
+        for(let id of Object.keys(priv.node_by_id)) {
+            if(priv.node_by_id[id].full_name === priv.anchor_name) {
+                found = id;
+                break;
+            }
+        }
+    }
+
+    priv.anchor_id = found;
+    if(!found) {
+        priv.anchor_state = "off";
+        priv.anchor_name = "";
+    }
+    yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+}
+
+/************************************************************
+ *   Arm the anchor, or let it go.
+ *
+ *   Three states and one button, so a press ADVANCES: with no
+ *   target it starts waiting for one, and with a target it
+ *   releases.  Pressing it while it waits is a cancel, which is
+ *   what somebody who pressed it by mistake will try.
+ ************************************************************/
+function ac_toggle_anchor(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state === "off") {
+        priv.anchor_state = "arming";
+    } else {
+        priv.anchor_state = "off";
+        priv.anchor_id = "";
+        priv.anchor_name = "";
+    }
+
+    yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+    return 0;
+}
+
+/************************************************************
  *
  ************************************************************/
 function ac_zoom_in(gobj, event, kw, src)
@@ -1869,7 +2019,7 @@ function ac_zoom_in(gobj, event, kw, src)
     let graph = gobj.priv.graph;
     if(graph) {
         let z = graph.getZoom();
-        graph.zoomTo(z * 1.2);
+        after_camera(gobj, graph.zoomTo(z * 1.2));
     }
     return 0;
 }
@@ -1882,7 +2032,7 @@ function ac_zoom_out(gobj, event, kw, src)
     let graph = gobj.priv.graph;
     if(graph) {
         let z = graph.getZoom();
-        graph.zoomTo(z * 0.8);
+        after_camera(gobj, graph.zoomTo(z * 0.8));
     }
     return 0;
 }
@@ -1892,10 +2042,21 @@ function ac_zoom_out(gobj, event, kw, src)
  ************************************************************/
 function ac_zoom_reset(gobj, event, kw, src)
 {
-    let graph = gobj.priv.graph;
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
     if(graph && graph.rendered) {
-        graph.zoomTo(1);
-        graph.translateTo([0, 0]);
+        /*
+         *  With an anchor, actual size means "this node, life size".
+         *  Without one it means the layout's origin, which is where
+         *  `1:1` always landed -- a corner nobody was looking at.
+         */
+        if(priv.anchor_state === "on" && priv.anchor_id) {
+            after_camera(gobj, graph.zoomTo(1));
+        } else {
+            graph.zoomTo(1);
+            graph.translateTo([0, 0]);
+        }
     }
     return 0;
 }
@@ -1937,6 +2098,21 @@ function ac_node_click(gobj, event, kw, src)
     }
 
     if(!node_data) {
+        return 0;
+    }
+
+    /*
+     *  A waiting anchor TAKES the click: it is what the reader armed
+     *  the button for, and letting the same press also open the
+     *  popover would make picking a target a side effect of doing
+     *  something else.
+     */
+    if(priv.anchor_state === "arming") {
+        priv.anchor_id = node_id;
+        priv.anchor_name = node_data.full_name || "";
+        priv.anchor_state = "on";
+        yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+        yui_graph_center_on(graph, node_id);
         return 0;
     }
 
@@ -2065,6 +2241,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_RESET",           ac_zoom_reset,          null],
             ["EV_CENTER",               ac_center,              null],
             ["EV_NODE_CLICK",           ac_node_click,          null],
+            ["EV_TOGGLE_ANCHOR",        ac_toggle_anchor,       null],
             ["EV_RESIZE",               ac_resize,              null],
             ["EV_SHOW",                 ac_show,                null],
             ["EV_HIDE",                 ac_hide,                null],
@@ -2086,6 +2263,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_RESET",           0],
         ["EV_CENTER",               0],
         ["EV_NODE_CLICK",           0],
+        ["EV_TOGGLE_ANCHOR",        0],
         ["EV_RESIZE",               0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],
