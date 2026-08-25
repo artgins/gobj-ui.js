@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.18
+
+**Highlighting a `true` made it HARDER to read than not highlighting it.**
+On the graph view's amber match chip an orange boolean measured **1.80:1** and
+a red number 2.98:1 -- in BOTH themes, because 7.23.17 had made the dark chip a
+light one and dark inherited the light theme's oldest defect along with it.
+
+No chip colour could have fixed it. `#FF8C00` is mid-luminance, so it reaches
+at most **2.33:1 against any background that exists**, white included: the
+ceiling is a fact of the colour, not of the surface. The colour had to move.
+
+Orange goes to `#8C4D00` and blue to `#4359C6` -- 5% darker, same hue, and it
+is what carries `null` over the line on the chip. Red and green were already
+where they needed to be. **Every type now clears 4.5:1 on all five surfaces
+this viewer paints**: the two light cards, the match chip, and the two dark
+cards. Worst case in the whole matrix is 4.66:1, against 1.60:1 before 7.23.17
+and 1.80:1 after it.
+
+**And the graph stops deriving its dark colours from its light ones.** It
+mixed the light colour with white, which is how one document was green in the
+tree and a paler green in the graph, and how the amount of white became a knob
+nobody could set: enough of it to read on a dark card washed the six types into
+one pastel. The graph now carries two explicit palettes, and they ARE the
+tree's CSS tokens -- so all three views of one document say green with the same
+green.
+
 ## 7.23.17
 
 **The JSON viewer read better in LIGHT than in dark, which is normally the

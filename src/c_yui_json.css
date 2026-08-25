@@ -9,11 +9,20 @@
  *          All Rights Reserved.
  ***********************************************************************/
 
+/*
+ *  Light values are darker than a naive orange/blue because they have to
+ *  be READ, on the card and on the graph view's match chip alike.  The
+ *  ceiling is a fact of the colour, not of the surface: `#FF8C00`, which
+ *  these came from, is mid-luminance and reaches at most 2.33:1 against
+ *  ANY background that exists.  The graph view carries the same two
+ *  palettes (`c_yui_json_graph.js`), so one document says green with the
+ *  same green in all three views.
+ */
 .C_YUI_JSON {
     --json-string: #006000;
     --json-number: #b5330b;
-    --json-boolean: #b36b00;
-    --json-null: #475ed0;
+    --json-boolean: #8C4D00;
+    --json-null: #4359C6;
     --json-key: var(--bulma-text-strong, #1a1a1a);
     --json-row-hover: rgba(0, 0, 0, 0.05);
     --json-guide: #b5b5b5;

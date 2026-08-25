@@ -197,15 +197,39 @@ let __layout_registered__ = false;
 
 
 /***************************************************************
- *  Type colors matching the original mx_json_viewer
+ *  Type colours, ONE EXPLICIT PALETTE PER THEME and not a
+ *  derivation, for the same reason the tree keeps two sets of
+ *  CSS tokens: a colour that reads on white is not the same
+ *  colour lightened, and deriving one from the other made the
+ *  two views of one document disagree about what a string is.
+ *  These ARE the tree's tokens (`c_yui_json.css`), so the tree
+ *  and the graph now say green with the same green.
+ *
+ *  The light values are darker than the `mx_json_viewer` ones
+ *  they came from, because those could not be read: `#FF8C00`
+ *  is mid-luminance, so it reaches at most **2.33:1 against any
+ *  background that exists** -- no card colour and no highlight
+ *  could have fixed it, only the colour itself. Orange and blue
+ *  moved until every type clears 4.5:1 on all five surfaces this
+ *  viewer paints (two light cards, the match chip, two dark
+ *  cards); red and green were already there.
  ***************************************************************/
-const TYPE_COLORS = {
+const TYPE_COLORS_LIGHT = {
     string:  "#006000",     // green
-    number:  "#EE422E",     // red
-    boolean: "#FF8C00",     // orange
-    null:    "#475ED0",     // blue
+    number:  "#b5330b",     // red
+    boolean: "#8C4D00",     // orange
+    null:    "#4359C6",     // blue
     list:    "#4C0099",     // purple
     dict:    "#4C0099",     // purple
+};
+
+const TYPE_COLORS_DARK = {
+    string:  "#7ec87e",
+    number:  "#ff8a65",
+    boolean: "#ffb74d",
+    null:    "#90a4f4",
+    list:    "#B799D6",
+    dict:    "#B799D6",
 };
 
 /***************************************************************
@@ -260,24 +284,17 @@ function json_card_style(group, dark)
 }
 
 /***************************************************************
- *  A scalar's colour by type. The palette is tuned for a light
- *  card; on a dark one every one of them (dark green #006000,
- *  blue #475ED0, …) sinks into the background, so brighten it.
- *
- *  60% white and not the 45% it shipped with.  The number is a
- *  balance measured both ways: brighter reads better on the dark
- *  card (the worst type goes from 2.88:1 to 4.74:1) and washes the
- *  six types toward one pastel, and past this point red, orange
- *  and purple stop being tellable apart, which is the only reason
- *  they are coloured at all.
+ *  A scalar's colour by type, straight out of the palette for
+ *  the theme.  It used to be the light colour mixed with white,
+ *  which is how a document ended up green in one view and a
+ *  paler green in the other, and how the amount of white became
+ *  a knob nobody could set: enough of it to read on a dark card
+ *  washed the six types into one pastel.
  ***************************************************************/
 function type_color(type, dark)
 {
-    let color = TYPE_COLORS[type] || (dark ? "#e8eaed" : "black");
-    if(!dark) {
-        return color;
-    }
-    return `color-mix(in srgb, ${color} 40%, #ffffff)`;
+    let palette = dark? TYPE_COLORS_DARK: TYPE_COLORS_LIGHT;
+    return palette[type] || (dark ? "#e8eaed" : "black");
 }
 
 
