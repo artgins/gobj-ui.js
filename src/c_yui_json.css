@@ -172,6 +172,19 @@
 .C_YUI_JSON .JSON_TYPE_BOOLEAN { color: var(--json-boolean); }
 .C_YUI_JSON .JSON_TYPE_NULL    { color: var(--json-null); font-style: italic; }
 
+/*
+ *  The id a container row carries beside its size.  It is a VALUE, so
+ *  it takes the string colour and follows the theme with it; what sets
+ *  it apart from the values under it is the WEIGHT, not a colour of its
+ *  own -- a sixth colour in a row that already carries five would be
+ *  one more thing to decode, for a field whose whole job is to be read
+ *  at a glance while scrolling.
+ */
+.C_YUI_JSON .JSON_SUMMARY_ID {
+    color: var(--json-string);
+    font-weight: 600;
+}
+
 .C_YUI_JSON .JSON_STUB {
     color: var(--bulma-link, #3273dc);
     font-weight: 600;

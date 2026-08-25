@@ -242,3 +242,75 @@ export function json_text_dump(root, max_chars)
     }
     return {text: text, capped: false};
 }
+
+/************************************************************
+ *   Which view a freshly mounted viewer opens on.
+ *
+ *   Three answers, in order of authority: what the HOST asked
+ *   for, what the READER chose last time, and `fallback`.
+ *
+ *   The host wins because a viewer mounted to show a graph has
+ *   to show one.  The memory comes next, because reopening a
+ *   document in the view you just left is the whole point of
+ *   remembering it.  `fallback` is the floor.
+ *
+ *   Anything not in `modes` is treated as unsaid, which covers
+ *   an absent value, an empty one, and a stored string from an
+ *   older release that named a view no longer offered.
+ ************************************************************/
+export function pick_view_mode(asked, remembered, modes, fallback)
+{
+    let known = (m) => Array.isArray(modes) && modes.indexOf(m) >= 0;
+
+    if(known(asked)) {
+        return asked;
+    }
+    if(known(remembered)) {
+        return remembered;
+    }
+    return fallback;
+}
+
+/************************************************************
+ *   The short label a container row carries beside its size.
+ *
+ *   An array of dicts that carry an `id` is a list of RECORDS,
+ *   and a row that says only `2: {15}` makes you open all
+ *   fifteen fields of every one of them to find out WHICH
+ *   record it is.  The id is the one field that answers that,
+ *   so the row says it without being opened.
+ *
+ *   Only a SCALAR id, and only when it is really there: an `id`
+ *   that is itself a dict or a list is not a name, it is more
+ *   document, and printing `[object Object]` beside the size
+ *   would be worse than printing nothing.
+ *
+ *   Cut at `max_chars`, because this rides on a row whose job
+ *   is to stay one line.
+ ************************************************************/
+export function container_label(value, max_chars)
+{
+    if(value === null || typeof value !== "object" || Array.isArray(value)) {
+        return "";
+    }
+    if(!Object.prototype.hasOwnProperty.call(value, "id")) {
+        return "";
+    }
+
+    let id = value.id;
+    let t = typeof id;
+    if(t !== "string" && t !== "number" && t !== "boolean") {
+        return "";
+    }
+
+    let text = String(id).trim();
+    if(text === "") {
+        return "";
+    }
+
+    let cap = (typeof max_chars === "number" && max_chars > 0)? max_chars: 0;
+    if(cap && text.length > cap) {
+        return text.slice(0, cap) + "…";
+    }
+    return text;
+}

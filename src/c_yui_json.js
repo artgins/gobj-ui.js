@@ -26,7 +26,9 @@
  *
  *  THREE VIEWS over the same working document, chosen by the
  *  `view_mode` attr ("tree" | "text" | "graph") and switched from the
- *  toolbar.  They answer three different questions:
+ *  toolbar.  The viewer opens on what the host asked for, else on the
+ *  view the reader chose last (kept in localStorage), else on the tree.
+ *  They answer three different questions:
  *
  *      tree    where is this value, and what is around it — the lazy
  *              view above, the only one that can drill.
@@ -82,6 +84,8 @@ import {
     json_deep_copy,
     json_object_size,
     refresh_language,
+    kw_get_local_storage_value,
+    kw_set_local_storage_value,
 } from "@yuneta/gobj-js";
 
 import {
@@ -94,6 +98,8 @@ import {
     is_time_field,
     format_epoch,
     json_text_dump,
+    pick_view_mode,
+    container_label,
 } from "./json_view_helpers.js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
@@ -126,16 +132,34 @@ const MAX_RENDER_ROWS = 5000;
 const MAX_TEXT_CHARS = 2000000;
 
 /*
+ *  How much of a container's id label fits beside its size.  It
+ *  rides on a row whose job is to stay one line, and an id is
+ *  usually short; the ones that are not are uuids, where the head
+ *  is what a person compares anyway.
+ */
+const MAX_LABEL_CHARS = 40;
+
+/*
  *  The three views, in switch order — this table IS the order of the
  *  buttons, and EV_SET_VIEW_MODE with no mode advances along it.
- *  Note the order is not the default: the viewer still OPENS on the
- *  tree (the `view_mode` attr default), it just sits second in the row.
+ *  Note the order is not the default: the viewer OPENS on the tree
+ *  unless something says otherwise, it just sits second in the row.
  */
 const VIEWS = [
     {mode: "text",  icon: "yi-code",          key: "text view"},
     {mode: "tree",  icon: "yi-sitemap",       key: "tree view"},
     {mode: "graph", icon: "yi-hexagon-nodes", key: "graph view"},
 ];
+
+/*
+ *  Where the reader's last choice of view is kept.  ONE key for the
+ *  whole library and not one per host: which of the three views someone
+ *  reads JSON in is a habit of the PERSON, not a property of the
+ *  document, so the next document they open opens the way they read the
+ *  last one.  It lives in localStorage, which is per browser and per
+ *  artifact origin, and reaches nobody else.
+ */
+const VIEW_MODE_STORAGE_KEY = "yui_json_view_mode";
 
 /***************************************************************
  *              Data
@@ -147,7 +171,7 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of outpu
 /*---------------- Config ----------------*/
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Optional header title (i18n key)"),
 SDATA(data_type_t.DTP_JSON,     "json_data",    0,  null,   "Initial JSON to render (usually already collapsed)"),
-SDATA(data_type_t.DTP_STRING,   "view_mode",    0,  "tree", "View: 'tree' (lazy tree), 'text' (raw dump) or 'graph'"),
+SDATA(data_type_t.DTP_STRING,   "view_mode",    0,  "",     "View: 'tree' (lazy tree), 'text' (raw dump) or 'graph'. Empty means the host does not care: the reader's last choice wins, and the tree if there is none"),
 
 /*---------------- UI ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "HTMLElement root, mounted by the parent"),
@@ -202,6 +226,7 @@ function mt_create(gobj)
     }
 
     build_ui(gobj);
+    resolve_initial_view_mode(gobj);
     apply_view_mode(gobj);
 
     /*
@@ -460,6 +485,34 @@ function view_label(mode)
         default:
             return t("tree view");
     }
+}
+
+/************************************************************
+ *   The view the viewer OPENS on.
+ *
+ *   Three answers, in order of authority: what the HOST asked for, what
+ *   the READER chose last time, and the tree.  The host wins because a
+ *   viewer mounted to show a graph has to show one; the memory comes
+ *   next, because reopening a document in the view you just left is the
+ *   whole point of remembering it; the tree is the floor.
+ *
+ *   This is why the attr no longer declares "tree" as its default: as a
+ *   default and as a host's explicit choice it was the same string, so
+ *   nothing could tell "show me the tree" from "I have no opinion", and
+ *   a memory that cannot see the difference has to lose to both.
+ *
+ *   Resolved ONCE here and written into the attr, so every later read
+ *   is a plain attr read and no render touches the store.
+ ************************************************************/
+function resolve_initial_view_mode(gobj)
+{
+    let mode = pick_view_mode(
+        gobj_read_str_attr(gobj, "view_mode"),
+        kw_get_local_storage_value(VIEW_MODE_STORAGE_KEY, "", false),
+        VIEWS.map((v) => v.mode),
+        "tree"
+    );
+    gobj_write_attr(gobj, "view_mode", mode);
 }
 
 /************************************************************
@@ -779,7 +832,7 @@ function push_container_rows(ctx, key, value, segments, depth, rows, key_match)
     let open = priv.expanded.has(path) || searching_match;
 
     ctx.count++;
-    rows.push(toggle_row(ctx.gobj, key, size, is_object, depth, path, open));
+    rows.push(toggle_row(ctx.gobj, key, size, is_object, depth, path, open, value));
 
     if(!open) {
         return;
@@ -853,7 +906,7 @@ function push_collapsed_row(ctx, value, segments, depth, key, rows)
 /************************************************************
  *   Expandable container header row
  ************************************************************/
-function toggle_row(gobj, key, size, is_object, depth, path, open)
+function toggle_row(gobj, key, size, is_object, depth, path, open, value)
 {
     let summary = (is_object ? "{" : "[") + String(size) + (is_object ? "}" : "]");
 
@@ -863,6 +916,21 @@ function toggle_row(gobj, key, size, is_object, depth, path, open)
         body.push(['span', {class: 'JSON_PUNCT'}, ': ']);
     }
     body.push(['span', {class: 'JSON_SUMMARY has-text-grey'}, summary]);
+
+    /*
+     *  A dict that carries an id says WHICH one it is, right here.
+     *  Inside an array of records -- which is what a topic's nodes
+     *  are -- the row read `2: {15}` and the only way to tell record
+     *  2 from record 9 was to open both.
+     *
+     *  Shown open as well as closed: it is the row's label, and a
+     *  label that disappears when you expand makes the row jump and
+     *  costs you the name of the thing you just opened.
+     */
+    let label = container_label(value, MAX_LABEL_CHARS);
+    if(label) {
+        body.push(['span', {class: 'JSON_SUMMARY_ID ml-2'}, label]);
+    }
 
     return ['div', {class: 'JSON_ROW JSON_CONTAINER', style: row_indent(depth)}, [
         ['span', {class: 'JSON_TOGGLE' + (open ? ' is-open' : '')}, [
@@ -1168,6 +1236,8 @@ function ac_copy_all(gobj, event, kw, src)
  *   With no mode it ADVANCES to the next view in VIEWS order, which
  *   is what the two-view toggle did when the list was two long.  The
  *   toolbar buttons always name their mode.
+ *
+ *   Whatever lands here is REMEMBERED, so the next viewer opens on it.
  ************************************************************/
 function ac_set_view_mode(gobj, event, kw, src)
 {
@@ -1186,6 +1256,14 @@ function ac_set_view_mode(gobj, event, kw, src)
     }
 
     gobj_write_attr(gobj, "view_mode", mode);
+
+    /*
+     *  Remembered here and not in resolve_initial_view_mode(): only a
+     *  view the READER picked is a preference.  A mode a host pinned, or
+     *  the tree we fell back to, would otherwise be written back as if
+     *  somebody had chosen it.
+     */
+    kw_set_local_storage_value(VIEW_MODE_STORAGE_KEY, mode);
 
     apply_view_mode(gobj);
     render_view(gobj);

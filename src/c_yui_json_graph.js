@@ -221,22 +221,38 @@ const GROUP_COLORS = {
 
 /***************************************************************
  *  Soft, theme-aware card palette, same visual language as the
- *  gobj-tree's role_card_style(): tinted fill + group-colour
- *  border, lifted off the near-black canvas on dark (a faint tint
- *  on the canvas colour makes the cards invisible).
+ *  gobj-tree's role_card_style(): a near-neutral fill and a
+ *  group-colour border.
+ *
+ *  The SURFACE stays out of the hue, on both themes, and that is
+ *  the whole rule here.  The light card is near-white and lets
+ *  saturated dark text carry the colour; the dark card is its
+ *  mirror -- a near-neutral dark surface under bright text -- and
+ *  the group's hue lives in the border and the header bar, which
+ *  is where the light theme had always put it.
+ *
+ *  It shipped tinting the dark surface 30% instead, and that put
+ *  green values on a green card.  Worse, `list` (a yellow tint)
+ *  landed mid-luminance, a muddy olive where nothing contrasted
+ *  with anything: its purple values measured 1.60:1, against 11.48
+ *  for the same values on the light card.  The 12% left is enough
+ *  to tell a dict card from a list one and not enough to fight the
+ *  text.
  *
  *  The header bar is always the border colour, so its text flips:
  *  white on the dark-teal light bar, near-black on the brightened
- *  dark one.
+ *  dark one.  The dark bar is mixed lighter than the border used
+ *  to be so that near-black reads on it (6.87:1, which is what
+ *  white gets on the light bar).
  ***************************************************************/
 function json_card_style(group, dark)
 {
     return {
         bg: dark
-            ? `color-mix(in srgb, ${group.tint} 30%, #2c3542)`
+            ? `color-mix(in srgb, ${group.tint} 12%, #1E242E)`
             : group.fill,
         border: dark
-            ? `color-mix(in srgb, ${group.stroke} 85%, #ffffff)`
+            ? `color-mix(in srgb, ${group.stroke} 55%, #ffffff)`
             : group.stroke,
         header_fg: dark ? "#12181f" : "#ffffff",
         key: dark ? "#c9cfd8" : "#1A1A1A",
@@ -247,6 +263,13 @@ function json_card_style(group, dark)
  *  A scalar's colour by type. The palette is tuned for a light
  *  card; on a dark one every one of them (dark green #006000,
  *  blue #475ED0, …) sinks into the background, so brighten it.
+ *
+ *  60% white and not the 45% it shipped with.  The number is a
+ *  balance measured both ways: brighter reads better on the dark
+ *  card (the worst type goes from 2.88:1 to 4.74:1) and washes the
+ *  six types toward one pastel, and past this point red, orange
+ *  and purple stop being tellable apart, which is the only reason
+ *  they are coloured at all.
  ***************************************************************/
 function type_color(type, dark)
 {
@@ -254,7 +277,7 @@ function type_color(type, dark)
     if(!dark) {
         return color;
     }
-    return `color-mix(in srgb, ${color} 55%, #ffffff)`;
+    return `color-mix(in srgb, ${color} 40%, #ffffff)`;
 }
 
 
@@ -698,8 +721,18 @@ function build_graph(gobj)
  ************************************************************/
 function build_cell_html(key, value, type, dark, matched)
 {
-    let color = type_color(type, dark);
-    let key_color = json_card_style(GROUP_COLORS.dict, dark).key;
+    /*
+     *  A match is a LIGHT chip on BOTH themes, so what sits on it is
+     *  light-surface text -- the same flip the header bar does.
+     *
+     *  A dark chip has no room to exist: dark enough for the brightened
+     *  values to read on it is also dark enough to be invisible against
+     *  the card, and the amber it used to be (#7a5d00) ended up failing
+     *  at both ends, 2.52:1 under the text and 2.34:1 over the card.
+     */
+    let on_light = matched? false: dark;
+    let color = type_color(type, on_light);
+    let key_color = json_card_style(GROUP_COLORS.dict, on_light).key;
     let display_value = "";
 
     switch(type) {
@@ -734,7 +767,7 @@ function build_cell_html(key, value, type, dark, matched)
          *  a G6 node state: the key shape of an `html` node is a DOM
          *  element, and G6 paints no state style on it.  Setting
          *  'active' here would select correctly and show nothing. */
-        row = `<span style="background:${dark? "#7a5d00": "#ffe082"}; ` +
+        row = `<span style="background:#ffe082; ` +
               `border-radius:2px; padding:0 2px;">${row}</span>`;
     }
     return row;

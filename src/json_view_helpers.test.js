@@ -16,6 +16,8 @@ import {
     is_time_field,
     format_epoch,
     json_text_dump,
+    pick_view_mode,
+    container_label,
 } from "./json_view_helpers.js";
 
 
@@ -174,4 +176,70 @@ test("json_text_dump reports a document with no JSON form instead of printing no
     let d2 = json_text_dump(undefined, 0);
     expect(d2.text).toBe("");
     expect(typeof d2.error).toBe("string");
+});
+
+/***************************************************************
+ *      pick_view_mode()
+ ***************************************************************/
+const MODES = ["text", "tree", "graph"];
+
+test("pick_view_mode: the tree when nothing is said", () => {
+    expect(pick_view_mode("", "", MODES, "tree")).toBe("tree");
+    expect(pick_view_mode(undefined, undefined, MODES, "tree")).toBe("tree");
+    expect(pick_view_mode(null, null, MODES, "tree")).toBe("tree");
+});
+
+test("pick_view_mode: what the reader chose last wins over the fallback", () => {
+    expect(pick_view_mode("", "graph", MODES, "tree")).toBe("graph");
+    expect(pick_view_mode("", "text", MODES, "tree")).toBe("text");
+});
+
+test("pick_view_mode: the host outranks the memory", () => {
+    expect(pick_view_mode("text", "graph", MODES, "tree")).toBe("text");
+    /*  And "tree" asked for explicitly is a choice, not a default:
+     *  it has to beat a remembered graph. */
+    expect(pick_view_mode("tree", "graph", MODES, "tree")).toBe("tree");
+});
+
+test("pick_view_mode: a mode no longer offered is treated as unsaid", () => {
+    /*  A string left in the store by an older release. */
+    expect(pick_view_mode("", "webix", MODES, "tree")).toBe("tree");
+    expect(pick_view_mode("webix", "graph", MODES, "tree")).toBe("graph");
+});
+
+test("pick_view_mode: no mode table at all still answers the fallback", () => {
+    expect(pick_view_mode("graph", "text", undefined, "tree")).toBe("tree");
+    expect(pick_view_mode("graph", "text", [], "tree")).toBe("tree");
+});
+
+/***************************************************************
+ *      container_label()
+ ***************************************************************/
+test("container_label: a dict with a scalar id is labelled by it", () => {
+    expect(container_label({id: "LAB-001-001-E-001", name: "x"}, 40))
+        .toBe("LAB-001-001-E-001");
+    expect(container_label({id: 42}, 40)).toBe("42");
+    expect(container_label({id: false}, 40)).toBe("false");
+});
+
+test("container_label: nothing to say without a scalar id", () => {
+    expect(container_label({name: "x"}, 40)).toBe("");
+    expect(container_label({}, 40)).toBe("");
+    expect(container_label({id: {a: 1}}, 40)).toBe("");
+    expect(container_label({id: [1, 2]}, 40)).toBe("");
+    expect(container_label({id: null}, 40)).toBe("");
+    expect(container_label({id: "   "}, 40)).toBe("");
+});
+
+test("container_label: an array is not a record", () => {
+    expect(container_label([{id: "a"}], 40)).toBe("");
+    expect(container_label(null, 40)).toBe("");
+    expect(container_label("id", 40)).toBe("");
+});
+
+test("container_label: cut at max_chars, and said with an ellipsis", () => {
+    let uuid = "ff14fc16-2cb2-472c-9c0a-89fa43837130";
+    expect(container_label({id: uuid}, 8)).toBe("ff14fc16…");
+    expect(container_label({id: uuid}, 0)).toBe(uuid);
+    expect(container_label({id: uuid}, undefined)).toBe(uuid);
 });

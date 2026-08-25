@@ -5,6 +5,64 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.17
+
+**The JSON viewer read better in LIGHT than in dark, which is normally the
+other way round.** Three fixes, one of them measured rather than eyeballed.
+
+**The dark graph card was tinted with the hue of its own text.** The light
+card is near-white (`#FBFBFB`) and lets saturated dark text carry the colour;
+the dark card mixed 30% of the group's tint into the SURFACE, so green string
+values sat on a green card. The `list` card was worse: a yellow tint at 30%
+over `#2c3542` lands mid-luminance, a muddy olive where nothing contrasts with
+anything -- its purple values measured **1.60:1**, against 11.48 for the same
+values on the light card.
+
+The surface now stays out of the hue on both themes, and the group's colour
+lives in the border and header bar, which is where the light theme always put
+it. 12% of tint is enough to tell a dict card from a list one and not enough
+to fight the text; scalars brighten from 45% white to 60%, a point chosen
+because past it red, orange and purple stop being tellable apart, which is the
+only reason they are coloured. The dark header bar is mixed lighter so
+near-black reads on it: **6.87:1**, which is what white gets on the light bar.
+
+Worst contrast on a dark card goes from **1.60:1 to 4.74:1**, and most values
+land between 5.7 and 10.2.
+
+**The search highlight had no room to exist on a dark card.** Its amber
+(`#7a5d00`) failed at both ends once the values brightened -- 2.52:1 under the
+text, 2.34:1 over the card -- and darkening it far enough for the text makes it
+invisible against the card. A match is now a LIGHT chip on both themes,
+carrying light-surface text: the same flip the header bar already does. It
+reads 11.18:1 against the dark card.
+
+**A container row now says WHICH record it is.** An array of dicts carrying an
+`id` is a list of records -- a topic's nodes, for instance -- and the row said
+only `2: {15}`, so telling record 2 from record 9 meant opening all fifteen
+fields of both. The row now carries the id beside the size, cut at 40
+characters, shown open as well as closed: it is the row's label, and a label
+that vanishes on expand makes the row jump and costs you the name of the thing
+you just opened. Only a scalar id, because an `id` that is itself a dict is not
+a name.
+
+### Added
+
+- **The viewer remembers which of its three views you read in.** It opened on
+    the tree every time, however many times you switched to the graph. The
+    choice is now kept in `localStorage` under one key for the whole library,
+    because which view someone reads JSON in is a habit of the PERSON and not a
+    property of the document.
+
+    Precedence is host, then memory, then the tree. This is why the `view_mode`
+    attr no longer declares `"tree"` as its default: as a default and as a
+    host's explicit choice it was the same string, so nothing could tell *"show
+    me the tree"* from *"I have no opinion"*, and a memory that cannot see the
+    difference has to lose to both. An empty `view_mode` now means the second.
+
+    Only a view the READER picks is remembered -- a mode a host pinned, or the
+    tree we fell back to, would otherwise be written back as if somebody had
+    chosen it.
+
 ## 7.23.16
 
 **The scroll arrows disappeared the moment the toolbar shared its row.** A
