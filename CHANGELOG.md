@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.15
+
+**The long press says so when it crosses the line.** Deciding the press at
+the RELEASE (`7.23.14`) costs exactly one thing: while the finger is down,
+nothing tells you that letting go would now give you the menu rather than the
+node's own action. A 15ms haptic tick at the 500ms mark tells you.
+
+It is a NOTICE and not the decision -- the arbitration stays entirely in the
+release, so a finger that buzzes and then carries the node away gets its drag,
+exactly as if it had never buzzed. The tick only reports what the press is
+worth at the moment it crosses the line, which is what a phone does for its
+own long press. Where there is no vibrator (iOS Safari, a desktop)
+`navigator.vibrate` is simply absent and this is a no-op.
+
 ## 7.23.14
 
 **A finger could not move a node, and the browser was taking the gesture.**

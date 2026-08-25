@@ -65,7 +65,7 @@ import {
     register,
 } from '@antv/g6';
 
-import {press_moved, classify_press} from "./press_arbiter.js";
+import {press_moved, classify_press, LONG_PRESS_MS} from "./press_arbiter.js";
 
 
 /***************************************************************
@@ -372,10 +372,36 @@ export function install_long_press_contextmenu(graph, options)
 
     let enable  = options?.enable;
     let state   = touch_state_of(graph);
-    let pending = null;         /* {x, y, t0, event} */
+    let pending = null;         /* {x, y, t0, event, tick} */
 
     let disarm = () => {
-        pending = null;
+        if(pending) {
+            clearTimeout(pending.tick);
+            pending = null;
+        }
+    };
+
+    /*
+     *  The one thing deciding at the RELEASE costs: while the finger
+     *  is down, nothing on the screen says the menu is now what
+     *  letting go would give you.  A tick of haptics says it.
+     *
+     *  It is a NOTICE, not the decision -- the arbitration is still
+     *  entirely in `on_up`.  So a finger that buzzes and then carries
+     *  the node away gets its drag, exactly as if it had never
+     *  buzzed; the tick only reports what the press is worth at the
+     *  moment it crosses the line.  (Where there is no vibrator --
+     *  iOS Safari, a desktop -- `vibrate` is simply absent and this
+     *  is a no-op.)
+     */
+    let announce = () => {
+        if(!pending) {
+            return;
+        }
+        if(state.multi) {
+            return;
+        }
+        navigator.vibrate?.(15);
     };
 
     let fire = (event) => {
@@ -437,6 +463,7 @@ export function install_long_press_contextmenu(graph, options)
             y:     y,
             t0:    Date.now(),
             event: Object.assign({}, event),
+            tick:  setTimeout(announce, LONG_PRESS_MS),
         };
     };
 
@@ -460,6 +487,9 @@ export function install_long_press_contextmenu(graph, options)
 
     let on_up = (event) => {
         let press = pending;
+        if(press) {
+            clearTimeout(press.tick);
+        }
         pending = null;
         if(!press) {
             return;

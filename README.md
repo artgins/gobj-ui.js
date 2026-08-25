@@ -857,7 +857,10 @@ structural rather than cosmetic — and none of them is visible in the CSS:
 - **One finger has to serve three commands, so the press is arbitrated — at
   the RELEASE** (`press_arbiter.js`, pure and tested): moved → drag; still and
   let go quickly → the element's own action; still and held past 500ms → the
-  context menu. Firing the menu on a TIMER instead cannot arbitrate anything,
+  context menu — with a 15ms haptic tick at the 500ms mark, which is a NOTICE
+  and not the decision (a finger that buzzes and then carries the node away
+  still gets its drag). Firing the menu on a TIMER instead cannot arbitrate
+  anything,
   because at the moment it fires the gesture is not over: it opened while
   `drag-element` was already carrying the node, so one press meant both things
   and the menu sat over a card running away underneath it. Two more things the
