@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.22
+
+**Each port moves onto the line of its own row.** Spread along the bottom edge
+they were distinguishable but still not attached to anything: the reader had to
+count dots, count rows, and trust that the two orders matched. At the row's own
+height there is nothing to match -- the line leaves from beside the key it
+belongs to, which is the whole point of a port.
+
+On the RIGHT edge now, and the card's geometry (`CARD_HEADER_H`, `CARD_ROW_H`)
+is named in one place: a port is placed by computing which row it is, so a row
+height changed in the markup and not there would slide every port off its line
+SILENTLY -- nothing would fail, the dots would just stop pointing at anything.
+
 ## 7.23.21
 
 **Every container key now opens a G6 PORT, and its line leaves from there.**

@@ -72,7 +72,6 @@ import {
 import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
 import { ensure_pinch_zoom_patch } from "./g6_touch_gestures.js";
 import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
-import { getPointPosition } from "./lib_graph.js";
 import {
     is_pure_collection,
     has_branch,
@@ -885,6 +884,20 @@ function build_cell_html(key, value, type, dark, matched, fold)
  ************************************************************/
 const FOLD_SPACER = `<span style="width:24px; flex:0 0 auto;"></span>`;
 
+/*
+ *  The card's geometry, in ONE place.
+ *
+ *  A container key's port is placed by computing WHICH ROW it is, so a
+ *  row height changed in the markup and not here would slide every port
+ *  off the line it belongs to -- silently, because nothing would fail:
+ *  the dots would just stop pointing at anything.
+ *
+ *  These are the rendered heights of the header (`padding: 3px 8px` on
+ *  12px bold) and of one body row (`padding: 1px 6px` on 13px monospace).
+ */
+const CARD_HEADER_H = 24;
+const CARD_ROW_H = 22;
+
 function fold_toggle_html(path, foldable, folded, branches, colors)
 {
     if(!foldable) {
@@ -1044,7 +1057,11 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
          */
         let fold = null;
         if(has_branch(value)) {
-            pending_complex.push({key: key, value: value, port: port_key(key)});
+            /*  `lines.length` is the index the row of this entry is about
+             *  to take, and it is what puts the port on that line.  */
+            pending_complex.push({
+                key: key, value: value, port: port_key(key), row: lines.length
+            });
 
             /*
              *  A child that gets no card of its own is folded from HERE
@@ -1118,6 +1135,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
     ).join("");
 
     let min_width = Math.max(180, label.length * 9);
+    let card_height = CARD_HEADER_H + lines.length * CARD_ROW_H;
 
     let node_html = `
 <div style="
@@ -1142,32 +1160,35 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
 </div>`;
 
     /*
-     *  ONE PORT PER CONTAINER KEY, and every line leaves from its own.
+     *  ONE PORT PER CONTAINER KEY, ON THE LINE OF ITS OWN ROW.
      *
-     *  Without them each card was a single anchor: fourteen lines came
+     *  Without ports each card was a single anchor: fourteen lines came
      *  out of one point, and which row a line belonged to was a guess
-     *  the reader had to make from where it landed. A port makes the row
-     *  the ORIGIN, which is the same thing the treedb graph does with a
-     *  hook column and the reason `getPointPosition` is now shared.
+     *  the reader made from where it landed.
      *
-     *  On the BOTTOM edge because the layouts put children below, and
-     *  exactly ON it (`y = 1`) rather than inside: an html node draws its
-     *  HTML in a DOM layer above the canvas, so a port fully inside the
-     *  box would be painted under the card and never seen. Half of it
-     *  sticks out.
+     *  Spread along the bottom edge they were distinguishable but still
+     *  not ATTACHED to anything -- the reader had to count dots, count
+     *  rows, and trust that the two orders matched. Placed at the row's
+     *  own height there is nothing to match: the line leaves from beside
+     *  the key it belongs to, which is the whole point of a port.
+     *
+     *  On the RIGHT edge, and exactly ON it (`x = 1`) rather than inside:
+     *  an html node draws its HTML in a DOM layer above the canvas, so a
+     *  port fully inside the box would be painted under the card and
+     *  never seen. Half of it sticks out.
      *
      *  Coloured by what the row LEADS TO -- a dict or a list -- which is
      *  the one thing the port can say that the row does not.
      */
     let ports = [];
-    for(let i = 0; i < pending_complex.length; i++) {
-        let pending = pending_complex[i];
+    for(let pending of pending_complex) {
         let child_colors = json_card_style(
             is_object(pending.value)? GROUP_COLORS.dict: GROUP_COLORS.list, dark
         );
+        let row_mid = CARD_HEADER_H + pending.row * CARD_ROW_H + CARD_ROW_H / 2;
         ports.push({
             key: pending.port,
-            placement: [getPointPosition(pending_complex.length, i), 1],
+            placement: [1, row_mid / card_height],
             fill: child_colors.border,
             stroke: colors.border,
         });
@@ -1182,9 +1203,9 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
         },
         style: {
             innerHTML: node_html,
-            size: [min_width, 24 + lines.length * 22],
+            size: [min_width, card_height],
             dx: -(min_width / 2),
-            dy: -((24 + lines.length * 22) / 2),
+            dy: -(card_height / 2),
             port: ports.length > 0,
             ports: ports,
             portR: 4,
