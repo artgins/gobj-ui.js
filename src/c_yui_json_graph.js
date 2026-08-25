@@ -72,6 +72,7 @@ import {
 import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
 import { ensure_pinch_zoom_patch } from "./g6_touch_gestures.js";
 import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
+import { getPointPosition } from "./lib_graph.js";
 import {
     is_pure_collection,
     has_branch,
@@ -773,6 +774,18 @@ function build_graph(gobj)
 }
 
 /************************************************************
+ *  The port a container key opens on its card.
+ *
+ *  Prefixed so it can never collide with anything G6 puts in
+ *  the same namespace, and stringified because an array index
+ *  is a number and a port key is a string.
+ ************************************************************/
+function port_key(key)
+{
+    return "p_" + String(key);
+}
+
+/************************************************************
  *  Build cell value HTML (matching old mx_json_viewer colors)
  ************************************************************/
 function build_cell_html(key, value, type, dark, matched, fold)
@@ -981,7 +994,7 @@ function get_group_label(path)
 /************************************************************
  *  Recursively build nodes and edges from JSON
  ************************************************************/
-function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
+function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
 {
     let group_id = gen_node_id(gobj);
     let is_dict = is_object(kw);
@@ -1031,7 +1044,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
          */
         let fold = null;
         if(has_branch(value)) {
-            pending_complex.push({key: key, value: value});
+            pending_complex.push({key: key, value: value, port: port_key(key)});
 
             /*
              *  A child that gets no card of its own is folded from HERE
@@ -1062,13 +1075,21 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
             return parent_id;
         }
         for(let pending of pending_complex) {
+            /*
+             *  `parent_port` and not one of ours: this collection has no
+             *  card, so the port its row opened in the PARENT is the one
+             *  every one of these lines leaves from -- fourteen columns
+             *  out of the single `cols` port, which is what the document
+             *  says and what the reader traces back.
+             */
             build_json_nodes(
                 gobj,
                 add_segment(path, pending.key),
                 pending.value,
                 nodes,
                 edges,
-                parent_id
+                parent_id,
+                parent_port
             );
         }
         return parent_id;
@@ -1120,6 +1141,38 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
     ${content_html}
 </div>`;
 
+    /*
+     *  ONE PORT PER CONTAINER KEY, and every line leaves from its own.
+     *
+     *  Without them each card was a single anchor: fourteen lines came
+     *  out of one point, and which row a line belonged to was a guess
+     *  the reader had to make from where it landed. A port makes the row
+     *  the ORIGIN, which is the same thing the treedb graph does with a
+     *  hook column and the reason `getPointPosition` is now shared.
+     *
+     *  On the BOTTOM edge because the layouts put children below, and
+     *  exactly ON it (`y = 1`) rather than inside: an html node draws its
+     *  HTML in a DOM layer above the canvas, so a port fully inside the
+     *  box would be painted under the card and never seen. Half of it
+     *  sticks out.
+     *
+     *  Coloured by what the row LEADS TO -- a dict or a list -- which is
+     *  the one thing the port can say that the row does not.
+     */
+    let ports = [];
+    for(let i = 0; i < pending_complex.length; i++) {
+        let pending = pending_complex[i];
+        let child_colors = json_card_style(
+            is_object(pending.value)? GROUP_COLORS.dict: GROUP_COLORS.list, dark
+        );
+        ports.push({
+            key: pending.port,
+            placement: [getPointPosition(pending_complex.length, i), 1],
+            fill: child_colors.border,
+            stroke: colors.border,
+        });
+    }
+
     let node = {
         id: group_id,
         type: 'html',
@@ -1132,22 +1185,30 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
             size: [min_width, 24 + lines.length * 22],
             dx: -(min_width / 2),
             dy: -((24 + lines.length * 22) / 2),
+            port: ports.length > 0,
+            ports: ports,
+            portR: 4,
+            portLineWidth: 1,
         },
     };
     nodes.push(node);
 
     /*
-     *  Edge from parent to this group
+     *  Edge from parent to this group, out of the port its key opened.
      */
     if(parent_id) {
-        edges.push({
+        let edge = {
             source: parent_id,
             target: group_id,
             style: {
                 stroke: colors.border,
                 lineWidth: 1,
             }
-        });
+        };
+        if(parent_port) {
+            edge.style.sourcePort = parent_port;
+        }
+        edges.push(edge);
     }
 
     /*
@@ -1163,7 +1224,8 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
             pending.value,
             nodes,
             edges,
-            group_id
+            group_id,
+            pending.port
         );
     }
 

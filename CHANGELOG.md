@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.21
+
+**Every container key now opens a G6 PORT, and its line leaves from there.**
+A JSON card was a single anchor: fourteen lines came out of one point, and
+which row a line belonged to was a guess the reader made from where it landed.
+
+One port per dict-or-list key, on the bottom edge because the layouts put
+children below, and exactly ON it -- an html node draws its HTML in a DOM layer
+above the canvas, so a port fully inside the box is painted under the card and
+never seen; half of it has to stick out. Coloured by what the row LEADS TO, a
+dict or a list, which is the one thing a port can say that its row does not.
+
+A container with no card of its own hands the port its row opened in the parent
+down to all of its children: the fourteen columns of `cols` leave the single
+`cols` port, which is what the document says.
+
+`getPointPosition()` moves to `lib_graph.js`, shared with the treedb graph it
+came from -- it is the same decision about where a hook's port sits, and the
+camera module already exists because two toolbars drawing one control two ways
+is not a detail.
+
 ## 7.23.20
 
 **A JSON graph drew `cols` as a node of its own, and `cols` is one key of the

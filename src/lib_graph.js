@@ -8,6 +8,7 @@
  ***********************************************************************/
 import {
     gobj_read_attr,
+    log_error,
 } from "@yuneta/gobj-js";
 
 // import {t} from "i18next";
@@ -195,6 +196,59 @@ function getStrokeColor(fillColor, theme = 'light', factor = 0.2) {
 //=======================================================================
 //      Expose the class via the global object
 //=======================================================================
+/************************************************************
+ * Returns the proportional position (between 0 and 1) of a specific point,
+ * centered and spaced with margins.
+ *
+ * index - Index of the point (0 to count-1)
+ * count - Total number of points
+ * margin - Total margin space (default 0.2 means 10% on each end)
+ ************************************************************/
+function getPointPosition(count, index, margin = 0.2)
+{
+    if(count <= 0 || index < 0 || index >= count) {
+        log_error("Invalid count or index");
+        return 0.5;
+    }
+
+    const start = margin / 2;
+    const end = 1 - margin / 2;
+    const step = (end - start) / count;
+
+    return start + index * step + step / 2;
+}
+
+/************************************************************
+ *  Count hooks and fkeys in topic desc, classify node type
+ ************************************************************/
+function calculate_hooks_fkeys_counter(desc)
+{
+    let cols = desc.cols;
+    desc.hooks_counter = 0;
+    desc.fkeys_counter = 0;
+
+    for(let i=0; i<cols.length; i++) {
+        let col = cols[i];
+        const field_desc = treedb_get_field_desc(col);
+        switch(field_desc.type) {
+            case "hook":
+                desc.hooks_counter++;
+                break;
+            case "fkey":
+                desc.fkeys_counter++;
+                break;
+        }
+    }
+
+    if(desc.hooks_counter === 0) {
+        desc.node_treedb_type = 'child';
+    } else if(desc.fkeys_counter === 0) {
+        desc.node_treedb_type = 'extended';
+    } else {
+        desc.node_treedb_type = 'hierarchical';
+    }
+}
+
 export {
     addClasses,
     removeClasses,
@@ -207,4 +261,5 @@ export {
     set_active_state,
     set_pressed_state,
     getStrokeColor,
+    getPointPosition,
 };
