@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.23
+
+**A line now has an arrowhead, and it arrives at a port of its own above the
+card's title.** With ports only on the source side a line said where it left
+from and nothing about where it went: which end was which had to be read off
+the layout.
+
+The `in` port is one per card, centred on the top edge, and only on a card that
+has a parent -- the root receives nothing, so a dot there would mark a door
+onto nothing. ONE and not one-per-parent, because a card has exactly one parent
+in a JSON document; what varies is which KEY of that parent it hangs from, and
+that is what the source ports already say.
+
+The arrowhead is declared on the edge rather than left to the graph's element
+default, and filled with the line's own colour: in the default fill it is a
+black triangle on a teal line in light, and an invisible one in dark.
+
 ## 7.23.22
 
 **Each port moves onto the line of its own row.** Spread along the bottom edge

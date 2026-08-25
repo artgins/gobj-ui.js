@@ -1181,6 +1181,28 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
      *  the one thing the port can say that the row does not.
      */
     let ports = [];
+
+    /*
+     *  The port a line ARRIVES at: one per card, above the title and
+     *  centred, and only on a card that has a parent -- the root
+     *  receives nothing, so a dot there would mark a door onto nothing.
+     *
+     *  One and not one-per-parent because a card has exactly ONE parent
+     *  in a JSON document: what varies is which key of that parent it
+     *  hangs from, and that is what the source ports say.
+     *
+     *  Keyed `in` with no prefix, which is why the key ports carry one:
+     *  no `p_<key>` can ever collide with it.
+     */
+    if(parent_id) {
+        ports.push({
+            key: "in",
+            placement: [0.5, 0],
+            fill: colors.border,
+            stroke: colors.border,
+        });
+    }
+
     for(let pending of pending_complex) {
         let child_colors = json_card_style(
             is_object(pending.value)? GROUP_COLORS.dict: GROUP_COLORS.list, dark
@@ -1224,6 +1246,23 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
             style: {
                 stroke: colors.border,
                 lineWidth: 1,
+                /*
+                 *  Said on the EDGE and not left to the graph's element
+                 *  default: a per-element `style` is what the reader of
+                 *  this code sees, and an arrow that lives somewhere
+                 *  else is an arrow nobody can find when it stops
+                 *  being drawn.
+                 *
+                 *  Filled with the line's own colour, because an
+                 *  arrowhead in the default fill is a black triangle on
+                 *  a teal line in light and an invisible one in dark.
+                 */
+                endArrow: true,
+                endArrowSize: 8,
+                endArrowFill: colors.border,
+                endArrowStroke: colors.border,
+                /*  It lands on the card's `in` port, above the title. */
+                targetPort: "in",
             }
         };
         if(parent_port) {
