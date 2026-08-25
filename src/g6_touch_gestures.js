@@ -32,6 +32,21 @@
  *             forwarded event object -- which is why the plugin's
  *             `getItems(e)` receives exactly the shape it expects.
  *
+ *             ONE finger has to serve three commands -- move the
+ *             node, act on it, open its menu -- so the press is
+ *             arbitrated, and arbitrated at the RELEASE:
+ *
+ *                 moved                -> drag
+ *                 still, let go fast   -> the element's own action
+ *                 still, held >= 500ms -> the context menu
+ *
+ *             A menu opened on a TIMER instead cannot be arbitrated
+ *             at all: it opens while `drag-element` is already
+ *             carrying the node, so the same press means both things
+ *             and the user gets a menu over a card running away
+ *             underneath it.  `classify_press` is where the three
+ *             live, and it is pure.
+ *
  *          Both are built on ONE per-graph record of the fingers
  *          on the glass, read from the NATIVE touch events -- see
  *          `touch_state_of` for why the pointer stream, which looks
@@ -50,19 +65,7 @@ import {
     register,
 } from '@antv/g6';
 
-
-/***************************************************************
- *              Constants
- ***************************************************************/
-
-/*
- *  How long a finger must stay put to mean "context menu", and how
- *  far it may wander first.  500ms is what Android and iOS both use
- *  for their own long press; a shorter one fires while the user is
- *  still deciding whether to pan.
- */
-const LONG_PRESS_MS   = 500;
-const LONG_PRESS_SLOP = 10;     /* CSS px */
+import {press_moved, classify_press} from "./press_arbiter.js";
 
 
 /***************************************************************
@@ -97,7 +100,11 @@ function touch_state_of(graph)
 
     state = {
         count:     0,       /* fingers on the glass right now  */
+        multi:     false,   /* two or more were down in THIS gesture */
         container: null,
+        /*  A long press fired, and the click that @antv/g makes out
+         *  of the same pointerup has not been answered yet.  */
+        long_press_click: false,
     };
     __touch_state__.set(graph, state);
 
@@ -109,6 +116,14 @@ function touch_state_of(graph)
 
     let read = (event) => {
         state.count = event.touches? event.touches.length: 0;
+        if(state.count >= 2) {
+            /*  Sticky until the LAST finger goes: a pinch releases its
+             *  two fingers one at a time, and the release of the first
+             *  one must not be read as the end of a press.  */
+            state.multi = true;
+        } else if(state.count === 0) {
+            state.multi = false;
+        }
     };
 
     /*  Passive: we never preventDefault here -- the canvas already
@@ -118,6 +133,24 @@ function touch_state_of(graph)
     container.addEventListener("touchmove",   read, {passive: true});
     container.addEventListener("touchend",    read, {passive: true});
     container.addEventListener("touchcancel", read, {passive: true});
+
+    /*
+     *  The browser opens its OWN menu on a long press, and it opens it
+     *  while the finger is still down -- on top of whatever the graph
+     *  is about to do with the same press.  Refuse it for as long as
+     *  there is a finger on the glass.
+     *
+     *  This costs the graph nothing: G6 reads no `contextmenu` from
+     *  the DOM at all (it synthesises its own from `pointerdown` with
+     *  `button === 2`), so a real right click keeps working with its
+     *  DOM event refused -- and it is not refused here anyway, because
+     *  a mouse leaves `count` at zero.
+     */
+    container.addEventListener("contextmenu", (event) => {
+        if(state.count > 0) {
+            event.preventDefault();
+        }
+    }, {capture: true});
 
     return state;
 }
@@ -291,6 +324,30 @@ export function ensure_pinch_zoom_patch()
 
 
 /************************************************************
+ *   Is the click being dispatched right now the tail of a long
+ *   press?  Answers true ONCE, to the first asker.
+ *
+ *   @antv/g does not take `click` from the DOM either: it makes
+ *   one out of the pointerdown/pointerup pair itself, inside
+ *   the same `onPointerUp` that just fed us the release.  So
+ *   the press that opened the menu goes on to click whatever it
+ *   opened the menu ON -- selecting the node, or worse, dropping
+ *   a selection of several -- unless the handler asks.
+ ************************************************************/
+export function consume_long_press_click(graph)
+{
+    if(!graph) {
+        return false;
+    }
+    let state = __touch_state__.get(graph);
+    if(!state || !state.long_press_click) {
+        return false;
+    }
+    state.long_press_click = false;
+    return true;
+}
+
+/************************************************************
  *   Make a long press open the context menu.
  *
  *   Returns the function that uninstalls it.
@@ -300,33 +357,45 @@ export function ensure_pinch_zoom_patch()
  *   the name the plugin listens for, so `getItems(e)` and
  *   `enable(e)` see the same object a right-click would give
  *   them -- same `target`, same `targetType`, same `client`.
+ *
+ *   `options.enable(event)` decides, at the DOWN, whether this
+ *   press is even a candidate.  Pass the plugin's own predicate:
+ *   a press on the empty canvas would otherwise arm a menu the
+ *   plugin then refuses to show, and swallow the click that
+ *   would have cleared the selection.
  ************************************************************/
-export function install_long_press_contextmenu(graph)
+export function install_long_press_contextmenu(graph, options)
 {
     if(!graph) {
         return () => {};
     }
 
-    let state = touch_state_of(graph);
-    let pending = null;         /* {timer, x, y, event} */
+    let enable  = options?.enable;
+    let state   = touch_state_of(graph);
+    let pending = null;         /* {x, y, t0, event} */
 
-    let cancel = () => {
-        if(pending) {
-            clearTimeout(pending.timer);
-            pending = null;
-        }
+    let disarm = () => {
+        pending = null;
     };
 
     let fire = (event) => {
-        pending = null;
+        /*
+         *  The click @antv/g is about to make out of this same
+         *  pointerup belongs to the press, and the press has already
+         *  been spent on the menu.
+         */
+        state.long_press_click = true;
+        setTimeout(() => {
+            state.long_press_click = false;
+        }, 0);
 
         /*
-         *  The tap that ENDS the long press would reach the plugin's
-         *  own `document` click listener and hide the menu the press
-         *  just opened -- a right click never produces a `click`, so
-         *  the plugin has no reason to guard against it.  Swallow
-         *  that one click in the CAPTURE phase, where document sees
-         *  it before anything else does.
+         *  That click also reaches the plugin's own `document`
+         *  listener, which hides the menu the press just opened -- a
+         *  right click never produces a `click`, so the plugin has no
+         *  reason to guard against it.  Swallow that one click in the
+         *  CAPTURE phase, where document sees it before anything else
+         *  does.
          */
         let swallow = (evt) => {
             evt.stopPropagation();
@@ -337,29 +406,20 @@ export function install_long_press_contextmenu(graph)
             document.removeEventListener("click", swallow, true);
         }, 1000);
 
-        /*
-         *  And the browser's own long-press menu, which would open on
-         *  top of ours.  One shot: a later right click must keep
-         *  reaching the plugin.
-         */
-        let container = graph.getCanvas?.()?.getContainer?.();
-        if(container) {
-            container.addEventListener("contextmenu", (evt) => {
-                evt.preventDefault();
-            }, {once: true, capture: true});
-        }
-
         graph.emit(`${event.targetType}:${CommonEvent.CONTEXT_MENU}`, event);
         graph.emit(CommonEvent.CONTEXT_MENU, event);
     };
 
     let on_down = (event) => {
-        cancel();
+        disarm();
         if(event.pointerType !== "touch") {
             return;     /*  a mouse holding its button is not a menu  */
         }
-        if(state.count > 1) {
+        if(state.count > 1 || state.multi) {
             return;     /*  two fingers: that is the pinch  */
+        }
+        if(enable && !enable(event)) {
+            return;     /*  nothing here has a menu to open  */
         }
         let x = event.client?.x;
         let y = event.client?.y;
@@ -368,16 +428,15 @@ export function install_long_press_contextmenu(graph)
         }
         /*
          *  The event object is reused by @antv/g between dispatches,
-         *  so what the timer must carry is a COPY -- by the time it
-         *  fires, the live object describes the pointerup.
+         *  so what the release must answer with is a COPY -- by then
+         *  the live object describes the pointerup, and the menu is
+         *  about what was PRESSED.
          */
-        let frozen = Object.assign({}, event);
         pending = {
-            x: x,
-            y: y,
-            timer: setTimeout(() => {
-                fire(frozen);
-            }, LONG_PRESS_MS),
+            x:     x,
+            y:     y,
+            t0:    Date.now(),
+            event: Object.assign({}, event),
         };
     };
 
@@ -385,8 +444,8 @@ export function install_long_press_contextmenu(graph)
         if(!pending) {
             return;
         }
-        if(state.count > 1) {
-            cancel();
+        if(state.count > 1 || state.multi) {
+            disarm();
             return;
         }
         let x = event.client?.x;
@@ -394,20 +453,51 @@ export function install_long_press_contextmenu(graph)
         if(x === undefined || y === undefined) {
             return;
         }
-        if(Math.abs(x - pending.x) > LONG_PRESS_SLOP ||
-                Math.abs(y - pending.y) > LONG_PRESS_SLOP) {
-            cancel();
+        if(press_moved(pending, x, y)) {
+            disarm();   /*  the finger is carrying the node  */
         }
     };
 
+    let on_up = (event) => {
+        let press = pending;
+        pending = null;
+        if(!press) {
+            return;
+        }
+        if(state.multi) {
+            return;     /*  a finger of a pinch, not a press  */
+        }
+        let x = event.client?.x;
+        let y = event.client?.y;
+        if(x === undefined) {
+            x = press.x;
+        }
+        if(y === undefined) {
+            y = press.y;
+        }
+        if(classify_press(press, x, y, Date.now()) !== "long") {
+            return;     /*  a drag, or a tap: both are already served  */
+        }
+        fire(press.event);
+    };
+
+    /*  The gesture can also end without a release: the browser takes
+     *  the touch away (a system gesture, a call), and the press must
+     *  not survive it into the next one.  */
+    let on_touch_cancel = () => {
+        disarm();
+    };
+    state.container?.addEventListener("touchcancel", on_touch_cancel);
+
     graph.on(CommonEvent.POINTER_DOWN, on_down);
     graph.on(CommonEvent.POINTER_MOVE, on_move);
-    graph.on(CommonEvent.POINTER_UP,   cancel);
+    graph.on(CommonEvent.POINTER_UP,   on_up);
 
     return () => {
-        cancel();
+        disarm();
+        state.container?.removeEventListener("touchcancel", on_touch_cancel);
         graph.off(CommonEvent.POINTER_DOWN, on_down);
         graph.off(CommonEvent.POINTER_MOVE, on_move);
-        graph.off(CommonEvent.POINTER_UP,   cancel);
+        graph.off(CommonEvent.POINTER_UP,   on_up);
     };
 }

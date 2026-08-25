@@ -5,6 +5,62 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.14
+
+**A finger could not move a node, and the browser was taking the gesture.**
+G6 puts `touch-action: none` on its canvas and nothing on its HTML nodes,
+which are ordinary DIVs layered over it. So a drag that started on a CARD
+was a page scroll as far as Chrome was concerned: it let two `pointermove`s
+through, decided, and killed the pointer stream with a `pointercancel`. The
+node followed the finger for about 20px and stopped dead while the page slid
+underneath. Measured, not guessed -- the pointer log ends at
+`pointercancel` / `lostpointercapture` while the touch stream runs on to the
+end of the gesture. `.graph-container` now refuses those gestures whole, and
+the panels and the context menu keep `touch-action: auto` so a finger can
+still scroll what is meant to be scrolled.
+
+**One finger, three commands: the press is arbitrated at the RELEASE.** In
+the treedb graph's edition mode a finger has to be able to move a node, act
+on it, and open its menu -- and it did all of them at once. The long press
+fired on a TIMER, 500ms after the finger landed, while `drag-element` was
+already carrying the node: the menu opened over a card that then ran away
+underneath it, and moving a node to a different place was not something the
+gesture could express at all.
+
+A timer cannot arbitrate a gesture, because at the moment it fires the
+gesture is not over. So nothing decides until the finger moves or lets go:
+
+    moved                -> drag       (the node followed the finger)
+    still, let go fast   -> the element's own action
+    still, held >= 500ms -> the context menu
+
+The rule is `classify_press()` in the new **`press_arbiter.js`**, pure and
+tested -- the module that talks to G6 keeps only the wiring. Its 10px slop
+is not a taste either: it is the `dragstartDistanceThreshold` G6 gives its
+canvas, so "still" means the same thing to the arbiter and to the drag.
+
+Three more things the same press was doing:
+
+- **The click that @antv/g makes out of the release.** `click` is not taken
+    from the DOM: `onPointerUp` synthesises one from the pointerdown/pointerup
+    pair. So the press that opened the menu went on to click what it opened
+    the menu ON -- selecting that node, or dropping a selection of several.
+    The three click handlers ask `consume_long_press_click()` first.
+
+- **The browser's own menu**, which opens while the finger is still down, on
+    top of ours. It is now refused for as long as there is a finger on the
+    glass -- which costs the graph nothing, because G6 reads no `contextmenu`
+    from the DOM at all, and costs the mouse nothing, because a mouse leaves
+    no finger.
+
+- **The releases of a PINCH**, each of which looked like the end of a press.
+    The finger record is sticky now: two fingers mark the gesture until the
+    last one goes.
+
+The press also arms only on what the menu would agree to open on: the
+plugin's `enable` predicate is now shared with the gesture, so a long press
+on the empty canvas no longer swallows the click that clears the selection.
+
 ## 7.23.13
 
 **The two selects of the treedb graph's toolbar speak the app's language.**

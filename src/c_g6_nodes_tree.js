@@ -111,6 +111,7 @@ import {
 import {
     ensure_pinch_zoom_patch,
     install_long_press_contextmenu,
+    consume_long_press_click,
 } from "./g6_touch_gestures.js";
 import {yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 
@@ -784,7 +785,14 @@ function configure_events(gobj)
     let priv = gobj.priv;
     let graph = priv.graph;
 
+    /*  @antv/g makes a `click` out of every pointerdown/pointerup
+     *  pair, this one included -- so the press that just opened the
+     *  context menu goes on to click what it opened the menu ON. One
+     *  press, one meaning: the press was already spent.  */
     graph.on(CanvasEvent.CLICK, (evt) => {
+        if(consume_long_press_click(graph)) {
+            return;
+        }
         gobj_send_event(gobj, "EV_CANVAS_CLICK", {evt: evt}, gobj);
     });
 
@@ -801,6 +809,9 @@ function configure_events(gobj)
     });
 
     graph.on(NodeEvent.CLICK, (evt) => {
+        if(consume_long_press_click(graph)) {
+            return;
+        }
         gobj_send_event(gobj, "EV_NODE_CLICK", {evt: evt}, gobj);
     });
 
@@ -809,6 +820,9 @@ function configure_events(gobj)
     });
 
     graph.on(EdgeEvent.CLICK, (evt) => {
+        if(consume_long_press_click(graph)) {
+            return;
+        }
         gobj_send_event(gobj, "EV_EDGE_CLICK", {evt: evt}, gobj);
     });
 
@@ -948,6 +962,13 @@ function configure_plugins(gobj)
         );
     }
 
+    /*  What the menu is FOR: a node or an edge. Shared with the long
+     *  press below, so the gesture arms itself on exactly what the
+     *  menu would agree to open on.  */
+    let menu_enable = (e) => {
+        return e.targetType === 'node' || e.targetType === 'edge';
+    };
+
     graph_add_plugin(
         gobj,
         'contextmenu',
@@ -959,9 +980,7 @@ function configure_plugins(gobj)
             getItems: (e) => {
                 return build_context_menu_items(gobj, e);
             },
-            enable: (e) => {
-                return e.targetType === 'node' || e.targetType === 'edge';
-            },
+            enable: menu_enable,
         }
     );
 
@@ -976,7 +995,9 @@ function configure_plugins(gobj)
     if(priv._uninstall_long_press) {
         priv._uninstall_long_press();
     }
-    priv._uninstall_long_press = install_long_press_contextmenu(priv.graph);
+    priv._uninstall_long_press = install_long_press_contextmenu(
+        priv.graph, {enable: menu_enable}
+    );
 
     if(gobj_read_bool_attr(gobj, "with_toolbar")) {
         configure_toolbar(gobj);

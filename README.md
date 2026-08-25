@@ -854,6 +854,26 @@ structural rather than cosmetic — and none of them is visible in the CSS:
   slop) that re-emits G6's own forwarded event under the name the plugin
   listens for — so `getItems(e)` sees exactly what a right click gives it,
   including the port under the finger.
+- **One finger has to serve three commands, so the press is arbitrated — at
+  the RELEASE** (`press_arbiter.js`, pure and tested): moved → drag; still and
+  let go quickly → the element's own action; still and held past 500ms → the
+  context menu. Firing the menu on a TIMER instead cannot arbitrate anything,
+  because at the moment it fires the gesture is not over: it opened while
+  `drag-element` was already carrying the node, so one press meant both things
+  and the menu sat over a card running away underneath it. Two more things the
+  same press was doing, both fixed with it: `click` is not taken from the DOM
+  either (`@antv/g`'s `onPointerUp` synthesises one), so the press that opened
+  the menu went on to click the node it opened the menu on — the click
+  handlers ask `consume_long_press_click()` first; and the BROWSER's own menu,
+  which opens while the finger is still down, is refused for as long as there
+  is a finger on the glass.
+- **The browser was taking the gesture outright.** G6 puts `touch-action:
+  none` on its canvas and nothing on its HTML nodes, which are ordinary DIVs
+  over it — so a drag that started on a **card** was a page scroll: two
+  `pointermove`s through, then `pointercancel`, and the node stopped dead
+  about 20px in while the page slid. `.graph-container` refuses those gestures
+  whole now; the panels and the context menu keep `touch-action: auto`, so a
+  finger still scrolls what is meant to scroll.
 
 Everything a finger has to LAND on is sized off `(pointer: coarse)`, which
 means **a mouse sees no change at all**: node resize handles become a 14px

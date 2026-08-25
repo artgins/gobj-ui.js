@@ -52,6 +52,27 @@
 .graph-container {
     -webkit-user-select: none;
     user-select: none;
+
+    /*
+     *  And the finger's half of the same problem: on a touch screen
+     *  the browser owns the gesture until something says otherwise.
+     *
+     *  G6 puts `touch-action: none` on its CANVAS, so dragging from
+     *  the background pans the graph -- and it puts nothing on the
+     *  HTML nodes, which are ordinary DIVs layered on top of it. So
+     *  a finger that lands on a CARD was making a page scroll:
+     *  Chrome let two `pointermove`s through, decided the gesture
+     *  was a scroll, and killed the pointer stream with a
+     *  `pointercancel`.  The node followed the finger for about 20px
+     *  and then stopped dead while the page slid -- which is what
+     *  "I only want to move a node" looked like on a phone.
+     *
+     *  The whole container, not the cards: every layer G6 stacks in
+     *  here (nodes, plugin containers, the ones it adds next) is a
+     *  DIV over a canvas that already refuses the browser's
+     *  gestures, and they have to agree.
+     */
+    touch-action: none;
 }
 .graph-container input,
 .graph-container textarea,
@@ -64,6 +85,19 @@
 .graph-container .g6-node-detail {
     -webkit-user-select: text;
     user-select: text;
+}
+
+/*
+ *  What a finger must still be able to SCROLL: the panels, and the
+ *  context menu, which is as long as the impact of a delete.
+ */
+.graph-container .g6-confirm-popover,
+.graph-container .g6-create-popover,
+.graph-container .g6-node-popover,
+.graph-container .g6-edge-popover,
+.graph-container .g6-node-detail,
+.graph-container .g6-contextmenu {
+    touch-action: auto;
 }
 
 .graph-container:fullscreen {
