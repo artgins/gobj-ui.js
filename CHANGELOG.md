@@ -5,6 +5,29 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.16
+
+**The scroll arrows disappeared the moment the toolbar shared its row.** A
+`yui_toolbar()` alone in its row works: nothing competes for the width, so
+nothing shrinks. Put a pinned control beside it -- the treedb graph's
+`GRAPH_BACK_TOPICS` link -- and the arrows stop appearing while the items are
+plainly cut off.
+
+The toolbar is a flex item, and a flex item's `min-width: auto` resolves to
+its CONTENT minimum. Inside, every `yui-horizontal-toolbar-section` is
+`flex-shrink: 0; white-space: nowrap`, so that minimum is the full width of
+the items. The toolbar therefore refuses to shrink: it keeps `width: 100%` of
+the row, the pinned control pushes it out of the row, and the RIGHT arrow --
+absolutely positioned at the toolbar's right edge -- ends up outside whatever
+ancestor clips the view. The arrow was drawn all along; it was off-screen.
+The scroll container never saw an overflow of its own either, so on a wider
+toolbar both arrows simply stayed hidden.
+
+`min-width: 0` on `.yui-horizontal-toolbar` lets it shrink to the space the
+row actually has. Measured at 390px with a pinned back link: before, the
+toolbar took 390px of a 390px row that also held a 50px button and the row
+overflowed; after, it takes 340px and the right arrow lands inside.
+
 ## 7.23.15
 
 **The long press says so when it crosses the line.** Deciding the press at

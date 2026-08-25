@@ -6,6 +6,15 @@
     width: 100%;
     height: auto;
     position: relative;
+    /*  The toolbar is often a flex item sharing its row with a pinned
+     *  control (a back link, a title). A flex item's `min-width:auto`
+     *  resolves to the CONTENT minimum, and the sections inside are
+     *  `flex-shrink:0; white-space:nowrap` — so the toolbar refuses to
+     *  shrink, the row overflows, and the scroll container never sees an
+     *  overflow of its OWN: both arrows stay hidden while the items are
+     *  clipped by an ancestor. Alone on its row nothing shrinks and the
+     *  bug hides, which is why it only shows up once integrated. */
+    min-width: 0;
 }
 
 .yui-horizontal-toolbar-container {
