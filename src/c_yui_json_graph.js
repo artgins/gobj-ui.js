@@ -72,6 +72,11 @@ import {
 import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
 import { ensure_pinch_zoom_patch } from "./g6_touch_gestures.js";
 import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
+import {
+    is_pure_collection,
+    has_branch,
+    count_branches,
+} from "./json_view_helpers.js";
 
 /***************************************************************
  *              Constants
@@ -770,7 +775,7 @@ function build_graph(gobj)
 /************************************************************
  *  Build cell value HTML (matching old mx_json_viewer colors)
  ************************************************************/
-function build_cell_html(key, value, type, dark, matched)
+function build_cell_html(key, value, type, dark, matched, fold)
 {
     /*
      *  A match is a LIGHT chip on BOTH themes, so what sits on it is
@@ -812,6 +817,19 @@ function build_cell_html(key, value, type, dark, matched)
 
     let row = `<span style="color:${key_color}">• ${escapeHtml(String(key))}: </span>` +
               `<span style="color:${color}">${display_value}</span>`;
+
+    /*
+     *  A fold chip ON THE ROW, for a container that gets no card of its
+     *  own: the control belongs next to the key it folds, which is
+     *  where a tree puts it, and it is the only handle those children
+     *  have -- their parent's header chip folds every branch it has,
+     *  not this one.
+     */
+    if(fold) {
+        row += `<span style="margin-left:8px;">` +
+               fold_toggle_html(fold.path, true, fold.folded, fold.branches, fold.colors) +
+               `</span>`;
+    }
 
     if(matched) {
         /*  The highlight is baked into the card's MARKUP and not set as
@@ -985,6 +1003,10 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
     let pending_complex = [];
     let card_matched = false;
 
+    let colors = json_card_style(
+        is_dict ? GROUP_COLORS.dict : GROUP_COLORS.list, dark
+    );
+
     let entries = is_dict ? Object.entries(kw) : kw.map((v, i) => [i, v]);
 
     for(let [key, value] of entries) {
@@ -996,31 +1018,63 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
         }
 
         /*
-         *  A non-empty container gets a CARD OF ITS OWN, so a row for it
-         *  here would be the same thing drawn twice -- and the second
-         *  drawing is the one that does not scale.  An array of 14 dicts
-         *  printed fourteen `0: {13}` rows above fourteen cards saying
-         *  the same; an array of a thousand prints a thousand-row card
-         *  nobody can read, beside the thousand cards it duplicates.
+         *  EVERY key is a row, containers included: `cols` is one key of
+         *  the topic dict exactly like `pkey` and `tkey`, and a drawing
+         *  that leaves it out of the card does not say what the document
+         *  says.
          *
-         *  What is left in the body is exactly the SCALARS: what this
-         *  node IS.  What it CONTAINS is the edges, and the count now
-         *  rides in the header for the case where the body comes out
-         *  empty.
+         *  What a container key does NOT get is its contents repeated
+         *  underneath it -- the row says `[14]` and the fourteen cards
+         *  say the rest. That is the part which does not scale: an array
+         *  of a thousand dicts would otherwise print a thousand-row card
+         *  beside the thousand cards it duplicates.
          */
-        if((is_object(value) && json_object_size(value) > 0) ||
-           (is_array(value) && value.length > 0)) {
+        let fold = null;
+        if(has_branch(value)) {
             pending_complex.push({key: key, value: value});
-            continue;
+
+            /*
+             *  A child that gets no card of its own is folded from HERE
+             *  or from nowhere.
+             */
+            if(is_pure_collection(value)) {
+                let child_path = add_segment(path, key);
+                fold = {
+                    path: child_path,
+                    folded: priv.collapsed.has(child_path),
+                    branches: count_branches(value),
+                    colors: colors,
+                };
+            }
         }
 
-        lines.push(build_cell_html(key, value, type, dark, matched));
+        lines.push(build_cell_html(key, value, type, dark, matched, fold));
+    }
+
+    /*
+     *  A pure collection is not drawn: its row above names it and its
+     *  children hang from THIS card's parent. The root always gets a
+     *  card, or a document that is a plain list of records would have
+     *  nothing to hang anything from.
+     */
+    if(parent_id && is_pure_collection(kw)) {
+        if(priv.collapsed.has(path)) {
+            return parent_id;
+        }
+        for(let pending of pending_complex) {
+            build_json_nodes(
+                gobj,
+                add_segment(path, pending.key),
+                pending.value,
+                nodes,
+                edges,
+                parent_id
+            );
+        }
+        return parent_id;
     }
 
     let label = get_group_label(path) || (is_dict ? "{}" : "[]");
-    if(pending_complex.length > 0) {
-        label += is_dict? ` {${pending_complex.length}}`: ` [${pending_complex.length}]`;
-    }
 
     /*
      *  Folded: keep the card, drop the branch, and SAY how much went
@@ -1032,9 +1086,6 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id)
      */
     let foldable = pending_complex.length > 0;
     let folded = foldable && priv.collapsed.has(path);
-    let colors = json_card_style(
-        is_dict ? GROUP_COLORS.dict : GROUP_COLORS.list, dark
-    );
     let border_color = card_matched? (dark? "#ffb300": "#ff8f00"): colors.border;
     let border_width = card_matched? 2: 1;
 
@@ -1190,8 +1241,11 @@ function load_json(gobj)
 
 /************************************************************
  *  Every path that HAS a branch to fold, in the same recursion
- *  build_json_nodes uses — so "collapse all" can never name a
- *  card that does not exist.  The root is excluded: folding it
+ *  build_json_nodes uses — so "collapse all" can never name
+ *  something with no handle.  The handle is a card's header chip
+ *  for a container that gets a card, and the chip on its ROW in
+ *  the parent for a pure collection, which gets none; both are
+ *  keyed by this same path.  The root is excluded: folding it
  *  would leave an empty canvas.
  ************************************************************/
 function collect_foldable_paths(value, path, out, is_root)
@@ -1202,20 +1256,21 @@ function collect_foldable_paths(value, path, out, is_root)
         return false;
     }
 
-    let has_branch = false;
+    /*  `found_branch` and not `has_branch`: that name belongs to the
+     *  helper above, and a local would shadow it here.  */
+    let found_branch = false;
     let entries = is_dict ? Object.entries(value) : value.map((v, i) => [i, v]);
     for(let [key, child] of entries) {
-        if((is_object(child) && json_object_size(child) > 0) ||
-           (is_array(child) && child.length > 0)) {
-            has_branch = true;
+        if(has_branch(child)) {
+            found_branch = true;
             collect_foldable_paths(child, add_segment(path, key), out, false);
         }
     }
 
-    if(has_branch && !is_root) {
+    if(found_branch && !is_root) {
         out.push(path);
     }
-    return has_branch;
+    return found_branch;
 }
 
 /************************************************************

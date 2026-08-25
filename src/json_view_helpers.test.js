@@ -18,6 +18,9 @@ import {
     json_text_dump,
     pick_view_mode,
     container_label,
+    is_pure_collection,
+    has_branch,
+    count_branches,
 } from "./json_view_helpers.js";
 
 
@@ -242,4 +245,68 @@ test("container_label: cut at max_chars, and said with an ellipsis", () => {
     expect(container_label({id: uuid}, 8)).toBe("ff14fc16…");
     expect(container_label({id: uuid}, 0)).toBe(uuid);
     expect(container_label({id: uuid}, undefined)).toBe(uuid);
+});
+
+/***************************************************************
+ *      has_branch() / count_branches() / is_pure_collection()
+ ***************************************************************/
+test("has_branch: only a NON-EMPTY container branches", () => {
+    expect(has_branch({a: 1})).toBe(true);
+    expect(has_branch([1])).toBe(true);
+    expect(has_branch({})).toBe(false);
+    expect(has_branch([])).toBe(false);
+    expect(has_branch("x")).toBe(false);
+    expect(has_branch(0)).toBe(false);
+    expect(has_branch(null)).toBe(false);
+});
+
+test("count_branches: counts what gets a card, not what is there", () => {
+    expect(count_branches({a: 1, b: {}, c: {x: 1}, d: [1]})).toBe(2);
+    expect(count_branches([{}, [], {a: 1}])).toBe(1);
+    expect(count_branches({a: 1})).toBe(0);
+    expect(count_branches("x")).toBe(0);
+});
+
+test("is_pure_collection: a LIST of things, not a thing", () => {
+    /*  Every entry a container with something in it. */
+    expect(is_pure_collection([{a: 1}, {b: 2}])).toBe(true);
+    expect(is_pure_collection({x: {a: 1}, y: [1]})).toBe(true);
+
+    /*  One scalar is enough to make it a thing with content of its own,
+     *  and so is an EMPTY container: `{0}` has no child card to show it. */
+    expect(is_pure_collection([{a: 1}, 2])).toBe(false);
+    expect(is_pure_collection({x: {a: 1}, n: 3})).toBe(false);
+    expect(is_pure_collection([{a: 1}, {}])).toBe(false);
+
+    expect(is_pure_collection([])).toBe(false);
+    expect(is_pure_collection({})).toBe(false);
+    expect(is_pure_collection("x")).toBe(false);
+});
+
+test("is_pure_collection: the schema this came from", () => {
+    /*  The `devices` topic descriptor, cut to shape: `cols` is one key of
+     *  the dict like `pkey` is, and the only one that branches. */
+    let col = {id: "id", header: "Device", type: "string", flag: [], enum: {}};
+    let topic = {
+        topic_name: "devices",
+        pkey: "id",
+        pkey2s: [],             /*  empty: a row, not a branch  */
+        tkey: "tm",
+        system_flag: 1,
+        topic_version: 3,
+        cols: [col, col, col],
+    };
+
+    /*  The topic is NOT a pure collection: it has six scalar rows, so it
+     *  keeps its card. */
+    expect(is_pure_collection(topic)).toBe(false);
+    expect(count_branches(topic)).toBe(1);
+
+    /*  `cols` IS one: nothing but columns. It gets no card of its own --
+     *  its row in the topic names it, and the columns hang from the topic. */
+    expect(is_pure_collection(topic.cols)).toBe(true);
+    expect(count_branches(topic.cols)).toBe(3);
+
+    /*  A column has content, so it keeps its card. */
+    expect(is_pure_collection(col)).toBe(false);
 });

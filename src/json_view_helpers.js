@@ -314,3 +314,70 @@ export function container_label(value, max_chars)
     }
     return text;
 }
+
+
+/************************************************************
+ *   A dict, in the JSON sense: not an array and not null.
+ ************************************************************/
+function is_plain_object(v)
+{
+    return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/************************************************************
+ *  Does this container hold ONLY other containers?
+ *
+ *  Such a value is not a thing, it is a LIST of things -- and a
+ *  list is fully described by the row that names it in its
+ *  parent, plus the edges to what it holds.  Drawing it as a
+ *  card of its own put a node in the middle of the graph with no
+ *  data in it, saying nothing the parent's row did not already
+ *  say, and pushed everything below it one level down.
+ *
+ *  An EMPTY container inside counts as content: `{0}` is
+ *  something the card has to show, and there is no child card
+ *  to show it instead.
+ ************************************************************/
+export function is_pure_collection(value)
+{
+    let entries = is_plain_object(value)? Object.entries(value)
+                : Array.isArray(value)? value.map((v, i) => [i, v])
+                : [];
+
+    if(entries.length === 0) {
+        return false;
+    }
+    for(let [, v] of entries) {
+        if(!has_branch(v)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/************************************************************
+ *  A value that gets a card, or children, of its own.
+ ************************************************************/
+export function has_branch(value)
+{
+    return (is_plain_object(value) && Object.keys(value).length > 0) ||
+           (Array.isArray(value) && value.length > 0);
+}
+
+/************************************************************
+ *  How many branches a container has, which is what the fold
+ *  chip counts.
+ ************************************************************/
+export function count_branches(value)
+{
+    let entries = is_plain_object(value)? Object.values(value)
+                : Array.isArray(value)? value
+                : [];
+    let n = 0;
+    for(let v of entries) {
+        if(has_branch(v)) {
+            n++;
+        }
+    }
+    return n;
+}

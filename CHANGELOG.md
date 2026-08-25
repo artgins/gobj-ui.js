@@ -5,6 +5,34 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.20
+
+**A JSON graph drew `cols` as a node of its own, and `cols` is one key of the
+dict like `pkey` is.** The card in the middle of the graph held no data,
+said nothing its parent's row did not already say, and pushed everything
+below it one level down. 7.23.19 had made it worse by dropping the row too:
+the key then existed ONLY as that separate card, so the topic's card no longer
+listed one of its own keys.
+
+The model is now the one the document has:
+
+- **Every key is a row**, containers included. A container row shows what it
+    is (`cols: [14]`) and nothing more -- what it holds is the cards, which is
+    the part that has to scale. An array of a thousand dicts is one row and a
+    thousand cards, never a thousand-row card beside them.
+- **A container with no scalars of its own gets NO card.** It is not a thing,
+    it is a LIST of things, fully described by the row that names it plus the
+    edges to what it holds; its children hang from its parent. The root always
+    keeps a card, or a document that is a plain list of records would have
+    nothing to hang anything from.
+- **A card-less container folds from its ROW**, where the chip now sits. That
+    is where a tree puts the control, and it is the only handle those children
+    have: the parent's header chip folds every branch it has, not that one.
+
+`is_pure_collection()`, `has_branch()` and `count_branches()` are in
+`json_view_helpers.js` with tests, including one built from the schema this
+was reported against.
+
 ## 7.23.19
 
 ### Added
