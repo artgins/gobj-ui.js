@@ -694,6 +694,20 @@ function build_graph(gobj)
         behaviors: [
             'drag-canvas',
             'zoom-canvas',
+            /*
+             *  Move a card by dragging it. The position is NOT kept:
+             *  the graph is rebuilt from the document on every refresh,
+             *  fold and layout change, and there is nothing here to
+             *  save it to -- this is a viewer over a value somebody
+             *  handed it, not a document of its own. Deliberate: being
+             *  able to pull two cards apart to read the lines between
+             *  them is worth having even when it lasts one session.
+             *
+             *  No `enable`: a behavior's `enable` REPLACES the default,
+             *  it does not add to it, and the default here is exactly
+             *  what is wanted.
+             */
+            'drag-element',
         ],
     });
 

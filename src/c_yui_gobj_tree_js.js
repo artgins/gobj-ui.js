@@ -407,7 +407,13 @@ function build_ui(gobj)
         ['div', {class: 'C_YUI_GOBJ_TREE_JS', style: 'height:100%; display:flex; flex-direction:column; position:relative;'}, [
             ['div', {class: 'is-flex-grow-0 is-flex toolbar_yui_gobj_tree'}, $toolbar],
             ['div', {class: 'is-flex-grow-1', style: 'height:100%; min-height:0; overflow:hidden;'}, [
-                ['div', {id: priv.canvas_id, class: 'gobj-tree-container', style: 'height:100%; min-height:0; border: 1px solid var(--bulma-border-weak); border-radius:0.2rem;'}, [
+                /*  `touch-action` and `user-select` inline because this gclass loads no
+ *  stylesheet of its own: G6 puts `touch-action: none` on its canvas and
+ *  nothing on the html nodes over it, so without this a finger dragging a
+ *  card makes a page scroll and stops dead after ~20px; and a card is
+ *  text, so a mouse drag would start a selection. Same two rules
+ *  `lib_graph.css` carries for the treedb graph.  */
+                ['div', {id: priv.canvas_id, class: 'gobj-tree-container', style: 'height:100%; min-height:0; border: 1px solid var(--bulma-border-weak); border-radius:0.2rem; touch-action:none; -webkit-user-select:none; user-select:none;'}, [
                 ]]
             ]]
         ]]
@@ -650,6 +656,13 @@ function build_graph(gobj)
         behaviors: [
             'drag-canvas',
             'zoom-canvas',
+            /*  Move a card by dragging it. The position is not kept --
+             *  this tree is rebuilt from the live gobj tree on every
+             *  refresh -- and it is still worth having: pulling two
+             *  cards apart to read the lines between them is the whole
+             *  use of it. `enable` REPLACES a behavior's default rather
+             *  than adding to it, so it is not passed.  */
+            'drag-element',
         ],
     });
 

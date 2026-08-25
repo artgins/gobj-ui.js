@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.24
+
+### Added
+
+- **The cards can be MOVED**, in the JSON graph and the gobj tree alike
+    (`drag-element`). The position is deliberately not kept: both graphs are
+    rebuilt from their source on every refresh, fold and layout change, and
+    neither is a document of its own to save it to. It is worth having anyway
+    -- pulling two cards apart to read the lines between them is most of what
+    a reader wants from a graph, and it lasting one session costs nothing.
+
+    No `enable` passed: a behavior's `enable` REPLACES the default rather than
+    adding to it, and the default is what is wanted here.
+
+### Fixed
+
+- **A finger dragging a card made a page scroll.** The other half of moving
+    cards, and the same defect the treedb graph paid for in 7.23.14: G6 puts
+    `touch-action: none` on its CANVAS and nothing on the html nodes, which
+    are ordinary DIVs layered over it, so the browser took two `pointermove`s
+    and then killed the stream with `pointercancel` -- the card followed for
+    about 20px and stopped dead while the page slid. Both mounts refuse the
+    browser's gestures now, and stop a mouse drag from selecting the card's
+    text on the way.
+
 ## 7.23.23
 
 **A line now has an arrowhead, and it arrives at a port of its own above the

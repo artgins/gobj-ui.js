@@ -294,6 +294,33 @@
 }
 
 /*
+ *  The graph mount, once its cards can be DRAGGED.
+ *
+ *  Two problems, both of them the browser's rather than G6's, and both
+ *  already paid for once in the treedb graph (`lib_graph.css`):
+ *
+ *  G6 puts `touch-action: none` on its CANVAS and NOTHING on the html
+ *  nodes, which are ordinary DIVs layered over it. So a finger landing
+ *  on a card made a page scroll: two `pointermove`s through, then the
+ *  browser decided the gesture was a scroll and killed the stream with
+ *  `pointercancel` -- the card followed for about 20px and stopped dead
+ *  while the page slid.
+ *
+ *  And a card is text: dragging one starts a text selection, and the
+ *  wash stays until the next click somewhere else. Nothing on this
+ *  canvas is prose.
+ *
+ *  On the CONTAINER and not the cards: every layer G6 stacks in here is
+ *  a DIV over a canvas that already refuses the browser's gestures, and
+ *  they have to agree.
+ */
+.C_YUI_JSON .json-graph-container {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/*
  *  Disable any transition a host stylesheet might inject.
  */
 .C_YUI_JSON * {
