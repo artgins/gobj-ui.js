@@ -21,6 +21,7 @@ import {
     gobj_read_attr,
     gobj_write_attr,
     gobj_send_event,
+    gobj_post_event,
     gobj_write_str_attr,
     gobj_read_str_attr,
     gobj_publish_event,
@@ -2001,6 +2002,19 @@ function reanchor(gobj)
 }
 
 /************************************************************
+ *   Centre on the anchor, one cycle after it was chosen.
+ ************************************************************/
+function ac_center_anchor(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state === "on" && priv.anchor_id) {
+        yui_graph_center_on(priv.graph, priv.anchor_id);
+    }
+    return 0;
+}
+
+/************************************************************
  *   Arm the anchor, or let it go.
  *
  *   Three states and one button, so a press ADVANCES: with no
@@ -2125,7 +2139,11 @@ function ac_node_click(gobj, event, kw, src)
         priv.anchor_name = node_data.full_name || "";
         priv.anchor_state = "on";
         yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
-        yui_graph_center_on(graph, node_id);
+
+        /*  POSTED, not made here: a camera move issued inside G6's click
+         *  dispatch is swallowed -- see the note in yui_graph_center_on.
+         *  An event to itself and not a timer: a deferral is not a TIME.  */
+        gobj_post_event(gobj, "EV_CENTER_ANCHOR", {}, gobj);
         return 0;
     }
 
@@ -2255,6 +2273,7 @@ function create_gclass(gclass_name)
             ["EV_CENTER",               ac_center,              null],
             ["EV_NODE_CLICK",           ac_node_click,          null],
             ["EV_TOGGLE_ANCHOR",        ac_toggle_anchor,       null],
+            ["EV_CENTER_ANCHOR",        ac_center_anchor,       null],
             ["EV_RESIZE",               ac_resize,              null],
             ["EV_SHOW",                 ac_show,                null],
             ["EV_HIDE",                 ac_hide,                null],
@@ -2277,6 +2296,7 @@ function create_gclass(gclass_name)
         ["EV_CENTER",               0],
         ["EV_NODE_CLICK",           0],
         ["EV_TOGGLE_ANCHOR",        0],
+        ["EV_CENTER_ANCHOR",        0],
         ["EV_RESIZE",               0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],

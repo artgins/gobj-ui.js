@@ -14,7 +14,11 @@
 .color_create_state {
     color: #1890ff !important;
 }
-.color_submit_state {
+/*  Orange is "needs attention, waiting on you". A toggle that is armed
+ *  and waiting for its target is exactly that and not a submit, so it
+ *  takes the same colour under a name that says so.  */
+.color_submit_state,
+.color_pending_state {
     color: #fa8c16 !important;
 }
 .color_active_state {
@@ -235,6 +239,28 @@
     background-color: var(--bulma-text, #2e333d);
     color: var(--bulma-background, #ffffff);
     border-radius: 4px;
+}
+
+/*
+ *  The same pressed look for a toggle in a DOM toolbar.
+ *
+ *  `pressed_state` was written for the G6 plugin toolbar and styled ONLY
+ *  there, so the two toolbars built by `yui_graph_camera.js` were given
+ *  the class and no rule: pressing the button changed nothing on screen,
+ *  which from the outside is indistinguishable from a button that does
+ *  not work.
+ *
+ *  `border-color` as well as the fill, or Bulma's own border stays and
+ *  the button reads as outlined-and-filled, which is neither state.
+ *  The `:hover` half is the same guard as above: without it, hovering a
+ *  pressed button hands it back to Bulma's rule and the toggle appears
+ *  to switch off under the pointer.
+ */
+.button.pressed_state,
+.button.pressed_state:hover {
+    background-color: var(--bulma-text, #2e333d);
+    color: var(--bulma-background, #ffffff);
+    border-color: var(--bulma-text, #2e333d);
 }
 
 /*

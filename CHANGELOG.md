@@ -5,6 +5,40 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.25
+
+**The anchor did nothing you could see, and it never centred anything.** Three
+faults, found by driving it rather than reading it.
+
+**It had no look.** `pressed_state` was written for the G6 plugin toolbar and
+styled ONLY there, so the two DOM toolbars got the class and no rule: pressing
+the button changed nothing on screen, which from the outside is a button that
+does not work. `color_pending_state` did not exist in any stylesheet at all.
+Both are real rules now, and the two states stopped overlapping: PRESSED is
+"on" and only "on", because pressed is the state a control is IN, while arming
+is it asking for something -- that takes the attention colour, which also keeps
+an orange glyph off the pressed fill, where in dark it would be orange on
+near-white.
+
+**`graph.focusElement()` does not move these graphs.** It is the obvious call,
+it computes the very offset wanted -- `[0, 306]` for a card 306px above centre
+-- it resolves, and `getPosition()` reads identical before and after. So does
+`translateBy()`, which is the same RELATIVE transform underneath. Only
+`translateTo()` moves the camera, and its argument is not viewport pixels at
+any zoom but 1. Probing for the factor gives noise, because the camera settles
+asynchronously and a position read straight after a translate is a value
+halfway through. It now MEASURES, MOVES and MEASURES AGAIN, awaiting each
+move: no factor to name, and it keeps working if the maths change underneath.
+
+**A camera move issued inside G6's click dispatch is swallowed**, so the first
+thing an anchor did -- centre on the node just picked -- was nothing. It is
+posted to the gclass itself now and made one cycle later. An event and not a
+timer: a deferral is not a TIME, and writing it as one costs the name of what
+happens next in the trace.
+
+Measured after the fix, on a card 503px off centre: 0px at pick, and 0px at
+120%, 144%, 115% and 1:1.
+
 ## 7.23.24
 
 ### Added

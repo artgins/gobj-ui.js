@@ -191,7 +191,14 @@ export function yui_graph_update_anchor($container, state)
     if(!$btn) {
         return;     /*  a toolbar without the control: nothing to paint  */
     }
-    set_pressed_state($container, '.EV_TOGGLE_ANCHOR', state !== "off");
+    /*
+     *  PRESSED is "on", and only "on": pressed is the state the control
+     *  is IN, and while it is arming it is not in that state yet, it is
+     *  asking for something. That gets the attention colour instead --
+     *  which also keeps the two off each other, since an orange glyph on
+     *  the pressed fill is orange on near-white in dark and unreadable.
+     */
+    set_pressed_state($container, '.EV_TOGGLE_ANCHOR', state === "on");
     $btn.classList.toggle('color_pending_state', state === "arming");
     $btn.setAttribute("aria-pressed", (state === "on")? "true": "false");
 
@@ -211,13 +218,22 @@ export function yui_graph_update_anchor($container, state)
  *   the zoom is what the reader asked for, the centring is what
  *   keeps the thing they are reading under their eyes.
  *
+ *   The translate is computed and applied HERE rather than
+ *   delegated to `graph.focusElement()`, which is the obvious
+ *   call and does NOT work on these graphs. Measured: it
+ *   resolves, having computed the very offset wanted -- `[0,
+ *   306]` for a card 306px above centre -- and the camera does
+ *   not move. `getPosition()` reads the same before and after,
+ *   and so does the card's box on screen. Three public calls do
+ *   move it, so that is what is used.
+ *
  *   Guarded on every side because it runs on every wheel notch:
  *   a graph mid-rebuild, an anchor whose node went away with a
- *   fold, a G6 version without `focusElement` -- none of those is
+ *   fold, a G6 missing one of these calls -- none of those is
  *   an error worth a log line per notch, they are all "there is
  *   nothing to centre right now".
  ************************************************************/
-export function yui_graph_center_on(graph, node_id)
+export async function yui_graph_center_on(graph, node_id)
 {
     if(!graph || !node_id) {
         return false;
@@ -226,10 +242,50 @@ export function yui_graph_center_on(graph, node_id)
         if(typeof graph.getElementData === "function" && !graph.getElementData(node_id)) {
             return false;
         }
-        if(typeof graph.focusElement !== "function") {
+        if(typeof graph.getElementPosition !== "function" ||
+                typeof graph.getViewportByCanvas !== "function" ||
+                typeof graph.getCanvasCenter !== "function" ||
+                typeof graph.translateTo !== "function") {
             return false;
         }
-        graph.focusElement(node_id);
+
+        /*
+         *  MEASURE, MOVE, MEASURE AGAIN -- up to three times.
+         *
+         *  Not the arithmetic anybody would write first, and the reason
+         *  is worth keeping. The obvious call is `graph.focusElement()`,
+         *  which computes the very offset wanted and then does not move
+         *  the camera at all: measured on the JSON graph it resolves
+         *  with `getPosition()` reading identical before and after.
+         *  `translateBy()` (a RELATIVE transform) behaves the same way.
+         *  `translateTo()` (ABSOLUTE) does move it -- and the units of
+         *  its argument are not viewport pixels at any zoom but 1, so
+         *  one shot lands short or long by a factor nobody should have
+         *  to name.
+         *
+         *  Probing for that factor gives noise: the camera settles
+         *  asynchronously, so a position read straight after a
+         *  translate is a value halfway through. AWAITING each move and
+         *  measuring again needs no factor at all -- the direction is
+         *  right, so the residual falls to nothing in two or three
+         *  passes, and a graph whose maths change under us keeps
+         *  working.
+         *
+         *  The 1px floor is what stops it converging forever on the
+         *  rounding.
+         */
+        for(let i = 0; i < 3; i++) {
+            let at = graph.getViewportByCanvas(graph.getElementPosition(node_id));
+            let want = graph.getCanvasCenter();
+            let dx = want[0] - at[0];
+            let dy = want[1] - at[1];
+
+            if(Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+                break;
+            }
+            let pos = graph.getPosition();
+            await graph.translateTo([pos[0] + dx, pos[1] + dy]);
+        }
         return true;
     } catch(e) {
         return false;   /*  the element is gone, or the graph is between renders  */

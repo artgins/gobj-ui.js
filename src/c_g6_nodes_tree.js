@@ -42,6 +42,7 @@ import {
     gobj_subscribe_event,
     gobj_publish_event,
     gobj_send_event,
+    gobj_post_event,
     gobj_save_persistent_attrs,
     clean_name,
     sprintf,
@@ -7508,6 +7509,19 @@ function ac_zoom_reset(gobj, event, kw, src)
 /************************************************************
  *  What the anchor button says it will do next.
  ************************************************************/
+function ac_center_anchor(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state === "on" && priv.anchor_id) {
+        yui_graph_center_on(priv.graph, priv.anchor_id);
+    }
+    return 0;
+}
+
+/************************************************************
+ *  What the anchor button says it will do next.
+ ************************************************************/
 function anchor_title(state)
 {
     if(state === "arming") {
@@ -7824,7 +7838,11 @@ function ac_node_click(gobj, event, kw, src)
         priv.anchor_id = node_id;
         priv.anchor_state = "on";
         update_toolbar(gobj);
-        yui_graph_center_on(graph, node_id);
+
+        /*  POSTED, not made here: a camera move issued inside G6's click
+         *  dispatch is swallowed -- see the note in yui_graph_center_on.
+         *  An event to itself and not a timer: a deferral is not a TIME.  */
+        gobj_post_event(gobj, "EV_CENTER_ANCHOR", {}, gobj);
         return 0;
     }
 
@@ -8140,6 +8158,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_OUT",                 ac_zoom_out,            null],
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
             ["EV_TOGGLE_ANCHOR",            ac_toggle_anchor,       null],
+            ["EV_CENTER_ANCHOR",            ac_center_anchor,       null],
             ["EV_TOGGLE_TOOLBARS",          ac_toggle_toolbars,     null],
             ["EV_AUTO_FIT",                 ac_auto_fit,            null],
             ["EV_ZOOM_SELECTION",           ac_zoom_selection,      null],
@@ -8190,6 +8209,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_OUT",                 0],
         ["EV_ZOOM_RESET",               0],
         ["EV_TOGGLE_ANCHOR",            0],
+        ["EV_CENTER_ANCHOR",            0],
         ["EV_TOGGLE_TOOLBARS",          0],
         ["EV_AUTO_FIT",                 0],
         ["EV_ZOOM_SELECTION",           0],
