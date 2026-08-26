@@ -431,13 +431,51 @@ sentinels present it degrades to a plain client-side collapsible tree.
 questions:
 
 The switch reads `text · tree · graph`, flattest reading first — which is not
-the order of arrival: the viewer opens on the **tree** (`view_mode` default).
+the order of arrival.
+
+**Which view it opens on** is decided in three steps: what the HOST asked for
+(the `view_mode` attr), then what the READER chose last time, then the tree.
+That is why the attr's default is the **empty string** and not `"tree"`: as a
+default and as a host's explicit choice `"tree"` was the same string, so
+nothing could tell *"show me the tree"* from *"I have no opinion"*, and a
+memory that cannot see the difference has to lose to both. Pass `view_mode`
+only to PIN a view.
+
+The reader's choice is kept in `localStorage` under one key for the whole
+library — which of the three views somebody reads JSON in is a habit of the
+person, not a property of the document — and only a view they picked is
+remembered: a mode the host pinned, or the tree we fell back to, would
+otherwise be written back as if somebody had chosen it.
 
 | view | question | notes |
 |---|---|---|
 | `text` | *what does this document say, verbatim* | `JSON.stringify(…, 4)`, four characters per level |
 | `tree` | *where is this value, and what is around it* | the lazy view; the only one that can drill; the default |
 | `graph` | *what shape is this* | a hosted `C_YUI_JSON_GRAPH` child (AntV/G6) |
+
+**What the graph draws is the document, not a rearrangement of it.** Every key
+is a ROW of its card, containers included — `cols` is one key of a topic dict
+exactly like `pkey` is, and a drawing that leaves it out does not say what the
+document says. What a container row does NOT get is its contents repeated
+underneath it: the row says `[14]` and the fourteen cards say the rest, which
+is the part that has to scale.
+
+A container with **no scalars of its own** gets no card at all: it is not a
+thing, it is a LIST of things, described by the row that names it plus the
+edges to what it holds, and its children hang from its parent. The root always
+keeps a card.
+
+Each container key opens a **G6 port** on the line of its own row, and its edge
+leaves from there; the edge carries an arrowhead and arrives at an `in` port
+centred above the target card's title. Ports on an html node need care: the
+HTML is a DOM layer over the canvas, so a port fully inside the box is painted
+under the card — they sit ON the border.
+
+Cards are `JSON_CARD` and carry `data-json-path` (`GOBJ_CARD` /
+`data-gobj-name` in the gobj tree, `TREEDB_CARD` in the treedb graph): a gclass
+that builds DOM owes the Inspector a readable tree, and the anchor's mark needs
+something to find its card by after a rebuild — the node id does not survive
+one, the path does.
 
 Since `7.23.2` the schema and cell-JSON popups of `C_YUI_TREEDB_TOPIC_WITH_FORM`
 present that viewer as a floating `C_YUI_WINDOW` on a laptop — movable,
@@ -790,6 +828,7 @@ Two implementation notes worth keeping:
 | ── | |
 | fit | `fitView()`: the whole graph in the viewport |
 | **`1:1`** | `zoomTo(1)`: actual size |
+| **anchor** (crosshairs) | pick one element; every zoom then leaves it in the middle |
 | ── | |
 | **fit to selection** | `fit`, for the part that is selected (edition only, disabled while nothing is) |
 | ── | |
@@ -829,6 +868,71 @@ so it survived that — two light islands over a dark canvas.
 **New keys for consumers: `actual size`, `zoom level`, `zoom to selection`**
 (all tooltips, so a host that has not defined them shows the key on hover and
 nothing else breaks).
+
+### The anchor: one element the camera holds
+
+The same crosshairs button is in all three graphs' toolbars, drawn once in
+`yui_graph_camera.js`. Why it exists: a graph that FITS on screen is unreadable
+at the zoom that makes it fit — one topic's schema fits at 37%, where every
+card is grey texture — and the zoom that makes it readable does not fit. So the
+useful view is always a fraction of the document, and WHICH fraction was
+nobody's decision: `1:1` translated to the layout's origin, a corner with
+nothing in it, and the reader then hunted for the node they had been looking at.
+
+Three states, because two could not say what a press does: `off`, **arming**
+(the attention colour, and the pointer over the canvas turns to a crosshair)
+and **on** (pressed). The anchored card carries a **dashed amber outline** —
+dashed because in the treedb graph a solid amber ring already means a find
+match and blue means the selection, so a third solid ring would be a third
+thing to learn in one channel.
+
+Two things a host does not have to think about but a maintainer does:
+
+- While it is arming, `drag-element` is swapped OUT with `setBehaviors()`. With
+  it in, a click that drifts two pixels — which is every click a hand makes —
+  becomes a drag, G6 fires no `node:click`, and the pick silently does not
+  happen.
+- The camera move is POSTED to the gclass, not made in the handler: a translate
+  issued inside G6's click dispatch or its `aftertransform` is swallowed. And
+  the translate itself is a closed form, `T = (canvasCentre - nodeWorld) *
+  zoom`, read off G6's own `getTranslateOptions()` — `focusElement()` and
+  `translateBy()` compute the right offset, resolve, and do not move the camera
+  at all.
+
+**New keys for consumers: `anchor view`, `click the element to centre on`,
+`centred: click to release`.**
+
+### Moving the cards, and folding without losing your place
+
+The JSON graph and the gobj tree take `drag-element`: a card can be dragged.
+The position is deliberately NOT kept — both are rebuilt from their source on
+every refresh, fold and layout change, and neither is a document of its own to
+save it to — and it is worth having anyway, because pulling two cards apart to
+read the lines between them is most of what a reader wants from a graph.
+
+**Folding no longer moves anything.** It used to re-pack the tree: five
+surviving cards would all slide 240px sideways for a fold that removed nothing
+they could see, and the card under the finger slid out from under it. Two
+halves:
+
+- the card you clicked is read before the rebuild and put back afterwards
+  (`yui_graph_place_at()`, the anchor's arithmetic with the target point left
+  free);
+- and the others stay because a fold leaves a **phantom child** — an invisible
+  node of exactly the width its children had, in the place they had in the
+  order. Reserving the width as a NUMBER does not work: the layout centres a
+  parent over its children, so a lump appended at the end moves every sibling
+  by half of it.
+
+`collapse all` reserves nothing on purpose: it is asking for a COMPACT drawing.
+
+**The gobj tree remembers how you left it** — layout, zoom, camera, folds and
+anchor — in `localStorage`, keyed by the gobj's name. Not in a persistent attr
+because only a SERVICE can save those and this gclass is hosted as a child, and
+because how somebody left THEIR tree is a fact about that browser. The layout
+and the folds are restored BEFORE the first build, since they decide what is
+built; the camera after, and once only, or every fold would drag the reader
+back.
 
 ### The graphs on a touch screen
 
