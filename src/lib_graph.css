@@ -256,6 +256,14 @@
  *  pressed button hands it back to Bulma's rule and the toggle appears
  *  to switch off under the pointer.
  */
+/*  Picking the node to anchor, in the gobj tree: the pointer says a
+ *  click is expected, which is otherwise only announced by a button at
+ *  the far end of a toolbar.  */
+.gobj-tree-container.GOBJ_TREE_PICKING,
+.gobj-tree-container.GOBJ_TREE_PICKING * {
+    cursor: crosshair;
+}
+
 .button.pressed_state,
 .button.pressed_state:hover {
     background-color: var(--bulma-text, #2e333d);

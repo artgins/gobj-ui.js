@@ -233,11 +233,35 @@ export function yui_graph_update_anchor($container, state)
  *   an error worth a log line per notch, they are all "there is
  *   nothing to centre right now".
  ************************************************************/
+const __centring__ = new WeakMap();
+
 export async function yui_graph_center_on(graph, node_id)
 {
     if(!graph || !node_id) {
         return false;
     }
+
+    /*
+     *  ONE centring at a time, per graph.
+     *
+     *  This runs on every zoom notch, and one run is several awaited
+     *  camera moves. A wheel gesture is a BURST of notches, so without
+     *  this the runs overlap: each one measures a position another one
+     *  is in the middle of changing, and they walk the camera around
+     *  instead of converging -- which reads as a graph that pans and
+     *  never centres.
+     *
+     *  A request that arrives mid-run is not dropped, it is remembered:
+     *  the last one wins and runs once at the end, which is the only
+     *  one whose answer is still true.
+     */
+    let st = __centring__.get(graph);
+    if(st && st.running) {
+        st.again = node_id;
+        return true;
+    }
+    __centring__.set(graph, {running: true, again: null});
+
     try {
         if(typeof graph.getElementData === "function" && !graph.getElementData(node_id)) {
             return false;
@@ -289,6 +313,12 @@ export async function yui_graph_center_on(graph, node_id)
         return true;
     } catch(e) {
         return false;   /*  the element is gone, or the graph is between renders  */
+    } finally {
+        let pending = __centring__.get(graph);
+        __centring__.set(graph, {running: false, again: null});
+        if(pending && pending.again) {
+            yui_graph_center_on(graph, pending.again);
+        }
     }
 }
 

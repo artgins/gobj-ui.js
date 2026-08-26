@@ -5,6 +5,39 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.26
+
+**The anchor could not be picked with a real mouse, and once picked it said
+nothing.** Reported step by step, and every step was a separate fault.
+
+**`drag-element` was eating the pick.** A click that drifts two pixels -- which
+is every click a hand makes -- becomes a drag, G6 fires no `node:click`, and
+the pick silently does not happen. Measured: an instant click anchors, the same
+click with 2px of movement does not, which is why the Playwright check written
+for 7.23.25 passed while the feature was unusable. Picking is a MODE now:
+while it is armed the graph swaps `drag-element` out with `setBehaviors()`, and
+the pointer over the canvas turns to a crosshair, so the graph itself says a
+click is expected instead of leaving that to a button at the far end of a
+toolbar.
+
+**Nothing marked the anchored card.** The toolbar knew an anchor was set;
+which node it was, was left to the reader remembering what they clicked, which
+is not a mark but a memory test. The card carries an amber outline now --
+outside its box, so it moves no row, and not a fill, because the card's own
+colours already mean things.
+
+That needed the cards to have an identity at all: they were anonymous `<div>`s
+among the anonymous `<div>`s G6 stacks. Each one is a `JSON_CARD` carrying
+`data-json-path` now, which is what a gclass that builds DOM owes the
+Inspector, and what lets the mark find its card again after a rebuild -- the
+node id does not survive one, the path does.
+
+**A burst of wheel notches walked the camera instead of centring it.** One
+centring is several awaited camera moves, so overlapping runs each measured a
+position another was in the middle of changing. Centring is serialised per
+graph now: a request arriving mid-run is remembered rather than dropped, and
+the last one runs once at the end.
+
 ## 7.23.25
 
 **The anchor did nothing you could see, and it never centred anything.** Three

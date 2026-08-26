@@ -90,6 +90,20 @@ SDATA(data_type_t.DTP_INTEGER,  "collapse_threshold", 0, 10, "Auto-collapse a no
 SDATA_END()
 ];
 
+/*
+ *  What the graph listens for while you are READING it, and while you
+ *  are PICKING the node to anchor.
+ *
+ *  The difference is `drag-element`: with it on, a click that drifts
+ *  two pixels -- which is every click a hand makes -- becomes a drag,
+ *  G6 fires no `node:click`, and the pick silently does not happen.
+ *  Swapped with `setBehaviors()` and not with a behavior's `enable`,
+ *  which REPLACES the behavior's own default test rather than adding
+ *  to it.
+ */
+const BEHAVIORS_READING = ['drag-canvas', 'zoom-canvas', 'drag-element'];
+const BEHAVIORS_PICKING = ['drag-canvas', 'zoom-canvas'];
+
 let PRIVATE_DATA = {
     canvas_id: "",
     graph: null,
@@ -654,17 +668,7 @@ function build_graph(gobj)
 
         layout: layout_cfg.g6_layout,
 
-        behaviors: [
-            'drag-canvas',
-            'zoom-canvas',
-            /*  Move a card by dragging it. The position is not kept --
-             *  this tree is rebuilt from the live gobj tree on every
-             *  refresh -- and it is still worth having: pulling two
-             *  cards apart to read the lines between them is the whole
-             *  use of it. `enable` REPLACES a behavior's default rather
-             *  than adding to it, so it is not passed.  */
-            'drag-element',
-        ],
+        behaviors: BEHAVIORS_READING.slice(),
     });
 
     if(priv.theme) {
@@ -2015,6 +2019,24 @@ function ac_center_anchor(gobj, event, kw, src)
 }
 
 /************************************************************
+ *   Reading, or picking the node to anchor.
+ ************************************************************/
+function set_picking_mode(gobj, picking)
+{
+    let graph = gobj.priv.graph;
+
+    if(graph && typeof graph.setBehaviors === "function") {
+        graph.setBehaviors((picking? BEHAVIORS_PICKING: BEHAVIORS_READING).slice());
+    }
+
+    let $container = gobj_read_attr(gobj, "$container");
+    let $mount = $container? $container.querySelector('.gobj-tree-container'): null;
+    if($mount) {
+        $mount.classList.toggle('GOBJ_TREE_PICKING', !!picking);
+    }
+}
+
+/************************************************************
  *   Arm the anchor, or let it go.
  *
  *   Three states and one button, so a press ADVANCES: with no
@@ -2035,6 +2057,7 @@ function ac_toggle_anchor(gobj, event, kw, src)
     }
 
     yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+    set_picking_mode(gobj, priv.anchor_state === "arming");
     return 0;
 }
 
@@ -2139,6 +2162,7 @@ function ac_node_click(gobj, event, kw, src)
         priv.anchor_name = node_data.full_name || "";
         priv.anchor_state = "on";
         yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+        set_picking_mode(gobj, false);
 
         /*  POSTED, not made here: a camera move issued inside G6's click
          *  dispatch is swallowed -- see the note in yui_graph_center_on.

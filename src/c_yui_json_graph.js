@@ -692,24 +692,7 @@ function build_graph(gobj)
 
         layout: layout_cfg.g6_layout,
 
-        behaviors: [
-            'drag-canvas',
-            'zoom-canvas',
-            /*
-             *  Move a card by dragging it. The position is NOT kept:
-             *  the graph is rebuilt from the document on every refresh,
-             *  fold and layout change, and there is nothing here to
-             *  save it to -- this is a viewer over a value somebody
-             *  handed it, not a document of its own. Deliberate: being
-             *  able to pull two cards apart to read the lines between
-             *  them is worth having even when it lasts one session.
-             *
-             *  No `enable`: a behavior's `enable` REPLACES the default,
-             *  it does not add to it, and the default here is exactly
-             *  what is wanted.
-             */
-            'drag-element',
-        ],
+        behaviors: BEHAVIORS_READING.slice(),
     });
 
     if(priv.theme) {
@@ -898,6 +881,23 @@ function build_cell_html(key, value, type, dark, matched, fold)
  *  forever.  `+3` and `−` need no language.
  ************************************************************/
 const FOLD_SPACER = `<span style="width:24px; flex:0 0 auto;"></span>`;
+
+/*
+ *  What the graph listens for while you are READING it, and while you
+ *  are PICKING the node to anchor.
+ *
+ *  The difference is `drag-element`, and dropping it is not a detail:
+ *  with it on, a click that drifts two pixels -- which is every click a
+ *  hand makes -- becomes a drag, G6 fires no `node:click`, and the pick
+ *  silently does not happen. Measured: an instant click anchors, the
+ *  same click with 2px of movement does not.
+ *
+ *  Swapped with `setBehaviors()` and not with a behavior's `enable`,
+ *  which REPLACES the behavior's own default test rather than adding to
+ *  it -- the trap that made a card drag pan the canvas in 7.23.10.
+ */
+const BEHAVIORS_READING = ['drag-canvas', 'zoom-canvas', 'drag-element'];
+const BEHAVIORS_PICKING = ['drag-canvas', 'zoom-canvas'];
 
 /*
  *  The card's geometry, in ONE place.
@@ -1152,8 +1152,21 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
     let min_width = Math.max(180, label.length * 9);
     let card_height = CARD_HEADER_H + lines.length * CARD_ROW_H;
 
+    /*
+     *  The card carries its NAME and its PLACE in the document.
+     *
+     *  `JSON_CARD` because a gclass that builds DOM has to leave a tree
+     *  somebody can read in the Inspector, and until now every card here
+     *  was an anonymous `<div>` among the anonymous `<div>`s G6 stacks.
+     *
+     *  `data-json-path` because the anchor has to be able to find the
+     *  card it is holding: G6 paints no state style on an html node, so
+     *  the mark cannot be a node state and has to be a class on this
+     *  element -- and the path is what survives a rebuild, where the
+     *  node id does not.
+     */
     let node_html = `
-<div style="
+<div class="JSON_CARD" data-json-path="${escapeHtml(path)}" style="
     min-width: ${min_width}px;
     background: ${colors.bg};
     border: ${border_width}px ${is_dict ? 'dashed' : 'solid'} ${border_color};
@@ -1348,6 +1361,7 @@ function load_json(gobj)
             /*  Ids are generated per build: point the anchor at its path
              *  again before anybody asks the camera to go there.  */
             reanchor(gobj);
+            paint_anchor_mark(gobj);
 
             if(preserve_view) {
                 yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
@@ -1821,12 +1835,72 @@ function reanchor(gobj)
 }
 
 /************************************************************
+ *   Reading, or picking the node to anchor.
+ *
+ *   Two visible consequences and one invisible: the cursor says
+ *   a click is expected, the mount says which mode it is in for
+ *   anyone reading the DOM, and node dragging stands aside so a
+ *   click that drifts is still a click.
+ ************************************************************/
+function set_picking_mode(gobj, picking)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(graph && typeof graph.setBehaviors === "function") {
+        graph.setBehaviors((picking? BEHAVIORS_PICKING: BEHAVIORS_READING).slice());
+    }
+
+    let $container = gobj_read_attr(gobj, "$container");
+    if($container) {
+        let $mount = $container.querySelector('.json-graph-container');
+        if($mount) {
+            $mount.classList.toggle('JSON_GRAPH_PICKING', !!picking);
+        }
+    }
+}
+
+/************************************************************
+ *   Mark the card the camera is holding.
+ *
+ *   A class on the card's own element and not a G6 node state:
+ *   G6 paints no state style on an html node, so `setElementState`
+ *   would select it correctly and show nothing.
+ *
+ *   Re-applied after every rebuild, because the cards are new DOM
+ *   each time and the mark would otherwise survive only until the
+ *   next fold.
+ ************************************************************/
+function paint_anchor_mark(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+
+    if(!$container) {
+        return;
+    }
+    for(let $card of $container.querySelectorAll('.JSON_CARD_ANCHORED')) {
+        $card.classList.remove('JSON_CARD_ANCHORED');
+    }
+    if(priv.anchor_state !== "on" || !priv.anchor_path) {
+        return;
+    }
+    let $it = $container.querySelector(
+        '.JSON_CARD[data-json-path="' + CSS.escape(priv.anchor_path) + '"]'
+    );
+    if($it) {
+        $it.classList.add('JSON_CARD_ANCHORED');
+    }
+}
+
+/************************************************************
  *   Centre on the anchor, one cycle after it was chosen.
  ************************************************************/
 function ac_center_anchor(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
+    paint_anchor_mark(gobj);
     if(priv.anchor_state === "on" && priv.anchor_id) {
         yui_graph_center_on(priv.graph, priv.anchor_id);
     }
@@ -1854,6 +1928,8 @@ function ac_toggle_anchor(gobj, event, kw, src)
     }
 
     yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+    paint_anchor_mark(gobj);
+    set_picking_mode(gobj, priv.anchor_state === "arming");
     return 0;
 }
 
@@ -1945,6 +2021,7 @@ function ac_node_click(gobj, event, kw, src)
         priv.anchor_path = (nodedata && nodedata.data)? nodedata.data.path: "";
         priv.anchor_state = "on";
         yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+        set_picking_mode(gobj, false);
 
         /*
          *  The camera move is POSTED, not made here.

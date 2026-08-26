@@ -294,6 +294,38 @@
 }
 
 /*
+ *  Picking the node to anchor. The pointer says a click is expected --
+ *  without it the only sign the graph is waiting for one is a button
+ *  at the far end of a toolbar.
+ */
+.C_YUI_JSON .json-graph-container.JSON_GRAPH_PICKING,
+.C_YUI_JSON .json-graph-container.JSON_GRAPH_PICKING * {
+    cursor: crosshair;
+}
+
+/*
+ *  The card the camera is holding.
+ *
+ *  It has to say so ON THE CARD: the toolbar button knows an anchor is
+ *  set, and knowing WHICH node it is was left to the reader remembering
+ *  what they clicked -- which is not a mark, it is a memory test.
+ *
+ *  An outline and not a fill: the card's own colours mean things (a
+ *  dashed border is a dict, a solid one a list, the header carries the
+ *  group's hue), and a mark that repaints any of them would be saying
+ *  two things with one channel. `outline` also draws OUTSIDE the box,
+ *  so it cannot move a single row.
+ *
+ *  Amber, the same "this one, right now" the toolbar's arming state
+ *  uses. It is not one of the palette's action colours because it is
+ *  not an action.
+ */
+.C_YUI_JSON .JSON_CARD_ANCHORED {
+    outline: 3px solid #fa8c16;
+    outline-offset: 2px;
+}
+
+/*
  *  The graph mount, once its cards can be DRAGGED.
  *
  *  Two problems, both of them the browser's rather than G6's, and both
