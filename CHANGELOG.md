@@ -5,6 +5,44 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.32
+
+### Fixed
+
+- **The developer window's `Periodic` filter could not touch the machine
+    trace, which is the only thing it was ever really needed for.** With
+    Automata on, a yuno with one timer writes two `EV_TIMEOUT` lines a second
+    for ever, and the chip that promises to hide recurring events hid none of
+    them: the status line read `92/92 shown - 0 hidden` with the chip lit.
+
+    The filter matches on a SIGNATURE, and every mirrored log line was signed
+    `log:<level>` -- so a hundred `EV_TIMEOUT` transitions and a hundred
+    unrelated debug lines were the same thing to it. And `entry_hidden()`
+    returned early for anything mirrored from the log, before the periodic
+    test ran at all.
+
+    A machine line is now READ (`dev_machine_trace.js`): its event is parsed
+    out of either format gobj-js emits -- verbose (`ev: EV_TIMEOUT`) and
+    compact (`EV_TIMEOUT dst ST_X from src`) -- and the line is signed by that
+    event. The filter matches it by NAME (`TIMEOUT`, `PERIODIC`, `HEARTBEAT`,
+    `PING`, `POLL`) and not by count, unlike its traffic half: a busy FSM
+    crosses the recurrence threshold on nearly every event within seconds, and
+    counting here would empty the window of the very transitions somebody
+    turned Automata on to read. Measured: `4/52 shown - 48 hidden`, and the
+    four left are the real ones.
+
+    **An error or a warning is never hidden by it**, whatever it names. The
+    loudest line the framework has is *"Event NOT DEFINED in state"*, and it
+    carries the event -- often `EV_TIMEOUT` -- in its own text.
+
+### Changed
+
+- **`Periodic` is ON by default.** The first thing anybody saw after enabling
+    Automata was a wall of timer traffic with their own transitions somewhere
+    inside it. The default lives in one constant now, read by both the getter
+    and the chip: they have to agree on what "unset" means, or the first click
+    writes the value it already had and appears to do nothing.
+
 ## 7.23.31
 
 ### Fixed

@@ -21,6 +21,8 @@ import {
     gobj_set_trace_machine_format,
 } from "@yuneta/gobj-js";
 
+import {log_signature, log_is_periodic} from "./dev_machine_trace.js";
+
 import i18next from 'i18next';
 
 /***********************************************************************
@@ -164,9 +166,20 @@ function dev_view()
     return (v === "compact" || v === "name" || v === "full") ? v : "detailed";
 }
 
+/*  ON by default. The machine trace is the reason this window
+ *  exists, and a yuno with one timer emits two lines a second for
+ *  ever: leaving the filter off meant the first thing anybody saw
+ *  after enabling Automata was a wall of EV_TIMEOUT with their own
+ *  transitions somewhere inside it. The chip turns it back off.
+ *
+ *  A CONSTANT, and not the literal in two places: the reader and the
+ *  toggle must agree on what "unset" means, or the first click on the
+ *  chip writes the value it already had and appears to do nothing. */
+const HIDE_PERIODIC_DEFAULT = 1;
+
 function dev_hide_periodic()
 {
-    return dev_num("dev_hide_periodic", 0) ? true : false;
+    return dev_num("dev_hide_periodic", HIDE_PERIODIC_DEFAULT) ? true : false;
 }
 
 /*  Where dev output (traffic + all logs + automata) is routed:
@@ -300,7 +313,21 @@ function entry_hidden(e, ctx)
 {
     if(e.kind === "log") {
         /*  Mirrored console logs respect the search box only — not the
-         *  in/out/err/periodic traffic filters. */
+         *  in/out/err traffic filters, which are about DIRECTION and a
+         *  log has none.
+         *
+         *  The PERIODIC filter does reach them, and it has to: once
+         *  Automata is on, the machine trace is what floods this
+         *  window, and every one of those lines arrives here as a log.
+         *  It applies to a machine TRANSITION only, and never above
+         *  debug level — see log_is_periodic(). By NAME and not by
+         *  count, unlike the traffic half below: a busy FSM crosses
+         *  the recurrence threshold on almost every event within
+         *  seconds, so counting here would empty the window of the
+         *  very transitions somebody turned Automata on to read. */
+        if(ctx.hide_periodic && e.periodic) {
+            return true;
+        }
         return !!(ctx.search && e.hay.indexOf(ctx.search) < 0);
     }
     if(e.dir === 1 && !ctx.out) {
@@ -1031,10 +1058,16 @@ function info_log(level, msg, hora)
         } else {
             text = is_string(msg) ? msg : String(msg);
         }
+        /*  A machine line is signed by its EVENT, not by "log:debug":
+         *  that is what makes a hundred EV_TIMEOUTs ONE recurring
+         *  thing the filter and the counter can see, instead of a
+         *  hundred anonymous debug lines they cannot tell apart. */
         let entry = {
             kind: "log", level: lvl, text: text,
             dir: 0, size: 0, ts: traffic_now(),
-            sig: "log:" + lvl, hay: (lvl + " " + text).toLowerCase(), $node: null,
+            sig: log_signature(lvl, text),
+            periodic: log_is_periodic(lvl, text),
+            hay: (lvl + " " + text).toLowerCase(), $node: null,
         };
         TRAFFIC_LOG.push(entry);
         if(TRAFFIC_LOG.length > TRAFFIC_MAX) {
@@ -1384,11 +1417,12 @@ function build_control_bar()
 
     let periodic_chip = ['button', {
         class: 'YDEV_CHIP', 'data-toggle': 'periodic', type: 'button',
-        title: 'Hide recurring / periodic events (polls, heartbeats)',
+        title: 'Hide the timers: EV_TIMEOUT / PERIODIC / HEARTBEAT / PING ' +
+            'transitions, and recurring traffic. On by default',
     }, '⊘ Periodic', {
         click: (ev) => {
             ev.stopPropagation();
-            toggle_pref('dev_hide_periodic', 0);
+            toggle_pref('dev_hide_periodic', HIDE_PERIODIC_DEFAULT);
         }
     }];
 
