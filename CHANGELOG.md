@@ -5,6 +5,48 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.34
+
+### Fixed
+
+- **The machine trace lost its INDENTATION in the developer window.** gobj-js
+    prefixes every line with its nesting depth (two spaces per level of
+    `__inside__`), so an event sent from inside another one's action is
+    indented under it — which is the only thing in the line that says a
+    transition happened *during* another. The window showed a flat column
+    where the console showed a tree.
+
+    `createElement2()` **trims** a string content — it has to, to decide
+    whether the string is HTML by looking at its first character — so the
+    indentation was eaten on the way in. The text is assigned to the element
+    after building it now. Same trap as the composed-label one in the i18n
+    conventions, in its whitespace form.
+
+- **The empty-state message lied when the filter was doing its job.** With the
+    Periodic filter on (the default since 7.23.32) and a yuno whose only
+    traffic is its timers, the panel emptied and said *"Waiting for activity —
+    console logs and errors show automatically; enable Traffic or Automata for
+    more"*: it reads as *nothing is happening, your traces are off*, while the
+    status line beside it said `0/36 shown · 36 hidden`. The two disagreed
+    because the placeholder was only ever chosen at a full repaint, and a line
+    that arrives and is filtered out changes the answer without changing the
+    screen. It is kept truthful on every arrival now — *"No messages match the
+    current filters."*
+
+### Changed
+
+- **The machine trace is written in the SIMPLER shape by default** (needs
+    gobj-js >= 7.13.7, whose default moved with it). One line per transition,
+    event first — the C kernel's default — instead of the legacy three: the
+    call, the state change and the `<- … ret: N` return.
+
+    Both shapes stay, and the `Simple mach` chip swaps them; it is simply
+    pressed to begin with, and its tooltip now says which is which. The
+    default lives in one constant read by the chip, the chrome and start up —
+    the same rule the periodic default learned in 7.23.32, for the same
+    reason: with a literal in each place the chip is born showing the wrong
+    state and its first click does nothing.
+
 ## 7.23.33
 
 ### Fixed

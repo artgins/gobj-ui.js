@@ -185,6 +185,25 @@ function dev_view()
  *  chip writes the value it already had and appears to do nothing. */
 const HIDE_PERIODIC_DEFAULT = 1;
 
+/*  Which SHAPE the machine trace is written in — the two the C kernel
+ *  offers, and the chip that swaps them:
+ *
+ *      1 (default)  one line per transition, event first
+ *      0            the legacy three-line shape: the call, the state
+ *                   change, and the `<- … ret: N` return
+ *
+ *  1 because that is what the C kernel defaults to, so a browser yuno and
+ *  a node read alike. Like HIDE_PERIODIC_DEFAULT, a CONSTANT and not a
+ *  literal in each of the three places that read it (the chip, the chrome
+ *  and start up): they have to agree on what "unset" means, or the chip
+ *  is born showing the wrong state and its first click does nothing. */
+const SIMPLE_MACH_DEFAULT = 1;
+
+function dev_simple_mach()
+{
+    return dev_num("dev_automata_simple", SIMPLE_MACH_DEFAULT) ? 1 : 0;
+}
+
 function dev_hide_periodic()
 {
     return dev_num("dev_hide_periodic", HIDE_PERIODIC_DEFAULT) ? true : false;
@@ -821,13 +840,29 @@ function render_name(e)
 /*  A mirrored framework log line (error/warning/info/debug/msg). */
 function render_log(e)
 {
-    return createElement2(
+    let $row = createElement2(
         ['div', {class: 'YDEV_LOGROW YDEV_LOG_' + e.level, title: e.level}, [
             ['span', {class: 'YDEV_LOG_LVL'}, e.level],
-            ['span', {class: 'YDEV_LOG_TXT'}, e.text],
+            ['span', {class: 'YDEV_LOG_TXT'}, ''],
             ['span', {class: 'TRAFFIC_META'}, e.ts],
         ]]
     );
+
+    /*  The text is assigned AFTER, and that is the whole point.
+     *
+     *  createElement2() TRIMS a string content -- it has to, to decide
+     *  whether the string is HTML by looking at its first character -- and
+     *  the machine trace's leading spaces are its NESTING: gobj-js prefixes
+     *  every line with `tab()`, two spaces per level of __inside__, so an
+     *  event sent from inside another one's action is indented under it.
+     *  Passed through createElement2 that indentation was eaten, and the
+     *  window showed a flat column where the console showed a tree. */
+    let $txt = $row.querySelector('.YDEV_LOG_TXT');
+    if($txt) {
+        $txt.textContent = e.text;
+    }
+
+    return $row;
 }
 
 function render_entry(e)
@@ -889,15 +924,53 @@ function rerender_all()
     }
     logger.replaceChildren(frag);
     if(shown === 0) {
-        let $empty = document.createElement('div');
-        $empty.className = 'YDEV_EMPTY';
-        $empty.textContent = TRAFFIC_LOG.length
-            ? "No messages match the current filters."
-            : "Waiting for activity — console logs and errors show automatically; enable Traffic or Automata for more.";
-        logger.appendChild($empty);
+        logger.appendChild(make_placeholder());
     }
     logger.scrollTop = logger.scrollHeight;
     update_stats();
+}
+
+/*  The empty state, which has to say WHICH empty it is.  */
+function make_placeholder()
+{
+    let $empty = document.createElement('div');
+    $empty.className = 'YDEV_EMPTY';
+    $empty.textContent = placeholder_text();
+    return $empty;
+}
+
+function placeholder_text()
+{
+    if(TRAFFIC_LOG.length) {
+        return "No messages match the current filters.";
+    }
+    return "Waiting for activity — console logs and errors show automatically; " +
+        "enable Traffic or Automata for more.";
+}
+
+/*  Keep whatever placeholder is on screen TRUTHFUL.
+ *
+ *  A line that arrives and is filtered out changes the answer without
+ *  changing the screen: the buffer stops being empty, so "Waiting for
+ *  activity — enable Automata for more" becomes a lie, and the window reads
+ *  as "nothing is happening, your traces are off" while it is in fact hiding
+ *  36 of them. Measured on a yuno with one timer and the Periodic filter on,
+ *  which is now the default: the status line said `0/36 shown · 36 hidden`
+ *  and the panel said there was no activity. */
+function refresh_placeholder()
+{
+    let logger = document.getElementById('developer-traffic-logger');
+    if(!logger) {
+        return;
+    }
+    let ph = logger.querySelector('.YDEV_EMPTY');
+    if(!ph) {
+        return;
+    }
+    let text = placeholder_text();
+    if(ph.textContent !== text) {
+        ph.textContent = text;
+    }
 }
 
 /*  Live counters in the status strip. */
@@ -1050,6 +1123,8 @@ function info_traffic(title, msg, direction, size)
             ph.remove();
         }
         append_and_follow(logger, node);
+    } else {
+        refresh_placeholder();  /*  hidden, but the buffer is no longer empty  */
     }
     update_stats();
 }
@@ -1140,6 +1215,8 @@ function info_log(level, msg, hora)
                 ph.remove();
             }
             append_and_follow(logger, node);
+        } else {
+            refresh_placeholder();  /*  hidden, but the buffer is no longer empty  */
         }
         update_stats();
     } finally {
@@ -1276,7 +1353,7 @@ function refresh_dev_chrome()
     });
 
     document.querySelectorAll('.YDEV_CHIP[data-toggle="automata-simple"]').forEach(($b) => {
-        $b.classList.toggle('is-active', !!dev_num('dev_automata_simple', 0));
+        $b.classList.toggle('is-active', !!dev_simple_mach());
     });
 
     let $m = document.getElementById('ydev-muted');
@@ -1384,11 +1461,13 @@ function build_control_bar()
      *  emitted while Automata is on. */
     let simple_mach = ['button', {
         class: 'YDEV_CHIP', 'data-toggle': 'automata-simple', type: 'button',
-        title: 'Compact automata format (one line per transition, like C)',
+        title: 'Machine trace shape. On (default): one line per transition, ' +
+            'event first, like the C kernel. Off: the legacy three-line shape ' +
+            '(the call, the state change and the return)',
     }, 'Simple mach', {
         click: (ev) => {
             ev.stopPropagation();
-            let v = dev_num('dev_automata_simple', 0) ? 0 : 1;
+            let v = dev_simple_mach() ? 0 : 1;
             kw_set_local_storage_value('dev_automata_simple', v);
             gobj_set_trace_machine_format(v);
             refresh_dev_chrome();
@@ -1581,9 +1660,8 @@ function apply_dev_traces()
     gobj_write_attr(gobj_yuno(), "no_poll", no_poll);
     i18next.options.debug = i18n ? true : false;
 
-    /*  Compact vs verbose automata trace format (persisted). */
-    gobj_set_trace_machine_format(
-        Number(kw_get_local_storage_value("dev_automata_simple", 0, false)) ? 1 : 0);
+    /*  Which shape the machine trace is written in (persisted). */
+    gobj_set_trace_machine_format(dev_simple_mach());
 
     /*  Mirror the browser console (log_error/warning/info/debug/msg — the
      *  automata FSM trace arrives as debug) into the monitor. info_log no-ops
