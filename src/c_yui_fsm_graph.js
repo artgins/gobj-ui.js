@@ -395,7 +395,15 @@ function build_graph(gobj)
          *  the edge of the box.  */
         padding: 24,
         edge: {
-            type: 'polyline',
+            /*
+             *  A FUNCTION, not a name: a `type` written on the edge
+             *  datum is overridden by the graph-level default, so a
+             *  reciprocal pair went on drawing as two straight
+             *  segments on top of each other. Asking the datum here is
+             *  what G6 documents for varying the type per element.
+             */
+            type: (d) => (d && d.data && d.data.reciprocal)?
+                'quadratic': 'polyline',
             style: {
                 stroke: edge_color(),
                 lineWidth: 1.2,
@@ -609,11 +617,51 @@ function build_data(gobj)
         if(pair.events.length > shown.length) {
             label += "\n+" + (pair.events.length - shown.length);
         }
+
+        let style = {labelText: label};
+
+        /*
+         *  A pair that goes BOTH ways is drawn as two arcs, one bowing
+         *  each way.
+         *
+         *  Grouping by pair fixed the transitions that share an ordered
+         *  pair; a RECIPROCAL pair is a different key and lands on the
+         *  same straight segment -- so the two arrows overlap and the
+         *  second label is painted under the first. Real case:
+         *  C_WEBSOCKET goes to ST_WAIT_HANDSHAKE on EV_CONNECTED and
+         *  comes back on EV_DISCONNECTED, and only the return was
+         *  readable.
+         */
+        let reciprocal = by_pair.has(pair.target + " " + pair.source);
+        if(reciprocal) {
+            /*  Bowed opposite ways so the two arrows separate -- and
+             *  the two LABELS moved off the midpoint as well, one to
+             *  each third of its own curve. Bowing alone was not
+             *  enough: both labels are placed at the middle by default,
+             *  they carry an opaque background, and the one drawn last
+             *  simply covered the other.  */
+            /*  The SAME offset on both, not opposite ones. G6 measures
+             *  `curveOffset` from the edge's OWN direction, and a
+             *  reciprocal pair runs in opposite directions -- so equal
+             *  signs bow them to opposite sides of the screen, and
+             *  opposite signs put them on the same side, one on top of
+             *  the other.
+             *
+             *  The label stays at the MIDDLE of its arc, where the two
+             *  are furthest apart. Moving it along the curve instead
+             *  (0.3 / 0.7) pushed it under a state card: G6's html
+             *  nodes are DOM elements ABOVE the canvas, so whatever the
+             *  curve draws under one is invisible.  */
+            style.curveOffset = 34;
+            style.labelPlacement = 0.5;
+        }
+
         edges.push({
             id: "e_" + edges.length,
             source: pair.source,
             target: pair.target,
-            style: {labelText: label},
+            data: {reciprocal: reciprocal},
+            style: style,
         });
     }
 

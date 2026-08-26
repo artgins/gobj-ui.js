@@ -18,6 +18,7 @@
 import i18next from "i18next";
 
 const es_translation = {
+    "accepted with no action":        "Aceptado, sin acción",
     /*
      *  The gclass viewer (C_YUI_GCLASS): a gclass by zones, and its
      *  machine as a matrix or a graph.

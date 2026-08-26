@@ -910,13 +910,24 @@ function build_machine(gobj, fsm)
             let items = [];
             if(cell.action) {
                 items.push(['span', {class: 'GCLASS_MX_ACTION'}, cell.action]);
-            } else {
+            } else if(cell.has_action) {
                 /*  The C side cannot name an action: `states2json()`
                  *  writes the literal "action" for all of them. A mark
                  *  is the honest drawing of "there is one".  */
                 items.push(['span', {class: 'GCLASS_MX_ACTION is-unnamed',
                                      title: t("action"),
                                      'data-i18n-title': 'action'}, "●"]);
+            } else {
+                /*  Declared with NO action and no next state --
+                 *  `{EV_TX_READY, 0, 0}`, four of them in C_WEBSOCKET.
+                 *  It is not the same as an empty cell (which throws)
+                 *  and it is not an action either: the event is legal
+                 *  here and deliberately does nothing. Drawing it as a
+                 *  mark claimed an action the gclass never declared.  */
+                items.push(['span', {class: 'GCLASS_MX_ACTION is-none-action',
+                                     title: t("accepted with no action"),
+                                     'data-i18n-title': 'accepted with no action'},
+                            "—"]);
             }
             if(cell.next_state) {
                 items.push(['span', {class: 'GCLASS_MX_ARROW'}, "▸"]);
@@ -1003,6 +1014,19 @@ function build_legend(fsm, current)
         ['i', {class: 'GCLASS_LEGEND_SWATCH is-none'}],
         ['span', {i18n: 'not declared in this state'}, t("not declared in this state")]
     ]]);
+
+    /*  Only if there is one on screen: a legend for a mark nobody drew
+     *  is noise, and most gclasses declare no actionless event.  */
+    let has_actionless = fsm.rows.some(
+        (row) => row.cells.some((cell) => cell && !cell.has_action)
+    );
+    if(has_actionless) {
+        items.push(['span', {class: 'GCLASS_LEGEND_ITEM'}, [
+            ['i', {class: 'GCLASS_LEGEND_SWATCH is-none-action'}, "—"],
+            ['span', {i18n: 'accepted with no action'},
+             t("accepted with no action")]
+        ]]);
+    }
 
     if(current && fsm.states.some((s) => s.name === current)) {
         items.push(['span', {class: 'GCLASS_LEGEND_ITEM'}, [

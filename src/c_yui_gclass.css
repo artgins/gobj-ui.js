@@ -506,3 +506,19 @@
     min-height: 16rem;
     max-height: 70vh;
 }
+
+/*
+ *  An event declared with no action at all: legal here, and it does
+ *  nothing. Quieter than an action and louder than an empty cell,
+ *  because it is neither.
+ */
+.C_YUI_GCLASS .GCLASS_MX_ACTION.is-none-action {
+    color: var(--gclass-muted);
+    cursor: help;
+}
+
+.C_YUI_GCLASS .GCLASS_LEGEND_SWATCH.is-none-action {
+    border-color: transparent;
+    color: var(--gclass-muted);
+    width: auto;
+}

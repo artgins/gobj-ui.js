@@ -1467,7 +1467,10 @@ for the other side:
 
 The last one is not a rename: `states2json()` cannot name an action, so a cell
 from a **backend** gclass says THAT there is one and never which. The viewer
-draws a mark rather than printing a name nobody wrote.
+draws a mark rather than printing a name nobody wrote — and an em dash for the
+third case, an event declared with NO action (`{EV_TX_READY, 0, 0}`, which
+C_WEBSOCKET has in all four states): legal in that state, and deliberately
+doing nothing.
 
 **The machine is a matrix**, rows = events and columns = states — the shape the
 FSM is declared in, and the one that survives 12 events against 3 states as
@@ -1507,7 +1510,11 @@ What it refuses to draw is the interesting half:
 - **One edge per PAIR of states**, not per transition, labelled with the events
   that make the jump (three, then a count). G6 draws overlapping edges on top
   of each other, so a second edge between the same two states is invisible and
-  nothing tells the reader it is there.
+  nothing tells the reader it is there. A RECIPROCAL pair (`A -> B` and
+  `B -> A`) is bowed apart into two arcs — with the SAME `curveOffset` on both,
+  because G6 measures it from each edge's own direction, and with the type
+  varied through a FUNCTION on `edge.type`, because a `type` written on the
+  datum is overridden by the graph-level default.
 - **An event a state handles without leaving is not an edge.** Ten self-loops
   on one card say nothing a number cannot say better, so the card carries
   `n events · m leave` instead.

@@ -215,6 +215,20 @@ describe("build_fsm", () => {
         expect(fsm.published[0].flags).toEqual(["EVF_OUTPUT_EVENT"]);
     });
 
+    it("tells a declared-but-actionless cell from an action", () => {
+        /*  `{EV_TX_READY, 0, 0}` -- four of them in C_WEBSOCKET: the
+         *  event is legal in that state and deliberately does nothing.  */
+        const none = build_fsm({
+            events: [{event_name: "EV_TX_READY", event_flag: ""}],
+            states: {"ST_IDLE": [
+                {event_name: "EV_TX_READY", action: "", next_state: ""},
+            ]},
+        });
+        expect(none.rows[0].cells[0]).toEqual({
+            action: "", has_action: false, next_state: "",
+        });
+    });
+
     it("says an action exists without inventing its name", () => {
         expect(fsm.rows[0].cells[1]).toEqual({
             action: "", has_action: true, next_state: "",

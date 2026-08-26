@@ -5,6 +5,43 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.37
+
+### Fixed
+
+- **An event declared with NO action was drawn as if it had one.** The C side
+    writes the literal `"action"` for every action it cannot name, and the
+    matrix drew a mark for anything that was not an empty string -- so
+    `{EV_TX_READY, 0, 0}`, which C_WEBSOCKET declares in all four of its
+    states, claimed an action the gclass never wrote. Three different things
+    now read as three: a named action, a mark for an action the backend cannot
+    name, and an em dash for an event that is legal in the state and
+    deliberately does nothing. The legend explains the dash only when the
+    machine on screen actually has one. New key: `accepted with no action`.
+
+- **A reciprocal pair of states drew one arrow on top of the other.** Grouping
+    by pair fixed the transitions that share an ordered pair; `A -> B` and
+    `B -> A` are different keys and landed on the same straight segment, so the
+    second arrow and its label were painted under the first. Real case:
+    C_WEBSOCKET goes to ST_WAIT_HANDSHAKE on `EV_CONNECTED` and comes back on
+    `EV_DISCONNECTED`, and only the return was readable.
+
+    Two G6 facts came out of fixing it, both by measurement:
+
+    - **A `type` written on an edge datum is overridden by the graph-level
+        `edge.type`.** Varying the type per element means giving `edge.type` a
+        FUNCTION of the datum; set on the datum alone it is silently ignored.
+    - **`curveOffset` is measured from the edge's OWN direction.** A
+        reciprocal pair runs in opposite directions, so EQUAL offsets bow the
+        two arcs to opposite sides of the screen and opposite offsets put them
+        on the same side, one over the other -- the exact inverse of what it
+        looks like it should do.
+
+    The label stays at the middle of its own arc, where the two are furthest
+    apart. Moving it along the curve instead pushed it under a state card:
+    G6's html nodes are DOM elements ABOVE the canvas, so anything the curve
+    draws under one is invisible.
+
 ## 7.23.36
 
 ### Added
