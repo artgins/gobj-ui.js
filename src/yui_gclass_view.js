@@ -6,9 +6,11 @@
  *          The framework had no such viewer. The C kernel answers
  *          `view-gclass` with a full description (attrs, commands,
  *          methods, FSM) and the only reader of it was a terminal.
- *          This one draws that same document with C_YUI_JSON, so the
- *          FSM of a gclass is a graph and its attrs table is a tree,
- *          and it takes the document from either side:
+ *          This one draws that same document with C_YUI_GCLASS, which
+ *          lays it out by zones -- attributes, commands, methods,
+ *          trace levels, and the machine as a matrix -- and keeps the
+ *          raw answer one button away. It takes the document from
+ *          either side:
  *
  *            - a gclass of the browser yuno  -> describe_local_gclass()
  *            - a gclass of a backend yuno    -> `opts.description`, the
@@ -39,23 +41,38 @@ import {
 } from "@yuneta/gobj-js";
 
 import {describe_local_gclass} from "./gclass_describe.js";
+import {register_c_yui_gclass} from "./c_yui_gclass.js";
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {yui_shell_of} from "./c_yui_shell.js";
 
 import {t} from "i18next";
 
 
+/*
+ *  The gclass that draws a gclass. It is registered on demand here
+ *  (see gclass_view_available), so a host offering the control does
+ *  not have to mount it.
+ */
+const VIEWER_GCLASS = "C_YUI_GCLASS";
+
+
 /************************************************************
  *  Can this app show a gclass at all?
  *
- *  The viewer is C_YUI_JSON, and an app registers only the
- *  gclasses it mounts. The caller asks this BEFORE drawing a
- *  button, so an app that does not carry the viewer shows no
- *  control instead of a control that fails.
+ *  Always: the viewer registers ITSELF here, so no app has to
+ *  remember to mount a gclass for a control it never asked
+ *  for. The predicate stays because every caller asks it
+ *  BEFORE drawing the button, and because registration can
+ *  still fail -- a gclass_create() that returns -1 leaves the
+ *  registry without it, and a button that opens nothing is
+ *  worse than no button.
  ************************************************************/
 function gclass_view_available()
 {
-    return !!gclass_find_by_name("C_YUI_JSON", false);
+    if(!gclass_find_by_name(VIEWER_GCLASS, false)) {
+        register_c_yui_gclass();
+    }
+    return !!gclass_find_by_name(VIEWER_GCLASS, false);
 }
 
 
@@ -65,6 +82,9 @@ function gclass_view_available()
  *  opts:
  *      description   the document to draw. Omitted, it is
  *                    built from the browser registry.
+ *      current_state the state the INSTANCE the reader came
+ *                    from is in, lit in the machine. Omitted,
+ *                    nothing is lit.
  *      title_prefix  what the window says before the gclass
  *                    name (the yuno it belongs to).
  *      on_close      called when the reader dismisses it.
@@ -84,7 +104,7 @@ function open_gclass_view(host, gclass_name, opts)
     let shell = yui_shell_of(host);
 
     if(!gclass_view_available()) {
-        log_error(`${gobj_short_name(host)}: C_YUI_JSON not registered by the app`);
+        log_error(`${gobj_short_name(host)}: cannot register ${VIEWER_GCLASS}`);
         yui_shell_show_error(shell, "gclass viewer unavailable", {t: t});
         return null;
     }
@@ -101,13 +121,20 @@ function open_gclass_view(host, gclass_name, opts)
 
     let jv = gobj_create_service(
         `gclass-view-${clean_name(gobj_name(host))}`,
-        "C_YUI_JSON",
+        VIEWER_GCLASS,
         {
-            /*  No `title`: the host titles it -- the window's title bar
-             *  on desktop, the dialog's header on mobile. The viewer's
-             *  own title would land INSIDE that host, doubling it.  */
-            json_data:  description,
-            subscriber: null,
+            /*  No title attr: the host titles it -- the window's title
+             *  bar on desktop, the dialog's header on mobile. The
+             *  viewer's own title would land INSIDE that host,
+             *  doubling it.  */
+            description:   description,
+            gclass_name:   gclass_name,
+            /*  Which state the INSTANCE the reader came from is in.
+             *  The description cannot carry it -- it describes the
+             *  CLASS -- and the caller is the only party that knows,
+             *  so an omitted one simply lights nothing.  */
+            current_state: opts.current_state || "",
+            subscriber:    null,
         },
         host
     );

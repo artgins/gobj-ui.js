@@ -743,10 +743,10 @@ function build_popover(gobj, $container)
 
     /*  What this gobj IS: its gclass, opened in the gclass viewer.
      *
-     *  Built only where the app registers C_YUI_JSON -- the viewer
-     *  the window hosts. An app that does not carry it gets no
-     *  button rather than a button that fails, and the reason is
-     *  logged once, at build time.  */
+     *  The viewer registers itself, so this is offered everywhere --
+     *  but it is still asked, because a registration that failed
+     *  must not leave a button that opens nothing, and the reason is
+     *  then logged once, at build time.  */
     if(gclass_view_available()) {
         let $gclass = document.createElement("button");
         $gclass.type = "button";
@@ -772,8 +772,8 @@ function build_popover(gobj, $container)
         priv.$popover_gclass = $gclass;
     } else {
         log_warning(
-            `${gobj_short_name(gobj)}: no C_YUI_JSON registered, ` +
-            `the gclass viewer is not offered`
+            `${gobj_short_name(gobj)}: no gclass viewer registered, ` +
+            `the control is not offered`
         );
     }
 
@@ -2603,6 +2603,11 @@ function ac_open_gclass(gobj, event, kw, src)
 
     priv.gclass_view = open_gclass_view(gobj, node_data.gclass, {
         title_prefix: gobj_yuno_name() || "",
+        /*  Which state THIS gobj is in. The description describes the
+         *  CLASS and cannot carry it, and the tree is the only party
+         *  that knows -- so the machine lights the column the reader
+         *  is actually standing in.  */
+        current_state: node_data.state || "",
         on_close: () => {
             if(gobj_is_destroying(gobj)) {
                 return;
@@ -2625,25 +2630,6 @@ function ac_gclass_closed(gobj, event, kw, src)
 {
     gobj.priv.gclass_view = null;
     return 0;
-}
-
-/************************************************************
- *  The gclass viewer asked for a subtree.
- *
- *  It cannot: the gclass description is a COMPLETE document,
- *  it carries no `__collapsed__` stub, so nothing in it is
- *  fetchable. The event is declared because the viewer is
- *  hosted as a child and subscribes its host to everything it
- *  publishes -- and it is logged, because arriving here means
- *  the document was not the one we built.
- ************************************************************/
-function ac_gclass_expand_path(gobj, event, kw, src)
-{
-    log_error(
-        `${gobj_short_name(gobj)}: EV_EXPAND_PATH on a complete document: ` +
-        `${kw && kw.path}`
-    );
-    return -1;
 }
 
 /************************************************************
@@ -2716,7 +2702,6 @@ function create_gclass(gclass_name)
             ["EV_HIDE",                 ac_hide,                null],
             ["EV_OPEN_GCLASS",          ac_open_gclass,         null],
             ["EV_GCLASS_CLOSED",        ac_gclass_closed,       null],
-            ["EV_EXPAND_PATH",          ac_gclass_expand_path,  null],
             ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null],
         ]]
     ];
@@ -2743,7 +2728,6 @@ function create_gclass(gclass_name)
         ["EV_HIDE",                 0],
         ["EV_OPEN_GCLASS",          0],
         ["EV_GCLASS_CLOSED",        0],
-        ["EV_EXPAND_PATH",          0],
         ["EV_LANGUAGE_CHANGED",     0],
     ];
 

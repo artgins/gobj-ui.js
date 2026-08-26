@@ -1416,10 +1416,10 @@ let handle = open_gclass_view(host, "C_TIMER", {title_prefix: yuno_name, on_clos
 close_gclass_view(handle);
 ```
 
-What a GClass IS — its attrs, its commands, the methods it implements, its FSM
-— in a `C_YUI_JSON` window, so the FSM is a graph and the attrs table is a
-tree. The framework had no such viewer: the C kernel answers `view-gclass`
-with exactly this document and the only thing that ever read it was a terminal.
+What a GClass IS — its attrs, its commands, the methods it implements, its
+trace levels, its FSM — in a `C_YUI_GCLASS` window, laid out by **zones**.
+The framework had no such viewer: the C kernel answers `view-gclass` with
+exactly this document and the only thing that ever read it was a terminal.
 
 `gclass_describe.js` builds it for a gclass of the **browser** yuno from the
 gobj-js registry, in the shape `gclass2json()` answers (`id`, `gcflag`,
@@ -1428,12 +1428,63 @@ gobj-js registry, in the shape `gclass2json()` answers (`id`, `gcflag`,
 gclass of a **backend** yuno the host passes the answer of `view-gclass` as
 `opts.description` and the same window draws it.
 
-`gclass_view_available()` reports whether the app registers `C_YUI_JSON` — the
-gobj tree asks it before drawing its `gclass` button, so an app that does not
-carry the viewer shows no control rather than one that fails. **Importing
-`c_yui_json.js` is not registering it**: an app that only pulls it in
-transitively (through the treedb graph, say) still has to call
-`register_c_yui_json()` for the button to appear.
+`opts.current_state` is the state the INSTANCE the reader came from is in. The
+description describes the CLASS and cannot carry it, so the host supplies it —
+the gobj tree passes `node_data.state` — and the machine lights that column.
+Omitted, nothing is lit.
+
+`gclass_view_available()` registers `C_YUI_GCLASS` on demand and reports
+whether it is there, so no app has to mount a gclass for a control it never
+asked for. The gobj tree still asks before drawing its `gclass` button: a
+registration that failed must not leave a button that opens nothing.
+
+### C_YUI_GCLASS — a gclass by zones
+
+```js
+import {register_c_yui_gclass} from "@yuneta/gobj-ui/src/c_yui_gclass.js";
+```
+
+Attrs: `description` (the document), `gclass_name` (heads the view when the
+document carries no `id`), `current_state`, `view_mode` (`"zones"` | `"raw"`),
+`$container`. Events in: `EV_SET_DESCRIPTION {description, current_state}`,
+`EV_SET_VIEW_MODE {mode}`, `EV_TOGGLE_ZONE {zone}`, `EV_SEARCH {text}`,
+`EV_COPY_ALL`, `EV_LANGUAGE_CHANGED`, `EV_REFRESH`, `EV_SHOW`, `EV_HIDE`. It
+publishes nothing, so hosting it adds no declaration to a host's FSM.
+
+`gclass_view_model.js` is where the document becomes the view, and it reads
+**both dialects of it**. The C kernel and the browser registry answer the same
+document in different words, and a viewer that knew only one drew half a page
+for the other side:
+
+| key | C kernel | browser |
+|---|---|---|
+| `flag` | `"SDF_RD\|SDF_PERSIST"` | `["SDF_RD", …]` |
+| `type` | `"string"` | `"DTP_STRING"` |
+| command name | `command` | `id` |
+| parameter name | `parameter` | `id` |
+| trace levels | `info_gclass_trace` (dict) | `trace_levels` (array) |
+| action | the literal `"action"` | the function's name |
+
+The last one is not a rename: `states2json()` cannot name an action, so a cell
+from a **backend** gclass says THAT there is one and never which. The viewer
+draws a mark rather than printing a name nobody wrote.
+
+**The machine is a matrix**, rows = events and columns = states — the shape the
+FSM is declared in, and the one that survives 12 events against 3 states as
+well as 86 commands against one. Two things it says that a JSON dump cannot:
+
+- **An empty cell is information.** An event with no action in a state is not
+  ignored, it is refused with *"Event NOT DEFINED in state"*, so the empty
+  cells are the map of what breaks. They are hatched, never blank.
+- **A state nothing declares a way INTO is marked.** An action may jump with
+  `gobj_change_state()` — `C_IEVENT_CLI` reaches `ST_SESSION` that way — and no
+  description can see inside an action. Marking it is the alternative to
+  drawing the working half of a gclass as unreachable.
+
+Events declared but handled in no state are OUTPUT events: they leave the
+matrix (one empty row per column says nothing) and are listed under
+*publishes*. The `raw` view keeps the description verbatim — it is the
+authoritative answer of the backend and is never thrown away.
 
 > **Mount before you start a hosted view.** `mt_create` builds the DOM;
 > `mt_start` renders it, and a view that measures a canvas or observes its box

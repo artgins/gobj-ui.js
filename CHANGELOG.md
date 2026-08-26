@@ -5,6 +5,63 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.36
+
+### Added
+
+- **The gclass viewer draws a gclass instead of a JSON tree** (`C_YUI_GCLASS`,
+    `gclass_view_model.js`). `view-gclass` answers a complete description —
+    attrs, commands, methods, trace levels, FSM — and until now the only thing
+    that drew it was `C_YUI_JSON`: correct, and unreadable. The one question a
+    reader arrives with ("what does this gclass DO in the state it is in?")
+    took four expansions to reach. The same document is now laid out by zones,
+    with `raw` one button away, because the backend's own answer is the
+    authoritative one and is never thrown away.
+
+    **The machine is a matrix**, rows = events and columns = states — the shape
+    the FSM is declared in, and the one that survives 12 events against 3
+    states (`C_IEVENT_CLI`) as well as 86 commands against one state
+    (`c_agent`). Two things it says that a JSON dump cannot:
+
+    - **An empty cell is information.** An event with no action in a state is
+        not ignored in Yuneta, it is refused with *"Event NOT DEFINED in
+        state"* — so the empty cells are the map of what breaks. They are
+        hatched, never blank.
+    - **A state nothing declares a way INTO is marked.** An action may jump
+        with `gobj_change_state()`, and `C_IEVENT_CLI` does exactly that:
+        `ac_identity_card_ack` declares `next_state = 0` and enters
+        `ST_SESSION` from inside the action. No description can see inside an
+        action, so a graph or matrix built from the declaration alone draws
+        the working half of that gclass as unreachable. Marking the state is
+        the honest alternative.
+
+    `opts.current_state` lights the column the reader's own gobj is standing
+    in. The description describes the CLASS and cannot carry it — the gobj
+    tree passes `node_data.state`, and the viewer stops answering "what is
+    this gclass" and starts answering "where is this gobj inside it".
+
+- **`gclass_view_model.js` reads both dialects of the description.** The C
+    kernel and the browser registry answer the same document in different
+    words — `flag` as `"SDF_RD|SDF_PERSIST"` against `["SDF_RD", …]`, `type` as
+    `"string"` against `"DTP_STRING"`, `command`/`parameter` against `id`,
+    `info_gclass_trace` against `trace_levels` — and the last difference is not
+    a rename: `states2json()` writes the literal string `"action"` for every
+    action it cannot name, so a cell from a backend gclass says THAT there is
+    an action and never which. The viewer draws a mark instead of printing a
+    name nobody wrote. A nameless `SDATACM` row is a section HEADING (every
+    large C command table uses them) and is drawn as one.
+
+### Changed
+
+- **`gclass_view_available()` registers the viewer on demand**, so an app no
+    longer has to mount a gclass for a control it never asked for. It still
+    answers a boolean, and the gobj tree still asks: a registration that
+    failed must not leave a button that opens nothing.
+
+- **`C_YUI_GOBJ_TREE_JS` no longer declares `EV_EXPAND_PATH`.** It was there
+    because the JSON viewer it hosted published it; the gclass viewer publishes
+    nothing at all, so hosting it adds no declaration to any host's FSM.
+
 ## 7.23.35
 
 ### Fixed

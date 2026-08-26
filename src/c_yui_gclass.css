@@ -1,0 +1,482 @@
+/***********************************************************************
+ *          c_yui_gclass.css
+ *
+ *      Styling for C_YUI_GCLASS (the gclass viewer, by zones).
+ *      Monospace identifiers, one accent per zone, dark-aware.
+ *      No transitions/animations by design (lib-yui convention).
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+/*
+ *  One accent per zone, so a reader who has seen this view twice knows
+ *  which zone they are in before reading its heading.  The values are
+ *  the ones the doc site's interactive pages use, which were already
+ *  picked to stay legible on both grounds.
+ */
+.C_YUI_GCLASS {
+    --gclass-attrs: #2D4EC8;
+    --gclass-cmds: #0E6F63;
+    --gclass-fsm: #6B4FA8;
+    --gclass-live: #9A5B00;
+    --gclass-live-bg: rgba(154, 91, 0, .11);
+    --gclass-warn: #A3282F;
+    --gclass-rule: var(--bulma-border-weak, #e6e6e6);
+    --gclass-hair: var(--bulma-border-weak, #ededed);
+    --gclass-muted: var(--bulma-text-weak, #6a6a6a);
+    --gclass-chip-bg: rgba(0, 0, 0, .05);
+    --gclass-none: rgba(0, 0, 0, .10);
+    --gclass-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas,
+                   "Liberation Mono", monospace;
+}
+
+:root[data-theme="dark"] .C_YUI_GCLASS,
+.C_YUI_GCLASS[data-theme="dark"] {
+    --gclass-attrs: #7C93F5;
+    --gclass-cmds: #46C4B2;
+    --gclass-fsm: #B49AE8;
+    --gclass-live: #D9A23F;
+    --gclass-live-bg: rgba(217, 162, 63, .14);
+    --gclass-warn: #E9737A;
+    --gclass-chip-bg: rgba(255, 255, 255, .07);
+    --gclass-none: rgba(255, 255, 255, .12);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .C_YUI_GCLASS {
+        --gclass-attrs: #7C93F5;
+        --gclass-cmds: #46C4B2;
+        --gclass-fsm: #B49AE8;
+        --gclass-live: #D9A23F;
+        --gclass-live-bg: rgba(217, 162, 63, .14);
+        --gclass-warn: #E9737A;
+        --gclass-chip-bg: rgba(255, 255, 255, .07);
+        --gclass-none: rgba(255, 255, 255, .12);
+    }
+}
+
+.C_YUI_GCLASS .GCLASS_TOOLBAR {
+    border-bottom: 1px solid var(--gclass-rule);
+}
+
+/*
+ *  Same floor the JSON viewer gives its search box, for the same
+ *  reason: a box that shrinks to the magnifier fits, and cannot be
+ *  read or corrected.
+ */
+.C_YUI_GCLASS .GCLASS_SEARCH_CONTROL {
+    flex: 1 1 auto;
+    min-width: 9rem;
+}
+
+.C_YUI_GCLASS .GCLASS_BODY {
+    padding: .75rem;
+}
+
+/*
+ *  The header: the name, and the two numbers a reader asks for before
+ *  anything else.
+ */
+.C_YUI_GCLASS .GCLASS_HEAD {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .35rem .6rem;
+    padding-bottom: .6rem;
+    margin-bottom: .8rem;
+    border-bottom: 1px solid var(--gclass-rule);
+}
+
+.C_YUI_GCLASS .GCLASS_NAME {
+    font-family: var(--gclass-mono);
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.C_YUI_GCLASS .GCLASS_INSTANCES {
+    display: inline-flex;
+    gap: .3rem;
+    font-family: var(--gclass-mono);
+    font-size: .72rem;
+}
+
+/*  Specificity on purpose: .GCLASS_CHIP is declared further down and
+ *  would repaint this one grey at equal weight.  */
+.C_YUI_GCLASS .GCLASS_HEAD .GCLASS_CURRENT {
+    color: var(--gclass-live);
+    background: var(--gclass-live-bg);
+}
+
+/*
+ *  Two columns while there is room for two: the machine grows sideways
+ *  and everything else grows downwards, so they are the two that must
+ *  not share a column.  Below the breakpoint they stack, which is also
+ *  the order they are written in.
+ */
+.C_YUI_GCLASS .GCLASS_COLS {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.2rem;
+}
+
+@media (min-width: 900px) {
+    .C_YUI_GCLASS .GCLASS_COLS {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    }
+}
+
+.C_YUI_GCLASS .GCLASS_COL {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    min-width: 0;
+}
+
+/*
+ *  A flex item's `min-width` is AUTO, which means "as wide as my
+ *  content" -- so without this the widest table pushes its zone, its
+ *  column and the whole viewer past the edge of a phone, and the page
+ *  itself scrolls sideways however many scrollers are nested inside.
+ */
+.C_YUI_GCLASS .GCLASS_ZONE {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.C_YUI_GCLASS .GCLASS_ZONE_BODY {
+    min-width: 0;
+    max-width: 100%;
+}
+
+/*
+ *  A zone heading is a button: folding a zone is an action, and it goes
+ *  through the machine like every other one.
+ */
+.C_YUI_GCLASS .GCLASS_ZONE_TOGGLE {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    width: 100%;
+    padding: 0 0 .35rem 0;
+    margin-bottom: .5rem;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--gclass-rule);
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.C_YUI_GCLASS .GCLASS_ZONE_TOGGLE:focus-visible {
+    outline: 2px solid var(--bulma-link, #3273dc);
+    outline-offset: 2px;
+}
+
+.C_YUI_GCLASS .GCLASS_ZONE_COUNT {
+    margin-left: auto;
+    font-family: var(--gclass-mono);
+    font-weight: 400;
+    letter-spacing: normal;
+    color: var(--gclass-muted);
+}
+
+.C_YUI_GCLASS .GCLASS_ZONE_ARROW .yi-chevron-right,
+.C_YUI_GCLASS .GCLASS_ZONE_ARROW .yi-chevron-down {
+    width: .8em;
+    height: .8em;
+}
+
+.C_YUI_GCLASS .GCLASS_ZONE_ATTRS .GCLASS_ZONE_TITLE { color: var(--gclass-attrs); }
+.C_YUI_GCLASS .GCLASS_ZONE_COMMANDS .GCLASS_ZONE_TITLE { color: var(--gclass-cmds); }
+.C_YUI_GCLASS .GCLASS_ZONE_MACHINE .GCLASS_ZONE_TITLE { color: var(--gclass-fsm); }
+
+.C_YUI_GCLASS .GCLASS_ZONE_EMPTY {
+    padding: .45rem .6rem;
+    border: 1px dashed var(--gclass-rule);
+    border-radius: 2px;
+    color: var(--gclass-muted);
+    font-size: .8rem;
+}
+
+.C_YUI_GCLASS .GCLASS_SUBTITLE {
+    margin: .8rem 0 .4rem;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gclass-muted);
+}
+
+/*
+ *  Tables.  Identifiers are monospace everywhere -- they are compared
+ *  by eye against a source file, and a proportional font breaks that.
+ */
+.C_YUI_GCLASS .GCLASS_TABLE {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--gclass-mono);
+    font-size: .76rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.C_YUI_GCLASS .GCLASS_TABLE th {
+    text-align: left;
+    padding: 0 .5rem .3rem 0;
+    border-bottom: 1px solid var(--gclass-rule);
+    font-family: inherit;
+    font-size: .64rem;
+    font-weight: 500;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--gclass-muted);
+    white-space: nowrap;
+}
+
+.C_YUI_GCLASS .GCLASS_TABLE td {
+    padding: .22rem .5rem .22rem 0;
+    border-bottom: 1px solid var(--gclass-hair);
+    vertical-align: top;
+}
+
+.C_YUI_GCLASS .GCLASS_TABLE tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.C_YUI_GCLASS .GCLASS_CELL_KEY {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.C_YUI_GCLASS .GCLASS_CELL_TYPE,
+.C_YUI_GCLASS .GCLASS_CELL_DEFAULT,
+.C_YUI_GCLASS .GCLASS_CELL_DESC {
+    color: var(--gclass-muted);
+}
+
+.C_YUI_GCLASS .GCLASS_CELL_TYPE { white-space: nowrap; }
+
+.C_YUI_GCLASS .GCLASS_CMD_SECTION td {
+    padding-top: .7rem;
+    font-size: .64rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gclass-cmds);
+    border-bottom: 0;
+}
+
+.C_YUI_GCLASS .GCLASS_CMD_PARAM .GCLASS_CELL_KEY {
+    padding-left: .9rem;
+    font-weight: 400;
+}
+
+.C_YUI_GCLASS .GCLASS_PARAM_MARK,
+.C_YUI_GCLASS .GCLASS_PARAM_TYPE {
+    color: var(--gclass-muted);
+}
+
+.C_YUI_GCLASS .GCLASS_PARAM_NAME {
+    color: var(--gclass-cmds);
+    margin: 0 .35rem;
+}
+
+/*
+ *  Chips.  A flag that changes what the reader may DO with the thing
+ *  gets a colour; the rest stay quiet, or the row turns into a
+ *  fairground.
+ */
+.C_YUI_GCLASS .GCLASS_CHIP {
+    display: inline-block;
+    padding: 0 .35rem;
+    border-radius: 2px;
+    background: var(--gclass-chip-bg);
+    color: var(--gclass-muted);
+    font-size: .64rem;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+.C_YUI_GCLASS .GCLASS_CHIP + .GCLASS_CHIP { margin-left: .2rem; }
+
+.C_YUI_GCLASS .GCLASS_FLAG.is-persist { color: var(--gclass-live); }
+.C_YUI_GCLASS .GCLASS_FLAG.is-writable { color: var(--gclass-attrs); }
+.C_YUI_GCLASS .GCLASS_FLAG.is-authz,
+.C_YUI_GCLASS .GCLASS_FLAG.is-required { color: var(--gclass-warn); }
+.C_YUI_GCLASS .GCLASS_EVFLAG.is-output { color: var(--gclass-cmds); }
+.C_YUI_GCLASS .GCLASS_ALIAS { color: var(--gclass-cmds); }
+
+.C_YUI_GCLASS .GCLASS_CHIPS {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+}
+
+.C_YUI_GCLASS .GCLASS_CHIPS .GCLASS_CHIP + .GCLASS_CHIP { margin-left: 0; }
+
+.C_YUI_GCLASS .GCLASS_METHOD {
+    font-family: var(--gclass-mono);
+    color: var(--bulma-text-strong, #363636);
+}
+
+/*
+ *  Every table scrolls INSIDE its own box -- the viewer's body must
+ *  never scroll sideways, whether it is a matrix with eight states or
+ *  an attrs table with a long description on a phone.
+ */
+.C_YUI_GCLASS .GCLASS_SCROLL {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.C_YUI_GCLASS .GCLASS_MATRIX {
+    width: auto;
+    min-width: 100%;
+}
+
+/*  A description may wrap; an identifier may not.  Without this the
+ *  attrs table is as wide as its longest sentence.  */
+.C_YUI_GCLASS .GCLASS_TABLE_ATTRS,
+.C_YUI_GCLASS .GCLASS_TABLE_COMMANDS,
+.C_YUI_GCLASS .GCLASS_TABLE_TRACES {
+    min-width: 22rem;
+}
+
+.C_YUI_GCLASS .GCLASS_CELL_DESC {
+    min-width: 10rem;
+}
+
+.C_YUI_GCLASS .GCLASS_MATRIX th,
+.C_YUI_GCLASS .GCLASS_MATRIX td {
+    border: 1px solid var(--gclass-hair);
+    padding: .22rem .45rem;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.C_YUI_GCLASS .GCLASS_MX_STATE {
+    background: var(--gclass-chip-bg);
+    color: var(--bulma-text-strong, #363636);
+    font-size: .68rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.C_YUI_GCLASS .GCLASS_MX_STATE.is-current {
+    background: var(--gclass-live-bg);
+    color: var(--gclass-live);
+    border-color: var(--gclass-live);
+}
+
+.C_YUI_GCLASS .GCLASS_MX_MARK {
+    margin-left: .3rem;
+    color: var(--gclass-warn);
+    cursor: help;
+}
+
+/*
+ *  The event column stays put while the states scroll past it.
+ *
+ *  Without this the matrix is unreadable the moment it scrolls: the
+ *  cells say `● ▸ ST_DISCONNECTED` and nothing on screen says which
+ *  EVENT does that.  It needs an opaque background of its own -- a
+ *  sticky cell is painted over by whatever slides under it.
+ */
+.C_YUI_GCLASS .GCLASS_MX_EVENT,
+.C_YUI_GCLASS .GCLASS_MX_CORNER {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bulma-scheme-main, #fff);
+}
+
+.C_YUI_GCLASS .GCLASS_MX_EVENT {
+    font-weight: 500;
+}
+
+.C_YUI_GCLASS .GCLASS_MX_ACTION { color: var(--gclass-fsm); }
+.C_YUI_GCLASS .GCLASS_MX_ACTION.is-unnamed { cursor: help; }
+.C_YUI_GCLASS .GCLASS_MX_ARROW,
+.C_YUI_GCLASS .GCLASS_MX_NEXT { color: var(--gclass-muted); }
+.C_YUI_GCLASS .GCLASS_MX_ARROW { padding: 0 .15rem; }
+
+.C_YUI_GCLASS .GCLASS_MX_CELL.is-current { background: var(--gclass-live-bg); }
+
+/*
+ *  An empty cell is INFORMATION: that event, in that state, is refused
+ *  with "Event NOT DEFINED in state".  Hatching says so; blank would
+ *  read as "nothing to see here", which is the opposite.
+ */
+.C_YUI_GCLASS .GCLASS_MX_CELL.is-none {
+    color: var(--gclass-none);
+    text-align: center;
+    cursor: help;
+    background-image: repeating-linear-gradient(
+        135deg, transparent, transparent 5px,
+        var(--gclass-none) 5px, var(--gclass-none) 6px);
+}
+
+.C_YUI_GCLASS .GCLASS_LEGEND {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem 1.1rem;
+    margin-top: .6rem;
+    font-size: .7rem;
+    color: var(--gclass-muted);
+}
+
+.C_YUI_GCLASS .GCLASS_LEGEND_ITEM {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.C_YUI_GCLASS .GCLASS_LEGEND_SWATCH {
+    display: inline-block;
+    width: 1.4em;
+    height: .85em;
+    border: 1px solid var(--gclass-hair);
+    border-radius: 2px;
+    font-style: normal;
+    font-size: .7em;
+    line-height: 1;
+    text-align: center;
+}
+
+.C_YUI_GCLASS .GCLASS_LEGEND_SWATCH.is-none {
+    background-image: repeating-linear-gradient(
+        135deg, transparent, transparent 5px,
+        var(--gclass-none) 5px, var(--gclass-none) 6px);
+}
+
+.C_YUI_GCLASS .GCLASS_LEGEND_SWATCH.is-current {
+    background: var(--gclass-live-bg);
+    border-color: var(--gclass-live);
+}
+
+.C_YUI_GCLASS .GCLASS_LEGEND_SWATCH.is-unreachable {
+    border-color: transparent;
+    color: var(--gclass-warn);
+    width: auto;
+}
+
+.C_YUI_GCLASS .GCLASS_PUB_EVENT { color: var(--gclass-cmds); }
+
+/*
+ *  The raw view: the description as the backend answered it.
+ */
+.C_YUI_GCLASS .GCLASS_RAW_BODY {
+    margin: 0;
+    padding: .75rem;
+    background: none;
+    font-family: var(--gclass-mono);
+    font-size: .76rem;
+    line-height: 1.45;
+    white-space: pre;
+    tab-size: 4;
+}
