@@ -20,6 +20,31 @@ const STATE_CHANGE =
 const NOT_DEFINED =
     "📛 mach(C_X^x), st: ST_IDLE, ev: EV_TIMEOUT, 📛📛ERROR Event NOT DEFINED in state📛📛, from(C_TIMER^t)";
 
+/*  The other four shapes the SIMPLER format emits (gobj-js 7.13.7 gave them
+ *  their format-1 branch; before that they leaked `mach(…)` into it).  */
+const SIMPLE_PUBLISH = "🔝🔝 EV_STATE_CHANGED C_PROT_MQTT^input-2 ST_WAIT_FRAME_HEADER";
+const SIMPLE_FORWARD = "🔝🔄 EV_TX_READY (EV_TX_READY) C_PROT_TCP4H^output-0";
+const SIMPLE_INJECT  = "🔜 EV_ON_MESSAGE C_GATE^gate ST_IDLE";
+const SIMPLE_NESTED  = "        🔄 EV_ON_MESSAGE C_IOGATE^output-iogate-0 ST_IDLE from C_CHANNEL^output-0";
+
+describe("the simpler format's other shapes", () => {
+    it("reads the event out of a publish, a forward and an injection", () => {
+        expect(machine_event_of(SIMPLE_PUBLISH)).toBe("EV_STATE_CHANGED");
+        expect(machine_event_of(SIMPLE_FORWARD)).toBe("EV_TX_READY");
+        expect(machine_event_of(SIMPLE_INJECT)).toBe("EV_ON_MESSAGE");
+    });
+
+    it("the leading INDENTATION does not hide the event", () => {
+        expect(machine_event_of(SIMPLE_NESTED)).toBe("EV_ON_MESSAGE");
+        expect(log_is_periodic("debug", SIMPLE_NESTED)).toBe(false);
+    });
+
+    it("a periodic one is still recognised in every shape", () => {
+        expect(log_is_periodic("debug", "🔝🔝 EV_TIMEOUT C_TIMER^t ST_IDLE")).toBe(true);
+        expect(log_is_periodic("debug", "  🔜 EV_TIMEOUT_PERIODIC C_YUNO^y ST_IDLE")).toBe(true);
+    });
+});
+
 describe("machine_event_of", () => {
     it("reads the event out of the verbose format, both lines of it", () => {
         expect(machine_event_of(VERBOSE_IN)).toBe("EV_TIMEOUT");

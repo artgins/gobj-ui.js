@@ -199,9 +199,19 @@ const HIDE_PERIODIC_DEFAULT = 1;
  *  is born showing the wrong state and its first click does nothing. */
 const SIMPLE_MACH_DEFAULT = 1;
 
+/*  A NEW key, deliberately.
+ *
+ *  The default moved from 0 to 1 in 7.23.34, and a stored preference beats a
+ *  default: every browser that had ever clicked the old `Simple mach` chip
+ *  carried an explicit 0 and went on reading the legacy shape, so the change
+ *  reached nobody who had used the window before. A default that cannot reach
+ *  an existing browser is not a default. The old key is left where it is and
+ *  simply stops being read. */
+const SIMPLE_MACH_KEY = "dev_mach_simple";
+
 function dev_simple_mach()
 {
-    return dev_num("dev_automata_simple", SIMPLE_MACH_DEFAULT) ? 1 : 0;
+    return dev_num(SIMPLE_MACH_KEY, SIMPLE_MACH_DEFAULT) ? 1 : 0;
 }
 
 function dev_hide_periodic()
@@ -1468,7 +1478,7 @@ function build_control_bar()
         click: (ev) => {
             ev.stopPropagation();
             let v = dev_simple_mach() ? 0 : 1;
-            kw_set_local_storage_value('dev_automata_simple', v);
+            kw_set_local_storage_value(SIMPLE_MACH_KEY, v);
             gobj_set_trace_machine_format(v);
             refresh_dev_chrome();
         }

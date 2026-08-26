@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.35
+
+### Fixed
+
+- **The simpler trace shape never reached a browser that had used the window
+    before.** 7.23.34 moved the default from the legacy shape to the simpler
+    one, and a STORED preference beats a default: every browser that had ever
+    clicked the old `Simple mach` chip carried an explicit `0` and went on
+    reading `mach(…), st: …, ev: …`, so the change reached only fresh
+    profiles. A default that cannot reach an existing browser is not a
+    default. The preference moved to a new key (`dev_mach_simple`); the old
+    one is left where it is and simply stops being read.
+
+    Needs **gobj-js >= 7.13.8** with it, which fixes the other half: four of
+    the six machine-trace sites had no simpler shape at all, so even with the
+    format set the state change, the injection, the publish and the subscriber
+    forward still wrote the legacy line. Measured after both: 0 `mach(` lines
+    left in the simpler trace, and the shape is the C kernel's, line for line.
+
 ## 7.23.34
 
 ### Fixed
