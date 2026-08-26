@@ -26,21 +26,32 @@ import {
     kw_set_local_storage_value,
     gobj_write_str_attr,
     gobj_read_str_attr,
-    gobj_publish_event,
     gobj_yuno,
-    gobj_gclass_name,
+    gobj_yuno_name,
     gobj_short_name,
-    gobj_full_name,
-    gobj_current_state,
-    gobj_is_running,
-    gobj_is_playing,
-    gobj_is_service,
-    gobj_is_pure_child,
-    gobj_is_volatil,
+    gobj_is_destroying,
+    gobj_unsubscribe_event,
     createElement2,
     escapeHtml,
+    log_warning,
     refresh_language,
 } from "@yuneta/gobj-js";
+
+import {
+    describe_js_gobj,
+    node_badge_keys,
+    node_info_rows,
+    node_labels,
+    node_role,
+    node_status,
+    node_status_key,
+} from "./gobj_tree_model.js";
+import {
+    close_gclass_view,
+    gclass_view_available,
+    open_gclass_view,
+} from "./yui_gclass_view.js";
+import {yui_shell_of} from "./c_yui_shell.js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
 import {
@@ -249,6 +260,9 @@ let PRIVATE_DATA = {
     $popover: null,
     $popover_title: null,
     $popover_body: null,
+    $popover_gclass: null,  // the "gclass" button, or null when unavailable
+    popover_node: null,     // the descriptor the popover is showing
+    gclass_view: null,      // handle of the open gclass window (or null)
     node_by_id: null,       // map of node_id -> node_data (for popover)
     collapse_state: null,   // map of full_name -> "collapsed" | "expanded"
     resize_observer: null,  // ResizeObserver on the canvas mount element
@@ -274,20 +288,46 @@ let __gclass__ = null;
 let __layout_registered__ = false;
 
 /***************************************************************
- *  Node colors by role
+ *  Node colours by role.
+ *
+ *  Saturated hues, one family apart from the next, and the same
+ *  five everywhere the reader meets a gobj. `stroke` draws the
+ *  border and the edge; `accent` is the brighter sibling used
+ *  for the bar down the left of the card and the toggle badge,
+ *  so a card carries its colour twice at two intensities and is
+ *  readable at the zoom where the text is not.
  ***************************************************************/
 const ROLE_COLORS = {
-    yuno:    {fill: "#E0F2FE", stroke: "#075985"}, // blue
-    service: {fill: "#DCFCE7", stroke: "#166534"}, // green
-    pure:    {fill: "#FEF9C3", stroke: "#854D0E"}, // yellow
-    volatil: {fill: "#FCE7F3", stroke: "#9D174D"}, // pink
-    default: {fill: "#F3F4F6", stroke: "#374151"}, // gray
+    yuno:    {stroke: "#0284c7", accent: "#38bdf8"},    // sky
+    service: {stroke: "#059669", accent: "#34d399"},    // emerald
+    pure:    {stroke: "#d97706", accent: "#fbbf24"},    // amber
+    volatil: {stroke: "#db2777", accent: "#f472b6"},    // pink
+    child:   {stroke: "#7c3aed", accent: "#a78bfa"},    // violet
 };
 
-const STATE_COLORS = {
-    running_playing: "#15803D",    // green
-    running:         "#B45309",    // amber
-    stopped:         "#B91C1C",    // red
+/***************************************************************
+ *  Status colours: what the gobj is DOING.
+ *
+ *  A pill and not a word: three states of one gobj are told
+ *  apart across a whole tree by colour long before anybody
+ *  reads them, and the dot alone never said which was which.
+ *  `disabled` is a fourth entry and not a status -- a disabled
+ *  gobj is still stopped or running -- but it takes the pill,
+ *  because it is the fact that explains the other one.
+ ***************************************************************/
+const STATUS_COLORS = {
+    light: {
+        playing:  {fg: "#065f46", bg: "#a7f3d0", dot: "#10b981"},
+        running:  {fg: "#92400e", bg: "#fde68a", dot: "#f59e0b"},
+        stopped:  {fg: "#991b1b", bg: "#fecaca", dot: "#ef4444"},
+        disabled: {fg: "#334155", bg: "#e2e8f0", dot: "#94a3b8"},
+    },
+    dark: {
+        playing:  {fg: "#6ee7b7", bg: "rgba(16,185,129,0.28)",  dot: "#34d399"},
+        running:  {fg: "#fcd34d", bg: "rgba(245,158,11,0.28)",  dot: "#fbbf24"},
+        stopped:  {fg: "#fca5a5", bg: "rgba(239,68,68,0.28)",   dot: "#f87171"},
+        disabled: {fg: "#cbd5e1", bg: "rgba(148,163,184,0.28)", dot: "#94a3b8"},
+    },
 };
 
 /***************************************************************
@@ -297,9 +337,9 @@ const STATE_COLORS = {
  ***************************************************************/
 const NODE_SIZES = {
     full: {
-        yuno:    {w: 240, h: 72},
-        service: {w: 210, h: 68},
-        child:   {w: 160, h: 60},
+        yuno:    {w: 260, h: 96},
+        service: {w: 232, h: 92},
+        child:   {w: 196, h: 86},
     },
     compact: {
         yuno:    {w: 210, h: 30},
@@ -316,45 +356,64 @@ const GT_FONT =
     "Helvetica, Arial, sans-serif";
 
 /***************************************************************
- *  Soft, theme-aware card palette derived from the role colour
- *  (same visual language as the treedb graph cards): light tint
- *  fill + role-colour border, brightened on dark.
+ *  Theme-aware card palette derived from the role colour.
+ *
+ *  Brighter than a tint: at 9% of the role colour every card
+ *  was the same near-white rectangle and the tree read as a
+ *  wireframe. The fill carries enough of the hue to be named
+ *  from across the canvas, and the border and the accent bar
+ *  carry the rest.
  ***************************************************************/
-function role_card_style(stroke, dark)
+function role_card_style(colors, dark)
 {
-    // On dark, lift the card off the near-black canvas with a
-    // clearly-lighter slate base + vivid border (a faint tint on
-    // the canvas colour makes the cards invisible).
+    let stroke = colors.stroke;
+    let accent = colors.accent;
+
     return {
         bg: dark
-            ? `color-mix(in srgb, ${stroke} 30%, #2c3542)`
-            : `color-mix(in srgb, ${stroke} 9%, #ffffff)`,
-        border: dark
-            ? `color-mix(in srgb, ${stroke} 85%, #ffffff)`
-            : stroke,
-        title: dark ? "#e8eaed" : "#0f172a",
-        sub: dark ? "#9aa4b2" : "#64748b",
+            ? `color-mix(in srgb, ${stroke} 34%, #253044)`
+            : `color-mix(in srgb, ${stroke} 13%, #ffffff)`,
+        border: dark? accent: stroke,
+        accent: dark? accent: stroke,
+        title: dark ? "#f1f5f9" : "#0f172a",
+        sub: dark ? "#a8b3c2" : "#475569",
         tagbg: dark
-            ? `color-mix(in srgb, ${stroke} 42%, #2c3542)`
-            : `color-mix(in srgb, ${stroke} 14%, #ffffff)`,
+            ? `color-mix(in srgb, ${stroke} 48%, #253044)`
+            : `color-mix(in srgb, ${stroke} 20%, #ffffff)`,
+        tagfg: dark? "#f1f5f9": stroke,
         shadow: dark
-            ? "0 1px 3px rgba(0,0,0,0.45)"
-            : "0 1px 3px rgba(15,23,42,0.12)",
+            ? "0 2px 6px rgba(0,0,0,0.50)"
+            : "0 2px 5px rgba(15,23,42,0.16)",
     };
 }
 
 /***************************************************************
- *  Map a gobj to its visual category.
+ *  The pill colours of a node, for the theme in force.
  ***************************************************************/
-function get_node_category(target_gobj, is_root)
+function status_card_style(d, dark)
 {
-    if(is_root) {
-        return "yuno";
+    let table = dark? STATUS_COLORS.dark: STATUS_COLORS.light;
+    if(d.disabled) {
+        return table.disabled;
     }
-    if(gobj_is_service(target_gobj)) {
-        return "service";
+    return table[node_status(d)] || table.stopped;
+}
+
+/***************************************************************
+ *  Map a node to its visual size class. Services are drawn
+ *  bigger than plain children so the service boundary of the
+ *  hierarchy is visible before anything is read.
+ ***************************************************************/
+function get_node_category(d)
+{
+    switch(node_role(d)) {
+        case "yuno":
+            return "yuno";
+        case "service":
+            return "service";
+        default:
+            return "child";
     }
-    return "child";
 }
 
 /***************************************************************
@@ -498,6 +557,17 @@ function mt_start(gobj)
      */
     restore_view_shape(gobj);
 
+    /*  The cards carry translated text now (the status pill, the
+     *  badges), and G6 draws them as innerHTML inside its own
+     *  canvas: refresh_language() cannot reach in there, so a
+     *  language switch is a REBUILD. Subscribe to the shell
+     *  directly, like C_YUI_PERIOD -- a host that mounts a bare
+     *  tree gets the repaint without having to forward anything. */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+
     build_graph(gobj);
     load_tree(gobj);
 }
@@ -507,6 +577,18 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+
+    /*  In mt_stop and NOT in mt_destroy: gobj_destroy() destroys the
+     *  children BEFORE calling mt_destroy, so a hosted gobj retired
+     *  there is retired after the framework already took it down.  */
+    close_gclass_view(priv.gclass_view);
+    priv.gclass_view = null;
 }
 
 /***************************************************************
@@ -539,6 +621,8 @@ function mt_destroy(gobj)
     priv.$popover = null;
     priv.$popover_title = null;
     priv.$popover_body = null;
+    priv.$popover_gclass = null;
+    priv.popover_node = null;
     priv.$layout_select = null;
     priv.node_by_id = null;
     priv.collapse_state = null;
@@ -656,6 +740,42 @@ function build_popover(gobj, $container)
         text-overflow: ellipsis;
     `;
     $header.appendChild($title);
+
+    /*  What this gobj IS: its gclass, opened in the gclass viewer.
+     *
+     *  Built only where the app registers C_YUI_JSON -- the viewer
+     *  the window hosts. An app that does not carry it gets no
+     *  button rather than a button that fails, and the reason is
+     *  logged once, at build time.  */
+    if(gclass_view_available()) {
+        let $gclass = document.createElement("button");
+        $gclass.type = "button";
+        $gclass.className = "GOBJ_TREE_POPOVER_GCLASS button is-small";
+        $gclass.style.cssText = `
+            margin-right: 6px;
+            padding: 0 8px;
+            height: 22px;
+            font-size: 11px;
+            white-space: nowrap;
+        `;
+        $gclass.textContent = t("gclass");
+        $gclass.setAttribute("i18n", "gclass");
+        $gclass.title = t("view gclass");
+        $gclass.setAttribute("data-i18n-title", "view gclass");
+        $gclass.setAttribute("aria-label", t("view gclass"));
+        $gclass.setAttribute("data-i18n-aria-label", "view gclass");
+        $gclass.addEventListener("click", (evt) => {
+            evt.stopPropagation();
+            gobj_send_event(gobj, "EV_OPEN_GCLASS", {}, gobj);
+        });
+        $header.appendChild($gclass);
+        priv.$popover_gclass = $gclass;
+    } else {
+        log_warning(
+            `${gobj_short_name(gobj)}: no C_YUI_JSON registered, ` +
+            `the gclass viewer is not offered`
+        );
+    }
 
     let $close = document.createElement("button");
     $close.type = "button";
@@ -917,37 +1037,26 @@ function apply_layout(gobj)
 }
 
 /************************************************************
- *  Resolve role colors for a gobj
+ *  The role colours of a node.
+ *
+ *  Note the ORDER: volatil before service. A volatil gobj that
+ *  is also a service is drawn volatil, because that is the fact
+ *  that decides how long it lives.
  ************************************************************/
-function get_role_colors(target_gobj, is_root)
+function get_role_colors(d)
 {
-    if(is_root) {
-        return ROLE_COLORS.yuno;
+    switch(node_role(d)) {
+        case "yuno":
+            return ROLE_COLORS.yuno;
+        case "volatil":
+            return ROLE_COLORS.volatil;
+        case "service":
+            return ROLE_COLORS.service;
+        case "pure":
+            return ROLE_COLORS.pure;
+        default:
+            return ROLE_COLORS.child;
     }
-    if(gobj_is_volatil(target_gobj)) {
-        return ROLE_COLORS.volatil;
-    }
-    if(gobj_is_service(target_gobj)) {
-        return ROLE_COLORS.service;
-    }
-    if(gobj_is_pure_child(target_gobj)) {
-        return ROLE_COLORS.pure;
-    }
-    return ROLE_COLORS.default;
-}
-
-/************************************************************
- *  Resolve state color
- ************************************************************/
-function get_state_color(target_gobj)
-{
-    if(!gobj_is_running(target_gobj)) {
-        return STATE_COLORS.stopped;
-    }
-    if(gobj_is_playing(target_gobj)) {
-        return STATE_COLORS.running_playing;
-    }
-    return STATE_COLORS.running;
 }
 
 /************************************************************
@@ -994,27 +1103,27 @@ function is_node_collapsed(gobj, full_name, num_children)
  ************************************************************/
 function render_toggle_html(node_id, collapsed, num_children, cs)
 {
-    let label = collapsed ? ("+" + num_children) : "−";
-    let title = collapsed ? "Expand children" : "Collapse children";
+    let label = collapsed ? ("+" + num_children) : "\u2212";
+    let title = collapsed ? t("expand children") : t("collapse children");
     return `<span
         data-gobj-toggle="true"
         data-node-id="${node_id}"
-        title="${title}"
+        title="${escapeHtml(title)}"
         style="
             flex: 0 0 auto;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 22px;
-            height: 16px;
-            padding: 0 5px;
+            min-width: 24px;
+            height: 18px;
+            padding: 0 6px;
             margin-left: 4px;
-            background: ${cs.tagbg};
-            color: ${cs.border};
-            border: 1px solid ${cs.border};
-            border-radius: 6px;
+            background: ${cs.accent};
+            color: #ffffff;
+            border: 1px solid ${cs.accent};
+            border-radius: 9px;
             font-size: 10px;
-            font-weight: 600;
+            font-weight: 700;
             line-height: 1;
             cursor: pointer;
             user-select: none;
@@ -1022,27 +1131,92 @@ function render_toggle_html(node_id, collapsed, num_children, cs)
 }
 
 /************************************************************
- *  Recursively build nodes and edges from the gobj tree
+ *  HTML for the status pill: what the gobj is DOING.
+ *
+ *  A dot plus a word, and the word is dropped in the compact
+ *  card where there is no room for it -- the colour still
+ *  carries it, and the `title` says it in full either way.
  ************************************************************/
-function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, compact)
+function render_status_html(d, ss, labels, with_label)
+{
+    let full = d.disabled?
+        labels.field.disabled:
+        (labels.status[node_status_key(d)] || node_status_key(d));
+    let label = d.disabled?
+        labels.field.disabled:
+        (labels.status_short[node_status(d)] || node_status(d));
+
+    if(!with_label) {
+        return `<span title="${escapeHtml(full)}" style="
+            flex: 0 0 auto;
+            width: 10px; height: 10px; border-radius: 50%;
+            background: ${ss.dot};
+            box-shadow: 0 0 0 2px ${ss.bg};
+            margin-left: 6px;
+        "></span>`;
+    }
+
+    return `<span title="${escapeHtml(full)}" style="
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 1px 7px 1px 5px;
+        background: ${ss.bg};
+        color: ${ss.fg};
+        border-radius: 9px;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.45;
+        white-space: nowrap;
+    "><span style="width:7px; height:7px; border-radius:50%; background:${ss.dot};"></span>${escapeHtml(label)}</span>`;
+}
+
+/************************************************************
+ *  HTML for the badges: what the gobj IS, besides its colour.
+ ************************************************************/
+function render_badges_html(d, cs, labels)
+{
+    let html = "";
+    for(let key of node_badge_keys(d)) {
+        let label = labels.badge[key] || key;
+        html += `<span style="
+            font-size: 10px;
+            font-weight: 600;
+            padding: 0 6px;
+            margin-right: 4px;
+            background: ${cs.tagbg};
+            color: ${cs.tagfg};
+            border: 1px solid ${cs.accent};
+            border-radius: 9px;
+            white-space: nowrap;
+        ">${escapeHtml(label)}</span>`;
+    }
+    return html;
+}
+
+/************************************************************
+ *  Recursively build nodes and edges from a NODE DESCRIPTOR
+ *  tree (gobj_tree_model.js), never from gobjs: the same
+ *  builder draws the browser yuno and a backend one.
+ *
+ *  The descriptor is also what the popover reads, so the view
+ *  fields it needs are written onto it here (`full_name`,
+ *  `short_name`, `num_children`, `is_collapsed`,
+ *  `direct_children`) instead of copied into a second object
+ *  that can then disagree with the first.
+ ************************************************************/
+function build_gobj_nodes(gobj, d, nodes, edges, parent_id, compact, labels)
 {
     let priv = gobj.priv;
     let node_id = gen_node_id(gobj);
 
-    let gclass_name = gobj_gclass_name(target_gobj) || "";
-    let instance_name = gobj_name(target_gobj) || "";
-    let state = gobj_current_state(target_gobj) || "";
-    let full_name = gobj_full_name(target_gobj);
-    let colors = get_role_colors(target_gobj, is_root);
     let dark = yui_is_dark();
-    let cs = role_card_style(colors.stroke, dark);
-    let state_color = get_state_color(target_gobj);
+    let colors = get_role_colors(d);
+    let cs = role_card_style(colors, dark);
+    let ss = status_card_style(d, dark);
 
-    let running = gobj_is_running(target_gobj);
-    let playing = gobj_is_playing(target_gobj);
-    let status_text = !running ? "stopped" : (playing ? "playing" : "running");
-
-    let category = get_node_category(target_gobj, is_root);
+    let category = get_node_category(d);
     let size = NODE_SIZES[compact ? "compact" : "full"][category];
     let width = size.w;
     let height = size.h;
@@ -1053,10 +1227,15 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
      */
     let border_width = (category === "yuno" || category === "service") ? 2 : 1;
 
-    let children = target_gobj.dl_children || [];
+    /*  A disabled gobj is drawn as one: a dashed border says
+     *  "this branch is out of the game" at any zoom.  */
+    let border_style = d.disabled? "dashed": "solid";
+
+    let children = d.children || [];
     let num_children = children.length;
     let has_children = num_children > 0;
-    let collapsed = has_children && is_node_collapsed(gobj, full_name, num_children);
+    let collapsed = has_children &&
+        is_node_collapsed(gobj, d.fullname, num_children);
 
     /*
      *  Direct-children index (collected even when this node is
@@ -1066,33 +1245,41 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
     let direct_children = [];
     for(let child of children) {
         direct_children.push({
-            full_name: gobj_full_name(child),
-            has_grandchildren: (child.dl_children || []).length > 0,
+            full_name: child.fullname,
+            has_grandchildren: (child.children || []).length > 0,
         });
     }
+
+    /*  What the VIEW needs on top of the descriptor. Written onto
+     *  it, because the popover reads the same object.  */
+    d.full_name = d.fullname;
+    d.short_name = d.shortname;
+    d.num_children = num_children;
+    d.is_collapsed = collapsed;
+    d.direct_children = direct_children;
+    d.node_id = node_id;
 
     let toggle_html = has_children
         ? render_toggle_html(node_id, collapsed, num_children, cs)
         : "";
 
+    let card_title = d.gclass + (d.name? ("^" + d.name): "");
     let node_html;
 
     if(compact) {
         /*
-         *  Compact one-line node: "gclass^name" with a left color bar,
-         *  state dot and optional +/- toggle. Name truncates with "...".
+         *  Compact one-line node: "gclass^name" with a left colour bar
+         *  and the status dot. Name truncates with "...".
          */
-        let compact_label = escapeHtml(
-            instance_name ? (gclass_name + "^" + instance_name) : gclass_name
-        );
+        let compact_label = escapeHtml(card_title);
 
         node_html = `
-<div class="GOBJ_CARD" data-gobj-name="${escapeHtml(full_name)}" style="
+<div class="GOBJ_CARD" data-gobj-name="${escapeHtml(d.fullname)}" style="
     width: ${width}px;
     height: ${height}px;
     background: ${cs.bg};
-    border: ${border_width}px solid ${cs.border};
-    border-left: 5px solid ${cs.border};
+    border: ${border_width}px ${border_style} ${cs.border};
+    border-left: 6px solid ${cs.accent};
     border-radius: 7px;
     box-shadow: ${cs.shadow};
     font-family: ${GT_FONT};
@@ -1101,49 +1288,30 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
     padding: 0 8px;
     box-sizing: border-box;
     overflow: hidden;
+    opacity: ${d.disabled? "0.72": "1"};
     cursor: pointer;
 " title="${compact_label}">
     <span style="flex:1 1 auto; min-width:0; font-size:11px; font-weight:600; color:${cs.title}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${compact_label}</span>
-    <span title="${escapeHtml(state || status_text)}" style="
-        flex: 0 0 auto;
-        width: 8px; height: 8px; border-radius: 50%;
-        background: ${state_color}; margin-left: 6px;
-    "></span>
+    ${render_status_html(d, ss, labels, false)}
     ${toggle_html}
 </div>`;
     } else {
         /*
-         *  Full node: header (gclass + optional toggle), name, badges + state.
-         *  All rows truncate with "..." — width is fixed.
+         *  Full node: header (gclass + optional toggle), name, state,
+         *  badges + status pill. All rows truncate with "..." -- the
+         *  width is fixed.
          */
-        let header_label = escapeHtml(gclass_name);
-        let name_label = escapeHtml(instance_name);
-        let state_label = escapeHtml(state);
-
-        let badges = [];
-        if(is_root) {
-            badges.push("yuno");
-        } else {
-            if(gobj_is_service(target_gobj)) {
-                badges.push("service");
-            }
-            if(gobj_is_pure_child(target_gobj)) {
-                badges.push("pure");
-            }
-            if(gobj_is_volatil(target_gobj)) {
-                badges.push("volatil");
-            }
-        }
-        let badges_html = badges.map(b =>
-            `<span style="font-size:10px; padding:0 5px; margin-right:4px; background:${cs.tagbg}; color:${cs.border}; border:1px solid ${cs.border}; border-radius:6px; white-space:nowrap;">${b}</span>`
-        ).join("");
+        let header_label = escapeHtml(d.gclass);
+        let name_label = escapeHtml(d.name);
+        let state_label = escapeHtml(d.state);
 
         node_html = `
-<div class="GOBJ_CARD" data-gobj-name="${escapeHtml(full_name)}" style="
+<div class="GOBJ_CARD" data-gobj-name="${escapeHtml(d.fullname)}" style="
     width: ${width}px;
     height: ${height}px;
     background: ${cs.bg};
-    border: ${border_width}px solid ${cs.border};
+    border: ${border_width}px ${border_style} ${cs.border};
+    border-left: 6px solid ${cs.accent};
     border-radius: 9px;
     box-shadow: ${cs.shadow};
     overflow: hidden;
@@ -1152,59 +1320,33 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 5px 9px;
-    gap: 1px;
+    padding: 6px 9px;
+    gap: 2px;
+    opacity: ${d.disabled? "0.72": "1"};
     cursor: pointer;
-" title="${escapeHtml(gclass_name + (instance_name ? "^" + instance_name : ""))}">
+" title="${escapeHtml(card_title)}">
     <div style="flex:0 0 auto; display:flex; align-items:center; gap:6px; overflow:hidden;">
-        <span style="flex:1 1 auto; min-width:0; font-size:12px; line-height:1.25; font-weight:600; color:${cs.title}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${header_label}</span>
+        <span style="flex:1 1 auto; min-width:0; font-size:12px; line-height:1.25; font-weight:700; color:${cs.title}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${header_label}</span>
         ${toggle_html}
     </div>
     <div style="flex:0 0 auto; font-size:12px; line-height:1.25; color:${cs.sub}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name_label || "&nbsp;"}</div>
     <div style="flex:0 0 auto; display:flex; justify-content:space-between; align-items:center; gap:6px; overflow:hidden;">
-        <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${badges_html}</span>
-        <span style="flex:0 0 auto; display:flex; align-items:center; gap:4px; color:${state_color}; font-weight:600; font-size:11px; white-space:nowrap;">
-            <span style="width:7px; height:7px; border-radius:50%; background:${state_color};"></span>${state_label || status_text}
-        </span>
+        <span style="flex:1 1 auto; min-width:0; font-size:10px; line-height:1.25; color:${cs.sub}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${state_label || "&nbsp;"}</span>
+        ${render_status_html(d, ss, labels, true)}
     </div>
+    <div style="flex:0 0 auto; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">${render_badges_html(d, cs, labels)}</div>
 </div>`;
     }
-
-    let parent_gobj = gobj_parent(target_gobj);
-
-    /*
-     *  Node data kept for the popover. Extend this object when
-     *  you want to surface more attributes — then add a row in
-     *  get_node_info_rows() with the same key.
-     */
-    let node_data = {
-        gclass: gclass_name,
-        name: instance_name,
-        short_name: gobj_short_name(target_gobj),
-        full_name: full_name,
-        parent_short_name: parent_gobj ? gobj_short_name(parent_gobj) : "",
-        state: state,
-        category: category,
-        is_yuno: is_root,
-        is_service: gobj_is_service(target_gobj),
-        is_pure_child: gobj_is_pure_child(target_gobj),
-        is_volatil: gobj_is_volatil(target_gobj),
-        is_running: running,
-        is_playing: playing,
-        num_children: num_children,
-        is_collapsed: collapsed,
-        direct_children: direct_children,
-    };
 
     if(!priv.node_by_id) {
         priv.node_by_id = {};
     }
-    priv.node_by_id[node_id] = node_data;
+    priv.node_by_id[node_id] = d;
 
     let node = {
         id: node_id,
         type: 'html',
-        data: node_data,
+        data: d,
         style: {
             innerHTML: node_html,
             size: [width, height],
@@ -1219,8 +1361,8 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
             source: parent_id,
             target: node_id,
             style: {
-                stroke: colors.stroke,
-                lineWidth: 1,
+                stroke: colors.accent,
+                lineWidth: 1.4,
             }
         });
     }
@@ -1230,7 +1372,7 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
      */
     if(!collapsed) {
         for(let child of children) {
-            build_gobj_nodes(gobj, child, nodes, edges, node_id, false, compact);
+            build_gobj_nodes(gobj, child, nodes, edges, node_id, compact, labels);
         }
     }
 
@@ -1256,12 +1398,23 @@ function load_tree(gobj)
         return;
     }
 
-    let yuno = gobj_yuno();
-    if(!yuno) {
+    /*
+     *  The tree, as data.
+     *
+     *  The graph draws DESCRIPTORS, so this is the one line that
+     *  says which yuno is on screen. A backend yuno enters here:
+     *  describe_backend_tree(<the `view-gobj-tree` answer>) in
+     *  place of describe_js_gobj(gobj_yuno(), true), and nothing
+     *  below this point changes.
+     */
+    let root = describe_js_gobj(gobj_yuno(), true);
+    if(!root) {
+        log_error(`${gobj_short_name(gobj)}: no yuno to draw`);
         return;
     }
 
     let layout_cfg = get_layout_cfg(gobj_read_str_attr(gobj, "layout"));
+    let labels = node_labels(t);
 
     let anchor = priv.pending_anchor || null;
     let preserve_view = !!priv.pending_preserve_view;
@@ -1274,7 +1427,7 @@ function load_tree(gobj)
     let nodes = [];
     let edges = [];
 
-    build_gobj_nodes(gobj, yuno, nodes, edges, null, true, layout_cfg.compact);
+    build_gobj_nodes(gobj, root, nodes, edges, null, layout_cfg.compact, labels);
 
     if(nodes.length > 0) {
         let root_id = nodes[0].id;      /*  built before its children  */
@@ -1435,66 +1588,11 @@ function refresh_tree(gobj, opts)
 }
 
 /************************************************************
- *  Rows to show in the popover for a given node data.
- *
- *  This is the extension point: to surface a new attribute,
- *  collect it into `node_data` in build_gobj_nodes(), then
- *  append a `[label, value]` pair here.
- ************************************************************/
-function get_node_info_rows(node_data)
-{
-    let rows = [];
-
-    rows.push([t("gclass"),   node_data.gclass || "—"]);
-    rows.push([t("name"),     node_data.name   || "—"]);
-
-    if(node_data.full_name && node_data.full_name !== node_data.short_name) {
-        rows.push([t("full name"), node_data.full_name]);
-    }
-
-    let role;
-    if(node_data.is_yuno) {
-        role = "yuno";
-    } else if(node_data.is_service) {
-        role = "service";
-    } else if(node_data.is_volatil) {
-        role = "volatil child";
-    } else if(node_data.is_pure_child) {
-        role = "pure child";
-    } else {
-        role = "child";
-    }
-    rows.push([t("role"), role]);
-
-    let status;
-    if(!node_data.is_running) {
-        status = "stopped";
-    } else if(node_data.is_playing) {
-        status = "running + playing";
-    } else {
-        status = "running";
-    }
-    rows.push([t("status"), status]);
-    rows.push([t("state"),  node_data.state || "—"]);
-
-    if(node_data.parent_short_name) {
-        rows.push([t("parent"), node_data.parent_short_name]);
-    }
-
-    if(typeof node_data.num_children === "number") {
-        let kids = node_data.num_children;
-        if(kids > 0 && node_data.is_collapsed) {
-            rows.push([t("children"), kids + " " + t("(collapsed)")]);
-        } else if(kids > 0) {
-            rows.push([t("children"), String(kids)]);
-        }
-    }
-
-    return rows;
-}
-
-/************************************************************
  *  Render popover body from the info rows of a node.
+ *
+ *  The rows come from gobj_tree_model.js, so a node of the
+ *  browser yuno and a node of a backend one are read out with
+ *  the same words in the same order.
  ************************************************************/
 function render_popover_body(gobj, node_data)
 {
@@ -1504,14 +1602,14 @@ function render_popover_body(gobj, node_data)
         return;
     }
 
-    let rows = get_node_info_rows(node_data);
+    let rows = node_info_rows(node_data, t);
 
     /*  Bulma scheme vars, like the popover chrome around it (build_popover):
      *  they flip with <html data-theme>, so the popover follows the theme
      *  with no redraw. Hardcoding them is what made the value near-black
      *  (#1A1A1A) on the near-black dark card background — invisible. */
     let rows_html = rows.map(([label, value]) => `
-        <div style="display:grid; grid-template-columns: 90px 1fr; column-gap:10px; padding: 2px 0;">
+        <div style="display:grid; grid-template-columns: 96px 1fr; column-gap:10px; padding: 2px 0;">
             <span style="color:var(--bulma-text-weak, #6B7280); font-weight:500;">${escapeHtml(String(label))}</span>
             <span style="color:var(--bulma-text-strong, #1A1A1A); word-break:break-all;">${escapeHtml(String(value))}</span>
         </div>
@@ -1534,6 +1632,8 @@ function show_popover(gobj, node_data, client_x, client_y)
     if(!$popover || !$title || !$container) {
         return;
     }
+
+    priv.popover_node = node_data;
 
     $title.textContent = node_data.short_name ||
         (node_data.gclass + (node_data.name ? "^" + node_data.name : ""));
@@ -1588,6 +1688,7 @@ function hide_popover(gobj)
     if(priv.$popover_title) {
         priv.$popover_title.textContent = "";
     }
+    priv.popover_node = null;
 }
 
 /************************************************************
@@ -2455,6 +2556,87 @@ function ac_hide(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *  Open the gclass of the node the popover is showing.
+ *
+ *  One window at a time: opening a second gclass replaces the
+ *  first rather than stacking windows nobody closes.
+ ************************************************************/
+function ac_open_gclass(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let node_data = priv.popover_node;
+
+    if(!node_data || !node_data.gclass) {
+        log_error(`${gobj_short_name(gobj)}: EV_OPEN_GCLASS with no node`);
+        return -1;
+    }
+
+    close_gclass_view(priv.gclass_view);
+    priv.gclass_view = null;
+
+    priv.gclass_view = open_gclass_view(gobj, node_data.gclass, {
+        title_prefix: gobj_yuno_name() || "",
+        on_close: () => {
+            if(gobj_is_destroying(gobj)) {
+                return;
+            }
+            gobj_send_event(gobj, "EV_GCLASS_CLOSED", {}, gobj);
+        },
+    });
+
+    return 0;
+}
+
+/************************************************************
+ *  The reader dismissed the gclass window (its own ✕).
+ *
+ *  C_YUI_WINDOW.close_window() calls on_close and THEN destroys
+ *  itself, so here we only drop our reference -- destroying it
+ *  again would destroy it twice.
+ ************************************************************/
+function ac_gclass_closed(gobj, event, kw, src)
+{
+    gobj.priv.gclass_view = null;
+    return 0;
+}
+
+/************************************************************
+ *  The gclass viewer asked for a subtree.
+ *
+ *  It cannot: the gclass description is a COMPLETE document,
+ *  it carries no `__collapsed__` stub, so nothing in it is
+ *  fetchable. The event is declared because the viewer is
+ *  hosted as a child and subscribes its host to everything it
+ *  publishes -- and it is logged, because arriving here means
+ *  the document was not the one we built.
+ ************************************************************/
+function ac_gclass_expand_path(gobj, event, kw, src)
+{
+    log_error(
+        `${gobj_short_name(gobj)}: EV_EXPAND_PATH on a complete document: ` +
+        `${kw && kw.path}`
+    );
+    return -1;
+}
+
+/************************************************************
+ *  The app switched language.
+ *
+ *  A rebuild, not a re-translation: the words live inside the
+ *  innerHTML of G6 nodes, where refresh_language() cannot go.
+ ************************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if($container) {
+        refresh_language($container, t);
+    }
+    hide_popover(gobj);
+    refresh_tree(gobj);
+    return 0;
+}
+
 
 
 
@@ -2506,6 +2688,10 @@ function create_gclass(gclass_name)
             ["EV_RESIZE",               ac_resize,              null],
             ["EV_SHOW",                 ac_show,                null],
             ["EV_HIDE",                 ac_hide,                null],
+            ["EV_OPEN_GCLASS",          ac_open_gclass,         null],
+            ["EV_GCLASS_CLOSED",        ac_gclass_closed,       null],
+            ["EV_EXPAND_PATH",          ac_gclass_expand_path,  null],
+            ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null],
         ]]
     ];
 
@@ -2529,6 +2715,10 @@ function create_gclass(gclass_name)
         ["EV_RESIZE",               0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],
+        ["EV_OPEN_GCLASS",          0],
+        ["EV_GCLASS_CLOSED",        0],
+        ["EV_EXPAND_PATH",          0],
+        ["EV_LANGUAGE_CHANGED",     0],
     ];
 
     __gclass__ = gclass_create(

@@ -19,6 +19,37 @@ import i18next from "i18next";
 
 const es_translation = {
     /*
+     *  The gobj tree (C_YUI_GOBJ_TREE_JS, the Frontend view window):
+     *  what a gobj IS and what it is DOING, plus the gclass viewer.
+     */
+    "gclass":                             "GClass",
+    "full name":                          "Nombre completo",
+    "status":                             "Estado",
+    "state":                              "Estado FSM",
+    "parent":                             "Padre",
+    "children":                           "Hijos",
+    "(collapsed)":                        "(plegados)",
+    "service":                            "Servicio",
+    "child":                              "Hijo",
+    "pure child":                         "Hijo puro",
+    "volatil child":                      "Hijo volátil",
+    "yuno":                               "Yuno",
+    "disabled":                           "Deshabilitado",
+    "bottom":                             "Bottom",
+    "bottom gobj":                        "Gobj bottom",
+    "commands":                           "Comandos",
+    "flags":                              "Flags",
+    "traces":                             "Trazas",
+    "playing":                            "En play",
+    "running (paused)":                   "Ejecutando (en pausa)",
+    "stopped":                            "Parado",
+    "view gclass":                        "Ver gclass",
+    "expand children":                    "Desplegar hijos",
+    "collapse children":                  "Plegar hijos",
+    "gclass viewer unavailable":          "Visor de gclass no disponible",
+    "gclass not registered in this yuno": "GClass no registrada en este yuno",
+
+    /*
      *  The date navigator (C_YUI_PERIOD): the granularities, the label of
      *  the bucket it is parked on, and its chrome. The library translates
      *  through the APP's i18next, so these keys live here.

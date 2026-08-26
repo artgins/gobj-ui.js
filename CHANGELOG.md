@@ -5,6 +5,72 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.30
+
+### Added
+
+- **The gobj tree says what a gobj IS and what it is DOING.** The card carried
+    a gclass, a name and a coloured dot; a reader had to open the popover of
+    every node to learn which of them was a service, which had been disabled,
+    and which was running without playing. Now the card carries it:
+
+    - a **status pill** -- `stopped` / `running` / `playing` -- coloured, so a
+        whole tree is read at a glance and before any word of it. `running` and
+        `playing` are not the same thing and had the same dot: a gobj that runs
+        and does not play is PAUSED, which is what the popover now calls it
+        (the pill keeps the short word, because `Ejecutando (en pausa)` pushes
+        the FSM state off its own row; the `title` says it in full).
+    - **badges** for the role and for everything else a node is: `service`,
+        `pure child`, `volatil child`, `disabled`, `bottom` (it has a bottom
+        gobj), `commands` (its gclass exposes a command table).
+    - the **FSM state** on its own line, no longer sharing a row.
+    - a **disabled** gobj drawn as one: dashed border, dimmed. That branch is
+        out of the game and it should not take a click to find out.
+
+    The popover grew the rows behind them (`disabled`, `bottom gobj`,
+    `commands`, `traces`, `flags`) and shows only the ones that have an answer.
+
+- **A gclass viewer** (`yui_gclass_view.js`), which the framework did not have.
+    The C kernel answers `view-gclass` with a full description -- attrs,
+    commands, methods, FSM -- and the only thing that ever read it was a
+    terminal. The popover of every node now carries a `gclass` button that
+    opens that same document in a `C_YUI_JSON` window, so the FSM of a gclass
+    is a graph and its attrs table is a tree. `gclass_describe.js` builds the
+    document for a gclass of the BROWSER yuno out of the gobj-js registry, in
+    the shape `gclass2json()` answers, so one viewer draws either side.
+
+    The button is drawn only where the app registers `C_YUI_JSON` (the viewer
+    it hosts); an app that does not carry it gets no button rather than a
+    button that fails, and the reason is logged.
+
+### Changed
+
+- **The palette.** Five saturated hues, one family apart from the next -- sky
+    for the yuno, emerald for a service, amber for a pure child, pink for a
+    volatil one, violet for a plain child -- each on the card twice, as the
+    border and as a brighter bar down its left edge. The fill was a 9% tint, at
+    which every card was the same near-white rectangle and the tree read as a
+    wireframe.
+
+- **The tree is drawn from DESCRIPTORS, not from gobjs** (`gobj_tree_model.js`).
+    This is the change that lets this view show a BACKEND yuno: the builder
+    takes plain data whose field names are the ones `gobj2json()` writes, and
+    there are two producers of it -- `describe_js_gobj()` for the browser yuno
+    and `describe_backend_tree()` for the answer of `view-gobj-tree`. Feeding
+    it a backend yuno is one line in `load_tree()`; nothing below that line
+    changes. (The remote fetch itself is not wired yet.)
+
+- **A language switch repaints the cards.** They carry translated text now, and
+    G6 draws them as innerHTML inside its own canvas where
+    `refresh_language()` cannot reach: the view subscribes to the shell's
+    `EV_LANGUAGE_CHANGED` and REBUILDS. New consumer keys: `service`, `child`,
+    `pure child`, `volatil child`, `disabled`, `bottom`, `bottom gobj`,
+    `playing`, `running (paused)`, `stopped`, `running`, `traces`,
+    `view gclass`, `expand children`, `collapse children`,
+    `gclass viewer unavailable`, `gclass not registered in this yuno`.
+    The `+N` / `-` handle's tooltip went through no `t()` at all and was
+    English in every language.
+
 ## 7.23.29
 
 ### Added

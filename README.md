@@ -1375,6 +1375,63 @@ host can use it to toggle. The tree is a **pure child of the window**, so every
 teardown path (the ✕, or the host destroying the window to toggle the entry
 off) takes it down too.
 
+**What a card says.** Every node carries what it IS and what it is DOING,
+because opening a popover per node to learn it is not reading a tree:
+
+| On the card | Says |
+|---|---|
+| Colour (border + left bar) | the ROLE: sky = the yuno, emerald = a service, amber = a pure child, pink = a volatil one, violet = a plain child |
+| Status pill | `stopped` / `running` / `playing`, coloured. `running` and `playing` are not the same thing: a gobj that runs and does not play is PAUSED, which is what the popover calls it in full |
+| Badges | `service`, `pure child`, `volatil child`, `disabled`, `bottom` (it has a bottom gobj), `commands` (its gclass exposes commands) |
+| Its own line | the FSM state |
+| Dashed border, dimmed | disabled — that branch is out of the game |
+
+The popover adds the rest (`full name`, `parent`, `bottom gobj`, `traces`,
+`flags`, how many children a fold is hiding) and shows only the rows that have
+an answer.
+
+**It draws DESCRIPTORS, not gobjs** (`gobj_tree_model.js`), which is what lets
+this same view show a **backend** yuno. A descriptor is plain data whose field
+names are the ones the C kernel's `gobj2json()` writes, and there are two
+producers of it:
+
+```js
+import {describe_js_gobj, describe_backend_tree} from "@yuneta/gobj-ui/src/gobj_tree_model.js";
+
+let root = describe_js_gobj(gobj_yuno(), true);      /*  this browser yuno   */
+let root = describe_backend_tree(answer);            /*  `view-gobj-tree`    */
+```
+
+`load_tree()` calls the first one, on one line. Swapping it for the second is
+the whole of showing a remote yuno; nothing below that line changes. (The
+remote fetch itself is not wired yet.)
+
+### The gclass viewer — `yui_gclass_view.js`
+
+```js
+import {gclass_view_available, open_gclass_view, close_gclass_view}
+    from "@yuneta/gobj-ui/src/yui_gclass_view.js";
+
+let handle = open_gclass_view(host, "C_TIMER", {title_prefix: yuno_name, on_close});
+close_gclass_view(handle);
+```
+
+What a GClass IS — its attrs, its commands, the methods it implements, its FSM
+— in a `C_YUI_JSON` window, so the FSM is a graph and the attrs table is a
+tree. The framework had no such viewer: the C kernel answers `view-gclass`
+with exactly this document and the only thing that ever read it was a terminal.
+
+`gclass_describe.js` builds it for a gclass of the **browser** yuno from the
+gobj-js registry, in the shape `gclass2json()` answers (`id`, `gcflag`,
+`attrs`, `commands`, `gclass_methods`, `internal_methods`, `FSM`, plus
+`instances` and `trace_levels`, which the browser can answer for free). For a
+gclass of a **backend** yuno the host passes the answer of `view-gclass` as
+`opts.description` and the same window draws it.
+
+`gclass_view_available()` reports whether the app registers `C_YUI_JSON` — the
+gobj tree asks it before drawing its `gclass` button, so an app that does not
+carry the viewer shows no control rather than one that fails.
+
 ### Toolbar badge — a count pinned to an item's icon
 
 ```js
@@ -1560,7 +1617,7 @@ shapes, and the fix for each:
 | Text built with `t()` | never changes language | `i18n` / `data-i18n` on the element (`["span", {i18n: "rows"}, t("rows")]`) |
 | A composed string (`` `${key} · ${t(mode)}` ``) | carries no key at all | split it: the translatable halves get their own key. (Note `createElement2` **trims** text nodes — space a `·` separator with CSS, not with spaces.) |
 | `title` / `aria-label` set with `t()` | tooltip stuck in the old language | `data-i18n-title` / `data-i18n-aria-label` |
-| Anything a WIDGET renders (a Tabulator header, its paginator, a formatter) | drawn once; no attribute reaches it | subscribe to the shell and re-render (below) |
+| Anything a WIDGET renders (a Tabulator header, its paginator, a formatter; the innerHTML of a G6 node) | drawn once; no attribute reaches it | subscribe to the shell and re-render (below). For a graph whose cards are innerHTML — the gobj tree — re-rendering means REBUILDING the graph: nothing walks inside a G6 canvas |
 | DOM built AFTER start up (a node's strips, a dropdown panel) | renders the raw key — indistinguishable from a MISSING key | `yui_shell_translate(shell, $el)` right after building it (below) |
 
 **Carrying the key is not enough for the FIRST render.** A node is born holding
