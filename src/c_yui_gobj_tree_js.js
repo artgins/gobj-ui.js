@@ -22,6 +22,8 @@ import {
     gobj_write_attr,
     gobj_send_event,
     gobj_post_event,
+    kw_get_local_storage_value,
+    kw_set_local_storage_value,
     gobj_write_str_attr,
     gobj_read_str_attr,
     gobj_publish_event,
@@ -120,6 +122,123 @@ const ZOOM_CANVAS = {type: 'zoom-canvas', animation: false};
 const BEHAVIORS_READING = ['drag-canvas', ZOOM_CANVAS, 'drag-element'];
 const BEHAVIORS_PICKING = ['drag-canvas', ZOOM_CANVAS];
 
+/*
+ *  Where this view is remembered between visits.
+ *
+ *  In localStorage and not in a persistent attr, for the reason the
+ *  framework gives itself: only a SERVICE can load or save persistent
+ *  attrs, and this gclass is hosted as a child. It is also the right
+ *  place on its own terms -- how somebody left THEIR tree arranged is
+ *  a fact about that browser, not about the yuno.
+ *
+ *  Keyed by the gobj's name so two trees in one app do not overwrite
+ *  each other's arrangement.
+ */
+const VIEW_STORE_PREFIX = "yui_gobj_tree_view:";
+
+/*  What is worth carrying back: the layout, where the camera was, and
+ *  which branches were folded. The anchor goes too -- it is a camera
+ *  state like the other two, and coming back to a tree still holding
+ *  the node you left it on is the point of holding it.  */
+function view_store_key(gobj)
+{
+    return VIEW_STORE_PREFIX + gobj_name(gobj);
+}
+
+function restore_view_shape(gobj)
+{
+    let priv = gobj.priv;
+    let state = load_view_state(gobj);
+
+    if(!state) {
+        return;
+    }
+    if(state.layout && LAYOUTS[state.layout]) {
+        gobj_write_str_attr(gobj, "layout", state.layout);
+        /*  And the picker with it: the toolbar was built from the
+         *  attr's default a moment ago, so without this the graph draws
+         *  the remembered layout while the control names another.  */
+        if(priv.$layout_select) {
+            priv.$layout_select.value = state.layout;
+        }
+    }
+    if(state.collapsed && typeof state.collapsed === "object") {
+        priv.collapse_state = Object.assign({}, state.collapsed);
+    }
+}
+
+function restore_view_state(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let state = load_view_state(gobj);
+
+    if(!graph || !state) {
+        return false;
+    }
+
+    let done = false;
+    priv.restoring = true;
+    try {
+        if(typeof state.zoom === "number" && state.zoom > 0) {
+            graph.zoomTo(state.zoom);
+            priv.last_zoom = state.zoom;
+            done = true;
+        }
+        if(Array.isArray(state.position) && state.position.length >= 2) {
+            graph.translateTo([state.position[0], state.position[1]]);
+            done = true;
+        }
+        if(state.anchor) {
+            /*  By NAME, never by node id: ids are generated per build,
+             *  and this one was written in another session.  */
+            priv.anchor_name = state.anchor;
+            priv.anchor_state = "on";
+            reanchor(gobj);
+            yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
+            paint_anchor_mark(gobj);
+        }
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot restore the saved view: ${e}`);
+    } finally {
+        priv.restoring = false;
+    }
+
+    yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+    return done;
+}
+
+function save_view_state(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph || priv.restoring) {
+        return;     /*  mid-restore: that is our own writing coming back  */
+    }
+
+    let state = {
+        layout: gobj_read_str_attr(gobj, "layout"),
+        collapsed: priv.collapse_state || {},
+        anchor: (priv.anchor_state === "on")? priv.anchor_name: "",
+    };
+    try {
+        state.zoom = graph.getZoom();
+        state.position = graph.getPosition();
+    } catch(e) {
+        /*  between renders: keep the rest, the camera is not readable  */
+    }
+
+    kw_set_local_storage_value(view_store_key(gobj), state);
+}
+
+function load_view_state(gobj)
+{
+    let state = kw_get_local_storage_value(view_store_key(gobj), null, false);
+
+    return (state && typeof state === "object")? state: null;
+}
+
 let PRIVATE_DATA = {
     canvas_id: "",
     graph: null,
@@ -146,6 +265,8 @@ let PRIVATE_DATA = {
     anchor_id:      "",     // the node the camera keeps in the middle
     anchor_name:    "",     // its full_name, which survives a rebuild
     anchor_state:   "off",  // "off" | "arming" | "on"
+    restoring:      false,  // guards the store against its own restore
+    restored:       false,  // the saved arrangement is applied ONCE
     last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
 };
 
@@ -369,6 +490,14 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    /*
+     *  The layout and the folds go back BEFORE the first build: they
+     *  decide what is built, so restoring them afterwards would mean
+     *  building the tree twice and showing the wrong one first.
+     *  The camera goes back after, once there is something to point at.
+     */
+    restore_view_shape(gobj);
+
     build_graph(gobj);
     load_tree(gobj);
 }
@@ -530,8 +659,15 @@ function build_popover(gobj, $container)
 
     let $close = document.createElement("button");
     $close.type = "button";
+    /*  Named so a stylesheet can reach it: the size a FINGER needs is a
+     *  media query, and a media query cannot beat an inline style
+     *  without one to hang off. See `lib_graph.css`.  */
+    $close.className = "GOBJ_TREE_POPOVER_CLOSE";
     $close.textContent = "×";
     $close.title = t("close");
+    $close.setAttribute("data-i18n-title", "close");
+    $close.setAttribute("aria-label", t("close"));
+    $close.setAttribute("data-i18n-aria-label", "close");
     $close.style.cssText = `
         background: transparent;
         border: none;
@@ -710,6 +846,10 @@ function build_graph(gobj)
         if(priv.anchor_state === "on" && priv.anchor_id) {
             yui_graph_center_on(priv.graph, priv.anchor_id);
         }
+        /*  Where the reader left the camera. One hook covers the wheel,
+         *  the drag and every zoom button, which is why it is not
+         *  written into each of them.  */
+        save_view_state(gobj);
     });
 
     graph.on(NodeEvent.CLICK, (evt) => {
@@ -947,7 +1087,7 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
         );
 
         node_html = `
-<div style="
+<div class="GOBJ_CARD" data-gobj-name="${escapeHtml(full_name)}" style="
     width: ${width}px;
     height: ${height}px;
     background: ${cs.bg};
@@ -999,7 +1139,7 @@ function build_gobj_nodes(gobj, target_gobj, nodes, edges, parent_id, is_root, c
         ).join("");
 
         node_html = `
-<div style="
+<div class="GOBJ_CARD" data-gobj-name="${escapeHtml(full_name)}" style="
     width: ${width}px;
     height: ${height}px;
     background: ${cs.bg};
@@ -1145,6 +1285,7 @@ function load_tree(gobj)
              *  there.  (`anchor` below is the OTHER one -- see the
              *  note in PRIVATE_DATA.)  */
             reanchor(gobj);
+            paint_anchor_mark(gobj);
 
             if(anchor) {
                 restore_view_anchored(gobj, anchor);
@@ -1152,6 +1293,19 @@ function load_tree(gobj)
             }
             if(preserve_view) {
                 return;
+            }
+
+            /*
+             *  The arrangement this browser was left in, once: after
+             *  that the reader's own camera wins, and a restore on
+             *  every rebuild would drag them back every time they
+             *  folded something.
+             */
+            if(!priv.restored) {
+                priv.restored = true;
+                if(restore_view_state(gobj)) {
+                    return;
+                }
             }
 
             /*
@@ -1795,6 +1949,7 @@ class GobjLanesHLayout extends BaseLayout {
  ************************************************************/
 function ac_refresh(gobj, event, kw, src)
 {
+    save_view_state(gobj);
     refresh_tree(gobj);
     return 0;
 }
@@ -1841,10 +1996,12 @@ function ac_change_layout(gobj, event, kw, src)
     }
 
     apply_layout(gobj);
+    save_view_state(gobj);
 
     /*
      *  Rebuild nodes because compact/full HTML differs per layout
      */
+    save_view_state(gobj);
     refresh_tree(gobj);
 
     return 0;
@@ -1902,6 +2059,7 @@ function ac_toggle_collapse(gobj, event, kw, src)
         priv.collapse_state[node_data.full_name] = "collapsed";
     }
 
+    save_view_state(gobj);
     refresh_tree(gobj, {anchor: anchor});
     return 0;
 }
@@ -2022,10 +2180,44 @@ function ac_center_anchor(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
+    paint_anchor_mark(gobj);
+    save_view_state(gobj);
     if(priv.anchor_state === "on" && priv.anchor_id) {
         yui_graph_center_on(priv.graph, priv.anchor_id);
     }
     return 0;
+}
+
+/************************************************************
+ *   Mark the card the camera is holding.
+ *
+ *   A class on the card's own element and not a G6 node state:
+ *   G6 paints no state style on an html node.
+ *
+ *   Re-applied after every rebuild, because the cards are new
+ *   DOM each time and the mark would otherwise last until the
+ *   next expand.
+ ************************************************************/
+function paint_anchor_mark(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+
+    if(!$container) {
+        return;
+    }
+    for(let $card of $container.querySelectorAll('.GOBJ_CARD_ANCHORED')) {
+        $card.classList.remove('GOBJ_CARD_ANCHORED');
+    }
+    if(priv.anchor_state !== "on" || !priv.anchor_name) {
+        return;
+    }
+    let $it = $container.querySelector(
+        '.GOBJ_CARD[data-gobj-name="' + CSS.escape(priv.anchor_name) + '"]'
+    );
+    if($it) {
+        $it.classList.add('GOBJ_CARD_ANCHORED');
+    }
 }
 
 /************************************************************
@@ -2068,6 +2260,8 @@ function ac_toggle_anchor(gobj, event, kw, src)
 
     yui_graph_update_anchor(gobj_read_attr(gobj, "$container"), priv.anchor_state);
     set_picking_mode(gobj, priv.anchor_state === "arming");
+    paint_anchor_mark(gobj);
+    save_view_state(gobj);
     return 0;
 }
 
@@ -2202,6 +2396,7 @@ function ac_show(gobj, event, kw, src)
     /*
      *  Always refresh on show: the tree may have changed while hidden
      */
+    save_view_state(gobj);
     refresh_tree(gobj);
 
     if(graph) {

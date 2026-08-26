@@ -20,8 +20,19 @@
     overflow: auto;
 }
 
+/*
+ *  The lead runs the FULL width of the card, and does not hold itself to
+ *  a reading measure.
+ *
+ *  It carried `max-width: 70ch` -- the right call for prose, and the
+ *  wrong one here: what is under it is a GRAPH, the lead is two or three
+ *  sentences, and every line the measure forces it to wrap into is a
+ *  line of height taken from the thing the chapter exists to show. On a
+ *  wide screen it cost three lines where one would do.
+ */
 .DEMO_LEAD {
     line-height: 1.5;
+    max-width: none;
 }
 
 /*  Layout model: ONE vertical scroll for the whole view (the .view-card),

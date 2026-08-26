@@ -54,6 +54,8 @@ import {
     yui_graph_anchor_item,
     yui_graph_update_anchor,
     yui_graph_center_on,
+    yui_graph_place_at,
+    yui_graph_viewport_of,
     yui_graph_fold_items,
     yui_graph_refresh_item,
     yui_graph_update_zoom,
@@ -192,6 +194,7 @@ let PRIVATE_DATA = {
     /*---------------- find + collapse ----------------*/
     search:         "",     // current find term, lower-cased
     collapsed:      null,   // Set<string> of paths whose children are hidden
+    reserved:       null,   // Map<path,width> the space a fold leaves behind
     match_count:    0,      // matches of the last find, for the count chip
     find_timer:     null,   // rate-limits the find box
     fold_listener:  null,   // delegated click on the card fold handles
@@ -206,6 +209,7 @@ let PRIVATE_DATA = {
     anchor_state:   "off",  // "off" | "arming" | "on"
     last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
     center_posted:  false,  // one re-centring in flight, never a queue of them
+    pending_keep:   null,   // {path,x,y}: a card to put back where it was
 };
 
 let __gclass__ = null;
@@ -331,6 +335,7 @@ function mt_create(gobj)
     let priv = gobj.priv;
 
     priv.collapsed = new Set();
+    priv.reserved = new Map();
     priv.search = "";
 
     let name = clean_name(gobj_name(gobj));
@@ -475,8 +480,15 @@ function build_ui(gobj)
             if(evt.type !== "click") {
                 return;     /*  swallowed so G6 never sees a node click  */
             }
-            gobj_send_event(gobj, "EV_TOGGLE_FOLD",
-                {path: $handle.getAttribute('data-fold-path')}, gobj);
+            /*  Which CARD the chip sits on, not only what it folds: a
+             *  header chip folds its own card, a row chip folds a child
+             *  that has none -- and the card that must not move is the
+             *  one under the finger either way.  */
+            let $card = $handle.closest? $handle.closest('.JSON_CARD'): null;
+            gobj_send_event(gobj, "EV_TOGGLE_FOLD", {
+                path: $handle.getAttribute('data-fold-path'),
+                keep: $card? $card.getAttribute('data-json-path'): ""
+            }, gobj);
         };
         for(let type of FOLD_SWALLOWED_EVENTS) {
             $mount.addEventListener(type, priv.fold_listener, true);
@@ -944,6 +956,13 @@ const BEHAVIORS_PICKING = ['drag-canvas', ZOOM_CANVAS];
 const CARD_HEADER_H = 24;
 const CARD_ROW_H = 22;
 
+/*  The tree layout's gaps. Module scope because the width a fold
+ *  RESERVES has to be measured with the very same numbers the layout
+ *  packs with, or the hole is the wrong size and everything shifts by
+ *  the difference.  */
+const H_GAP = 60;  // horizontal gap between siblings
+const V_GAP = 50;  // vertical gap between levels
+
 function fold_toggle_html(path, foldable, folded, branches, colors)
 {
     if(!foldable) {
@@ -1135,6 +1154,10 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
      */
     if(parent_id && is_pure_collection(kw)) {
         if(priv.collapsed.has(path)) {
+            /*  Folded, and it draws nothing of its own -- so the space
+             *  its children were taking is left HERE, in their place
+             *  among the parent's other children.  */
+            push_fold_phantom(gobj, path, parent_id, parent_port, nodes, edges);
             return parent_id;
         }
         for(let pending of pending_complex) {
@@ -1281,6 +1304,9 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
         data: {
             path: path,
             is_dict: is_dict,
+            /*  Only a folded card carries one; the layout leaves the
+             *  space its subtree used to take.  */
+
         },
         style: {
             innerHTML: node_html,
@@ -1334,6 +1360,9 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
      *  Recurse into complex children — unless this card is folded.
      */
     if(folded) {
+        /*  The card stays; the space under it is held by a phantom of
+         *  its own, so its siblings do not close in over it.  */
+        push_fold_phantom(gobj, path, group_id, "", nodes, edges);
         return group_id;
     }
     for(let pending of pending_complex) {
@@ -1395,6 +1424,16 @@ function load_json(gobj)
             paint_anchor_mark(gobj);
 
             if(preserve_view) {
+                let keep = priv.pending_keep;
+                priv.pending_keep = null;
+                if(keep) {
+                    for(let n of nodes) {
+                        if(n.data && n.data.path === keep.path) {
+                            yui_graph_place_at(graph, n.id, [keep.x, keep.y]);
+                            break;
+                        }
+                    }
+                }
                 yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
                 return;
             }
@@ -1477,6 +1516,131 @@ function update_find_result(gobj)
 }
 
 /************************************************************
+ *  The invisible child a fold leaves behind.
+ *
+ *  It is the whole of "nothing moves when I fold": the layout
+ *  is a plain tree that centres a parent over its children, so
+ *  the only way to keep the survivors still is to leave the
+ *  space where it was, in the order it was, as a CHILD. A width
+ *  reserved as a number would still have to be placed, and
+ *  appending it moves every sibling by half of it.
+ *
+ *  A `rect` and not an `html` node: nothing is drawn, and a
+ *  DOM element per fold would be a card nobody can see but the
+ *  Inspector would show.
+ ************************************************************/
+function push_fold_phantom(gobj, path, parent_id, parent_port, nodes, edges)
+{
+    let priv = gobj.priv;
+    let width = priv.reserved.get(path) || 0;
+
+    if(!(width > 0) || !parent_id) {
+        return;     /*  never measured: nothing to reserve  */
+    }
+
+    let id = gen_node_id(gobj);
+    nodes.push({
+        id: id,
+        type: 'rect',
+        data: {path: path, phantom: true},
+        style: {
+            size: [width, 1],
+            fill: 'transparent',
+            stroke: 'transparent',
+            opacity: 0,
+            pointerEvents: 'none',
+        },
+    });
+    edges.push({
+        source: parent_id,
+        target: id,
+        style: {opacity: 0, endArrow: false, sourcePort: parent_port || undefined},
+    });
+}
+
+/************************************************************
+ *  The width the children a fold is about to hide are taking
+ *  RIGHT NOW, measured with the layout's own numbers.
+ *
+ *  `card_path` is the card that will lose them; `under` limits
+ *  it to the ones hanging from one key of that card, which is
+ *  the case of a container that has no card of its own -- its
+ *  children hang from the parent, so its fold is a hole in the
+ *  PARENT.
+ ************************************************************/
+function group_width_of(gobj, card_path, under)
+{
+    let priv = gobj.priv;
+
+    if(!priv.graph) {
+        return 0;
+    }
+    try {
+        let by_id = {};
+        let card_id = "";
+        for(let node of priv.graph.getNodeData()) {
+            if(!node || !node.data) {
+                continue;
+            }
+            by_id[node.id] = node;
+            if(node.data.path === card_path) {
+                card_id = node.id;
+            }
+        }
+        if(!card_id) {
+            return 0;
+        }
+
+        let prefix = under? (under + "`"): "";
+        let sum = 0;
+        let n = 0;
+        for(let edge of priv.graph.getEdgeData()) {
+            if(!edge || edge.source !== card_id) {
+                continue;
+            }
+            let kid = by_id[edge.target];
+            if(!kid) {
+                continue;
+            }
+            if(prefix && String(kid.data.path).indexOf(prefix) !== 0) {
+                continue;
+            }
+            sum += kid.data.subtree_width || 0;
+            n++;
+        }
+        return n? (sum + H_GAP * (n - 1)): 0;
+    } catch(e) {
+        return 0;   /*  between renders: nothing measured  */
+    }
+}
+
+/************************************************************
+ *  The screen spot of the card at `path`, to be given back
+ *  after the rebuild. Null when it has no card of its own --
+ *  a pure collection -- and then nothing anchors and the
+ *  camera simply stays where it was.
+ ************************************************************/
+function keep_of(gobj, path)
+{
+    let priv = gobj.priv;
+
+    if(empty_string(path) || !priv.graph) {
+        return null;
+    }
+    try {
+        for(let node of priv.graph.getNodeData()) {
+            if(node && node.data && node.data.path === path) {
+                let vp = yui_graph_viewport_of(priv.graph, node.id);
+                return vp? {path: path, x: vp[0], y: vp[1]}: null;
+            }
+        }
+    } catch(e) {
+        /*  between renders: nothing to hold on to  */
+    }
+    return null;
+}
+
+/************************************************************
  *  Clear and reload.
  *      {preserve_view: true}
  *          keep the current zoom and translate (no fitView) —
@@ -1538,11 +1702,34 @@ class JsonTreeLayout extends BaseLayout {
             node_dims[node.id] = {w, h};
         }
 
-        const H_GAP = 60;  // horizontal gap between siblings
-        const V_GAP = 50;  // vertical gap between levels
 
         /*
          *  Calculate subtree widths (bottom-up)
+         */
+        /*
+         *  A FOLDED node keeps the width its subtree had.
+         *
+         *  Without it, folding a branch shrinks its parent's row and
+         *  every sibling re-packs -- measured, five surviving cards all
+         *  slid 240px sideways for a fold that removed nothing they
+         *  could see. Reserving the space trades a hole in the drawing
+         *  for a drawing that does not move under the reader, which is
+         *  the whole reason to fold something in the first place: to
+         *  look at what is left.
+         *
+         *  The width comes from the layout's own last pass (stored on
+         *  the node below), so a fold and its unfold reserve the same
+         *  number and the subtree comes back into the space it left.
+         */
+        /*
+         *  A fold leaves a PHANTOM child in the place its children had
+         *  -- an invisible node of exactly their width -- so nothing
+         *  here needs to know about folding at all. A hole added as a
+         *  number would have to be placed too, and `position_node`
+         *  centres a parent over its children: a lump appended at the
+         *  end moves every sibling by half of it. A child in the
+         *  sequence keeps the order and the space, and this stays a
+         *  plain tree layout.
          */
         let subtree_widths = {};
         function calc_subtree_width(node_id) {
@@ -1562,6 +1749,18 @@ class JsonTreeLayout extends BaseLayout {
 
         for(let root of roots) {
             calc_subtree_width(root.id);
+        }
+
+        /*
+         *  What this pass measured, written back onto the node data:
+         *  it is the only place the number exists, and the gclass needs
+         *  it at the moment somebody folds -- by then the layout has
+         *  long finished.
+         */
+        for(let node of nodes) {
+            if(node.data) {
+                node.data.subtree_width = subtree_widths[node.id];
+            }
         }
 
         /*
@@ -1632,6 +1831,12 @@ class JsonTreeLayout extends BaseLayout {
 /************************************************************
  *
  ************************************************************/
+function priv_reset_folds(gobj)
+{
+    gobj.priv.collapsed.clear();
+    gobj.priv.reserved.clear();
+}
+
 function ac_load_data(gobj, event, kw, src)
 {
     if(kw.path !== undefined) {
@@ -1639,6 +1844,9 @@ function ac_load_data(gobj, event, kw, src)
     }
     if(kw.data !== undefined) {
         gobj_write_attr(gobj, "json_data", kw.data);
+        /*  A new document: the folds and the space they were holding
+         *  belonged to the old one.  */
+        priv_reset_folds(gobj);
     }
 
     refresh_json(gobj);
@@ -1715,11 +1923,40 @@ function ac_toggle_fold(gobj, event, kw, src)
         return -1;
     }
 
+    let card = (kw && kw.keep) || path;
+
     if(priv.collapsed.has(path)) {
         priv.collapsed.delete(path);
+        priv.reserved.delete(path);
     } else {
+        /*
+         *  Measured BEFORE folding: afterwards those children are not
+         *  there to measure, and this number is the whole of what keeps
+         *  every surviving card where it is.
+         *
+         *  Held against the CARD that loses them, not against the path
+         *  folded: a container with no card of its own hangs its
+         *  children from its parent, so its fold is a hole in the
+         *  parent's row.
+         */
+        let w = group_width_of(gobj, card, (card === path)? "": path);
         priv.collapsed.add(path);
+        if(w > 0) {
+            priv.reserved.set(path, w);
+        }
     }
+
+    /*
+     *  Where the card under the finger is RIGHT NOW.
+     *
+     *  `preserve_view` alone keeps the CAMERA, and that is not enough:
+     *  folding a branch changes the subtree widths, so the LAYOUT moves
+     *  every card under a still camera and the one just clicked slides
+     *  out from under the pointer. Read its screen spot here, hand it
+     *  back once the new layout is drawn, and everything that did not
+     *  move in the layout stays where it was.
+     */
+    priv.pending_keep = keep_of(gobj, (kw && kw.keep) || path);
 
     refresh_json(gobj, {preserve_view: true});
     update_find_result(gobj);
@@ -1755,6 +1992,7 @@ function ac_expand_all(gobj, event, kw, src)
         return 0;   // nothing folded; a relayout would only move the camera
     }
     priv.collapsed.clear();
+    priv.reserved.clear();      /*  no folds left, so no holes to keep  */
     refresh_json(gobj);
     update_find_result(gobj);
     return 0;
@@ -1780,6 +2018,9 @@ function ac_collapse_all(gobj, event, kw, src)
     collect_foldable_paths(json_data, path, paths, true);
 
     priv.collapsed = new Set(paths);
+    /*  Collapse-all is asking for a COMPACT drawing, so it reserves
+     *  nothing: it packs, and the camera refits with it.  */
+    priv.reserved.clear();
     refresh_json(gobj);
     update_find_result(gobj);
     return 0;

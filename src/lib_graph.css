@@ -274,6 +274,34 @@
  */
 
 /*
+ *  The gobj tree's popover close button, for a FINGER.
+ *
+ *  It is an 18px glyph with 4px of padding either side -- about 26x18
+ *  of target, which a mouse hits and a thumb does not. The popover
+ *  opens on a tap, so the thing that closes it has to be reachable by
+ *  the same thumb that opened it.
+ *
+ *  44px is the size every touch guideline settles on, and it is applied
+ *  only under `(pointer: coarse)`: on a mouse the small button is fine
+ *  and a 44px square in a 26px header row would not be.
+ *
+ *  `!important` because the button carries an inline `cssText` -- a
+ *  media query has no way to win against one, and the size of a target
+ *  is not a preference.
+ */
+@media (pointer: coarse) {
+    .GOBJ_TREE_POPOVER_CLOSE {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        font-size: 26px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+}
+
+/*
  *  Picking the node to anchor: the pointer says a click is expected,
  *  which is otherwise announced only by a button at the far end of a
  *  toolbar. `!important` because G6 writes `cursor` onto its own
@@ -299,12 +327,20 @@
  *  things down one channel. `outline` draws OUTSIDE the box, so it
  *  cannot move a single row.
  *
+ *  DASHED, and the same dash the treedb graph draws inline for its own
+ *  cards: there, amber already means a find match or a focused topic
+ *  and blue means the selection, so a third SOLID ring would be a third
+ *  thing to learn in one channel. A dash is a different channel, and it
+ *  reads as the provisional thing a camera state is. One feature, one
+ *  drawing, in all three viewers.
+ *
  *  Amber, the same "this one, right now" the toolbar's arming state
  *  uses, and not one of the palette's action colours -- it is not an
  *  action.
  */
-.JSON_CARD_ANCHORED {
-    outline: 3px solid #fa8c16;
+.JSON_CARD_ANCHORED,
+.GOBJ_CARD_ANCHORED {
+    outline: 3px dashed #fa8c16;
     outline-offset: 2px;
 }
 

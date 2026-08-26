@@ -43,8 +43,7 @@ export function lead_block(lead, extra_class)
     }
 
     let paragraph = ["p", {
-        class: `DEMO_LEAD content is-hidden-mobile ${extra_class || ""}`.trim(),
-        style: "max-width:70ch;"
+        class: `DEMO_LEAD content is-hidden-mobile ${extra_class || ""}`.trim()
     }, keys.map((k, i) => ["span", {
         class: i ? "ml-1" : "",
         i18n: k

@@ -1273,8 +1273,11 @@ function configure_toolbar(gobj)
                      *  the rebuild came back OFF.  */
                     {
                         id: 'g6-icon-anchor', value: 'anchor',
+                        /*  PRESSED is "on" and only "on": pressed is the
+                         *  state the control is IN, and while it is
+                         *  arming it is asking for something instead.  */
                         className: 'EV_TOGGLE_ANCHOR' +
-                            (priv.anchor_state !== "off"? ' pressed_state' : '') +
+                            (priv.anchor_state === "on"? ' pressed_state' : '') +
                             (priv.anchor_state === "arming"? ' color_pending_state' : ''),
                         title: anchor_title(priv.anchor_state)
                     },
@@ -5743,7 +5746,7 @@ function refresh_minimap(gobj)
  *  same three-way choice — it lived inline in the theme refresh and is
  *  shared now. Returns null for a node that carries no desc.
  ************************************************************/
-function node_innerHTML_of(nd, theme, highlight, selected)
+function node_innerHTML_of(nd, theme, highlight, selected, anchored)
 {
     if(!nd || !nd.data || !nd.data.desc) {
         return null;
@@ -5756,17 +5759,17 @@ function node_innerHTML_of(nd, theme, highlight, selected)
         case 'child':
             return build_chip_innerHTML(
                 desc.color, theme, record.icon, label, record.id,
-                highlight, selected
+                highlight, selected, anchored
             );
         case 'extended':
             return build_node_innerHTML(
                 desc.color, theme, record.icon, label,
-                desc.topic_name, true, record.id, highlight, selected
+                desc.topic_name, true, record.id, highlight, selected, anchored
             );
         case 'hierarchical':
             return build_node_innerHTML(
                 desc.color, theme, record.icon, label,
-                desc.topic_name, false, record.id, highlight, selected
+                desc.topic_name, false, record.id, highlight, selected, anchored
             );
     }
     return null;
@@ -5796,7 +5799,8 @@ function repaint_cards(gobj, ids)
     let updates = [];
     for(let id of ids) {
         let html = node_innerHTML_of(
-            graph.getNodeData(id), priv.theme, focus.has(id), selected.has(id)
+            graph.getNodeData(id), priv.theme, focus.has(id), selected.has(id),
+            priv.anchor_state === "on" && id === priv.anchor_id
         );
         if(html !== null) {
             updates.push({id: id, style: {innerHTML: html}});
@@ -5902,6 +5906,25 @@ function refresh_default_edges_theme(gobj, theme)
  *  it, which is also the order that reads correctly when only one
  *  of them is on.
  ************************************************************/
+/************************************************************
+ *  The mark of the card the CAMERA is holding.
+ *
+ *  An outline and not another ring, and DASHED: the two rings
+ *  already mean things here -- amber is a find match or a
+ *  focused topic, blue is the selection -- and a third solid
+ *  ring would be a third thing to learn in the same channel.
+ *  A dash is a different channel, so it reads beside either of
+ *  them, and it says "provisional" the way a camera state is.
+ *
+ *  The same dash the other two viewers draw: this is one
+ *  feature with one control, and it should not be three
+ *  drawings.
+ ************************************************************/
+function anchor_outline(anchored)
+{
+    return anchored? "outline: 3px dashed #fa8c16; outline-offset: 2px;" : "";
+}
+
 function ring_shadow(highlight, selected, base_shadow)
 {
     let rings = [];
@@ -5928,7 +5951,7 @@ function ring_shadow(highlight, selected, base_shadow)
  *  but lighter (1px border, no shadow, single line). The name is
  *  always legible (ellipsis + native title tooltip on overflow).
  ************************************************************/
-function build_chip_innerHTML(color, theme, icon, label, key, highlight, selected)
+function build_chip_innerHTML(color, theme, icon, label, key, highlight, selected, anchored)
 {
     let title = key || label;
     let dark = (theme === "dark");
@@ -5953,13 +5976,14 @@ function build_chip_innerHTML(color, theme, icon, label, key, highlight, selecte
     }
 
     return `
-<div title="${escapeHtml(title)}" style="
+<div class="TREEDB_CARD" title="${escapeHtml(title)}" style="
     box-sizing: border-box;
     width: 100%;
     height: 100%;
     background: ${bg};
     border: ${highlight? "3px" : "1px"} solid ${border};
     ${ring_shadow(highlight, selected, "")}
+    ${anchor_outline(anchored)}
     border-radius: 8px;
     color: ${text_color};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -5986,7 +6010,7 @@ function build_chip_innerHTML(color, theme, icon, label, key, highlight, selecte
  *  colour is kept (per-topic differentiation) but softened via
  *  color-mix instead of a harsh saturated fill. Theme-aware.
  ************************************************************/
-function build_node_innerHTML(color, theme, icon, label, topic_name, structural, key, highlight, selected)
+function build_node_innerHTML(color, theme, icon, label, topic_name, structural, key, highlight, selected, anchored)
 {
     let title = key || label;
     let dark = (theme === "dark");
@@ -6042,7 +6066,7 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
     }
 
     return `
-<div title="${escapeHtml(title)}" style="
+<div class="TREEDB_CARD" title="${escapeHtml(title)}" style="
     box-sizing: border-box;
     width: 100%;
     height: 100%;
@@ -6050,6 +6074,7 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
     border: ${highlight? "3px" : "1.5px"} ${border_style} ${border};
     border-radius: 10px;
     ${ring_shadow(highlight, selected, shadow)}
+    ${anchor_outline(anchored)}
     color: ${title_color};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     display: flex;
@@ -7602,6 +7627,7 @@ function after_camera(gobj, moved)
 function ac_toggle_anchor(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    let was = priv.anchor_id;
 
     if(priv.anchor_state === "off") {
         priv.anchor_state = "arming";
@@ -7611,6 +7637,9 @@ function ac_toggle_anchor(gobj, event, kw, src)
     }
 
     update_toolbar(gobj);
+    if(was) {
+        repaint_cards(gobj, new Set([was]));
+    }
     return 0;
 }
 
@@ -7869,6 +7898,7 @@ function ac_node_click(gobj, event, kw, src)
         priv.anchor_id = node_id;
         priv.anchor_state = "on";
         update_toolbar(gobj);
+        repaint_cards(gobj, new Set([node_id]));
 
         /*  POSTED, not made here: a camera move issued inside G6's click
          *  dispatch is swallowed -- see the note in yui_graph_center_on.

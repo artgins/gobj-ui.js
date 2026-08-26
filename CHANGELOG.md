@@ -5,6 +5,71 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.29
+
+### Added
+
+- **A folded branch leaves its space behind, so nothing else moves.** Folding
+    re-packed the tree: measured, five surviving cards all slid 240px sideways
+    for a fold that removed nothing they could see -- and the card under the
+    finger slid out from under it. Two parts.
+
+    The card you clicked is put back where it was: its screen spot is read
+    before the rebuild and given back after (`yui_graph_place_at()`, the same
+    arithmetic as the anchor with the target point left free, so there is now
+    ONE camera formula and the anchor is its `V = centre` case).
+
+    And the survivors stay because a fold now leaves a PHANTOM child -- an
+    invisible node of exactly the width its children had, in the place they
+    had in the order. A width reserved as a NUMBER was tried first and does not
+    work: `position_node` centres a parent over its children, so a lump
+    appended at the end moves every sibling by half of it. A child in the
+    sequence keeps both the space and the order, and the layout stays a plain
+    tree that knows nothing about folding. `H_GAP`/`V_GAP` moved to module
+    scope with it: the width a fold reserves has to be measured with the very
+    numbers the layout packs with, or the hole is the wrong size.
+
+    `collapse all` reserves nothing on purpose -- it is asking for a COMPACT
+    drawing -- and a new document drops every fold and every hole with it.
+
+- **The gobj tree remembers how you left it**: layout, zoom, camera, which
+    branches are folded, and the anchor. In `localStorage`, keyed by the gobj's
+    name, and for the framework's own reason -- only a SERVICE can save
+    persistent attrs and this gclass is hosted as a child -- as well as its
+    own: how somebody left THEIR tree is a fact about that browser.
+
+    The layout and the folds are restored BEFORE the first build, because they
+    decide what is built; the camera after, once there is something to point
+    at, and once only, or every fold would drag the reader back. The anchor
+    comes back by NAME, never by node id: ids are generated per build and that
+    one was written in another session.
+
+### Fixed
+
+- **The anchor marked its node in the JSON graph and nowhere else.** It marks
+    it in all three viewers now, with one drawing: a DASHED amber outline. Dashed
+    because in the treedb graph a solid amber ring already means a find match or
+    a focused topic and blue means the selection -- a third solid ring would be a
+    third thing to learn in one channel, while a dash is a different channel and
+    reads as the provisional thing a camera state is.
+
+    That needed the cards to have an identity: they were anonymous `<div>`s
+    among the anonymous `<div>`s G6 stacks. `GOBJ_CARD` with `data-gobj-name`,
+    `TREEDB_CARD`, and the treedb graph's own `node_innerHTML_of()` carries the
+    flag the way it already carried `focused` and `selected` -- not a G6 node
+    state, which the selection and focus calls would have cleared.
+
+- **The treedb graph's anchor button looked pressed AND pending at once** while
+    it was arming: it still composed its classes with the semantics from before
+    pressed came to mean "on", and only "on".
+
+- **The popover's close button could not be hit with a thumb** (gobj tree). An
+    18px glyph with 4px either side is about 26x18 of target; the popover opens
+    on a tap, so what closes it has to be reachable by the same thumb. 44px
+    under `(pointer: coarse)` only -- on a mouse the small button is right, and
+    a 44px square in a 26px header row would not be. It also had no
+    `aria-label` and no i18n keys.
+
 ## 7.23.28
 
 **The treedb graph threw on load: `calculate_hooks_fkeys_counter is not

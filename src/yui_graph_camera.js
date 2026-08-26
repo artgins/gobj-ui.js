@@ -235,6 +235,66 @@ export function yui_graph_update_anchor($container, state)
  ************************************************************/
 const __centring__ = new WeakMap();
 
+/************************************************************
+ *   Put `node_id` at a GIVEN point of the viewport.
+ *
+ *   What "the graph does not jump when I fold something" is
+ *   made of: read where the card is, rebuild the layout, put
+ *   that card back where it was. Everything that did not move
+ *   in the layout stays put with it.
+ ************************************************************/
+export async function yui_graph_place_at(graph, node_id, viewport_xy)
+{
+    if(!graph || !node_id || !viewport_xy) {
+        return false;
+    }
+    try {
+        if(typeof graph.getElementPosition !== "function" ||
+                typeof graph.getCanvasCenter !== "function" ||
+                typeof graph.translateTo !== "function") {
+            return false;
+        }
+        let z = graph.getZoom() || 1;
+        let c = graph.getCanvasCenter();
+        let n = graph.getElementPosition(node_id);
+
+        /*
+         *  Same derivation as the centring below, with the target point
+         *  left free instead of fixed at the middle:
+         *
+         *      T = (canvasCentre - node) * zoom + (V - canvasCentre)
+         *
+         *  and putting V = canvasCentre gives the centring exactly.
+         */
+        await graph.translateTo([
+            (c[0] - n[0]) * z + (viewport_xy[0] - c[0]),
+            (c[1] - n[1]) * z + (viewport_xy[1] - c[1])
+        ]);
+        return true;
+    } catch(e) {
+        return false;   /*  the element is gone, or the graph is between renders  */
+    }
+}
+
+/************************************************************
+ *   Where `node_id` is right now, in viewport pixels.
+ *
+ *   The pair of the call above: read it before a rebuild, hand
+ *   it back after, and the node has not moved on screen even
+ *   though the layout under it changed.
+ ************************************************************/
+export function yui_graph_viewport_of(graph, node_id)
+{
+    if(!graph || !node_id) {
+        return null;
+    }
+    try {
+        return graph.getViewportByCanvas(graph.getElementPosition(node_id));
+    } catch(e) {
+        return null;
+    }
+}
+
 export async function yui_graph_center_on(graph, node_id)
 {
     if(!graph || !node_id) {
