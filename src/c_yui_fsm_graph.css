@@ -1,0 +1,128 @@
+/***********************************************************************
+ *          c_yui_fsm_graph.css
+ *
+ *      Styling for C_YUI_FSM_GRAPH (a state machine, drawn).
+ *      The cards are HTML nodes, so they take their colours from the
+ *      same tokens the matrix uses; the edges are canvas and carry
+ *      theirs in the gclass.
+ *      No transitions/animations by design (lib-yui convention).
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+.C_YUI_FSM_GRAPH {
+    --fsm-ink: var(--bulma-text-strong, #363636);
+    --fsm-muted: var(--bulma-text-weak, #6a6a6a);
+    --fsm-rule: var(--bulma-border-weak, #e0e0e0);
+    --fsm-card: var(--bulma-scheme-main, #fff);
+    --fsm-entry: #0E6F63;
+    --fsm-live: #9A5B00;
+    --fsm-live-bg: rgba(154, 91, 0, .11);
+    --fsm-warn: #A3282F;
+    --fsm-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas,
+                "Liberation Mono", monospace;
+}
+
+:root[data-theme="dark"] .C_YUI_FSM_GRAPH,
+.C_YUI_FSM_GRAPH[data-theme="dark"] {
+    --fsm-entry: #46C4B2;
+    --fsm-live: #D9A23F;
+    --fsm-live-bg: rgba(217, 162, 63, .16);
+    --fsm-warn: #E9737A;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .C_YUI_FSM_GRAPH {
+        --fsm-entry: #46C4B2;
+        --fsm-live: #D9A23F;
+        --fsm-live-bg: rgba(217, 162, 63, .16);
+        --fsm-warn: #E9737A;
+    }
+}
+
+.C_YUI_FSM_GRAPH .FSM_GRAPH_TOOLBAR {
+    border-bottom: 1px solid var(--fsm-rule);
+}
+
+.C_YUI_FSM_GRAPH .FSM_GRAPH_CANVAS {
+    border: 1px solid var(--fsm-rule);
+    border-radius: .2rem;
+}
+
+/*
+ *  A state card. It is an html node, so it is a real DOM subtree and
+ *  the Inspector says what it is -- but G6 owns its position, and the
+ *  card must fill the box the gclass declared or the layout spaces
+ *  cards it cannot see the size of.
+ */
+.C_YUI_FSM_GRAPH .FSM_CARD {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding: .3rem .5rem;
+    border: 1px solid var(--fsm-rule);
+    border-left: 3px solid var(--fsm-rule);
+    border-radius: 3px;
+    background: var(--fsm-card);
+    font-family: var(--fsm-mono);
+    overflow: hidden;
+}
+
+.C_YUI_FSM_GRAPH .FSM_CARD.is-entry {
+    border-left-color: var(--fsm-entry);
+}
+
+.C_YUI_FSM_GRAPH .FSM_CARD.is-current {
+    border-color: var(--fsm-live);
+    border-left-color: var(--fsm-live);
+    background: var(--fsm-live-bg);
+}
+
+/*
+ *  A state nothing declares a way into. Dashed, not red: an action is
+ *  free to jump there with gobj_change_state(), so this is a fact
+ *  about the DESCRIPTION and not a defect in the gclass.
+ */
+.C_YUI_FSM_GRAPH .FSM_CARD.is-unreachable {
+    border-top-style: dashed;
+    border-right-style: dashed;
+    border-bottom-style: dashed;
+}
+
+.C_YUI_FSM_GRAPH .FSM_CARD_HEAD {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.C_YUI_FSM_GRAPH .FSM_CARD_NAME {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--fsm-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.C_YUI_FSM_GRAPH .FSM_CARD.is-current .FSM_CARD_NAME {
+    color: var(--fsm-live);
+}
+
+.C_YUI_FSM_GRAPH .FSM_CARD_MARK {
+    font-size: .7rem;
+    line-height: 1;
+    cursor: help;
+}
+
+.C_YUI_FSM_GRAPH .FSM_CARD_MARK.is-entry { color: var(--fsm-entry); }
+.C_YUI_FSM_GRAPH .FSM_CARD_MARK.is-warn { color: var(--fsm-warn); }
+
+.C_YUI_FSM_GRAPH .FSM_CARD_SUB {
+    margin-top: .15rem;
+    font-size: .65rem;
+    color: var(--fsm-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

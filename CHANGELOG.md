@@ -51,6 +51,27 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
     name nobody wrote. A nameless `SDATACM` row is a section HEADING (every
     large C command table uses them) and is drawn as one.
 
+- **The machine has a second view: a graph** (`C_YUI_FSM_GRAPH`), switched
+    from a pair of buttons inside the machine zone. The matrix stays the
+    default -- it is the declared shape and the only one that can show what is
+    missing -- and the graph answers the other question, where does this
+    machine GO. In graph mode the machine takes the whole width and the other
+    zones stack under it: half a column is enough for a matrix, which scrolls
+    inside its own box, and is where six states stop fitting for a graph.
+
+    G6, and not a canvas of our own: what is expensive in a graph is the
+    layout, the hit testing, the camera and the finger, and all four are
+    already paid for here (`yui_graph_camera.js`, `g6_touch_gestures.js`,
+    `g6_drag_canvas_touch.js`), spoken with one vocabulary by the other three
+    graphs. What it refuses to draw is the interesting half: ONE edge per pair
+    of states (G6 draws overlapping edges on top of each other, so a second
+    one between the same two states is invisible), and no self-loops -- an
+    event a state handles without leaving is a number on the card, not ten
+    loops burying the transitions that do move. It fits with `fitCenter()` then
+    `fitView()` and never below 0.5, the floor `C_G6_NODES_TREE` already uses:
+    a six-state machine fits a panel at 38%, which is the whole graph and
+    worth nothing.
+
 ### Changed
 
 - **`gclass_view_available()` registers the viewer on demand**, so an app no

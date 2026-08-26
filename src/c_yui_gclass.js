@@ -62,12 +62,21 @@ import {
     gobj_write_attr,
     gobj_read_str_attr,
     gobj_send_event,
+    gobj_create_pure_child,
+    gobj_start,
+    gobj_stop,
+    gobj_destroy,
+    gobj_is_running,
+    gobj_short_name,
+    gobj_name,
+    clean_name,
     createElement2,
     json_deep_copy,
     refresh_language,
 } from "@yuneta/gobj-js";
 
 import {gclass_view_model} from "./gclass_view_model.js";
+import {register_c_yui_fsm_graph} from "./c_yui_fsm_graph.js";
 import {json_text_dump} from "./json_view_helpers.js";
 import {yui_toolbar} from "./yui_toolbar.js";
 import {attach_clear} from "./yui_inputs.js";
@@ -89,6 +98,21 @@ const GCLASS_NAME = "C_YUI_GCLASS";
 const VIEWS = [
     {mode: "zones", icon: "yi-table",       key: "zones view"},
     {mode: "raw",   icon: "yi-code",        key: "raw view"},
+];
+
+/*
+ *  The two ways to read the machine, in switch order.
+ *
+ *  The matrix leads and stays the default: it is the shape the FSM is
+ *  DECLARED in, it reads every gclass the same way, and it is the only
+ *  one of the two that can show what is MISSING. The graph answers a
+ *  different question -- where does this machine go -- and earns its
+ *  place exactly where the matrix is worst: many states, few events
+ *  each.
+ */
+const MACHINE_VIEWS = [
+    {mode: "matrix", icon: "yi-table",          key: "matrix view"},
+    {mode: "graph",  icon: "yi-hexagon-nodes",  key: "graph view"},
 ];
 
 /*
@@ -133,6 +157,8 @@ let PRIVATE_DATA = {
     model:      null,   // the view model built from the description
     search:     "",     // current filter term (lower-cased)
     collapsed:  null,   // Set<string> of collapsed zone ids
+    machine_view: "matrix", // how the machine zone is read
+    graph_gobj: null,   // hosted C_YUI_FSM_GRAPH child (built on first use)
     $zones:     null,   // the scrollable zones body
     $raw:       null,   // the scrollable raw body
     $raw_body:  null,   // the <pre> inside it
@@ -161,6 +187,7 @@ function mt_create(gobj)
 
     priv.collapsed = new Set();
     priv.search = "";
+    priv.machine_view = "matrix";
     priv.model = gclass_view_model(gobj_read_attr(gobj, "description"));
 
     build_ui(gobj);
@@ -189,6 +216,13 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    /*
+     *  The graph child dies with this gobj's RUNNING state, not with
+     *  its destruction: gobj_destroy() destroys the children BEFORE
+     *  calling mt_destroy(), so tearing it down there arrives after
+     *  the framework already destroyed it -- while it was running.
+     */
+    teardown_graph_child(gobj);
 }
 
 /***************************************************************
@@ -442,6 +476,9 @@ function render_zones(gobj)
         return;
     }
 
+    /*  The subtree it lives in is about to be thrown away.  */
+    teardown_graph_child(gobj);
+
     $zones.textContent = "";
 
     let model = priv.model;
@@ -452,15 +489,32 @@ function render_zones(gobj)
         return;
     }
 
+    /*
+     *  The machine takes the WHOLE width in graph mode.
+     *
+     *  Half a column is enough for a matrix, which grows downwards and
+     *  scrolls sideways inside its own box. A graph does not: it is
+     *  laid out left to right, and 600px of a 1200px viewer is where
+     *  six states stop fitting and start being panned. The rest of the
+     *  zones then stack in one column under it, which is what they do
+     *  on a phone anyway.
+     */
+    let graph_mode = (priv.machine_view === "graph");
     let left = [];
     let right = [];
+    let full = [];
+
     for(let zone of ZONES) {
         let $zone = build_zone(gobj, zone);
         if(!$zone) {
             continue;
         }
         if(zone.col === "right") {
-            right.push($zone);
+            if(graph_mode) {
+                full.push($zone);
+            } else {
+                right.push($zone);
+            }
         } else {
             left.push($zone);
         }
@@ -469,9 +523,11 @@ function render_zones(gobj)
     let $root = createElement2(
         ['div', {class: 'GCLASS_BODY'}, [
             build_head(gobj, model),
-            ['div', {class: 'GCLASS_COLS'}, [
+            ['div', {class: 'GCLASS_FULL' + (graph_mode? '': ' is-hidden')}, full],
+            ['div', {class: 'GCLASS_COLS' + (graph_mode? ' is-stacked': '')}, [
                 ['div', {class: 'GCLASS_COL GCLASS_COL_LEFT'}, left],
-                ['div', {class: 'GCLASS_COL GCLASS_COL_RIGHT'}, right]
+                ['div', {class: 'GCLASS_COL GCLASS_COL_RIGHT' +
+                                (graph_mode? ' is-hidden': '')}, right]
             ]]
         ]]
     );
@@ -480,6 +536,10 @@ function render_zones(gobj)
     refresh_language($zones, t);
     apply_search(gobj);
     reveal_current_state(gobj);
+
+    if(priv.machine_view === "graph" && !priv.collapsed.has("machine")) {
+        build_graph_child(gobj);
+    }
 }
 
 /************************************************************
@@ -788,8 +848,20 @@ function build_traces(levels)
  ************************************************************/
 function build_machine(gobj, fsm)
 {
+    let priv = gobj.priv;
+
     if(!fsm.states.length) {
         return empty_line("no machine declared");
+    }
+
+    if(priv.machine_view === "graph") {
+        /*  An empty mount: the child is created AFTER this subtree is
+         *  in the document, because G6 sizes itself from its container
+         *  and one that is still detached measures 0x0.  */
+        return ['div', {class: 'GCLASS_MACHINE'}, [
+            machine_view_switch(gobj),
+            ['div', {class: 'GCLASS_GRAPH_MOUNT'}, []]
+        ]];
     }
 
     let current = gobj_read_str_attr(gobj, "current_state");
@@ -860,6 +932,7 @@ function build_machine(gobj, fsm)
     });
 
     let blocks = [
+        machine_view_switch(gobj),
         scroller(['table', {class: 'GCLASS_TABLE GCLASS_MATRIX'}, [
             ['thead', {}, [['tr', {}, head_cells]]],
             ['tbody', {}, body_rows]
@@ -880,6 +953,42 @@ function build_machine(gobj, fsm)
     }
 
     return ['div', {class: 'GCLASS_MACHINE'}, blocks];
+}
+
+/************************************************************
+ *   Matrix or graph, for the machine zone alone.
+ *
+ *   It lives INSIDE the zone and not in the toolbar: it
+ *   changes one zone, and a control that changes one thing
+ *   belongs beside that thing. The zone heading cannot hold it
+ *   either -- the heading is itself a button, and a button
+ *   inside a button is not a control, it is a bug.
+ ************************************************************/
+function machine_view_switch(gobj)
+{
+    let priv = gobj.priv;
+
+    let buttons = MACHINE_VIEWS.map(function(v) {
+        let on = (priv.machine_view === v.mode);
+        return ['button', {class: 'button is-small GCLASS_MACHINE_VIEW ' +
+                                  `GCLASS_MACHINE_VIEW_${v.mode.toUpperCase()}` +
+                                  (on? ' is-active': ''),
+                           type: 'button',
+                           'aria-pressed': on? 'true': 'false',
+                           title: t(v.key), 'data-i18n-title': v.key,
+                           'aria-label': t(v.key), 'data-i18n-aria-label': v.key}, [
+            ['span', {class: 'icon'}, [['i', {class: v.icon}]]]
+        ], {
+            click: function(evt) {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_SET_MACHINE_VIEW",
+                    {mode: v.mode}, gobj);
+            }
+        }];
+    });
+
+    return ['div', {class: 'GCLASS_MACHINE_SWITCH buttons has-addons mb-0'},
+            buttons];
 }
 
 /************************************************************
@@ -964,6 +1073,71 @@ function reveal_current_state(gobj)
         $scroll.scrollLeft += (cell.right - box.right) + 12;
     } else if(cell.left < box.left) {
         $scroll.scrollLeft -= (box.left - cell.left) + 12;
+    }
+}
+
+/************************************************************
+ *   Build the hosted graph child on its mount.
+ *
+ *   Here, and never in build_machine: the mount has to be in
+ *   the document before the child starts, and the child is
+ *   started last for the same reason -- mt_start builds the
+ *   G6 graph and measures the canvas.
+ ************************************************************/
+function build_graph_child(gobj)
+{
+    let priv = gobj.priv;
+    let $zones = priv.$zones;
+
+    if(!$zones) {
+        return false;
+    }
+
+    let $mount = $zones.querySelector('.GCLASS_GRAPH_MOUNT');
+    if(!$mount) {
+        return false;   /*  the matrix is showing: nothing to mount  */
+    }
+
+    let graph = gobj_create_pure_child(
+        "fsm_" + clean_name(gobj_name(gobj)),
+        "C_YUI_FSM_GRAPH",
+        {
+            fsm:           priv.model? priv.model.fsm: null,
+            current_state: gobj_read_str_attr(gobj, "current_state"),
+        },
+        gobj
+    );
+    if(!graph) {
+        log_error(`${gobj_short_name(gobj)}: cannot create the machine graph`);
+        return false;
+    }
+
+    let $box = gobj_read_attr(graph, "$container");
+    if(!$box) {
+        log_error(`${gobj_short_name(gobj)}: the machine graph built no $container`);
+        gobj_destroy(graph);
+        return false;
+    }
+
+    $mount.appendChild($box);
+    priv.graph_gobj = graph;
+    gobj_start(graph);
+    return true;
+}
+
+/************************************************************
+ *   Destroy the hosted graph child, if any.
+ ************************************************************/
+function teardown_graph_child(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.graph_gobj) {
+        if(gobj_is_running(priv.graph_gobj)) {
+            gobj_stop(priv.graph_gobj);
+        }
+        gobj_destroy(priv.graph_gobj);
+        priv.graph_gobj = null;
     }
 }
 
@@ -1081,12 +1255,73 @@ function ac_toggle_zone(gobj, event, kw, src)
         return -1;
     }
 
-    if(priv.collapsed.has(zone)) {
-        priv.collapsed.delete(zone);
-    } else {
+    let collapsed = !priv.collapsed.has(zone);
+    if(collapsed) {
         priv.collapsed.add(zone);
+    } else {
+        priv.collapsed.delete(zone);
     }
 
+    /*
+     *  The DOM is folded in place, never re-rendered: a rebuild would
+     *  throw away the hosted graph and its camera every time somebody
+     *  folded an unrelated zone.
+     */
+    let $zone = priv.$zones?
+        priv.$zones.querySelector(`.GCLASS_ZONE[data-zone="${zone}"]`): null;
+    if(!$zone) {
+        log_error(`${GCLASS_NAME}: zone '${zone}' is not drawn`);
+        return -1;
+    }
+
+    $zone.classList.toggle('is-collapsed', collapsed);
+
+    let $body = $zone.querySelector('.GCLASS_ZONE_BODY');
+    if($body) {
+        $body.classList.toggle('is-hidden', collapsed);
+    }
+
+    let $toggle = $zone.querySelector('.GCLASS_ZONE_TOGGLE');
+    if($toggle) {
+        $toggle.setAttribute("aria-expanded", collapsed? "false": "true");
+    }
+
+    let $arrow = $zone.querySelector('.GCLASS_ZONE_ARROW i');
+    if($arrow) {
+        $arrow.className = collapsed? 'yi-chevron-right': 'yi-chevron-down';
+    }
+
+    /*  A graph built inside a folded zone measures 0x0 and keeps that
+     *  size for good, so it is built when the zone opens and dropped
+     *  when it closes.  */
+    if(zone === "machine" && priv.machine_view === "graph") {
+        if(collapsed) {
+            teardown_graph_child(gobj);
+        } else if(!priv.graph_gobj) {
+            build_graph_child(gobj);
+        }
+    }
+
+    return 0;
+}
+
+/************************************************************
+ *   EV_SET_MACHINE_VIEW {mode}
+ ************************************************************/
+function ac_set_machine_view(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let mode = kw.mode;
+
+    if(!MACHINE_VIEWS.some((v) => v.mode === mode)) {
+        log_error(`${GCLASS_NAME}: unknown machine view '${mode}'`);
+        return -1;
+    }
+    if(mode === priv.machine_view) {
+        return 0;
+    }
+
+    priv.machine_view = mode;
     render_zones(gobj);
     return 0;
 }
@@ -1218,6 +1453,7 @@ function create_gclass(gclass_name)
             ["EV_SET_DESCRIPTION",  ac_set_description,     null],
             ["EV_SET_VIEW_MODE",    ac_set_view_mode,       null],
             ["EV_TOGGLE_ZONE",      ac_toggle_zone,         null],
+            ["EV_SET_MACHINE_VIEW", ac_set_machine_view,    null],
             ["EV_SEARCH",           ac_search,              null],
             ["EV_COPY_ALL",         ac_copy_all,            null],
             ["EV_LANGUAGE_CHANGED", ac_language_changed,    null],
@@ -1234,6 +1470,7 @@ function create_gclass(gclass_name)
         ["EV_SET_DESCRIPTION",  0],
         ["EV_SET_VIEW_MODE",    0],
         ["EV_TOGGLE_ZONE",      0],
+        ["EV_SET_MACHINE_VIEW", 0],
         ["EV_SEARCH",           0],
         ["EV_COPY_ALL",         0],
         ["EV_LANGUAGE_CHANGED", 0],
@@ -1273,6 +1510,11 @@ function register_c_yui_gclass()
      *  registers it explicitly must not trip "GClass ALREADY created".  */
     if(gclass_find_by_name(GCLASS_NAME, false)) {
         return 0;
+    }
+    /*  The machine's graph view hosts a C_YUI_FSM_GRAPH child: make
+     *  sure its gclass exists even if the app never registered it.  */
+    if(!gclass_find_by_name("C_YUI_FSM_GRAPH", false)) {
+        register_c_yui_fsm_graph();
     }
     return create_gclass(GCLASS_NAME);
 }

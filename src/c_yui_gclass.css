@@ -124,6 +124,16 @@
     .C_YUI_GCLASS .GCLASS_COLS {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
     }
+
+    /*  In graph mode the machine is above, across the whole width, and
+     *  what is left stacks in one column.  */
+    .C_YUI_GCLASS .GCLASS_COLS.is-stacked {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.C_YUI_GCLASS .GCLASS_FULL {
+    margin-bottom: 1.2rem;
 }
 
 .C_YUI_GCLASS .GCLASS_COL {
@@ -479,4 +489,20 @@
     line-height: 1.45;
     white-space: pre;
     tab-size: 4;
+}
+
+/*
+ *  The machine's own switch, and the box its graph lives in.
+ *
+ *  A graph needs a HEIGHT: the zone is as tall as its content, and a
+ *  canvas asked to be "as tall as its content" is 0 pixels tall.
+ */
+.C_YUI_GCLASS .GCLASS_MACHINE_SWITCH {
+    margin-bottom: .5rem;
+}
+
+.C_YUI_GCLASS .GCLASS_GRAPH_MOUNT {
+    height: 26rem;
+    min-height: 16rem;
+    max-height: 70vh;
 }

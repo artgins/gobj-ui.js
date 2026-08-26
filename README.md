@@ -1486,6 +1486,37 @@ matrix (one empty row per column says nothing) and are listed under
 *publishes*. The `raw` view keeps the description verbatim — it is the
 authoritative answer of the backend and is never thrown away.
 
+### C_YUI_FSM_GRAPH — the machine, drawn
+
+The machine zone's second view, switched from a pair of buttons inside the
+zone (the zone heading is itself a button, and a button inside a button is not
+a control). The matrix stays the default; the graph earns its place where the
+matrix is worst — many states, few events each — and in graph mode the machine
+takes the whole width and the other zones stack under it, because 600px of a
+1200px viewer is where six states stop fitting.
+
+Attrs: `fsm` (the `fsm` block of the view model), `current_state`,
+`$container`, `canvas_id`, `wide`, `layout` (`dagre-lr` | `dagre-tb`). Events
+in: `EV_SET_FSM {fsm, current_state}`, `EV_CHANGE_LAYOUT {layout}`, the camera
+set (`EV_ZOOM_IN` / `EV_ZOOM_OUT` / `EV_ZOOM_RESET` / `EV_CENTER`),
+`EV_RESIZE`, `EV_THEME_CHANGED`, `EV_LANGUAGE_CHANGED`, `EV_SHOW`, `EV_HIDE`.
+It publishes nothing.
+
+What it refuses to draw is the interesting half:
+
+- **One edge per PAIR of states**, not per transition, labelled with the events
+  that make the jump (three, then a count). G6 draws overlapping edges on top
+  of each other, so a second edge between the same two states is invisible and
+  nothing tells the reader it is there.
+- **An event a state handles without leaving is not an edge.** Ten self-loops
+  on one card say nothing a number cannot say better, so the card carries
+  `n events · m leave` instead.
+
+It fits with `fitCenter()` then `fitView()` — the house pair; `fitView` alone
+leaves an html-node graph off centre — and never below `MIN_READABLE_ZOOM`
+(0.5), the same floor `C_G6_NODES_TREE` uses: a six-state machine fits a panel
+at 38%, which is the whole graph and worth nothing.
+
 > **Mount before you start a hosted view.** `mt_create` builds the DOM;
 > `mt_start` renders it, and a view that measures a canvas or observes its box
 > needs to be IN the document by then. A host that creates a viewer, reads its
