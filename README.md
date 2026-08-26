@@ -1430,7 +1430,19 @@ gclass of a **backend** yuno the host passes the answer of `view-gclass` as
 
 `gclass_view_available()` reports whether the app registers `C_YUI_JSON` — the
 gobj tree asks it before drawing its `gclass` button, so an app that does not
-carry the viewer shows no control rather than one that fails.
+carry the viewer shows no control rather than one that fails. **Importing
+`c_yui_json.js` is not registering it**: an app that only pulls it in
+transitively (through the treedb graph, say) still has to call
+`register_c_yui_json()` for the button to appear.
+
+> **Mount before you start a hosted view.** `mt_create` builds the DOM;
+> `mt_start` renders it, and a view that measures a canvas or observes its box
+> needs to be IN the document by then. A host that creates a viewer, reads its
+> `$container` and hands it to a window as `body` must therefore start the
+> viewer **after** the window — the window is what puts it in the document.
+> Started before, a graph viewer measures nothing, attaches no
+> `ResizeObserver`, and its canvas keeps its birth size for the life of the
+> window while everything resizes around it (fixed in 7.23.31).
 
 ### Toolbar badge — a count pinned to an item's icon
 

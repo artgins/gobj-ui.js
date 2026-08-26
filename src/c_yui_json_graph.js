@@ -675,6 +675,30 @@ function make_toolbar(gobj)
 }
 
 /************************************************************
+ *  The element G6 mounts its canvas in.
+ *
+ *  Read from THIS gclass's own $container, never with
+ *  `document.getElementById()`: a view is not always in the
+ *  document when it is started -- a host that builds the
+ *  viewer and mounts it into a window afterwards starts it
+ *  DETACHED -- and a global lookup answers null there. It cost
+ *  a resize that never worked: the ResizeObserver below was
+ *  simply never attached, silently, and the canvas kept the
+ *  size it was born with for the life of the window.
+ *
+ *  Null only if the UI was never built; that is a bug, and it
+ *  is logged where it matters rather than skipped.
+ ************************************************************/
+function canvas_mount(gobj)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return null;
+    }
+    return $container.querySelector("#" + gobj.priv.canvas_id);
+}
+
+/************************************************************
  *  Build a G6 graph instance
  ************************************************************/
 function build_graph(gobj)
@@ -778,8 +802,10 @@ function build_graph(gobj)
      *  the observed box so there is no feedback loop.
      */
     if(typeof ResizeObserver !== "undefined") {
-        let $canvas = document.getElementById(priv.canvas_id);
-        if($canvas) {
+        let $canvas = canvas_mount(gobj);
+        if(!$canvas) {
+            log_error(`${gobj_short_name(gobj)}: no canvas mount, the graph will never resize`);
+        } else {
             let ro = new ResizeObserver(() => {
                 if(priv._resize_raf) {
                     cancelAnimationFrame(priv._resize_raf);
@@ -2333,7 +2359,7 @@ function ac_show(gobj, event, kw, src)
     let graph = priv.graph;
 
     if(graph) {
-        let $canvas = document.getElementById(priv.canvas_id);
+        let $canvas = canvas_mount(gobj);
         if($canvas) {
             /*
              *  Content box (clientWidth/Height), not getBoundingClientRect:
@@ -2366,7 +2392,7 @@ function ac_resize(gobj, event, kw, src)
     let graph = priv.graph;
 
     if(graph) {
-        let $canvas = document.getElementById(priv.canvas_id);
+        let $canvas = canvas_mount(gobj);
         if($canvas) {
             let cw = $canvas.clientWidth;
             let ch = $canvas.clientHeight;

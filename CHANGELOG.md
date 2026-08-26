@@ -5,6 +5,35 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.31
+
+### Fixed
+
+- **A graph viewer that is started DETACHED never resizes again.** Resizing the
+    window left the canvas at the size it was born with -- the drawing clipped
+    part way across, white space where the window had grown. The
+    `ResizeObserver` was looked up with `document.getElementById(canvas_id)`,
+    which answers `null` for an element that is not in the document yet, and
+    the `if($canvas)` around it meant the observer was simply never attached.
+    Silently, for the life of that window.
+
+    It needed a host that builds a viewer and mounts it into a window
+    AFTERWARDS -- which is what the new gclass viewer does, and what the treedb
+    graph's raw-JSON viewer has always done. And it needed the reader to have
+    last used the GRAPH view: `C_YUI_JSON` remembers the view mode in
+    `localStorage` and builds the graph child inside `mt_start`, so with the
+    tree remembered the graph was built later, attached, and everything worked.
+
+    Both halves are fixed. The mount is read from the gclass's OWN
+    `$container` (`canvas_mount()`), which works attached or not, and a missing
+    mount is now an error in the log instead of a skipped branch. And the two
+    hosts start the viewer AFTER its presenter has put it in the document --
+    `yui_gclass_view.js` and `C_YUI_TREEDB_GRAPH`, whose teardown grew the
+    `gobj_is_running()` guard the new order needs.
+
+    Same one-line change in `C_YUI_GOBJ_TREE_JS`, which had the identical
+    lookup and has so far only been mounted by a host that attaches first.
+
 ## 7.23.30
 
 ### Added

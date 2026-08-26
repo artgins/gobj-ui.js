@@ -115,8 +115,19 @@ function open_gclass_view(host, gclass_name, opts)
         log_error(`${gobj_short_name(host)}: cannot create the gclass viewer`);
         return null;
     }
-    gobj_start(jv);
 
+    /*  CREATED, not started. `mt_create` builds the DOM; `mt_start`
+     *  RENDERS it -- and the viewer's graph view measures a canvas and
+     *  puts a ResizeObserver on it, both of which need the element to be
+     *  in the document. The window below is what puts it there, so the
+     *  start goes after the window, at the bottom of this function.
+     *
+     *  Starting it here worked for as long as the reader had last used
+     *  the tree view: the graph is built on first entry, which was after
+     *  the window. The moment the viewer REMEMBERED the graph view, it
+     *  built it inside mt_start, detached, found no mount, attached no
+     *  observer -- and the canvas kept its birth size for the life of
+     *  the window while the window resized around it.  */
     let handle = {json_gobj: jv, win: null, modal: null};
     let $box = gobj_read_pointer_attr(jv, "$container");
 
@@ -140,6 +151,7 @@ function open_gclass_view(host, gclass_name, opts)
             t:             t,
             on_close:      on_close,
         });
+        gobj_start(jv);     /*  mounted: now it can measure itself  */
         return handle;
     }
 
@@ -180,6 +192,7 @@ function open_gclass_view(host, gclass_name, opts)
         return null;
     }
     gobj_start(handle.win);
+    gobj_start(jv);         /*  mounted: now it can measure itself  */
 
     return handle;
 }

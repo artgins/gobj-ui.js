@@ -771,7 +771,14 @@ function open_json_viewer(gobj)
         return;
     }
     priv.json_gobj = jv;
-    gobj_start(jv);
+
+    /*  CREATED, not started. `mt_create` builds the DOM; `mt_start`
+     *  RENDERS it -- and the viewer's graph view measures a canvas and
+     *  puts a ResizeObserver on it, both of which need the element to be
+     *  in the document, which the presenter below is what does. Started
+     *  here it worked only while the reader had last used the tree view;
+     *  with the graph view remembered it built detached, attached no
+     *  observer, and the canvas never followed the window again.  */
     let $box = gobj_read_pointer_attr(jv, "$container");
 
     if(mobile) {
@@ -793,6 +800,7 @@ function open_json_viewer(gobj)
                 gobj_send_event(gobj, "EV_JSON_CLOSED", {}, gobj);
             }
         });
+        gobj_start(jv);     /*  mounted: now it can measure itself  */
     } else {
         let $win_parent = (shell && yui_shell_popup_layer(shell)) ||
             (typeof document !== "undefined" && document.getElementById("top-layer")) ||
@@ -833,6 +841,7 @@ function open_json_viewer(gobj)
             return;
         }
         gobj_start(priv.json_win);
+        gobj_start(jv);     /*  mounted: now it can measure itself  */
     }
 
     request_print_tranger(gobj, "");    /*  first fetch: whole tranger, collapsed  */
@@ -877,11 +886,16 @@ function close_json_viewer(gobj)
     }
     if(jv && is_gobj(jv)) {
         try {
-            /*  STOP, then destroy — the viewer was STARTED in open_json_viewer.
-             *  gobj_destroy() raises the `destroying` flag before it can stop a
-             *  running gobj, so destroying it straight logs "Destroying a
-             *  RUNNING gobj" + "gobj NULL or DESTROYED" and skips its mt_stop. */
-            gobj_stop(jv);
+            /*  STOP, then destroy: gobj_destroy() raises the `destroying`
+             *  flag before it can stop a running gobj, so destroying it
+             *  straight logs "Destroying a RUNNING gobj" + "gobj NULL or
+             *  DESTROYED" and skips its mt_stop. GUARDED, because the
+             *  viewer is now started AFTER its presenter is up: the two
+             *  failure paths that get here arrive with it created and
+             *  never started. */
+            if(gobj_is_running(jv)) {
+                gobj_stop(jv);
+            }
             gobj_destroy(jv);
         } catch(e) {
             log_warning(`${gobj_short_name(gobj)}: already gone: ${e}`);
