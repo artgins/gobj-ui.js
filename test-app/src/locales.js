@@ -19,6 +19,50 @@ import i18next from "i18next";
 
 const es_translation = {
     /*
+     *  The gclass viewer (C_YUI_GCLASS): a gclass by zones, and its
+     *  machine as a matrix or a graph.
+     */
+    "attributes":                         "Atributos",
+    "methods":                            "Métodos",
+    "internal methods":                   "Métodos internos",
+    "trace levels":                       "Niveles de traza",
+    "machine":                            "Máquina",
+    "instances":                          "instancias",
+    "event":                              "Evento",
+    "type":                               "Tipo",
+    "default":                            "Por defecto",
+    "description":                        "Descripción",
+    "publishes":                          "Publica",
+    "current state":                      "Estado actual",
+    "state with no declared entry":       "Estado sin entrada declarada",
+    "not declared in this state":         "No declarado en este estado",
+    "action":                             "Acción",
+    "zones view":                         "Vista por zonas",
+    "raw view":                           "Vista en crudo",
+    "matrix view":                        "Vista en matriz",
+    "graph view":                         "Vista en grafo",
+    "events":                             "eventos",
+    "leave":                              "salen",
+    "entry state":                        "Estado inicial",
+    "dagre left-right":                   "Dagre izquierda-derecha",
+    "dagre top-down":                     "Dagre arriba-abajo",
+    "no attributes declared":             "Esta gclass no declara atributos",
+    "no commands declared":               "Esta gclass no declara comandos",
+    "no methods declared":                "Esta gclass no implementa métodos",
+    "no trace levels declared":           "Esta gclass no declara niveles de traza",
+    "no machine declared":                "Esta gclass no declara máquina",
+    "no matches":                         "Sin coincidencias",
+    "text truncated":                     "Texto truncado",
+    "copied":                             "Copiado",
+    "copy json":                          "Copiar JSON",
+    "zoom in":                            "Acercar",
+    "zoom out":                           "Alejar",
+    "zoom level":                         "Nivel de zoom",
+    "auto fit":                           "Ajustar",
+    "actual size":                        "Tamaño real",
+    "no data":                            "Sin datos",
+
+    /*
      *  The gobj tree (C_YUI_GOBJ_TREE_JS, the Frontend view window):
      *  what a gobj IS and what it is DOING, plus the gclass viewer.
      */
