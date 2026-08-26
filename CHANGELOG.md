@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.28
+
+**The treedb graph threw on load: `calculate_hooks_fkeys_counter is not
+defined`.** A regression of 7.23.21, shipped and unnoticed for six releases.
+
+Moving `getPointPosition()` into `lib_graph.js` was done by cutting a range of
+TEXT between two comment banners, and the range held a second function --
+`calculate_hooks_fkeys_counter()`, which is not a graph helper at all but a
+treedb one, reading a topic `desc`. It landed in `lib_graph.js` unexported,
+next to no `treedb_get_field_desc` to call, while its only caller stayed
+behind. Nothing failed at build time: an undefined name is a runtime error in
+JavaScript, and the chapter that calls it is one nobody had opened since.
+
+It is back in `c_g6_nodes_tree.js`. `getPointPosition()` stays shared, which is
+what the move was for.
+
 ## 7.23.27
 
 **The anchor works.** Three more faults, all of them found by driving the thing

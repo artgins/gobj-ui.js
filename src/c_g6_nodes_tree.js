@@ -1601,6 +1601,37 @@ function configure_behaviour(gobj)
 }
 
 /************************************************************
+ *  Count hooks and fkeys in topic desc, classify node type
+ ************************************************************/
+function calculate_hooks_fkeys_counter(desc)
+{
+    let cols = desc.cols;
+    desc.hooks_counter = 0;
+    desc.fkeys_counter = 0;
+
+    for(let i=0; i<cols.length; i++) {
+        let col = cols[i];
+        const field_desc = treedb_get_field_desc(col);
+        switch(field_desc.type) {
+            case "hook":
+                desc.hooks_counter++;
+                break;
+            case "fkey":
+                desc.fkeys_counter++;
+                break;
+        }
+    }
+
+    if(desc.hooks_counter === 0) {
+        desc.node_treedb_type = 'child';
+    } else if(desc.fkeys_counter === 0) {
+        desc.node_treedb_type = 'extended';
+    } else {
+        desc.node_treedb_type = 'hierarchical';
+    }
+}
+
+/************************************************************
  *  Build ports for a topic desc
  ************************************************************/
 function build_ports(gobj, desc)
