@@ -205,6 +205,7 @@ let PRIVATE_DATA = {
     anchor_path:    "",     // its path, so a rebuild can find it again
     anchor_state:   "off",  // "off" | "arming" | "on"
     last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
+    center_posted:  false,  // one re-centring in flight, never a queue of them
 };
 
 let __gclass__ = null;
@@ -731,8 +732,22 @@ function build_graph(gobj)
             return;
         }
         priv.last_zoom = z;
-        if(priv.anchor_state === "on" && priv.anchor_id) {
-            yui_graph_center_on(priv.graph, priv.anchor_id);
+
+        /*
+         *  POSTED, like the pick. This runs inside G6's own transform
+         *  emit, and a camera move made there behaves the way one made
+         *  inside its click dispatch does: measured, the centring runs,
+         *  its three passes each fire back here, and the card still ends
+         *  up hundreds of pixels off -- while the same call from a zoom
+         *  BUTTON, which lands after the zoom promise resolved, centres
+         *  exactly. One turn later is out of that stack.
+         *
+         *  At most one in flight: a wheel gesture is a burst of notches,
+         *  and the queue is not a work queue.
+         */
+        if(priv.anchor_state === "on" && priv.anchor_id && !priv.center_posted) {
+            priv.center_posted = true;
+            gobj_post_event(gobj, "EV_CENTER_ANCHOR", {}, gobj);
         }
     });
 
@@ -896,8 +911,24 @@ const FOLD_SPACER = `<span style="width:24px; flex:0 0 auto;"></span>`;
  *  which REPLACES the behavior's own default test rather than adding to
  *  it -- the trap that made a card drag pan the canvas in 7.23.10.
  */
-const BEHAVIORS_READING = ['drag-canvas', 'zoom-canvas', 'drag-element'];
-const BEHAVIORS_PICKING = ['drag-canvas', 'zoom-canvas'];
+/*
+ *  `zoom-canvas` with NO animation, and that is two rules at once.
+ *
+ *  The house rule first: nothing in this GUI slides or fades, and G6's
+ *  200ms zoom easing is a transition nobody chose -- it comes with the
+ *  behavior's defaults.
+ *
+ *  And it is what makes an anchor possible on the WHEEL. `aftertransform`
+ *  fires while that easing is still running, so the re-centring measured
+ *  a camera that was still moving: measured, its passes went -272, then
+ *  +411 the other side, then +183 -- oscillating, because between two
+ *  reads the easing had moved the ground. With the zoom instantaneous
+ *  the camera is still by the time anything measures it.
+ */
+const ZOOM_CANVAS = {type: 'zoom-canvas', animation: false};
+
+const BEHAVIORS_READING = ['drag-canvas', ZOOM_CANVAS, 'drag-element'];
+const BEHAVIORS_PICKING = ['drag-canvas', ZOOM_CANVAS];
 
 /*
  *  The card's geometry, in ONE place.
@@ -1900,6 +1931,7 @@ function ac_center_anchor(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
+    priv.center_posted = false;
     paint_anchor_mark(gobj);
     if(priv.anchor_state === "on" && priv.anchor_id) {
         yui_graph_center_on(priv.graph, priv.anchor_id);

@@ -256,12 +256,71 @@
  *  pressed button hands it back to Bulma's rule and the toggle appears
  *  to switch off under the pointer.
  */
-/*  Picking the node to anchor, in the gobj tree: the pointer says a
- *  click is expected, which is otherwise only announced by a button at
- *  the far end of a toolbar.  */
+/*
+ *  THE OTHER TWO GRAPHS' MOUNTS.
+ *
+ *  They live here, unscoped, and that is the point: these rules first
+ *  shipped inside `c_yui_json.css` under a `.C_YUI_JSON` ancestor, and
+ *  a host that mounts `C_YUI_JSON_GRAPH` DIRECTLY -- which the demo
+ *  does, and any host wanting only the graph -- has no such ancestor.
+ *  Every one of them silently did nothing there: no crosshair while
+ *  picking, no mark on the anchored card, and no `touch-action`, so a
+ *  finger dragging a card made a page scroll. A gclass's stylesheet
+ *  cannot assume the gclass that usually hosts it.
+ *
+ *  `lib_graph.css` is reached through `lib_graph.js`, which the camera
+ *  module imports and every one of these graphs uses, so it is loaded
+ *  wherever a graph is.
+ */
+
+/*
+ *  Picking the node to anchor: the pointer says a click is expected,
+ *  which is otherwise announced only by a button at the far end of a
+ *  toolbar. `!important` because G6 writes `cursor` onto its own
+ *  elements from its style props, and a mode has to win over a default.
+ */
+.json-graph-container.JSON_GRAPH_PICKING,
+.json-graph-container.JSON_GRAPH_PICKING *,
 .gobj-tree-container.GOBJ_TREE_PICKING,
 .gobj-tree-container.GOBJ_TREE_PICKING * {
-    cursor: crosshair;
+    cursor: crosshair !important;
+}
+
+/*
+ *  The card the camera is holding.
+ *
+ *  It has to say so ON THE CARD: the toolbar knows an anchor is set,
+ *  and knowing WHICH node it is was left to the reader remembering
+ *  what they clicked -- not a mark, a memory test.
+ *
+ *  An outline and not a fill: the card's own colours already mean
+ *  things (a dashed border is a dict, a solid one a list, the header
+ *  carries the group's hue), so repainting any of them would say two
+ *  things down one channel. `outline` draws OUTSIDE the box, so it
+ *  cannot move a single row.
+ *
+ *  Amber, the same "this one, right now" the toolbar's arming state
+ *  uses, and not one of the palette's action colours -- it is not an
+ *  action.
+ */
+.JSON_CARD_ANCHORED {
+    outline: 3px solid #fa8c16;
+    outline-offset: 2px;
+}
+
+/*
+ *  Once the cards can be DRAGGED. Two problems, both the browser's:
+ *  G6 puts `touch-action: none` on its CANVAS and nothing on the html
+ *  nodes, which are ordinary DIVs layered over it, so a finger landing
+ *  on a card made a page scroll -- two `pointermove`s, then
+ *  `pointercancel`, the card dead after ~20px while the page slid. And
+ *  a card is text, so a mouse drag started a selection.
+ */
+.json-graph-container,
+.gobj-tree-container {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .button.pressed_state,

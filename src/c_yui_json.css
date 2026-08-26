@@ -294,65 +294,6 @@
 }
 
 /*
- *  Picking the node to anchor. The pointer says a click is expected --
- *  without it the only sign the graph is waiting for one is a button
- *  at the far end of a toolbar.
- */
-.C_YUI_JSON .json-graph-container.JSON_GRAPH_PICKING,
-.C_YUI_JSON .json-graph-container.JSON_GRAPH_PICKING * {
-    cursor: crosshair;
-}
-
-/*
- *  The card the camera is holding.
- *
- *  It has to say so ON THE CARD: the toolbar button knows an anchor is
- *  set, and knowing WHICH node it is was left to the reader remembering
- *  what they clicked -- which is not a mark, it is a memory test.
- *
- *  An outline and not a fill: the card's own colours mean things (a
- *  dashed border is a dict, a solid one a list, the header carries the
- *  group's hue), and a mark that repaints any of them would be saying
- *  two things with one channel. `outline` also draws OUTSIDE the box,
- *  so it cannot move a single row.
- *
- *  Amber, the same "this one, right now" the toolbar's arming state
- *  uses. It is not one of the palette's action colours because it is
- *  not an action.
- */
-.C_YUI_JSON .JSON_CARD_ANCHORED {
-    outline: 3px solid #fa8c16;
-    outline-offset: 2px;
-}
-
-/*
- *  The graph mount, once its cards can be DRAGGED.
- *
- *  Two problems, both of them the browser's rather than G6's, and both
- *  already paid for once in the treedb graph (`lib_graph.css`):
- *
- *  G6 puts `touch-action: none` on its CANVAS and NOTHING on the html
- *  nodes, which are ordinary DIVs layered over it. So a finger landing
- *  on a card made a page scroll: two `pointermove`s through, then the
- *  browser decided the gesture was a scroll and killed the stream with
- *  `pointercancel` -- the card followed for about 20px and stopped dead
- *  while the page slid.
- *
- *  And a card is text: dragging one starts a text selection, and the
- *  wash stays until the next click somewhere else. Nothing on this
- *  canvas is prose.
- *
- *  On the CONTAINER and not the cards: every layer G6 stacks in here is
- *  a DIV over a canvas that already refuses the browser's gestures, and
- *  they have to agree.
- */
-.C_YUI_JSON .json-graph-container {
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
-}
-
-/*
  *  Disable any transition a host stylesheet might inject.
  */
 .C_YUI_JSON * {

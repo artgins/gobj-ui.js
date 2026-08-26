@@ -274,7 +274,7 @@ export async function yui_graph_center_on(graph, node_id)
         }
 
         /*
-         *  MEASURE, MOVE, MEASURE AGAIN -- up to three times.
+         *  MOVE BY THE CLOSED FORM, then check -- up to three times.
          *
          *  Not the arithmetic anybody would write first, and the reason
          *  is worth keeping. The obvious call is `graph.focusElement()`,
@@ -287,18 +287,26 @@ export async function yui_graph_center_on(graph, node_id)
          *  one shot lands short or long by a factor nobody should have
          *  to name.
          *
-         *  Probing for that factor gives noise: the camera settles
-         *  asynchronously, so a position read straight after a
-         *  translate is a value halfway through. AWAITING each move and
-         *  measuring again needs no factor at all -- the direction is
-         *  right, so the residual falls to nothing in two or three
-         *  passes, and a graph whose maths change under us keeps
-         *  working.
+         *  Guessing at that factor does not work: stepping by the
+         *  measured pixel gap OSCILLATES -- measured, its passes went
+         *  -272, then +411 the other side, then +183, with the zoom
+         *  stable throughout, so it is not an animation racing the
+         *  reads. The factor is read off G6's own
+         *  `getTranslateOptions()` instead: an absolute translate puts
+         *  the camera at `canvasCentre - T/zoom`, and the camera is
+         *  what lands on the viewport centre, so
          *
-         *  The 1px floor is what stops it converging forever on the
-         *  rounding.
+         *      T = (canvasCentre - nodeWorldPosition) * zoom
+         *
+         *  which lands exactly, in one pass, at any zoom.
+         *
+         *  The loop stays as a guard: it costs one measurement when the
+         *  first move was right, and it is what would catch this going
+         *  wrong again rather than shipping a graph that drifts. The
+         *  1px floor stops it chasing the rounding.
          */
         for(let i = 0; i < 3; i++) {
+            let z = graph.getZoom() || 1;
             let at = graph.getViewportByCanvas(graph.getElementPosition(node_id));
             let want = graph.getCanvasCenter();
             let dx = want[0] - at[0];
@@ -307,8 +315,12 @@ export async function yui_graph_center_on(graph, node_id)
             if(Math.abs(dx) < 1 && Math.abs(dy) < 1) {
                 break;
             }
-            let pos = graph.getPosition();
-            await graph.translateTo([pos[0] + dx, pos[1] + dy]);
+            /*  Closed form, read off G6's own `getTranslateOptions()`:
+             *  an ABSOLUTE translate puts the camera at
+             *  `canvasCentre - T/zoom`, and the camera is what lands on
+             *  the viewport centre. So T = (centre - node) * zoom.  */
+            let n = graph.getElementPosition(node_id);
+            await graph.translateTo([(want[0] - n[0]) * z, (want[1] - n[1]) * z]);
         }
         return true;
     } catch(e) {

@@ -101,8 +101,24 @@ SDATA_END()
  *  which REPLACES the behavior's own default test rather than adding
  *  to it.
  */
-const BEHAVIORS_READING = ['drag-canvas', 'zoom-canvas', 'drag-element'];
-const BEHAVIORS_PICKING = ['drag-canvas', 'zoom-canvas'];
+/*
+ *  `zoom-canvas` with NO animation, and that is two rules at once.
+ *
+ *  The house rule first: nothing in this GUI slides or fades, and G6's
+ *  200ms zoom easing is a transition nobody chose -- it comes with the
+ *  behavior's defaults.
+ *
+ *  And it is what makes an anchor possible on the WHEEL. `aftertransform`
+ *  fires while that easing is still running, so the re-centring measured
+ *  a camera that was still moving: measured, its passes went -272, then
+ *  +411 the other side, then +183 -- oscillating, because between two
+ *  reads the easing had moved the ground. With the zoom instantaneous
+ *  the camera is still by the time anything measures it.
+ */
+const ZOOM_CANVAS = {type: 'zoom-canvas', animation: false};
+
+const BEHAVIORS_READING = ['drag-canvas', ZOOM_CANVAS, 'drag-element'];
+const BEHAVIORS_PICKING = ['drag-canvas', ZOOM_CANVAS];
 
 let PRIVATE_DATA = {
     canvas_id: "",
@@ -422,13 +438,7 @@ function build_ui(gobj)
         ['div', {class: 'C_YUI_GOBJ_TREE_JS', style: 'height:100%; display:flex; flex-direction:column; position:relative;'}, [
             ['div', {class: 'is-flex-grow-0 is-flex toolbar_yui_gobj_tree'}, $toolbar],
             ['div', {class: 'is-flex-grow-1', style: 'height:100%; min-height:0; overflow:hidden;'}, [
-                /*  `touch-action` and `user-select` inline because this gclass loads no
- *  stylesheet of its own: G6 puts `touch-action: none` on its canvas and
- *  nothing on the html nodes over it, so without this a finger dragging a
- *  card makes a page scroll and stops dead after ~20px; and a card is
- *  text, so a mouse drag would start a selection. Same two rules
- *  `lib_graph.css` carries for the treedb graph.  */
-                ['div', {id: priv.canvas_id, class: 'gobj-tree-container', style: 'height:100%; min-height:0; border: 1px solid var(--bulma-border-weak); border-radius:0.2rem; touch-action:none; -webkit-user-select:none; user-select:none;'}, [
+                                ['div', {id: priv.canvas_id, class: 'gobj-tree-container', style: 'height:100%; min-height:0; border: 1px solid var(--bulma-border-weak); border-radius:0.2rem;'}, [
                 ]]
             ]]
         ]]

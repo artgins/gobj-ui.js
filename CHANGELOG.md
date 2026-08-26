@@ -5,6 +5,41 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.27
+
+**The anchor works.** Three more faults, all of them found by driving the thing
+in a browser rather than reading it.
+
+**A gclass's stylesheet cannot assume the gclass that usually hosts it.** The
+crosshair, the mark on the anchored card and the graph's `touch-action` all
+shipped inside `c_yui_json.css` under a `.C_YUI_JSON` ancestor -- and a host
+that mounts `C_YUI_JSON_GRAPH` DIRECTLY, which the demo does and any host
+wanting only the graph would, has no such ancestor. Measured in the page: the
+class was on the element (`mount_has_class: true`) and the computed cursor was
+`default`. So the mark added in 7.23.26 was never painted there, and a finger
+dragging a card still made a page scroll. The rules live in `lib_graph.css`
+now, unscoped -- it is reached through the camera module, so it is loaded
+wherever a graph is.
+
+**The camera translate is not in pixels, and stepping by the measured gap
+oscillates.** Its passes went `-272`, then `+411` the other side, then `+183`,
+with the zoom stable throughout -- so not an animation racing the reads. The
+factor is read off G6's own `getTranslateOptions()` instead: an absolute
+translate puts the camera at `canvasCentre - T/zoom`, and the camera is what
+lands on the viewport centre, so `T = (canvasCentre - nodeWorldPosition) *
+zoom`. One pass, exact, at any zoom. Measured on the wheel: `0,-1` at 150%,
+`0,-1` at 225%, `0,-2` at 338%, against a drift of `-259,-124` growing to
+`-601,-295` before.
+
+That it took this long to see has one cause worth keeping: **G6's html nodes
+forward six pointer events and NOT `wheel`**, so a wheel over a card never
+reaches the canvas. Every attempt to reproduce the report pointed at a card,
+found the zoom unchanged, and concluded the wheel could not be driven at all.
+
+**The wheel no longer eases.** G6's `zoom-canvas` defaults to a 200ms
+animation; nothing in this GUI slides or fades, and that one came with the
+behavior's defaults rather than from a decision.
+
 ## 7.23.26
 
 **The anchor could not be picked with a real mouse, and once picked it said
