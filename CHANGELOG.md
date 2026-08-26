@@ -5,6 +5,35 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.33
+
+### Fixed
+
+- **The `Periodic` filter now reaches the browser CONSOLE too.** 7.23.32 made
+    the chip work, and it worked in the window only: with the Output selector
+    on "Both" (the default) the timers were gone from the panel and still
+    arriving in the console beside it, two `EV_TIMEOUT` lines a second. The
+    same flood, one pane over.
+
+    It cannot be fixed from this side alone -- gobj-js writes the console line
+    BEFORE it calls the log sink, so nothing here can un-print it. It hands
+    out a say instead (`set_console_log_filter`, **gobj-js >= 7.13.6**), and
+    the predicate installed is the same one `entry_hidden()` uses: ONE rule,
+    two sinks, so the window and the console cannot disagree about what is
+    noise.
+
+    Feature-detected off a namespace import, not required: a NAMED import of
+    an export the installed gobj-js does not have is a hard module-load error,
+    which would take the app down instead of degrading. Against an older
+    gobj-js the window still filters, the console still floods exactly as
+    before, and the reason is logged once. The peer floor is deliberately not
+    raised for it.
+
+    Measured, Output on "Both", Automata on: filter ON `console=0 window=0`,
+    OFF `console=24 window=52`, ON again `0 / 0` -- and with it ON the
+    non-timer transitions still print (4 of them), so it silences the timers,
+    not the trace.
+
 ## 7.23.32
 
 ### Fixed

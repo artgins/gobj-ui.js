@@ -21,6 +21,14 @@ import {
     gobj_set_trace_machine_format,
 } from "@yuneta/gobj-js";
 
+/*  A NAMESPACE import, deliberately, for one optional API.
+ *
+ *  `set_console_log_filter` arrived in gobj-js 7.13.6, and a NAMED import of
+ *  an export the installed copy does not have is a hard module-load error --
+ *  it would take the whole app down instead of degrading. Read off the
+ *  namespace, a missing export is plain `undefined` and can be tested for. */
+import * as gobj_js from "@yuneta/gobj-js";
+
 import {log_signature, log_is_periodic} from "./dev_machine_trace.js";
 
 import i18next from 'i18next';
@@ -195,11 +203,45 @@ function dev_route()
 }
 
 /*  Push the current route's console decision down to gobj-js. Called from
- *  apply_dev_traces (startup) and whenever the Output selector changes. */
+ *  apply_dev_traces (startup), whenever the Output selector changes, and
+ *  whenever a filter that the console also obeys is toggled. */
 function apply_console_route()
 {
     set_console_log_enabled(dev_route() !== "window");
+
+    /*  ONE rule, TWO sinks.
+     *
+     *  The window's Periodic filter used to end at the window, so with the
+     *  Output on "Both" the timers were gone from the panel and still
+     *  arriving in the browser console, two lines a second — the same flood,
+     *  one pane over. It cannot be fixed from this side alone: gobj-js writes
+     *  the console line BEFORE it calls the log sink, so nothing here can
+     *  un-print it. It hands out a say instead (`set_console_log_filter`,
+     *  gobj-js >= 7.13.6), and this is the same predicate `entry_hidden()`
+     *  uses, so the two panes cannot disagree about what is noise.
+     *
+     *  Feature-detected rather than required: against an older gobj-js the
+     *  window still filters and the console still floods, exactly as before,
+     *  and the reason is logged once instead of failing. */
+    if(typeof gobj_js.set_console_log_filter === "function") {
+        gobj_js.set_console_log_filter((level, msg) => {
+            if(!dev_hide_periodic()) {
+                return true;
+            }
+            return !log_is_periodic(level, is_string(msg) ? msg : String(msg));
+        });
+    } else if(!__console_filter_warned__) {
+        __console_filter_warned__ = true;
+        console.warn(
+            "yui_dev: gobj-js has no set_console_log_filter (needs >= 7.13.6): " +
+            "the Periodic filter applies to this window only, not to the console"
+        );
+    }
 }
+
+/*  The warning above is worth saying, and worth saying ONCE: this runs on
+ *  every Output change and every filter toggle. */
+let __console_filter_warned__ = false;
 
 /*  Emit one inter-event traffic line to the browser console (routes
  *  "console" and "both"). gobj-js only knows about framework logs, not this
@@ -253,6 +295,12 @@ function toggle_pref(key, def)
 {
     let v = dev_num(key, def) ? 0 : 1;
     kw_set_local_storage_value(key, v);
+    /*  The console filter closes over dev_hide_periodic(), which reads the
+     *  stored value on each call, so it follows this on its own. Re-pushed
+     *  anyway: a filter installed before this module reached apply_dev_traces
+     *  is the difference between the console obeying the chip and ignoring
+     *  it, and one assignment is cheaper than that class of bug. */
+    apply_console_route();
     rerender_all();
     refresh_dev_chrome();
 }
