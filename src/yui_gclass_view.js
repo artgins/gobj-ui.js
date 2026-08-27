@@ -158,7 +158,30 @@ function open_gclass_view(host, gclass_name, opts)
     let handle = {json_gobj: jv, win: null, modal: null};
     let $box = gobj_read_pointer_attr(jv, "$container");
 
+    /*
+     *  The ✕ path, and the ONLY one that used to leave the viewer
+     *  behind. `close_window()` calls this and THEN destroys the
+     *  window -- but the viewer is not the window's child (it hangs
+     *  from the host, so it can outlive a window that is only its
+     *  frame), so nothing else took it down. Alive, it did two things:
+     *
+     *    - it kept its service NAME, so the very next click on the
+     *      `gclass` button answered "service ALREADY registered:
+     *      C_YUI_GCLASS^gclass-view-<host>" and no second gclass could
+     *      be opened for the rest of the session.
+     *    - it was still RUNNING when the host's own window closed, and
+     *      the framework logged "Destroying a RUNNING gobj" while
+     *      taking it down with its parent.
+     *
+     *  The window and the sheet are cleared FIRST: both are already
+     *  tearing themselves down, and close_gclass_view() must not go
+     *  back at them.
+     */
     let on_close = () => {
+        handle.win = null;
+        handle.modal = null;
+        close_gclass_view(handle);
+
         if(typeof opts.on_close === "function") {
             opts.on_close();
         }

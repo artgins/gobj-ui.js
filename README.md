@@ -1433,6 +1433,11 @@ description describes the CLASS and cannot carry it, so the host supplies it —
 the gobj tree passes `node_data.state` — and the machine lights that column.
 Omitted, nothing is lit.
 
+`close_gclass_view(handle)` is the host-driven teardown, and the ✕ runs it too:
+the window destroys itself, but the viewer hangs from the HOST, so nothing else
+would take it down — and a viewer left alive keeps its service name, which made
+the next click answer *"service ALREADY registered"* (fixed in 7.23.38).
+
 `gclass_view_available()` registers `C_YUI_GCLASS` on demand and reports
 whether it is there, so no app has to mount a gclass for a control it never
 asked for. The gobj tree still asks before drawing its `gclass` button: a

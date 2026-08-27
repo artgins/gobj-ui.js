@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.38
+
+### Fixed
+
+- **Closing the gclass window with its own ✕ left the viewer alive, and the
+    button never opened another one.** `close_window()` calls `on_close` and
+    then destroys the WINDOW; the viewer is not the window's child -- it hangs
+    from the host -- so nothing took it down. Alive, it did two things:
+
+    - it kept its service NAME, so the next click answered *"service ALREADY
+      registered: C_YUI_GCLASS^gclass-view-&lt;host&gt;"* followed by *"cannot
+      create the gclass viewer"*, and no second gclass could be opened for the
+      rest of the session.
+    - it was still RUNNING when the host's own window closed, so the framework
+      logged *"Destroying a RUNNING gobj"* while taking it down with its
+      parent.
+
+    `on_close` now clears the window and the sheet (both are already tearing
+    themselves down) and runs the same `close_gclass_view()` the host-driven
+    path uses. The defect predates the new viewer: the arrangement is the one
+    `C_YUI_JSON` was opened with.
+
+    Regression harness: `test-app/_qa_gclass_reopen.mjs` opens, closes and
+    reopens three times and then closes the frontend view. Reverted, it fails
+    on the second open.
+
 ## 7.23.37
 
 ### Fixed
