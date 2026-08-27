@@ -599,17 +599,25 @@ function make_toolbar(gobj)
      */
     let left_items = yui_graph_fold_items(gobj, toolbar_wide).concat([
         $find_control,
-        /*  Two spans, not one string: the number is DATA and "matches"
-         *  is the word, so a language switch re-translates the half that
-         *  is a word.  `display:flex` inline and NOT the `is-flex`
-         *  helper — both Bulma helpers carry !important, so
-         *  `is-hidden is-flex` on one element is decided by stylesheet
-         *  order. */
+        /*  ONE counted span, not a number beside a word: "1 matches"
+         *  is what two spans always produce, because nothing there can
+         *  see the count. `t(key, {count})` picks `matches_one` for
+         *  one and falls back to the base key for the rest, in both
+         *  languages.
+         *
+         *  And NO `i18n` attribute on it: refresh_language()
+         *  re-translates whatever carries one by calling t() WITHOUT
+         *  the count, which would put the plural back over the
+         *  singular. Nothing re-translates it, so it is repainted on
+         *  the next find -- which is the next keystroke, and it is
+         *  hidden while the box is empty.  */
+        /*  `display:flex` inline and NOT the `is-flex` helper — both
+         *  Bulma helpers carry !important, so `is-hidden is-flex` on one
+         *  element is decided by stylesheet order. */
         ['div', {class: 'JSON_GRAPH_FIND_RESULT is-hidden',
                  style: 'display:flex; align-items:center; gap:.3rem; ' +
                         'margin-right:.5rem; font-size:.85rem;'}, [
-            ['span', {class: 'JSON_GRAPH_FIND_COUNT'}, ''],
-            ['span', {i18n: 'matches'}, 'matches']
+            ['span', {class: 'JSON_GRAPH_FIND_COUNT'}, '']
         ]]
     ]);
     let center_items = [];
@@ -1537,7 +1545,7 @@ function update_find_result(gobj)
         priv.$find_count.textContent = "";
         return;
     }
-    priv.$find_count.textContent = String(priv.match_count);
+    priv.$find_count.textContent = t("matches", {count: priv.match_count});
     priv.$find_result.classList.remove("is-hidden");
 }
 

@@ -649,9 +649,14 @@ function make_toolbar(gobj)
 
     let center_items = [
         $find_control,
-        /*  Two spans, not one string: the number is DATA and "matches" is
-         *  the word, so a language switch re-translates the half that is a
-         *  word. Spaced with CSS because createElement2 trims text nodes. */
+        /*  ONE counted span, not a number beside a word: "1 matches" is
+         *  what two spans always produce, because nothing there can see
+         *  the count. `t(key, {count})` picks `matches_one` for one and
+         *  falls back to the base key for the rest, in both languages.
+         *  No `i18n` attribute on it: refresh_language() would call t()
+         *  WITHOUT the count and put the plural back over the singular.
+         *  Nothing re-translates it, so it is repainted on the next
+         *  find, and it is hidden while the box is empty.  */
         /*  `display:flex` inline and NOT the `is-flex` helper: both Bulma
          *  helpers carry !important, so `is-hidden is-flex` on one element
          *  is decided by whichever lands later in the stylesheet — and the
@@ -661,8 +666,7 @@ function make_toolbar(gobj)
         ['div', {class: 'GRAPH_FIND_RESULT is-hidden',
                  style: 'display:flex; align-items:center; gap:.3rem; ' +
                         'margin-right:.5rem; font-size:.85rem;'}, [
-            ['span', {class: 'GRAPH_FIND_COUNT'}, ''],
-            ['span', {i18n: 'matches'}, 'matches']
+            ['span', {class: 'GRAPH_FIND_COUNT'}, '']
         ]]
     ];
 
@@ -2485,7 +2489,7 @@ function ac_find_result(gobj, event, kw, src)
         return 0;
     }
 
-    $count.textContent = String((kw && kw.matches) || 0);
+    $count.textContent = t("matches", {count: (kw && kw.matches) || 0});
     $result.classList.remove("is-hidden");
     return 0;
 }

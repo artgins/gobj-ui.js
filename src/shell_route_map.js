@@ -257,11 +257,19 @@ function build_body(shell, t)
     );
     attach_clear($search_ctrl, $search);
 
-    /*  Live match counter next to the filter. */
+    /*  Live match counter next to the filter.
+     *
+     *  ONE counted span, not a number beside a word: "1 matches" is what
+     *  two spans always produce, because nothing there can see the
+     *  count. `t(key, {count})` picks `matches_one` for one and falls
+     *  back to the base key for the rest. No `i18n` attribute on it --
+     *  refresh_language() would call t() WITHOUT the count and put the
+     *  plural back over the singular -- so the filter, which runs on
+     *  every keystroke, is what repaints it.  */
     let $count_n = createElement2(["span", {class: "ROUTEMAP_COUNT_N"}, ""]);
     let $count = createElement2(
         ["span", {class: "ROUTEMAP_COUNT is-size-7 has-text-grey is-hidden"},
-            [$count_n, ["span", {i18n: "matches"}, "matches"]]]
+            [$count_n]]
     );
     /*  References are hidden by default and revealed by this toggle.
      *  Remembered for the page session (not localStorage): it is a
@@ -294,7 +302,9 @@ function build_body(shell, t)
         if(q === "") {
             $count.classList.add("is-hidden");
         } else {
-            $count_n.textContent = $tree.querySelectorAll(".ROUTEMAP_MATCH").length;
+            $count_n.textContent = t("matches", {
+                count: $tree.querySelectorAll(".ROUTEMAP_MATCH").length
+            });
             $count.classList.remove("is-hidden");
         }
     };

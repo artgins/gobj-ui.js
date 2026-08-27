@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.40
+
+### Fixed
+
+- **"1 matches".** Every find chip in the library counted with two spans -- a
+    number beside a word -- so nothing on the page could see the count, and one
+    match read as many in both languages. All four say it as ONE counted string
+    now (`t("matches", {count})`), with the singular in `matches_one` and the
+    plural left in the base key: i18next picks `_one` for one and falls back to
+    the base for the rest, which is also the only shape the apps' locale
+    validators can check, since they know nothing about suffixes.
+
+    Four, not two: the gobj tree, the JSON graph, the treedb graph and the
+    shell's route map all carried the same chip.
+
+    The counted span carries **no `i18n` attribute**, and that is the point of
+    the exercise: `refresh_language()` re-translates whatever carries one by
+    calling `t()` WITHOUT the count, which would put the plural straight back
+    over the singular. So its owner repaints it -- the gobj tree does it in its
+    language action; the other three repaint on the next keystroke, and their
+    chip is hidden while the box is empty.
+
+    The `matches` key now carries `{{count}}`, so a consumer that defined it as
+    a bare word must update it, and add `matches_one`.
+
 ## 7.23.39
 
 ### Added
