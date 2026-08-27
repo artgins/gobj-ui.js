@@ -183,17 +183,33 @@ export function subtree_matches(value, term)
 
 /************************************************************
  *   Fields whose numeric value is an epoch timestamp.
- *   Mirrors the timestampTag list wired into C_YUI_FORM's
- *   jsoneditor control, so the two viewers agree.
+ *
+ *   THE ONE LIST.  C_YUI_FORM's jsoneditor takes its
+ *   `timestampTag` from here: it used to carry its own copy,
+ *   and a copy is how the two stopped agreeing.
+ *
+ *   TWO SPELLINGS, AND LAS DOS SON DEL BACKEND.  timeranger2
+ *   writes `from_t`/`from_tm` in the match_cond of a query and
+ *   `fr_t`/`fr_tm` in the metadata of a topic and of a file --
+ *   which is what a Raw JSON of a treedb actually shows.  With
+ *   only the long pair listed, `to_t` got its date and the
+ *   `fr_t` right above it did not, which reads as a broken
+ *   annotator rather than a missing name.
  ************************************************************/
+const TIME_FIELDS = [
+    "__t__", "__tm__",
+    "t", "tm", "time",
+    "from_t", "to_t", "from_tm", "to_tm",
+    "fr_t", "fr_tm",
+    "t_input", "t_output"
+];
+
 export function is_time_field(field)
 {
-    return field === "__t__" || field === "__tm__" ||
-        field === "tm" || field === "t" || field === "time" ||
-        field === "from_t" || field === "to_t" ||
-        field === "t_input" || field === "t_output" ||
-        field === "from_tm" || field === "to_tm";
+    return TIME_FIELDS.indexOf(field) >= 0;
 }
+
+export {TIME_FIELDS};
 
 /************************************************************
  *   Format an epoch value as a local wall-clock string.

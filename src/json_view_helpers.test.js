@@ -310,3 +310,36 @@ test("is_pure_collection: the schema this came from", () => {
     /*  A column has content, so it keeps its card. */
     expect(is_pure_collection(col)).toBe(false);
 });
+
+
+/*
+ *  DOS ORTOGRAFIAS, Y LAS DOS SON DEL BACKEND.
+ *
+ *  timeranger2 escribe `from_t`/`from_tm` en el match_cond de una consulta y
+ *  `fr_t`/`fr_tm` en los metadatos de un topic y de un fichero -- que es lo
+ *  que enseña el Raw JSON de un treedb.  Con solo la larga en la lista,
+ *  `to_t` salia fechado y el `fr_t` de encima no: se lee como un anotador
+ *  roto y es un nombre que falta.
+ */
+test("is_time_field reconoce la abreviada, la que sale en un Raw JSON", () => {
+    expect(is_time_field("fr_t")).toBe(true);
+    expect(is_time_field("fr_tm")).toBe(true);
+});
+
+test("is_time_field sigue reconociendo la larga, la de las consultas", () => {
+    expect(is_time_field("from_t")).toBe(true);
+    expect(is_time_field("from_tm")).toBe(true);
+});
+
+test("is_time_field: las dos mitades de cada par, o la fila queda a medias", () => {
+    [["fr_t", "to_t"], ["fr_tm", "to_tm"],
+     ["from_t", "to_t"], ["from_tm", "to_tm"]].forEach((pair) => {
+        expect(is_time_field(pair[0])).toBe(is_time_field(pair[1]));
+    });
+});
+
+test("is_time_field no fecha lo que no es una fecha", () => {
+    ["rows", "id", "", undefined, null].forEach((f) => {
+        expect(is_time_field(f)).toBe(false);
+    });
+});

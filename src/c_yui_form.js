@@ -71,6 +71,7 @@ import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";
 
 import "./tabulator.css";
+import {is_time_field} from "./json_view_helpers.js";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
 // import { Tabulator } from "tabulator-tables";  // Import light Tabulator JS
 
@@ -1365,12 +1366,12 @@ function create_form_field(
                     onChange: function() {
                         gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
                     },
+                    /*  La lista vive en json_view_helpers.js: el visor de
+                     *  JSON y este editor tienen que reconocer los MISMOS
+                     *  campos, y tener cada uno su copia es como dejaron de
+                     *  hacerlo.  */
                     timestampTag: function({field, value, path}) {
-                        return field === '__t__' || field === '__tm__' ||
-                            field === 'tm' || field === 't' || field === 'time' ||
-                            field === 'from_t' || field === 'to_t' ||
-                            field === 't_input' || field === 't_output' ||
-                            field === 'from_tm' || field === 'to_tm';
+                        return is_time_field(field);
                     },
                 }
             });

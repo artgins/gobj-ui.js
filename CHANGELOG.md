@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.44
+
+### Fixed
+
+- **`fr_t` and `fr_tm` got no date next to them**, while the `to_t` on the
+  line above did. In a Raw JSON of a treedb that reads as a broken annotator;
+  it was a missing name.
+
+  **Two spellings, and both are the backend's.** timeranger2 writes
+  `from_t`/`from_tm` in the `match_cond` of a query and **`fr_t`/`fr_tm`** in
+  the metadata of a topic and of a file — which is exactly what a Raw JSON
+  shows. Only the long pair was listed, so half of every range came out dated
+  and the other half did not.
+
+  The list also existed **twice** — once in `json_view_helpers.js` and once
+  inline in `C_YUI_FORM`'s `timestampTag` — with a comment on the first saying
+  it mirrors the second. A copy is how two lists stop agreeing, so there is one
+  now (`TIME_FIELDS`) and the form imports it.
+
+  Guarded by a test that asserts **both halves of every pair answer the same**:
+  a range annotated on one end only is the shape of this bug.
+
 ## 7.23.43
 
 ### Fixed
