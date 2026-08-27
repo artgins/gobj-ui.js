@@ -5,6 +5,34 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.43
+
+### Fixed
+
+- **The "raise the version" banner could not be dismissed**, and every press
+  of it raised the schema version for nothing. One column delete on a real
+  node took **thirty-three presses**, and it is why schema versions climbed by
+  tens with the schema unchanged.
+
+  The rule is "this topic was written and its version has not moved since the
+  model loaded", measured against a baseline — and the baseline was taken
+  inside `build_model()`, which runs AGAIN on the patch after every write. So
+  it came back as the version the write had just raised: the rule read TRUE
+  for a topic whose version HAD moved, the banner appeared, its Raise button
+  wrote another version, and that one was measured against itself too.
+
+  The baseline belongs to the LOAD, which is the same reason `order_undo` had
+  already been moved out of `build_model()` — the comment saying so was two
+  lines above the loop that kept doing it. New `start_measuring()` takes both
+  halves (`baseline` and `written`) when records arrive from the store, and
+  nowhere else: a baseline without its `written` is the same false positive
+  from the other side.
+
+  The condition also lived in two places — the topic list's chip and the
+  column view's banner — which is how a rule drifts. It is one exported
+  predicate now, `needs_version_bump()`, with the loop itself written down as
+  a test.
+
 ## 7.23.42
 
 ### Fixed

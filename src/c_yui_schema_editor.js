@@ -519,22 +519,73 @@ function remote_command(gobj, command, kw)
 }
 
 /***************************************************************
- *  The three answers are in: build the schema and remember the
- *  versions it arrived with. The baseline is what "this topic
- *  still needs its version raised" is measured against, so it is
- *  taken here and never touched again until the next load.
+ *  The three answers are in: build the schema.
+ *
+ *  IT DOES NOT TOUCH THE BASELINE, and that is the whole point.
+ *  This runs again on the patch after EVERY write, so a baseline
+ *  taken here was re-taken as the version the write had just
+ *  raised -- and "written, and its version has not moved" then
+ *  read TRUE for a topic whose version had just moved.
+ *
+ *  The banner that says so offers a Raise button, which wrote
+ *  another version, which was measured against itself again: the
+ *  banner came back, every time, and could not be dismissed. One
+ *  operator pressed it thirty-three times on one column delete.
+ *  It is why schema versions climbed by tens with the schema
+ *  unchanged.
+ *
+ *  See start_measuring(): the baseline belongs to the LOAD, the
+ *  same reason `order_undo` was moved out of here before it.
  ***************************************************************/
 function build_model(gobj)
 {
     let priv = gobj.priv;
 
     priv.model = build_schema_model(priv.records);
+}
+
+/***************************************************************
+ *  From here on, "did this session change it?" has an answer.
+ *
+ *  Called ONLY when records arrive from the store: that is what a
+ *  measurement of "changed since" can be measured against. Both
+ *  halves reset together -- a baseline without its `written` is
+ *  the same false positive from the other side, since every
+ *  version equals a baseline just taken.
+ ***************************************************************/
+function start_measuring(gobj)
+{
+    let priv = gobj.priv;
+
     priv.baseline = {};
+    priv.written = {};
+
+    if(!priv.model) {
+        return;
+    }
     for(let treedb of priv.model.treedbs) {
         for(let topic of treedb.topics) {
             priv.baseline[topic.id] = topic.topic_version;
         }
     }
+}
+
+/***************************************************************
+ *  "This topic was written and its version did not move."
+ *
+ *  ONE predicate, because it is asked in two places -- the topic
+ *  list draws a chip with it and the column view draws a banner --
+ *  and two copies of a rule is how they drift.
+ ***************************************************************/
+function needs_version_bump(written, baseline, topic)
+{
+    if(!topic || !written || !baseline) {
+        return false;
+    }
+    if(!written[topic.id]) {
+        return false;
+    }
+    return String(baseline[topic.id]) === String(topic.topic_version);
 }
 
 /***************************************************************
@@ -987,8 +1038,7 @@ function render_topics(gobj, $body)
     let twice = repeated_names(treedb.topics);
     let $rows = [];
     for(let topic of treedb.topics) {
-        let pending = priv.written[topic.id] &&
-            String(priv.baseline[topic.id]) === String(topic.topic_version);
+        let pending = needs_version_bump(priv.written, priv.baseline, topic);
         /*  Two topics of one name: the id is what tells them apart, and
          *  it is what the url has to carry — addressing by name would
          *  open the first one whichever row was clicked.  */
@@ -1187,10 +1237,7 @@ function version_banner(gobj, topic)
 {
     let priv = gobj.priv;
 
-    if(!priv.written[topic.id]) {
-        return null;
-    }
-    if(String(priv.baseline[topic.id]) !== String(topic.topic_version)) {
+    if(!needs_version_bump(priv.written, priv.baseline, topic)) {
         return null;
     }
     if(is_readonly(gobj)) {
@@ -2558,6 +2605,11 @@ function ac_mt_command_answer(gobj, event, kw, src)
          *  write, which is exactly when the undo has to survive.)  */
         priv.order_undo = {};
         build_model(gobj);
+        /*  Same reason as order_undo above: this is the LOAD, and the
+         *  baseline is what a later "the version did not move" is measured
+         *  against. Taken on the write patches instead, it measured every
+         *  version against itself.  */
+        start_measuring(gobj);
         /*  Back to where the operator was: the load may be a refresh, or
          *  the answer to a deep link that arrived before the model.  */
         return go(gobj, priv.treedb_id, priv.topic_name, priv.diagram, false);
@@ -3424,4 +3476,9 @@ function register_c_yui_schema_editor()
     return create_gclass(GCLASS_NAME);
 }
 
-export {register_c_yui_schema_editor};
+export {
+    register_c_yui_schema_editor,
+    /*  Exported for its test: the rule that decides whether a topic still
+     *  owes a version bump, which is asked in two places.  */
+    needs_version_bump
+};
