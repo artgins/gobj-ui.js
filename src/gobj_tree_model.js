@@ -88,6 +88,43 @@ function node_status(d)
     return d.playing? "playing": "running";
 }
 
+/*
+ *  What the status LOOKS like, before any word is read.
+ *
+ *  The transport vocabulary, because it is Yuneta's own: a yuno is RUN
+ *  (the process), PLAYED (the services) and PAUSED, so play / pause /
+ *  stop are not a metaphor here, they are the three verbs.
+ *
+ *  A coloured dot was the whole encoding before, and a dot has one
+ *  SHAPE: telling "running" from "stopped" meant telling green from
+ *  red, at 10px, which is no distinction at all for a reader who does
+ *  not see colour -- and stopped is the state that matters.
+ *
+ *  U+FE0E asks for the TEXT presentation: bare, several of these
+ *  render as colour emoji on some platforms, which would make the
+ *  glyph the loudest thing on a card.
+ */
+const STATUS_SYMBOLS = {
+    "playing": "\u25B6\uFE0E",     /*  play                */
+    "running": "\u2016",           /*  paused: two bars    */
+    "stopped": "\u25A0\uFE0E",     /*  stop                */
+};
+
+const DISABLED_SYMBOL = "\u2298";  /*  a slashed circle    */
+
+/************************************************************
+ *  The symbol of a node's status, which is what the reader
+ *  actually sees first. `disabled` overrides the rest: a
+ *  disabled gobj is not going to run whatever it is doing now.
+ ************************************************************/
+function node_status_symbol(d)
+{
+    if(d && d.disabled) {
+        return DISABLED_SYMBOL;
+    }
+    return STATUS_SYMBOLS[node_status(d)] || STATUS_SYMBOLS.stopped;
+}
+
 /************************************************************
  *  The i18n key of the status, which is NOT the status itself:
  *  a gobj that runs and does not play is PAUSED to the reader,
@@ -349,7 +386,7 @@ function node_labels(t)
             full_name:   t("full name"),
             role:        t("role"),
             status:      t("status"),
-            state:       t("state"),
+            fsm_state:   t("fsm state"),
             disabled:    t("disabled"),
             parent:      t("parent"),
             bottom_gobj: t("bottom gobj"),
@@ -387,8 +424,14 @@ function node_info_rows(d, t)
     }
 
     rows.push([f.role,   L.role[role_i18n_key(node_role(d))]]);
-    rows.push([f.status, L.status[node_status_key(d)]]);
-    rows.push([f.state,  d.state || "\u2014"]);
+    rows.push([
+        f.status,
+        node_status_symbol(d) + " " + L.status[node_status_key(d)]
+    ]);
+    /*  NOT `state`: both rows read "Estado" in Spanish, side by side,
+     *  one saying "Parado" and the other "ST_IDLE". They are different
+     *  questions -- what the gobj is DOING, and where its machine IS.  */
+    rows.push([f.fsm_state, d.state || "\u2014"]);
 
     if(d.disabled) {
         rows.push([f.disabled, f.yes]);
@@ -423,9 +466,11 @@ function node_info_rows(d, t)
 export {
     ROLES,
     STATUSES,
+    STATUS_SYMBOLS,
     node_role,
     node_status,
     node_status_key,
+    node_status_symbol,
     node_badge_keys,
     node_labels,
     node_info_rows,

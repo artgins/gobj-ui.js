@@ -45,6 +45,7 @@ import {
     node_role,
     node_status,
     node_status_key,
+    node_status_symbol,
 } from "./gobj_tree_model.js";
 import {
     close_gclass_view,
@@ -54,6 +55,7 @@ import {
 import {yui_shell_of} from "./c_yui_shell.js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {attach_clear} from "./yui_inputs.js";
 import {
     yui_graph_camera_items,
     yui_graph_anchor_item,
@@ -257,6 +259,15 @@ let PRIVATE_DATA = {
     theme: null,
     theme_observer: null,    // MutationObserver on <html data-theme>
     $layout_select: null,
+
+    /*---------------- find ----------------*/
+    search:         "",     // current find term, lower-cased
+    match_count:    0,      // how many cards it matched, for the chip
+    find_timer:     null,   // rate-limits the find box
+    $find_input:    null,
+    $find_result:   null,
+    $find_count:    null,
+
     $popover: null,
     $popover_title: null,
     $popover_body: null,
@@ -351,6 +362,13 @@ const NODE_SIZES = {
 /***************************************************************
  *  Shared card typography.
  ***************************************************************/
+/*
+ *  The ring a find match wears. Amber, which in this library means
+ *  "here" -- the same colour the gclass viewer lights the current
+ *  state with -- and not one of the role colours, which are taken.
+ */
+const FIND_MATCH_COLOR = "#D9A23F";
+
 const GT_FONT =
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, " +
     "Helvetica, Arial, sans-serif";
@@ -836,6 +854,120 @@ function destroy_ui(gobj)
 /************************************************************
  *   Toolbar
  ************************************************************/
+/************************************************************
+ *  The find box and its count.
+ *
+ *  A tree of a real yuno is a hundred cards, and the only way
+ *  to locate one was to read them all. The COUNT is what makes
+ *  it honest: a graph that did not move looks the same whether
+ *  nothing matched or the match was already on screen -- the
+ *  same reason the JSON graph carries one, and the same
+ *  drawing, because the two sit in the same console.
+ ************************************************************/
+function make_find_items(gobj)
+{
+    let priv = gobj.priv;
+
+    /*  Materialised, not a spec: attach_clear() hangs the NORM clear (✕)
+     *  on a real element. Clearing dispatches a synthetic `input`, which
+     *  goes through the same rate-limited handler and fires
+     *  EV_FIND_NODES with an empty term -- box and highlight clear
+     *  together.  */
+    let $find_input = createElement2(
+        ['input', {
+            class: 'GOBJ_TREE_FIND_INPUT input',
+            type: 'text',
+            /*  A placeholder is not a text node, so the data-i18n walk
+             *  cannot reach it: it needs its own key.  */
+            placeholder: t('search'),
+            'data-i18n-placeholder': 'search',
+            'aria-label': t('search'),
+            'data-i18n-aria-label': 'search'
+        }, [], {
+            /*  Rate-limited, not delayed for effect: every keystroke
+             *  REBUILDS the cards -- an html node paints no G6 state, so
+             *  the highlight has to live in the card's own markup -- and
+             *  the first letter typed matches most of a tree.  */
+            input: (evt) => {
+                evt.stopPropagation();
+                let text = evt.target.value.trim();
+                if(priv.find_timer) {
+                    clearTimeout(priv.find_timer);
+                }
+                priv.find_timer = setTimeout(function() {
+                    priv.find_timer = null;
+                    gobj_send_event(gobj, "EV_FIND_NODES", {text: text}, gobj);
+                }, 250);
+            }
+        }]);
+
+    let $find_control = createElement2(
+        ['div', {class: 'GOBJ_TREE_FIND control has-icons-left',
+                 style: 'margin-left:.5rem; margin-right:.5rem; ' +
+                        'max-width:12rem; min-width:7rem;'}, [
+            $find_input,
+            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
+        ]]);
+    attach_clear($find_control, $find_input);
+
+    priv.$find_input = $find_input;
+
+    return [
+        $find_control,
+        /*  Two spans, not one string: the number is DATA and "matches"
+         *  is the word, so a language switch re-translates the half that
+         *  is a word. `display:flex` inline and NOT the `is-flex` helper
+         *  -- both Bulma helpers carry !important, so `is-hidden is-flex`
+         *  on one element is decided by stylesheet order.  */
+        ['div', {class: 'GOBJ_TREE_FIND_RESULT is-hidden',
+                 style: 'display:flex; align-items:center; gap:.3rem; ' +
+                        'margin-right:.5rem; font-size:.85rem;'}, [
+            ['span', {class: 'GOBJ_TREE_FIND_COUNT'}, ''],
+            ['span', {i18n: 'matches'}, t('matches')]
+        ]]
+    ];
+}
+
+/************************************************************
+ *  Does this node answer the current find term?
+ *
+ *  What a reader types is a gclass, a name or a state -- the
+ *  three things a card shows. The full name is searched too,
+ *  because it is what the popover shows and what a log line
+ *  carries.
+ ************************************************************/
+function node_matches(d, term)
+{
+    if(!term) {
+        return false;
+    }
+    let hay = [d.gclass, d.name, d.fullname, d.state]
+        .filter((x) => typeof x === "string")
+        .join(" ")
+        .toLowerCase();
+    return hay.indexOf(term) >= 0;
+}
+
+/************************************************************
+ *  Repaint the count chip. Hidden while nothing is typed:
+ *  "0 matches" beside an empty box says nothing.
+ ************************************************************/
+function update_find_result(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv.$find_result || !priv.$find_count) {
+        return;
+    }
+    if(!priv.search) {
+        priv.$find_result.classList.add("is-hidden");
+        priv.$find_count.textContent = "";
+        return;
+    }
+    priv.$find_count.textContent = String(priv.match_count);
+    priv.$find_result.classList.remove("is-hidden");
+}
+
 function make_toolbar(gobj)
 {
     let priv = gobj.priv;
@@ -846,7 +978,9 @@ function make_toolbar(gobj)
      *  and not a per-node one, so it sits on its own at the left — ahead
      *  of a find box where the toolbar has one.  The per-node handles
      *  live inside the cards, on the right of each header.  */
-    let left_items = yui_graph_fold_items(gobj, toolbar_wide);
+    let left_items = yui_graph_fold_items(gobj, toolbar_wide).concat(
+        make_find_items(gobj)
+    );
     let center_items = [];
     let right_items = [];
 
@@ -898,6 +1032,11 @@ function make_toolbar(gobj)
         ['div', {class: 'yui-horizontal-toolbar-section center'}, center_items],
         ['div', {class: 'yui-horizontal-toolbar-section right'}, right_items],
     ]);
+
+    /*  The count chip is built as a spec, so its elements only exist
+     *  once yui_toolbar() has materialised the row.  */
+    priv.$find_result = $toolbar.querySelector('.GOBJ_TREE_FIND_RESULT');
+    priv.$find_count = $toolbar.querySelector('.GOBJ_TREE_FIND_COUNT');
 
     refresh_language($toolbar, t);
     return $toolbar;
@@ -1159,9 +1298,14 @@ function render_toggle_html(node_id, collapsed, num_children, cs)
 /************************************************************
  *  HTML for the status pill: what the gobj is DOING.
  *
- *  A dot plus a word, and the word is dropped in the compact
- *  card where there is no room for it -- the colour still
- *  carries it, and the `title` says it in full either way.
+ *  A SYMBOL plus a word, and the word is dropped in the
+ *  compact card where there is no room for it.
+ *
+ *  The symbol carries the state on its own, which a dot never
+ *  did: a dot has one shape, so telling running from stopped
+ *  meant telling green from red at 10 pixels -- and stopped is
+ *  the one that has to be seen. Play, pause and stop are also
+ *  the framework's own three verbs, not a borrowed metaphor.
  ************************************************************/
 function render_status_html(d, ss, labels, with_label)
 {
@@ -1171,15 +1315,16 @@ function render_status_html(d, ss, labels, with_label)
     let label = d.disabled?
         labels.field.disabled:
         (labels.status_short[node_status(d)] || node_status(d));
+    let symbol = node_status_symbol(d);
 
     if(!with_label) {
         return `<span title="${escapeHtml(full)}" style="
             flex: 0 0 auto;
-            width: 10px; height: 10px; border-radius: 50%;
-            background: ${ss.dot};
-            box-shadow: 0 0 0 2px ${ss.bg};
             margin-left: 6px;
-        "></span>`;
+            color: ${ss.dot};
+            font-size: 11px;
+            line-height: 1;
+        ">${escapeHtml(symbol)}</span>`;
     }
 
     return `<span title="${escapeHtml(full)}" style="
@@ -1187,7 +1332,7 @@ function render_status_html(d, ss, labels, with_label)
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 1px 7px 1px 5px;
+        padding: 1px 7px 1px 6px;
         background: ${ss.bg};
         color: ${ss.fg};
         border-radius: 9px;
@@ -1195,7 +1340,8 @@ function render_status_html(d, ss, labels, with_label)
         font-weight: 700;
         line-height: 1.45;
         white-space: nowrap;
-    "><span style="width:7px; height:7px; border-radius:50%; background:${ss.dot};"></span>${escapeHtml(label)}</span>`;
+    "><span style="color:${ss.dot}; font-size:11px; line-height:1;"
+    >${escapeHtml(symbol)}</span>${escapeHtml(label)}</span>`;
 }
 
 /************************************************************
@@ -1256,6 +1402,20 @@ function build_gobj_nodes(gobj, d, nodes, edges, parent_id, compact, labels)
     /*  A disabled gobj is drawn as one: a dashed border says
      *  "this branch is out of the game" at any zoom.  */
     let border_style = d.disabled? "dashed": "solid";
+
+    /*
+     *  A card the find box matched. The ring is drawn OVER the role
+     *  colour and not instead of it -- the card still has to say what
+     *  it is -- and it is counted here, while every card passes
+     *  through, so the chip and the drawing can never disagree.
+     */
+    let matched = node_matches(d, priv.search);
+    if(matched) {
+        priv.match_count++;
+        border_width = 3;
+        border_style = "solid";
+        cs = Object.assign({}, cs, {border: FIND_MATCH_COLOR});
+    }
 
     let children = d.children || [];
     let num_children = children.length;
@@ -1441,6 +1601,11 @@ function load_tree(gobj)
 
     let layout_cfg = get_layout_cfg(gobj_read_str_attr(gobj, "layout"));
     let labels = node_labels(t);
+
+    /*  Counted as the cards are built, so it is reset HERE and nowhere
+     *  else: a count kept by the action would drift the moment the tree
+     *  was rebuilt for any other reason.  */
+    priv.match_count = 0;
 
     let anchor = priv.pending_anchor || null;
     let preserve_view = !!priv.pending_preserve_view;
@@ -2074,6 +2239,29 @@ class GobjLanesHLayout extends BaseLayout {
 /************************************************************
  *
  ************************************************************/
+/************************************************************
+ *  EV_FIND_NODES {text}
+ *
+ *  The cards carry the highlight in their own markup (an html
+ *  node paints no G6 state), so finding is a REBUILD -- which
+ *  is also why the box is rate-limited. The view is preserved:
+ *  a reader who typed a letter did not ask to be moved.
+ ************************************************************/
+function ac_find_nodes(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let text = String((kw && kw.text) || "").trim().toLowerCase();
+
+    if(text === priv.search) {
+        return 0;
+    }
+
+    priv.search = text;
+    refresh_tree(gobj, {preserve_view: true});
+    update_find_result(gobj);
+    return 0;
+}
+
 function ac_refresh(gobj, event, kw, src)
 {
     save_view_state(gobj);
@@ -2684,6 +2872,7 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
+            ["EV_FIND_NODES",           ac_find_nodes,          null],
             ["EV_REFRESH",              ac_refresh,             null],
             ["EV_THEME",                ac_theme,               null],
             ["EV_CHANGE_LAYOUT",        ac_change_layout,       null],
@@ -2710,6 +2899,7 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
+        ["EV_FIND_NODES",           0],
         ["EV_REFRESH",              0],
         ["EV_THEME",                0],
         ["EV_CHANGE_LAYOUT",        0],

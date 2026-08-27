@@ -2,6 +2,7 @@ import {describe, it, expect} from "vitest";
 import {
     node_role,
     node_status,
+    node_status_symbol,
     node_status_key,
     node_badge_keys,
     node_info_rows,
@@ -148,8 +149,10 @@ describe("node_info_rows", () => {
         let timer = root.children.find(c => c.gclass === "C_TIMER");
         let r = rows_of(timer);
         expect(r["role"]).toBe("pure child");
-        expect(r["status"]).toBe("running (paused)");
-        expect(r["state"]).toBe("ST_IDLE");
+        /*  The symbol travels with the word: the popover is where a
+         *  reader learns which glyph means what.  */
+        expect(r["status"]).toBe("\u2016 running (paused)");
+        expect(r["fsm state"]).toBe("ST_IDLE");
     });
 
     it("shows the facts a card has no room for", () => {
@@ -158,7 +161,7 @@ describe("node_info_rows", () => {
         let r = rows_of(tcp);
         expect(r["disabled"]).toBe("yes");
         expect(r["bottom gobj"]).toBe("C_TCP^raw");
-        expect(r["status"]).toBe("stopped");
+        expect(r["status"]).toBe("\u2298 stopped");
     });
 
     it("carries the traces and the flags the backend reports", () => {
@@ -180,5 +183,23 @@ describe("node_info_rows", () => {
         expect(rows_of(root)["children"]).toBe("2");
         root.is_collapsed = true;
         expect(rows_of(root)["children"]).toBe("2 (collapsed)");
+    });
+});
+
+describe("node_status_symbol", () => {
+    it("gives each status its own SHAPE, not only a colour", () => {
+        expect(node_status_symbol({running: true, playing: true})).toBe("\u25B6\uFE0E");
+        expect(node_status_symbol({running: true, playing: false})).toBe("\u2016");
+        expect(node_status_symbol({running: false})).toBe("\u25A0\uFE0E");
+    });
+
+    it("says disabled over anything else", () => {
+        expect(node_status_symbol({running: true, playing: true, disabled: true}))
+            .toBe("\u2298");
+    });
+
+    it("falls back to stopped for nothing at all", () => {
+        expect(node_status_symbol(null)).toBe("\u25A0\uFE0E");
+        expect(node_status_symbol(undefined)).toBe("\u25A0\uFE0E");
     });
 });

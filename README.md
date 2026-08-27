@@ -1381,14 +1381,32 @@ because opening a popover per node to learn it is not reading a tree:
 | On the card | Says |
 |---|---|
 | Colour (border + left bar) | the ROLE: sky = the yuno, emerald = a service, amber = a pure child, pink = a volatil one, violet = a plain child |
-| Status pill | `stopped` / `running` / `playing`, coloured. `running` and `playing` are not the same thing: a gobj that runs and does not play is PAUSED, which is what the popover calls it in full |
+| Status pill | a SYMBOL and, where there is room, the word: `▶` playing, `‖` running but not playing (PAUSED, which is what the popover calls it in full), `■` stopped, `⊘` disabled. The symbol and not only a colour, because a dot has one shape and stopped is the state that has to be seen |
 | Badges | `service`, `pure child`, `volatil child`, `disabled`, `bottom` (it has a bottom gobj), `commands` (its gclass exposes commands) |
 | Its own line | the FSM state |
 | Dashed border, dimmed | disabled — that branch is out of the game |
 
 The popover adds the rest (`full name`, `parent`, `bottom gobj`, `traces`,
 `flags`, how many children a fold is hiding) and shows only the rows that have
-an answer.
+an answer. Its two state rows are `status` and **`fsm state`** — different
+keys on purpose: they used to be `status` and `state`, which every Spanish app
+translated to the same word, so the popover showed *Estado: Parado* directly
+above *Estado: ST_IDLE*.
+
+**The find box** matches gclass, name, full name and FSM state; a match wears
+an amber ring over its role colour (the card still has to say what it IS) and
+the chip counts them, because a graph that did not move looks the same whether
+nothing matched or the match was already on screen. A find is a REBUILD — an
+html node paints no G6 state, so the highlight lives in the card's own markup —
+which is why the box is rate-limited, and why the view is preserved: somebody
+who typed a letter did not ask to be moved.
+
+**A service the app creates is the app's to START.** `c_yuno`'s `mt_play` starts
+only the DEFAULT service, so anything else stays stopped unless its creator
+starts it — and a gclass with no `mt_start` (`C_YUI_WINDOW_MANAGER` builds its
+dock in `mt_create` and runs off events) WORKS stopped, which is how one shipped
+that way in two apps: nothing failed, it just read `!!C_YUI_WINDOW_MANAGER` in
+every trace line and *stopped* in this view.
 
 **It draws DESCRIPTORS, not gobjs** (`gobj_tree_model.js`), which is what lets
 this same view show a **backend** yuno. A descriptor is plain data whose field

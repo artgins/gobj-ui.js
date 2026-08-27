@@ -5,6 +5,34 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.39
+
+### Added
+
+- **A find box in the frontend view** (`C_YUI_GOBJ_TREE_JS`). A tree of a real
+    yuno is a hundred cards and the only way to locate one was to read them
+    all. A match wears an amber ring -- over its role colour, never instead of
+    it: the card still has to say what it is -- and a chip says HOW MANY
+    matched, because a graph that did not move looks the same whether nothing
+    matched or the match was already on screen. Same drawing and same
+    rate-limited box as the JSON graph, which sits in the same console.
+    Matches gclass, name, full name and FSM state.
+
+### Changed
+
+- **The status of a gobj is a SYMBOL, not only a coloured dot.** A dot has one
+    shape, so telling running from stopped meant telling green from red at
+    10 pixels -- and stopped is the state that has to be seen. The transport
+    vocabulary, because it is the framework's own three verbs: `▶` playing,
+    `‖` running but not playing (paused), `■` stopped, `⊘` disabled. The word
+    stays where there is room for it; the compact card carries the symbol
+    alone, where it used to carry a dot.
+
+- **The popover stopped calling two different things "Estado".** The run
+    status and the FSM state sat next to each other under the same label in
+    every Spanish app -- one saying *Parado*, the other *ST_IDLE*. The second
+    row is now `fsm state`, its own key. New key in five locale dirs.
+
 ## 7.23.38
 
 ### Fixed
