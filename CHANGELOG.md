@@ -5,6 +5,46 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.41
+
+### Fixed
+
+- **`is-light` on its own erases the label**, and it took three chips of the
+  schema editor with it: the topic count, the schema version, and every column
+  flag with no colour of its own — `writable`, `image`, `wild`, `time`, `now`,
+  `enum`. They rendered as empty pills, which reads as a bug in the DATA and is
+  a missing CSS variable.
+
+  `light` is one of Bulma's colours, so `is-light` is BOTH a colour and the
+  "soften another one" modifier. A compound selector may match the same class
+  twice, so `.tag.is-light.is-light` matches an element carrying it ONCE — and
+  that rule sets the text to `var(--bulma-light-light-invert-l)`, **which Bulma
+  never defines**: referenced four times in `bulma.css`, declared zero. The
+  colour declaration is then invalid while the background still flips to light,
+  so the label ends up light grey on near-white.
+
+  Measured in a real browser with Bulma loaded, dark theme:
+
+  | classes | contrast |
+  |---|---|
+  | `tag is-light` | **1.95:1** — below the 4.5:1 floor |
+  | `tag` | 7.41:1 |
+  | `tag is-success is-light` | 12.94:1 |
+
+  The neutral chip is a BARE element: it takes `--bulma-background-l` and
+  `--bulma-text-l`, so it follows the theme and stays legible in both. The same
+  trap exists for `.notification.is-light.is-light`.
+
+  New `yui_tint(colour)` (`src/bulma_tint.js`) is the one place allowed to emit
+  the modifier: it returns `is-<colour> is-light` for a colour it recognises and
+  **nothing** for `light`, for empty, and for anything it cannot vouch for. The
+  toast of `shell_modals.js` and the flag chips of the schema editor now go
+  through it, so the invariant holds by construction rather than by care.
+
+  Guarded by a source scan over the whole library (`bulma_is_light.test.js`) —
+  a scan and not a render test because jsdom does not load Bulma, so no mounted
+  test can see the contrast; what can be checked is the rule that produces it.
+
 ## 7.23.40
 
 ### Fixed

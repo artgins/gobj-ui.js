@@ -33,6 +33,7 @@ import {
     empty_string,
     log_warning,
 } from "@yuneta/gobj-js";
+import {yui_tint} from "./bulma_tint.js";
 
 import {
     activate_focus_trap_on,
@@ -121,7 +122,7 @@ function show_notification(shell, kind, message, opts)
         ? {i18n: message}
         : {};
     let $note = createElement2(
-        ["div", {class: `TOAST notification yui-notification is-${kind} is-light`,
+        ["div", {class: `TOAST notification yui-notification ${yui_tint(kind)}`,
                  role: kind === "danger" ? "alert" : "status"},
             [
                 ["button", {class: "TOAST_CLOSE delete", "aria-label": "close"}],

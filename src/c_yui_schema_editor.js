@@ -109,6 +109,7 @@ import {
     is_object,
     empty_string,
 } from "@yuneta/gobj-js";
+import {yui_tint} from "./bulma_tint.js";
 
 import "./c_yui_schema_editor.css";
 
@@ -871,7 +872,24 @@ function render(gobj)
 function open_card(gobj, logical, title, icon, tags, event, kw)
 {
     let $tags = tags.map((tag) => {
-        return ["span", {class: `${logical}_TAG tag ${tag.style || "is-light"}`},
+        /*
+         *  `is-light` ALONE IS NOT A NEUTRAL CHIP, IT IS AN UNREADABLE ONE.
+         *
+         *  'light' is one of Bulma's colours, so `is-light` is both the
+         *  colour and the modifier -- and `.tag.is-light.is-light` matches
+         *  an element carrying the class ONCE (a compound selector may
+         *  match the same class twice). That rule sets the text to
+         *  var(--bulma-light-light-invert-l), WHICH BULMA NEVER DEFINES:
+         *  used four times in its stylesheet, declared zero. The colour
+         *  declaration is then invalid, the background still resolves, and
+         *  what is left is a pill with no readable label.
+         *
+         *  A bare `.tag` is the neutral chip: it takes --bulma-background-l
+         *  and --bulma-text-l, so it follows the theme and stays legible in
+         *  both. `is-light` goes on only NEXT TO a real colour, where the
+         *  variable it needs does exist.
+         */
+        return ["span", {class: `${logical}_TAG tag ${tag.style || ""}`.trimEnd()},
             tag.i18n
                 ? [["span", {i18n: tag.i18n}, t(tag.i18n)],
                    ["span", {class: "ml-1"}, `${tag.text}`]]
@@ -989,7 +1007,7 @@ function render_topics(gobj, $body)
             ["td", {class: "SCHEMA_TOPIC_NAME"}, [
                 ["span", {class: "has-text-weight-semibold"}, `${topic.name}`],
                 topic.system_topic
-                    ? ["span", {class: "SCHEMA_TOPIC_SYSTEM tag is-light ml-2",
+                    ? ["span", {class: "SCHEMA_TOPIC_SYSTEM tag ml-2",
                                 i18n: "system"}, t("system")]
                     : ["span", {}, ""],
                 ambiguous
@@ -1222,7 +1240,13 @@ function column_row(gobj, topic, col, index, readonly, twice)
     let is_pkey = (col.name === (topic.pkey || "id"));
 
     let $flags = flags.map((flag) => {
-        return ["span", {class: `SCHEMA_COL_FLAG tag is-light ${flag_style(flag)}`}, `${flag}`];
+        /*  The colour carries the meaning, and `is-light` softens it. With
+         *  no colour there is nothing to soften: a bare tag is the neutral
+         *  one, and `is-light` on its own would erase the label -- see
+         *  open_card(). It is why 'writable', 'image', 'wild' and every
+         *  other unstyled flag rendered as an empty pill.  */
+        return ["span", {class: `SCHEMA_COL_FLAG tag ${yui_tint(flag_style(flag))}`.trimEnd()},
+            `${flag}`];
     });
 
     /*  An unset `blob` column comes back as `{}`, which is an object and
