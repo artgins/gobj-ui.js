@@ -27,9 +27,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
     path uses. The defect predates the new viewer: the arrangement is the one
     `C_YUI_JSON` was opened with.
 
-    Regression harness: `test-app/_qa_gclass_reopen.mjs` opens, closes and
-    reopens three times and then closes the frontend view. Reverted, it fails
-    on the second open.
+    Verified in the test-app (which runs the working tree): open, close and
+    reopen three times, then close the frontend view -- no error, and the
+    viewer's DOM gone each time. With the fix reverted it fails on the second
+    open, which is the check that matters. The driver is one of the test-app's
+    `_*.mjs` scratch scripts, which `.gitignore` keeps out of the repo by
+    design.
 
 ## 7.23.37
 
