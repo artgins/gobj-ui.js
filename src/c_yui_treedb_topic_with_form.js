@@ -759,13 +759,33 @@ function build_ui(gobj)
      *  Layout Schema
      *----------------------------------------------*/
     let table_id = gobj_read_str_attr(gobj, "table_id");
+    /*
+     *  A FLEX COLUMN, and that is the whole point of this block.
+     *
+     *  It used to be a plain `height:100%` box with the toolbar and the
+     *  table stacked inside it. The toolbar took its natural height and the
+     *  table asked for `maxHeight: 100%` -- 100% of the CONTAINER, not of
+     *  what the toolbar left -- so the box overflowed by exactly the height
+     *  of the toolbar. The parent scrolls (`overflow:auto`), so the page
+     *  ended up with TWO scrolls, and what fell off the bottom was the
+     *  table's own footer: the row count and the paginator. Scrolling the
+     *  outer one to reach them pushed the toolbar out of sight instead.
+     *
+     *  As a column with the chrome at `flex:none` and the table at
+     *  `flex:1 1 auto; min-height:0`, the table is sized to the space that
+     *  is actually left, its footer stays put, and the only thing that
+     *  scrolls is the rows -- which is the one scroll a table should have.
+     */
     let $container = createElement2(
-        ['div', {class: 'C_YUI_TREEDB_TOPIC_WITH_FORM', style: 'height:100%;'}, [
-            ['div', {class: 'TREEDB_TABLE_TOOLBAR toolbar_tabulator_table m-1', style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;'}],
+        ['div', {class: 'C_YUI_TREEDB_TOPIC_WITH_FORM',
+                 style: 'height:100%; min-height:0; display:flex; flex-direction:column;'}, [
+            ['div', {class: 'TREEDB_TABLE_TOOLBAR toolbar_tabulator_table m-1',
+                     style: 'flex:none; display:flex; justify-content:space-between; ' +
+                            'align-items:center; flex-wrap:wrap;'}],
             ['div',
                 {
                     id: `${table_id}`,
-                    style: 'margin-top:0px !important;',
+                    style: 'margin-top:0px !important; flex:1 1 auto; min-height:0;',
                 }
             ]
         ]]
@@ -782,6 +802,8 @@ function build_ui(gobj)
             on_clear: () => gobj_send_event(gobj, "EV_CLEAR_SELECTION", {}, gobj)
         });
         gobj_write_attr(gobj, "selection_bar", bar);
+        /*  Chrome too: it must not take height from the rows. */
+        bar.$el.style.flex = "none";
         $container.insertBefore(bar.$el, $container.querySelector(`#${table_id}`));
     }
 

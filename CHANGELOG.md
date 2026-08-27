@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.42
+
+### Fixed
+
+- **The topic table had TWO scrolls, and the row count fell between them.**
+  A topic's table was a plain `height:100%` box with the toolbar and the
+  table stacked inside it: the toolbar took its natural height and the table
+  asked for `maxHeight: 100%` — 100% of the CONTAINER, not of what the
+  toolbar left — so the box overflowed by exactly the height of the toolbar.
+  Its parent scrolls, so the screen ended up with two scrollbars, and what
+  fell off the bottom was the table's own footer: the row count and the
+  paginator. Scrolling the outer one to reach them pushed the toolbar out of
+  sight instead, so the two ends of the table could never be seen at once.
+
+  It is a flex column now, with the toolbar and the selection bar at
+  `flex:none` and the table at `flex:1 1 auto; min-height:0`. Measured on the
+  deployed app: the outer container went from overflowing to
+  `scrollHeight === clientHeight`, and the footer is on screen with the
+  toolbar.
+
 ## 7.23.41
 
 ### Fixed
