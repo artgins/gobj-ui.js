@@ -3348,6 +3348,25 @@ function create_popover_base(left, top, className, borderColor, minWidth)
         'min-width:' + minWidth + 'px;font-size:13px;';
     popover.addEventListener('click', (e) => e.stopPropagation());
     popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+    /*
+     *  AND THE WHEEL, or a popover that overflows cannot be scrolled with
+     *  the wheel at all -- the scrollbar has to be dragged.
+     *
+     *  G6's zoom behavior binds a wheel listener on the CONTAINER and
+     *  calls preventDefault() on every notch, whatever the target is;
+     *  then it declines to zoom because the target is not the canvas. So
+     *  the gesture is cancelled and nobody uses it: the graph does not
+     *  zoom AND the box does not scroll. Measured on a live node: with
+     *  the popover overflowing (scrollHeight 674 over 357 visible),
+     *  scrollTop stayed at 0 and the zoom readout stayed at 50%.
+     *
+     *  Stopping it here -- in the bubble phase, where the click and the
+     *  pointerdown above are already stopped -- is enough: G6 sees
+     *  nothing and the browser scrolls the box normally. Not
+     *  preventDefault: cancelling it ourselves would be the same bug
+     *  from our side.
+     */
+    popover.addEventListener('wheel', (e) => e.stopPropagation());
     return popover;
 }
 
@@ -5492,6 +5511,9 @@ function show_node_detail_popover(gobj, node_id)
     popover.style.maxWidth = '320px';
     popover.style.maxHeight = '60%';
     popover.style.overflow = 'auto';
+    /*  The sticky head spans the full width, so the side padding moves
+     *  to the rows; `create_popover_base` put 12px on the box itself. */
+    popover.style.padding = '0 12px 12px';
     popover.style.fontFamily =
         "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, " +
         "Helvetica, Arial, sans-serif";
@@ -5514,29 +5536,33 @@ function show_node_detail_popover(gobj, node_id)
             vs = vs.slice(0, 240) + '…';
         }
         rows +=
-            `<div style="display:flex;gap:10px;padding:5px 0;` +
-            `border-top:1px solid ${rowbd};">` +
-            `<div style="flex:0 0 38%;color:${sub};font-size:12px;` +
-            `word-break:break-word;">${escapeHtml(key)}</div>` +
-            `<div style="flex:1 1 auto;font-size:12px;` +
-            `word-break:break-word;">${escapeHtml(vs)}</div>` +
+            `<div class="g6-detail-row" style="border-top:1px solid ${rowbd};">` +
+            `<div class="g6-detail-key" style="color:${sub};">` +
+            `${escapeHtml(key)}</div>` +
+            `<div class="g6-detail-val">${escapeHtml(vs)}</div>` +
             `</div>`;
     }
 
+    /*
+     *  The head is STICKY: the box scrolls, and with the head scrolling
+     *  away the ✕ left the screen -- on a phone, where the box is most
+     *  of the screen, that is a popover you cannot close without
+     *  scrolling back up for the button. Its background is the
+     *  popover's own, or the rows would show through it.
+     */
     popover.innerHTML =
-        `<div style="display:flex;align-items:flex-start;gap:8px;` +
-        `margin-bottom:6px;">` +
+        `<div class="g6-detail-head" style="background:${bg};">` +
             `<div style="flex:1 1 auto;min-width:0;">` +
-                `<div style="font-size:14px;font-weight:600;` +
-                `word-break:break-word;">${escapeHtml(id)}</div>` +
-                `<div style="font-size:11px;color:${sub};` +
-                `margin-top:2px;">${escapeHtml(topic)}</div>` +
+                `<div class="g6-detail-id">${escapeHtml(id)}</div>` +
+                `<div class="g6-detail-topic" style="color:${sub};">` +
+                `${escapeHtml(topic)}</div>` +
             `</div>` +
-            `<div class="g6-detail-close" style="flex:0 0 auto;` +
-            `cursor:pointer;font-size:16px;line-height:1;` +
-            `color:${sub};padding:0 2px;">×</div>` +
+            `<div class="g6-detail-close" role="button" tabindex="0"` +
+            ` aria-label="${escapeHtml(t('close'))}"` +
+            ` title="${escapeHtml(t('close'))}"` +
+            ` style="color:${sub};">×</div>` +
         `</div>` +
-        (rows || `<div style="font-size:12px;color:${sub};">` +
+        (rows || `<div class="g6-detail-empty" style="color:${sub};">` +
             `${escapeHtml(t('no fields'))}</div>`);
 
     let close_el = popover.querySelector('.g6-detail-close');

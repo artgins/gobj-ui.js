@@ -5,6 +5,45 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.45
+
+- **The wheel did nothing over a popover, so its scrollbar had to be
+  dragged.** Every popover this graph builds overflows sooner or later --
+  the node detail is a record, field by field -- and none of them could be
+  scrolled with the wheel.
+
+  **G6's zoom behavior binds a wheel listener on the CONTAINER and calls
+  `preventDefault()` on every notch, whatever the target is**, and only then
+  declines to zoom because the target is not the canvas. So the gesture was
+  cancelled and nobody used it: the graph did not zoom AND the box did not
+  scroll. Measured on a live node — popover overflowing (scrollHeight 674 over
+  357 visible), `scrollTop` 0 → 0, zoom readout 50% → 50% — and the cancel was
+  pinned to G6 by wrapping `preventDefault` and reading the stack
+  (`bindEvents` → `createExtension`).
+
+  `create_popover_base()` now stops the wheel in the bubble phase, beside the
+  `click` and `pointerdown` it already stopped: G6 never sees it and the
+  browser scrolls the box. Not `preventDefault` — cancelling it ourselves
+  would be the same bug from our side. Verified live before writing it:
+  `scrollTop 0 → 317`. It fixes **all five** popovers, not just the detail.
+
+- **The node detail was caption-sized, and its ✕ was a 13×16 box.** Rows at
+  12px and the topic at 11px in a popover that exists ONLY to be read; and a
+  close glyph with 2px of side padding, which is a mouse target on a good day
+  and a finger target on none.
+
+  The sizes moved out of the inline styles into `lib_graph.css`, for one
+  reason: **a media query cannot reach an inline style**, and this box is read
+  on a phone as much as on a desk. Rows and values 13px, 14px under
+  `(pointer: coarse)`; the ✕ is a 28px square, **44px** for a finger — the
+  same rule the context menu already followed.
+
+  The head is **sticky** too: the box scrolls, and with the head scrolling
+  away the ✕ left the screen entirely — on a phone, where the popover is most
+  of the screen, that is a popover you cannot close without scrolling back up
+  to find the button. It also carries `role`, `aria-label` and `title` now,
+  which a bare `<div>×</div>` did not.
+
 ## 7.23.44
 
 ### Fixed

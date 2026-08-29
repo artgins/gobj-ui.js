@@ -112,6 +112,116 @@
 }
 
 /*
+ *  THE NODE DETAIL POPOVER.
+ *
+ *  Sizes live here and not in the inline styles that build it, for one
+ *  reason: a media query cannot reach an inline style, and this box is
+ *  read on a phone as much as on a desk.
+ *
+ *  12px was the size of the rows and 11px of the topic. That is caption
+ *  size, and this popover exists ONLY to be read -- it is the record of
+ *  a node, field by field. Same reasoning as the context menu below:
+ *  12px is a caption, not content.
+ */
+.graph-container .g6-detail-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    /*  Sticky, so the ✕ never scrolls off a box that is most of the
+     *  screen on a phone.  The 12px of side padding the popover used to
+     *  carry moved to the rows, so the head reaches its edges. */
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 12px 0 6px;
+}
+
+.graph-container .g6-detail-id {
+    font-size: 15px;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.graph-container .g6-detail-topic {
+    font-size: 12px;
+    margin-top: 2px;
+    word-break: break-word;
+}
+
+.graph-container .g6-detail-row {
+    display: flex;
+    gap: 10px;
+    padding: 6px 0;
+}
+
+.graph-container .g6-detail-key,
+.graph-container .g6-detail-val,
+.graph-container .g6-detail-empty {
+    font-size: 13px;
+    word-break: break-word;
+}
+
+.graph-container .g6-detail-key {
+    flex: 0 0 38%;
+}
+
+.graph-container .g6-detail-val {
+    flex: 1 1 auto;
+}
+
+/*
+ *  The close button was a 13x16 box: a glyph with 2px of side padding
+ *  and nothing else. That is a mouse target on a good day and not a
+ *  finger target on any. It is a real box now, and a square one, so the
+ *  ✕ has somewhere to be.
+ */
+.graph-container .g6-detail-close {
+    flex: 0 0 auto;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: -4px -4px 0 0;
+    border-radius: 4px;
+}
+
+.graph-container .g6-detail-close:hover {
+    background: var(--bulma-background, rgba(128, 128, 128, 0.15));
+}
+
+/*
+ *  A finger, and the rule the context menu below already follows: the
+ *  target grows to something a thumb hits, and the text to something
+ *  read at arm's length.
+ */
+@media (pointer: coarse) {
+    .graph-container .g6-detail-close {
+        width: 44px;
+        height: 44px;
+        font-size: 22px;
+        margin: -8px -8px 0 0;
+    }
+    .graph-container .g6-detail-id {
+        font-size: 16px;
+    }
+    .graph-container .g6-detail-topic {
+        font-size: 13px;
+    }
+    .graph-container .g6-detail-key,
+    .graph-container .g6-detail-val,
+    .graph-container .g6-detail-empty {
+        font-size: 14px;
+    }
+    .graph-container .g6-detail-row {
+        padding: 8px 0;
+    }
+}
+
+/*
  *  G6 toolbar: larger icons (via className option)
  */
 .g6-toolbar.g6-toolbar-large .g6-toolbar-item {
