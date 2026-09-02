@@ -16,7 +16,7 @@
  */
 
 import {
-    createElement2
+    createElement2, log_error
 } from "@yuneta/gobj-js";
 
 import "./yui_asset.css";
@@ -177,6 +177,16 @@ function yui_asset_element(answer, opts = {})
      *  silent gap this module was written to stop.
      */
     el.onerror = () => {
+        /*
+         *  And it is REPORTED, not only drawn. The marker tells the person
+         *  looking at the screen; log_error is what reaches the yuno, which
+         *  is the only place anybody can count how often it happens. An
+         *  asset the backend served and the browser could not load is a
+         *  fact of the system -- an expired signature, a blob gone from the
+         *  store, a codec nobody has -- and a failure only a user can see
+         *  is a failure nobody measures.
+         */
+        log_error(`asset could not be loaded: ${opts.detail || src}`);
         const $marker = yui_asset_missing(opts.detail, opts);
         if(el.parentNode) {
             el.parentNode.replaceChild($marker, el);
