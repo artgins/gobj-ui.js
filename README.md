@@ -1364,6 +1364,59 @@ only while there is somewhere to go back to, spent when used, and dropped by a
 refresh. Undoing is another write, like the drag. The host must define the key
 `"undo the order"`.
 
+### The bytes a node owns but cannot hold — `yui_asset_*`
+
+A treedb node often owns something that is not JSON: a photo, a plan, a
+clip. Those bytes cannot live in the treedb — it is held in memory and
+timeranger2 rewrites the whole record on every update — so the SDK's
+`C_ASSETS` keeps them in a directory it owns and the node names one with an
+**fkey**.
+
+`get-asset` answers in one of two shapes, and the **backend** decides which:
+
+```json
+{"mode": "url",    "url": "/assets/ab/cd/<id>.jpg?e=<expires>&s=<token>"}
+{"mode": "inline", "content_type": "image/jpeg", "content64": "..."}
+```
+
+It signs a URL when a web server sits in front of the store and hands over
+the bytes when there is none, so a consumer has **one** code path and a node
+with no web server still shows its images instead of showing nothing.
+
+This module is the two ends of that, and **it does not talk to the
+backend** — asking is an action and belongs in the view's own FSM:
+
+| | |
+|---|---|
+| `yui_asset_id(ref)` / `yui_asset_ids(ref)` | the id(s) a column names. Reads a single-valued fkey (`"assets^<id>^as_foto"`), an array fkey, and an expanded ref (`{id}`). An empty column answers nothing rather than throwing |
+| `yui_asset_src(answer)` | the two shapes into one `src`. `null` when the answer carries neither — never an empty string, because `<img src="">` reloads the page in some browsers |
+| `yui_asset_element(answer, opts)` | the element, picked from the **content type the backend stored**: `<img>`, `<video>` or `<audio>`. Video and audio are assets too, and an `<img>` whose src is a film shows the broken box this exists to remove |
+| `yui_asset_missing(detail, opts)` | the marker, for when there is nothing to show |
+
+**A missing asset is now said out loud.** It used to leave a broken box and
+no word about it, which is indistinguishable from a slow one and from a bug
+— 47 such holes in one day on `artgins.ytreedb.com` before anybody noticed.
+`yui_asset_element()` wires `onerror` so the dead element is **replaced** by
+the marker, whatever the reason: an expired signature, a blob gone from the
+store, an unsupported codec.
+
+The marker's label carries its i18n key (`asset not available`, overridable
+with `opts.key`), so it follows a language change; `opts.detail` is DATA — a
+name or a path, the thing a person can act on — and is never translated.
+
+```js
+import {yui_asset_id, yui_asset_element} from "@yuneta/gobj-ui/src/yui_asset.js";
+import "@yuneta/gobj-ui/src/yui_asset.css";
+
+// in the view's FSM, not in a DOM callback:
+const id = yui_asset_id(device.foto);
+if(id) {
+    gobj_send_event(gobj, "EV_ASK_ASSET", {asset_id: id, slot: "foto"}, gobj);
+}
+// ...and when the answer arrives, in the action:
+$box.appendChild(yui_asset_element(answer, {detail: device.foto_name}));
+```
+
 ### Frontend view — `setup_frontend_view`
 
 `setup_frontend_view(self)` opens the **gobj tree of the app's own yuno** in a

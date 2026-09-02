@@ -119,6 +119,7 @@ export {
 export { addClasses, removeClasses, toggleClasses, removeChildElements, disableElements, enableElements, set_submit_state, set_cancel_state, set_active_state, set_pressed_state, getStrokeColor } from "./src/lib_graph.js";
 export { inject_svg_icons } from "./src/lib_icons.js";
 export { EditControl, MarkerControl } from "./src/lib_maplibre.js";
+export { yui_asset_id, yui_asset_ids, yui_asset_src, yui_asset_element, yui_asset_missing } from "./src/yui_asset.js";
 export { yui_toolbar } from "./src/yui_toolbar.js";
 export { yui_theme_now, yui_is_dark, yui_watch_theme } from "./src/yui_theme.js";
 export { attach_clear, refresh_clear } from "./src/yui_inputs.js";
@@ -131,6 +132,7 @@ export { setup_frontend_view } from "./src/yui_frontend_view.js";
  *    import "gobj-ui/src/c_yui_shell.css";     // declarative shell
  *    import "gobj-ui/src/c_yui_map.css";
  *    import "gobj-ui/src/yui_toolbar.css";
+ *    import "gobj-ui/src/yui_asset.css";
  *    import "gobj-ui/src/lib_graph.css";
  *    import "gobj-ui/src/yui_icons.css";
  */

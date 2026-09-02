@@ -1,0 +1,43 @@
+/*
+ *  The marker of an asset that is not there.
+ *
+ *  It takes the SPACE an image would have taken, so a card does not jump
+ *  when one is missing, and it is quiet enough to sit in a gallery without
+ *  shouting -- it reports a fact, it is not an error dialog.
+ */
+.ASSET_MISSING {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-width: 5rem;
+    min-height: 5rem;
+    padding: 0.5rem;
+    border: 1px dashed var(--bulma-border, #dbdbdb);
+    border-radius: var(--bulma-radius, 4px);
+    color: var(--bulma-text-weak, #7a7a7a);
+    background: var(--bulma-scheme-main-bis, transparent);
+    text-align: center;
+}
+
+.ASSET_MISSING_ICON {
+    font-size: 1.25rem;
+    opacity: 0.7;
+}
+
+.ASSET_MISSING_LABEL {
+    font-size: 0.75rem;
+}
+
+/*
+ *  The detail is a name or a path: it must not stretch the card, and it is
+ *  the one thing a person can act on, so it stays readable rather than
+ *  being cut to nothing.
+ */
+.ASSET_MISSING_DETAIL {
+    font-size: 0.7rem;
+    opacity: 0.75;
+    max-width: 12rem;
+    overflow-wrap: anywhere;
+}
