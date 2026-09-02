@@ -27,6 +27,26 @@ test("reads every id out of an array fkey, in order", () => {
     expect(yui_asset_id(["assets^p1^as_plano", "assets^p2^as_plano"])).toBe("p1");
 });
 
+/*
+ *  `fkey_only_id` is a normal way to read a node -- yunovatios reads every
+ *  device that way -- and it collapses a link to the bare id. Reading only
+ *  the `topic^id^hook` form made every such link look like no link at all.
+ */
+test("reads a link collapsed by fkey_only_id, list or bare", () => {
+    expect(yui_asset_id(["7b09b140"])).toBe("7b09b140");
+    expect(yui_asset_id("7b09b140")).toBe("7b09b140");
+    expect(yui_asset_ids(["p1", "p2"])).toEqual(["p1", "p2"]);
+});
+
+/*
+ *  An UNSET single-valued fkey comes back as an EMPTY LIST, not as an empty
+ *  string: that is the shape of "this device has no photo".
+ */
+test("an unset single-valued fkey is an empty list", () => {
+    expect(yui_asset_id([])).toBe(null);
+    expect(yui_asset_ids([])).toEqual([]);
+});
+
 test("reads an EXPANDED ref, which is what the refs options give back", () => {
     expect(yui_asset_id({id: "abc123", content_type: "image/jpeg"})).toBe("abc123");
 });
@@ -41,9 +61,8 @@ test("an empty or malformed column yields nothing, and does not throw", () => {
     expect(yui_asset_ids("")).toEqual([]);
     expect(yui_asset_ids([])).toEqual([]);
     expect(yui_asset_id(null)).toBe(null);
-    expect(yui_asset_id("not-an-fkey")).toBe(null);
     expect(yui_asset_id({})).toBe(null);
-    expect(yui_asset_ids(["assets^ok^as_foto", "rubbish", null])).toEqual(["ok"]);
+    expect(yui_asset_ids(["assets^ok^as_foto", null, ""])).toEqual(["ok"]);
 });
 
 /*

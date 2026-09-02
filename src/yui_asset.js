@@ -22,10 +22,22 @@ import {
 import "./yui_asset.css";
 
 /*
- *  A treedb fkey is `topic^id^hook`, and a column holds either one of them
- *  (a single-valued fkey, like a device's photo) or a list (an array fkey,
- *  like the plans of a bay).  An expanded ref -- what `refs` options give
- *  back -- is an object carrying the id instead.
+ *  A column that holds a link comes back in one of THREE shapes, and which
+ *  one is the READER's choice, not the schema's:
+ *
+ *    "assets^<id>^as_foto"   the stored fkey, as it is persisted;
+ *    "<id>"                  what `fkey_only_id` collapses it to, which is
+ *                            what a caller asks for when it wants clean ids;
+ *    {id: "<id>", ...}       an expanded ref, from the `refs` options.
+ *
+ *  And a column holds either ONE of them (a single-valued fkey, like a
+ *  device's photo) or a LIST (an array fkey, like the plans of a bay) --
+ *  and an UNSET single-valued fkey still comes back as an empty list.
+ *
+ *  Reading only the first shape was a real bug: against a backend that
+ *  reads with `fkey_only_id` every link looked like no link at all.  The
+ *  `^` is what tells the two string shapes apart, and an id can never carry
+ *  one -- that is why the qualified key uses `.` and not `^`.
  */
 function ref_to_id(ref)
 {
@@ -33,8 +45,11 @@ function ref_to_id(ref)
         return null;
     }
     if(typeof ref === "string") {
+        if(ref.indexOf("^") < 0) {
+            return ref;             // already only the id
+        }
         const parts = ref.split("^");
-        return parts.length >= 2? parts[1]: null;
+        return parts.length >= 2 && parts[1]? parts[1]: null;
     }
     if(typeof ref === "object" && typeof ref.id === "string") {
         return ref.id;

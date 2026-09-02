@@ -1388,7 +1388,7 @@ backend** — asking is an action and belongs in the view's own FSM:
 
 | | |
 |---|---|
-| `yui_asset_id(ref)` / `yui_asset_ids(ref)` | the id(s) a column names. Reads a single-valued fkey (`"assets^<id>^as_foto"`), an array fkey, and an expanded ref (`{id}`). An empty column answers nothing rather than throwing |
+| `yui_asset_id(ref)` / `yui_asset_ids(ref)` | the id(s) a column names. A link comes back in whichever shape the READER asked for — the stored `"assets^<id>^as_foto"`, the bare `"<id>"` that `fkey_only_id` collapses it to, or an expanded `{id}` — and either alone or in a list, because an unset single-valued fkey is still an empty list. All of them are read; an empty column answers nothing rather than throwing |
 | `yui_asset_src(answer)` | the two shapes into one `src`. `null` when the answer carries neither — never an empty string, because `<img src="">` reloads the page in some browsers |
 | `yui_asset_element(answer, opts)` | the element, picked from the **content type the backend stored**: `<img>`, `<video>` or `<audio>`. Video and audio are assets too, and an `<img>` whose src is a film shows the broken box this exists to remove |
 | `yui_asset_missing(detail, opts)` | the marker, for when there is nothing to show |
