@@ -5,6 +5,44 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.54
+
+- **A click on a row did nothing, and a form showed a fraction of the
+  record.** Two halves of the same gap: a treedb table let you look at a
+  record only through the columns you had on screen.
+
+  **A row click now OPENS the record**, read-only, while the table is not in
+  edition mode. It was the biggest target on screen and the one thing that
+  answered nothing -- selection is driven by the checkbox column and editing
+  by the pencil. In edition mode it stays as it was: there a click starts
+  editing a cell, and the pencil already opens the same record to be written.
+  The click crosses the FSM (`EV_SHOW_RECORD`) like every other action.
+
+  Cells that carry an action of their own are left alone -- a json preview
+  opens its viewer, a hook opens its children, the Op buttons edit and
+  delete -- and the question is asked of the SCHEMA, not of the markup, so a
+  new formatter cannot silently start opening two things at once.
+
+- **The form shows EVERY field of the record**, the ones that cannot be
+  written included, rendered read-only. They used to be dropped, so a record
+  was shown as the handful of its fields somebody may type: an `assets` row
+  opened as its id alone, with its type, its size, its date and where it came
+  from -- everything a person opens an asset to read -- nowhere on screen. A
+  form is for READING a record; writing it is one of the things you can do
+  next.
+
+  **What is shown is not what is sent.** Only the writable cols, the fkeys
+  and the pkey travel back, and that is not tidiness:
+  `treedb_update_node()` does NOT check `writable` -- it writes any col it is
+  handed -- and the fields that describe a record are exactly the ones that do
+  not survive a round trip through a widget (`t` is an integer rendered as a
+  date). Nothing would look wrong until the stored timestamp had moved.
+
+- **`C_YUI_FORM` takes `readonly`** (default off): show every field read-only
+  whatever its schema says. Independent of `editable`, which drives the TABLE
+  rendering and defaults to false -- reusing it would have turned every
+  existing form read-only.
+
 ## 7.23.53
 
 - **A col flagged `icon` draws the icon.** `device_types.icon` held `yi-bolt`

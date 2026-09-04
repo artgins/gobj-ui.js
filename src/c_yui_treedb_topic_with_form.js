@@ -91,7 +91,7 @@ import {row_matches} from "./yui_row_search.js";
 
 import {t} from "i18next";
 
-import {plan_treedb_writes} from "./treedb_write_plan.js";
+import {plan_treedb_writes, READONLY_FORM_TOOLBAR} from "./treedb_write_plan.js";
 import {delete_impact} from "./delete_impact.js";
 
 import "./c_yui_treedb_topic_with_form.css";
@@ -1680,6 +1680,31 @@ function create_tabulator(gobj)
     tabulator.on("dataFiltered", function(filters, rows) {
         update_rowcount(Array.isArray(rows)? rows.length : undefined);
     });
+    /*  A click on a row, while the table is NOT in edition mode, OPENS the
+     *  record to be read. It used to do nothing at all: selection is driven
+     *  by the checkbox column and editing by the pencil, so the biggest
+     *  target on screen was the one thing that answered nothing.
+     *
+     *  Only outside edition mode: in it a click starts editing a cell, and
+     *  the pencil already opens the same record to be written.
+     *
+     *  Cells that carry an action of their own are left alone -- a json
+     *  preview opens its viewer, a hook opens its children, the Op buttons
+     *  edit and delete -- and the question is asked of the SCHEMA rather
+     *  than of the markup, so a new formatter does not silently start
+     *  opening two things at once.  */
+    tabulator.on("rowClick", function(e, row) {
+        if(gobj_read_bool_attr(gobj, "editable")) {
+            return;
+        }
+        let $cell = e.target? e.target.closest(".tabulator-cell") : null;
+        let field = $cell? $cell.getAttribute("tabulator-field") : null;
+        if(field && cell_has_its_own_action(gobj, field)) {
+            return;
+        }
+        gobj_send_event(gobj, "EV_SHOW_RECORD", {index: row.getPosition()}, gobj);
+    });
+
     tabulator.on("rowSelected", function(row) {
         gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row.getData()]}, gobj);
     });
@@ -1930,10 +1955,25 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
 }
 
 /************************************************************
- *  Build the form template from desc.cols: only user-editable
- *  fields reach the form — writable cols, fkeys (linkable) and
- *  the pkey (the hosted C_YUI_FORM's form_mode drives the
- *  pkey's readonly/required state).
+ *  Build the form template from desc.cols: EVERY field of the
+ *  record, the ones that cannot be written included.
+ *
+ *  They used to be dropped, and a record was then shown as the
+ *  handful of its fields somebody may type: an asset opened as
+ *  its id alone, with its type, its size, its date and where it
+ *  came from -- everything a person opens an asset to read --
+ *  nowhere on screen. What a form is for is READING a record;
+ *  writing it is one of the two things you can do next.
+ *
+ *  C_YUI_FORM renders a col that is not `writable` read-only on
+ *  its own (`build_form_field_conf`), so this is the whole of
+ *  it. What must NOT follow is sending them back:
+ *  `transform__form_record_2_treedb_record()` drops them, and
+ *  the reason is written there.
+ *
+ *  Still out: hooks (a hook is not a field of the record, it is
+ *  the children hanging off it), hidden cols, and the `_`
+ *  scaffolding the table adds.
  ************************************************************/
 function build_form_template(gobj)
 {
@@ -1949,10 +1989,6 @@ function build_form_template(gobj)
         }
         if(field_desc.type === "hook") {
             continue;   // hooks don't appear in forms
-        }
-        if(!field_desc.is_writable &&
-                field_desc.type !== "fkey" && col.id !== desc.pkey) {
-            continue;
         }
         template.push(col);
     }
@@ -2023,6 +2059,14 @@ function open_form_dialog(gobj, mode, record)
         title = t(topic_name) + (empty_string(rid) ? "" : " — " + rid);
     }
 
+    /*  "view" is an "update" that writes nothing: same title, same pkey
+     *  handling (readonly), every field read-only and the write half of
+     *  the toolbar gone. It is what a row click opens when the table is
+     *  NOT in edition mode -- reading a record is the ordinary thing to
+     *  want, and until now a click on a row did nothing at all.  */
+    let view_only = (mode === "view");
+    let form_mode = view_only? "update" : mode;
+
     /*  A flex column so the hosted form takes the dialog height: fields
      *  scroll internally and the form's bottom toolbar stays visible. */
     let $body = createElement2(
@@ -2038,19 +2082,22 @@ function open_form_dialog(gobj, mode, record)
             template:       build_form_template(gobj),
             record:         record,
             fkey_options:   build_fkey_options(gobj),
-            form_mode:      mode,
+            form_mode:      form_mode,
+            readonly:       view_only,
             /*  A read-only topic still OPENS its form -- looking at a record
              *  is the point of a replica -- with the cells not editable and
              *  the write half of the toolbar gone. A null plan leaves the
              *  form's own default alone.  */
-            ...(form_plan.form_toolbar ? {toolbar: form_plan.form_toolbar} : {}),
+            ...((view_only? READONLY_FORM_TOOLBAR : form_plan.form_toolbar)?
+                {toolbar: view_only? READONLY_FORM_TOOLBAR.slice()
+                                   : form_plan.form_toolbar} : {}),
             /*  Editing the raw topic record: structured cols
              *  (template / table / coordinates) are raw JSON editors,
              *  not interpreted into sub-widgets (the pre-merge behaviour). */
             render_mode:    "edit",
             pkey:           desc.pkey || "id",
             topic_name:     topic_name,
-            editable:       !form_plan.readonly,
+            editable:       !form_plan.readonly && !view_only,
             $parent:        $body
         },
         gobj
@@ -2447,6 +2494,42 @@ function show_edit_form(gobj, row, index)
 }
 
 /************************************************************
+ *  Does a click on this column already mean something else?
+ *
+ *  The `_` columns are the table's own scaffolding (the selection
+ *  checkbox, the Op buttons); a hook opens its children and a col
+ *  holding a json document opens it in a viewer. Anything else is
+ *  plain data, and a click on it means "show me this record".
+ ************************************************************/
+const CELL_WITH_ACTION = [
+    "hook", "object", "dict", "template", "array", "list",
+    "coordinates", "blob", "gbuffer"
+];
+
+function cell_has_its_own_action(gobj, field)
+{
+    if(!field || field.charAt(0) === '_') {
+        return true;
+    }
+    let col = get_schema_col(gobj, field);
+    if(!col) {
+        return false;
+    }
+    const field_desc = treedb_get_field_desc(col);
+    return CELL_WITH_ACTION.includes(field_desc.type) ||
+           CELL_WITH_ACTION.includes(field_desc.real_type);
+}
+
+/************************************************************
+ *  Show a record to be READ: every field, none of them editable.
+ *  What a row click opens while the table is not in edition mode.
+ ************************************************************/
+function show_view_form(gobj, row)
+{
+    open_form_dialog(gobj, "view", row);
+}
+
+/************************************************************
  *  Show the edit "create" form to a new record
  *  internally called from the top toolbar +New button
  ************************************************************/
@@ -2476,6 +2559,8 @@ function get_schema_col(gobj, id)
  ************************************************************/
 function transform__form_record_2_treedb_record(gobj, kw, operation)
 {
+    let desc = gobj_read_attr(gobj, "desc");
+    let pkey = desc.pkey || "id";
     let row = {};
 
     for(let field_name of Object.keys(kw)) {
@@ -2483,12 +2568,33 @@ function transform__form_record_2_treedb_record(gobj, kw, operation)
             continue;
         }
         let col = get_schema_col(gobj, field_name);
-        if(col) {
-            let value = kw[field_name];
-            row[field_name] = transform__form_value_2_treedb_value(
-                gobj, col, value, operation
-            );
+        if(!col) {
+            continue;
         }
+
+        /*  The form SHOWS every field and sends back only what the topic
+         *  accepts: the writable cols, the fkeys (a link is edited by
+         *  linking) and the pkey, which is not written but is what
+         *  ADDRESSES the record.
+         *
+         *  It matters because `treedb_update_node()` does not check
+         *  `writable` -- it writes any col it is handed -- so a read-only
+         *  field travelling back is written with whatever the form made of
+         *  it, and the fields that describe a record are exactly the ones
+         *  that do not survive a round trip through a widget: `t` is an
+         *  integer rendered as a date. Nothing would look wrong until the
+         *  stored timestamp had moved.
+         */
+        const field_desc = treedb_get_field_desc(col);
+        if(!field_desc.is_writable &&
+                field_desc.type !== "fkey" && col.id !== pkey) {
+            continue;
+        }
+
+        let value = kw[field_name];
+        row[field_name] = transform__form_value_2_treedb_value(
+            gobj, col, value, operation
+        );
     }
     return row;
 }
@@ -3774,6 +3880,29 @@ function ac_open_columns(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  A row was clicked outside edition mode: open the record to be read.
+ ************************************************************/
+function ac_show_record(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    let index = kw? kw.index : undefined;
+    if(!tabulator || typeof index !== "number") {
+        log_error(`${gobj_short_name(gobj)}: no row ${index} to show`);
+        return -1;
+    }
+
+    let row = tabulator.getRowFromPosition(index);
+    if(!row) {
+        log_error(`${gobj_short_name(gobj)}: row ${index} is gone`);
+        return -1;
+    }
+
+    show_view_form(gobj, row.getData());
+
+    return 0;
+}
+
+/************************************************************
  *  The reader picked another page size: remember it, so coming back to
  *  this topic opens where they left it instead of at 200.
  ************************************************************/
@@ -3933,6 +4062,7 @@ function create_gclass(gclass_name)
             ["EV_SEARCH",               ac_search,             null],
             ["EV_OPEN_COLUMNS",         ac_open_columns,       null],
             ["EV_PAGE_SIZE_CHANGED",    ac_page_size_changed,  null],
+            ["EV_SHOW_RECORD",          ac_show_record,        null],
             ["EV_TOGGLE_COLUMN",        ac_toggle_column,      null],
             ["EV_EXPORT_TABLE",         ac_export_table,       null],
             ["EV_SHOW",                 ac_show,               null],
@@ -3974,6 +4104,7 @@ function create_gclass(gclass_name)
         ["EV_SEARCH",               0],
         ["EV_OPEN_COLUMNS",         0],
         ["EV_PAGE_SIZE_CHANGED",    0],
+        ["EV_SHOW_RECORD",          0],
         ["EV_TOGGLE_COLUMN",        0],
         ["EV_EXPORT_TABLE",         0],
 

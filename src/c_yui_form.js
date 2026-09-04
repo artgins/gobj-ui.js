@@ -99,6 +99,7 @@ SDATA(data_type_t.DTP_STRING,   "render_mode",      0,  "exec", "'exec' interpre
 SDATA(data_type_t.DTP_STRING,   "pkey",             0,  "id",   "Primary key field name, used by form_mode"),
 SDATA(data_type_t.DTP_STRING,   "topic_name",       0,  "",     "Treedb topic name: labels use the i18n cascade '<topic>.<col>' -> '<col>' -> header (like table headers)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",         0,  false,  "Default is editable, set false to readonly"),
+SDATA(data_type_t.DTP_BOOLEAN,  "readonly",         0,  false,  "Show EVERY field read-only, whatever its schema says: a record being LOOKED at, not edited. Independent of `editable`, which drives the TABLE rendering; this one drives the FORM"),
 SDATA(data_type_t.DTP_BOOLEAN,  "selectable",       0,  true,   "Rows selectable with 'click' (BAD with editable=true)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_rownum",      0,  false,  "Print first column with row number"),
@@ -586,7 +587,10 @@ function build_form_field_conf(gobj, field_desc)
 
         options: [],            // select,select2,radio options
         extras: {},             // extra html input/textarea attributes
-        readonly: !field_desc.is_writable,
+        /*  A form opened to LOOK at a record has no editable field, and
+         *  that is a property of the opening, not of the schema: the same
+         *  col is writable when the same form is opened to edit.  */
+        readonly: gobj_read_bool_attr(gobj, "readonly") || !field_desc.is_writable,
         required: field_desc.is_required,
         hidden: field_desc.is_hidden,
         default_value: field_desc.default_value,
