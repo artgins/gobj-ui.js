@@ -1462,14 +1462,50 @@ function create_tabulator(gobj)
                 single_page = (max === false) || max <= 1;
             } else {
                 /*  Derived from the count and the page size rather than read
-                 *  from getPageMax(), which is stale in the filter path. */
+                 *  from getPageMax(), which is stale in the filter path.
+                 *  `true` is Tabulator's "All" and it is the SIZE itself, so
+                 *  it has to be read as a word: compared as a number it is 1,
+                 *  and a table showing every one of its 300 rows in a single
+                 *  page answered that it needed 300 pages.  */
                 let size = tabulator.getPageSize();
-                single_page = !size || n <= size;
+                single_page = (size === true) || !size || n <= size;
             }
         } catch(e) {
             single_page = true;
         }
+        /*  The page-size selector lives INSIDE the paginator, so hiding the
+         *  whole strip when everything fits took away the very control that
+         *  got the reader there: pick "All" on a topic of 300 rows and the
+         *  table becomes one page, the paginator goes, and 50 is
+         *  unreachable. The selector is noise only when no choice in it
+         *  would change anything -- when the topic is smaller than the
+         *  smallest size it offers. Measure that on the WHOLE topic, never
+         *  on the filtered count, or typing a filter that leaves 3 rows
+         *  takes the selector away too.  */
+        let total_rows;
+        if(paged) {
+            total_rows = total;
+        } else {
+            try {
+                total_rows = tabulator.getDataCount();
+            } catch(e) {
+                total_rows = n;
+            }
+        }
+        let min_size = 0;
+        let sizes = tabulator.options? tabulator.options.paginationSizeSelector : null;
+        if(Array.isArray(sizes)) {
+            sizes.forEach(function(size) {
+                if(typeof size === "number" && (!min_size || size < min_size)) {
+                    min_size = size;
+                }
+            });
+        }
+        let no_paginator = single_page &&
+            (!min_size || typeof total_rows !== "number" || total_rows <= min_size);
+
         tabulator.element.classList.toggle("yui-single-page", single_page);
+        tabulator.element.classList.toggle("yui-no-paginator", no_paginator);
     }
 
     tabulator._ready = false;

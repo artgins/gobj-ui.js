@@ -23,10 +23,20 @@
     line-height: 1.5;
 }
 
-/*  All rows fit in one page: the page-size selector and the
- *  First/Prev/1/Next/Last strip are pure noise (worst on mobile) —
- *  update_rowcount() toggles the class on every data change.  */
-.tabulator.yui-single-page .tabulator-footer .tabulator-paginator {
+/*  All rows fit in one page: the First/Prev/1/Next/Last strip is pure
+ *  noise (worst on mobile) — update_rowcount() toggles the class on every
+ *  data change. The page-size SELECTOR stays: it is what made the table
+ *  one page in the first place ("All" on a topic of 300 rows), so hiding
+ *  it together with the buttons left the reader no way back to 50.  */
+.tabulator.yui-single-page .tabulator-footer .tabulator-paginator .tabulator-page,
+.tabulator.yui-single-page .tabulator-footer .tabulator-paginator .tabulator-pages {
+    display: none;
+}
+
+/*  No choice in the selector would change anything either — the topic is
+ *  smaller than the smallest page size it offers — so the whole strip,
+ *  label and select included, is noise.  */
+.tabulator.yui-no-paginator .tabulator-footer .tabulator-paginator {
     display: none;
 }
 

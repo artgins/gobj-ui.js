@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.50
+
+- **Picking "All" took the page-size selector away with it.** The selector is
+  part of Tabulator's paginator, and the paginator was hidden whole whenever
+  the table fitted in one page. Choosing **All** on a topic of 5891 devices
+  makes it fit in one page by definition -- so the control that had just been
+  used disappeared, and there was no way back to 200 short of reloading the
+  view.
+
+  Only the `First/Prev/1/Next/Last` strip is hidden now. The selector goes
+  with it only when no choice in it would change anything: when the topic has
+  fewer rows than the smallest size the selector offers. That question is
+  asked of the WHOLE topic, never of the filtered count -- otherwise typing a
+  filter that leaves three rows takes the selector away again.
+
+- **A table showing every row in one page reported that it needed 300 pages.**
+  `true` is Tabulator's "All", and it is the SIZE itself: read as a number it
+  is 1, so `rows <= page_size` was false for any table with more than one row
+  and the pager strip stayed up on a table that had a single page.
+
 ## 7.23.49
 
 - **The search box could not see inside an fkey, so it never found a place.**
