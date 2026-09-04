@@ -116,3 +116,13 @@
     background: transparent !important;
 }
 
+
+/*  Cell of a col flagged `icon`: the glyph is a CSS mask sized in `em`,
+ *  so it comes out at the row's font size -- smaller than the 18px the
+ *  `image` cells next to it get. A touch larger, and centred on the row
+ *  rather than on the text baseline.  */
+.ICON_CELL {
+    font-size: 1.25em;
+    line-height: 1;
+    vertical-align: middle;
+}

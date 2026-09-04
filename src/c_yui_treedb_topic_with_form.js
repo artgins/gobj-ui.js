@@ -86,6 +86,7 @@ import {
 } from "./yui_table_select.js";
 
 import {yui_table_filter_clear} from "./yui_table_filter_clear.js";
+import {yui_icon_is_defined} from "./lib_icons.js";
 import {row_matches} from "./yui_row_search.js";
 
 import {t} from "i18next";
@@ -1284,6 +1285,14 @@ function create_tabulator(gobj)
                 hozAlign = "center";
                 colFormatter = "color";
                 break;
+            case "icon":
+                /*  The NAME of an icon of the app's set, not a file --
+                 *  which is why `image` cannot stand in for it: it built
+                 *  an `<img src="yi-bolt">` and drew a broken image.  */
+                hozAlign = "center";
+                vertAlign = "middle";
+                colFormatter = icon_formatter;
+                break;
             case "object":
             case "dict":
             case "template":
@@ -1695,6 +1704,48 @@ function table__destroy(gobj)
 }
 
 /************************************************************
+ *  Cell of a col flagged `icon`: the value is the NAME of an
+ *  icon of the app's set ("yi-bolt"), so it is DRAWN.
+ *
+ *  Built as a DOM node and not as an HTML string: the value is
+ *  raw record data and must never be parsed as markup -- and
+ *  here it also becomes a CSS class, so it is filtered to the
+ *  shape of a class name before it gets near one.
+ *
+ *  A name the set does not carry falls back to the TEXT of it.
+ *  The catch-all rule `[class^="yi-"]::before` paints a
+ *  currentColor box for any name, so drawing it anyway would
+ *  render a solid square -- a glyph nobody recognises rather
+ *  than a mistake somebody can fix.
+ ************************************************************/
+function icon_formatter(cell)
+{
+    let name = cell.getValue();
+    if(!is_string(name) || empty_string(name)) {
+        return "";
+    }
+    name = name.trim();
+
+    if(!/^[a-z0-9-]+$/.test(name) || !yui_icon_is_defined(name)) {
+        /*  The NAME, in plain grey, and no invented label around it: it
+         *  is a developer's problem (a schema naming a glyph the set
+         *  does not carry) and the name IS the whole diagnosis -- while
+         *  a sentence here would be one more i18n key for every app
+         *  that mounts this table.  */
+        return createElement2([
+            "span",
+            {class: "ICON_CELL_UNKNOWN is-size-7 has-text-grey", title: name},
+            name
+        ]);
+    }
+
+    return createElement2([
+        "span",
+        {class: `ICON_CELL ${name}`, title: name, "aria-label": name}
+    ]);
+}
+
+/************************************************************
  *  Cell of a col holding a JSON document (dict/list/blob/
  *  template/coordinates/…): a one-line truncated preview,
  *  marked as a link because the click opens the whole value
@@ -1850,6 +1901,10 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
 
         case "color":
             // Handled by Tabulator's built-in "color" formatter (see colDef above)
+            break;
+
+        case "icon":
+            // Handled by icon_formatter() (see colDef above)
             break;
 
         case "image":

@@ -661,6 +661,7 @@ function build_form_field_conf(gobj, field_desc)
             break;
 
         case "image":
+        case "icon":
         case "string":
             field_conf.tag = 'input';
             field_conf.inputType = 'text';
@@ -1787,6 +1788,7 @@ function template2columns(gobj, columns, template, sub_elements)
                 break;
 
             case "image":
+            case "icon":
             case "string":
                 // field_conf.tag = 'input';
                 // field_conf.inputType = 'text';
@@ -2516,6 +2518,7 @@ function treedb_value_2_form_value(gobj, field_desc, value)
         case "date":
         case "color":
         case "image":
+        case "icon":
         case "tel":
         case "template":
         case "table":
@@ -2653,6 +2656,7 @@ function form_value_2_treedb_value(gobj, field_desc, value)
         case "date":
         case "color":
         case "image":
+        case "icon":
         case "tel":
             break;
         case "template":

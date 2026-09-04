@@ -5,6 +5,29 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.53
+
+- **A col flagged `icon` draws the icon.** `device_types.icon` held `yi-bolt`
+  and the only thing on the list that came close was `image`, which is a
+  different case: the table built an `<img src="yi-bolt">` and drew the
+  browser's broken-image glyph. `icon` is now a treedb field type of its own
+  -- the name of an icon of the app's set, not a file -- and the table draws
+  it. In a form it is edited as the text it is.
+
+  **A name the set does not carry falls back to the TEXT of it**, and that is
+  the point of the check rather than a nicety: `yui_icons.css` matches
+  `[class^="yi-"]::before` and paints a `currentColor` box for ANY name, so
+  drawing an undefined icon renders a solid black square -- a glyph nobody
+  recognises instead of a mistake somebody can fix. The new
+  `yui_icon_is_defined()` (`lib_icons.js`) ASKS the real stylesheet, because
+  the set is a CSS file an app may extend and a list here would be a second
+  copy of it, wrong the first time somebody adds a rule.
+
+  **Needs `@yuneta/gobj-js` >= 7.16.3**, which is where `icon` joins
+  `treedb_field_types` -- and the peer floor is deliberately NOT raised:
+  under an older runtime the flag is simply unknown and the column renders
+  its name as text, so nothing breaks, the icon just does not light up.
+
 ## 7.23.52
 
 - **Remote paging is out of use: a partial topic BREAKS LINKING.** A record's

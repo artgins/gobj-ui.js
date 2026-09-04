@@ -168,3 +168,54 @@ export function inject_svg_icons()
     div.innerHTML = ICONS;
     document.body.appendChild(div);
 }
+
+/*
+ *  Is `yi-<name>` a real glyph of the loaded set?
+ *
+ *  It has to be ASKED, not looked up in a list: the set is a CSS file
+ *  (`yui_icons.css`) that an app may extend or replace, and a list here
+ *  would be a second copy of it, wrong the first time somebody adds a
+ *  mask rule. And the question matters because the catch-all rule
+ *  `[class^="yi-"]::before` paints a `currentColor` box for ANY name --
+ *  so an undefined icon does not fail, it renders as a solid black
+ *  square, which reads as a glyph nobody recognises rather than as a
+ *  mistake.
+ *
+ *  The probe is the real stylesheet: a detached element gets no styles,
+ *  so it is attached, hidden, measured and removed. Cached by name --
+ *  a table draws one icon per row and the answer cannot change without
+ *  a reload.
+ */
+const __icon_defined__ = {};
+
+export function yui_icon_is_defined(name)
+{
+    if(!name || typeof name !== "string") {
+        return false;
+    }
+    if(__icon_defined__[name] !== undefined) {
+        return __icon_defined__[name];
+    }
+
+    let defined = false;
+    try {
+        const el = document.createElement("i");
+        el.className = name;
+        el.style.position = "absolute";
+        el.style.visibility = "hidden";
+        el.style.pointerEvents = "none";
+        document.body.appendChild(el);
+        const st = window.getComputedStyle(el, "::before");
+        const mask = st.maskImage || st.webkitMaskImage || "";
+        defined = !!mask && mask !== "none";
+        document.body.removeChild(el);
+    } catch(e) {
+        /*  No DOM to ask (jsdom without the stylesheet, a test): answer
+         *  "not defined" so the caller falls back to showing the name,
+         *  which is the honest half of the pair.  */
+        defined = false;
+    }
+
+    __icon_defined__[name] = defined;
+    return defined;
+}
