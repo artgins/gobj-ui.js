@@ -1780,6 +1780,51 @@ this facility: it is `formatter: "rowSelection"` with no `titleFormatter` and
 `selectableRows: 1`, and the header checkbox, the count and the bar all mean
 nothing there.
 
+### Clearing a header filter — `yui_table_filter_clear.js`
+
+A column filter is set by typing and undone by deleting what you typed, letter
+by letter, and nothing in the header says it can be dropped at all. With
+several columns filtered, getting back to the whole table is an exercise in
+remembering which ones you touched. One call, on a table that is already built:
+
+```js
+import {yui_table_filter_clear} from "@yuneta/gobj-ui/src/yui_table_filter_clear.js";
+
+table.on("tableBuilt", () => {
+    yui_table_filter_clear(table);
+});
+```
+
+The app must define the i18n key **`"clear"`**. Three decisions are baked in:
+
+- **The ✕ is visible whenever the filter has content, focus or not** — the
+  opposite of the ✕ in a form (`yui_inputs.js`), which shows only on the field
+  being edited so a form full of filled fields does not light up an ✕ on every
+  one. Here the filter is already set, the focus is elsewhere, and the whole
+  point is to see it and drop it; hidden behind focus it would take two clicks.
+- **It clears through `setHeaderFilterValue()`**, not by synthesising a
+  keystroke on the input — what a header filter listens to depends on that
+  column's filter editor.
+- **It decorates the header by walking it**, because a table's columns are
+  often built from data (a treedb schema) and the header rebuilds itself when
+  they change. The walk is idempotent and gated by a single `querySelector`, so
+  repeating it on every render costs nothing.
+
+### Searching a row that is not flat — `yui_row_search.js`
+
+`row_matches(row, term)` is what the treedb topic table's search box uses, and
+it exists because **a treedb row is not flat**: with `list_dict` an fkey
+arrives as a list of objects — `[{id, topic_name, hook_name}]` — and
+`String(val)` of that is `"[object Object]"`. A search written the obvious way
+therefore never finds the place a node is linked to, while the cell plainly
+renders that id: what you see and what is searched are not the same thing.
+
+It walks into lists and objects, and reads only the **`id`** of an fkey:
+`topic_name` and `hook_name` are the same two words on every row, so matching
+them turns any such term into a wildcard over the whole topic. Keys starting
+with `_` are never searched, at any level — scaffolding (`_operation`) and
+metadata (`__md_treedb__`).
+
 ## Conventions
 
 ### i18n: a string must be able to CHANGE language, not just be translated once
