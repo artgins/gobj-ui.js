@@ -53,6 +53,64 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   gated by a single `querySelector`, so repeating it on every render costs
   nothing.
 
+## 7.23.48
+
+- **A failure only a user can see is a failure nobody measures.**
+  `yui_asset_element()`'s `onerror` swapped in the marker and told nobody else.
+  The marker is for the person looking at the screen; `log_error` is what
+  reaches the yuno, which is the only place anybody can COUNT how often it
+  happens.
+
+  An asset the backend served and the browser could not load is a fact of the
+  system -- an expired signature, a blob gone from the store, a codec nobody
+  has -- and until then it left no trace anywhere. Found sweeping this module
+  for silent error paths against the project's first rule.
+
+## 7.23.47
+
+- **A link is not always `topic^id^hook`, and reading only that shape saw
+  none.** `yui_asset_id`/`yui_asset_ids` read the STORED form of an fkey and
+  nothing else, so against a backend that reads its nodes with `fkey_only_id`
+  -- which collapses a link to the bare id, and is how yunovatios reads every
+  device -- every linked image looked like no link at all. Silent, twice over:
+  no image, and no marker either, because "nothing named" is the normal state
+  of a point nobody photographed.
+
+  **Which shape a link arrives in is the READER's choice, not the schema's**,
+  and there are three: the stored `"assets^<id>^as_foto"`, the bare `"<id>"`,
+  and an expanded `{id}` from the `refs` options. Each can come alone or in a
+  list -- and an UNSET single-valued fkey still arrives as an empty list. All
+  of them are read now. The `^` is what tells the two string shapes apart, and
+  an id can never carry one, which is why the qualified key uses `.`.
+
+## 7.23.46
+
+- **The bytes a node owns but cannot hold, and a missing one said out loud.**
+  A treedb node often owns something that is not JSON -- a photo, a plan, a
+  clip -- and the SDK's `C_ASSETS` (7.17.0) keeps those bytes in a directory it
+  owns while the node names one with an fkey. `get-asset` answers either with a
+  signed url or with the bytes inline, and the BACKEND decides which: a node
+  with a web server in front of its store gets the fast, cacheable form, one
+  without still shows its images instead of showing nothing.
+
+  `yui_asset.js` is the two ends of that, and it deliberately does **not** talk
+  to the backend: asking is an action and belongs in the view's own FSM.
+  `yui_asset_id`/`ids` read the fkey; `yui_asset_src` turns either answer into
+  one `src`; `yui_asset_element` builds the element from **the content type the
+  backend stored** -- `img`, `video` or `audio`, because video and audio are
+  assets too and an `<img>` whose src is a film shows the very broken box this
+  removes.
+
+  **A missing asset is SAID.** It used to leave a broken box and no word about
+  it, indistinguishable from a slow one and from a bug -- 47 such holes in one
+  day on artgins.ytreedb.com before anybody noticed. `yui_asset_element` wires
+  `onerror` so the dead element is REPLACED by a marker, whatever the reason.
+  And `yui_asset_src` answers `null`, never `""`, for an unusable answer:
+  `<img src="">` reloads the PAGE in some browsers, which is a worse failure
+  than the one being reported. The marker's label carries its i18n key so it
+  follows a language change, while `detail` is data -- a name, a path -- and is
+  never translated.
+
 ## 7.23.45
 
 - **The wheel did nothing over a popover, so its scrollbar had to be
