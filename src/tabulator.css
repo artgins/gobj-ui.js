@@ -304,6 +304,23 @@
     color: var(--bulma-link-invert);
 }
 
+/*  The paginator paints its OWN colour -- tabulator_bulma.css sets
+ *  `color: hsl(0, 0%, 21%)` on `.tabulator-paginator` itself -- so the
+ *  footer's colour never reaches the "Rows per page" label: near-black
+ *  text on the dark footer, legible only if you knew it was there. Say
+ *  it on the element that sets it, and on the native <select>, which
+ *  otherwise keeps the browser's light chrome.  */
+[data-theme=dark] .tabulator .tabulator-footer .tabulator-paginator,
+[data-theme=dark] .tabulator .tabulator-footer .tabulator-paginator label {
+    color: var(--bulma-text);
+}
+
+[data-theme=dark] .tabulator .tabulator-footer .tabulator-page-size {
+    background-color: var(--bulma-background);
+    color: var(--bulma-text);
+    border-color: var(--bulma-border);
+}
+
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-frozen {
     background-color: var(--bulma-background) !important;
 }
@@ -385,6 +402,16 @@
     [data-theme=system] .tabulator .tabulator-footer .tabulator-page.active {
         background-color: var(--bulma-link);
         color: var(--bulma-link-invert);
+    }
+    /*  same paginator-paints-its-own-colour rule as [data-theme=dark]  */
+    [data-theme=system] .tabulator .tabulator-footer .tabulator-paginator,
+    [data-theme=system] .tabulator .tabulator-footer .tabulator-paginator label {
+        color: var(--bulma-text);
+    }
+    [data-theme=system] .tabulator .tabulator-footer .tabulator-page-size {
+        background-color: var(--bulma-background);
+        color: var(--bulma-text);
+        border-color: var(--bulma-border);
     }
 }
 

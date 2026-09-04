@@ -103,6 +103,67 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_TREEDB_TOPIC_WITH_FORM";
 
+/*
+ *  Where the reader's page size is remembered.
+ *
+ *  In localStorage and not in a persistent attr: how many rows somebody
+ *  wants in front of them is a fact about THAT browser, not about the
+ *  yuno, and a library gclass cannot assume the host app wired the
+ *  persistence functions. Same reasoning as `C_YUI_GOBJ_TREE_JS` and
+ *  `C_YUI_JSON`.
+ *
+ *  Keyed by the gobj name, which the host builds as `<view>?<topic>`, so
+ *  the size is remembered PER TOPIC. That is the useful grain: a topic of
+ *  5891 devices and one of 22 do not want the same page.
+ */
+const PAGE_SIZE_STORE_PREFIX = "yui_treedb_page_size:";
+
+/************************************************************
+ *  The size the reader left, or null when there is none.
+ *  `true` is Tabulator's "All" and it round-trips as the boolean:
+ *  JSON.parse gives it back as one, and a string "true" would be
+ *  read by Tabulator as a size of NaN.
+ ************************************************************/
+function load_page_size(gobj)
+{
+    try {
+        let raw = window.localStorage.getItem(
+            PAGE_SIZE_STORE_PREFIX + gobj_name(gobj)
+        );
+        if(raw === null) {
+            return null;
+        }
+        let size = JSON.parse(raw);
+        if(size === true) {
+            return true;
+        }
+        if(typeof size === "number" && size > 0) {
+            return size;
+        }
+        return null;
+    } catch(e) {
+        /*  localStorage unavailable (private mode) or a value somebody
+         *  else wrote: the table opens at its default size, which is
+         *  the same thing that happened before it was remembered.  */
+        return null;
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function save_page_size(gobj, size)
+{
+    try {
+        window.localStorage.setItem(
+            PAGE_SIZE_STORE_PREFIX + gobj_name(gobj),
+            JSON.stringify(size)
+        );
+    } catch(e) {
+        // localStorage unavailable (private mode) — non-fatal
+    }
+}
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -168,6 +229,7 @@ let PRIVATE_DATA = {
     _pending_pages:     null,       // req_id -> {resolve, reject, timer}
     _page_seq:          0,          // correlation id of a page request
     _page_total:        null,       // rows the topic HAS, from the last page answer
+    _page_size:         null,       // rows per page in effect (remembered across visits)
     $container:         null,
     treedb_name:        "",
     topic_name:         "",
@@ -1366,6 +1428,22 @@ function create_tabulator(gobj)
         });
     }
 
+    /*  The size the reader picked last time, which outranks both defaults
+     *  above. Applied here, once the two paths have set theirs, so it is
+     *  written in ONE place -- and applied to `paginationSize` only: the
+     *  SELECTOR keeps offering the same sizes, and a remembered value that
+     *  is not one of them Tabulator adds to the list itself.  */
+    let remembered_size = load_page_size(gobj);
+    if(remembered_size !== null && tabulator_settings.pagination) {
+        tabulator_settings.paginationSize = remembered_size;
+    }
+    /*  What the table OPENS at, remembered or default. Tabulator announces
+     *  `pageSizeChanged` at build time too, with the size it starts at, and
+     *  saving that one would freeze today's default in the reader's browser
+     *  for ever: a later change of the default would never reach anybody who
+     *  had once opened the table. Only a real change is written.  */
+    gobj.priv._page_size = tabulator_settings.paginationSize;
+
     Object.assign(tabulator_settings, {
         index: pkey,
         columns: columns,
@@ -1529,6 +1607,13 @@ function create_tabulator(gobj)
      *  box; a filter per column made it a claim you read on every keystroke. */
     tabulator.on("dataProcessed", update_rowcount);
     tabulator.on("dataChanged", update_rowcount);
+    /*  The reader changed the page size. The widget has already done the
+     *  work -- it re-pages itself -- so what crosses the machine is the
+     *  DECISION, which is the half worth remembering and the half that
+     *  shows up in the trace. */
+    tabulator.on("pageSizeChanged", function(size) {
+        gobj_send_event(gobj, "EV_PAGE_SIZE_CHANGED", {size: size}, gobj);
+    });
     /*  A cell edited in place. Announced as ONE FIELD of one record — not
      *  as the row — and that is the whole safety of it: the host writes it
      *  with a partial update and no `autolink`, so nothing but that field
@@ -3607,6 +3692,27 @@ function ac_open_columns(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The reader picked another page size: remember it, so coming back to
+ *  this topic opens where they left it instead of at 200.
+ ************************************************************/
+function ac_page_size_changed(gobj, event, kw, src)
+{
+    let size = kw? kw.size : undefined;
+    if(size !== true && !(typeof size === "number" && size > 0)) {
+        log_error(`${gobj_short_name(gobj)}: bad page size: ${size}`);
+        return -1;
+    }
+
+    if(size === gobj.priv._page_size) {
+        return 0;       /*  the build-time announcement, not a decision  */
+    }
+    gobj.priv._page_size = size;
+    save_page_size(gobj, size);
+
+    return 0;
+}
+
+/************************************************************
  *  Show / hide one column.
  ************************************************************/
 function ac_toggle_column(gobj, event, kw, src)
@@ -3744,6 +3850,7 @@ function create_gclass(gclass_name)
             ["EV_PAGE_TIMEOUT",         ac_page_timeout,       null],
             ["EV_SEARCH",               ac_search,             null],
             ["EV_OPEN_COLUMNS",         ac_open_columns,       null],
+            ["EV_PAGE_SIZE_CHANGED",    ac_page_size_changed,  null],
             ["EV_TOGGLE_COLUMN",        ac_toggle_column,      null],
             ["EV_EXPORT_TABLE",         ac_export_table,       null],
             ["EV_SHOW",                 ac_show,               null],
@@ -3784,6 +3891,7 @@ function create_gclass(gclass_name)
         ["EV_REQUEST_PAGE",         event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_SEARCH",               0],
         ["EV_OPEN_COLUMNS",         0],
+        ["EV_PAGE_SIZE_CHANGED",    0],
         ["EV_TOGGLE_COLUMN",        0],
         ["EV_EXPORT_TABLE",         0],
 

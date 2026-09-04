@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.51
+
+- **The page size was forgotten on every reload.** A reader who moved a topic
+  of 5891 devices to "All" got 200 back on the next visit, and had to say it
+  again every time. The table now remembers the size, in localStorage and
+  keyed by the gobj name -- which the host builds as `<view>?<topic>`, so it
+  is remembered PER TOPIC: a topic of 5891 rows and one of 22 do not want the
+  same page.
+
+  Only a real change is written. Tabulator announces `pageSizeChanged` at
+  build time as well, with the size it starts at, and saving that one would
+  freeze today's default in the reader's browser for ever -- a later change of
+  the default would never reach anybody who had once opened the table.
+
+- **"Rows per page" was near-invisible in dark.** `tabulator_bulma.css` sets
+  `color: hsl(0, 0%, 21%)` on `.tabulator-paginator` ITSELF, so the dark
+  footer's colour never reached the label inside it: black text on a dark
+  strip. The colour is now stated on the element that sets it, and on the
+  native `<select>` of the size, which otherwise kept the browser's light
+  chrome.
+
 ## 7.23.50
 
 - **Picking "All" took the page-size selector away with it.** The selector is
