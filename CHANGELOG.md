@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.55
+
+- **`readonly` is an attribute of a text control and of nothing else.** A
+  `<select>` ignores it; so does a checkbox, and so does a radio -- the
+  browser accepts the attribute, stores it, and lets the reader change the
+  value anyway. Only `disabled` stops them, and tom-select is a widget of its
+  own that has to be told through its API.
+
+  So a col that is not `writable` rendered an EDITABLE select: the field was
+  built read-only, correctly, and the three controls that cannot be read-only
+  said nothing about it. It went unseen while non-writable cols were dropped
+  from the form altogether (7.23.54 put them back); the record opened to be
+  READ made it plain -- a `devices` row opened by a row click offered its
+  place, its type, its controller, its photo and three checkboxes to change.
+
+  `disabled` is safe here: the record is collected by reading each marked
+  control's value, never by submitting the form, so a disabled control is
+  still read -- unlike in a native submit, where it would be dropped.
+
 ## 7.23.54
 
 - **A click on a row did nothing, and a form showed a fraction of the

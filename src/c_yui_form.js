@@ -1449,9 +1449,53 @@ function create_form_field(
         $extend.dataset.form_tag = tag;
         $extend.dataset.form_input_type = inputType;
         $extend.classList.add('yui-form-data-input');
+
+        apply_readonly_to_control(readonly, tag, $extend);
     }
 
     return $element;
+}
+
+/******************************************************************
+ *  `readonly` is an attribute of a TEXT control and of nothing else.
+ *
+ *  A `<select>` ignores it. So does a checkbox, and so does a radio:
+ *  the browser accepts the attribute, stores it, and lets the reader
+ *  change the value anyway. Only `disabled` stops them, and tom-select
+ *  is a widget of its own that has to be told through its API.
+ *
+ *  Which is why a col that is not `writable` used to render an
+ *  EDITABLE select: the field was built read-only, correctly, and the
+ *  three controls that cannot be read-only said nothing about it.
+ *
+ *  `disabled` is safe here: the record is collected by reading each
+ *  marked control's value, never by submitting the form, so a disabled
+ *  control is still read -- unlike in a native submit, where it would
+ *  be dropped.
+ ******************************************************************/
+function apply_readonly_to_control(readonly, tag, $extend)
+{
+    if(!readonly) {
+        return;
+    }
+
+    switch(tag) {
+        case 'select':
+        case 'checkbox':
+        case 'radio':
+            $extend.setAttribute("disabled", "disabled");
+            break;
+        case 'select2':
+            $extend.setAttribute("disabled", "disabled");
+            if($extend.tom_select) {
+                $extend.tom_select.disable();
+            }
+            break;
+        default:
+            /*  A text control already carries `readonly`, which is the
+             *  better of the two: it stays selectable and copyable.  */
+            break;
+    }
 }
 
 
