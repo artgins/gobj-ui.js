@@ -1024,7 +1024,9 @@ function create_form_field(
 
                             ['div', {class: 'field-body'}, [
                                 ['div', {class: 'field'}, [
-                                    ['div', {class: 'xcontrol control', style: 'max-width:100px;'}, []]
+                                    /*  Room for the swatch AND its value
+                                     *  beside it (attach_color_value).  */
+                                    ['div', {class: 'xcontrol control', style: 'max-width:220px;'}, []]
                                 ]]
                             ]]
                         ]]
@@ -1200,6 +1202,9 @@ function create_form_field(
             if(inputType !== 'color' && inputType !== 'datetime-local' &&
                     (!readonly || is_pkey)) {
                 attach_clear($control, $extend);
+            }
+            if(inputType === 'color') {
+                attach_color_value($control, $extend);
             }
             break;
         }
@@ -1454,6 +1459,43 @@ function create_form_field(
     }
 
     return $element;
+}
+
+/******************************************************************
+ *  A colour swatch beside its own value.
+ *
+ *  The swatch says WHICH colour and nothing else -- and the value is
+ *  the half a person needs: to read it, to write it down, to paste it
+ *  into the next record. Read-only it was unreachable altogether;
+ *  editable it was a colour you could only pick, never copy.
+ *
+ *  A `<span>`, not a second input: the record is collected from the
+ *  controls marked `yui-form-data-input`, and one field with two of
+ *  them is a field read twice. It carries `user-select: all`, so one
+ *  click takes the whole value and not the half a double-click would
+ *  stop at (`#e0a800` is three words to a browser).
+ ******************************************************************/
+function attach_color_value($control, $input)
+{
+    let $value = createElement2(
+        ['span', {class: 'yui-color-value is-family-monospace is-size-7'}, '']
+    );
+
+    function refresh() {
+        let v = $input.value || "";
+        $value.textContent = v;
+        $value.title = v;
+    }
+
+    refresh();
+    $input.addEventListener('input', refresh);
+    /*  The swatch's value is also written from outside (loading a record
+     *  into the form), and that fires nothing. `set_field_value()` ends
+     *  in a synthetic `change`, which is why this listens to both.  */
+    $input.addEventListener('change', refresh);
+    $input.yui_color_value = $value;
+
+    $control.appendChild($value);
 }
 
 /******************************************************************
@@ -2398,6 +2440,12 @@ function set_form_values(gobj, template, $form, record)
                         break;
                     case "color":
                         $input.value = convertColor(value);
+                        /*  Writing `.value` fires nothing, so the readout
+                         *  beside the swatch has to be told. */
+                        if($input.yui_color_value) {
+                            $input.yui_color_value.textContent = $input.value;
+                            $input.yui_color_value.title = $input.value;
+                        }
                         break;
                     default:
                         $input.value = value;

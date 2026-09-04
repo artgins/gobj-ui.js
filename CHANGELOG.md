@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.58
+
+- **A colour field shows its value beside the swatch.** The swatch says WHICH
+  colour and nothing else, and the value is the half a person needs: to read
+  it, to write it down, to paste it into the next record. Read-only it was
+  unreachable altogether; editable it was a colour you could pick and never
+  copy.
+
+  A `<span>` and not a second input: the record is collected from the
+  controls marked `yui-form-data-input`, and one field with two of them is a
+  field read twice. It carries `user-select: all`, so one click takes the
+  whole `#e0a800` -- to a browser that is three words, and a double-click
+  stops at one of them.
+
+  It is refreshed on `input`, on `change`, and where the record is LOADED
+  into the form: writing `.value` from code fires neither.
+
 ## 7.23.57
 
 - **`save` moves to the RIGHT end of the form toolbar.** It sat hard against

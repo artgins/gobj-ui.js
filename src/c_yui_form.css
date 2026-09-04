@@ -79,3 +79,18 @@
 .C_YUI_FORM .yui-jse-readonly {
     background-color: var(--bulma-background, #f5f5f5);
 }
+
+/*  The value of a colour, beside its swatch: what the swatch cannot say.
+ *  `user-select: all` so one click takes the whole `#e0a800` -- to a
+ *  browser that is three words, and a double-click stops at one of them. */
+.C_YUI_FORM .yui-color-value {
+    margin-left: 0.5rem;
+    vertical-align: middle;
+    color: var(--bulma-text-weak, #7a7a7a);
+    user-select: all;
+    -webkit-user-select: all;
+    cursor: text;
+}
+.C_YUI_FORM input[type="color"] {
+    vertical-align: middle;
+}
