@@ -10,13 +10,25 @@
  *          All Rights Reserved.
  ***********************************************************************/
 
-/*  Save/undo/clear sit on the left of the bar, copy/paste on the right.
- *  That split is what the layout has always drawn, and keeping it means
- *  a caller who drops one group does not leave a hole in the middle. */
-const LEFT_BUTTONS  = ["save", "undo", "clear"];
-const RIGHT_BUTTONS = ["copy", "paste"];
+/*  Two groups, and the split is a real one: `undo`, `clear` and `save`
+ *  act on the RECORD being edited, `copy` and `paste` move it in and out
+ *  of the clipboard. Keeping them apart means a caller who drops one
+ *  group does not leave a hole in the middle.
+ *
+ *  WHICH SIDE EACH ONE TAKES CHANGED (2026-09-04), and the reason is that
+ *  the form changed shape: it was an embedded panel and it opens as a
+ *  MODAL DIALOG now. In a dialog the primary action goes bottom-RIGHT --
+ *  every platform puts it there, and it is where the eye ends after
+ *  reading the fields. `save` sat hard against the left edge, which is
+ *  where a person looks last.
+ *
+ *  So: clipboard on the left, record actions on the right, and `save`
+ *  LAST of all. The order inside a group is the order asked for, which
+ *  is why DEFAULT_TOOLBAR is written in the order it is drawn.  */
+const LEFT_BUTTONS  = ["copy", "paste"];
+const RIGHT_BUTTONS = ["undo", "clear", "save"];
 
-const DEFAULT_TOOLBAR = ["save", "undo", "clear", "copy", "paste"];
+const DEFAULT_TOOLBAR = ["copy", "paste", "undo", "clear", "save"];
 
 
 /***************************************************************

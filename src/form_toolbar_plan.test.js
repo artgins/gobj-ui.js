@@ -5,17 +5,26 @@ describe("plan_toolbar", () => {
 
     it("says nothing -> the five buttons this gclass always had", () => {
         const p = plan_toolbar(undefined);
-        expect(p.left).toEqual(["save", "undo", "clear"]);
-        expect(p.right).toEqual(["copy", "paste"]);
+        expect(p.left).toEqual(["copy", "paste"]);
+        expect(p.right).toEqual(["undo", "clear", "save"]);
         expect(p.unknown).toEqual([]);
         expect(DEFAULT_TOOLBAR.length).toBe(5);
+    });
+
+    it("save is the LAST button of the bar", () => {
+        /*  The form opens as a modal dialog and a dialog's primary action
+         *  goes bottom-right. Asserted on the plan and not on the CSS,
+         *  because the plan is what decides the two groups.  */
+        const p = plan_toolbar(undefined);
+        expect(p.right[p.right.length - 1]).toBe("save");
+        expect(p.left).not.toContain("save");
     });
 
     it("a non-array is not an empty toolbar: it is the default", () => {
         /*  Reading a JSON attr that was never set must not silently
          *  leave a form with no save button. */
         for(const v of [null, "save", 0, {}]) {
-            expect(plan_toolbar(v).left).toContain("save");
+            expect(plan_toolbar(v).right).toContain("save");
         }
     });
 
@@ -28,21 +37,21 @@ describe("plan_toolbar", () => {
 
     it("one action: a dialog asks for save only", () => {
         const p = plan_toolbar(["save"]);
-        expect(p.left).toEqual(["save"]);
-        expect(p.right).toEqual([]);
+        expect(p.right).toEqual(["save"]);
+        expect(p.left).toEqual([]);
     });
 
     it("keeps the order asked for inside each side", () => {
         const p = plan_toolbar(["clear", "save", "paste", "copy"]);
-        expect(p.left).toEqual(["clear", "save"]);
-        expect(p.right).toEqual(["paste", "copy"]);
+        expect(p.right).toEqual(["clear", "save"]);
+        expect(p.left).toEqual(["paste", "copy"]);
     });
 
     it("an unknown name is REPORTED, never silently dropped", () => {
         /*  A typo here would otherwise remove a button and leave no
          *  trace of why it is missing. */
         const p = plan_toolbar(["save", "sav", "undo"]);
-        expect(p.left).toEqual(["save", "undo"]);
+        expect(p.right).toEqual(["save", "undo"]);
         expect(p.unknown).toEqual(["sav"]);
     });
 
@@ -59,7 +68,7 @@ describe("plan_toolbar", () => {
 
     it("drops one whole side without disturbing the other", () => {
         const p = plan_toolbar(["save", "undo", "clear"]);
-        expect(p.left).toEqual(["save", "undo", "clear"]);
-        expect(p.right).toEqual([]);
+        expect(p.right).toEqual(["save", "undo", "clear"]);
+        expect(p.left).toEqual([]);
     });
 });

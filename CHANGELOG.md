@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.57
+
+- **`save` moves to the RIGHT end of the form toolbar.** It sat hard against
+  the left edge, which is where a person looks last. The reason it was there
+  is that the split is a real one -- `undo`/`clear`/`save` act on the RECORD,
+  `copy`/`paste` move it in and out of the clipboard -- but the sides were
+  chosen when the form was an embedded panel, and it opens as a MODAL DIALOG
+  now. In a dialog the primary action goes bottom-right: every platform puts
+  it there, and it is where the eye ends after reading the fields.
+
+  The two groups stay, swapped: clipboard on the left, record actions on the
+  right, `save` last of all. `DEFAULT_TOOLBAR` is written in the order it is
+  drawn, because the order inside a group is still the order asked for -- a
+  caller that names its own buttons keeps deciding their sequence.
+
 ## 7.23.56
 
 - **Two controls still LOOKED editable while read-only**, which is the same
