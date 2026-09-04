@@ -5,6 +5,54 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.49
+
+- **The search box could not see inside an fkey, so it never found a place.**
+  A treedb row is not flat: with `list_dict` an fkey arrives as a LIST OF
+  OBJECTS -- `[{id, topic_name, hook_name}]` -- and the matcher stringified
+  each value with `String(val)`, which for that is `"[object Object]"`. So
+  searching a topic of devices for the workshop they sit in -- the value an
+  operator actually has in mind -- never matched anything, and the box gave no
+  sign it had looked somewhere else.
+
+  `yui_row_search.js` walks into lists and objects, and reads only the **`id`**
+  of an fkey: `topic_name` and `hook_name` are the same two words on every row,
+  so matching them would turn any such term into a wildcard over the whole
+  topic. Keys starting with `_` stay unsearched at every level -- scaffolding
+  (`_operation`) and metadata (`__md_treedb__`), which nobody searches by.
+
+- **A paged topic could not be searched.** `with_remote_paging` pulls a page
+  at a time and says so with `filterMode: "local"`: the header filters and the
+  search box work on the page that is loaded. On a topic that does not fit --
+  5891 devices at 200 a page -- searching for something on page 17 found
+  nothing, and the box gave no hint that it had only looked at 200 rows.
+
+  The page-size selector now offers **All**, which is the way out and costs
+  nothing new: `nodes` has taken `limit: 0` for "every one" since paging
+  landed, and answers the plain list, which `nodes_answer()` reads as a single
+  page -- so the paginator hides and every filter sees every row.
+
+  Tabulator sends that option's size as the boolean `true`, so the page
+  request translates it instead of doing arithmetic on it: `(page-1)*true+1`
+  is a number by accident and `limit: true` is a boolean where the backend
+  wants an integer.
+
+- **A header filter could only be undone by deleting what you typed.** With
+  several columns filtered, getting back to the whole table was an exercise in
+  remembering which ones you had touched. Each header filter now carries a ✕
+  (`yui_table_filter_clear.js`), and three things about it are deliberate:
+
+  it is visible **whenever the filter has content, focus or not** -- the
+  opposite of the ✕ in a form (`yui_inputs.js`), which only shows on the field
+  being edited, because here the filter is already set, the focus is elsewhere,
+  and the point is to see it and drop it; it clears through
+  `setHeaderFilterValue()` rather than by synthesising a keystroke, which would
+  depend on what that column's filter editor listens to; and it decorates the
+  header by walking it, because the columns are built from the topic's schema
+  and the header rebuilds itself when they change. The walk is idempotent and
+  gated by a single `querySelector`, so repeating it on every render costs
+  nothing.
+
 ## 7.23.45
 
 - **The wheel did nothing over a popover, so its scrollbar had to be

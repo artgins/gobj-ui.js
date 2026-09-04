@@ -1,0 +1,37 @@
+/***********************************************************************
+ *          yui_table_filter_clear.css
+ *
+ *      La ✕ de un filtro de cabecera (yui_table_filter_clear.js).
+ *
+ *      Al reves que la ✕ de un formulario (yui_inputs.css), esta se ve
+ *      SIN foco: el filtro ya esta puesto, el foco esta en otra parte,
+ *      y lo que se quiere es verlo y quitarlo.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+.tabulator-header-filter.yui-filter-has-clear {
+    position: relative;
+}
+
+/*  Sitio para el aspa dentro del propio input, para que no se coma
+ *  ancho de columna.  */
+.tabulator-header-filter.yui-filter-has-clear input {
+    padding-right: 1.6em;
+}
+
+/*  Dos clases sobre el elemento para ganarle a las reglas propias de
+ *  Bulma para `.delete` (position:relative; display:inline-block) sin
+ *  depender de que hoja carga la ultima.  */
+.tabulator-header-filter .yui-filter-clear {
+    position: absolute;
+    top: 50%;
+    right: 0.25em;
+    transform: translateY(-50%);
+    display: none;
+    z-index: 4;
+}
+
+.tabulator-header-filter .yui-filter-clear.is-visible {
+    display: inline-block;
+}

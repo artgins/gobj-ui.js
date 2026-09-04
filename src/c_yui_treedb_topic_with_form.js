@@ -85,6 +85,9 @@ import {
     yui_clear_selection,
 } from "./yui_table_select.js";
 
+import {yui_table_filter_clear} from "./yui_table_filter_clear.js";
+import {row_matches} from "./yui_row_search.js";
+
 import {t} from "i18next";
 
 import {plan_treedb_writes} from "./treedb_write_plan.js";
@@ -1346,7 +1349,13 @@ function create_tabulator(gobj)
             paginationMode:         "remote",
             filterMode:             "local",
             paginationSize:         page_size,
-            paginationSizeSelector: [50, 100, 200, 500],
+            /*  `true` is Tabulator's "All", and here it is not a courtesy:
+             *  `filterMode: "local"` means the header filters and the search
+             *  box only see the page that is loaded, so on a topic that does
+             *  not fit, searching for something on page 17 finds nothing.
+             *  "All" is the way out, and the backend has it -- `nodes` takes
+             *  `limit: 0` for "every one", answering the plain list. */
+            paginationSizeSelector: [50, 100, 200, 500, true],
             ajaxURL:                "nodes",   /*  dummy: only fires the func  */
             ajaxRequestFunc: function(url, config, params) {
                 /*  Widget plumbing, not an action: Tabulator wants a PROMISE
@@ -1467,6 +1476,10 @@ function create_tabulator(gobj)
     tabulator.on("tableBuilt", function() {
         tabulator._ready = true;
         update_rowcount();
+        /*  La ✕ de cada filtro de cabecera. Un filtro se quita borrando lo
+         *  escrito, y con varias columnas filtradas volver a la tabla entera
+         *  era acordarse de cuáles se tocaron. */
+        yui_table_filter_clear(tabulator);
         if(tabulator._pendingData !== undefined) {
             tabulator.setData(tabulator._pendingData);
             delete tabulator._pendingData;
@@ -3370,14 +3383,21 @@ function request_page(gobj, page, size)
 
         priv._pending_pages[req_id] = {resolve: resolve, reject: reject, timer: timer};
 
+        /*  "All" (Tabulator sends the size as `true`): `nodes` says every
+         *  one with `limit: 0`, and then it answers the plain list -- which
+         *  nodes_answer() reads as a single page, so the paginator hides and
+         *  every filter sees every row. Arithmetic on `true` would send
+         *  `limit: true` to a backend that wants an integer. */
+        const all = (size === true);
+
         gobj_publish_event(
             gobj,
             "EV_REQUEST_PAGE",
             {
                 topic_name: gobj_read_str_attr(gobj, "topic_name"),
                 req_id:     req_id,
-                from:       (page - 1) * size + 1,   /*  `nodes` counts from 1  */
-                limit:      size
+                from:       all? 1: (page - 1) * size + 1,  /*  `nodes` counts from 1  */
+                limit:      all? 0: size
             }
         );
     });
@@ -3482,16 +3502,13 @@ function ac_search(gobj, event, kw, src)
         return 0;
     }
 
+    /*  A treedb row is not flat: an fkey arrives as a list of objects, and
+     *  `String()` of that is "[object Object]" -- so searching for the
+     *  workshop of a meter, which is where the value a person has in mind
+     *  lives, never found anything. `row_matches()` walks into them, and
+     *  reads only the `id` of an fkey. See yui_row_search.js.  */
     tabulator.setFilter(function(data) {
-        return Object.entries(data).some(([key, val]) => {
-            if(key.startsWith('_')) {
-                return false;
-            }
-            if(val === null || val === undefined) {
-                return false;
-            }
-            return String(val).toLowerCase().includes(term);
-        });
+        return row_matches(data, term);
     });
 
     return 0;
