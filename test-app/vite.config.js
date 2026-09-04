@@ -20,7 +20,7 @@
 import { defineConfig } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -90,26 +90,60 @@ const pkg_versions = [
  *      `import "./maplibre-gl-shared.mjs"` is rewritten to match.
  *    - Point maplibre at the .js worker via setWorkerUrl() in src/main.js
  *      (prod only), since maplibre's built-in resolver hardcodes the .mjs name.
+ *
+ *  And a third one, which only shows up at the SECOND bump of maplibre: THE
+ *  NAME CARRIES THE VERSION, and that is not decoration. Every other asset vite
+ *  writes is content-hashed, so a static host serves /assets/ with a one year
+ *  max-age; these two were emitted under a FIXED name, so a browser that had
+ *  opened the previous deploy kept the OLD worker and ran it against the new
+ *  bundle. Worker and main thread speak a private protocol that changes between
+ *  versions -- 6.7.0 turned glyph ids from numbers into graphemes, and a cached
+ *  6.4.1 worker made the new GlyphManager answer `t.codePointAt is not a
+ *  function` once per tile, with the map drawing no labels (paid for in
+ *  yunovatios, 2026-09-04). A versioned name makes it impossible: a bump gets a
+ *  fresh URL.
  */
+const MAPLIBRE_VERSION = dep_version("maplibre-gl");
+const MAPLIBRE_WORKER_FILE = `maplibre-gl-worker-${MAPLIBRE_VERSION}.js`;
+const MAPLIBRE_SHARED_FILE = `maplibre-gl-shared-${MAPLIBRE_VERSION}.js`;
+
+/*
+ *  Read from the SAME node_modules that dep_version() reported, so the version
+ *  in the name and the bytes in the file can never come from different copies.
+ */
+const maplibre_dist = () => {
+    for(const base of ["node_modules", "../node_modules"]) {
+        const dist = path.resolve(__dirname, `${base}/maplibre-gl/dist`);
+        if(existsSync(dist)) {
+            return dist;
+        }
+    }
+    return null;
+};
+
 const maplibre_worker_assets = () => {
-    const dist = path.resolve(__dirname, "../node_modules/maplibre-gl/dist");
     return {
         name: "maplibre-worker-assets",
         apply: "build",
         generateBundle() {
+            const dist = maplibre_dist();
+            if(!dist) {
+                this.error("maplibre-gl is not installed: the worker cannot be emitted");
+                return;
+            }
             const worker = readFileSync(path.join(dist, "maplibre-gl-worker.mjs"), "utf8")
-                .replaceAll("maplibre-gl-shared.mjs", "maplibre-gl-shared.js")
+                .replaceAll("maplibre-gl-shared.mjs", MAPLIBRE_SHARED_FILE)
                 .replace(/\n?\/\/# sourceMappingURL=.*$/, "");
             const shared = readFileSync(path.join(dist, "maplibre-gl-shared.mjs"), "utf8")
                 .replace(/\n?\/\/# sourceMappingURL=.*$/, "");
             this.emitFile({
                 type: "asset",
-                fileName: "assets/maplibre-gl-worker.js",
+                fileName: `assets/${MAPLIBRE_WORKER_FILE}`,
                 source: worker,
             });
             this.emitFile({
                 type: "asset",
-                fileName: "assets/maplibre-gl-shared.js",
+                fileName: `assets/${MAPLIBRE_SHARED_FILE}`,
                 source: shared,
             });
         },
@@ -120,6 +154,7 @@ export default defineConfig({
     plugins: [maplibre_worker_assets()],
     define: {
         __PKG_VERSIONS__: JSON.stringify(pkg_versions),
+        __MAPLIBRE_WORKER_FILE__: JSON.stringify(MAPLIBRE_WORKER_FILE),
     },
     resolve: {
         preserveSymlinks: true,

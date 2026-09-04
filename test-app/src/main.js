@@ -83,8 +83,10 @@ import app_config from "./app_config.json";
 function main()
 {
     /*  maplibre-gl 6: in the production bundle the worker + its shared chunk
-     *  are emitted as assets/maplibre-gl-worker.js (see vite.config
-     *  maplibre_worker_assets — .js so the static host serves a JS MIME type).
+     *  are emitted as assets/maplibre-gl-worker-<version>.js (see vite.config
+     *  maplibre_worker_assets — .js so the static host serves a JS MIME type,
+     *  and the version in the name because /assets/ is cached for a year and
+     *  worker and main thread must be the SAME maplibre).
      *  maplibre's built-in resolver would request the .mjs name, so point it at
      *  the emitted .js explicitly. setWorkerUrl() resolves its value against
      *  location.href (the page, e.g. /#/map), NOT the bundle, so pass an
@@ -93,7 +95,7 @@ function main()
      *  resolution. */
     if(import.meta.env.PROD) {
         maplibregl.setWorkerUrl(
-            new URL(/* @vite-ignore */ "maplibre-gl-worker.js", import.meta.url).href
+            new URL(/* @vite-ignore */ __MAPLIBRE_WORKER_FILE__, import.meta.url).href
         );
     }
 
