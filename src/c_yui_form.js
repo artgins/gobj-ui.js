@@ -57,7 +57,7 @@ import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "./c_yui_form.css";
 import {attach_clear, refresh_clear} from "./yui_inputs.js";
-import {plan_toolbar} from "./form_toolbar_plan.js";
+import {plan_toolbar, DEFAULT_TOOLBAR} from "./form_toolbar_plan.js";
 /*  Read at field-build time only — deliberately NOT watched: the hosting
  *  dialog rebuilds the form on every open, and re-rendering a form under
  *  the user mid-edit would throw away what they typed. */
@@ -117,7 +117,12 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_row_btn", 0,  false, "Print last co
  *  Unknown names are ignored, with a warning: a typo must not silently
  *  drop the save button.
  */
-SDATA(data_type_t.DTP_JSON,     "toolbar",          0,  ["save", "undo", "clear", "copy", "paste"], "Toolbar buttons to show, in order: save, undo, clear, copy, paste. [] hides the toolbar"),
+/*  The default is the LIST, not a copy of it: written out here it was a
+ *  second copy of `DEFAULT_TOOLBAR` that `plan_toolbar` never got to
+ *  see -- the attr always has a value, so the module that decides the
+ *  plan could change its default and nothing moved. Sliced because an
+ *  attr default is handed out and must not be the shared array.  */
+SDATA(data_type_t.DTP_JSON,     "toolbar",          0,  DEFAULT_TOOLBAR.slice(), "Toolbar buttons to show. The order inside each group is the order given here; which side each group takes is form_toolbar_plan.js. [] hides the toolbar"),
 /*
  *  Defaults for tabulator
  */
@@ -354,7 +359,7 @@ function toolbar_button(gobj, name)
                 }
             }];
         case "clear":
-            return ['button', {class: 'button p-1', title: 'clear', 'aria-label': 'clear'}, [
+            return ['button', {class: 'button p-1 button-clear', title: 'clear', 'aria-label': 'clear'}, [
                 ['span', {class: 'icon m-0'}, '<i class="yi-broom-wide"></i>'],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'clear'}, 'clear']
             ], {
@@ -364,7 +369,7 @@ function toolbar_button(gobj, name)
                 }
             }];
         case "copy":
-            return ['button', {class: 'button p-1', title: 'copy', 'aria-label': 'copy'}, [
+            return ['button', {class: 'button p-1 button-copy', title: 'copy', 'aria-label': 'copy'}, [
                 ['span', {class: 'icon m-0'}, '<i class="yi-copy"></i>'],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'copy'}, 'copy']
             ], {click: function(evt) {
@@ -373,7 +378,7 @@ function toolbar_button(gobj, name)
                 }
             }];
         case "paste":
-            return ['button', {class: 'button p-1', title: 'paste', 'aria-label': 'paste'}, [
+            return ['button', {class: 'button p-1 button-paste', title: 'paste', 'aria-label': 'paste'}, [
                 ['span', {class: 'icon m-0'}, '<i class="yi-paste"></i>'],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'paste'}, 'paste']
             ], {click: async function(evt) {

@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.59
+
+- **The toolbar's default was a second copy of itself, and it won.** The
+  `toolbar` attr carried the five names written out again, so `plan_toolbar()`
+  never saw the `undefined` that would have used `DEFAULT_TOOLBAR`: 7.23.57
+  swapped the sides and `save` still came out first of its group, because the
+  ORDER inside a group is the order of the list and the list was the old one.
+  The attr's default IS the list now.
+
+  Which is the shape of the bug worth remembering: a module written to be the
+  one place that decides something, and a literal somewhere else that quietly
+  outranks it.
+
+- **`clear`, `copy` and `paste` get a logical class** (`button-clear`,
+  `button-copy`, `button-paste`). `save` and `undo` had one because code
+  enables and disables them; the other three were nameless in the DOM -- so
+  the bar could only be read by `aria-label`, and this repo's own rule says
+  every meaningful block carries its name.
+
 ## 7.23.58
 
 - **A colour field shows its value beside the swatch.** The swatch says WHICH
