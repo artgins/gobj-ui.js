@@ -57,3 +57,25 @@
     overscroll-behavior: contain;
 }
 
+
+/*  A colour that cannot be changed. `readonly` does not apply to a colour
+ *  input (the spec lists the types it applies to and colour is not one),
+ *  so it is `disabled` instead -- and a disabled swatch is drawn by the
+ *  browser as a pale ghost of itself, which loses the one thing the field
+ *  is for: seeing the colour. Keep the swatch, lose the affordance.  */
+.C_YUI_FORM input[type="color"][disabled] {
+    opacity: 1;
+    cursor: default;
+    border-color: var(--bulma-border, #dbdbdb);
+}
+
+/*  A json document that cannot be edited. The editor is read-only for
+ *  real (`readOnly` at build time); this is what makes it LOOK it --
+ *  the menu bar is the whole invitation, and it offers nothing that
+ *  reading needs.  */
+.C_YUI_FORM .yui-jse-readonly .jse-menu {
+    display: none !important;
+}
+.C_YUI_FORM .yui-jse-readonly {
+    background-color: var(--bulma-background, #f5f5f5);
+}

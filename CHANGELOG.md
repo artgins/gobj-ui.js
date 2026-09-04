@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.56
+
+- **Two controls still LOOKED editable while read-only**, which is the same
+  lie as being editable: what a form invites, it should accept.
+
+  **A colour.** `readonly` does not apply to `<input type="color">` -- the
+  spec lists the types it applies to and colour is not one of them -- so the
+  swatch opened its picker and the value changed. In a form that sends back
+  only the writable cols, that change is then silently dropped. It is
+  `disabled` now, with the swatch kept at full opacity: a browser draws a
+  disabled colour input as a pale ghost of itself, which loses the one thing
+  the field is for.
+
+  **A json document.** The editor WAS read-only -- `readOnly` reaches it at
+  build time -- and it wore its menu bar anyway, which is the whole
+  invitation and offers nothing that reading needs. Hidden while read-only,
+  and the field muted like every other read-only one has been since the
+  form existed.
+
 ## 7.23.55
 
 - **`readonly` is an attribute of a text control and of nothing else.** A

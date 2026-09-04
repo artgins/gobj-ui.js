@@ -1450,7 +1450,7 @@ function create_form_field(
         $extend.dataset.form_input_type = inputType;
         $extend.classList.add('yui-form-data-input');
 
-        apply_readonly_to_control(readonly, tag, $extend);
+        apply_readonly_to_control(readonly, tag, inputType, $extend);
     }
 
     return $element;
@@ -1473,7 +1473,7 @@ function create_form_field(
  *  control is still read -- unlike in a native submit, where it would
  *  be dropped.
  ******************************************************************/
-function apply_readonly_to_control(readonly, tag, $extend)
+function apply_readonly_to_control(readonly, tag, inputType, $extend)
 {
     if(!readonly) {
         return;
@@ -1491,9 +1491,26 @@ function apply_readonly_to_control(readonly, tag, $extend)
                 $extend.tom_select.disable();
             }
             break;
+        case 'jsoneditor':
+            /*  It IS read-only -- `readOnly` went to the editor when it was
+             *  built -- and it did not LOOK it: a json editor with its menu
+             *  bar on top invites an edit it will discard. The class mutes
+             *  it (c_yui_form.css), which is the same thing a readonly
+             *  `input` has done since it existed.  */
+            $extend.classList.add('yui-jse-readonly');
+            break;
+        case 'input':
+            /*  `readonly` does not apply to a colour input -- the spec lists
+             *  the types it applies to and colour is not one of them -- so
+             *  the swatch opens its picker and the value changes, and in a
+             *  form that only sends writable cols the change is then
+             *  silently dropped. Date and time DO honour it, and keep it:
+             *  readonly stays selectable and copyable, disabled does not.  */
+            if(inputType === 'color') {
+                $extend.setAttribute("disabled", "disabled");
+            }
+            break;
         default:
-            /*  A text control already carries `readonly`, which is the
-             *  better of the two: it stays selectable and copyable.  */
             break;
     }
 }
