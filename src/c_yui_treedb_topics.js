@@ -32,6 +32,7 @@ import {
     gobj_short_name,
     gobj_read_str_attr,
     gobj_read_bool_attr,
+    gobj_read_integer_attr,
     gobj_start,
     gobj_stop,
     gobj_is_running,
@@ -75,7 +76,8 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of o
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote yuno for data fetching"),
 SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote TreeDB service name"),
 SDATA(data_type_t.DTP_JSON,     "descs",            0,  null,   "Description of topics"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_remote_paging",   0,  false,  "Each topic table pulls its rows a PAGE at a time (`nodes` from/limit) instead of loading the topic whole. Safe against a backend that cannot page: it answers the whole list, which the table reads as one page"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_remote_paging",   0,  false,  "Each topic table pulls its rows a PAGE at a time (`nodes` from/limit) instead of loading the topic whole. ⚠️ DO NOT TURN THIS ON: a partial topic BREAKS LINKING -- the link picker of a record is built from the rows the PARENT topic's table holds, which with paging is one page, so the right parent is usually not offered and an existing link the form cannot match is dropped on save. Off in every consumer until linking asks the backend instead of the sibling table"),
+SDATA(data_type_t.DTP_INTEGER,  "page_size",            0,  0,      "Rows per page of each topic table (the DISPLAY; the fetch is whole). 0 leaves the table's own default"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_selection_bar",   0,  false,  "Each topic table shows the shared selection bar (\"N selected\" + a way out) above it while in edition mode. OFF by default: the bar takes its words from the HOST's i18n, so a host that turns it on must define \"{{n}} selected\" and \"clear selection\""),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
 SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth", "Bulma tab styling"),
@@ -1041,6 +1043,7 @@ function process_treedb_descs(gobj)
             topic_name: key,
             desc: desc,
             with_remote_paging: gobj_read_bool_attr(gobj, "with_remote_paging"),
+            page_size: gobj_read_integer_attr(gobj, "page_size"),
             with_selection_bar: gobj_read_bool_attr(gobj, "with_selection_bar")
         };
 

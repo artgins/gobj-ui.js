@@ -642,16 +642,32 @@ url is what gives way, cut with an ellipsis, and the whole value stays in the
 
 ### Reading a topic a page at a time
 
+> ⚠️ **`with_remote_paging` is OFF in every consumer, and must stay off until
+> linking works with a partial topic.** A record's link picker is built from
+> the rows the PARENT topic's table holds — `build_fkey_options()` asks it
+> with `get_topic_data`, which answers `tabulator.getData()` — and with paging
+> that is one page. So the picker offers 200 of the 5891 possible parents (the
+> right one is usually not among them), and a record whose parent is not on
+> the loaded page opens with an fkey the form cannot match, which saving then
+> drops. A treedb is a **memory database** — the backend holds the topic in
+> RAM either way — so paging buys little and costs the links. The machinery
+> below stays, working and tested, for the day linking learns to ask the
+> BACKEND for a parent instead of the sibling table.
+>
+> **Local pagination is not affected and stays on.** `getData()` answers the
+> WHOLE dataset whatever page is on screen, so paginating the DISPLAY is safe;
+> only paginating the FETCH is not. `page_size` sets the display page for both
+> paths.
+
 `C_YUI_TREEDB_TOPICS` takes **`with_remote_paging`** (off by default) and
 forwards it to every topic table: the table pulls the page it is showing
 instead of the host pushing the whole topic down. It needs the SDK's `nodes`
 with `from` / `limit` (see `YUNO_TREEDB.md` §5.3).
 
-**The page size is generous on purpose** (`page_size`, 200). A treedb that
-fits in one page behaves exactly as it did — paginator hidden, every filter
-seeing every row — so nothing that exists today changes. Only a topic that
-does NOT fit pays for paging, and for that one loading it whole was never an
-option.
+**The page size is generous on purpose** (`page_size`, 200 when paging). A
+treedb that fits in one page behaves exactly as it did — paginator hidden,
+every filter seeing every row. Only a topic that does NOT fit pays for paging,
+and for that one loading it whole was never an option.
 
 **Safe against a backend that cannot page:** it answers the whole list, which
 `nodes_answer()` reads as one page. That is the truth, and it is why the table

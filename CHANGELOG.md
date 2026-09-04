@@ -5,6 +5,35 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.52
+
+- **Remote paging is out of use: a partial topic BREAKS LINKING.** A record's
+  link picker is built from the rows the PARENT topic's table holds --
+  `build_fkey_options()` asks it with `get_topic_data`, which answers
+  `tabulator.getData()` -- and with `with_remote_paging` that is one page. So
+  the picker offered 200 of the 5891 possible parents, the right one usually
+  not among them, and a record whose parent was not on the loaded page opened
+  with an fkey the form could not match, which saving then dropped.
+
+  A treedb is a **memory database** -- the backend holds the topic in RAM
+  either way -- so paging buys little and costs the links. The attr stays,
+  working and tested, defaulting off and now saying in its own description
+  what it breaks; every consumer has turned it off. It comes back the day
+  linking asks the BACKEND for a parent instead of the sibling table.
+
+  **Local pagination is untouched and stays on**: `getData()` answers the
+  WHOLE dataset whatever page is on screen, so paginating the DISPLAY is safe
+  and only paginating the FETCH is not. That is the distinction the two paths
+  turn on, and it is the reason this is a one-flag retreat and not a feature
+  being removed.
+
+- **`page_size` now sets the display page on both paths**, and `C_YUI_TREEDB_
+  TOPICS` forwards it. Without it a host that stopped paging the fetch would
+  drop from 200 rows a page to Tabulator's 25 for no reason it asked for. `0`
+  (the new default) leaves the `tabulator_settings` value alone, so nothing
+  that does not set it changes; when it is set, the size selector offers the
+  larger sizes with it.
+
 ## 7.23.51
 
 - **The page size was forgotten on every reload.** A reader who moved a topic

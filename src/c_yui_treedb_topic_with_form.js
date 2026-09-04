@@ -188,8 +188,8 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_columns_button",       0,  true,   "Button
 SDATA(data_type_t.DTP_BOOLEAN,  "with_export_button",        0,  true,   "Button toolbar EXPORT (download as CSV what the table holds)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_header_filters",       0,  true,   "Per-column filter box in the table header, on the columns a text/number match means something (not hooks, fkeys or json)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_inline_edit",          0,  true,   "Edit a writable scalar cell in place while in edition mode (the record form keeps the rest)"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_remote_paging",        0,  false,  "Pull the topic a PAGE at a time from the backend (`nodes` from/limit) instead of loading it whole. Needs a backend that pages"),
-SDATA(data_type_t.DTP_INTEGER,  "page_size",                 0,  200,    "Rows per page when with_remote_paging. Generous on purpose: a treedb that fits in one page behaves exactly as it did, paginator hidden and every filter seeing every row"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_remote_paging",        0,  false,  "Pull the topic a PAGE at a time from the backend (`nodes` from/limit) instead of loading it whole. Needs a backend that pages. ⚠️ DO NOT TURN THIS ON: it breaks LINKS -- see the note above the tabulator settings. It is off in every consumer until linking works with a partial topic"),
+SDATA(data_type_t.DTP_INTEGER,  "page_size",                 0,  0,      "Rows per page. 0 leaves the `tabulator_settings` value alone. With with_remote_paging it is also the size of each fetch (200 when unset)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a last column with internal EDIT/DELETE icon"),
 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
@@ -1393,16 +1393,29 @@ function create_tabulator(gobj)
     let tabulator_settings = json_deep_copy(gobj_read_attr(gobj, "tabulator_settings"));
 
     /*  Remote paging: the TABLE pulls, instead of the host pushing the whole
-     *  topic down. The page size is generous on purpose — a treedb that fits
-     *  in one page behaves exactly as it did before, with the paginator
-     *  hidden and every filter seeing every row. Only a topic that does NOT
-     *  fit pays for paging, and for that one loading it whole was never an
-     *  option anyway.
+     *  topic down. Only a topic that does NOT fit pays for it, and for that
+     *  one loading it whole was never an option anyway.
      *
      *  `filterMode: "local"` says the plain truth: the header filters and the
      *  search box work on the page that is loaded. Same as the tranger
      *  browser's Rows card, and for the same reason — the alternative is
      *  pushing every filter to the backend and changing what "search" means.
+     *
+     *  ⚠️ AND IT IS OFF IN EVERY CONSUMER, because it BREAKS LINKING.
+     *  `build_fkey_options()` asks the PARENT topic's table for the rows it
+     *  holds (`get_topic_data` -> `tabulator.getData()`), and with paging
+     *  that is one page. So the link picker offers 200 of the 5891 possible
+     *  parents -- the right one is usually not among them -- and a record
+     *  whose parent is not on the loaded page opens with an fkey the form
+     *  cannot match, which saving then drops. Local pagination has none of
+     *  this: `getData()` answers the WHOLE dataset whatever page is on
+     *  screen, so paginating the DISPLAY is safe and only paginating the
+     *  FETCH is not.
+     *
+     *  A treedb is a memory database -- the backend holds the topic in RAM
+     *  either way -- so paging buys little and costs the links. It stays
+     *  here, working and tested, for the day linking learns to ask the
+     *  BACKEND for a parent instead of the sibling table.
      */
     if(gobj_read_bool_attr(gobj, "with_remote_paging")) {
         let page_size = gobj_read_integer_attr(gobj, "page_size") || 200;
@@ -1426,6 +1439,20 @@ function create_tabulator(gobj)
                 return request_page(gobj, params.page || 1, params.size || page_size);
             }
         });
+    }
+
+    /*  Rows per page for the LOCAL paginator too, when the host asks for
+     *  one: with the fetch no longer paged, `page_size` is the only thing
+     *  left that says how many rows a reader wants in front of them, and a
+     *  host that had 200 should not drop to 25 for having stopped paging the
+     *  fetch. The sizes offered go up with it -- a selector that cannot name
+     *  the size in use is a selector Tabulator has to patch itself.  */
+    if(!gobj_read_bool_attr(gobj, "with_remote_paging")) {
+        let page_size = gobj_read_integer_attr(gobj, "page_size");
+        if(page_size > 0 && tabulator_settings.pagination) {
+            tabulator_settings.paginationSize = page_size;
+            tabulator_settings.paginationSizeSelector = [50, 100, 200, 500, true];
+        }
     }
 
     /*  The size the reader picked last time, which outranks both defaults
