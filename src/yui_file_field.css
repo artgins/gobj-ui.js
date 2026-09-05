@@ -1,0 +1,67 @@
+/*
+ *  yui_file_field.css
+ *
+ *  The control for a treedb `file` column. One row: the button, what it
+ *  is holding, and the way to clear it.
+ *
+ *  No transitions -- the state changes the moment the person acts on it.
+ *
+ *      Copyright (c) 2026, ArtGins.
+ *      All Rights Reserved.
+ */
+
+.FILE_FIELD {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.FILE_FIELD .FILE_PICK,
+.FILE_FIELD .FILE_CLEAR {
+    flex-shrink: 0;
+    transition: none;
+}
+
+.FILE_FIELD .FILE_PICK_ICON,
+.FILE_FIELD .FILE_CLEAR_ICON {
+    margin-right: 0.25rem;
+}
+
+.FILE_FIELD .FILE_CLEAR_ICON {
+    margin-right: 0;
+}
+
+/*
+ *  The name is the part that must give way: an id or a long filename
+ *  cannot push the buttons out of the row.
+ */
+.FILE_FIELD .FILE_NAME {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: monospace;
+}
+
+.FILE_FIELD .FILE_SIZE {
+    flex-shrink: 0;
+    opacity: 0.7;
+    font-size: 0.85em;
+}
+
+.FILE_FIELD .FILE_STATE {
+    flex-shrink: 0;
+    font-size: 0.85em;
+}
+
+.FILE_FIELD .FILE_STATE.is-picked {
+    font-weight: bold;
+}
+
+.FILE_FIELD .FILE_STATE.is-empty {
+    opacity: 0.6;
+    font-style: italic;
+}

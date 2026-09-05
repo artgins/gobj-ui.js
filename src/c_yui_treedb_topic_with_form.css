@@ -126,3 +126,18 @@
     line-height: 1;
     vertical-align: middle;
 }
+
+/*
+ *  What a `file` column shows in a cell: the asset id, shortened, or the
+ *  word for having none. Monospace because it is a hash and a hash read
+ *  in a proportional font is unreadable.
+ */
+.FILE_CELL {
+    font-family: monospace;
+}
+
+.FILE_CELL.is-empty {
+    font-family: inherit;
+    font-style: italic;
+    opacity: 0.6;
+}

@@ -92,6 +92,8 @@ import {row_matches} from "./yui_row_search.js";
 import {t} from "i18next";
 
 import {plan_treedb_writes, READONLY_FORM_TOOLBAR} from "./treedb_write_plan.js";
+import {yui_file_read, yui_files_manifest, yui_file_id_label} from "./yui_file_field.js";
+import {yui_asset_id} from "./yui_asset.js";
 import {delete_impact} from "./delete_impact.js";
 
 import "./c_yui_treedb_topic_with_form.css";
@@ -1293,6 +1295,14 @@ function create_tabulator(gobj)
                 vertAlign = "middle";
                 colFormatter = icon_formatter;
                 break;
+            /*  An fkey into __assets__. It draws the id and NOT the
+             *  picture, because a picture is a `get-asset` per cell -- an
+             *  action, with its own event and its own answer -- and a
+             *  table of 50 rows would fire 50 of them at render time. The
+             *  id is what the cell can say honestly on its own.  */
+            case "file":
+                colFormatter = file_cell_formatter;
+                break;
             case "object":
             case "dict":
             case "template":
@@ -1743,6 +1753,28 @@ function table__destroy(gobj)
  *  render a solid square -- a glyph nobody recognises rather
  *  than a mistake somebody can fix.
  ************************************************************/
+/************************************************************
+ *  What a `file` column shows in a table cell: the asset it names.
+ *
+ *  A sha256 in full is 64 characters of noise in a column, so it is
+ *  shortened and the whole of it is the tooltip. Empty is SAID, not left
+ *  blank -- a blank cell and a cell whose asset failed to load look the
+ *  same, and only one of them is normal.
+ ************************************************************/
+function file_cell_formatter(cell, formatterParams, onRendered)
+{
+    const id = yui_asset_id(cell.getValue());
+    if(!id) {
+        const $empty = createElement2(
+            ["span", {class: "FILE_CELL is-empty", "data-i18n": "no file"}, "no file"]
+        );
+        return $empty;
+    }
+    return createElement2(
+        ["span", {class: "FILE_CELL", title: id}, yui_file_id_label(id)]
+    );
+}
+
 function icon_formatter(cell)
 {
     let name = cell.getValue();
@@ -1869,6 +1901,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             }
             break;
 
+        case "file":    // an fkey into __assets__, read like any other
         case "fkey":    // Convert data from backend to frontend TABLE CELL
             let new_value = [];
             if(value) {
@@ -2637,6 +2670,12 @@ function transform__form_value_2_treedb_value(gobj, col, value, operation)
 
         case "hook":    // Convert data from frontend to backend
             value = null;
+            break;
+
+        /*  A `file` column is written by the FORM, which sends the bare
+         *  id and lets treedb expand it (the client never learns the
+         *  derived hook name). In the table it is not editable in place.  */
+        case "file":
             break;
 
         case "fkey":    // Convert data from frontend to backend
@@ -3430,22 +3469,110 @@ function ac_form_save_record(gobj, event, kw, src)
         return -1;      /*  Error already logged  */
     }
     let mode = gobj_read_str_attr(src, "form_mode");
+
+    /*------------------------------------------------------*
+     *  Did anybody pick a file?
+     *
+     *  A `File` is a host object and a kw is plain json, so the picked
+     *  files never came with the record: the form KEPT them and this is
+     *  where they are asked for. Nothing picked is the ordinary case.
+     *------------------------------------------------------*/
+    let picked = {};
+    const answer = gobj_command(src, "get_picked_files", {}, gobj);
+    if(answer && answer.result >= 0 && answer.data) {
+        picked = answer.data;
+    }
+    const cols = Object.keys(picked);
+
+    if(cols.length === 0) {
+        publish_treedb_write(gobj, mode, kw);
+
+        /*  we are INSIDE the form's gobj_publish_event stack — never
+         *  destroy the publisher synchronously from a subscriber
+         *  callback: defer the close  */
+        setTimeout(function() {
+            close_form_dialog(gobj);
+        }, 0);
+        return 0;
+    }
+
+    /*------------------------------------------------------*
+     *  Reading a file is a PROMISE, and a resolved promise is an OS
+     *  notification: it enters the machine as an EVENT, never as a
+     *  chain of callbacks that the trace cannot see. The dialog stays
+     *  open until it lands, which is what tells the person that 40 MB
+     *  are still going up.
+     *------------------------------------------------------*/
+    Promise.all(cols.map((col) => {
+        return yui_file_read(picked[col]).then((read) => {
+            return {col: col, read: read};
+        });
+    })).then((reads) => {
+        const picks = {};
+        reads.forEach((r) => {
+            picks[r.col] = r.read;
+        });
+        gobj_send_event(gobj, "EV_FILES_READ",
+            {mode: mode, record: kw, picks: picks}, gobj
+        );
+    }).catch((e) => {
+        gobj_send_event(gobj, "EV_FILES_FAILED",
+            {reason: (e && e.message)? e.message: String(e)}, gobj
+        );
+    });
+
+    return 0;
+}
+
+/************************************************************
+ *  The one place a write of this view leaves for the app.
+ ************************************************************/
+function publish_treedb_write(gobj, mode, record, jn_files)
+{
+    const kw_write = {
+        topic_name: gobj_read_str_attr(gobj, "topic_name"),
+        record: record
+    };
+    if(jn_files && Object.keys(jn_files).length > 0) {
+        /*  Not a column: an instruction to the treedb write path,
+         *  consumed and dropped at the door.  */
+        kw_write.record.__files__ = jn_files;
+    }
     gobj_publish_event(
         gobj,
         (mode === "create")? "EV_CREATE_RECORD" : "EV_UPDATE_RECORD",
-        {
-            topic_name: gobj_read_str_attr(gobj, "topic_name"),
-            record: kw
-        }
+        kw_write
     );
+}
 
-    /*  we are INSIDE the form's gobj_publish_event stack — never
-     *  destroy the publisher synchronously from a subscriber
-     *  callback: defer the close  */
-    setTimeout(function() {
-        close_form_dialog(gobj);
-    }, 0);
+/************************************************************
+ *  {mode, record, picks} -- the bytes are here now
+ ************************************************************/
+function ac_files_read(gobj, event, kw, src)
+{
+    const {record, __files__} = yui_files_manifest(kw.picks, kw.record);
+    publish_treedb_write(gobj, kw.mode, record, __files__);
+    close_form_dialog(gobj);
+    return 0;
+}
 
+/************************************************************
+ *  {reason} -- the browser could not read what was picked
+ *
+ *  The form stays OPEN: the record is still there, and closing it would
+ *  throw away what the person typed for a failure that is not theirs.
+ ************************************************************/
+function ac_files_failed(gobj, event, kw, src)
+{
+    log_error(`${gobj_short_name(gobj)}: cannot read the picked file: ${kw.reason}`);
+    /*  An i18n KEY, not a sentence: the dialog renders it with `i18n`, so
+     *  a sentence here would be a key nobody defined and would render as
+     *  itself in every language. The reason is DATA and stays in the log,
+     *  where it can be read without being translated.  */
+    yui_shell_confirm_ok(
+        yui_shell_of(gobj), 'cannot read the picked file',
+        {t: t, ok_label: "accept"}
+    );
     return 0;
 }
 
@@ -4041,6 +4168,8 @@ function create_gclass(gclass_name)
 
             ["EV_EDITION_MODE",         ac_edition_mode,       null],
             ["EV_SAVE_RECORD",          ac_form_save_record,   null],
+            ["EV_FILES_READ",           ac_files_read,         null],
+            ["EV_FILES_FAILED",         ac_files_failed,       null],
 
             ["EV_NEW_ROW",              ac_new_row,            null],
             ["EV_DELETE_ROWS",          ac_delete_rows,        null],
@@ -4082,6 +4211,8 @@ function create_gclass(gclass_name)
 
         ["EV_EDITION_MODE",         0],
         ["EV_SAVE_RECORD",          0],
+        ["EV_FILES_READ",           0],
+        ["EV_FILES_FAILED",         0],
         ["EV_NEW_ROW",              0],
         ["EV_DELETE_ROWS",          0],
         ["EV_COPY_ROWS",            0],

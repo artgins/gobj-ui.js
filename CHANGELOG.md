@@ -5,6 +5,54 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.60
+
+- **A `file` column can be filled by a person.** A col flagged
+  `['fkey','file']` is an fkey into the treedb's system topic `__assets__`,
+  and until now only a C caller or `import-assets` could write one. The form
+  draws a picker for it (`yui_file_field.js`), the topic table draws the
+  asset it names, and the write carries the bytes BESIDE the record.
+
+  Three things about it are not obvious, and each one is a bug that the
+  shape avoids:
+
+  - **The file is read at SAVE, not at pick.** An `<input type=file>` hands
+    over a `File`, which is a REFERENCE and not the bytes. Picking shows the
+    name and the size the `File` already carries and reads nothing, so
+    cancelling a form does not mean a 40 MB video was read for nothing.
+  - **A `File` cannot travel in a kw.** A kw is plain json — the machine
+    trace serialises it — and a `File` is a host object. So the form KEEPS
+    it and the host asks for it at save, through `get_picked_files` on the
+    form's own command parser, and turns it into the `__files__` manifest.
+    The record itself carries the id, never the bytes.
+  - **Reading is a promise, so saving stops being synchronous**, and a
+    resolved promise is an OS notification: it enters the machine as
+    `EV_FILES_READ` / `EV_FILES_FAILED`, never as a chain of callbacks the
+    trace cannot see. The dialog stays open until the bytes are read, which
+    is what tells the person that something is still going up.
+
+  The sha256 is computed when the browser can (`crypto.subtle` needs a
+  SECURE context, so a dev server on plain http cannot) and sent as the
+  column's value: treedb re-hashes what arrives and refuses a mismatch, so
+  it is an integrity check and never the identity. With no hash the column
+  goes empty and treedb fills it. The "ask whether the asset is already
+  there and skip the bytes" optimisation is NOT here: it needs a round trip
+  the form does not own, and the case it is for — a census of twelve
+  thousand images — has its own door in `import-assets`.
+
+  The table cell draws the ID and not the picture, deliberately: a picture
+  is a `get-asset` per cell, and a table of 50 rows would fire 50 of them at
+  render time.
+
+  New consumer i18n keys: `choose a file`, `remove the file`,
+  `not saved yet`, `no file`, `cannot read the picked file`.
+
+  The peer floor is NOT raised: this needs gobj-js `7.16.4` for the word
+  `file` in `treedb_field_types`, and `7.16.5` for the ORDER of the flags to
+  stop deciding whether a column is one — and the caret range every consumer
+  already carries picks both up. A column declared `['fkey','file']`, the
+  documented order, works on 7.16.4 too.
+
 ## 7.23.59
 
 - **The toolbar's default was a second copy of itself, and it won.** The

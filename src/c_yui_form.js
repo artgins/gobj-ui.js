@@ -55,6 +55,13 @@ import TomSelect from "tom-select"; // Import Tom-Select JS
 
 import { createJSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
+import {
+    yui_file_control
+} from "./yui_file_field.js";
+import {
+    yui_asset_id
+} from "./yui_asset.js";
+
 import "./c_yui_form.css";
 import {attach_clear, refresh_clear} from "./yui_inputs.js";
 import {plan_toolbar, DEFAULT_TOOLBAR} from "./form_toolbar_plan.js";
@@ -667,6 +674,13 @@ function build_form_field_conf(gobj, field_desc)
         case "fkey":
             field_conf.tag = "select2";
             field_conf.options = get_fkey_select_options(gobj, field_desc);
+            break;
+
+        /*  An fkey into __assets__, and NOT a select: what a person picks
+         *  is a file on their machine, not a row of an index they have
+         *  never seen. The bytes travel BESIDE the record (yui_file_field).  */
+        case "file":
+            field_conf.tag = "file";
             break;
 
         case "image":
@@ -1442,6 +1456,24 @@ function create_form_field(
                 attrs.required = '';
             }
             $extend = create_coordinates(gobj, attrs);
+            $control.appendChild($extend);
+            break;
+        }
+
+        case "file":
+        {
+            /*  The picked File is KEPT on the element and never enters the
+             *  record: a kw is plain json and a File is a host object, so
+             *  what the record carries is the id (yui_file_field).  */
+            let file_control = yui_file_control(gobj, {
+                name: name,
+                value: "",      // set_form_values() fills it from the record
+                readonly: readonly,
+                on_pick: function() {
+                    gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+                }
+            });
+            $extend = file_control.$control;
             $control.appendChild($extend);
             break;
         }
@@ -2222,6 +2254,13 @@ function get_form_values(gobj, $form)
                 value = getInputValue($input);
                 break;
 
+            /*  The id the column keeps, never the bytes. A file picked
+             *  and not yet saved has no id -- the host reads the File
+             *  itself, through `get_picked_files`, and builds __files__.  */
+            case "file":
+                value = $input.yui_file_value || "";
+                break;
+
             case "jsoneditor":
                 let jsoneditor = $input.jsoneditor;
                 if(jsoneditor) {
@@ -2320,6 +2359,20 @@ function clear_data(gobj, $form)
             } else {
                 $input.value = null;
             }
+        }
+    });
+
+    /*  A file control is a `div`, so the input/select/textarea sweep above
+     *  does not reach it, and Clear used to leave the old asset showing.  */
+    $form.querySelectorAll('.FILE_FIELD').forEach($file => {
+        $file.yui_file = null;
+        $file.yui_file_value = "";
+        let $picker = $file.querySelector('.FILE_INPUT');
+        if($picker) {
+            $picker.value = "";
+        }
+        if($file.yui_file_render) {
+            $file.yui_file_render();
         }
     });
 
@@ -2427,6 +2480,18 @@ function set_form_values(gobj, template, $form, record)
         }
 
         switch(tag) {
+            /*  A `file` column comes back as an fkey, in any of the three
+             *  shapes a link takes -- the stored reference, the bare id
+             *  `fkey_only_id` collapses it to, or an expanded ref -- so it
+             *  is read with the reader that knows all three.  */
+            case "file":
+                $input.yui_file = null;
+                $input.yui_file_value = yui_asset_id(value) || "";
+                if($input.yui_file_render) {
+                    $input.yui_file_render();
+                }
+                break;
+
             case "input":
                 switch(input_type) {
                     case "datetime-local":
@@ -3123,14 +3188,79 @@ function ac_timeout(gobj, event, kw, src)
 
 
 
+/************************************************************
+ *      Framework Method command
+ ************************************************************/
+function mt_command_parser(gobj, command, kw, src)
+{
+    switch(command) {
+        case "get_picked_files":
+            return cmd_get_picked_files(gobj, command, kw, src);
+        default:
+            log_error(`${gobj_short_name(gobj)}: command not found: ${command}`);
+            return {
+                result: -1,
+                comment: `Command not found: ${command}`,
+                schema: null,
+                data: null
+            };
+    }
+}
+
+/************************************************************
+ *  The files a person picked and the record cannot carry.
+ *
+ *  A `File` is a host object and a kw is plain json -- the machine trace
+ *  serialises it -- so the picked files never travel in an event. The
+ *  form KEEPS them and the HOST asks for them here, at save, and turns
+ *  them into the `__files__` manifest that rides beside the record.
+ *
+ *  Answers `data: {col: File}`, empty when nothing was picked, which is
+ *  the ordinary case and not an error.
+ ************************************************************/
+function cmd_get_picked_files(gobj, cmd, kw, src)
+{
+    const files = {};
+    const $container = gobj_read_attr(gobj, "$container");
+    const $form = $container? $container.querySelector('form'): null;
+
+    if(!$form) {
+        log_error(`${gobj_short_name(gobj)}: no form to read the picked files from`);
+        return {
+            result: -1,
+            comment: "no form",
+            schema: null,
+            data: null
+        };
+    }
+
+    $form.querySelectorAll('.yui-form-data-input').forEach(($input) => {
+        if($input.dataset.form_tag !== "file") {
+            return;
+        }
+        if($input.yui_file) {
+            files[$input.dataset.treedb_name] = $input.yui_file;
+        }
+    });
+
+    return {
+        result: 0,
+        comment: "",
+        schema: null,
+        data: files
+    };
+}
+
+
 /*---------------------------------------------*
  *          Global methods table
  *---------------------------------------------*/
 const gmt = {
-    mt_create:  mt_create,
-    mt_start:   mt_start,
-    mt_stop:    mt_stop,
-    mt_destroy: mt_destroy
+    mt_create:          mt_create,
+    mt_start:           mt_start,
+    mt_stop:            mt_stop,
+    mt_destroy:         mt_destroy,
+    mt_command_parser:  mt_command_parser
 };
 
 /***************************************************************
