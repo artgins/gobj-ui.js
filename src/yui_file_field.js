@@ -289,6 +289,10 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
         const kept = $control.yui_file_value;
 
         $name.textContent = picked? (picked.name || ""): yui_file_id_label(kept);
+        /*  The shortened id is unusable on its own -- it cannot be looked
+         *  up, pasted or compared. The whole of it belongs in the tooltip,
+         *  which is also where the full NAME of a long picked file goes.  */
+        $name.title = picked? (picked.name || ""): (kept || "");
         $size.textContent = picked? yui_file_size_label(picked.size): "";
 
         $state.className = "FILE_STATE";

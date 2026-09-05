@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.61
+
+- **The form logged an error per `file` column, every time it opened one.**
+  `treedb_value_2_form_value()` and `form_value_2_treedb_value()` are two
+  switches over the field type and neither knew the word, so every open of a
+  record with `foto` and `qr` wrote two *"type unknown: file"* into the log
+  — the no-silent-errors machinery doing its job on a case 7.23.60 forgot to
+  finish. Found in the browser, against a real census, not in a unit test:
+  the control drew correctly and the log said it did not.
+
+  Both are one line, and both say what the file column's contract is: on the
+  way IN the value is handed to the control AS IT COMES (the control reads
+  the fkey itself, and converting it here would be reading a link twice in
+  two places with two ideas of what one looks like); on the way OUT it is the
+  BARE id, and treedb expands it into `__assets__^<sha>^as_<T>_<C>` — which
+  is the whole point of the host declaring nothing but the column.
+
+- **The shortened id carries the whole one in its `title`.** `a422a40d…cc3c`
+  cannot be looked up, pasted or compared, and a form that shows an
+  identifier nobody can copy is showing a decoration.
+
 ## 7.23.60
 
 - **A `file` column can be filled by a person.** A col flagged

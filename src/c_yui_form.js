@@ -2654,6 +2654,14 @@ function treedb_value_2_form_value(gobj, field_desc, value)
     }
 
     switch(type) {
+        /*  A `file` column is handed to the control AS IT COMES: the
+         *  control reads the fkey itself (yui_asset_id knows the three
+         *  shapes a link comes back in), and converting it here would be
+         *  reading it twice, in two places, with two ideas of what a link
+         *  looks like.  */
+        case "file":
+            return value;
+
         case "fkey": {
             /*  Decode ref(s) ("topic^id^hook", bare "$id", dict keys or
              *  {topic_name,id,hook_name}) into a plain array of ids for
@@ -2804,6 +2812,13 @@ function form_value_2_treedb_value(gobj, field_desc, value)
     }
 
     switch(type) {
+        /*  The BARE id, and treedb expands it into the full reference
+         *  (`__assets__^<sha>^as_<T>_<C>`). That is the whole point of the
+         *  host declaring nothing but the column: the client never has to
+         *  learn the name of a hook that is DERIVED.  */
+        case "file":
+            break;
+
         case "fkey":
             value = build_fkey_ref(gobj, field_desc, value);
             break;
