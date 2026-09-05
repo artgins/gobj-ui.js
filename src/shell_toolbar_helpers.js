@@ -19,14 +19,19 @@
  *                      triggers an action.type on click
  *
  *      Action types accepted on a toolbar item or on a dropdown sub-item:
- *          "navigate" | "drawer" | "event" | "dropdown"
+ *          "navigate" | "drawer" | "event" | "dropdown" | "link"
+ *
+ *      "link" is the one that leaves the application, and the one item
+ *      rendered as a real <a href> rather than a <button>.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
 export const TOOLBAR_ITEM_KINDS = ["brand", "avatar", "connection", "action"];
-export const TOOLBAR_ACTION_TYPES = ["navigate", "drawer", "event", "dropdown"];
+export const TOOLBAR_ACTION_TYPES = [
+    "navigate", "drawer", "event", "dropdown", "link"
+];
 
 
 /************************************************************
@@ -139,6 +144,11 @@ export function validate_action(action, owner_id)
     if(action.type === "event" && !_is_non_empty_string(action.event)) {
         warnings.push(
             `toolbar item '${id}' (action.type:event) requires 'event' name`
+        );
+    }
+    if(action.type === "link" && !_is_non_empty_string(action.url)) {
+        warnings.push(
+            `toolbar item '${id}' (action.type:link) requires 'url'`
         );
     }
     if(action.type === "dropdown") {

@@ -203,7 +203,9 @@ test("dropdown: invalid sub-action surfaces underlying warning", () => {
  *============================================================*/
 test("kinds + action-type constants are exposed", () => {
     expect(TOOLBAR_ITEM_KINDS).toEqual(["brand", "avatar", "connection", "action"]);
-    expect(TOOLBAR_ACTION_TYPES).toEqual(["navigate", "drawer", "event", "dropdown"]);
+    expect(TOOLBAR_ACTION_TYPES).toEqual(
+        ["navigate", "drawer", "event", "dropdown", "link"]
+    );
 });
 
 
@@ -245,4 +247,56 @@ test("dropdown: non-boolean 'selected' warns", () => {
     }, "language");
     expect(r.length).toBe(1);
     expect(r[0]).toContain("non-boolean");
+});
+
+
+/*============================================================
+ *      validate_action — link
+ *
+ *  The action that LEAVES the application. It is the only one
+ *  rendered as an <a href>, so the url is not an optional extra:
+ *  without it there is no link, only a dead control.
+ *============================================================*/
+test("validate link: ok with a url", () => {
+    let r = validate_toolbar_item({
+        id: "landing", icon: "yi-arrow-left", name: "yuneta.io",
+        action: { type: "link", url: "https://yuneta.io/" }
+    });
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([]);
+});
+
+test("validate link: a target is optional", () => {
+    let r = validate_toolbar_item({
+        id: "docs",
+        action: { type: "link", url: "https://doc.yuneta.io/", target: "_blank" }
+    });
+    expect(r.ok).toBe(true);
+});
+
+test("validate link: missing url flags warning", () => {
+    let r = validate_toolbar_item({
+        id: "landing", action: { type: "link" }
+    });
+    expect(r.ok).toBe(false);
+    expect(r.warnings.join("\n")).toMatch(/requires 'url'/);
+});
+
+test("validate link: empty url counts as missing", () => {
+    let r = validate_toolbar_item({
+        id: "landing", action: { type: "link", url: "   " }
+    });
+    expect(r.ok).toBe(false);
+    expect(r.warnings.join("\n")).toMatch(/requires 'url'/);
+});
+
+test("validate link: accepted inside a dropdown too", () => {
+    let r = validate_dropdown_action({
+        type: "dropdown",
+        items: [
+            { id: "site", name: "yuneta.io",
+              action: { type: "link", url: "https://yuneta.io/" } },
+        ],
+    }, "help");
+    expect(r).toEqual([]);
 });

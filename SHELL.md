@@ -331,7 +331,7 @@ that *enters* the section from outside. Full rules in
 | Axis | Field | Values | Effect |
 |---|---|---|---|
 | Form | `type` | `"brand"` · `"avatar"` · `"connection"` · *omitted (action)* | Renderer kind |
-| Behaviour | `action.type` | `"navigate"` · `"drawer"` · `"event"` · `"dropdown"` | What the click does |
+| Behaviour | `action.type` | `"navigate"` · `"drawer"` · `"event"` · `"dropdown"` · `"link"` | What the click does |
 | Secondary | `context_action` | same shape as `action` | Right-click (contextmenu) behaviour |
 | Visibility | `show_on` | `">=tablet"` · `"<desktop"` · `"*"` · ... | Per-item breakpoint |
 
@@ -426,6 +426,17 @@ menu label.
     toolbar items. The panel is dismissed by Escape, click outside
     the panel, navigation, or by activating any sub-item; programmatic
     close is also available via `yui_shell_close_dropdown(shell)`.
+  - `"link"`     → `{ url, target? }` — leaves the application. This is
+    the one action rendered as a real `<a href>` (on a toolbar item and
+    on the brand): middle-click, open-in-new-tab and the url in the
+    status bar are what make a link recognisable as one, and a button
+    that assigns `location.href` has none of them. It is also the one
+    action that does **not** become an FSM event — there is no state of
+    the application to transition, the page is being left. A
+    `target:"_blank"` gets `rel="noopener noreferrer"`. Inside a
+    dropdown it stays a `<button>`, deliberately: those rows are
+    `role="menuitemradio"` in a menu, and a link is not a choice among
+    options — there the dispatcher navigates.
 
     Sub-items also accept, since `5.2.0`:
 

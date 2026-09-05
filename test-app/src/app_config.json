@@ -78,6 +78,18 @@
                 }
             },
             {
+                "_comment": "The way OUT, and the reason it is here: the landing on yuneta.io links INTO this demo, and until now nothing led back — a reader who arrived from it was stranded on a host with no visible relation to the site that sent them. action.type:\"link\" is the one toolbar action rendered as a real <a href>, so middle-click and open-in-new-tab work and the url shows in the status bar. No target: leaving is the point.",
+                "id": "landing",
+                "icon": "yi-arrow-left",
+                "name": "yuneta.io",
+                "aria_label": "Back to yuneta.io",
+                "tooltip": "Back to yuneta.io — the site this demo belongs to",
+                "action": {
+                    "type": "link",
+                    "url": "https://yuneta.io/"
+                }
+            },
+            {
                 "id": "alerts",
                 "icon": "yi-triangle-exclamation",
                 "align": "end",
@@ -199,6 +211,7 @@
                                 "route": "/prefs"
                             }
                         },
+
                         {
                             "id": "d-about",
                             "name": "About",
@@ -206,6 +219,16 @@
                             "action": {
                                 "type": "event",
                                 "event": "EV_ABOUT"
+                            }
+                        },
+                        {
+                            "_comment": "Next to About because it answers the same question: what IS this. The toolbar carries the same link, but a phone toolbar is icon-only by design, so this labelled row is the way out that still reads on a small screen. A dropdown row stays a button (role=menuitemradio); only the toolbar item itself is an <a href>.",
+                            "id": "d-landing",
+                            "name": "yuneta.io",
+                            "icon": "yi-arrow-left",
+                            "action": {
+                                "type": "link",
+                                "url": "https://yuneta.io/"
                             }
                         }
                     ]

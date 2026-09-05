@@ -1586,6 +1586,20 @@ function safe_id(s)
  *      drawer   { type:"drawer",   op:"toggle"|"open"|"close", menu_id? }
  *      event    { type:"event",    event, kw? }
  *      dropdown { type:"dropdown", items[] }    (toolbar-only)
+ *      link     { type:"link",     url, target? }
+ *
+ *  `link` leaves the application, so on a toolbar item and on the brand
+ *  it is rendered as a real <a href> rather than a <button>:
+ *  middle-click, open-in-new-tab and the url in the status bar are what
+ *  make a link recognisable as one, and a button that assigns
+ *  location.href has none of them.  It is also why it does not become
+ *  an FSM event -- there is no state of this application to transition;
+ *  the page is being left.  A target of "_blank" gets
+ *  rel="noopener noreferrer" for free.
+ *
+ *  INSIDE A DROPDOWN it stays a <button>, deliberately: those rows are
+ *  role="menuitemradio" in a menu, and a link is not a choice among
+ *  options.  There the dispatcher navigates.
  *
  *  Per-item `show_on` is honoured: each rendered item is wrapped with
  *  the same Bulma-helper logic as zones.
@@ -1704,6 +1718,35 @@ function badge_node(value)
 }
 
 /************************************************************
+ *  The attributes that turn a toolbar item into a real link, or
+ *  null when this item is not one.  Answering null is what keeps
+ *  every caller's default (a <button> that dispatches an action)
+ *  exactly as it was.
+ ************************************************************/
+function toolbar_link_attrs(it)
+{
+    let action = (it && it.action) || {};
+    if(action.type !== "link") {
+        return null;
+    }
+    if(empty_string(action.url)) {
+        log_warning(
+            `C_YUI_SHELL: toolbar item '${it.id||"?"}' has action.type "link" ` +
+            `without a url`
+        );
+        return null;
+    }
+    let attrs = {href: action.url};
+    if(!empty_string(action.target)) {
+        attrs.target = action.target;
+        if(action.target === "_blank") {
+            attrs.rel = "noopener noreferrer";
+        }
+    }
+    return attrs;
+}
+
+/************************************************************
  *  Renderer for the default ("action") item kind.
  ************************************************************/
 function build_toolbar_action_item(gobj, it)
@@ -1751,13 +1794,20 @@ function build_toolbar_action_item(gobj, it)
         btn_attrs.title = tip;
         btn_attrs["data-i18n-title"] = tip;
     }
+    let link = toolbar_link_attrs(it);
+    if(link) {
+        delete btn_attrs.type;      /*  meaningless, and invalid, on an <a>  */
+        Object.assign(btn_attrs, link);
+    }
     let $item = createElement2(
-        ["button", btn_attrs, children]
+        [link? "a": "button", btn_attrs, children]
     );
-    $item.addEventListener("click", ev => {
-        ev.preventDefault();
-        handle_toolbar_action(gobj, it, $item);
-    });
+    if(!link) {
+        $item.addEventListener("click", ev => {
+            ev.preventDefault();
+            handle_toolbar_action(gobj, it, $item);
+        });
+    }
     attach_context_action(gobj, $item, it);
     return $item;
 }
@@ -1793,7 +1843,11 @@ function build_toolbar_brand_item(gobj, it)
         attrs["aria-haspopup"] = "menu";
         attrs["aria-expanded"] = "false";
     }
-    if(action_type === "") {
+    let link = toolbar_link_attrs(it);
+    if(link) {
+        tag = "a";
+        Object.assign(attrs, link);
+    } else if(action_type === "") {
         /*  Passive brand: no action — render a div so it is not
          *  keyboard-focused and screen readers don't announce a
          *  pressable control. */
@@ -1807,7 +1861,7 @@ function build_toolbar_brand_item(gobj, it)
         ["span", {class: "yui-toolbar-brand-wordmark", i18n: it.wordmark},
             it.wordmark]
     ]]);
-    if(action_type !== "") {
+    if(action_type !== "" && !link) {
         $item.addEventListener("click", ev => {
             ev.preventDefault();
             handle_toolbar_action(gobj, it, $item);
@@ -2031,6 +2085,23 @@ function handle_toolbar_action(gobj, item, $trigger)
             break;
         case "dropdown":
             toggle_toolbar_dropdown(gobj, item, action, $trigger);
+            break;
+        case "link":
+            /*  Reached only from the renderers that stay buttons (avatar,
+             *  and the entries inside a dropdown panel). The anchor
+             *  renderers never come through here. */
+            if(!empty_string(action.url)) {
+                if(action.target === "_blank") {
+                    window.open(action.url, "_blank", "noopener,noreferrer");
+                } else {
+                    window.location.assign(action.url);
+                }
+            } else {
+                log_warning(
+                    `C_YUI_SHELL: toolbar item '${item.id||"?"}' has action.type ` +
+                    `"link" without a url`
+                );
+            }
             break;
         default:
             log_warning(

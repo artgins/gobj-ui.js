@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.65
+
+- **A toolbar item can be a LINK now** (`action.type: "link"`, with `url` and
+  an optional `target`). It is the one action that leaves the application, so
+  on a toolbar item and on the brand it renders as a real `<a href>` rather
+  than a `<button>`: middle-click, open-in-new-tab and the url in the status
+  bar are what make a link recognisable as one, and a button that assigns
+  `location.href` has none of them. It is also the one action that does not
+  become an FSM event — there is no state of the application to transition,
+  the page is being left. `target: "_blank"` gets
+  `rel="noopener noreferrer"` for free. Inside a **dropdown** it stays a
+  button, deliberately: those rows are `role="menuitemradio"` in a menu, and
+  a link is not a choice among options — there the dispatcher navigates.
+  `validate_toolbar_item()` accepts the type and flags a `link` with no `url`.
+
+  What it was missing for: the demo on `demo.yuneta.io` / `niyamaka.com` is
+  linked FROM the landing on yuneta.io and led nowhere back, so a reader who
+  arrived from it was stranded on a host with no visible relation to the site
+  that sent them. It now carries `← yuneta.io` in the toolbar, and the same
+  link as a labelled row at the bottom of the user menu — because a phone
+  toolbar is icon-only by design, and a bare arrow does not say where it goes.
+
 ## 7.23.64
 
 - **The form is BUSY while it reads the picked files.** Saving a record with

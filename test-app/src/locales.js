@@ -218,6 +218,12 @@ const es_translation = {
     "Toggle language": "Cambiar idioma",
     "Toggle dark theme": "Cambiar tema oscuro",
     "Open drawer": "Abrir cajón",
+    /*  The way out of the demo. The domain itself is not translated:
+        it is a name, and a name that changes language is a name that
+        no longer addresses anything.  */
+    "Back to yuneta.io": "Volver a yuneta.io",
+    "Back to yuneta.io — the site this demo belongs to":
+        "Volver a yuneta.io — el sitio al que pertenece esta demo",
     "Demo menu": "Menú demo",
     "Home": "Inicio",
     "Tabs": "Pestañas",

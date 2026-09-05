@@ -201,6 +201,20 @@ cuando sólo hay una stage principal con nombre `main` en `center`.
     - `"drawer"`   → `{ op: "toggle" | "open" | "close", menu_id? }` —
       abre/cierra el nav con `layout:"drawer"` que coincide con `menu_id`.
     - `"event"`    → `{ event, kw? }` — `gobj_publish_event` desde el shell.
+    - `"dropdown"` → `{ items[] }` — abre un panel anclado al botón que lo
+      dispara. Cada entrada es un separador `{ "type": "divider" }` o un
+      sub-item con su propia `action` (no hay dropdowns anidados).
+    - `"link"`     → `{ url, target? }` — se va de la aplicación. Es la única
+      acción que se dibuja como un `<a href>` de verdad (en un item de la
+      toolbar y en la marca): el clic con el botón central, el abrir en otra
+      pestaña y la url en la barra de estado son lo que hace que un enlace se
+      reconozca como tal, y un botón que asigna `location.href` no tiene
+      ninguna de las tres. Es también la única que **no** pasa por la FSM: no
+      hay estado de esta aplicación que cambiar, la página se está dejando.
+      Con `target:"_blank"` se añade `rel="noopener noreferrer"`. Dentro de un
+      dropdown sigue siendo un `<button>`, a propósito: esas filas son
+      `role="menuitemradio"` de un menú, y un enlace no es una opción entre
+      varias — ahí navega el despachador.
 - `items[].align`: `"start"` (por defecto) o `"end"` (alinea a la derecha).
 - `aria_label` por item se usa como `aria-label` del `<button>`.
 
