@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.62
+
+- **A read-only form said its `file` column was writable.** The control hides
+  its button when the form is read-only, which hides the way in for a PERSON
+  and leaves the `<input type=file>` enabled — so the DOM went on reporting
+  the field as writable, and that is what anything reading the form
+  programmatically believes. A form opened by a click to READ must not say
+  that. `disabled` and not `readonly`, because the spec does not list `file`
+  among the types `readonly` applies to.
+
+  Found by a QA check that asserts exactly this and had been passing for
+  every other control since before the file column existed.
+
 ## 7.23.61
 
 - **The form logged an error per `file` column, every time it opened one.**

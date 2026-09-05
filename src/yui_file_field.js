@@ -245,6 +245,17 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
         accept: accept || YUI_FILE_ACCEPT,
         hidden: ""
     }]);
+    /*
+     *  A read-only form must not merely LOOK read-only. Hiding the button
+     *  hides the way in for a person and leaves the input enabled, so the
+     *  DOM still says the field is writable -- which is what anything
+     *  reading the form programmatically believes, and what a form opened
+     *  by a click to READ must not say. `disabled` and not `readonly`: the
+     *  spec does not list `file` among the types `readonly` applies to.
+     */
+    if(readonly) {
+        $input.disabled = true;
+    }
 
     const $pick = createElement2(["button", {
         type: "button",

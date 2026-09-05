@@ -1578,6 +1578,17 @@ function apply_readonly_to_control(readonly, tag, inputType, $extend)
              *  `input` has done since it existed.  */
             $extend.classList.add('yui-jse-readonly');
             break;
+        case 'file':
+            /*  The button is hidden by the control itself; this is the
+             *  INPUT, which stays in the DOM and would otherwise report a
+             *  read-only form as writable.  */
+            {
+                const $picker = $extend.querySelector('.FILE_INPUT');
+                if($picker) {
+                    $picker.disabled = true;
+                }
+            }
+            break;
         case 'input':
             /*  `readonly` does not apply to a colour input -- the spec lists
              *  the types it applies to and colour is not one of them -- so
