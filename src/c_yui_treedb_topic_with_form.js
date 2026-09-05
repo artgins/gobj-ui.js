@@ -394,6 +394,12 @@ function popup_mount_layer(gobj)
  ***************************************************************/
 function mt_create(gobj)
 {
+    /*  0 = not reading; otherwise the serial of the read in flight. A
+     *  serial and not a flag, so that a read whose form was closed and
+     *  reopened cannot land on the new form.  */
+    gobj.priv.reading_files = 0;
+    gobj.priv.read_serial = 0;
+
     let name = clean_name(gobj_name(gobj));
     gobj_write_attr(gobj, "table_id", "table" + name);
     gobj_write_attr(gobj, "toolbar_id", "toolbar" + name);
@@ -2219,6 +2225,7 @@ function form_may_close(gobj)
 function teardown_form_child(gobj)
 {
     let priv = gobj.priv;
+    priv.reading_files = 0;     // a read in flight lands on nobody
     if(priv.form) {
         if(gobj_is_running(priv.form)) {
             gobj_stop(priv.form);
@@ -3484,6 +3491,13 @@ function ac_form_save_record(gobj, event, kw, src)
      *  files never came with the record: the form KEPT them and this is
      *  where they are asked for. Nothing picked is the ordinary case.
      *------------------------------------------------------*/
+    if(priv.reading_files) {
+        /*  The toolbar is disabled while a read is in flight, so this is
+         *  a keyboard shortcut or a script: said, and not a second write.  */
+        log_warning(`${gobj_short_name(gobj)}: save ignored, still reading the picked files`);
+        return -1;
+    }
+
     let picked = {};
     const answer = gobj_command(src, "get_picked_files", {}, gobj);
     if(answer && answer.result >= 0 && answer.data) {
@@ -3508,8 +3522,16 @@ function ac_form_save_record(gobj, event, kw, src)
      *  notification: it enters the machine as an EVENT, never as a
      *  chain of callbacks that the trace cannot see. The dialog stays
      *  open until it lands, which is what tells the person that 40 MB
-     *  are still going up.
+     *  are still going up -- and stays open BUSY: its toolbar is
+     *  disabled and the save button spins, because a second Save
+     *  during the read was a second write, and a Cancel was a save
+     *  lost without a word. The serial travels with the read: a read
+     *  whose form was closed meanwhile lands on nobody (ac_files_read).
      *------------------------------------------------------*/
+    const serial = ++priv.read_serial;
+    priv.reading_files = serial;
+    set_form_busy(gobj, true);
+
     Promise.all(cols.map((col) => {
         return yui_file_read(picked[col]).then((read) => {
             return {col: col, read: read};
@@ -3520,15 +3542,59 @@ function ac_form_save_record(gobj, event, kw, src)
             picks[r.col] = r.read;
         });
         gobj_send_event(gobj, "EV_FILES_READ",
-            {mode: mode, record: kw, picks: picks}, gobj
+            {serial: serial, mode: mode, record: kw, picks: picks}, gobj
         );
     }).catch((e) => {
         gobj_send_event(gobj, "EV_FILES_FAILED",
-            {reason: (e && e.message)? e.message: String(e)}, gobj
+            {serial: serial, reason: (e && e.message)? e.message: String(e)}, gobj
         );
     });
 
     return 0;
+}
+
+/************************************************************
+ *  The form's toolbar while a read is in flight: every button
+ *  disabled, the save button spinning. Bulma's `is-loading` is the
+ *  spinner; `disabled` is what stops the second click.
+ ************************************************************/
+function set_form_busy(gobj, busy)
+{
+    let priv = gobj.priv;
+    if(!priv.form) {
+        return;
+    }
+    const $container = gobj_read_attr(priv.form, "$container");
+    if(!$container) {
+        return;
+    }
+    $container.querySelectorAll('.yui-toolbar-form button').forEach(($b) => {
+        if(busy) {
+            $b.dataset.was_disabled = $b.disabled? "1": "0";
+            $b.disabled = true;
+        } else if($b.dataset.was_disabled !== undefined) {
+            $b.disabled = ($b.dataset.was_disabled === "1");
+            delete $b.dataset.was_disabled;
+        }
+    });
+    const $save = $container.querySelector('.yui-toolbar-form .button-save');
+    if($save) {
+        $save.classList.toggle('is-loading', !!busy);
+    }
+}
+
+/************************************************************
+ *  Is this the read the view is waiting for? A read whose form was
+ *  closed (teardown zeroes the serial) or replaced lands on nobody.
+ ************************************************************/
+function read_is_current(gobj, kw)
+{
+    let priv = gobj.priv;
+    if(!priv.form || !priv.reading_files || kw.serial !== priv.reading_files) {
+        log_warning(`${gobj_short_name(gobj)}: files read for a form that is gone, dropped`);
+        return false;
+    }
+    return true;
 }
 
 /************************************************************
@@ -3557,6 +3623,10 @@ function publish_treedb_write(gobj, mode, record, jn_files)
  ************************************************************/
 function ac_files_read(gobj, event, kw, src)
 {
+    if(!read_is_current(gobj, kw)) {
+        return -1;      /*  Warning already logged  */
+    }
+    gobj.priv.reading_files = 0;
     const {record, __files__} = yui_files_manifest(kw.picks, kw.record);
     publish_treedb_write(gobj, kw.mode, record, __files__);
     close_form_dialog(gobj);
@@ -3571,6 +3641,11 @@ function ac_files_read(gobj, event, kw, src)
  ************************************************************/
 function ac_files_failed(gobj, event, kw, src)
 {
+    if(!read_is_current(gobj, kw)) {
+        return -1;      /*  Warning already logged  */
+    }
+    gobj.priv.reading_files = 0;
+    set_form_busy(gobj, false);
     log_error(`${gobj_short_name(gobj)}: cannot read the picked file: ${kw.reason}`);
     /*  An i18n KEY, not a sentence: the dialog renders it with `i18n`, so
      *  a sentence here would be a key nobody defined and would render as

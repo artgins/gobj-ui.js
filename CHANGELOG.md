@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.64
+
+- **The form is BUSY while it reads the picked files.** Saving a record with
+  a `file` column reads the file first, and a promise takes as long as 40 MB
+  take: the dialog stayed open, as designed, but stayed OPEN AND LIVE — a
+  second Save during the read sent a second write, and a Cancel threw the
+  save away without a word (the read then landed on a form that no longer
+  existed). The toolbar is disabled and the save button spins until the read
+  lands (`set_form_busy`); a second Save is refused and says so; a read
+  carries the serial of the form it was started for, and one whose form was
+  closed or replaced is dropped with a warning instead of being written or
+  crashing into a destroyed gobj.
+
 ## 7.23.63
 
 - **Saving a record UNLINKED its read-only `file` column.** The topic view
