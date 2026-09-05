@@ -2620,7 +2620,14 @@ function transform__form_record_2_treedb_record(gobj, kw, operation)
          */
         const field_desc = treedb_get_field_desc(col);
         if(!field_desc.is_writable &&
-                field_desc.type !== "fkey" && col.id !== pkey) {
+                field_desc.type !== "fkey" && !field_desc.is_file &&
+                col.id !== pkey) {
+            /*  `is_file` and not the type: a `file` column IS an fkey (it
+             *  is flagged ['fkey','file']) but answers `type: "file"`, and
+             *  the write goes out with `autolink`, which rebuilds the links
+             *  from what the record carries. Dropped here, a read-only
+             *  `file` column -- the one only a load fills -- was UNLINKED
+             *  by every save of any other field of its record.  */
             continue;
         }
 

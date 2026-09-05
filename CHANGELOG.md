@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.63
+
+- **Saving a record UNLINKED its read-only `file` column.** The topic view
+  sends back only the writable cols, the fkeys and the pkey, and the write
+  goes out with `autolink`, which rebuilds the links from what the record
+  carries. A `file` column IS an fkey (`['fkey','file']`) but answers
+  `type: "file"` since gobj-js 7.16.5, so a `file` column without `writable`
+  — the one only a load fills, which the SDK declares legal — fell out of
+  the record, and every save of any other field of its record cut its link,
+  in silence. The exemption asks `is_file` now, beside the type.
+
+  Found by reading the filter against the new field type, not by a test:
+  from the browser a record saved WITH its photo and one saved WITHOUT it
+  look the same.
+
 ## 7.23.62
 
 - **A read-only form said its `file` column was writable.** The control hides
