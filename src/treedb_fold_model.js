@@ -140,7 +140,7 @@ function parents_of(descs, desc, record)
  *          topics: [topic_name, ...]  topics with records, in desc order
  *      }
  ************************************************************/
-export function fold_build_model(descs, records)
+export function fold_build_model(descs, records, opts)
 {
     let nodes = new Map();
     let groups = new Map();
@@ -148,8 +148,21 @@ export function fold_build_model(descs, records)
 
     descs = is_object(descs)? descs : {};
     records = is_object(records)? records : {};
+    opts = is_object(opts)? opts : {};
 
-    /*  Pass 1: every record is a node.  */
+    let hidden = new Set(is_array(opts.hidden_topics)? opts.hidden_topics : []);
+    let loose_shown = new Set(is_array(opts.loose_topics)? opts.loose_topics : []);
+    let main_topic = opts.main_topic || fold_main_topic(descs);
+    if(main_topic && (!descs[main_topic] || hidden.has(main_topic))) {
+        main_topic = "";    /*  a main topic that is not drawn governs nothing  */
+    }
+    let linked = fold_linked_topics(descs, main_topic);
+    let totals = {};
+
+    /*  Pass 1: every record is a node -- of the topics that are SHOWN.
+     *  A hidden topic leaves the model whole: no pills count it, no
+     *  edge reaches it, and the records that hung from it alone become
+     *  roots, the way any record with no drawable parent does.  */
     for(let topic_name of Object.keys(descs)) {
         if(topic_name.substring(0, 2) === "__") {
             continue;
@@ -157,6 +170,10 @@ export function fold_build_model(descs, records)
         let desc = descs[topic_name];
         let list = records[topic_name];
         if(!is_array(list)) {
+            continue;
+        }
+        totals[topic_name] = list.length;
+        if(hidden.has(topic_name)) {
             continue;
         }
         topics.push(topic_name);
@@ -203,27 +220,59 @@ export function fold_build_model(descs, records)
         }
     }
 
-    /*  Roots: no drawable parent. Then whatever the roots cannot reach
-     *  -- a cycle with no way in -- becomes a root too, so that every
-     *  record has a place on screen to be opened from.  */
+    /*  Roots: no drawable parent -- with one distinction when there is
+     *  a MAIN topic. A record of a topic the schema hangs from the main
+     *  one (`linked`) that has no parent is LOOSE: a device with no
+     *  place. It should hang and does not, so it is not a root of the
+     *  tree; it is counted per topic and shown only on request
+     *  (`loose_topics`). A topic the schema does not tie to the main
+     *  one at all is a tree of its own, and its parentless records are
+     *  its roots, as before.
+     *
+     *  Then whatever the roots cannot reach -- a cycle with no way in
+     *  -- becomes a root too, so that every record has a place on
+     *  screen to be opened from.  */
     let roots = {};
+    let loose = {};
     for(let topic_name of topics) {
         roots[topic_name] = [];
+        loose[topic_name] = [];
     }
     for(let node of nodes.values()) {
-        if(node.parents.length === 0) {
-            roots[node.topic_name].push(node.key);
+        if(node.parents.length > 0) {
+            continue;
+        }
+        let t = node.topic_name;
+        if(main_topic && t !== main_topic && linked.has(t)) {
+            loose[t].push(node.key);
+            if(loose_shown.has(t)) {
+                roots[t].push(node.key);
+            }
+        } else {
+            roots[t].push(node.key);
         }
     }
     let reached = reach_from(nodes, [].concat(...Object.values(roots)));
     for(let node of nodes.values()) {
-        if(!reached.has(node.key)) {
-            roots[node.topic_name].push(node.key);
-            /*  Its own subtree is reachable now; mark it so a whole
-             *  cycle does not become a row of roots.  */
-            for(let k of reach_from(nodes, [node.key])) {
-                reached.add(k);
+        if(reached.has(node.key)) {
+            continue;
+        }
+        let t = node.topic_name;
+        if(main_topic && t !== main_topic && linked.has(t)) {
+            /*  Reachable through a loose record that is not shown, or
+             *  through a hidden topic: loose as well, not a root.  */
+            if(node.parents.length > 0) {
+                loose[t].push(node.key);
             }
+            if(!loose_shown.has(t)) {
+                continue;
+            }
+        }
+        roots[t].push(node.key);
+        /*  Its own subtree is reachable now; mark it so a whole
+         *  cycle does not become a row of roots.  */
+        for(let k of reach_from(nodes, [node.key])) {
+            reached.add(k);
         }
     }
     for(let topic_name of topics) {
@@ -232,7 +281,103 @@ export function fold_build_model(descs, records)
         }
     }
 
-    return {nodes: nodes, groups: groups, topics: topics};
+    return {
+        nodes: nodes,
+        groups: groups,
+        topics: topics,
+        totals: totals,         /*  {topic: records}, hidden topics included  */
+        hidden: hidden,         /*  Set of hidden topics  */
+        main_topic: main_topic, /*  "" when nothing governs the tree  */
+        linked: linked,         /*  Set of topics the schema hangs from main  */
+        loose: loose,           /*  {topic: [key, ...]} records that should hang and do not  */
+        loose_shown: loose_shown,
+    };
+}
+
+/************************************************************
+ *  The topic the schema hangs the others from: the one whose hooks
+ *  reach the most OTHER topics, a self-referent hook breaking a tie
+ *  (a tree of places over a flat list of groups), schema order
+ *  breaking the rest. "" when no topic reaches another -- a treedb of
+ *  unrelated lists has no trunk, and every topic is a tree of its own.
+ ************************************************************/
+export function fold_main_topic(descs)
+{
+    descs = is_object(descs)? descs : {};
+    let best = "";
+    let best_score = 0;
+    let best_self = false;
+
+    for(let topic_name of Object.keys(descs)) {
+        if(topic_name.substring(0, 2) === "__") {
+            continue;
+        }
+        let reach = hook_targets(descs, topic_name);
+        let self = reach.has(topic_name);
+        reach.delete(topic_name);
+        let score = reach.size;
+        if(score === 0) {
+            continue;
+        }
+        if(score > best_score || (score === best_score && self && !best_self)) {
+            best = topic_name;
+            best_score = score;
+            best_self = self;
+        }
+    }
+    return best;
+}
+
+/*  The topics a topic's hooks name (drawn topics only). An `extended`
+ *  topic names nothing: the engine draws no edge from one, so its
+ *  records hang nothing and it can govern no tree.  */
+function hook_targets(descs, topic_name)
+{
+    let out = new Set();
+    let desc = descs[topic_name];
+    if(!desc || desc.node_treedb_type === "extended") {
+        return out;
+    }
+    let cols = is_array(desc.cols)? desc.cols : [];
+    for(let col of cols) {
+        if(!is_object(col.hook) || !is_array(col.flag) || col.flag.indexOf("hook") < 0) {
+            continue;
+        }
+        for(let child of Object.keys(col.hook)) {
+            if(child.substring(0, 2) !== "__" && descs[child]) {
+                out.add(child);
+            }
+        }
+    }
+    return out;
+}
+
+/************************************************************
+ *  The topics the schema hangs from `main_topic`, main included:
+ *  reached by following hooks from it. A record of one of these
+ *  with no parent is LOOSE; a topic outside the set is its own tree.
+ *  Empty when there is no main topic.
+ ************************************************************/
+export function fold_linked_topics(descs, main_topic)
+{
+    let linked = new Set();
+    if(!main_topic || !is_object(descs) || !descs[main_topic]) {
+        return linked;
+    }
+    let queue = [main_topic];
+    while(queue.length) {
+        let t = queue.shift();
+        if(linked.has(t)) {
+            continue;
+        }
+        linked.add(t);
+        for(let child of hook_targets(descs, t)) {
+            if(!linked.has(child)) {
+                queue.push(child);
+            }
+        }
+    }
+    return linked;
 }
 
 /************************************************************
@@ -283,7 +428,18 @@ export function fold_group_total(model, group_key)
 export function fold_group_shown(model, state, group_key)
 {
     let total = fold_group_total(model, group_key);
-    let n = state.shown.get(group_key) || 0;
+    let n;
+    if(state.shown.has(group_key)) {
+        n = state.shown.get(group_key);
+    } else if(group_key.charAt(0) === "|") {
+        /*  A ROOT group nobody has set is open on its first page: no
+         *  pill folds the roots, so "unset" cannot mean "folded" -- a
+         *  topic shown again after being hidden, or one that appears
+         *  when the main topic moves, would otherwise draw nothing.  */
+        n = state.page_size;
+    } else {
+        n = 0;
+    }
     return Math.min(n, total);
 }
 

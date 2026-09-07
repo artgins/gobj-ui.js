@@ -115,6 +115,9 @@ SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",   0,  24,     "Children of one
 /*---------------- User last selections  ----------------*/
 SDATA(data_type_t.DTP_STRING,   "operation_mode",   sdata_flag_t.SDF_PERSIST, "reading", "Current operation mode (internal behaviour or role). Changed by the user trough the gui."),
 SDATA(data_type_t.DTP_STRING,   "layout",           sdata_flag_t.SDF_PERSIST, "", "Current graph layout. User preference. Changed by the user through the gui."),
+SDATA(data_type_t.DTP_LIST,     "hidden_topics",    sdata_flag_t.SDF_PERSIST, "[]", "Topics hidden from the graph (legend). User preference, per treedb"),
+SDATA(data_type_t.DTP_STRING,   "main_topic",       sdata_flag_t.SDF_PERSIST, "", "The topic the tree hangs from; empty = deduced by the graph. User preference, per treedb"),
+SDATA(data_type_t.DTP_LIST,     "loose_topics",     sdata_flag_t.SDF_PERSIST, "[]", "Topics whose LOOSE records (no parent) are shown. User preference, per treedb"),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -165,6 +168,7 @@ let PRIVATE_DATA = {
     operation_mode:     null,
     layout:             null,
     _topics_subscribed: {},
+    _legend_state:      null,   /*  the engine's last EV_LEGEND_STATE  */
     _links_subscribed:  false,  /*  EV_TREEDB_NODE_LINKED/UNLINKED (treedb-wide)  */
 
     is_pinhold_window:  false, // inherited of v6, todo review
@@ -246,6 +250,9 @@ function mt_create(gobj)
             fkey_port_position: "top",
             expand_depth: gobj_read_integer_attr(gobj, "expand_depth"),
             fold_page_size: gobj_read_integer_attr(gobj, "fold_page_size"),
+            hidden_topics: gobj_read_attr(gobj, "hidden_topics") || [],
+            main_topic: gobj_read_str_attr(gobj, "main_topic") || "",
+            loose_topics: gobj_read_attr(gobj, "loose_topics") || [],
         },
         gobj
     );
@@ -363,13 +370,18 @@ function build_ui(gobj)
         // Don't use is-flex, don't work well with is-hidden
         ['div', {class: 'C_YUI_TREEDB_GRAPH', style: `height:100%; display:flex; flex-direction:column;`}, [
             ['div', {class: 'GRAPH_TOOLBAR_ROW is-flex-grow-0 is-flex is-align-items-center'}, row_items],
-            /*  Topic colour legend: a strip, not an overlay. It is opened to
-             *  be READ against the graph, and an overlay would cover the
-             *  thing it explains. Built on first open (the colours are the
-             *  child's, assigned when the schema arrives). */
-            ['div', {class: 'GRAPH_LEGEND is-hidden is-flex-grow-0',
-                     style: 'display:flex; flex-wrap:wrap; align-items:center; ' +
-                            'gap:.4rem; padding:.35rem .5rem;'}, []],
+            /*  The legend: a strip under the toolbar, ALWAYS there, one
+             *  chip per topic. It is the graph's layer control, not a
+             *  colour key: a chip shows or hides its topic, marks the main
+             *  one, shows the loose records, highlights. Painted from the
+             *  engine's EV_LEGEND_STATE, which is the truth about what is
+             *  drawn. A strip and not an overlay because it is read
+             *  AGAINST the graph, and an overlay would cover the thing it
+             *  explains. Scrolls sideways on a narrow screen. */
+            ['div', {class: 'GRAPH_LEGEND is-flex-grow-0',
+                     style: 'display:flex; flex-wrap:nowrap; align-items:center; ' +
+                            'gap:.35rem; padding:.3rem .5rem; overflow-x:auto; ' +
+                            'min-height:2.2rem;'}, []],
             ['div', {class: `GRAPH_BODY is-flex-grow-1 ${padding}`, style: 'height:100%; min-height:0; overflow:hidden;'}, [
                 ['div', {id: priv.canvas_id, class: `GRAPH_CANVAS graph-container`, style: 'height:100%; min-height:0;border: 1px solid var(--bulma-border-weak);border-radius:0.2rem;'}, [
                 ]]
@@ -574,23 +586,6 @@ function make_toolbar(gobj)
          *  these are the whole thing and the roots alone. Refresh is the
          *  way back to the default depth.  */
         ...yui_graph_fold_items(gobj, gobj_read_str_attr(gobj, "wide")),
-
-        /*  Which colour is which topic. The port colour of a node encodes
-         *  the topic it links to, which is the whole point of the graph and
-         *  which nothing on screen explained. Clicking an entry focuses that
-         *  topic, so the legend is also the way to say "show me these" —
-         *  and clicking the focused one again clears it.  */
-        ['button', {class: 'GRAPH_LEGEND_BTN button ml-2',
-                    title: t('legend'), 'aria-label': t('legend'),
-                    'data-i18n-title': 'legend', 'data-i18n-aria-label': 'legend'}, [
-            ['i', {class: 'yi-square'}],
-            ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'legend'}, 'legend']
-        ], {
-            click: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, "EV_TOGGLE_LEGEND", {}, gobj);
-            }
-        }],
 
         /*  Inspect the treedb's raw tranger json in the lazy tree viewer
          *  (print-tranger on the C_NODE service). A treedb can be huge, so
@@ -2345,72 +2340,194 @@ function refresh_legend(gobj)
         return;
     }
 
-    let descs = priv.gobj_nodes_tree?
-        gobj_read_attr(priv.gobj_nodes_tree, "descs") : null;
+    let state = priv._legend_state;
     $legend.textContent = "";
-    if(!descs) {
-        return;
+    if(!state || !is_array(state.topics)) {
+        return;     /*  nothing drawn yet: the engine has not spoken  */
     }
 
-    for(const [topic_name, desc] of Object.entries(descs)) {
-        if(topic_name.substring(0, 2) === "__") {
-            continue;       /*  the internal topics are not drawn  */
-        }
-        if(!desc || !desc.color) {
-            continue;
-        }
+    /*  The main topic leads the strip: it is the trunk everything else
+     *  hangs from, and the eye reads the strip left to right.  */
+    let topics = state.topics.slice().sort((a, b) => {
+        let am = (a.topic === state.main_topic)? 0 : 1;
+        let bm = (b.topic === state.main_topic)? 0 : 1;
+        return am - bm;
+    });
+
+    for(let entry of topics) {
+        let topic_name = entry.topic;
+        let is_main = (topic_name === state.main_topic);
         let focused = (priv.focus_topic === topic_name);
-        let $item = createElement2(
-            ['button', {
-                /*  `is-light` on the focused one, not solid `is-primary`:
-                 *  the solid fill sat right behind the swatch and swallowed
-                 *  the one colour the entry exists to show. */
-                class: 'GRAPH_LEGEND_ITEM button is-small' +
-                       (focused? ' is-primary is-light' : ''),
-                title: topic_name,
-                'aria-label': topic_name,
-                'aria-pressed': focused? 'true' : 'false'
-            }, [
-                ['span', {class: 'GRAPH_LEGEND_SWATCH',
-                          style: `display:inline-block; width:.8rem; height:.8rem; ` +
-                                 `border-radius:3px; margin-right:.4rem; ` +
-                                 `background:${desc.color}; ` +
-                                 `border:1px solid rgba(0,0,0,.25);`}],
-                /*  The topic name is DATA: it carries no i18n key and is
-                 *  never translated. */
-                ['span', {}, topic_name]
-            ], {
+        let hidden = !!entry.hidden;
+
+        /*  A control with a small, named target for each of the things
+         *  the strip can do, so a finger lands on ONE of them:
+         *      the body      show / hide (the main topic cannot be hidden)
+         *      ★             make it the main topic
+         *      +N            show / hide its loose records
+         *      ⌖             highlight (the focus)
+         *  The names are DATA: a topic name carries no i18n key and is
+         *  never translated; the counts are numbers.  */
+        let controls = [];
+
+        controls.push(
+            ['span', {class: 'GRAPH_LEGEND_SWATCH',
+                      style: `display:inline-block; width:.8rem; height:.8rem; ` +
+                             `border-radius:3px; margin-right:.35rem; flex:0 0 auto; ` +
+                             `background:${entry.color || "#94a3b8"}; ` +
+                             `border:1px solid rgba(0,0,0,.25);` +
+                             (hidden? 'opacity:.35;' : '')}],
+            ['span', {class: 'GRAPH_LEGEND_NAME',
+                      style: hidden? 'text-decoration:line-through; opacity:.6;' : ''},
+             topic_name],
+            ['span', {class: 'GRAPH_LEGEND_COUNT has-text-grey',
+                      style: 'margin-left:.35rem; font-size:.8em;'},
+             hidden? `${entry.total}` : `${entry.visible}/${entry.total}`]
+        );
+
+        /*  Built as an object first: an attribute that is `undefined`
+         *  is still SET by createElement2 (to the string "undefined"),
+         *  and a `disabled="undefined"` button is a disabled button --
+         *  every chip was dead except its star.  */
+        let body_attrs = {
+            class: 'GRAPH_LEGEND_ITEM button is-small' +
+                   (focused? ' is-primary is-light' : '') +
+                   (is_main? ' GRAPH_LEGEND_MAIN' : ''),
+            type: 'button',
+            style: 'gap:0; flex:0 0 auto;',
+            title: is_main? t('main topic') : (hidden? t('show topic') : t('hide topic')),
+            'aria-label': topic_name,
+            'aria-pressed': hidden? 'false' : 'true',
+        };
+        if(is_main) {
+            body_attrs.disabled = 'disabled';
+        }
+        let $body = createElement2(
+            ['button', body_attrs, controls, {
                 click: (evt) => {
                     evt.stopPropagation();
-                    gobj_send_event(gobj, "EV_LEGEND_TOPIC", {topic: topic_name}, gobj);
+                    gobj_send_event(gobj, "EV_LEGEND_TOPIC",
+                        {topic: topic_name, action: "toggle"}, gobj);
                 }
             }]
         );
-        $legend.appendChild($item);
+
+        let extras = [];
+
+        /*  The star: filled on the main one, hollow on the others,
+         *  where it moves the star. On a main topic the READER chose it
+         *  is a button too: pressing it hands the choice back to the
+         *  graph (deduced again). On a deduced one it is a mark.  */
+        if(is_main && state.main_chosen) {
+            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small is-warning is-light',
+                                    type: 'button', style: 'padding:0 .4rem;',
+                                    title: t('main topic'), 'data-i18n-title': 'main topic',
+                                    'aria-label': t('main topic'), 'aria-pressed': 'true'},
+                         '★', {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_LEGEND_TOPIC",
+                        {topic: "", action: "main"}, gobj);
+                }
+            }]);
+        } else if(is_main) {
+            extras.push(['span', {class: 'GRAPH_LEGEND_STAR button is-small is-static',
+                                  style: 'padding:0 .4rem;',
+                                  title: t('main topic'), 'data-i18n-title': 'main topic'},
+                         '★']);
+        } else if(!hidden) {
+            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small',
+                                    type: 'button', style: 'padding:0 .4rem;',
+                                    title: t('main topic'), 'data-i18n-title': 'main topic',
+                                    'aria-label': t('main topic')},
+                         '☆', {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_LEGEND_TOPIC",
+                        {topic: topic_name, action: "main"}, gobj);
+                }
+            }]);
+        }
+
+        /*  Loose records: the ones that should hang from the main tree
+         *  and do not. Only where there are any, and only for a topic
+         *  the schema hangs from the main one.  */
+        if(!hidden && entry.linked && entry.loose > 0) {
+            extras.push(['button', {
+                class: 'GRAPH_LEGEND_LOOSE button is-small' +
+                       (entry.loose_shown? ' is-warning is-light' : ''),
+                type: 'button', style: 'padding:0 .45rem;',
+                title: t('loose records'), 'data-i18n-title': 'loose records',
+                'aria-label': t('loose records'),
+                'aria-pressed': entry.loose_shown? 'true' : 'false'
+            }, `+${entry.loose}`, {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_LEGEND_TOPIC",
+                        {topic: topic_name, action: "loose"}, gobj);
+                }
+            }]);
+        }
+
+        if(!hidden) {
+            extras.push(['button', {
+                class: 'GRAPH_LEGEND_FOCUS button is-small' +
+                       (focused? ' is-primary is-light' : ''),
+                type: 'button', style: 'padding:0 .4rem;',
+                title: t('highlight topic'), 'data-i18n-title': 'highlight topic',
+                'aria-label': t('highlight topic'),
+                'aria-pressed': focused? 'true' : 'false'
+            }, [['i', {class: 'yi-location-crosshairs'}]], {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_LEGEND_TOPIC",
+                        {topic: topic_name, action: "focus"}, gobj);
+                }
+            }]);
+        }
+
+        let $chip = createElement2(
+            ['div', {class: 'GRAPH_LEGEND_CHIP buttons has-addons',
+                     style: 'margin:0; flex:0 0 auto; flex-wrap:nowrap;'},
+             [$body].concat(extras.map((spec) => createElement2(spec)))]
+        );
+        $legend.appendChild($chip);
     }
+}
+
+/************************************************************
+ *  The engine said what is drawn: repaint the strip.
+ ************************************************************/
+function ac_legend_state(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    priv._legend_state = kw || null;
+    refresh_legend(gobj);
+    return 0;
 }
 
 /************************************************************
  *
  ************************************************************/
-function ac_toggle_legend(gobj, event, kw, src)
+/************************************************************
+ *  One of the legend's settings changed: write it, SAVE it (they
+ *  are the reader's, per treedb) and tell the engine.
+ ************************************************************/
+function set_legend_list_attr(gobj, name, event_name, topics)
 {
-    let $container = gobj_read_attr(gobj, "$container");
-    if(!$container) {
-        return 0;
+    let priv = gobj.priv;
+
+    gobj_write_attr(gobj, name, topics);
+    gobj_save_persistent_attrs(gobj, name);
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(priv.gobj_nodes_tree, event_name, {topics: topics}, gobj);
     }
-    let $legend = $container.querySelector(".GRAPH_LEGEND");
-    if(!$legend) {
-        log_error(`${gobj_short_name(gobj)}: no legend strip to toggle`);
-        return -1;
-    }
-    if($legend.classList.contains("is-hidden")) {
-        refresh_legend(gobj);
-        $legend.classList.remove("is-hidden");
-    } else {
-        $legend.classList.add("is-hidden");
-    }
-    return 0;
+}
+
+function legend_list_attr(gobj, name)
+{
+    let list = gobj_read_attr(gobj, name);
+    return is_array(list)? list.slice() : [];
 }
 
 /************************************************************
@@ -2422,9 +2539,58 @@ function ac_legend_topic(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let topic = (kw && kw.topic) || "";
-    if(!topic) {
+    let action = (kw && kw.action) || "focus";
+    if(!topic && action !== "main") {
         log_error(`${gobj_short_name(gobj)}: legend click with no topic`);
         return -1;
+    }
+
+    let state = priv._legend_state || {};
+
+    switch(action) {
+        case "toggle": {
+            /*  Show or hide the topic. Never the main one: hiding the
+             *  trunk turns everything into roots, which is the pile.  */
+            if(topic === state.main_topic) {
+                log_error(`${gobj_short_name(gobj)}: the main topic '${topic}' cannot be hidden`);
+                return -1;
+            }
+            let hidden = legend_list_attr(gobj, "hidden_topics");
+            if(str_in_list(hidden, topic)) {
+                delete_from_list(hidden, topic);
+            } else {
+                hidden.push(topic);
+            }
+            set_legend_list_attr(gobj, "hidden_topics", "EV_SET_HIDDEN_TOPICS", hidden);
+            return 0;
+        }
+
+        case "loose": {
+            let loose = legend_list_attr(gobj, "loose_topics");
+            if(str_in_list(loose, topic)) {
+                delete_from_list(loose, topic);
+            } else {
+                loose.push(topic);
+            }
+            set_legend_list_attr(gobj, "loose_topics", "EV_SET_LOOSE_TOPICS", loose);
+            return 0;
+        }
+
+        case "main": {
+            gobj_write_str_attr(gobj, "main_topic", topic);
+            gobj_save_persistent_attrs(gobj, "main_topic");
+            if(priv.gobj_nodes_tree) {
+                gobj_send_event(priv.gobj_nodes_tree, "EV_SET_MAIN_TOPIC", {topic: topic}, gobj);
+            }
+            return 0;
+        }
+
+        case "focus":
+            break;
+
+        default:
+            log_error(`${gobj_short_name(gobj)}: legend action unknown: ${action}`);
+            return -1;
     }
 
     let next = (priv.focus_topic === topic)? "" : topic;
@@ -2528,7 +2694,14 @@ function ac_find_result(gobj, event, kw, src)
         return 0;
     }
 
-    $count.textContent = t("matches", {count: (kw && kw.matches) || 0});
+    let text = t("matches", {count: (kw && kw.matches) || 0});
+    /*  Matches in HIDDEN topics, counted apart: "0" alone reads as
+     *  "does not exist" when it means "is hidden".  */
+    let hidden = (kw && kw.hidden_matches) || 0;
+    if(hidden > 0) {
+        text += ` (+${hidden} ${t("hidden topics")})`;
+    }
+    $count.textContent = text;
     $result.classList.remove("is-hidden");
     return 0;
 }
@@ -2537,6 +2710,18 @@ function ac_set_focus_topic(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     priv.focus_topic = (kw && kw.topic) || "";
+
+    /*  The URL wins over the strip: a route that lands on a hidden
+     *  topic shows it first, or it would highlight nothing and say
+     *  nothing about why.  */
+    if(priv.focus_topic) {
+        let hidden = legend_list_attr(gobj, "hidden_topics");
+        if(str_in_list(hidden, priv.focus_topic)) {
+            delete_from_list(hidden, priv.focus_topic);
+            set_legend_list_attr(gobj, "hidden_topics", "EV_SET_HIDDEN_TOPICS", hidden);
+        }
+    }
+
     if(priv.gobj_nodes_tree) {
         gobj_send_event(
             priv.gobj_nodes_tree,
@@ -2547,11 +2732,7 @@ function ac_set_focus_topic(gobj, event, kw, src)
     }
     /*  Keep the legend's mark on the topic that is actually focused —
      *  including when the focus arrives from the URL and not from a click. */
-    let $container = gobj_read_attr(gobj, "$container");
-    let $legend = $container? $container.querySelector(".GRAPH_LEGEND") : null;
-    if($legend && !$legend.classList.contains("is-hidden")) {
-        refresh_legend(gobj);
-    }
+    refresh_legend(gobj);
     return 0;
 }
 
@@ -2644,8 +2825,8 @@ function create_gclass(gclass_name)
             ["EV_EXPAND_ALL",               ac_expand_all,              null],
             ["EV_COLLAPSE_ALL",             ac_collapse_all,            null],
             ["EV_LAYOUT_AUTOSET",           ac_layout_autoset,          null],
-            ["EV_TOGGLE_LEGEND",            ac_toggle_legend,           null],
             ["EV_LEGEND_TOPIC",             ac_legend_topic,            null],
+            ["EV_LEGEND_STATE",             ac_legend_state,            null],
             ["EV_FIND_RESULT",              ac_find_result,             null],
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
@@ -2686,8 +2867,8 @@ function create_gclass(gclass_name)
         ["EV_COLLAPSE_ALL",             0],
         ["EV_FIND_RESULT",              0],
         ["EV_LAYOUT_AUTOSET",           0],
-        ["EV_TOGGLE_LEGEND",            0],
         ["EV_LEGEND_TOPIC",             0],
+        ["EV_LEGEND_STATE",             0],
         ["EV_TOPIC_SELECTED",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_OPERATION_MODE_CHANGED",

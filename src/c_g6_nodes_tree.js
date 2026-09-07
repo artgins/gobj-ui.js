@@ -341,6 +341,9 @@ SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey po
 /*---------------- Folding ----------------*/
 SDATA(data_type_t.DTP_INTEGER,  "expand_depth",         0,  2,      "Levels open when a treedb loads: 1 = the roots alone, 2 = the roots and their children. Every open hook shows its first page"),
 SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",       0,  24,     "Children of one hook shown per page; the `+N` chip after the page opens the next one"),
+SDATA(data_type_t.DTP_LIST,     "hidden_topics",        0,  "[]",   "Topics left out of the tree: no card, no pill counts them, no edge reaches them"),
+SDATA(data_type_t.DTP_STRING,   "main_topic",           0,  "",     "The topic the tree hangs from; empty = deduced (the one whose hooks reach the most others). Its parentless records are the roots; a parentless record of a topic linked to it is LOOSE and shown only on request"),
+SDATA(data_type_t.DTP_LIST,     "loose_topics",         0,  "[]",   "Topics whose loose records (no parent, in a topic the schema hangs from the main one) are shown as roots"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_unlink_edge",  0,  true,   "Ask confirmation before unlinking an edge"),
 
@@ -421,6 +424,7 @@ let PRIVATE_DATA = {
                                     //  it exists to diff the repaint)
     _pending_focus_topic: null,     // focus requested before data was loaded
     _pending_focus_all: false,      // ...and whether it reveals the whole topic
+    _find_hidden_matches: 0,        // matches of the last find in HIDDEN topics
     _pending_find:      null,       // find requested before data was loaded
     _layout_asked:      "",         // layout the host asked for at create (see mt_create)
     _nodes_total:       0,          // records of the treedb (auto_layout)
@@ -429,6 +433,9 @@ let PRIVATE_DATA = {
     /*---------------- folding ----------------*/
     expand_depth:       2,
     fold_page_size:     24,
+    hidden_topics:      null,
+    main_topic:         "",
+    loose_topics:       null,
     _fold_model:        null,       // treedb_fold_model: the tree of the records
     _fold_state:        null,       // ...and which groups of it are open
     _fold_listener:     null,       // delegated click on the card pills
@@ -2992,27 +2999,40 @@ function graph_find_nodes(gobj, term)
      *  folded away, and a find that only read what was on screen would
      *  answer "nothing" for a device three levels down.  */
     let keys = [];
+    let hidden_matches = 0;
     if(!empty_string(term)) {
         let needle = String(term).toLowerCase();
-        for(let node of model.nodes.values()) {
-            let record = node.record || {};
+        let matches = (topic_name, record) => {
             let label = "";
             try {
-                label = node_label(priv.descs[node.topic_name] || {}, record) || "";
+                label = node_label(priv.descs[topic_name] || {}, record) || "";
             } catch(e) {
                 label = "";
             }
             let haystack = [
                 label,
                 record.id,
-                node.topic_name
+                topic_name
             ].filter((v) => typeof v === "string").join(" ").toLowerCase();
-
-            if(haystack.includes(needle)) {
+            return haystack.includes(needle);
+        };
+        for(let node of model.nodes.values()) {
+            if(matches(node.topic_name, node.record || {})) {
                 keys.push(node.key);
             }
         }
+        /*  A hidden topic is searched too, and COUNTED apart: a term
+         *  that only matches there would otherwise answer "0", which
+         *  reads as "does not exist" when it means "is hidden".  */
+        for(let topic_name of model.hidden) {
+            for(let record of (priv.records[topic_name] || [])) {
+                if(is_object(record) && matches(topic_name, record)) {
+                    hidden_matches++;
+                }
+            }
+        }
     }
+    priv._find_hidden_matches = hidden_matches;
 
     /*  Hidden matches are opened up to, one page of them at most: a
      *  single letter matches half the treedb, and unfolding half the
@@ -7536,7 +7556,11 @@ function rebuild_fold_model(gobj)
 {
     let priv = gobj.priv;
 
-    priv._fold_model = fold_build_model(priv.descs || {}, priv.records || {});
+    priv._fold_model = fold_build_model(priv.descs || {}, priv.records || {}, {
+        hidden_topics: gobj_read_attr(gobj, "hidden_topics") || [],
+        main_topic: gobj_read_str_attr(gobj, "main_topic") || "",
+        loose_topics: gobj_read_attr(gobj, "loose_topics") || [],
+    });
     if(!priv._fold_state) {
         priv._fold_state = fold_new_state(gobj_read_integer_attr(gobj, "fold_page_size"));
     }
@@ -7622,7 +7646,58 @@ async function reconcile_fold_now(gobj, opts)
     } finally {
         history_resume(gobj);
     }
+    publish_legend_state(gobj, visible);
     return changed;
+}
+
+/************************************************************
+ *  What the legend has to say, published after every reconcile:
+ *  one entry per topic of the treedb, hidden ones included, with
+ *  its colour, how many records it has, how many are on screen,
+ *  how many are LOOSE, and the flags -- plus which topic is the
+ *  main one and whether it was deduced or chosen. The host draws
+ *  the strip from this and nothing else; the engine is the truth.
+ ************************************************************/
+function publish_legend_state(gobj, visible)
+{
+    let priv = gobj.priv;
+    let model = priv._fold_model;
+
+    if(!model || !priv.descs) {
+        return;
+    }
+
+    let on_screen = {};
+    for(let key of visible) {
+        let node = model.nodes.get(key);
+        if(node) {
+            on_screen[node.topic_name] = (on_screen[node.topic_name] || 0) + 1;
+        }
+    }
+
+    let topics = [];
+    for(const [topic_name, desc] of Object.entries(priv.descs)) {
+        if(topic_name.substring(0, 2) === "__" || !desc) {
+            continue;
+        }
+        let loose = model.loose[topic_name] || [];
+        topics.push({
+            topic: topic_name,
+            color: desc.color || "",
+            total: model.totals[topic_name] || 0,
+            visible: on_screen[topic_name] || 0,
+            loose: loose.length,
+            loose_shown: model.loose_shown.has(topic_name),
+            hidden: model.hidden.has(topic_name),
+            linked: model.linked.has(topic_name),
+        });
+    }
+
+    gobj_publish_event(gobj, "EV_LEGEND_STATE", {
+        main_topic: model.main_topic,
+        main_chosen: !!gobj_read_str_attr(gobj, "main_topic"),
+        topics: topics,
+    });
 }
 
 async function reconcile_fold_apply(gobj, opts, visible)
@@ -8628,13 +8703,69 @@ function ac_collapse_all(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The legend's three settings, from the host, which persists
+ *  them. Each rebuilds the tree; the fold state is kept -- it is
+ *  keyed by group, and a group that is gone is never read -- except
+ *  for a new MAIN topic, whose roots are other roots: the tree
+ *  opens again at `expand_depth`.
+ ************************************************************/
+function ac_set_hidden_topics(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let topics = (kw && is_array(kw.topics))? kw.topics : [];
+
+    gobj_write_attr(gobj, "hidden_topics", topics);
+    if(!priv._fold_model) {
+        return 0;       /*  applied when the records arrive  */
+    }
+    rebuild_fold_model(gobj);
+    reconcile_fold(gobj, {});
+    return 0;
+}
+
+function ac_set_main_topic(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    gobj_write_str_attr(gobj, "main_topic", (kw && kw.topic) || "");
+    if(!priv._fold_model) {
+        return 0;
+    }
+    rebuild_fold_model(gobj);
+    fold_expand_to_depth(
+        priv._fold_model, priv._fold_state,
+        gobj_read_integer_attr(gobj, "expand_depth")
+    );
+    reconcile_fold(gobj, {relayout: true, fit: true});
+    return 0;
+}
+
+function ac_set_loose_topics(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let topics = (kw && is_array(kw.topics))? kw.topics : [];
+
+    gobj_write_attr(gobj, "loose_topics", topics);
+    if(!priv._fold_model) {
+        return 0;
+    }
+    rebuild_fold_model(gobj);
+    reconcile_fold(gobj, {});
+    return 0;
+}
+
+/************************************************************
  *  Tell whoever asked how many nodes the term matched. The count is
  *  the answer to the question the box asks; without it "nothing moved"
  *  and "nothing matched" look the same.
  ************************************************************/
 function publish_find_result(gobj, term, matches)
 {
-    gobj_publish_event(gobj, "EV_FIND_RESULT", {term: term, matches: matches});
+    gobj_publish_event(gobj, "EV_FIND_RESULT", {
+        term: term,
+        matches: matches,
+        hidden_matches: gobj.priv._find_hidden_matches || 0,
+    });
 }
 
 /************************************************************
@@ -9184,6 +9315,9 @@ function create_gclass(gclass_name)
             ["EV_SHOW_MORE",                ac_show_more,           null],
             ["EV_EXPAND_ALL",               ac_expand_all,          null],
             ["EV_COLLAPSE_ALL",             ac_collapse_all,        null],
+            ["EV_SET_HIDDEN_TOPICS",        ac_set_hidden_topics,   null],
+            ["EV_SET_MAIN_TOPIC",           ac_set_main_topic,      null],
+            ["EV_SET_LOOSE_TOPICS",         ac_set_loose_topics,    null],
             ["EV_CENTER",                   ac_center,              null],
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_SET_LAYOUT",               ac_set_layout,          null],
@@ -9241,6 +9375,10 @@ function create_gclass(gclass_name)
         ["EV_SHOW_MORE",                0],
         ["EV_EXPAND_ALL",               0],
         ["EV_COLLAPSE_ALL",             0],
+        ["EV_SET_HIDDEN_TOPICS",        0],
+        ["EV_SET_MAIN_TOPIC",           0],
+        ["EV_SET_LOOSE_TOPICS",         0],
+        ["EV_LEGEND_STATE",             event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],

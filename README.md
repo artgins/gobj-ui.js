@@ -1266,6 +1266,63 @@ a level or two, with a count on every cut.
 
 One consumer key came with it: `show more`, the chip's tooltip.
 
+### The legend is the graph's layer control
+
+The legend strip under the toolbar is **always there** now (the *Legend*
+button is gone), and it is not a colour key: it is where the reader decides
+**what the tree is made of**. One chip per topic — swatch, name, `visible/total`
+— with a small target for each thing it can do, so a finger lands on one of
+them:
+
+| control | what it does |
+|---|---|
+| the chip body | **show / hide** the topic. A hidden topic leaves the MODEL, not just the drawing: no card, no pill counts it, no edge reaches it, and whatever hung from it alone has no parent any more. The name is struck through and the count is the total. |
+| `★` / `☆` | the **main topic**: the trunk the tree hangs from. Filled on the main one (a mark, not a button — the main topic cannot be hidden, because hiding the trunk turns everything into roots, which is the pile); hollow on the others, where it moves the star. |
+| `+N` | the topic's **loose records**: the ones that should hang from the main tree and do not (a device with no place). Counted here, shown only on request. |
+| `⌖` | **highlight** the topic — the focus, with `reveal: "all"`. |
+
+The **main topic is deduced** when none is chosen: the topic whose hooks reach
+the most OTHER topics, a self-referent hook breaking a tie (a tree of places
+over a flat list of groups). On the yunovatios central that is `places` (it
+reaches places, devices, users and controllers); `device_types` reaches one.
+An `extended` topic (hooks, no fkeys) never wins: the engine draws no edge
+from one, so its records hang nothing. A treedb where no topic reaches
+another has no trunk, and every topic is a tree of its own — the behaviour
+before this existed.
+
+What the main topic governs, in `treedb_fold_model.js`:
+
+- its parentless records are the **roots**;
+- a parentless record of a topic the schema hangs from it (`linked`: reached
+  from the main topic by following hooks) is **loose**, not a root — it is
+  counted per topic and drawn only when its `+N` is on;
+- a topic the schema does not tie to the main one is its own tree, with its
+  own roots, as before.
+
+So *places with their users and nothing else* is hiding `devices`,
+`controllers` and `device_types`; *places with their devices* is hiding
+`users` and `controllers`. Each combination is a user preference **per
+treedb**: `hidden_topics`, `main_topic` and `loose_topics` are `SDF_PERSIST`
+attrs of `C_YUI_TREEDB_GRAPH`, saved under the view's name, and both hosts
+name the view after the treedb.
+
+Three edges of it: the URL wins over the strip (a route that lands on a hidden
+topic shows it first, or it would highlight nothing and say nothing about
+why); the find searches hidden topics too and counts them apart (`3 matches
+(+2 in hidden topics)`), because `0` alone reads as *does not exist* when it
+means *is hidden*; and moving the star reopens the tree at `expand_depth`,
+since other roots are another tree.
+
+Wiring: the engine publishes `EV_LEGEND_STATE` after every reconcile — one
+entry per topic (hidden ones included) with colour, total, visible, loose and
+flags, plus the main topic — and the view paints the strip from that and
+nothing else. The strip's clicks are `EV_LEGEND_TOPIC {topic, action}` with
+`action` one of `toggle`, `main`, `loose`, `focus`; the view persists and
+forwards them as `EV_SET_HIDDEN_TOPICS`, `EV_SET_MAIN_TOPIC`,
+`EV_SET_LOOSE_TOPICS`. Consumer i18n keys: `show topic`, `hide topic`,
+`main topic`, `highlight topic`, `loose records`, `hidden topics`; `legend`
+is no longer used.
+
 ### C_YUI_TREEDB_SCHEMA — the treedb drawn the way its `.c` draws it
 
 A landing view that draws a treedb the way its schema literal draws it in ASCII

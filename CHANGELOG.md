@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.68
+
+- **The legend is the graph's layer control, and it is always there.** The
+  *Legend* button is gone; the strip under the toolbar stays, one chip per
+  topic with `visible/total`, and each chip decides what the tree is made
+  of: the body **shows or hides** the topic (a hidden topic leaves the
+  model: no card, no pill counts it, no edge reaches it), `☆` makes it the
+  **main topic**, `+N` shows its **loose records**, `⌖` highlights it. The
+  three settings are user preferences per treedb (`hidden_topics`,
+  `main_topic`, `loose_topics`, `SDF_PERSIST` on `C_YUI_TREEDB_GRAPH`).
+- **A main topic governs the tree.** Deduced when none is chosen — the topic
+  whose hooks reach the most others, a self-referent hook breaking a tie,
+  never an `extended` one — it is the trunk: its parentless records are the
+  roots, and a parentless record of a topic the schema hangs from it is
+  LOOSE (a device with no place), counted on its chip and drawn only on
+  request instead of being a column of roots. A topic the schema does not
+  tie to the main one is a tree of its own. The main topic cannot be hidden.
+  *Places with their users and nothing else* is now two clicks.
+- The find searches hidden topics too and counts them apart (`+N in hidden
+  topics`); a route that lands on a hidden topic shows it first. The engine
+  publishes `EV_LEGEND_STATE` after every reconcile and the view paints the
+  strip from it. New consumer i18n keys: `show topic`, `hide topic`, `main
+  topic`, `highlight topic`, `loose records`, `hidden topics`.
+
 ## 7.23.67
 
 - **A click on the legend reveals the WHOLE topic.** `7.23.66` capped every

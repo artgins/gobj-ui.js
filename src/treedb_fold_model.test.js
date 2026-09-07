@@ -24,6 +24,8 @@ import {
     fold_group_key,
     fold_root_group_key,
     fold_split_group_key,
+    fold_main_topic,
+    fold_group_shown,
 } from "./treedb_fold_model.js";
 
 const places_desc = {
@@ -133,12 +135,21 @@ describe("the model", () => {
         expect(m.groups.get(fold_root_group_key("device_groups"))).toEqual([K("device_groups", "g1")]);
     });
 
-    test("a child of an `extended` parent only is a root: the engine draws no edge to one", () => {
+    test("a child of an `extended` parent only has no parent: the engine draws no edge to one", () => {
         let recs = make_records(1);
         recs.devices[0] = {id: "d0", group: "device_groups^g1^members"};
         let m = fold_build_model(descs, recs);
-        expect(m.groups.get(fold_root_group_key("devices"))).toEqual([K("devices", "d0")]);
         expect(m.nodes.get(K("device_groups", "g1")).hooks).toEqual({});
+        /*  devices hang from places (the main topic), so a device with
+         *  no parent is LOOSE, not a root -- see the "main topic" block  */
+        expect(m.loose.devices).toEqual([K("devices", "d0")]);
+        expect(m.groups.get(fold_root_group_key("devices"))).toBeUndefined();
+        /*  and with no main topic it is a plain root  */
+        let m2 = fold_build_model({places: places_desc, devices: devices_desc, device_groups: groups_desc}, recs, {main_topic: ""});
+        expect(m2.main_topic).toBe("places");   /*  "" means "deduce", and places reaches devices  */
+        let m3 = fold_build_model({devices: devices_desc, device_groups: groups_desc}, recs);
+        expect(m3.main_topic).toBe("");
+        expect(m3.groups.get(fold_root_group_key("devices"))).toEqual([K("devices", "d0")]);
     });
 
     test("a cycle with no way in gets one root, not a row of them", () => {
@@ -161,6 +172,113 @@ describe("the model", () => {
             .toEqual({node_key: "places^nave1", hook: "devices"});
         expect(fold_split_group_key("|devices")).toEqual({node_key: "", hook: "devices"});
         expect(fold_split_group_key("nope")).toBeNull();
+    });
+});
+
+describe("main topic, hidden topics, loose records", () => {
+    test("the main topic is the one whose hooks reach the most others; places, not device_groups", () => {
+        expect(fold_main_topic(descs)).toBe("places");
+        let m = fold_build_model(descs, make_records(3));
+        expect(m.main_topic).toBe("places");
+        expect([...m.linked].sort()).toEqual(["controllers", "devices", "places"]);
+        expect(m.linked.has("device_groups")).toBe(false);
+    });
+
+    test("a self-referent hook breaks a tie", () => {
+        let a = {topic_name: "a", node_treedb_type: "extended",
+                 cols: [{id: "id", flag: []}, {id: "xs", flag: ["hook"], hook: {x: "a"}}]};
+        let b = {topic_name: "b", node_treedb_type: "hierarchical",
+                 cols: [{id: "id", flag: []}, {id: "xs", flag: ["hook"], hook: {x: "b"}},
+                        {id: "bs", flag: ["hook"], hook: {b: "parent"}},
+                        {id: "parent", flag: ["fkey"], fkey: {b: "bs"}}]};
+        let x = {topic_name: "x", node_treedb_type: "child", cols: [{id: "id", flag: []}]};
+        expect(fold_main_topic({a: a, b: b, x: x})).toBe("b");
+        expect(fold_main_topic({x: x})).toBe("");
+    });
+
+    test("an explicit main topic wins over the deduced one", () => {
+        let m = fold_build_model(descs, make_records(3), {main_topic: "controllers"});
+        expect(m.main_topic).toBe("controllers");
+        expect([...m.linked].sort()).toEqual(["controllers", "devices"]);
+        /*  places is not linked to controllers, so its roots are roots  */
+        expect(m.groups.get(fold_root_group_key("places"))).toEqual([K("places", "es")]);
+    });
+
+    test("a device with no place is LOOSE: counted, not a root, unless asked for", () => {
+        let recs = make_records(3);
+        recs.devices.push({id: "d_loose"});
+        let m = fold_build_model(descs, recs);
+        expect(m.loose.devices).toEqual([K("devices", "d_loose")]);
+        expect(m.groups.get(fold_root_group_key("devices"))).toBeUndefined();
+        expect(m.totals.devices).toBe(4);
+        let m2 = fold_build_model(descs, recs, {loose_topics: ["devices"]});
+        expect(m2.groups.get(fold_root_group_key("devices"))).toEqual([K("devices", "d_loose")]);
+        expect(m2.loose.devices).toEqual([K("devices", "d_loose")]);
+    });
+
+    test("a device hanging from a loose controller only is loose too, and follows it", () => {
+        let recs = make_records(0);
+        recs.controllers.push({id: "c_loose"});
+        recs.devices.push({id: "d_under", controller: ["controllers^c_loose^devices"]});
+        let m = fold_build_model(descs, recs);
+        expect(m.loose.controllers).toEqual([K("controllers", "c_loose")]);
+        expect(m.loose.devices).toEqual([K("devices", "d_under")]);
+        let st = fold_new_state(24);
+        fold_expand_all(m, st);
+        expect(fold_visible_set(m, st).has(K("devices", "d_under"))).toBe(false);
+        let m2 = fold_build_model(descs, recs, {loose_topics: ["controllers"]});
+        fold_expand_all(m2, st);
+        expect(fold_visible_set(m2, st).has(K("devices", "d_under"))).toBe(true);
+    });
+
+    test("a hidden topic leaves the model whole: no node, no pill, no edge", () => {
+        let m = fold_build_model(descs, make_records(30), {hidden_topics: ["devices"]});
+        expect(m.topics).toEqual(["places", "controllers", "device_groups"]);
+        expect(m.totals.devices).toBe(30);
+        expect(m.nodes.get(K("places", "nave1")).hooks.devices).toBeUndefined();
+        expect(fold_pills_of(m, fold_new_state(24), K("places", "nave1")).map((p) => p.hook))
+            .toEqual(["controllers"]);
+        expect(m.hidden.has("devices")).toBe(true);
+    });
+
+    test("hiding a topic in the middle: what hung from it alone becomes loose", () => {
+        let m = fold_build_model(descs, make_records(12), {hidden_topics: ["controllers"]});
+        /*  d0..d9 hang from nave1 AND c1: still under nave1  */
+        expect(m.nodes.get(K("devices", "d0")).parents.length).toBe(1);
+        expect(m.loose.devices).toEqual([]);
+        /*  places hidden = the main topic gone: nothing governs, and
+         *  whatever has no parent left is a root -- c1, with d0 and d1
+         *  still hanging from it  */
+        let m2 = fold_build_model(descs, make_records(2), {hidden_topics: ["places"]});
+        expect(m2.main_topic).toBe("");
+        expect(m2.groups.get(fold_root_group_key("controllers"))).toEqual([K("controllers", "c1")]);
+        expect(m2.groups.get(fold_root_group_key("devices"))).toBeUndefined();
+        let m3 = fold_build_model(descs, {devices: [{id: "d9"}]}, {hidden_topics: ["places"]});
+        expect(m3.groups.get(fold_root_group_key("devices"))).toEqual([K("devices", "d9")]);
+    });
+
+    test("a topic shown again opens on its roots' first page: nobody folds the roots", () => {
+        let recs = make_records(3);
+        let st = fold_new_state(24);
+        let m = fold_build_model(descs, recs, {hidden_topics: ["device_groups"]});
+        fold_expand_to_depth(m, st, 2);
+        expect(fold_visible_set(m, st).has(K("device_groups", "g1"))).toBe(false);
+        let m2 = fold_build_model(descs, recs);
+        expect(fold_visible_set(m2, st).has(K("device_groups", "g1"))).toBe(true);
+        expect(fold_pending_groups(m2, st, fold_visible_set(m2, st))).toEqual([]);
+    });
+
+    test("the fold state survives a hide and a show", () => {
+        let recs = make_records(30);
+        let st = fold_new_state(24);
+        let m = fold_build_model(descs, recs);
+        fold_expand_to_depth(m, st, 4);
+        let g = fold_group_key(K("places", "nave1"), "devices");
+        expect(fold_group_shown(m, st, g)).toBe(24);
+        let m_hidden = fold_build_model(descs, recs, {hidden_topics: ["devices"]});
+        expect(fold_group_shown(m_hidden, st, g)).toBe(0);      /*  no group: nothing shown  */
+        let m_back = fold_build_model(descs, recs);
+        expect(fold_group_shown(m_back, st, g)).toBe(24);       /*  remembered  */
     });
 });
 
