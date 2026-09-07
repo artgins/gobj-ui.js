@@ -420,6 +420,7 @@ let PRIVATE_DATA = {
                                     //  itself; this is what is on screen, and
                                     //  it exists to diff the repaint)
     _pending_focus_topic: null,     // focus requested before data was loaded
+    _pending_focus_all: false,      // ...and whether it reveals the whole topic
     _pending_find:      null,       // find requested before data was loaded
     _layout_asked:      "",         // layout the host asked for at create (see mt_create)
     _nodes_total:       0,          // records of the treedb (auto_layout)
@@ -2850,12 +2851,13 @@ async function graph_fit_selection(gobj, ids)
  *  once the data loads (see ac_load_data). Guarded end-to-end — a
  *  missing G6 API or an unknown topic logs and no-ops, never throws.
  ************************************************************/
-function graph_focus_topic(gobj, topic)
+function graph_focus_topic(gobj, topic, reveal_all)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
     if(!graph || !priv.graph_rendered || !priv._fold_model) {
         priv._pending_focus_topic = topic;
+        priv._pending_focus_all = !!reveal_all;
         return;
     }
 
@@ -2863,11 +2865,13 @@ function graph_focus_topic(gobj, topic)
     let state = priv._fold_state;
 
     /*  "Show me these": the ones on screen are highlighted, and the
-     *  hidden ones are opened up to -- ONE PAGE of them, the same cap
-     *  the find has. The graph's per-topic route lands here on every
-     *  load (`.../graph/devices` is a focus on `devices`), and
+     *  hidden ones are opened up to. How many depends on who asks.
+     *  A click on the LEGEND (`reveal_all`) means every record of the
+     *  topic, however deep it is folded away. The graph's per-topic
+     *  ROUTE lands here on every load (`.../graph/devices` is a focus
+     *  on `devices`) and gets ONE PAGE, the same cap the find has:
      *  revealing a whole topic on landing opened 563 groups of a
-     *  6400-record treedb: the pile, back, before anybody touched
+     *  6400-record treedb -- the pile, back, before anybody touched
      *  anything.  */
     let keys = [];
     if(!empty_string(topic)) {
@@ -2885,7 +2889,7 @@ function graph_focus_topic(gobj, topic)
             if(visible.has(key)) {
                 continue;
             }
-            if(revealed >= state.page_size) {
+            if(!reveal_all && revealed >= state.page_size) {
                 break;
             }
             fold_reveal(model, state, key);
@@ -8025,8 +8029,10 @@ function ac_load_data(gobj, event, kw, src)
              *  requested before the data was ready (deep link). */
             if(priv._pending_focus_topic !== null) {
                 let ft = priv._pending_focus_topic;
+                let all = priv._pending_focus_all;
                 priv._pending_focus_topic = null;
-                graph_focus_topic(gobj, ft);
+                priv._pending_focus_all = false;
+                graph_focus_topic(gobj, ft, all);
             }
             if(priv._pending_find !== null) {
                 let term = priv._pending_find;
@@ -8526,7 +8532,7 @@ function ac_zoom_selection(gobj, event, kw, src)
 
 function ac_focus_topic(gobj, event, kw, src)
 {
-    graph_focus_topic(gobj, kw && kw.topic);
+    graph_focus_topic(gobj, kw && kw.topic, !!(kw && kw.reveal === "all"));
     return 0;
 }
 

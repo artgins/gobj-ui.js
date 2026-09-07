@@ -1248,12 +1248,15 @@ a level or two, with a count on every cut.
   `antv-dagre` keeps the top-down reading, so the layout picker is also the
   direction picker. A layout change turns the ports of every card in place.
 - **The find and the topic focus search the RECORDS**, not the cards, and open
-  the path down to what they find — at most one **page** of hidden matches
-  each, because a single letter matches half the treedb and the graph's
-  per-topic route (`.../graph/devices`) is a focus on `devices` that lands on
-  every load: revealing a whole topic there opened 563 groups of a 6400-record
-  treedb before anybody had touched anything. The count reported is of all the
-  matches.
+  the path down to what they find. The find reveals at most one **page** of
+  hidden matches (a single letter matches half the treedb); the count reported
+  is of all of them. The topic focus depends on who asks: a click on the
+  **legend** reveals the **whole topic** (`reveal: "all"` on
+  `EV_SET_FOCUS_TOPIC`) — *show me these* means all of them — while the graph's
+  per-topic **route** (`.../graph/devices` is a focus on `devices`) gets one
+  page, because it lands on every load, and revealing a whole topic there
+  opened 563 groups of a 6400-record treedb before anybody had touched
+  anything.
 - **Edition and the saved geometry are untouched by folding.** Only the cards
   on screen are read when the graph is saved; a folded card keeps the entry it
   had in `__graphs__`. A card on its default size grows by the pill row when it

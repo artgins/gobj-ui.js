@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.67
+
+- **A click on the legend reveals the WHOLE topic.** `7.23.66` capped every
+  topic focus at one page of hidden records, because the graph's per-topic
+  route is a focus that lands on every load. The cap was right for the route
+  and wrong for the legend: *show me these* means all of them. The legend
+  sends `reveal: "all"` on `EV_SET_FOCUS_TOPIC` and the view forwards it; a
+  focus without it (the route) keeps the page.
+
 ## 7.23.66
 
 - **The treedb graph opens FOLDED, like a JSON viewer.** A treedb drawn whole

@@ -2435,7 +2435,12 @@ function ac_legend_topic(gobj, event, kw, src)
      *  DEDUPED: a legend that only announced moved the URL and focused
      *  nothing. This is the same contract the topics view keeps, where
      *  clicking a topic shows it and says so.  */
-    gobj_send_event(gobj, "EV_SET_FOCUS_TOPIC", {topic: next}, gobj);
+    /*  `reveal: "all"`: a click on the legend is "show me these", and
+     *  these means every record of the topic, however deep it is folded
+     *  away. The route that lands on a topic sends no `reveal` and gets
+     *  one page -- it fires on every load, and a whole topic there is
+     *  the pile back before anybody touched anything.  */
+    gobj_send_event(gobj, "EV_SET_FOCUS_TOPIC", {topic: next, reveal: "all"}, gobj);
     gobj_publish_event(gobj, "EV_TOPIC_SELECTED", {topic: next});
     return 0;
 }
@@ -2536,7 +2541,7 @@ function ac_set_focus_topic(gobj, event, kw, src)
         gobj_send_event(
             priv.gobj_nodes_tree,
             "EV_FOCUS_TOPIC",
-            {topic: priv.focus_topic},
+            {topic: priv.focus_topic, reveal: (kw && kw.reveal) || "page"},
             gobj
         );
     }
