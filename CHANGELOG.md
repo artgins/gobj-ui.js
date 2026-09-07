@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.66
+
+- **The treedb graph opens FOLDED, like a JSON viewer.** A treedb drawn whole
+  was a pile: a nave with a hundred and forty devices was a row of a hundred
+  and forty cards, the edges to them a band of parallel lines, and a
+  6400-record treedb built a DOM card for every record before the first pixel.
+  Now every record is fetched but only the visible ones become G6 nodes: the
+  roots, `expand_depth` levels under them (default 2), one page
+  (`fold_page_size`, default 24) of children per hook, and a `+N` chip after
+  each page. Each card carries a pill per hook that has children — `▸ devices
+  142`, `▾ devices 24/142` — in the child topic's colour; tapping it opens or
+  folds that hook, and the card holds still on screen while the layout moves
+  the rest. The arithmetic is a pure module, `treedb_fold_model.js` (a device
+  with two parents is drawn once, under whichever opened first; folding one
+  leaves it where the other shows it; a child of an `extended` parent is a
+  root because no edge is drawn to one; a cycle nothing reaches gets one
+  root). The toolbar gains the same fold pair as the JSON graph (expand all /
+  collapse all); the find and the topic focus search the records and open
+  the path to what they find, at most one page of hidden matches each — the
+  graph's per-topic route is a focus that lands on every load, and revealing
+  a whole topic there opened 563 groups before anybody touched anything.
+  `dagre` reads LEFT TO RIGHT now, with the ports turned to the sides and
+  horizontal beziers; `antv-dagre` keeps the top-down reading. New attrs on
+  `C_YUI_TREEDB_GRAPH` / `C_G6_NODES_TREE`: `expand_depth`, `fold_page_size`.
+  New consumer i18n key: `show more`.
+
 ## 7.23.65
 
 - **A toolbar item can be a LINK now** (`action.type: "link"`, with `url` and

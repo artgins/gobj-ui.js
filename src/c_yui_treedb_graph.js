@@ -37,6 +37,7 @@ import {
     kw_get_dict_value,
     gobj_short_name,
     gobj_read_str_attr,
+    gobj_read_integer_attr,
     gobj_destroy,
     json_object_update,
     is_object,
@@ -80,6 +81,7 @@ import {
 import {yui_toolbar} from "./yui_toolbar.js";
 import {attach_clear} from "./yui_inputs.js";
 import {register_c_g6_nodes_tree} from "./c_g6_nodes_tree.js";
+import {yui_graph_fold_items} from "./yui_graph_camera.js";
 import {
     removeChildElements,
     disableElements,
@@ -107,6 +109,8 @@ SDATA(data_type_t.DTP_LIST,     "operation_modes",  0,
 '["reading", "operation", "writing", "edition"]',
 "Available **permission** or behaviour modes. These operation modes are required to be accomplish by the graph handler (G6 child). TODO permissions must match treedb permissions."),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb tables"),
+SDATA(data_type_t.DTP_INTEGER,  "expand_depth",     0,  2,      "Levels of the treedb open when it loads: 1 = the roots alone, 2 = the roots and their children. Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",   0,  24,     "Children of one hook shown per page in the graph; a `+N` chip opens the next page. Forwarded to the G6 child"),
 
 /*---------------- User last selections  ----------------*/
 SDATA(data_type_t.DTP_STRING,   "operation_mode",   sdata_flag_t.SDF_PERSIST, "reading", "Current operation mode (internal behaviour or role). Changed by the user trough the gui."),
@@ -240,6 +244,8 @@ function mt_create(gobj)
             with_treedb_tables: priv.with_treedb_tables,
             hook_port_position: "bottom",
             fkey_port_position: "top",
+            expand_depth: gobj_read_integer_attr(gobj, "expand_depth"),
+            fold_page_size: gobj_read_integer_attr(gobj, "fold_page_size"),
         },
         gobj
     );
@@ -562,6 +568,12 @@ function make_toolbar(gobj)
                 gobj_send_event(gobj, "EV_REFRESH_TREEDB", {evt}, gobj);
             }
         }],
+
+        /*  The fold pair, the same two chevrons the JSON graph and the
+         *  lazy tree use: the graph opens folded (see the G6 child), and
+         *  these are the whole thing and the roots alone. Refresh is the
+         *  way back to the default depth.  */
+        ...yui_graph_fold_items(gobj, gobj_read_str_attr(gobj, "wide")),
 
         /*  Which colour is which topic. The port colour of a node encodes
          *  the topic it links to, which is the whole point of the graph and
@@ -2467,6 +2479,28 @@ function ac_find_nodes(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The fold pair of the toolbar, forwarded to the G6 child,
+ *  which owns the tree.
+ ************************************************************/
+function ac_expand_all(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(priv.gobj_nodes_tree, "EV_EXPAND_ALL", {}, gobj);
+    }
+    return 0;
+}
+
+function ac_collapse_all(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(priv.gobj_nodes_tree, "EV_COLLAPSE_ALL", {}, gobj);
+    }
+    return 0;
+}
+
+/************************************************************
  *  How many nodes the term matched, from the graph child. Zero with a
  *  term typed is an ANSWER and is shown; an empty box shows nothing.
  ************************************************************/
@@ -2602,6 +2636,8 @@ function create_gclass(gclass_name)
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
             ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
             ["EV_FIND_NODES",               ac_find_nodes,              null],
+            ["EV_EXPAND_ALL",               ac_expand_all,              null],
+            ["EV_COLLAPSE_ALL",             ac_collapse_all,            null],
             ["EV_LAYOUT_AUTOSET",           ac_layout_autoset,          null],
             ["EV_TOGGLE_LEGEND",            ac_toggle_legend,           null],
             ["EV_LEGEND_TOPIC",             ac_legend_topic,            null],
@@ -2641,6 +2677,8 @@ function create_gclass(gclass_name)
         ["EV_SET_OPERATION_MODE",       0],
         ["EV_SET_FOCUS_TOPIC",          0],
         ["EV_FIND_NODES",               0],
+        ["EV_EXPAND_ALL",               0],
+        ["EV_COLLAPSE_ALL",             0],
         ["EV_FIND_RESULT",              0],
         ["EV_LAYOUT_AUTOSET",           0],
         ["EV_TOGGLE_LEGEND",            0],

@@ -1208,6 +1208,61 @@ Wiring: the box sends `EV_FIND_NODES {text}` to the view, which forwards it to
 `C_G6_NODES_TREE`; the graph answers `EV_FIND_RESULT {term, matches}`, which the
 view declares like every other event its child publishes.
 
+### The graph opens FOLDED, like a JSON viewer
+
+A treedb drawn whole is a pile. A nave with a hundred and forty devices was a
+**row of a hundred and forty cards** under one parent, the edges to them a band
+of parallel lines, and a 6400-record treedb took every one of those records
+through a DOM card before the first pixel appeared. So the graph now reads the
+treedb the way a JSON viewer reads a document: **a tree by its hooks**, opened
+a level or two, with a count on every cut.
+
+- **Every record is fetched, only the visible ones become G6 nodes.** The
+  arithmetic lives in `treedb_fold_model.js` (pure, no G6, tested): the roots
+  are the records with no drawable parent, a node's children are the records
+  whose fkey names it through a hook, and a node is visible when a visible
+  parent shows it or it is a shown root — the **union**, so a device that hangs
+  from its place AND its controller is drawn once, under whichever opened
+  first, and folding one of the two leaves it where the other shows it.
+- **`expand_depth`** (default `2`) is how much opens on load: the roots and
+  their children. **`fold_page_size`** (default `24`) is how many children of
+  one hook are shown at a time; the rest is a **`+N` chip** at the end of the
+  page that opens the next one. Both are attrs of `C_YUI_TREEDB_GRAPH`,
+  forwarded to the engine.
+- **A pill per hook on the card** — `▸ devices 142` folded, `▾ devices 24/142`
+  open on a page — in the colour of the child topic, the same colour its hook
+  port wears. Tapping it opens or folds that hook, and the card stays where it
+  was on screen while the layout moves everything else (`yui_graph_place_at`).
+  The pills are inside the card's `innerHTML`, so their click is delegated from
+  the container in the capture phase over four event types, exactly as the
+  JSON graph's fold handles are — G6 never reads the DOM `click`, it builds its
+  own from the pointer pair.
+- **The toolbar's fold pair** (the same two chevrons as the JSON graph):
+  *expand all* opens every hook on all its children — the reader asking for
+  the pile on purpose — and *collapse all* leaves the roots. *Refresh* is the
+  way back to the default depth.
+- **`dagre` reads LEFT TO RIGHT** now, with explicit `nodesep`/`ranksep`: the
+  children of a node are a column beside it and the graph reads like a file
+  tree. The ports move to the sides with it (fkeys on the left edge, hooks
+  spread along the right one) and the edges are horizontal beziers;
+  `antv-dagre` keeps the top-down reading, so the layout picker is also the
+  direction picker. A layout change turns the ports of every card in place.
+- **The find and the topic focus search the RECORDS**, not the cards, and open
+  the path down to what they find — at most one **page** of hidden matches
+  each, because a single letter matches half the treedb and the graph's
+  per-topic route (`.../graph/devices`) is a focus on `devices` that lands on
+  every load: revealing a whole topic there opened 563 groups of a 6400-record
+  treedb before anybody had touched anything. The count reported is of all the
+  matches.
+- **Edition and the saved geometry are untouched by folding.** Only the cards
+  on screen are read when the graph is saved; a folded card keeps the entry it
+  had in `__graphs__`. A card on its default size grows by the pill row when it
+  has pills and shrinks back when it has none; a saved size is the owner's and
+  is left alone. The `+N` chips are not records: they are skipped by save,
+  resize-all, select-all and the minimap's blocks.
+
+One consumer key came with it: `show more`, the chip's tooltip.
+
 ### C_YUI_TREEDB_SCHEMA — the treedb drawn the way its `.c` draws it
 
 A landing view that draws a treedb the way its schema literal draws it in ASCII
