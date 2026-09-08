@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.78
+
+- **Expand all and collapse all leave the zoom alone.** Both fitted the
+  whole graph, so opening everything zoomed out to a strip and closing it
+  zoomed in on the roots, every time -- a fold is not a reason to change the
+  scale the reader chose. The camera now holds one node still, as a single
+  fold does: the anchor when there is one, else the first root -- the top of
+  the tree, which is where a JSON viewer keeps the eye when it opens or
+  closes everything (`fold_keep_node`).
+
 ## 7.23.77
 
 - **The `+N` chip shrinks beside closed nodes.** A chip of 76×26 next to a

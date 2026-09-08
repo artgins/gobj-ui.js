@@ -124,6 +124,7 @@ import {
     fold_pending_groups,
     fold_node_key,
     fold_split_group_key,
+    fold_root_group_key,
 } from "./treedb_fold_model.js";
 import {layout_tree, layout_radial} from "./treedb_layout.js";
 
@@ -9079,10 +9080,39 @@ function ac_expand_all(gobj, event, kw, src)
         log_error(`${gobj_short_name(gobj)}: expand all with no tree loaded`);
         return -1;
     }
+    let keep = fold_keep_node(gobj);
+    let vp = yui_graph_viewport_of(priv.graph, keep);
     fold_expand_all(priv._fold_model, priv._fold_state);
-    reconcile_fold(gobj, {fit: true});
+    reconcile_fold(gobj, {keep: keep, keep_vp: vp});
 
     return 0;
+}
+
+/************************************************************
+ *  The node the camera holds still across a GLOBAL fold: the
+ *  anchor when there is one, else the first root -- the top of
+ *  the tree, which is where a JSON viewer keeps the eye when it
+ *  opens or closes everything. The zoom does not move either way:
+ *  a fold is not a reason to change the scale the reader chose,
+ *  and until 7.23.78 both buttons fitted the whole graph, so
+ *  opening everything zoomed out to a strip and closing it zoomed
+ *  in on the roots, every time.
+ ************************************************************/
+function fold_keep_node(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state === "on" && priv.anchor_id) {
+        return priv.anchor_id;
+    }
+    let model = priv._fold_model;
+    for(let topic_name of model.topics) {
+        let roots = model.groups.get(fold_root_group_key(topic_name)) || [];
+        if(roots.length) {
+            return node_id_of_key(gobj, roots[0]);
+        }
+    }
+    return "";
 }
 
 /************************************************************
@@ -9096,8 +9126,10 @@ function ac_collapse_all(gobj, event, kw, src)
         log_error(`${gobj_short_name(gobj)}: collapse all with no tree loaded`);
         return -1;
     }
+    let keep = fold_keep_node(gobj);
+    let vp = yui_graph_viewport_of(priv.graph, keep);
     fold_collapse_all(priv._fold_model, priv._fold_state);
-    reconcile_fold(gobj, {fit: true});
+    reconcile_fold(gobj, {keep: keep, keep_vp: vp});
 
     return 0;
 }

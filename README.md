@@ -1250,7 +1250,12 @@ a level or two, with a count on every cut.
 - **The toolbar's fold pair** (the same two chevrons as the JSON graph):
   *expand all* opens every hook on all its children — the reader asking for
   the pile on purpose — and *collapse all* leaves the roots. *Refresh* is the
-  way back to the default depth.
+  way back to the default depth. **Neither moves the zoom** (since `7.23.78`):
+  a fold is not a reason to change the scale the reader chose, and until then
+  both fitted the whole graph — opening everything zoomed out to a strip and
+  closing it zoomed in on the roots, every time. The camera holds the anchor
+  still when there is one, else the first root: the top of the tree, which is
+  where a JSON viewer keeps the eye when it opens or closes everything.
 - **`dagre` reads LEFT TO RIGHT** now, with explicit `nodesep`/`ranksep`: the
   children of a node are a column beside it and the graph reads like a file
   tree. The ports move to the sides with it (fkeys on the left edge, hooks
