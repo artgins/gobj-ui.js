@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.81
+
+- **A port has a SHAPE, and its own properties popover.** G6 draws every
+  port as a circle, so a record's card is now a node of its own,
+  `treedb-card` -- G6's html node with `drawPortShapes` overridden -- where a
+  port's `shape` picks `circle`, `square`, `diamond` or `triangle` by the G
+  shape names G6 registers; `r` stays the one size, and the hit test, the
+  handles and the edge's landing point never cared about the outline. A
+  selected port shows a gear beside it, as the node does, and the port
+  context menu has the same entry for a finger: the **port properties**
+  popover -- shape, radius, scope (this port / the same port of every card
+  of the topic / every port) -- with a live preview and a cancel that puts
+  it back. Remembered as the topic's default (`port_shapes` / `port_shape`)
+  and saved per node in `__graphs__` (`port_shapes`). Consumer i18n keys:
+  `port properties`, `shape`, `circle`, `square`, `diamond`, `triangle`,
+  `radius`, `this port`, `same port in topic`, `all ports`.
+- **The node and edge popovers' labels had no i18n key at all** (`apply to`,
+  `fill color`, `stroke color`, `line width`, `color`, `create`): they went
+  through `t()` and rendered in English in every language, unseen by
+  `validate-locales` because the call is inside `create_form_label()`. Keys
+  added to the consumers with the port's.
+
 ## 7.23.80
 
 - **A size nobody chose is not saved, and the saved ones can be forgotten.**

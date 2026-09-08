@@ -137,6 +137,7 @@ import {
     HistoryEvent,
     EdgeEvent,
     Circle,
+    HTML,
     Toolbar,
     register,
 } from '@antv/g6';
@@ -446,6 +447,8 @@ let PRIVATE_DATA = {
     _edge_icon_el:      null,       // floating properties icon element
     _edge_delete_el:    null,       // floating delete icon element for edge
     _edge_popover_el:   null,       // edge properties popover element
+    _port_icon_el:      null,       // floating port properties icon element
+    _port_popover_el:   null,       // port properties popover element
     _node_icon_el:      null,       // floating node properties icon element
     _node_delete_el:    null,       // floating delete icon element for node
     _node_popover_el:   null,       // node properties popover element
@@ -839,6 +842,7 @@ function register_layouts(gobj)
         register(ExtensionCategory.LAYOUT, 'treedb-tree', TreedbTreeLayout);
         register(ExtensionCategory.LAYOUT, 'treedb-radial', TreedbRadialLayout);
         register(ExtensionCategory.NODE, 'light', LightNode);
+        register(ExtensionCategory.NODE, 'treedb-card', TreedbCard);
     }
 }
 
@@ -940,6 +944,7 @@ function configure_events(gobj)
         update_edge_icon_position(gobj);
         update_node_icon_position(gobj);
         update_link_icon_position(gobj);
+        update_port_icon_position(gobj);
     });
 
     graph.on(NodeEvent.DRAG_END, (evt) => {
@@ -974,6 +979,7 @@ function configure_events(gobj)
         update_edge_icon_position(gobj);
         update_node_icon_position(gobj);
         update_link_icon_position(gobj);
+        update_port_icon_position(gobj);
         update_zoom_readout(gobj);
 
         /*
@@ -2132,12 +2138,32 @@ function card_shape_of(gobj, desc, record, geometry, pills_html)
                 }
             }
         }
+
+        /*  And the SHAPE of each port, the same way: the node's own,
+         *  then the topic's per-port default, then the topic's one
+         *  shape for every port (`all ports` in the port popover).  */
+        let port_shapes = geometry.port_shapes;
+        let default_port_shapes = topic_defaults ? topic_defaults.port_shapes : null;
+        let default_shape = topic_defaults ? topic_defaults.port_shape : null;
+        for(let i = 0; i < style.ports.length; i++) {
+            let key = style.ports[i].key;
+            let shape = is_object(port_shapes) ? port_shapes[key] : null;
+            if(!shape && is_object(default_port_shapes)) {
+                shape = default_port_shapes[key];
+            }
+            if(!shape) {
+                shape = default_shape;
+            }
+            if(shape && str_in_list(PORT_SHAPES, shape)) {
+                style.ports[i].shape = shape;
+            }
+        }
     } else {
         style.port = false;
         style.ports = [];
     }
 
-    return {type: 'html', style: style};
+    return {type: 'treedb-card', style: style};
 }
 
 /************************************************************
@@ -2775,6 +2801,18 @@ function update_geometry(gobj, node_id)
             node_props.port_sizes = port_sizes;
         } else {
             delete node_props.port_sizes;
+        }
+        // And the shape of each port that is not a circle
+        let port_shapes = {};
+        for(let i = 0; i < ports.length; i++) {
+            if(ports[i].shape && ports[i].shape !== 'circle') {
+                port_shapes[ports[i].key] = ports[i].shape;
+            }
+        }
+        if(Object.keys(port_shapes).length > 0) {
+            node_props.port_shapes = port_shapes;
+        } else {
+            delete node_props.port_shapes;
         }
     }
 
@@ -3485,6 +3523,7 @@ function graph_resize(gobj, width, height)
     update_port_resize_handles_position(gobj);
     update_node_icon_position(gobj);
     update_link_icon_position(gobj);
+    update_port_icon_position(gobj);
 }
 
 function graph_write_behaviors(gobj, behaviors)
@@ -3518,6 +3557,64 @@ function graph_set_behavior(gobj, behavior, set)
     graph.setOptions({
         behaviors: behaviors
     });
+}
+
+/************************************************************
+ *  Custom G6 node: TreedbCard -- G6's html node with ports that
+ *  have a SHAPE.
+ *
+ *  G6 draws every port as a circle (`drawPortShapes` upserts a
+ *  `Circle`, nothing in the port style says otherwise). A port's
+ *  `shape` -- `circle`, `square`, `diamond`, `triangle` -- picks
+ *  the G shape here, by the names G6 registers itself, and `r`
+ *  stays the one size: the half-side of the square, the half-
+ *  diagonal of the diamond, the half-height of the triangle. The
+ *  hit test, the resize handles and the edge's landing point all
+ *  read `r` and none of them care about the outline.
+ ************************************************************/
+const PORT_SHAPES = ['circle', 'square', 'diamond', 'triangle'];
+
+class TreedbCard extends HTML
+{
+    drawPortShapes(attributes, container) {
+        const portsStyle = this.getPortsStyle(attributes);
+        Object.keys(portsStyle).forEach((key) => {
+            const style = portsStyle[key];
+            const shapeKey = `port-${key}`;
+            if(style === false) {
+                this.upsert(shapeKey, 'circle', false, container);
+                return;
+            }
+            let r = Number(style.r) || 0;
+            switch(style.shape) {
+                case 'square':
+                    this.upsert(shapeKey, 'rect', Object.assign({}, style, {
+                        x: -r, y: -r, width: 2 * r, height: 2 * r,
+                    }), container);
+                    break;
+                case 'diamond':
+                    this.upsert(shapeKey, 'polygon', Object.assign({}, style, {
+                        points: [[0, -r], [r, 0], [0, r], [-r, 0]],
+                    }), container);
+                    break;
+                case 'triangle':
+                    this.upsert(shapeKey, 'polygon', Object.assign({}, style, {
+                        points: [[0, -r], [r, r], [-r, r]],
+                    }), container);
+                    break;
+                default:
+                    this.upsert(shapeKey, 'circle', style, container);
+                    break;
+            }
+        });
+    }
+}
+
+/*  A record's card is `treedb-card`; `html` is what it was until
+ *  7.23.81 and what a `+N` chip still is.  */
+function is_card_type(type)
+{
+    return type === 'treedb-card' || type === 'html';
 }
 
 /************************************************************
@@ -4661,7 +4758,7 @@ function start_node_resize(gobj, e, mx, my)
         }
 
         // HTML nodes: update dx, dy to keep content centered
-        if(nodeType === 'html') {
+        if(is_card_type(nodeType)) {
             updateStyle.dx = -newW / 2;
             updateStyle.dy = -newH / 2;
         }
@@ -4842,6 +4939,7 @@ function select_port(gobj, node_id, port_key)
 
     show_port_resize_handles(gobj);
     show_link_icon_if_fkey(gobj);
+    show_port_icon(gobj);
 }
 
 /************************************************************
@@ -4853,6 +4951,8 @@ function deselect_port(gobj)
 
     exit_linking_mode(gobj);
     hide_link_icon(gobj);
+    hide_port_icon(gobj);
+    hide_port_popover(gobj);
     hide_port_resize_handles(gobj);
     priv._selected_port_key = null;
 }
@@ -4938,6 +5038,272 @@ function update_link_icon_position(gobj)
     } catch(e) {
         hide_link_icon(gobj);
     }
+}
+
+/************************************************************
+ *  Port properties icon and popover: the gear beside a selected
+ *  port, as the node has its own. The popover has the two things
+ *  a port IS on screen -- its shape and its radius -- and the
+ *  scope: this port, the same port of every card of the topic
+ *  (the hook or fkey column), or every port there is.
+ ************************************************************/
+function port_icon_xy(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let canvasPos = get_port_canvas_position(
+        gobj, priv._selected_node_id, priv._selected_port_key
+    );
+    if(!canvasPos) {
+        return null;
+    }
+    let vp = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+    /*  Under the link icon when there is one (an fkey), in its
+     *  place otherwise.  */
+    let below = priv._link_icon_el? floating_icon_step() : 0;
+    return {
+        x: vp[0] + floating_icon_size() / 2 + 4,
+        y: vp[1] + floating_icon_dy() + below,
+    };
+}
+
+function show_port_icon(gobj)
+{
+    hide_port_icon(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_node_id || !priv._selected_port_key) {
+        return;
+    }
+    let xy = port_icon_xy(gobj);
+    if(!xy) {
+        return;
+    }
+    let icon = create_floating_icon(
+        'gear', '#1890ff', xy.x, xy.y,
+        t('port properties'), () => toggle_port_popover(gobj)
+    );
+    priv.$container.appendChild(icon);
+    priv._port_icon_el = icon;
+}
+
+function hide_port_icon(gobj)
+{
+    hide_overlay(gobj, '_port_icon_el');
+}
+
+function update_port_icon_position(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv._port_icon_el || !priv._selected_node_id || !priv._selected_port_key) {
+        return;
+    }
+    try {
+        let xy = port_icon_xy(gobj);
+        if(!xy) {
+            hide_port_icon(gobj);
+            hide_port_popover(gobj);
+            return;
+        }
+        priv._port_icon_el.style.left = xy.x + 'px';
+        priv._port_icon_el.style.top = xy.y + 'px';
+        if(priv._port_popover_el) {
+            priv._port_popover_el.style.left = (xy.x + floating_popover_dx()) + 'px';
+            priv._port_popover_el.style.top = xy.y + 'px';
+            clamp_popover_position(gobj, priv._port_popover_el);
+        }
+    } catch(e) {
+        hide_port_icon(gobj);
+        hide_port_popover(gobj);
+    }
+}
+
+function toggle_port_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._port_popover_el) {
+        hide_port_popover(gobj);
+    } else {
+        show_port_popover(gobj);
+    }
+}
+
+function hide_port_popover(gobj)
+{
+    hide_overlay(gobj, '_port_popover_el');
+}
+
+/*  The ports of a node with ONE of them rewritten.  */
+function ports_with(ports, port_key, changes)
+{
+    return (ports || []).map((p) => (p.key === port_key)? Object.assign({}, p, changes) : p);
+}
+
+function show_port_popover(gobj)
+{
+    hide_port_popover(gobj);
+
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let node_id = priv._selected_node_id;
+    let port_key = priv._selected_port_key;
+    if(!node_id || !port_key) {
+        return;
+    }
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData || !nodeData.style) {
+        return;
+    }
+    let ports = nodeData.style.ports || [];
+    let port = ports.find((p) => p.key === port_key);
+    if(!port) {
+        return;
+    }
+    let orig_shape = port.shape || 'circle';
+    let orig_r = get_port_radius(gobj, node_id, port_key);
+
+    let xy = port_icon_xy(gobj);
+    if(!xy) {
+        return;
+    }
+    const popover = create_popover_base(
+        xy.x + floating_popover_dx(), xy.y, 'g6-port-popover', '#d9d9d9', 180
+    );
+
+    /*  Live preview on THIS port; the others wait for apply.  */
+    function preview_port() {
+        let r = parseInt(rInput.value) || orig_r;
+        graph.updateNodeData([{id: node_id, style: {
+            ports: ports_with(nodeData.style.ports, port_key, {shape: shapeSelect.value, r: r}),
+        }}]);
+        graph.draw().then(() => {
+            update_port_resize_handles_position(gobj);
+        });
+    }
+
+    create_form_label(popover, 'shape');
+    let shapeSelect = create_form_select(popover, PORT_SHAPES.map((shape) => {
+        return {value: shape, label: t(shape)};
+    }));
+    shapeSelect.value = orig_shape;
+    shapeSelect.addEventListener('change', preview_port);
+
+    create_form_label(popover, 'radius');
+    let rInput = create_form_number_input(popover, orig_r, 2, 40, preview_port);
+
+    create_form_label(popover, 'apply to');
+    let scopeSelect = create_form_select(popover, [
+        {value: 'this', label: t('this port')},
+        {value: 'same_topic', label: t('same port in topic')},
+        {value: 'all', label: t('all ports')},
+    ]);
+
+    create_form_button_row(popover, [
+        {
+            text: 'cancel',
+            style: BTN_STYLE_CANCEL,
+            onClick: () => {
+                graph.updateNodeData([{id: node_id, style: {
+                    ports: ports_with(nodeData.style.ports, port_key, {shape: orig_shape, r: orig_r}),
+                }}]);
+                graph.draw().then(() => {
+                    update_port_resize_handles_position(gobj);
+                });
+                hide_port_popover(gobj);
+            },
+        },
+        {
+            text: 'apply',
+            style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
+                   'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
+            onClick: () => {
+                apply_port_properties(gobj, node_id, port_key,
+                    shapeSelect.value, parseInt(rInput.value) || orig_r, scopeSelect.value
+                );
+            },
+        },
+    ]);
+
+    priv.$container.appendChild(popover);
+    priv._port_popover_el = popover;
+    clamp_popover_position(gobj, popover);
+}
+
+/************************************************************
+ *  Apply a port's shape and radius to one port, to the same port
+ *  of every card of the topic, or to every port -- and remember
+ *  the choice as the topic's default, the way `resize all ports`
+ *  does, so a card that arrives later is born with it.
+ *      scope: 'this', 'same_topic', 'all'
+ ************************************************************/
+function apply_port_properties(gobj, node_id, port_key, shape, r, scope)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData || !nodeData.data) {
+        return;
+    }
+    let source_topic = nodeData.data.topic_name;
+
+    if(scope === 'same_topic') {
+        if(!is_object(priv._graph_properties[source_topic])) {
+            priv._graph_properties[source_topic] = {};
+        }
+        let defaults = priv._graph_properties[source_topic].defaults || {};
+        defaults.port_sizes = Object.assign({}, defaults.port_sizes, {[port_key]: r});
+        defaults.port_shapes = Object.assign({}, defaults.port_shapes, {[port_key]: shape});
+        priv._graph_properties[source_topic].defaults = defaults;
+    } else if(scope === 'all') {
+        for(const topic_name of Object.keys(priv.descs || {})) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            let defaults = priv._graph_properties[topic_name].defaults || {};
+            defaults.portR = r;
+            defaults.port_shape = shape;
+            delete defaults.port_sizes;
+            delete defaults.port_shapes;
+            priv._graph_properties[topic_name].defaults = defaults;
+        }
+    }
+
+    let updates = [];
+    for(let nd of (graph.getNodeData() || [])) {
+        if(!nd || !nd.data || !nd.data.desc || !nd.style || !is_array(nd.style.ports)) {
+            continue;
+        }
+        let new_ports;
+        if(scope === 'this') {
+            if(nd.id !== node_id) {
+                continue;
+            }
+            new_ports = ports_with(nd.style.ports, port_key, {shape: shape, r: r});
+        } else if(scope === 'same_topic') {
+            if(nd.data.topic_name !== source_topic) {
+                continue;
+            }
+            new_ports = ports_with(nd.style.ports, port_key, {shape: shape, r: r});
+        } else {
+            new_ports = nd.style.ports.map((p) => Object.assign({}, p, {shape: shape, r: r}));
+        }
+        let upd = {ports: new_ports};
+        if(scope === 'all') {
+            upd.portR = r;
+        }
+        updates.push({id: nd.id, style: upd});
+    }
+
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+        graph.draw().then(() => {
+            update_port_resize_handles_position(gobj);
+            update_port_icon_position(gobj);
+            mark_graph_dirty(gobj);
+        });
+    }
+    hide_port_popover(gobj);
 }
 
 /************************************************************
@@ -7453,6 +7819,9 @@ function build_port_context_menu(gobj, node_id, port_key)
 
     if(gobj.priv.edit_mode) {
         inject_svg_icons();
+        /*  The popover, for a finger: the gear beside the port needs
+         *  the port selected first, and a long press is the menu.  */
+        items.push(ctx_item('g6-icon-edit', t('port properties'), 'port_properties'));
         items.push(ctx_item('g6-icon-resize', t('resize all ports'), 'resize_all_ports'));
         items.push(ctx_item('g6-icon-resize', t('resize topic ports'), 'resize_topic_ports'));
     }
@@ -7494,6 +7863,12 @@ function handle_context_menu_click(gobj, value)
             break;
         case 'reset_topic_sizes':
             reset_sizes(gobj, true);
+            break;
+        case 'port_properties':
+            if(priv._context_node_id && priv._context_port_key) {
+                select_port(gobj, priv._context_node_id, priv._context_port_key);
+                show_port_popover(gobj);
+            }
             break;
         case 'resize_all_ports':
             copy_size_to_ports(gobj, false);
@@ -7581,7 +7956,7 @@ function copy_size_to_nodes(gobj, same_topic_only)
         }
 
         // Recalculate dx/dy for HTML nodes
-        if(nd.type === 'html') {
+        if(is_card_type(nd.type)) {
             updateStyle.dx = -source_size[0] / 2;
             let h = source_size.length > 1 ? source_size[1] : source_size[0];
             updateStyle.dy = -h / 2;
@@ -8418,6 +8793,7 @@ async function reconcile_fold_apply(gobj, opts, visible)
     update_edge_icon_position(gobj);
     update_node_icon_position(gobj);
     update_link_icon_position(gobj);
+    update_port_icon_position(gobj);
 
     return changed;
 }

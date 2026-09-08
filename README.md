@@ -1388,6 +1388,29 @@ radius and per-port radius — per node and as topic defaults from `resize all`
 on the spot, and arm Save. Positions and edge styles are not touched.
 Consumer i18n keys: `reset sizes`, `reset topic sizes`.
 
+**A port has a shape, and its own properties popover** (since `7.23.81`).
+G6 draws every port as a circle — `drawPortShapes` upserts a `Circle` and
+nothing in the port style says otherwise — so a record's card is now a node
+of its own, `treedb-card` (G6's html node with `drawPortShapes` overridden),
+where a port's `shape` picks the G shape by the names G6 registers itself:
+`circle`, `square`, `diamond`, `triangle`. `r` stays the one size (the
+half-side of the square, the half-diagonal of the diamond), and the hit test,
+the resize handles and the edge's landing point read `r` and none of them care
+about the outline. A selected port shows a gear beside it, as the node does
+(under the link icon on an fkey); it opens the **port properties** popover —
+shape, radius, and the scope: *this port*, *the same port of every card of
+the topic* (the hook or fkey column), or *every port there is* — with a live
+preview on the port and a cancel that puts it back. The choice is remembered
+as the topic's default (`port_shapes[key]` / `port_shape`, beside
+`port_sizes` / `portR`), so a card that arrives later is born with it, and
+saved per node in `__graphs__` as `port_shapes`. On a touch screen the port's
+context menu has the same entry. The `+N` chip stays an `html` node.
+Consumer i18n keys: `port properties`, `shape`, `circle`, `square`, `diamond`,
+`triangle`, `radius`, `this port`, `same port in topic`, `all ports` — and
+the node and edge popovers' own labels, which had no key at all (`apply to`,
+`fill color`, `stroke color`, `line width`, `color`, `create`), so they
+rendered in English in every language.
+
 ### The legend is the graph's layer control
 
 The legend strip under the toolbar is **always there** now (the *Legend*
