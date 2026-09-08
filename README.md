@@ -1370,8 +1370,8 @@ it. The node holds still on screen while the rest makes room, as a fold does.
 A change of the global mode forgets these exceptions. Consumer i18n keys:
 `closed nodes`, `node labels`, `open node`, `close node`.
 
-The ports of an open card grew with this (radius 10 on a card, 5 on a chip,
-2 px stroke): they are what a link is drawn from and what a resize takes hold
+The ports of an open card grew with this (radius 14 on a card, 8 on a chip
+since `7.23.79`; 10 / 5 in `7.23.75`, 2 px stroke): they are what a link is drawn from and what a resize takes hold
 of, and at radius 6 with a hairline nobody could tell they were either.
 
 ### The legend is the graph's layer control

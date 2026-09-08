@@ -5,6 +5,13 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.79
+
+- **The default ports are bigger again**: radius 14 on a card and 8 on a
+  chip (10 / 5 since `7.23.75`), because on a deployed treedb they still
+  read as dots. A saved geometry or a topic default (`resize all`) still
+  wins over the default.
+
 ## 7.23.78
 
 - **Expand all and collapse all leave the zoom alone.** Both fitted the

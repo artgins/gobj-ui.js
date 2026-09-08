@@ -253,10 +253,12 @@ const SELECT_RING = "rgba(59,130,246,0.95)";
  *  The ports of an open card. They are what a link is DRAWN from
  *  and what a resize takes hold of, and at a radius of 6 (2 on a
  *  chip) with a hairline stroke nobody could tell they were either:
- *  a port has to look like a handle.
+ *  a port has to look like a handle. 10 / 5 in 7.23.75 was still
+ *  read as a dot on a deployed treedb; 14 / 8 since 7.23.79. A
+ *  saved geometry or a topic default (`resize all`) still wins.
  */
-const PORT_R_ENTITY   = 10;
-const PORT_R_CHILD    = 5;
+const PORT_R_ENTITY   = 14;
+const PORT_R_CHILD    = 8;
 const PORT_LINE_WIDTH = 2;
 
 /*
