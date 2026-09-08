@@ -5,6 +5,13 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.69
+
+- **The legend's glyphs are readable.** The star, the loose `+N` and the
+  crosshairs sit in `is-small` buttons, whose 0.75rem font made a star a
+  speck. The buttons stay small, so the strip keeps its height; the glyph
+  inside is 1.5em, the size the toolbar's icons already have.
+
 ## 7.23.68
 
 - **The legend is the graph's layer control, and it is always there.** The

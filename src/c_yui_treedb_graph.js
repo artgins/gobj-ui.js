@@ -2328,6 +2328,11 @@ function ac_set_operation_mode(gobj, event, kw, src)
  *  card's graph icon travels — as EV_TOPIC_SELECTED, which the host turns
  *  into the URL, so what you are looking at stays linkable.
  ************************************************************/
+/*  The glyphs of a chip's small buttons: `is-small` sets a 0.75rem
+ *  font and a star or a crosshair at that size is a speck. The BUTTON
+ *  stays small so the strip keeps its height; the glyph inside grows.  */
+const LEGEND_GLYPH_STYLE = 'font-size:1.5em; line-height:1; color:inherit;';
+
 function refresh_legend(gobj)
 {
     let priv = gobj.priv;
@@ -2423,7 +2428,7 @@ function refresh_legend(gobj)
                                     type: 'button', style: 'padding:0 .4rem;',
                                     title: t('main topic'), 'data-i18n-title': 'main topic',
                                     'aria-label': t('main topic'), 'aria-pressed': 'true'},
-                         '★', {
+                         [['span', {style: LEGEND_GLYPH_STYLE}, '★']], {
                 click: (evt) => {
                     evt.stopPropagation();
                     gobj_send_event(gobj, "EV_LEGEND_TOPIC",
@@ -2434,13 +2439,13 @@ function refresh_legend(gobj)
             extras.push(['span', {class: 'GRAPH_LEGEND_STAR button is-small is-static',
                                   style: 'padding:0 .4rem;',
                                   title: t('main topic'), 'data-i18n-title': 'main topic'},
-                         '★']);
+                         [['span', {style: LEGEND_GLYPH_STYLE}, '★']]]);
         } else if(!hidden) {
             extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small',
                                     type: 'button', style: 'padding:0 .4rem;',
                                     title: t('main topic'), 'data-i18n-title': 'main topic',
                                     'aria-label': t('main topic')},
-                         '☆', {
+                         [['span', {style: LEGEND_GLYPH_STYLE}, '☆']], {
                 click: (evt) => {
                     evt.stopPropagation();
                     gobj_send_event(gobj, "EV_LEGEND_TOPIC",
@@ -2477,7 +2482,7 @@ function refresh_legend(gobj)
                 title: t('highlight topic'), 'data-i18n-title': 'highlight topic',
                 'aria-label': t('highlight topic'),
                 'aria-pressed': focused? 'true' : 'false'
-            }, [['i', {class: 'yi-location-crosshairs'}]], {
+            }, [['i', {class: 'yi-location-crosshairs', style: LEGEND_GLYPH_STYLE}]], {
                 click: (evt) => {
                     evt.stopPropagation();
                     gobj_send_event(gobj, "EV_LEGEND_TOPIC",
