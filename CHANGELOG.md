@@ -5,6 +5,44 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.75
+
+- **The wheel SCROLLS the graph; Ctrl + wheel zooms.** In every operation
+  mode of every graph on `C_G6_NODES_TREE`. A graph of many nodes is taller
+  than the screen, and a wheel that zoomed instead made it a thing to be
+  looked at from afar or read through a keyhole -- never scrolled, which is
+  what a wheel does on a map and on every page. Shift + wheel goes sideways,
+  a trackpad pinch arrives as Ctrl + wheel and keeps zooming, the touch pinch
+  is untouched. G6's `scroll-canvas` with an `enable` that stands aside for a
+  Ctrl/Meta wheel, and `zoom-canvas` with `trigger: ['Control']`.
+- **The treedb tree reads DOWN.** `treedb-tree` was a tidy tree read left to
+  right, and read that way it was `dagre` with the siblings held still --
+  nobody could tell the two apart. Down is where a tree has room: a hall with
+  a hundred devices is a wide row, not a column beside a card. The algorithm
+  is written once (LR) and the top-down tree is the same tree fed transposed
+  cards and read back transposed; `direction: "LR"` keeps the other reading.
+  Ports on the top and bottom edges again, `cubic` edges.
+- **`treedb-outline` is gone.** A list that indents is a JSON viewer, and the
+  library has one. Removed from the layout table, the adapters, the pure
+  module and its tests; consumers drop the `treedb-outline` i18n key.
+- **Closed nodes: a record has two shapes.** OPEN is the card with its ports,
+  the only shape a link can be edited on; CLOSED is a rounded square of the
+  topic's colour, no ports, no text -- the topology of a graph of many nodes,
+  which the cards hide behind their own size. A native G6 `rect`, so focus,
+  selection and anchor paint on its own stroke and halo. Two toggles in the
+  view's toolbar, both persisted and both looking pressed: `node_mode`
+  (`expanded` / `compact`, relayout on change) and `node_labels` (the name
+  under a closed square, nothing moves). ONE node goes against the rule with
+  a double click or its context menu (`open node` / `close node`), and holds
+  still while the rest makes room. The hook order of a node's children now
+  travels in `data.port_keys`, because a closed node has no ports on its
+  style. New consumer i18n keys: `closed nodes`, `node labels`, `open node`,
+  `close node`; new icon `yi-font`.
+- **The ports of an open card are handles.** Radius 10 on a card and 5 on a
+  chip with a 2 px stroke, up from 6 / 2 and a hairline: they are what a
+  link is drawn from and what a resize takes hold of, and nobody could tell
+  they were either.
+
 ## 7.23.74
 
 - **The focused legend chip is HIGHLIGHTED, not pressed.** `7.23.73` gave

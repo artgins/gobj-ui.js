@@ -3,10 +3,10 @@
  *
  *      The two treedb layouts, pinned: the spanning tree they share
  *      (roots, first parent wins, hook order then record order), the
- *      tidy tree's columns and centring, the outline's rows.
+ *      tidy tree's rows and centring, the radial tree's rings.
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
-import { spanning_tree, layout_tree, layout_outline, layout_radial } from "./treedb_layout.js";
+import { spanning_tree, layout_tree, layout_radial } from "./treedb_layout.js";
 
 /*  es -> (norte, sur); norte -> nave; nave -> d0, d1 (hook rank 1) and
  *  c1 (hook rank 2); c1 -> d0 as well (second parent).  */
@@ -63,9 +63,43 @@ describe("the spanning tree", () => {
     });
 });
 
-describe("the tidy tree", () => {
-    test("depths are columns; a column is as wide as its widest card", () => {
+describe("the tidy tree, read down (the default)", () => {
+    test("depths are rows; a row is as tall as its tallest card", () => {
         let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
+        expect(pos.get("es").y).toBe(48);                       /*  96/2  */
+        expect(pos.get("norte").y).toBe(96 + 100 + 48);
+        expect(pos.get("sur").y).toBe(pos.get("norte").y);
+        /*  depth 2 holds nave (120 tall): the row is 120 tall  */
+        expect(pos.get("nave").y).toBe(2 * (96 + 100) + 60);
+        /*  depth 3 holds chips (40) and c1 (96): row is 96 tall, the
+         *  chips are centred in it  */
+        let row3 = 2 * (96 + 100) + 120 + 100;
+        expect(pos.get("c1").y).toBe(row3 + 48);
+        expect(pos.get("d0").y).toBe(row3 + 48);
+    });
+
+    test("siblings sit side by side; a parent is centred over its children", () => {
+        let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
+        /*  nave's children: d0 (116), d1 (116), c1 (172) = 424 wide  */
+        expect(pos.get("d1").x - pos.get("d0").x).toBe(126);
+        expect(pos.get("c1").x - pos.get("d1").x).toBe(58 + 10 + 86);
+        let first = pos.get("d0").x - 58;
+        let last = pos.get("c1").x + 86;
+        expect(pos.get("nave").x).toBe((first + last) / 2);
+    });
+
+    test("two trees sit side by side, not overlapped", () => {
+        let pos = layout_tree(
+            [N("a", 100, 50), N("b", 100, 50)], [], {nodesep: 10}
+        );
+        expect(pos.get("a").x).toBe(50);
+        expect(pos.get("b").x).toBe(50 + 100 + 20);
+    });
+});
+
+describe("the tidy tree, read right", () => {
+    test("depths are columns; a column is as wide as its widest card", () => {
+        let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100, direction: "LR"});
         expect(pos.get("es").x).toBe(86);                       /*  172/2  */
         expect(pos.get("norte").x).toBe(172 + 100 + 86);
         expect(pos.get("sur").x).toBe(pos.get("norte").x);
@@ -77,7 +111,7 @@ describe("the tidy tree", () => {
     });
 
     test("siblings stack with the gap; a parent is centred on its children", () => {
-        let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
+        let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100, direction: "LR"});
         /*  nave's children: d0 (40), d1 (40), c1 (96) = 196 tall  */
         expect(pos.get("d1").y - pos.get("d0").y).toBe(50);
         expect(pos.get("c1").y - pos.get("d1").y).toBe(20 + 10 + 48);
@@ -89,7 +123,7 @@ describe("the tidy tree", () => {
     test("a parent taller than its children keeps its own height", () => {
         let pos = layout_tree(
             [N("p", 100, 200), N("k", 50, 20)],
-            [{source: "p", target: "k"}], {nodesep: 10, ranksep: 50}
+            [{source: "p", target: "k"}], {nodesep: 10, ranksep: 50, direction: "LR"}
         );
         expect(pos.get("p").y).toBe(100);
         expect(pos.get("k").y).toBe(100);     /*  centred in the parent's block  */
@@ -97,17 +131,17 @@ describe("the tidy tree", () => {
 
     test("two trees are stacked, not overlapped", () => {
         let pos = layout_tree(
-            [N("a", 100, 50), N("b", 100, 50)], [], {nodesep: 10}
+            [N("a", 100, 50), N("b", 100, 50)], [], {nodesep: 10, direction: "LR"}
         );
         expect(pos.get("a").y).toBe(25);
         expect(pos.get("b").y).toBe(25 + 50 + 20);
     });
 
     test("opening a hook does not move what is not under or beside it", () => {
-        let base = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
+        let base = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100, direction: "LR"});
         let more = nodes.concat([N("d2", 116, 40)]);
         let more_edges = edges.concat([{source: "nave", target: "d2", rank: 1}]);
-        let pos = layout_tree(more, more_edges, {nodesep: 10, ranksep: 100});
+        let pos = layout_tree(more, more_edges, {nodesep: 10, ranksep: 100, direction: "LR"});
         expect(pos.get("es").x).toBe(base.get("es").x);
         expect(pos.get("d0").y).toBe(base.get("d0").y);     /*  above the new one  */
         expect(pos.get("d1").y).toBe(base.get("d1").y);
@@ -158,19 +192,6 @@ describe("the radial tree", () => {
     });
 });
 
-describe("the outline", () => {
-    test("one node per row, pre-order, indented by depth", () => {
-        let pos = layout_outline(nodes, edges, {nodesep: 10, indent: 40});
-        let rows = [...pos.entries()].sort((a, b) => a[1].y - b[1].y).map((e) => e[0]);
-        expect(rows).toEqual(["es", "norte", "nave", "d0", "d1", "c1", "sur"]);
-        expect(pos.get("es").x).toBe(86);
-        expect(pos.get("nave").x).toBe(2 * 40 + 86);
-        expect(pos.get("d0").x).toBe(3 * 40 + 58);
-        expect(pos.get("es").y).toBe(48);
-        expect(pos.get("norte").y).toBe(96 + 10 + 48);
-    });
-});
-
 describe("a deep tree", () => {
     /*  A self-referent hook -- a place inside a place inside a place --
      *  is as deep as the data says. The walks are iterative for exactly
@@ -193,8 +214,8 @@ describe("a deep tree", () => {
         expect(t.depth.get(`n${DEEP - 1}`)).toBe(DEEP - 1);
     });
 
-    test("the three layouts place every node of it", () => {
-        for(let layout of [layout_tree, layout_outline, layout_radial]) {
+    test("the two layouts place every node of it", () => {
+        for(let layout of [layout_tree, layout_radial]) {
             let pos = layout(deep_nodes, deep_edges);
             expect(pos.size).toBe(DEEP);
             expect(Number.isFinite(pos.get(`n${DEEP - 1}`).x)).toBe(true);

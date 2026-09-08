@@ -52,6 +52,7 @@ import {
     gobj_read_integer_attr,
     gobj_write_attr,
     gobj_write_str_attr,
+    gobj_write_bool_attr,
     gobj_parent,
     gobj_name,
     gobj_short_name,
@@ -124,7 +125,7 @@ import {
     fold_node_key,
     fold_split_group_key,
 } from "./treedb_fold_model.js";
-import {layout_tree, layout_outline, layout_radial} from "./treedb_layout.js";
+import {layout_tree, layout_radial} from "./treedb_layout.js";
 
 import {
     BaseLayout,
@@ -247,6 +248,28 @@ const HIGHLIGHT_HALO  = "rgba(240,160,32,0.35)";
  */
 const SELECT_RING = "rgba(59,130,246,0.95)";
 
+/*
+ *  The ports of an open card. They are what a link is DRAWN from
+ *  and what a resize takes hold of, and at a radius of 6 (2 on a
+ *  chip) with a hairline stroke nobody could tell they were either:
+ *  a port has to look like a handle.
+ */
+const PORT_R_ENTITY   = 10;
+const PORT_R_CHILD    = 5;
+const PORT_LINE_WIDTH = 2;
+
+/*
+ *  The CLOSED shape of a record: a rounded square of the topic's
+ *  colour, no ports, no text -- topology and nothing else. The
+ *  three tiers keep their order of size, so a root is still bigger
+ *  than a leaf when nothing says which is which.
+ */
+const COMPACT_SIZE = {
+    hierarchical: 32,
+    extended:     28,
+    child:        22,
+};
+
 /***************************************************************
  *  Internal layout and operation mode definitions
  ***************************************************************/
@@ -262,21 +285,20 @@ const _layouts = {
      *  for whoever wants it -- the two are the same algorithm read two
      *  ways, so the layout picker is also the direction picker.  */
     /*  OURS, made for a treedb (treedb_layout.js): a tidy tree read
-     *  left to right, and an outline of one row per node. Both take
-     *  the spanning tree of what is on screen -- the roots, the first
-     *  parent that reaches a node, the hooks in schema order, the
-     *  records in their order -- so opening a hook moves nothing that
-     *  is not under or beside it. The default for a treedb nobody has
-     *  arranged (see auto_layout).  */
+     *  TOP TO BOTTOM. It takes the spanning tree of what is on screen
+     *  -- the roots, the first parent that reaches a node, the hooks
+     *  in schema order, the records in their order -- so opening a
+     *  hook moves nothing that is not under or beside it. Down and not
+     *  right, because down is where a tree has room: a hall with a
+     *  hundred devices is a wide row, not a column beside a card --
+     *  and read right it was `dagre` with the siblings held still,
+     *  which nobody could tell apart. The default for a treedb nobody
+     *  has arranged (see auto_layout).  */
     "treedb-tree": {
         type: 'treedb-tree',
+        direction: 'TB',
         nodesep: 18,
-        ranksep: 110,
-    },
-    "treedb-outline": {
-        type: 'treedb-outline',
-        nodesep: 12,
-        indent: 48,
+        ranksep: 90,
     },
     "dagre": {
         type: 'dagre',
@@ -370,6 +392,10 @@ SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",       0,  24,     "Children of
 SDATA(data_type_t.DTP_LIST,     "hidden_topics",        0,  "[]",   "Topics left out of the tree: no card, no pill counts them, no edge reaches them"),
 SDATA(data_type_t.DTP_STRING,   "main_topic",           0,  "",     "The topic the tree hangs from; empty = deduced (the one whose hooks reach the most others). Its parentless records are the roots; a parentless record of a topic linked to it is LOOSE and shown only on request"),
 SDATA(data_type_t.DTP_LIST,     "loose_topics",         0,  "[]",   "Topics whose loose records (no parent, in a topic the schema hangs from the main one) are shown as roots"),
+
+/*---------------- Node shape ----------------*/
+SDATA(data_type_t.DTP_STRING,   "node_mode",            0,  "expanded", "How a record is drawn: `expanded` = the card with its ports (the only shape a link can be edited on); `compact` = a rounded square of the topic's colour, no ports, no text -- the topology alone. One node can be toggled against it (EV_TOGGLE_NODE_MODE)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",          0,  true,   "A compact node says its name under the square. Off, it is a coloured square and nothing else"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_unlink_edge",  0,  true,   "Ask confirmation before unlinking an edge"),
 
@@ -466,6 +492,7 @@ let PRIVATE_DATA = {
     _fold_state:        null,       // ...and which groups of it are open
     _fold_listener:     null,       // delegated click on the card pills
     _pill_sig:          null,       // Map<node_id, string>: the pills a card was painted with
+    _open_nodes:        null,       // Set<node_id>: the nodes toggled AGAINST `node_mode`
     _fold_busy:         false,      // a reconcile is in flight
 };
 
@@ -807,7 +834,6 @@ function register_layouts(gobj)
         _g6_extensions_registered = true;
         register(ExtensionCategory.LAYOUT, 'manual', ManualLayout);
         register(ExtensionCategory.LAYOUT, 'treedb-tree', TreedbTreeLayout);
-        register(ExtensionCategory.LAYOUT, 'treedb-outline', TreedbOutlineLayout);
         register(ExtensionCategory.LAYOUT, 'treedb-radial', TreedbRadialLayout);
         register(ExtensionCategory.NODE, 'light', LightNode);
     }
@@ -926,6 +952,10 @@ function configure_events(gobj)
 
     graph.on(NodeEvent.CONTEXT_MENU, (evt) => {
         gobj_send_event(gobj, "EV_NODE_CONTEXT_MENU", {evt: evt}, gobj);
+    });
+
+    graph.on(NodeEvent.DBLCLICK, (evt) => {
+        gobj_send_event(gobj, "EV_NODE_DBLCLICK", {evt: evt}, gobj);
     });
 
     graph.on(EdgeEvent.CLICK, (evt) => {
@@ -1598,7 +1628,7 @@ function configure_behaviour(gobj)
             priv.edit_mode = false;
             behaviors = [
                 "drag-canvas",
-                "zoom-canvas",
+                ...camera_behaviors(),
             ];
             break;
         case "edition":
@@ -1630,7 +1660,7 @@ function configure_behaviour(gobj)
                         return true;    /* a key, not a pointer */
                     },
                 },
-                "zoom-canvas",
+                ...camera_behaviors(),
                 /*  Moves EVERY node in the `selected` state, not just
                  *  the one under the pointer, and wraps the whole move
                  *  in one history batch -- so a group move is one drag
@@ -1689,7 +1719,7 @@ function configure_behaviour(gobj)
              *  where the gestures ARE the camera, the graph froze.  */
             behaviors = [
                 "drag-canvas",
-                "zoom-canvas",
+                ...camera_behaviors(),
             ];
             break;
         default:
@@ -1792,9 +1822,38 @@ function build_ports(gobj, desc)
  *  Which way the graph reads. `dagre` is the left-to-right
  *  layout; everything else keeps the top-down reading, `manual`
  *  included, because the saved arrangements were made with the
- *  ports on the top and bottom edges.
+ *  ports on the top and bottom edges. The treedb tree reads down
+ *  too, since 7.23.75: read right it was dagre's twin.
  ************************************************************/
-const LR_LAYOUTS = ["dagre", "treedb-tree", "treedb-outline"];
+const LR_LAYOUTS = ["dagre"];
+
+/************************************************************
+ *  The camera behaviors every operation mode shares.
+ *
+ *  The wheel SCROLLS, as it does on a map and on every page: a
+ *  graph of many nodes is taller than the screen, and a wheel
+ *  that zoomed instead made it a thing to be looked at from afar
+ *  or read through a keyhole -- never scrolled. Zoom is Ctrl +
+ *  wheel (which is also what a trackpad pinch arrives as), the
+ *  toolbar's +/-, and the two-finger pinch of g6_touch_gestures.
+ *  `enable` on the scroll keeps the two apart: a Ctrl wheel is
+ *  the zoom's, so the scroll stands aside for it.
+ ************************************************************/
+function camera_behaviors()
+{
+    return [
+        {
+            type: "scroll-canvas",
+            key: "scroll-canvas",
+            enable: (event) => !(event && (event.ctrlKey || event.metaKey)),
+        },
+        {
+            type: "zoom-canvas",
+            key: "zoom-canvas",
+            trigger: ["Control"],
+        },
+    ];
+}
 
 function layout_direction(gobj)
 {
@@ -1916,58 +1975,105 @@ function create_topic_node(gobj, desc, record)
 
     //log_warning(`create node ==> ${node_name}`);
 
+    let pills_html = pills_html_of_key(gobj, fold_node_key(desc.topic_name, String(record.id)));
+    let shape = node_shape_of(gobj, node_name, desc, record, geometry, pills_html);
+
+    let node_def = {
+        id: node_name,
+        type: shape.type,
+        style: Object.assign({x: x, y: y}, shape.style),
+        data: {
+            // This 4 keys are available in user `data` of G6 Node.
+            topic_name: desc.topic_name,
+            desc: desc,
+            record: record,
+            graph_props: geometry,  // from __graphs__ (or _geometry fallback)
+            /*  The ports in schema order, whatever shape the node
+             *  wears: the tree layout ranks the children by them, and
+             *  a closed node carries no ports on its style.  */
+            port_keys: build_ports(gobj, desc).map((p) => p.key),
+        }
+    };
+
+    graph.addNodeData([node_def]);
+}
+
+/************************************************************
+ *  The shape of a record node: OPEN (the card, with its ports)
+ *  or CLOSED (a coloured square), by `node_mode` and the nodes
+ *  toggled against it.
+ *
+ *  Both answer {type, style} WITHOUT x/y, which belong to the node
+ *  and not to its shape, and a node moves between the two on the
+ *  fly: G6 rebuilds the element when `type` changes, and the
+ *  style is MERGED, which is why each shape also writes the keys
+ *  the other one would leave behind (`labelText`, `ports`).
+ ************************************************************/
+function node_shape_of(gobj, node_id, desc, record, geometry, pills_html)
+{
+    if(node_is_compact(gobj, node_id)) {
+        return compact_shape_of(gobj, desc, record, {});
+    }
+    return card_shape_of(gobj, desc, record, geometry, pills_html);
+}
+
+function node_is_compact(gobj, node_id)
+{
+    let priv = gobj.priv;
+    if(!priv._open_nodes) {
+        priv._open_nodes = new Set();
+    }
+    let compact = (gobj_read_str_attr(gobj, "node_mode") === "compact");
+    return priv._open_nodes.has(node_id)? !compact : compact;
+}
+
+/************************************************************
+ *  The CARD: an html node, the tier's size, the ports, the
+ *  saved geometry on top. The flags (focus, selection, anchor)
+ *  are not painted here: repaint_cards() reads them where they
+ *  live and rebuilds the html.
+ ************************************************************/
+function card_shape_of(gobj, desc, record, geometry, pills_html)
+{
+    let priv = gobj.priv;
+    let node_treedb_type = desc.node_treedb_type;
+    let label = node_label(desc, record);
     let ports = build_ports(gobj, desc);
 
-    let node_graph_type = null;
-    let node_treedb_type = desc.node_treedb_type;
-
     let style = {
-        x: x,
-        y: y,
-        fill: desc.color,     // Fill color
-        stroke: getStrokeColor(desc.color),   // Stroke color
-        lineWidth: 1,           // Stroke width
-        //labelText: desc.topic_name + "^" + record.id,
+        fill: desc.color,
+        stroke: getStrokeColor(desc.color),
+        lineWidth: 1,
+        lineDash: [],
+        halo: false,
+        labelText: "",      /*  a card says its name inside; the label is the square's  */
     };
 
     /*  The pills are part of the card, so the card is taller when it
      *  has any: a row of them on a 96px card sat on the subtitle.  */
-    let pills_html = pills_html_of_key(gobj, fold_node_key(desc.topic_name, String(record.id)));
     let size = card_size_for(node_treedb_type, !!pills_html);
+    style.size = size;
+    style.dx = -size[0] / 2;
+    style.dy = -size[1] / 2;
 
     if(node_treedb_type === 'child') {
         // Pure child (LEAF): smallest tier. Rounded-rect chip,
         // same card language as entities, lighter.
-        node_graph_type = 'html';
-        style.size = size;
-        style.dx = -size[0] / 2;
-        style.dy = -size[1] / 2;
         style.innerHTML = build_chip_innerHTML(
-            desc.color, priv.theme, record.icon,
-            node_label(desc, record), record.id
+            desc.color, priv.theme, record.icon, label, record.id
         );
-
     } else if(node_treedb_type === 'extended') {
         // Extended (structural / INTERMEDIATE): middle tier. Card
         // with name; "structural" style (neutral grey, dashed
         // border) to read as a container/junction.
-        node_graph_type = 'html';
-        style.size = size;
-        style.dx = -size[0] / 2;
-        style.dy = -size[1] / 2;
         style.innerHTML = build_node_innerHTML(
-            desc.color, priv.theme, record.icon, node_label(desc, record),
+            desc.color, priv.theme, record.icon, label,
             desc.topic_name, true, record.id, false, false, false, pills_html
         );
-
     } else {
         // Hierarchical entity (ROOT / container): largest tier.
-        node_graph_type = 'html';
-        style.size = size;
-        style.dx = -size[0] / 2;
-        style.dy = -size[1] / 2;
         style.innerHTML = build_node_innerHTML(
-            desc.color, priv.theme, record.icon, node_label(desc, record),
+            desc.color, priv.theme, record.icon, label,
             desc.topic_name, false, record.id, false, false, false, pills_html
         );
     }
@@ -1980,10 +2086,8 @@ function create_topic_node(gobj, desc, record)
         let def_size = topic_defaults.size;
         if(!geometry.size && Array.isArray(def_size) && def_size.length > 0) {
             style.size = [...def_size];
-            if(node_graph_type === 'html') {
-                style.dx = -def_size[0] / 2;
-                style.dy = -(def_size.length > 1 ? def_size[1] : def_size[0]) / 2;
-            }
+            style.dx = -def_size[0] / 2;
+            style.dy = -(def_size.length > 1 ? def_size[1] : def_size[0]) / 2;
         }
         if(!geometry.portR && topic_defaults.portR > 0) {
             style.portR = topic_defaults.portR;
@@ -1994,35 +2098,20 @@ function create_topic_node(gobj, desc, record)
     let saved_size = geometry.size;
     if(Array.isArray(saved_size) && saved_size.length > 0) {
         style.size = saved_size;
-        // Recalculate dx/dy for HTML nodes to keep content centered
-        if(node_graph_type === 'html') {
-            style.dx = -saved_size[0] / 2;
-            style.dy = -(saved_size.length > 1 ? saved_size[1] : saved_size[0]) / 2;
-        }
+        // Recalculate dx/dy to keep content centered
+        style.dx = -saved_size[0] / 2;
+        style.dy = -(saved_size.length > 1 ? saved_size[1] : saved_size[0]) / 2;
     }
     if(geometry.portR > 0) {
         style.portR = geometry.portR;
     }
 
-    let node_def = {
-        id: node_name,
-        type: node_graph_type,
-        style: style,
-        data: {
-            // This 4 keys are available in user `data` of G6 Node.
-            topic_name: desc.topic_name,
-            desc: desc,
-            record: record,
-            graph_props: geometry  // from __graphs__ (or _geometry fallback)
-        }
-    };
-
     if(json_size(ports)) {
         json_object_update_missing(style, {
             port: true,
             ports: ports,
-            portR: node_treedb_type === 'child' ? 2 : 6,
-            portLineWidth: 1,
+            portR: node_treedb_type === 'child' ? PORT_R_CHILD : PORT_R_ENTITY,
+            portLineWidth: PORT_LINE_WIDTH,
         });
 
         // Restore per-port radius: saved geometry first, then topic defaults
@@ -2040,11 +2129,135 @@ function create_topic_node(gobj, desc, record)
                 }
             }
         }
+    } else {
+        style.port = false;
+        style.ports = [];
     }
 
-    if(node_graph_type) {
-        graph.addNodeData([node_def]);
+    return {type: 'html', style: style};
+}
+
+/************************************************************
+ *  The SQUARE: a G6 `rect` of the topic's colour, no ports, the
+ *  name as a label under it when `node_labels` says so. A native
+ *  shape and not html on purpose: G6's own stroke and halo paint
+ *  on it, so the focus, the selection and the anchor are three
+ *  keys of the style instead of a rebuilt innerHTML.
+ *
+ *      flags   {highlight, selected, anchored}
+ ************************************************************/
+function compact_shape_of(gobj, desc, record, flags)
+{
+    let priv = gobj.priv;
+    let dark = (priv.theme === "dark");
+    let f = flags || {};
+    let tier = desc.node_treedb_type;
+    let side = COMPACT_SIZE[tier] || COMPACT_SIZE.hierarchical;
+    let labels = gobj_read_bool_attr(gobj, "node_labels");
+
+    let stroke = getStrokeColor(desc.color);
+    let line_width = 1.5;
+    if(f.selected) {
+        stroke = SELECT_RING;
+        line_width = 3;
     }
+    if(f.highlight) {
+        stroke = HIGHLIGHT_COLOR;
+        line_width = 3;
+    }
+    /*  Dashed says "structural", as the extended card does; the
+     *  anchor's mark is a tighter dash, as on the card.  */
+    let dash = [];
+    if(tier === 'extended') {
+        dash = [4, 3];
+    }
+    if(f.anchored) {
+        dash = [2, 2];
+        line_width = Math.max(line_width, 2.5);
+    }
+
+    let style = {
+        size: [side, side],
+        radius: Math.round(side / 5),
+        fill: desc.color,
+        stroke: stroke,
+        lineWidth: line_width,
+        lineDash: dash,
+        halo: !!f.highlight,
+        haloStroke: HIGHLIGHT_HALO,
+        haloLineWidth: 8,
+        port: false,
+        ports: [],
+        labelText: labels? node_label(desc, record) : "",
+        labelPlacement: 'bottom',
+        labelFontSize: 11,
+        labelFill: dark? '#e6e9ef' : '#2e333d',
+        labelMaxWidth: 150,
+        labelWordWrap: true,
+        labelMaxLines: 1,
+        labelTextOverflow: 'ellipsis',
+        labelBackground: true,
+        labelBackgroundFill: dark? '#1b2230' : '#ffffff',
+        labelBackgroundOpacity: 0.85,
+        labelBackgroundRadius: 3,
+        labelPadding: [1, 3],
+    };
+    return {type: 'rect', style: style};
+}
+
+/************************************************************
+ *  Give these record nodes the shape their mode says, then
+ *  repaint them with the flags they carry. A `+N` chip is not a
+ *  record and keeps its own shape.
+ ************************************************************/
+function reshape_nodes(gobj, ids)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph) {
+        return;
+    }
+    let updates = [];
+    let touched = new Set();
+    for(let id of ids) {
+        let nd;
+        try {
+            nd = graph.getNodeData(id);
+        } catch(e) {
+            continue;
+        }
+        if(!nd || !nd.data || !nd.data.desc || is_more_node(nd)) {
+            continue;
+        }
+        let geometry = nd.data.graph_props || {};
+        let shape = node_shape_of(
+            gobj, id, nd.data.desc, nd.data.record || {}, geometry, pills_html_of(gobj, nd)
+        );
+        updates.push({id: id, type: shape.type, style: shape.style});
+        touched.add(id);
+    }
+    if(!updates.length) {
+        return;
+    }
+    try {
+        graph.updateNodeData(updates);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot reshape the nodes: ${e}`);
+        return;
+    }
+    repaint_cards(gobj, touched);
+}
+
+function all_record_node_ids(gobj)
+{
+    let graph = gobj.priv.graph;
+    let ids = [];
+    for(let nd of ((graph && graph.getNodeData()) || [])) {
+        if(nd && nd.data && nd.data.desc && !is_more_node(nd)) {
+            ids.push(nd.id);
+        }
+    }
+    return ids;
 }
 
 /************************************************************
@@ -3336,7 +3549,7 @@ class ManualLayout extends BaseLayout
 }
 
 /************************************************************
- *  Custom G6 layouts: TreedbTreeLayout / TreedbOutlineLayout.
+ *  Custom G6 layouts: TreedbTreeLayout / TreedbRadialLayout.
  *
  *  Thin adapters over treedb_layout.js: the nodes with their sizes,
  *  the edges with the RANK of the hook they leave by (the position
@@ -3354,8 +3567,13 @@ function treedb_layout_input(data)
         let size = (node.style && node.style.size) || [172, 96];
         let w = is_array(size)? size[0] : size;
         let h = is_array(size)? (size.length > 1? size[1] : size[0]) : size;
+        /*  The hook order comes from `data.port_keys`, written when
+         *  the node is born: a CLOSED node has no ports on its style,
+         *  and its children still have to sit in schema order.  */
         let ports = (node.style && is_array(node.style.ports))? node.style.ports : [];
-        ports_of.set(node.id, ports.map((p) => p.key));
+        let keys = (node.data && is_array(node.data.port_keys))
+            ? node.data.port_keys : ports.map((p) => p.key);
+        ports_of.set(node.id, keys);
         return {id: node.id, w: w, h: h};
     });
 
@@ -3383,14 +3601,6 @@ class TreedbTreeLayout extends BaseLayout
     async execute(data, options) {
         let input = treedb_layout_input(data);
         return treedb_layout_output(layout_tree(input.nodes, input.edges, options));
-    }
-}
-
-class TreedbOutlineLayout extends BaseLayout
-{
-    async execute(data, options) {
-        let input = treedb_layout_input(data);
-        return treedb_layout_output(layout_outline(input.nodes, input.edges, options));
     }
 }
 
@@ -4521,7 +4731,7 @@ function get_port_radius(gobj, node_id, port_key)
             break;
         }
     }
-    return style.portR || 6;
+    return style.portR || PORT_R_ENTITY;
 }
 
 /************************************************************
@@ -4560,7 +4770,7 @@ function detect_port_click(gobj, node_id, canvasX, canvasY)
     const style = nodeData.style || {};
     const {w, h} = extract_size(style);
     const ports = style.ports || [];
-    const defaultR = style.portR || 6;
+    const defaultR = style.portR || PORT_R_ENTITY;
 
     let best_key = null;
     let best_dist = Infinity;
@@ -4812,7 +5022,7 @@ function enter_linking_mode(gobj)
                 if(p.r != null) {
                     p.r = p.r + 4;
                 } else {
-                    p.r = (style.portR || 6) + 4;
+                    p.r = (style.portR || PORT_R_ENTITY) + 4;
                 }
             }
         }
@@ -5040,7 +5250,7 @@ function find_hook_at_point(gobj, canvasX, canvasY)
             let pl = p.placement || [0.5, 0.5];
             let px = pos[0] + (pl[0] - 0.5) * w;
             let py = pos[1] + (pl[1] - 0.5) * h;
-            let r = p.r != null ? p.r : (style.portR || 6);
+            let r = p.r != null ? p.r : (style.portR || PORT_R_ENTITY);
             let dx = canvasX - px;
             let dy = canvasY - py;
             if(Math.sqrt(dx * dx + dy * dy) <= r + 6) {
@@ -6159,9 +6369,17 @@ function repaint_cards(gobj, ids)
         } catch(e) {
             continue;       /* gone since it was listed */
         }
+        let anchored = (priv.anchor_state === "on" && id === priv.anchor_id);
+        /*  A closed node paints its flags on its own stroke.  */
+        if(nd && nd.data && nd.data.desc && node_is_compact(gobj, id)) {
+            updates.push({id: id, style: compact_shape_of(
+                gobj, nd.data.desc, nd.data.record || {},
+                {highlight: focus.has(id), selected: selected.has(id), anchored: anchored}
+            ).style});
+            continue;
+        }
         let html = node_innerHTML_of(
-            nd, priv.theme, focus.has(id), selected.has(id),
-            priv.anchor_state === "on" && id === priv.anchor_id,
+            nd, priv.theme, focus.has(id), selected.has(id), anchored,
             pills_html_of(gobj, nd)
         );
         if(html !== null) {
@@ -6219,9 +6437,16 @@ function refresh_html_nodes_theme(gobj, theme)
     for(let i = 0; i < nodes.length; i++) {
         let id = nodes[i].id;
         let nd = graph.getNodeData(id);
+        let anchored = (priv.anchor_state === "on" && id === priv.anchor_id);
+        if(nd && nd.data && nd.data.desc && node_is_compact(gobj, id)) {
+            updates.push({id: id, style: compact_shape_of(
+                gobj, nd.data.desc, nd.data.record || {},
+                {highlight: highlighted.has(id), selected: selected.has(id), anchored: anchored}
+            ).style});
+            continue;
+        }
         let html = node_innerHTML_of(
-            nd, theme, highlighted.has(id), selected.has(id),
-            priv.anchor_state === "on" && id === priv.anchor_id,
+            nd, theme, highlighted.has(id), selected.has(id), anchored,
             pills_html_of(gobj, nd)
         );
         if(html === null) {
@@ -7170,8 +7395,16 @@ function build_node_context_menu(gobj, node_id)
 {
     let items = [];
 
-    if(gobj.priv.edit_mode) {
-        inject_svg_icons();
+    inject_svg_icons();
+    /*  Open or close THIS node against the mode: the door a finger
+     *  has to it (a double click is the mouse's).  */
+    if(node_is_compact(gobj, node_id)) {
+        items.push(ctx_item('g6-icon-fullscreen', t('open node'), 'toggle_node_mode'));
+    } else {
+        items.push(ctx_item('g6-icon-fullscreen-exit', t('close node'), 'toggle_node_mode'));
+    }
+
+    if(gobj.priv.edit_mode && !node_is_compact(gobj, node_id)) {
         items.push(ctx_item('g6-icon-resize', t('resize all'), 'resize_all_nodes'));
         items.push(ctx_item('g6-icon-resize', t('resize topic nodes'), 'resize_topic_nodes'));
     }
@@ -7213,6 +7446,11 @@ function handle_context_menu_click(gobj, value)
     let priv = gobj.priv;
 
     switch(value) {
+        case 'toggle_node_mode':
+            if(priv._context_node_id) {
+                gobj_send_event(gobj, "EV_TOGGLE_NODE_MODE", {id: priv._context_node_id}, gobj);
+            }
+            break;
         case 'resize_all_nodes':
             copy_size_to_nodes(gobj, false);
             break;
@@ -7971,8 +8209,9 @@ async function reconcile_fold_apply(gobj, opts, visible)
             let desc = nd && nd.data && nd.data.desc;
             let geometry = (nd && nd.data && nd.data.graph_props) || {};
             /*  A saved size is the owner's: only a card on the default
-             *  size grows and shrinks with its pills.  */
-            if(desc && !is_array(geometry.size)) {
+             *  size grows and shrinks with its pills. A closed node has
+             *  no pills to grow for.  */
+            if(desc && !is_array(geometry.size) && !node_is_compact(gobj, id)) {
                 let size = card_size_for(desc.node_treedb_type, !!sig);
                 resize.push({id: id, style: {
                     size: size, dx: -size[0] / 2, dy: -size[1] / 2,
@@ -8105,6 +8344,7 @@ function ac_clear_data(gobj, event, kw, src)
     priv._fold_model = null;
     priv._fold_state = null;
     priv._pill_sig = null;
+    priv._open_nodes = null;
 
     graph_remove_plugin(gobj, "history");
     update_history_buttons(gobj);
@@ -8856,6 +9096,97 @@ function ac_set_loose_topics(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The shape of every record: open cards or closed squares.
+ *  A change of mode forgets the nodes toggled against the old
+ *  one -- they were exceptions to a rule that no longer holds --
+ *  and lays the graph out again, because a square and a card
+ *  do not occupy the same room.
+ ************************************************************/
+function ac_set_node_mode(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let mode = (kw && kw.node_mode === "compact")? "compact" : "expanded";
+
+    gobj_write_str_attr(gobj, "node_mode", mode);
+    priv._open_nodes = new Set();
+    if(!priv.graph || !priv._fold_model) {
+        return 0;       /*  applied when the records arrive  */
+    }
+    reshape_nodes(gobj, all_record_node_ids(gobj));
+    reconcile_fold(gobj, {relayout: true, fit: true});
+    return 0;
+}
+
+/************************************************************
+ *  The name under a closed square, on or off. Only the closed
+ *  nodes change, and nothing moves: the label hangs outside the
+ *  square and the layout measures the square.
+ ************************************************************/
+function ac_set_node_labels(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    gobj_write_bool_attr(gobj, "node_labels", !!(kw && kw.node_labels));
+    if(!priv.graph) {
+        return 0;
+    }
+    let ids = all_record_node_ids(gobj).filter((id) => node_is_compact(gobj, id));
+    reshape_nodes(gobj, ids);
+    return 0;
+}
+
+/************************************************************
+ *  ONE node opened or closed against the mode (a double click,
+ *  or the context menu). It holds still on screen while the
+ *  rest of the graph makes room, as a fold does.
+ ************************************************************/
+function ac_toggle_node_mode(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let node_id = (kw && kw.id) || "";
+
+    if(!priv.graph || !node_id) {
+        log_error(`${gobj_short_name(gobj)}: toggle node mode without a node`);
+        return -1;
+    }
+    if(!priv._open_nodes) {
+        priv._open_nodes = new Set();
+    }
+    if(priv._open_nodes.has(node_id)) {
+        priv._open_nodes.delete(node_id);
+    } else {
+        priv._open_nodes.add(node_id);
+    }
+    let vp = yui_graph_viewport_of(priv.graph, node_id);
+    reshape_nodes(gobj, [node_id]);
+    if(priv._fold_model) {
+        reconcile_fold(gobj, {relayout: true, keep: node_id, keep_vp: vp});
+    }
+    return 0;
+}
+
+/************************************************************
+ *  A double click on a node: open it if closed, close it if open.
+ *  A `+N` chip is not a record and has no shape to toggle.
+ ************************************************************/
+function ac_node_dblclick(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let node_id = kw && kw.evt && kw.evt.target? kw.evt.target.id : "";
+    let nd = null;
+    try {
+        nd = priv.graph.getNodeData(node_id);
+    } catch(e) {
+        nd = null;
+    }
+    if(!nd || !nd.data || !nd.data.desc || is_more_node(nd)) {
+        return 0;
+    }
+    gobj_send_event(gobj, "EV_TOGGLE_NODE_MODE", {id: node_id}, gobj);
+    return 0;
+}
+
+/************************************************************
  *  Tell whoever asked how many nodes the term matched. The count is
  *  the answer to the question the box asks; without it "nothing moved"
  *  and "nothing matched" look the same.
@@ -9419,6 +9750,10 @@ function create_gclass(gclass_name)
             ["EV_SET_HIDDEN_TOPICS",        ac_set_hidden_topics,   null],
             ["EV_SET_MAIN_TOPIC",           ac_set_main_topic,      null],
             ["EV_SET_LOOSE_TOPICS",         ac_set_loose_topics,    null],
+            ["EV_SET_NODE_MODE",            ac_set_node_mode,       null],
+            ["EV_SET_NODE_LABELS",          ac_set_node_labels,     null],
+            ["EV_TOGGLE_NODE_MODE",         ac_toggle_node_mode,    null],
+            ["EV_NODE_DBLCLICK",            ac_node_dblclick,       null],
             ["EV_CENTER",                   ac_center,              null],
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_SET_LAYOUT",               ac_set_layout,          null],
@@ -9479,6 +9814,10 @@ function create_gclass(gclass_name)
         ["EV_SET_HIDDEN_TOPICS",        0],
         ["EV_SET_MAIN_TOPIC",           0],
         ["EV_SET_LOOSE_TOPICS",         0],
+        ["EV_SET_NODE_MODE",            0],
+        ["EV_SET_NODE_LABELS",          0],
+        ["EV_TOGGLE_NODE_MODE",         0],
+        ["EV_NODE_DBLCLICK",            0],
         ["EV_LEGEND_STATE",             event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],

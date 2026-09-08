@@ -49,6 +49,7 @@ import {
     treedb_get_field_desc,
     treedb_decoder_fkey,
     gobj_write_str_attr,
+    gobj_write_bool_attr,
     gobj_command,
     msg_iev_get_stack,
     kw_get_dict,
@@ -88,6 +89,7 @@ import {
     enableElements,
     set_submit_state,
     set_active_state,
+    set_pressed_state,
 } from "./lib_graph.js";
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {yui_shell_of, yui_shell_set_sub_routes} from "./c_yui_shell.js";
@@ -118,6 +120,8 @@ SDATA(data_type_t.DTP_STRING,   "layout",           sdata_flag_t.SDF_PERSIST, ""
 SDATA(data_type_t.DTP_LIST,     "hidden_topics",    sdata_flag_t.SDF_PERSIST, "[]", "Topics hidden from the graph (legend). User preference, per treedb"),
 SDATA(data_type_t.DTP_STRING,   "main_topic",       sdata_flag_t.SDF_PERSIST, "", "The topic the tree hangs from; empty = deduced by the graph. User preference, per treedb"),
 SDATA(data_type_t.DTP_LIST,     "loose_topics",     sdata_flag_t.SDF_PERSIST, "[]", "Topics whose LOOSE records (no parent) are shown. User preference, per treedb"),
+SDATA(data_type_t.DTP_STRING,   "node_mode",        sdata_flag_t.SDF_PERSIST, "expanded", "How the records are drawn: `expanded` = the cards with their ports, `compact` = coloured squares, the topology alone. User preference"),
+SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",      sdata_flag_t.SDF_PERSIST, true, "A compact node says its name under its square. User preference"),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -253,6 +257,8 @@ function mt_create(gobj)
             hidden_topics: gobj_read_attr(gobj, "hidden_topics") || [],
             main_topic: gobj_read_str_attr(gobj, "main_topic") || "",
             loose_topics: gobj_read_attr(gobj, "loose_topics") || [],
+            node_mode: gobj_read_str_attr(gobj, "node_mode") || "expanded",
+            node_labels: gobj_read_bool_attr(gobj, "node_labels"),
         },
         gobj
     );
@@ -360,6 +366,7 @@ function build_ui(gobj)
      *----------------------------------------------*/
     let padding = gobj_read_attr(gobj, "padding");
     let $toolbar = make_toolbar(gobj);
+    refresh_node_shape_buttons(gobj, $toolbar);
 
     /*  The back link is pinned in the row, BEFORE the toolbar, so the
      *  toolbar's horizontal scroll never carries it off-screen. */
@@ -529,6 +536,62 @@ function option_label(name)
 /************************************************************
  *
  ************************************************************/
+/************************************************************
+ *  The two toggles of the nodes' shape.
+ *
+ *  Closed nodes: every record a rounded square of its topic's
+ *  colour, no ports, no text -- the topology of a graph of many
+ *  nodes, which the cards hide behind their own size. Labels:
+ *  the name under each square, when the squares alone do not say
+ *  enough. Both persist, both are forwarded to the G6 child, and
+ *  one node can be opened against the rule with a double click or
+ *  its context menu (the child's business).
+ ************************************************************/
+function node_shape_items(gobj, wide)
+{
+    let toggle = (cls, icon, event_name, label_key) => {
+        return ['button', {class: `${cls} button`, type: 'button',
+                           style: {height: wide, width: '2.5em'},
+                           title: t(label_key), 'data-i18n-title': label_key,
+                           'aria-label': t(label_key), 'data-i18n-aria-label': label_key,
+                           'aria-pressed': 'false'},
+            ['i', {style: 'font-size:1.5em; color:inherit;', class: icon}],
+            {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, event_name, {}, gobj);
+                }
+            }
+        ];
+    };
+    return [
+        toggle('GRAPH_NODE_MODE', 'yi-hexagon-nodes', 'EV_TOGGLE_NODE_MODE', 'closed nodes'),
+        toggle('GRAPH_NODE_LABELS', 'yi-font', 'EV_TOGGLE_NODE_LABELS', 'node labels'),
+    ];
+}
+
+/*  The pressed look and `aria-pressed` of the two, from the attrs.
+ *  `$root` is whatever holds the toolbar: the toolbar itself before
+ *  the view is mounted, the view's container after.  */
+function refresh_node_shape_buttons(gobj, $root)
+{
+    if(!$root) {
+        return;
+    }
+    let compact = (gobj_read_str_attr(gobj, "node_mode") === "compact");
+    let labels = gobj_read_bool_attr(gobj, "node_labels");
+    set_pressed_state($root, '.GRAPH_NODE_MODE', compact);
+    set_pressed_state($root, '.GRAPH_NODE_LABELS', labels);
+    let $mode = $root.querySelector('.GRAPH_NODE_MODE');
+    if($mode) {
+        $mode.setAttribute('aria-pressed', compact? 'true' : 'false');
+    }
+    let $labels = $root.querySelector('.GRAPH_NODE_LABELS');
+    if($labels) {
+        $labels.setAttribute('aria-pressed', labels? 'true' : 'false');
+    }
+}
+
 function make_toolbar(gobj)
 {
     let priv = gobj.priv;
@@ -592,6 +655,10 @@ function make_toolbar(gobj)
          *  these are the whole thing and the roots alone. Refresh is the
          *  way back to the default depth.  */
         ...yui_graph_fold_items(gobj, gobj_read_str_attr(gobj, "wide")),
+
+        /*  The shape pair: closed squares or open cards, and the name
+         *  under a square. Two STATES, so they look pressed.  */
+        ...node_shape_items(gobj, gobj_read_str_attr(gobj, "wide")),
 
         /*  Inspect the treedb's raw tranger json in the lazy tree viewer
          *  (print-tranger on the C_NODE service). A treedb can be huge, so
@@ -2705,6 +2772,39 @@ function ac_collapse_all(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The shape pair of the toolbar: the attr flips, persists,
+ *  shows on the button, and reaches the G6 child, which owns
+ *  the nodes.
+ ************************************************************/
+function ac_toggle_node_mode(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let mode = (gobj_read_str_attr(gobj, "node_mode") === "compact")? "expanded" : "compact";
+
+    gobj_write_str_attr(gobj, "node_mode", mode);
+    gobj_save_persistent_attrs(gobj, "node_mode");
+    refresh_node_shape_buttons(gobj, priv.$container);
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(priv.gobj_nodes_tree, "EV_SET_NODE_MODE", {node_mode: mode}, gobj);
+    }
+    return 0;
+}
+
+function ac_toggle_node_labels(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let labels = !gobj_read_bool_attr(gobj, "node_labels");
+
+    gobj_write_bool_attr(gobj, "node_labels", labels);
+    gobj_save_persistent_attrs(gobj, "node_labels");
+    refresh_node_shape_buttons(gobj, priv.$container);
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(priv.gobj_nodes_tree, "EV_SET_NODE_LABELS", {node_labels: labels}, gobj);
+    }
+    return 0;
+}
+
+/************************************************************
  *  How many nodes the term matched, from the graph child. Zero with a
  *  term typed is an ANSWER and is shown; an empty box shows nothing.
  ************************************************************/
@@ -2857,6 +2957,8 @@ function create_gclass(gclass_name)
             ["EV_FIND_NODES",               ac_find_nodes,              null],
             ["EV_EXPAND_ALL",               ac_expand_all,              null],
             ["EV_COLLAPSE_ALL",             ac_collapse_all,            null],
+            ["EV_TOGGLE_NODE_MODE",         ac_toggle_node_mode,        null],
+            ["EV_TOGGLE_NODE_LABELS",       ac_toggle_node_labels,      null],
             ["EV_LAYOUT_AUTOSET",           ac_layout_autoset,          null],
             ["EV_LEGEND_TOPIC",             ac_legend_topic,            null],
             ["EV_LEGEND_STATE",             ac_legend_state,            null],
@@ -2898,6 +3000,8 @@ function create_gclass(gclass_name)
         ["EV_FIND_NODES",               0],
         ["EV_EXPAND_ALL",               0],
         ["EV_COLLAPSE_ALL",             0],
+        ["EV_TOGGLE_NODE_MODE",         0],
+        ["EV_TOGGLE_NODE_LABELS",       0],
         ["EV_FIND_RESULT",              0],
         ["EV_LAYOUT_AUTOSET",           0],
         ["EV_LEGEND_TOPIC",             0],

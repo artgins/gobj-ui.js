@@ -835,6 +835,16 @@ Two implementation notes worth keeping:
 
 ### The graph's viewport toolbar
 
+**The wheel scrolls; Ctrl + wheel zooms** (since `7.23.75`, in every operation
+mode of every graph built on `C_G6_NODES_TREE`). A graph of many nodes is
+taller than the screen, and a wheel that zoomed instead made it a thing to be
+looked at from afar or read through a keyhole — never scrolled, which is what
+a wheel does on a map and on every page. Shift + wheel scrolls sideways, a
+trackpad pinch arrives as Ctrl + wheel and keeps zooming, and the two-finger
+pinch on a touch screen is [our own](#the-graphs-on-a-touch-screen). G6's
+`scroll-canvas` takes the plain wheel (its `enable` stands aside for a
+Ctrl/Meta wheel) and `zoom-canvas` takes `trigger: ['Control']`.
+
 `C_G6_NODES_TREE` floats a vertical toolbar over the canvas:
 
 | control | what it does |
@@ -1268,7 +1278,7 @@ One consumer key came with it: `show more`, the chip's tooltip.
 
 ### Layouts: what G6 offers, and the two made for a treedb
 
-What a treedb graph IS, once folded: a **forest read left to right**. A main
+What a treedb graph IS, once folded: a **forest read top to bottom**. A main
 topic is a tree (places: country, region, site, hall), the other topics hang
 from its nodes through hooks, a record may hang from two parents (a device
 from its place AND its controller), and every visible node was reached from a
@@ -1285,16 +1295,21 @@ G6 5.1 registers these layouts, and this is how each meets that shape:
 | `circular`, `concentric`, `grid`, `mds`, `random` | rings, rings by degree, a grid, projection, noise | none knows a parent from a child |
 | `combo-combined`, `fishbone` | combos / cause-effect | not this data |
 
-So three of our own, in `treedb_layout.js` (pure, tested), registered as G6
-layouts by three thin adapters in `c_g6_nodes_tree.js`:
+So two of our own, in `treedb_layout.js` (pure, tested), registered as G6
+layouts by two thin adapters in `c_g6_nodes_tree.js`:
 
-- **`treedb-tree`** — the classic tidy tree, left to right. A column per
-  depth as wide as its widest card, a node centred on the block of its
-  children, siblings stacked with `nodesep`. **The default** for a treedb
-  nobody has arranged (was `dagre`).
-- **`treedb-outline`** — one node per row, indented by depth: what a JSON
-  viewer draws, and what a treedb is when read as one. Tall, but nothing is
-  ever beside anything.
+- **`treedb-tree`** — the classic tidy tree, **top to bottom**. A row per
+  depth as tall as its tallest card, a node centred over the block of its
+  children, siblings side by side with `nodesep`. **The default** for a
+  treedb nobody has arranged (was `dagre`). It reads down because down is
+  where a tree has room: a hall with a hundred devices is a wide row, not a
+  column beside a card — and read right (as it did until `7.23.74`) it was
+  `dagre` with the siblings held still, which nobody could tell apart. The
+  algorithm is written once, left to right; the top-down tree is the same
+  tree fed transposed cards and read back transposed (`direction: "LR"`
+  keeps the other reading for a host that wants it). The outline that shipped
+  beside it (`treedb-outline`, one row per node) was removed in `7.23.75`: a
+  list that indents is a JSON viewer, and this library already has one.
 - **`radial`** (`treedb-radial`) — the root in the middle, a ring per depth,
   every subtree an angular **sector** proportional to its leaves, and the
   radius of each ring the larger of one step out from the ring before and
@@ -1312,8 +1327,47 @@ reaches gets a root. Consequences that dagre cannot give: O(n), no crossing
 heuristic, and **opening a hook moves nothing that is not under or beside
 it** — the cards keep their order, the eye keeps its place, and the `+N` chip
 sits at the end of its own hook's children. The hook rank comes from the
-edge's `sourcePort` looked up in the parent's ports, so the adapter needs no
+edge's `sourcePort` looked up in the parent's port keys — carried in the
+node's `data.port_keys`, because a CLOSED node (below) has no ports on its
+style and its children still sit in schema order — so the adapter needs no
 model, only the G6 data.
+
+The walks are **iterative**, not recursive: a self-referent hook (a place
+inside a place inside a place) is as deep as the store says, and the stack is
+not. A 20000-node chain is a test.
+
+### Closed nodes: the topology of a graph with many nodes
+
+A card is 172×96 px with its ports, and a graph of a few hundred of them is
+readable card by card and unreadable as a whole: at the zoom that fits it on
+screen every card is a smudge. Since `7.23.75` a record has **two shapes**:
+
+- **open** — the card, with its name, its pills and its **ports**. The only
+  shape a link can be edited on, because a link is drawn from a port.
+- **closed** — a rounded square of the topic's colour, no ports, no text:
+  the **topology** and nothing else. A native G6 `rect`, so the focus, the
+  selection and the anchor are its own stroke and halo instead of a rebuilt
+  innerHTML. The three tiers keep their order of size (32 / 28 / 22), and
+  the structural tier keeps its dashed border.
+
+Two toggles in the view's toolbar (`C_YUI_TREEDB_GRAPH`), next to the fold
+pair, both **states** and both looking pressed:
+
+| toggle | attr (persisted) | what it does |
+|---|---|---|
+| closed nodes | `node_mode` (`expanded` / `compact`) | every record closed or every record open; a change lays the graph out again, because a square and a card do not take the same room |
+| labels | `node_labels` | the name under each closed square, on or off — nothing moves, the label hangs outside the square and the layout measures the square |
+
+And **one node against the rule**: a double click on a node opens it if the
+graph is closed and closes it if the graph is open; the node's context menu
+(`open node` / `close node`) does the same, which is the door a finger has to
+it. The node holds still on screen while the rest makes room, as a fold does.
+A change of the global mode forgets these exceptions. Consumer i18n keys:
+`closed nodes`, `node labels`, `open node`, `close node`.
+
+The ports of an open card grew with this (radius 10 on a card, 5 on a chip,
+2 px stroke): they are what a link is drawn from and what a resize takes hold
+of, and at radius 6 with a hairline nobody could tell they were either.
 
 ### The legend is the graph's layer control
 

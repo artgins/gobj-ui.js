@@ -1,10 +1,10 @@
 /***********************************************************************
  *          treedb_layout.js
  *
- *      Three layouts made for a treedb, and nothing else.
+ *      Two layouts made for a treedb, and nothing else.
  *
  *      What a treedb graph IS, once it is folded (treedb_fold_model.js):
- *      a forest read left to right. A main topic is a tree (places:
+ *      a forest read top to bottom. A main topic is a tree (places:
  *      country, region, site, hall), the other topics hang from its
  *      nodes through hooks (devices, users, controllers), a record may
  *      hang from two parents (a device from its place AND its
@@ -25,9 +25,8 @@
  *      - the force family scatters a tree, which is the pile with
  *        physics.
  *
- *      So: a tidy tree (`tree`), an outline (`outline`) and a radial
- *      tree (`radial`), all three fed by the SAME spanning tree, chosen
- *      deterministically:
+ *      So: a tidy tree (`tree`) and a radial tree (`radial`), both fed
+ *      by the SAME spanning tree, chosen deterministically:
  *
  *      - roots are the nodes with no incoming edge, in node order;
  *      - a node belongs to the FIRST parent that reaches it in a
@@ -39,16 +38,16 @@
  *        and then by node order (record order, the pages' order);
  *      - a node nothing reaches (a cycle) is a root too.
  *
- *      `tree`: the classic tidy tree, left to right. Each depth is a
- *      column as wide as its widest card; a node is centred on the
- *      block of its children; siblings stack with `nodesep` between
- *      them. O(n), and opening a hook moves NOTHING that is not below
- *      or beside it -- the cards keep their order, the eye keeps its
- *      place.
- *
- *      `outline`: one node per row, indented by depth -- what a JSON
- *      viewer draws, and what a treedb is when read as one. Tall, but
- *      nothing is ever beside anything: the reader scrolls a list.
+ *      `tree`: the classic tidy tree, top to bottom. Each depth is a
+ *      row as tall as its tallest card; a node is centred over the
+ *      block of its children; siblings sit side by side with `nodesep`
+ *      between them. O(n), and opening a hook moves NOTHING that is
+ *      not below or beside it -- the cards keep their order, the eye
+ *      keeps its place. It reads DOWN because that is the direction a
+ *      tree with many children has room in: a hall with a hundred
+ *      devices is a wide row, not a tall column beside a card. (The
+ *      left-to-right reading is `direction: "LR"`, kept for a host
+ *      that wants it; `dagre` reads that way in the graph.)
  *
  *      `radial`: the root in the middle and a ring per depth, each
  *      subtree owning a sector proportional to its leaves; the radius
@@ -56,16 +55,16 @@
  *      nothing overlaps by construction (see `layout_radial`).
  *
  *      Pure: takes plain nodes and edges, returns positions. The G6
- *      classes in c_g6_nodes_tree.js are three thin adapters over it.
+ *      classes in c_g6_nodes_tree.js are two thin adapters over it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
 const DEFAULTS = {
-    nodesep: 18,        /*  gap between siblings (tree) / rows (outline)  */
-    ranksep: 110,       /*  gap between a column and the next (tree)  */
-    indent: 48,         /*  what a depth adds to the x of a row (outline)  */
+    nodesep: 18,        /*  gap between siblings (tree) / neighbours (radial)  */
+    ranksep: 90,        /*  gap between a depth and the next  */
+    direction: "TB",    /*  tree: "TB" reads down, "LR" reads right  */
 };
 
 /************************************************************
@@ -175,14 +174,35 @@ function walk_order(t)
 }
 
 /************************************************************
- *  The tidy tree, left to right.
+ *  The tidy tree.
  *
  *  Returns Map<id, {x, y}> with the CENTRE of each node, the way G6
  *  positions a node.
+ *
+ *  The algorithm is written ONCE, reading left to right (depths are
+ *  columns, siblings stack down). Top to bottom -- the default -- is
+ *  the same tree with the axes swapped: every card is fed in
+ *  transposed (its height as its width), and every position comes
+ *  back transposed. That is the whole difference, and it is the
+ *  reason the code is not duplicated for a second direction.
  ************************************************************/
 export function layout_tree(nodes, edges, opts)
 {
     let o = Object.assign({}, DEFAULTS, opts || {});
+    if(o.direction === "LR") {
+        return tidy_tree_lr(nodes, edges, o);
+    }
+    let transposed = nodes.map((n) => Object.assign({}, n, {w: n.h, h: n.w}));
+    let lr = tidy_tree_lr(transposed, edges, o);
+    let pos = new Map();
+    for(let [id, p] of lr) {
+        pos.set(id, {x: p.y, y: p.x});
+    }
+    return pos;
+}
+
+function tidy_tree_lr(nodes, edges, o)
+{
     let t = spanning_tree(nodes, edges);
     let pos = new Map();
 
@@ -379,42 +399,6 @@ export function layout_radial(nodes, edges, opts)
     for(let [id, a] of angle) {
         let r = radius[ring_of(id)] || 0;
         pos.set(id, {x: r * Math.cos(a), y: r * Math.sin(a)});
-    }
-
-    return pos;
-}
-
-/************************************************************
- *  The outline: one node per row, indented by depth, in the
- *  pre-order of the spanning tree. Rows are left-aligned on
- *  their indent, so a column of chips reads as a list.
- ************************************************************/
-export function layout_outline(nodes, edges, opts)
-{
-    let o = Object.assign({}, DEFAULTS, opts || {});
-    let t = spanning_tree(nodes, edges);
-    let pos = new Map();
-
-    let y = 0;
-    let visit = (root_id) => {
-        let stack = [root_id];
-        while(stack.length) {
-            let id = stack.pop();
-            let n = t.by_id.get(id);
-            let d = t.depth.get(id);
-            pos.set(id, {x: d * o.indent + n.w / 2, y: y + n.h / 2});
-            y += n.h + o.nodesep;
-            /*  Reversed, so a sibling pops in the order it was given:
-             *  here the order of the walk IS the order of the rows.  */
-            let kids = t.children.get(id) || [];
-            for(let i = kids.length - 1; i >= 0; i--) {
-                stack.push(kids[i]);
-            }
-        }
-    };
-    for(let root of t.roots) {
-        visit(root);
-        y += o.nodesep;     /*  a breath between two trees  */
     }
 
     return pos;
