@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.74
+
+- **The focused legend chip is HIGHLIGHTED, not pressed.** `7.23.73` gave
+  the body of the focused chip `pressed_state`, and that painted a state
+  the body does not own: the body is the show/hide toggle, which is what
+  its `aria-pressed` says, while the focus belongs to the crosshair next
+  to it -- so the eye and a screen reader read two different states off
+  one button. It also put the count, `has-text-grey` by Bulma's
+  `!important`, grey on the near-black of the pressed look, at 2.7:1
+  against the 4.5:1 a text needs. The focused chip now carries a ring
+  inside its border (`GRAPH_LEGEND_FOCUSED`) and repaints nothing in it;
+  the crosshair goes on looking pressed, and `aria-pressed` on the body
+  goes on meaning shown.
+- The header of `treedb_layout.js` said two layouts; there are three
+  since `7.23.70`.
+
 ## 7.23.73
 
 - **The treedb layouts stop being recursive, and a deep tree stops

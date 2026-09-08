@@ -2348,6 +2348,18 @@ const LEGEND_GLYPH_STYLE = 'font-size:1.5em; line-height:1; color:inherit;';
 const LEGEND_NAME_STYLE  = 'font-size:1.2em; line-height:1.2;';
 const LEGEND_COUNT_STYLE = 'margin-left:.4rem; font-size:1em;';
 
+/*  The focused chip is HIGHLIGHTED, not pressed. The body of a chip is
+ *  the show/hide toggle, and that is what its `aria-pressed` says;
+ *  the focus belongs to the crosshair next to it, which is the button
+ *  that looks pressed. 7.23.73 painted the body with `pressed_state`
+ *  as well, so the eye and the screen reader read two different
+ *  states off one button -- and the count, `has-text-grey` by Bulma's
+ *  `!important`, sat grey on the near-black at 2.7:1. A ring inside
+ *  the border marks the chip without repainting anything in it.
+ *  Inset, because a chip lives in a `has-addons` group and a shadow
+ *  outside the box is clipped by its neighbours.  */
+const LEGEND_FOCUSED_STYLE = 'box-shadow: inset 0 0 0 2px var(--bulma-text, #2e333d);';
+
 function refresh_legend(gobj)
 {
     let priv = gobj.priv;
@@ -2412,10 +2424,10 @@ function refresh_legend(gobj)
          *  every chip was dead except its star.  */
         let body_attrs = {
             class: 'GRAPH_LEGEND_ITEM button is-small' +
-                   (focused? ' pressed_state' : '') +
+                   (focused? ' GRAPH_LEGEND_FOCUSED' : '') +
                    (is_main? ' GRAPH_LEGEND_MAIN' : ''),
             type: 'button',
-            style: 'gap:0; flex:0 0 auto;',
+            style: 'gap:0; flex:0 0 auto;' + (focused? ' ' + LEGEND_FOCUSED_STYLE : ''),
             title: is_main? t('main topic') : (hidden? t('show topic') : t('hide topic')),
             'aria-label': topic_name,
             'aria-pressed': hidden? 'false' : 'true',

@@ -1,7 +1,7 @@
 /***********************************************************************
  *          treedb_layout.js
  *
- *      Two layouts made for a treedb, and nothing else.
+ *      Three layouts made for a treedb, and nothing else.
  *
  *      What a treedb graph IS, once it is folded (treedb_fold_model.js):
  *      a forest read left to right. A main topic is a tree (places:
@@ -25,8 +25,9 @@
  *      - the force family scatters a tree, which is the pile with
  *        physics.
  *
- *      So: a tidy tree (`tree`) and an outline (`outline`), both fed by
- *      the SAME spanning tree, chosen deterministically:
+ *      So: a tidy tree (`tree`), an outline (`outline`) and a radial
+ *      tree (`radial`), all three fed by the SAME spanning tree, chosen
+ *      deterministically:
  *
  *      - roots are the nodes with no incoming edge, in node order;
  *      - a node belongs to the FIRST parent that reaches it in a
@@ -49,8 +50,13 @@
  *      viewer draws, and what a treedb is when read as one. Tall, but
  *      nothing is ever beside anything: the reader scrolls a list.
  *
+ *      `radial`: the root in the middle and a ring per depth, each
+ *      subtree owning a sector proportional to its leaves; the radius
+ *      of a ring grows until its neighbours sit side by side, so
+ *      nothing overlaps by construction (see `layout_radial`).
+ *
  *      Pure: takes plain nodes and edges, returns positions. The G6
- *      classes in c_g6_nodes_tree.js are two thin adapters over it.
+ *      classes in c_g6_nodes_tree.js are three thin adapters over it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
