@@ -1882,6 +1882,35 @@ the middle, and **a toolbar left with a single group is centred**. An unknown
 name is reported, not silently dropped: a typo would otherwise remove the save
 button with no trace of why.
 
+### `C_YUI_FORM` — which field is editable, and the one `writable` does not govern
+
+A form opened to LOOK at a record has no editable field: that is a property of
+the opening (`readonly`), not of the schema, and it wins over everything. Under
+it the schema decides — a column needs `writable` — **with one exception, and
+it is the whole of linking: an fkey.**
+
+`writable` governs the WRITE of a column's VALUE, and an fkey is not written,
+it is **linked**. An fkey is normally declared with no `writable` flag at all
+(`treedb_authzs`'s `users.roles` is `['fkey']`, and so is almost every fkey in
+the tree), so reading "not writable" as "not editable" takes away the only way
+to link a record to its parent — with `users.roles`, the only way to give a
+person a role. The other half of the same rule is in the topic view, where the
+record travels back: it sends "the writable cols, the fkeys (a link is edited
+by linking) and the pkey". The two halves have to agree; when they did not, the
+form disabled the control whose value the save was still waiting for.
+
+The rule lives in `form_field_readonly.js`, pure and tested. A `file` column is
+an fkey too (`['fkey','file']`) and is deliberately NOT covered: it answers
+`type: "file"`, its bytes travel beside the record, and the SDK declares as
+legal a `file` column that only a load fills.
+
+**And `readonly` is an attribute of a TEXT control and of nothing else.** A
+`<select>`, a checkbox and a radio accept it and let the reader change the
+value anyway; only `disabled` stops them, and tom-select has to be told through
+its API. So the form applies `disabled` to those three, and the record is still
+read from a disabled control — it is collected by reading each marked control,
+never by submitting the form.
+
 ### Selecting rows in any table — `yui_table_select.js`
 
 Deleting twenty rows one confirmation at a time is not a workflow. Any view
