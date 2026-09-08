@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.72
+
+- **No record could be SAVED from a treedb form dialog.** Since `7.23.64`
+  -- the guard that makes the form busy while it reads the picked files --
+  `ac_form_save_record()` read `priv.reading_files` without ever declaring
+  `priv`, so the first line of every save threw `ReferenceError: priv is
+  not defined`. The record travelled from the form and the action died
+  before writing it: the dialog stayed open, the row did not change, and
+  the only trace was an uncaught error in the console. Three releases with
+  a treedb form that could not write.
+- **And a test for the whole class of it** (`priv_declared.test.js`): every
+  function in `src/` that reads a bare `priv.` must declare it, take it as
+  an argument, or be nested inside one that did. A missing
+  `let priv = gobj.priv;` throws only when its LINE runs, and that line is
+  usually the first one of a path nobody walks every day -- which is
+  exactly how this one shipped and stayed. The checker blanks comments
+  first (a doc block that shows the idiom is not a use of it) and has a
+  test of its own, because a check that cannot fail is a check nobody can
+  trust.
+
 ## 7.23.71
 
 - **A user could no longer be given a role.** `7.23.55` fixed a real bug --

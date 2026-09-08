@@ -3479,6 +3479,8 @@ function ac_paste_rows(gobj, event, kw, src)
  ************************************************************/
 function ac_form_save_record(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+
     if(refuse_if_readonly(gobj, event)) {
         return -1;      /*  Error already logged  */
     }
