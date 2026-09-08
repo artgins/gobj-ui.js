@@ -124,6 +124,7 @@ import {
     fold_node_key,
     fold_split_group_key,
 } from "./treedb_fold_model.js";
+import {layout_tree, layout_outline, layout_radial} from "./treedb_layout.js";
 
 import {
     BaseLayout,
@@ -260,6 +261,23 @@ const _layouts = {
      *  cards edge to edge. `antv-dagre` below keeps the top-down reading
      *  for whoever wants it -- the two are the same algorithm read two
      *  ways, so the layout picker is also the direction picker.  */
+    /*  OURS, made for a treedb (treedb_layout.js): a tidy tree read
+     *  left to right, and an outline of one row per node. Both take
+     *  the spanning tree of what is on screen -- the roots, the first
+     *  parent that reaches a node, the hooks in schema order, the
+     *  records in their order -- so opening a hook moves nothing that
+     *  is not under or beside it. The default for a treedb nobody has
+     *  arranged (see auto_layout).  */
+    "treedb-tree": {
+        type: 'treedb-tree',
+        nodesep: 18,
+        ranksep: 110,
+    },
+    "treedb-outline": {
+        type: 'treedb-outline',
+        nodesep: 12,
+        indent: 48,
+    },
     "dagre": {
         type: 'dagre',
         rankdir: 'LR',
@@ -271,6 +289,14 @@ const _layouts = {
         rankdir: 'TB',
         nodesep: 30,
         ranksep: 80,
+    },
+    /*  Ours too: the root in the middle, a ring per depth, every ring
+     *  as long as its cards need. G6's `radial` was tried first and
+     *  piled twenty cards of 172px on a ring of a fixed radius.  */
+    "radial": {
+        type: 'treedb-radial',
+        nodesep: 24,
+        ranksep: 180,
     },
     "d3-force": {
         type: 'd3-force',
@@ -780,6 +806,9 @@ function register_layouts(gobj)
     if(!_g6_extensions_registered) {
         _g6_extensions_registered = true;
         register(ExtensionCategory.LAYOUT, 'manual', ManualLayout);
+        register(ExtensionCategory.LAYOUT, 'treedb-tree', TreedbTreeLayout);
+        register(ExtensionCategory.LAYOUT, 'treedb-outline', TreedbOutlineLayout);
+        register(ExtensionCategory.LAYOUT, 'treedb-radial', TreedbRadialLayout);
         register(ExtensionCategory.NODE, 'light', LightNode);
     }
 }
@@ -1765,9 +1794,11 @@ function build_ports(gobj, desc)
  *  included, because the saved arrangements were made with the
  *  ports on the top and bottom edges.
  ************************************************************/
+const LR_LAYOUTS = ["dagre", "treedb-tree", "treedb-outline"];
+
 function layout_direction(gobj)
 {
-    return (gobj.priv.layout === "dagre")? "LR" : "TB";
+    return str_in_list(LR_LAYOUTS, gobj.priv.layout)? "LR" : "TB";
 }
 
 function edge_type_for(gobj)
@@ -3301,6 +3332,73 @@ class ManualLayout extends BaseLayout
         }
 
         return {nodes: out};
+    }
+}
+
+/************************************************************
+ *  Custom G6 layouts: TreedbTreeLayout / TreedbOutlineLayout.
+ *
+ *  Thin adapters over treedb_layout.js: the nodes with their sizes,
+ *  the edges with the RANK of the hook they leave by (the position
+ *  of the source port in the parent's ports, which is the schema's
+ *  column order), and the positions back. A `+N` chip's edge has a
+ *  source port too, so the chip sits at the end of its hook's
+ *  children, where the page ends.
+ ************************************************************/
+function treedb_layout_input(data)
+{
+    const {nodes = [], edges = []} = data;
+
+    let ports_of = new Map();
+    let in_nodes = nodes.map((node) => {
+        let size = (node.style && node.style.size) || [172, 96];
+        let w = is_array(size)? size[0] : size;
+        let h = is_array(size)? (size.length > 1? size[1] : size[0]) : size;
+        let ports = (node.style && is_array(node.style.ports))? node.style.ports : [];
+        ports_of.set(node.id, ports.map((p) => p.key));
+        return {id: node.id, w: w, h: h};
+    });
+
+    let in_edges = edges.map((edge) => {
+        let port = edge.style? edge.style.sourcePort : undefined;
+        let keys = ports_of.get(edge.source) || [];
+        let rank = port? keys.indexOf(port) : -1;
+        return {source: edge.source, target: edge.target, rank: (rank >= 0)? rank : 0};
+    });
+
+    return {nodes: in_nodes, edges: in_edges};
+}
+
+function treedb_layout_output(pos)
+{
+    let out = [];
+    for(let [id, p] of pos) {
+        out.push({id: id, style: {x: p.x, y: p.y}});
+    }
+    return {nodes: out};
+}
+
+class TreedbTreeLayout extends BaseLayout
+{
+    async execute(data, options) {
+        let input = treedb_layout_input(data);
+        return treedb_layout_output(layout_tree(input.nodes, input.edges, options));
+    }
+}
+
+class TreedbOutlineLayout extends BaseLayout
+{
+    async execute(data, options) {
+        let input = treedb_layout_input(data);
+        return treedb_layout_output(layout_outline(input.nodes, input.edges, options));
+    }
+}
+
+class TreedbRadialLayout extends BaseLayout
+{
+    async execute(data, options) {
+        let input = treedb_layout_input(data);
+        return treedb_layout_output(layout_radial(input.nodes, input.edges, options));
     }
 }
 
@@ -5860,7 +5958,10 @@ function auto_layout(gobj)
         return false;
     }
 
-    let name = "dagre";
+    /*  Ours, not dagre: the tidy tree keeps the records in their order
+     *  and moves nothing on a fold that is not under it (see
+     *  treedb_layout.js). dagre stays in the picker.  */
+    let name = "treedb-tree";
     gobj_write_attr(gobj, "layout", name);
     try {
         priv.graph.setLayout(_layouts[name]);

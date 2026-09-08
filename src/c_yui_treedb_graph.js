@@ -506,6 +506,12 @@ function option_label(name)
         /*  Layouts (`layout_names` of the G6 child).  */
         case "manual":
             return t("manual");
+        case "treedb-tree":
+            return t("treedb-tree");
+        case "treedb-outline":
+            return t("treedb-outline");
+        case "radial":
+            return t("radial");
         case "dagre":
             return t("dagre");
         case "antv-dagre":

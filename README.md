@@ -1266,6 +1266,55 @@ a level or two, with a count on every cut.
 
 One consumer key came with it: `show more`, the chip's tooltip.
 
+### Layouts: what G6 offers, and the two made for a treedb
+
+What a treedb graph IS, once folded: a **forest read left to right**. A main
+topic is a tree (places: country, region, site, hall), the other topics hang
+from its nodes through hooks, a record may hang from two parents (a device
+from its place AND its controller), and every visible node was reached from a
+root. Tens to a few hundred cards on screen, never the store.
+
+G6 5.1 registers these layouts, and this is how each meets that shape:
+
+| layout | what it does | for a treedb |
+|---|---|---|
+| `dagre` / `antv-dagre` | layered DAG: longest-path ranks, crossing minimisation, one direction | the right reading (LR); but the crossing heuristic **reorders the siblings on every run** — open one hook and the column next to it shuffles — and it is the one thing that takes time on a big expansion |
+| `compact-box`, `indented`, `dendrogram`, `mindmap` | @antv/hierarchy tree layouts | the shape wanted, but G6 runs them on a tree it **builds from the edges** (`createTreeStructure`): a node with two parents lands under whichever parent the builder met first, unstably |
+| `radial` | MDS on graph distances from a focus node, a ring per depth, overlaps pushed apart afterwards | the right idea — a hall with a hundred devices is a **fan**, not a column — but the ring radius is one it is TOLD: twenty cards of 172px on a ring of radius 200 have 52px each and pile up. Tried, and replaced by our own (below) |
+| `force`, `d3-force`, `force-atlas2`, `fruchterman` | physics | scatter a tree: the pile with springs. `d3-force` and `force-atlas2` stay in the picker for the rare flat treedb |
+| `circular`, `concentric`, `grid`, `mds`, `random` | rings, rings by degree, a grid, projection, noise | none knows a parent from a child |
+| `combo-combined`, `fishbone` | combos / cause-effect | not this data |
+
+So three of our own, in `treedb_layout.js` (pure, tested), registered as G6
+layouts by three thin adapters in `c_g6_nodes_tree.js`:
+
+- **`treedb-tree`** — the classic tidy tree, left to right. A column per
+  depth as wide as its widest card, a node centred on the block of its
+  children, siblings stacked with `nodesep`. **The default** for a treedb
+  nobody has arranged (was `dagre`).
+- **`treedb-outline`** — one node per row, indented by depth: what a JSON
+  viewer draws, and what a treedb is when read as one. Tall, but nothing is
+  ever beside anything.
+- **`radial`** (`treedb-radial`) — the root in the middle, a ring per depth,
+  every subtree an angular **sector** proportional to its leaves, and the
+  radius of each ring the larger of one step out from the ring before and
+  the length its cards need side by side. A fan that cannot overlap by
+  construction; several roots share the circle around an empty centre.
+
+Both take the **same spanning tree**, chosen deterministically: roots are the
+nodes with no incoming edge, in node order; a node belongs to the **first
+parent that reaches it** in a breadth-first walk (the place, not the
+controller, because the place's column came first) and its other links are
+drawn as edges across the tree; the children of a node are ordered by the
+**hook they hang from** (the parent's port order — the schema's column order)
+and then by node order (record order, the pages' order); a cycle nothing
+reaches gets a root. Consequences that dagre cannot give: O(n), no crossing
+heuristic, and **opening a hook moves nothing that is not under or beside
+it** — the cards keep their order, the eye keeps its place, and the `+N` chip
+sits at the end of its own hook's children. The hook rank comes from the
+edge's `sourcePort` looked up in the parent's ports, so the adapter needs no
+model, only the G6 data.
+
 ### The legend is the graph's layer control
 
 The legend strip under the toolbar is **always there** now (the *Legend*

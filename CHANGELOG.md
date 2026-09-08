@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.70
+
+- **Three layouts made for a treedb.** `treedb-tree` is
+  a tidy tree read left to right (a column per depth, a node centred on the
+  block of its children, siblings stacked in record order) and
+  `treedb-outline` is one node per row indented by depth — a JSON viewer's
+  shape. Both take the same spanning tree of what is on screen: the roots,
+  the FIRST parent that reaches a node (a device under its place, not its
+  controller), the hooks in schema order, the records in theirs. So opening
+  a hook moves nothing that is not under or beside it, and the layout is
+  O(n) with no crossing heuristic to reshuffle the siblings — which is what
+  `dagre` did on every expansion, and what G6's own tree layouts cannot
+  promise on a node with two parents. `treedb-tree` is the default for a
+  treedb nobody has arranged; `dagre` (LR) and `antv-dagre` (TB) stay.
+  `radial` — the root in the middle, a ring per depth, a sector per subtree,
+  each ring as long as its cards need — is the one where a hall with a
+  hundred devices is a fan, not a column; G6's own `radial` was tried first
+  and piled the cards on a ring of a fixed radius. Pure module
+  `treedb_layout.js`, tested; the G6 classes are three thin adapters. New
+  consumer i18n keys: `treedb-tree`, `treedb-outline`, `radial`.
+
 ## 7.23.69
 
 - **The legend's glyphs are readable.** The star, the loose `+N` and the
