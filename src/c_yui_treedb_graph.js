@@ -547,26 +547,31 @@ function option_label(name)
  ************************************************************/
 function node_shape_items(gobj, wide)
 {
-    /*  `value` explicit on every option, as on the two selects
-     *  above: a translated <option> without one answers with its
-     *  TEXT, and the mode the child is told is a word it does not
-     *  know.  */
-    let options = NODE_MODES.map((mode) =>
-        ['option', {value: mode, 'data-i18n': NODE_MODE_LABELS[mode]}, t(NODE_MODE_LABELS[mode])]
-    );
-    return [
-        ['span', {class: 'GRAPH_NODE_MODE_LABEL is-hidden-mobile',
-                  style: 'padding-left:10px; padding-right:5px;', i18n: 'nodes'}, 'nodes'],
-        ['div', {class: 'select'}, [
-            ['select', {class: 'GRAPH_NODE_MODE_SELECT',
-                        title: t('nodes'), 'data-i18n-title': 'nodes',
-                        'aria-label': t('nodes'), 'data-i18n-aria-label': 'nodes'}, options]
-        ], {
-            change: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, "EV_SET_NODE_MODE", {node_mode: evt.target.value}, gobj);
+    /*  Three push buttons in one group, not a select: a view is
+     *  picked at a glance and in one press, and the pressed one
+     *  SAYS which view is on -- a closed list says nothing until it
+     *  is opened. Icons, because a card, a line and a figure draw
+     *  themselves better than three words.  */
+    let mode_buttons = NODE_MODES.map((mode) => {
+        let key = NODE_MODE_LABELS[mode];
+        return ['button', {class: 'GRAPH_NODE_MODE_BTN button', type: 'button',
+                           'data-mode': mode,
+                           style: {height: wide, width: '2.5em'},
+                           title: t(key), 'data-i18n-title': key,
+                           'aria-label': t(key), 'data-i18n-aria-label': key,
+                           'aria-pressed': 'false'},
+            ['i', {style: 'font-size:1.5em; color:inherit;', class: NODE_MODE_ICONS[mode]}],
+            {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_SET_NODE_MODE", {node_mode: mode}, gobj);
+                }
             }
-        }],
+        ];
+    });
+    return [
+        ['div', {class: 'GRAPH_NODE_MODE buttons has-addons',
+                 style: 'margin:0 0 0 .5rem; flex:0 0 auto; flex-wrap:nowrap;'}, mode_buttons],
         ['button', {class: 'GRAPH_NODE_LABELS button', type: 'button',
                     style: {height: wide, width: '2.5em'},
                     title: t('node labels'), 'data-i18n-title': 'node labels',
@@ -583,17 +588,23 @@ function node_shape_items(gobj, wide)
     ];
 }
 
-/*  The three views of a record, and the label of each in the
- *  select. The values are the child's `node_mode`.  */
+/*  The three views of a record: the child's `node_mode`, the i18n
+ *  key of each, and the glyph -- a card, a line, a figure.  */
 const NODE_MODES = ['expanded', 'compact', 'shape'];
 const NODE_MODE_LABELS = {
     expanded: 'full',
     compact:  'compact',
     shape:    'shape',
 };
+const NODE_MODE_ICONS = {
+    expanded: 'yi-square',
+    compact:  'yi-bars',
+    shape:    'yi-hexagon-nodes',
+};
 
-/*  The select and the labels toggle, from the attrs. The toggle
- *  only means something on figures, so it is disabled elsewhere.
+/*  The pressed view and the labels toggle, from the attrs. The
+ *  toggle only means something on figures, so it is disabled
+ *  elsewhere.
  *  `$root` is whatever holds the toolbar: the toolbar itself before
  *  the view is mounted, the view's container after.  */
 function refresh_node_shape_buttons(gobj, $root)
@@ -606,9 +617,10 @@ function refresh_node_shape_buttons(gobj, $root)
         mode = 'expanded';
     }
     let labels = gobj_read_bool_attr(gobj, "node_labels");
-    let $mode = $root.querySelector('.GRAPH_NODE_MODE_SELECT');
-    if($mode) {
-        $mode.value = mode;
+    for(let $btn of $root.querySelectorAll('.GRAPH_NODE_MODE_BTN')) {
+        let on = ($btn.getAttribute('data-mode') === mode);
+        $btn.classList.toggle('pressed_state', on);
+        $btn.setAttribute('aria-pressed', on? 'true' : 'false');
     }
     set_pressed_state($root, '.GRAPH_NODE_LABELS', labels);
     let $labels = $root.querySelector('.GRAPH_NODE_LABELS');

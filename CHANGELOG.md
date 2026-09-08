@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.83
+
+- **The three views are three push buttons, not a select.** A view is
+  picked at a glance and in one press, and the pressed button says which
+  view is on -- a closed list says nothing until it is opened. A card, a
+  line and a figure as glyphs (`yi-square`, `yi-bars`, `yi-hexagon-nodes`),
+  in one `has-addons` group beside the fold pair.
+
 ## 7.23.82
 
 - **A record has THREE views, not two**: the same three the gobj tree view

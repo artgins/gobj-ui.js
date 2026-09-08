@@ -1364,10 +1364,13 @@ screen every card is a smudge. Since `7.23.82` a record has **three views**
   popover's own scope: this node, the topic, every node), remembered as the
   topic's default and saved per node in `__graphs__` as `node_shape`.
 
-In the view's toolbar (`C_YUI_TREEDB_GRAPH`), next to the fold pair: a
-`nodes` select (`full` / `compact` / `shape`, persisted as `node_mode`; a
-change lays the graph out again, because a figure and a card do not take the
-same room) and a labels toggle (`node_labels`, the name under each figure,
+In the view's toolbar (`C_YUI_TREEDB_GRAPH`), next to the fold pair: three
+push buttons in one group — a card, a line, a figure — the pressed one being
+the view that is on (`full` / `compact` / `shape`, persisted as `node_mode`;
+a change lays the graph out again, because a figure and a card do not take
+the same room; buttons and not a select since `7.23.83`, because a view is
+picked at a glance and a closed list says nothing until it is opened) and a
+labels toggle (`node_labels`, the name under each figure,
 enabled in the `shape` view only — nothing moves, the label hangs outside the
 figure and the layout measures the figure).
 
