@@ -2732,26 +2732,50 @@ function update_geometry(gobj, node_id)
         topic_props.nodes = {};
     }
 
-    // Extract geometry from render style
+    /*  Extract geometry from render style -- the POSITION always, the
+     *  SIZE only when somebody chose it. A card on the tier's default
+     *  used to be saved with that default, so every Save froze the
+     *  library's size of the day into `__graphs__` and a later default
+     *  (bigger ports, 7.23.75/79) reached no saved treedb: the same
+     *  trap as the invented cascade coordinates, for the size. And a
+     *  CLOSED node is a square: its render size is not the card's and
+     *  is never saved as one -- the entry keeps what it had.  */
     let node_props = topic_props.nodes[record.id] || {};
-    json_object_update(
-        node_props,
-        kw_clone_by_keys(gobj, style, ["x", "y", "size", "portR"])
-    );
-
-    // Save per-port radius values (only ports with custom r)
-    let node_style = nodedata.style || {};
-    let ports = node_style.ports || [];
-    let port_sizes = {};
-    for(let i = 0; i < ports.length; i++) {
-        if(ports[i].r != null) {
-            port_sizes[ports[i].key] = ports[i].r;
+    let picked = kw_clone_by_keys(gobj, style, ["x", "y", "size", "portR"]);
+    if(node_is_compact(gobj, node_id)) {
+        delete picked.size;
+        delete picked.portR;
+    } else {
+        let desc = nodedata.data.desc;
+        let def_size = card_size_for(desc.node_treedb_type, !!pills_html_of(gobj, nodedata));
+        if(is_array(picked.size) && picked.size[0] === def_size[0] &&
+                picked.size[1] === def_size[1]) {
+            delete picked.size;
+            delete node_props.size;
+        }
+        let def_r = (desc.node_treedb_type === 'child')? PORT_R_CHILD : PORT_R_ENTITY;
+        if(picked.portR === def_r) {
+            delete picked.portR;
+            delete node_props.portR;
         }
     }
-    if(Object.keys(port_sizes).length > 0) {
-        node_props.port_sizes = port_sizes;
-    } else {
-        delete node_props.port_sizes;
+    json_object_update(node_props, picked);
+
+    // Save per-port radius values (only ports with custom r)
+    if(!node_is_compact(gobj, node_id)) {
+        let node_style = nodedata.style || {};
+        let ports = node_style.ports || [];
+        let port_sizes = {};
+        for(let i = 0; i < ports.length; i++) {
+            if(ports[i].r != null) {
+                port_sizes[ports[i].key] = ports[i].r;
+            }
+        }
+        if(Object.keys(port_sizes).length > 0) {
+            node_props.port_sizes = port_sizes;
+        } else {
+            delete node_props.port_sizes;
+        }
     }
 
     topic_props.nodes[record.id] = node_props;
@@ -7410,6 +7434,11 @@ function build_node_context_menu(gobj, node_id)
     if(gobj.priv.edit_mode && !node_is_compact(gobj, node_id)) {
         items.push(ctx_item('g6-icon-resize', t('resize all'), 'resize_all_nodes'));
         items.push(ctx_item('g6-icon-resize', t('resize topic nodes'), 'resize_topic_nodes'));
+        /*  The way back: the sizes somebody saved -- or that a Save
+         *  froze before 7.23.80 -- forgotten, the library's defaults
+         *  back on every card.  */
+        items.push(ctx_item('g6-icon-undo', t('reset sizes'), 'reset_all_sizes'));
+        items.push(ctx_item('g6-icon-undo', t('reset topic sizes'), 'reset_topic_sizes'));
     }
 
     return items;
@@ -7459,6 +7488,12 @@ function handle_context_menu_click(gobj, value)
             break;
         case 'resize_topic_nodes':
             copy_size_to_nodes(gobj, true);
+            break;
+        case 'reset_all_sizes':
+            reset_sizes(gobj, false);
+            break;
+        case 'reset_topic_sizes':
+            reset_sizes(gobj, true);
             break;
         case 'resize_all_ports':
             copy_size_to_ports(gobj, false);
@@ -7562,6 +7597,75 @@ function copy_size_to_nodes(gobj, same_topic_only)
             mark_graph_dirty(gobj);
         });
     }
+}
+
+/************************************************************
+ *  Forget every SAVED size: the card sizes, the port radii and the
+ *  per-port radii, per node and as topic defaults (`resize all`),
+ *  for one topic or for all of them. The cards go back to the
+ *  library's defaults on the spot, and Save writes the cleared
+ *  entries -- a size nobody chose is not written back (see
+ *  update_geometry). Positions and edge styles are not touched:
+ *  they are a different choice.
+ ************************************************************/
+function reset_sizes(gobj, same_topic_only)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let topic = "";
+    if(same_topic_only) {
+        let nd = priv._context_node_id? graph.getNodeData(priv._context_node_id) : null;
+        if(!nd || !nd.data || !nd.data.topic_name) {
+            log_error(`${gobj_short_name(gobj)}: reset topic sizes without a node`);
+            return;
+        }
+        topic = nd.data.topic_name;
+    }
+    const SIZE_KEYS = ["size", "portR", "port_sizes"];
+    let strip = (props) => {
+        if(!is_object(props)) {
+            return;
+        }
+        for(let k of SIZE_KEYS) {
+            delete props[k];
+        }
+    };
+
+    /*  The saved entries, on screen or folded away.  */
+    for(const [topic_name, props] of Object.entries(priv._graph_properties || {})) {
+        if(topic && topic_name !== topic) {
+            continue;
+        }
+        if(is_object(props.nodes)) {
+            for(let node_props of Object.values(props.nodes)) {
+                strip(node_props);
+            }
+        }
+        strip(props.defaults);
+    }
+
+    /*  The nodes on screen: their own copy of the entry, then the shape.  */
+    let ids = [];
+    for(let nd of (graph.getNodeData() || [])) {
+        if(!nd || !nd.data || !nd.data.desc || is_more_node(nd)) {
+            continue;
+        }
+        if(topic && nd.data.topic_name !== topic) {
+            continue;
+        }
+        strip(nd.data.graph_props);
+        if(nd.data.record) {
+            strip(nd.data.record._geometry);
+        }
+        ids.push(nd.id);
+    }
+    reshape_nodes(gobj, ids);
+    graph.draw().then(() => {
+        update_resize_handles_position(gobj);
+        update_port_resize_handles_position(gobj);
+        mark_graph_dirty(gobj);
+    });
 }
 
 /************************************************************

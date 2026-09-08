@@ -1374,6 +1374,20 @@ The ports of an open card grew with this (radius 14 on a card, 8 on a chip
 since `7.23.79`; 10 / 5 in `7.23.75`, 2 px stroke): they are what a link is drawn from and what a resize takes hold
 of, and at radius 6 with a hairline nobody could tell they were either.
 
+**A size nobody chose is not saved** (since `7.23.80`). `Save` collects the
+geometry of every card into `__graphs__`, and it used to write the SIZE and
+the port radius of every card too — so every Save froze the library's size of
+the day into the treedb, and a later default (the bigger ports above) reached
+no saved treedb: the same trap as the invented cascade coordinates, for the
+size. A card on its tier's default now saves its position and nothing else;
+a closed node saves no size at all (a square is not the card's size), its
+entry keeps what it had. And the node's context menu, in edition, has the way
+back: **reset sizes** / **reset topic sizes** forget every saved size, port
+radius and per-port radius — per node and as topic defaults from `resize all`
+— for all topics or the node's, put the library's defaults back on every card
+on the spot, and arm Save. Positions and edge styles are not touched.
+Consumer i18n keys: `reset sizes`, `reset topic sizes`.
+
 ### The legend is the graph's layer control
 
 The legend strip under the toolbar is **always there** now (the *Legend*

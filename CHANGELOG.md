@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.80
+
+- **A size nobody chose is not saved, and the saved ones can be forgotten.**
+  `7.23.79` made the default ports bigger and a deployed treedb went on
+  showing dots: `Save` wrote the SIZE and the port radius of every card into
+  `__graphs__`, chosen or not, so every Save froze the library's size of the
+  day and no later default reached a saved treedb -- the same trap as the
+  invented cascade coordinates, for the size. `update_geometry()` now keeps
+  the size and the radius only when they differ from the tier's default, and
+  never from a CLOSED node (a square is not the card's size; the entry keeps
+  what it had). The node's context menu, in edition, gets **reset sizes** and
+  **reset topic sizes**: every saved size, port radius and per-port radius
+  forgotten -- per node and as topic defaults from `resize all` -- for all
+  topics or the node's, the library's defaults back on every card on the
+  spot, Save armed. Positions and edge styles untouched. Consumer i18n keys
+  `reset sizes`, `reset topic sizes`.
+
 ## 7.23.79
 
 - **The default ports are bigger again**: radius 14 on a card and 8 on a

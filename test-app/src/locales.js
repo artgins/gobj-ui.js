@@ -169,6 +169,8 @@ const es_translation = {
     "node labels": "Etiquetas de los nodos",
     "open node": "Abrir nodo",
     "close node": "Cerrar nodo",
+    "reset sizes": "Restablecer tamaños",
+    "reset topic sizes": "Restablecer tamaños del topic",
     "layout": "disposición",
     "operation mode": "modo de operación",
     "legend": "leyenda",
