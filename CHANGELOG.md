@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.76
+
+- **`treedb-outline` was still a key the library asked for.** `7.23.75`
+  removed the layout and left its case in the view's `option_label()`, so
+  every consumer's `validate-locales` refused the build for a key used in
+  the source and defined in no locale -- which is exactly what the guard is
+  for, and it caught it before a deploy. Gone now.
+
 ## 7.23.75
 
 - **The wheel SCROLLS the graph; Ctrl + wheel zooms.** In every operation
