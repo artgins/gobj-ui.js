@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.82
+
+- **A record has THREE views, not two**: the same three the gobj tree view
+  offers. `expanded` is the card with its pills and ports; `compact` is a
+  one-line PILL with the name inside, the topic's tint and border, and
+  small ports (radius 6) so a link can still be drawn -- the half-way
+  house, the same chip a leaf record already is; `shape` is the FIGURE of
+  the topic's colour, no ports, no text, and the figure is chosen now --
+  square, circle, diamond, triangle, hexagon or star -- in the node
+  properties popover (`shape`, with the popover's scope), remembered as the
+  topic's default and saved per node as `node_shape`. The toolbar's toggle
+  became a `nodes` select (`full` / `compact` / `shape`); the labels toggle
+  is enabled in the `shape` view only; the context menu says `expand node` /
+  `collapse node`. Consumer i18n keys: `nodes`, `full`, `compact`, `expand
+  node`, `collapse node`, `hexagon`, `star`; `closed nodes`, `open node` and
+  `close node` are gone.
+
 ## 7.23.81
 
 - **A port has a SHAPE, and its own properties popover.** G6 draws every

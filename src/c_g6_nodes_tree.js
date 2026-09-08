@@ -263,16 +263,34 @@ const PORT_R_CHILD    = 8;
 const PORT_LINE_WIDTH = 2;
 
 /*
- *  The CLOSED shape of a record: a rounded square of the topic's
- *  colour, no ports, no text -- topology and nothing else. The
- *  three tiers keep their order of size, so a root is still bigger
- *  than a leaf when nothing says which is which.
+ *  The three VIEWS of a record (`node_mode`), the same three the
+ *  gobj tree view has: `expanded` is the card with its pills and
+ *  its ports; `compact` is a one-line pill with the name inside
+ *  and small ports, the half-way house; `shape` is a figure of the
+ *  topic's colour -- a square, a circle, a diamond... chosen in the
+ *  node's properties -- no ports, no text, topology and nothing
+ *  else. The three tiers keep their order of size in every view,
+ *  so a root is still bigger than a leaf when nothing says which
+ *  is which.
  */
-const COMPACT_SIZE = {
+const NODE_MODES = ['expanded', 'compact', 'shape'];
+
+const PILL_SIZE = {
+    hierarchical: [200, 30],
+    extended:     [180, 28],
+    child:        [160, 26],
+};
+const PORT_R_PILL = 6;
+
+const SHAPE_SIZE = {
     hierarchical: 32,
     extended:     28,
     child:        22,
 };
+/*  The figures a `shape` node can be, by G6's own node types
+ *  (`square` is G6's `rect` with rounded corners).  */
+const NODE_SHAPES = ['square', 'circle', 'diamond', 'triangle', 'hexagon', 'star'];
+const DEFAULT_NODE_SHAPE = 'square';
 
 /***************************************************************
  *  Internal layout and operation mode definitions
@@ -398,8 +416,8 @@ SDATA(data_type_t.DTP_STRING,   "main_topic",           0,  "",     "The topic t
 SDATA(data_type_t.DTP_LIST,     "loose_topics",         0,  "[]",   "Topics whose loose records (no parent, in a topic the schema hangs from the main one) are shown as roots"),
 
 /*---------------- Node shape ----------------*/
-SDATA(data_type_t.DTP_STRING,   "node_mode",            0,  "expanded", "How a record is drawn: `expanded` = the card with its ports (the only shape a link can be edited on); `compact` = a rounded square of the topic's colour, no ports, no text -- the topology alone. One node can be toggled against it (EV_TOGGLE_NODE_MODE)"),
-SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",          0,  true,   "A compact node says its name under the square. Off, it is a coloured square and nothing else"),
+SDATA(data_type_t.DTP_STRING,   "node_mode",            0,  "expanded", "How a record is drawn: `expanded` = the card with its pills and ports; `compact` = a one-line pill with the name and small ports; `shape` = a figure of the topic's colour (square, circle, diamond... per node or topic, from the node properties), no ports, no text -- the topology alone. One node can be toggled against it (EV_TOGGLE_NODE_MODE)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",          0,  true,   "A `shape` node says its name under the figure. Off, it is a coloured figure and nothing else"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_unlink_edge",  0,  true,   "Ask confirmation before unlinking an edge"),
 
@@ -2020,20 +2038,47 @@ function create_topic_node(gobj, desc, record)
  ************************************************************/
 function node_shape_of(gobj, node_id, desc, record, geometry, pills_html)
 {
-    if(node_is_compact(gobj, node_id)) {
-        return compact_shape_of(gobj, desc, record, {});
+    switch(node_mode_of(gobj, node_id)) {
+        case 'shape':
+            return figure_shape_of(gobj, desc, record, geometry, {});
+        case 'compact':
+            return pill_shape_of(gobj, desc, record, geometry);
+        default:
+            return card_shape_of(gobj, desc, record, geometry, pills_html);
     }
-    return card_shape_of(gobj, desc, record, geometry, pills_html);
 }
 
-function node_is_compact(gobj, node_id)
+/*  The view of ONE node: the graph's `node_mode`, unless the node
+ *  was toggled against it -- an expanded node in a compact or shape
+ *  graph, a compact one in an expanded graph.  */
+function node_mode_of(gobj, node_id)
 {
     let priv = gobj.priv;
     if(!priv._open_nodes) {
         priv._open_nodes = new Set();
     }
-    let compact = (gobj_read_str_attr(gobj, "node_mode") === "compact");
-    return priv._open_nodes.has(node_id)? !compact : compact;
+    let mode = gobj_read_str_attr(gobj, "node_mode");
+    if(!mode || !str_in_list(NODE_MODES, mode)) {
+        mode = 'expanded';
+    }
+    if(priv._open_nodes.has(node_id)) {
+        return (mode === 'expanded')? 'compact' : 'expanded';
+    }
+    return mode;
+}
+
+/*  Not the full card: a pill or a figure. What the size bookkeeping
+ *  asks -- neither has a size anybody chose, or pills to grow for.  */
+function node_is_compact(gobj, node_id)
+{
+    return node_mode_of(gobj, node_id) !== 'expanded';
+}
+
+function topic_defaults_of(gobj, topic_name)
+{
+    let topic_props = gobj.priv._graph_properties[topic_name];
+    return (is_object(topic_props) && is_object(topic_props.defaults))?
+        topic_props.defaults : null;
 }
 
 /************************************************************
@@ -2115,74 +2160,139 @@ function card_shape_of(gobj, desc, record, geometry, pills_html)
         style.portR = geometry.portR;
     }
 
-    if(json_size(ports)) {
-        json_object_update_missing(style, {
-            port: true,
-            ports: ports,
-            portR: node_treedb_type === 'child' ? PORT_R_CHILD : PORT_R_ENTITY,
-            portLineWidth: PORT_LINE_WIDTH,
-        });
-
-        // Restore per-port radius: saved geometry first, then topic defaults
-        let port_sizes = geometry.port_sizes;
-        let default_port_sizes = topic_defaults ? topic_defaults.port_sizes : null;
-        if(is_object(port_sizes) || is_object(default_port_sizes)) {
-            for(let i = 0; i < style.ports.length; i++) {
-                let key = style.ports[i].key;
-                let r = is_object(port_sizes) ? port_sizes[key] : null;
-                if(r == null && is_object(default_port_sizes)) {
-                    r = default_port_sizes[key];
-                }
-                if(r != null) {
-                    style.ports[i].r = r;
-                }
-            }
-        }
-
-        /*  And the SHAPE of each port, the same way: the node's own,
-         *  then the topic's per-port default, then the topic's one
-         *  shape for every port (`all ports` in the port popover).  */
-        let port_shapes = geometry.port_shapes;
-        let default_port_shapes = topic_defaults ? topic_defaults.port_shapes : null;
-        let default_shape = topic_defaults ? topic_defaults.port_shape : null;
-        for(let i = 0; i < style.ports.length; i++) {
-            let key = style.ports[i].key;
-            let shape = is_object(port_shapes) ? port_shapes[key] : null;
-            if(!shape && is_object(default_port_shapes)) {
-                shape = default_port_shapes[key];
-            }
-            if(!shape) {
-                shape = default_shape;
-            }
-            if(shape && str_in_list(PORT_SHAPES, shape)) {
-                style.ports[i].shape = shape;
-            }
-        }
-    } else {
-        style.port = false;
-        style.ports = [];
-    }
+    dress_ports(gobj, style, ports, geometry, topic_defaults,
+        node_treedb_type === 'child' ? PORT_R_CHILD : PORT_R_ENTITY, false);
 
     return {type: 'treedb-card', style: style};
 }
 
 /************************************************************
- *  The SQUARE: a G6 `rect` of the topic's colour, no ports, the
- *  name as a label under it when `node_labels` says so. A native
- *  shape and not html on purpose: G6's own stroke and halo paint
- *  on it, so the focus, the selection and the anchor are three
- *  keys of the style instead of a rebuilt innerHTML.
+ *  The ports of a card or a pill, dressed: the node-level radius
+ *  (saved, topic default, or the tier's), each port's own radius
+ *  and shape (saved first, then the topic's per-port defaults, then
+ *  the topic's one shape for every port). `fixed_r` -- the pill --
+ *  ignores every saved radius: a pill has one size of port.
+ ************************************************************/
+function dress_ports(gobj, style, ports, geometry, topic_defaults, r_default, fixed_r)
+{
+    if(!json_size(ports)) {
+        style.port = false;
+        style.ports = [];
+        return;
+    }
+    json_object_update_missing(style, {
+        port: true,
+        ports: ports,
+        portR: r_default,
+        portLineWidth: PORT_LINE_WIDTH,
+    });
+    if(fixed_r) {
+        style.portR = r_default;
+    }
+
+    let port_sizes = fixed_r? null : geometry.port_sizes;
+    let default_port_sizes = (!fixed_r && topic_defaults)? topic_defaults.port_sizes : null;
+    let port_shapes = geometry.port_shapes;
+    let default_port_shapes = topic_defaults? topic_defaults.port_shapes : null;
+    let default_shape = topic_defaults? topic_defaults.port_shape : null;
+    for(let i = 0; i < style.ports.length; i++) {
+        let key = style.ports[i].key;
+        let r = is_object(port_sizes)? port_sizes[key] : null;
+        if(r == null && is_object(default_port_sizes)) {
+            r = default_port_sizes[key];
+        }
+        if(r != null) {
+            style.ports[i].r = r;
+        }
+        let shape = is_object(port_shapes)? port_shapes[key] : null;
+        if(!shape && is_object(default_port_shapes)) {
+            shape = default_port_shapes[key];
+        }
+        if(!shape) {
+            shape = default_shape;
+        }
+        if(shape && str_in_list(PORT_SHAPES, shape)) {
+            style.ports[i].shape = shape;
+        }
+    }
+}
+
+/************************************************************
+ *  The PILL: one line with the name inside, the tint and the
+ *  border of the topic, small ports on its edges -- the half-way
+ *  house between the card and the figure, and the same one-line
+ *  chip a leaf record already is, at the tier's width. No pills:
+ *  a hook is opened from the card (expand the node).
+ ************************************************************/
+function pill_shape_of(gobj, desc, record, geometry)
+{
+    let priv = gobj.priv;
+    let tier = desc.node_treedb_type;
+    let size = PILL_SIZE[tier] || PILL_SIZE.hierarchical;
+    let ports = build_ports(gobj, desc);
+
+    let style = {
+        fill: desc.color,
+        stroke: getStrokeColor(desc.color),
+        lineWidth: 1,
+        lineDash: [],
+        halo: false,
+        labelText: "",
+        size: [...size],
+        dx: -size[0] / 2,
+        dy: -size[1] / 2,
+        innerHTML: build_chip_innerHTML(
+            desc.color, priv.theme, record.icon, node_label(desc, record), record.id
+        ),
+    };
+    dress_ports(gobj, style, ports, geometry, topic_defaults_of(gobj, desc.topic_name),
+        PORT_R_PILL, true);
+    return {type: 'treedb-card', style: style};
+}
+
+/*  The pill's html with the flags it carries right now.  */
+function pill_innerHTML_of(gobj, nd, theme, highlight, selected, anchored)
+{
+    let desc = nd.data.desc;
+    let record = nd.data.record || {};
+    return build_chip_innerHTML(
+        desc.color, theme, record.icon, node_label(desc, record), record.id,
+        highlight, selected, anchored
+    );
+}
+
+/*  The figure a `shape` node wears: the node's own, then the
+ *  topic's default (the node properties popover writes both), then
+ *  a square.  */
+function node_figure_of(gobj, desc, geometry)
+{
+    let shape = geometry? geometry.node_shape : null;
+    if(!shape) {
+        let defaults = topic_defaults_of(gobj, desc.topic_name);
+        shape = defaults? defaults.node_shape : null;
+    }
+    return (shape && str_in_list(NODE_SHAPES, shape))? shape : DEFAULT_NODE_SHAPE;
+}
+
+/************************************************************
+ *  The FIGURE: a native G6 node of the topic's colour -- a square,
+ *  a circle, a diamond, a triangle, a hexagon, a star -- no ports,
+ *  the name as a label under it when `node_labels` says so. Native
+ *  and not html on purpose: G6's own stroke and halo paint on it,
+ *  so the focus, the selection and the anchor are three keys of
+ *  the style instead of a rebuilt innerHTML.
  *
  *      flags   {highlight, selected, anchored}
  ************************************************************/
-function compact_shape_of(gobj, desc, record, flags)
+function figure_shape_of(gobj, desc, record, geometry, flags)
 {
     let priv = gobj.priv;
     let dark = (priv.theme === "dark");
     let f = flags || {};
     let tier = desc.node_treedb_type;
-    let side = COMPACT_SIZE[tier] || COMPACT_SIZE.hierarchical;
+    let side = SHAPE_SIZE[tier] || SHAPE_SIZE.hierarchical;
     let labels = gobj_read_bool_attr(gobj, "node_labels");
+    let figure = node_figure_of(gobj, desc, geometry || {});
 
     let stroke = getStrokeColor(desc.color);
     let line_width = 1.5;
@@ -2207,7 +2317,7 @@ function compact_shape_of(gobj, desc, record, flags)
 
     let style = {
         size: [side, side],
-        radius: Math.round(side / 5),
+        radius: (figure === 'square')? Math.round(side / 5) : 0,
         fill: desc.color,
         stroke: stroke,
         lineWidth: line_width,
@@ -2231,7 +2341,7 @@ function compact_shape_of(gobj, desc, record, flags)
         labelBackgroundRadius: 3,
         labelPadding: [1, 3],
     };
-    return {type: 'rect', style: style};
+    return {type: (figure === 'square')? 'rect' : figure, style: style};
 }
 
 /************************************************************
@@ -6326,6 +6436,17 @@ function show_node_popover(gobj)
     create_form_label(popover, 'line width');
     let lwInput = create_form_number_input(popover, currentLW, 1, 20, preview_node);
 
+    /*  The figure the node wears in the `shape` view. No preview:
+     *  it shows only in that view, and applying it is the same
+     *  reshape either way.  */
+    create_form_label(popover, 'shape');
+    let shapeSelect = create_form_select(popover, NODE_SHAPES.map((shape) => {
+        return {value: shape, label: t(shape)};
+    }));
+    shapeSelect.value = nodeData.data && nodeData.data.desc
+        ? node_figure_of(gobj, nodeData.data.desc, nodeData.data.graph_props || {})
+        : DEFAULT_NODE_SHAPE;
+
     // Apply-to scope
     create_form_label(popover, 'apply to');
     let scopeSelect = create_form_select(popover, [
@@ -6363,7 +6484,8 @@ function show_node_popover(gobj)
                     fillInput.value,
                     strokeInput.value,
                     parseInt(lwInput.value) || 1,
-                    scopeSelect.value
+                    scopeSelect.value,
+                    shapeSelect.value
                 );
             },
         },
@@ -6763,18 +6885,22 @@ function repaint_cards(gobj, ids)
             continue;       /* gone since it was listed */
         }
         let anchored = (priv.anchor_state === "on" && id === priv.anchor_id);
-        /*  A closed node paints its flags on its own stroke.  */
-        if(nd && nd.data && nd.data.desc && node_is_compact(gobj, id)) {
-            updates.push({id: id, style: compact_shape_of(
-                gobj, nd.data.desc, nd.data.record || {},
+        /*  A figure paints its flags on its own stroke; a pill in
+         *  its one-line html; a card in its own.  */
+        let mode = (nd && nd.data && nd.data.desc)? node_mode_of(gobj, id) : 'expanded';
+        if(mode === 'shape') {
+            updates.push({id: id, style: figure_shape_of(
+                gobj, nd.data.desc, nd.data.record || {}, nd.data.graph_props || {},
                 {highlight: focus.has(id), selected: selected.has(id), anchored: anchored}
             ).style});
             continue;
         }
-        let html = node_innerHTML_of(
-            nd, priv.theme, focus.has(id), selected.has(id), anchored,
-            pills_html_of(gobj, nd)
-        );
+        let html = (mode === 'compact')
+            ? pill_innerHTML_of(gobj, nd, priv.theme, focus.has(id), selected.has(id), anchored)
+            : node_innerHTML_of(
+                nd, priv.theme, focus.has(id), selected.has(id), anchored,
+                pills_html_of(gobj, nd)
+            );
         if(html !== null) {
             updates.push({id: id, style: {innerHTML: html}});
         }
@@ -6831,17 +6957,20 @@ function refresh_html_nodes_theme(gobj, theme)
         let id = nodes[i].id;
         let nd = graph.getNodeData(id);
         let anchored = (priv.anchor_state === "on" && id === priv.anchor_id);
-        if(nd && nd.data && nd.data.desc && node_is_compact(gobj, id)) {
-            updates.push({id: id, style: compact_shape_of(
-                gobj, nd.data.desc, nd.data.record || {},
+        let mode = (nd && nd.data && nd.data.desc)? node_mode_of(gobj, id) : 'expanded';
+        if(mode === 'shape') {
+            updates.push({id: id, style: figure_shape_of(
+                gobj, nd.data.desc, nd.data.record || {}, nd.data.graph_props || {},
                 {highlight: highlighted.has(id), selected: selected.has(id), anchored: anchored}
             ).style});
             continue;
         }
-        let html = node_innerHTML_of(
-            nd, theme, highlighted.has(id), selected.has(id), anchored,
-            pills_html_of(gobj, nd)
-        );
+        let html = (mode === 'compact')
+            ? pill_innerHTML_of(gobj, nd, theme, highlighted.has(id), selected.has(id), anchored)
+            : node_innerHTML_of(
+                nd, theme, highlighted.has(id), selected.has(id), anchored,
+                pills_html_of(gobj, nd)
+            );
         if(html === null) {
             html = more_innerHTML_of(gobj, nd, theme);   /* a `+N` chip, or null */
         }
@@ -7551,7 +7680,7 @@ function hide_unlink_confirm(gobj)
  *  Apply node properties to one or more nodes.
  *  scope: 'this', 'same_topic', 'all'
  ************************************************************/
-function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
+function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope, shape)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
@@ -7565,6 +7694,23 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
     let updates = [];
     const nodes = graph.getData().nodes;
 
+    /*  The figure: written where Save reads it (the node's entry in
+     *  `__graphs__`), and as the topic's default for the wider
+     *  scopes, so a record that arrives later is born with it.  */
+    let figure = (shape && str_in_list(NODE_SHAPES, shape))? shape : "";
+    let reshaped = [];
+    if(figure && scope !== 'this') {
+        let topics = (scope === 'same_topic')? [source_topic] : Object.keys(priv.descs || {});
+        for(let topic_name of topics) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            let defaults = priv._graph_properties[topic_name].defaults || {};
+            defaults.node_shape = figure;
+            priv._graph_properties[topic_name].defaults = defaults;
+        }
+    }
+
     for(let i = 0; i < nodes.length; i++) {
         let nd = graph.getNodeData(nodes[i].id);
         if(!nd || !nd.data || !nd.data.desc) {
@@ -7576,6 +7722,13 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
         }
         if(scope === 'same_topic' && nd.data.desc.topic_name !== source_topic) {
             continue;
+        }
+
+        if(figure) {
+            node_props_entry(gobj, nd).node_shape = figure;
+            if(node_mode_of(gobj, nodes[i].id) === 'shape') {
+                reshaped.push(nodes[i].id);
+            }
         }
 
         let updateStyle = { fill: fill, stroke: stroke, lineWidth: lineWidth };
@@ -7593,12 +7746,41 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
 
     if(updates.length > 0) {
         graph.updateNodeData(updates);
+        if(reshaped.length) {
+            reshape_nodes(gobj, reshaped);
+        }
         graph.draw().then(() => {
             mark_graph_dirty(gobj);
         });
     }
 
     hide_node_popover(gobj);
+}
+
+/************************************************************
+ *  The node's entry in `_graph_properties` -- the object Save
+ *  reads and writes -- created if it has none yet, and the node's
+ *  `data.graph_props` pointed at it, so a key written here is
+ *  read by the next reshape and survives the next Save.
+ ************************************************************/
+function node_props_entry(gobj, nd)
+{
+    let priv = gobj.priv;
+    let topic_name = nd.data.topic_name;
+    let record = nd.data.record || {};
+
+    if(!is_object(priv._graph_properties[topic_name])) {
+        priv._graph_properties[topic_name] = {};
+    }
+    let topic_props = priv._graph_properties[topic_name];
+    if(!is_object(topic_props.nodes)) {
+        topic_props.nodes = {};
+    }
+    if(!is_object(topic_props.nodes[record.id])) {
+        topic_props.nodes[record.id] = is_object(nd.data.graph_props)? nd.data.graph_props : {};
+    }
+    nd.data.graph_props = topic_props.nodes[record.id];
+    return nd.data.graph_props;
 }
 
 /************************************************************
@@ -7792,9 +7974,9 @@ function build_node_context_menu(gobj, node_id)
     /*  Open or close THIS node against the mode: the door a finger
      *  has to it (a double click is the mouse's).  */
     if(node_is_compact(gobj, node_id)) {
-        items.push(ctx_item('g6-icon-fullscreen', t('open node'), 'toggle_node_mode'));
+        items.push(ctx_item('g6-icon-fullscreen', t('expand node'), 'toggle_node_mode'));
     } else {
-        items.push(ctx_item('g6-icon-fullscreen-exit', t('close node'), 'toggle_node_mode'));
+        items.push(ctx_item('g6-icon-fullscreen-exit', t('collapse node'), 'toggle_node_mode'));
     }
 
     if(gobj.priv.edit_mode && !node_is_compact(gobj, node_id)) {
@@ -8148,7 +8330,7 @@ function copy_size_to_ports(gobj, same_topic_only)
 /*  A card with pills is this much taller; the row sits under the subtitle.  */
 const PILL_ROW_HEIGHT = 24;
 const MORE_CHIP_SIZE = [76, 26];
-/*  The chip beside CLOSED nodes: a square of 22 next to a chip of 76
+/*  The chip beside pills and figures: a square of 22 next to a chip of 76
  *  read as the biggest thing in the row, so it takes the closed
  *  scale -- the count and nothing else.  */
 const MORE_CHIP_SIZE_COMPACT = [40, 22];
@@ -8162,7 +8344,7 @@ function more_chip_is_compact(gobj, nd)
     if(parent_id) {
         return node_is_compact(gobj, parent_id);
     }
-    return gobj_read_str_attr(gobj, "node_mode") === "compact";
+    return gobj_read_str_attr(gobj, "node_mode") !== "expanded";
 }
 
 function more_chip_style(gobj, nd, color, rest)
@@ -9678,7 +9860,7 @@ function ac_set_loose_topics(gobj, event, kw, src)
 function ac_set_node_mode(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let mode = (kw && kw.node_mode === "compact")? "compact" : "expanded";
+    let mode = (kw && kw.node_mode && str_in_list(NODE_MODES, kw.node_mode))? kw.node_mode : "expanded";
 
     gobj_write_str_attr(gobj, "node_mode", mode);
     priv._open_nodes = new Set();
@@ -9692,9 +9874,9 @@ function ac_set_node_mode(gobj, event, kw, src)
 }
 
 /************************************************************
- *  The name under a closed square, on or off. Only the closed
- *  nodes change, and nothing moves: the label hangs outside the
- *  square and the layout measures the square.
+ *  The name under a figure, on or off. Only the `shape` nodes
+ *  change, and nothing moves: the label hangs outside the figure
+ *  and the layout measures the figure.
  ************************************************************/
 function ac_set_node_labels(gobj, event, kw, src)
 {
@@ -9704,7 +9886,7 @@ function ac_set_node_labels(gobj, event, kw, src)
     if(!priv.graph) {
         return 0;
     }
-    let ids = all_record_node_ids(gobj).filter((id) => node_is_compact(gobj, id));
+    let ids = all_record_node_ids(gobj).filter((id) => node_mode_of(gobj, id) === 'shape');
     reshape_nodes(gobj, ids);
     return 0;
 }

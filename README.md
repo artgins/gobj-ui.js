@@ -1341,38 +1341,50 @@ The walks are **iterative**, not recursive: a self-referent hook (a place
 inside a place inside a place) is as deep as the store says, and the stack is
 not. A 20000-node chain is a test.
 
-### Closed nodes: the topology of a graph with many nodes
+### The three views of a record: card, pill, figure
 
 A card is 172×96 px with its ports, and a graph of a few hundred of them is
 readable card by card and unreadable as a whole: at the zoom that fits it on
-screen every card is a smudge. Since `7.23.75` a record has **two shapes**:
+screen every card is a smudge. Since `7.23.82` a record has **three views**
+(`node_mode`), the same three the gobj tree view offers as `Vertical` /
+`Vertical compact`:
 
-- **open** — the card, with its name, its pills and its **ports**. The only
-  shape a link can be edited on, because a link is drawn from a port.
-- **closed** — a rounded square of the topic's colour, no ports, no text:
-  the **topology** and nothing else. A native G6 `rect`, so the focus, the
-  selection and the anchor are its own stroke and halo instead of a rebuilt
-  innerHTML. The three tiers keep their order of size (32 / 28 / 22), and
-  the structural tier keeps its dashed border.
+- **`expanded`** — the card, with its name, its pills and its **ports**. The
+  view a hook is opened from, and the only one a size can be edited in.
+- **`compact`** — a one-line **pill** with the name inside, the tint and the
+  border of the topic, and small ports (radius 6) on its edges, so a link can
+  still be drawn. The same one-line chip a leaf record already is, at the
+  tier's width (200 / 180 / 160 px). No pills.
+- **`shape`** — a **figure** of the topic's colour, no ports, no text: the
+  topology and nothing else. A native G6 node — square (rounded `rect`),
+  circle, diamond, triangle, hexagon or star — so the focus, the selection
+  and the anchor are its own stroke and halo. The three tiers keep their
+  order of size (32 / 28 / 22), the structural tier its dashed border. The
+  figure is chosen in the **node properties** popover (`shape`, with the
+  popover's own scope: this node, the topic, every node), remembered as the
+  topic's default and saved per node in `__graphs__` as `node_shape`.
 
-Two toggles in the view's toolbar (`C_YUI_TREEDB_GRAPH`), next to the fold
-pair, both **states** and both looking pressed:
+In the view's toolbar (`C_YUI_TREEDB_GRAPH`), next to the fold pair: a
+`nodes` select (`full` / `compact` / `shape`, persisted as `node_mode`; a
+change lays the graph out again, because a figure and a card do not take the
+same room) and a labels toggle (`node_labels`, the name under each figure,
+enabled in the `shape` view only — nothing moves, the label hangs outside the
+figure and the layout measures the figure).
 
-| toggle | attr (persisted) | what it does |
-|---|---|---|
-| closed nodes | `node_mode` (`expanded` / `compact`) | every record closed or every record open; a change lays the graph out again, because a square and a card do not take the same room |
-| labels | `node_labels` | the name under each closed square, on or off — nothing moves, the label hangs outside the square and the layout measures the square |
-
-And **one node against the rule**: a double click on a node opens it if the
-graph is closed and closes it if the graph is open; the node's context menu
-(`open node` / `close node`) does the same, which is the door a finger has to
-it. The node holds still on screen while the rest makes room, as a fold does.
-A change of the global mode forgets these exceptions. Consumer i18n keys:
-`closed nodes`, `node labels`, `open node`, `close node`.
+And **one node against the rule**: a double click expands a pill or a figure
+into its card, and collapses a card into a pill; the node's context menu
+(`expand node` / `collapse node`) does the same, which is the door a finger
+has to it. The node holds still on screen while the rest makes room, as a
+fold does. A change of the view forgets these exceptions. The `+N` chip
+follows the shape of the card it continues: full beside a card, small beside
+a pill or a figure. Consumer i18n keys: `nodes`, `full`, `compact`, `shape`,
+`node labels`, `expand node`, `collapse node`, and the figures `square`,
+`circle`, `diamond`, `triangle`, `hexagon`, `star`.
 
 The ports of an open card grew with this (radius 14 on a card, 8 on a chip
-since `7.23.79`; 10 / 5 in `7.23.75`, 2 px stroke): they are what a link is drawn from and what a resize takes hold
-of, and at radius 6 with a hairline nobody could tell they were either.
+since `7.23.79`; 10 / 5 in `7.23.75`, 2 px stroke): they are what a link is
+drawn from and what a resize takes hold of, and at radius 6 with a hairline
+nobody could tell they were either.
 
 **A size nobody chose is not saved** (since `7.23.80`). `Save` collects the
 geometry of every card into `__graphs__`, and it used to write the SIZE and
