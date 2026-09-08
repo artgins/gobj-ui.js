@@ -2339,6 +2339,15 @@ function ac_set_operation_mode(gobj, event, kw, src)
  *  stays small so the strip keeps its height; the glyph inside grows.  */
 const LEGEND_GLYPH_STYLE = 'font-size:1.5em; line-height:1; color:inherit;';
 
+/*  And the same for what a chip SAYS. The legend is a layer control --
+ *  a gadget somebody uses, not a footnote somebody glances at -- and a
+ *  topic name is the thing it is read for, so 0.75rem is the wrong
+ *  size for it. The button stays `is-small` because the strip has to
+ *  hold a chip per topic on one row; the name and the count come back
+ *  up inside it, exactly as the glyphs did.  */
+const LEGEND_NAME_STYLE  = 'font-size:1.2em; line-height:1.2;';
+const LEGEND_COUNT_STYLE = 'margin-left:.4rem; font-size:1em;';
+
 function refresh_legend(gobj)
 {
     let priv = gobj.priv;
@@ -2389,10 +2398,11 @@ function refresh_legend(gobj)
                              `border:1px solid rgba(0,0,0,.25);` +
                              (hidden? 'opacity:.35;' : '')}],
             ['span', {class: 'GRAPH_LEGEND_NAME',
-                      style: hidden? 'text-decoration:line-through; opacity:.6;' : ''},
+                      style: LEGEND_NAME_STYLE +
+                             (hidden? ' text-decoration:line-through; opacity:.6;' : '')},
              topic_name],
             ['span', {class: 'GRAPH_LEGEND_COUNT has-text-grey',
-                      style: 'margin-left:.35rem; font-size:.8em;'},
+                      style: LEGEND_COUNT_STYLE},
              hidden? `${entry.total}` : `${entry.visible}/${entry.total}`]
         );
 
@@ -2402,7 +2412,7 @@ function refresh_legend(gobj)
          *  every chip was dead except its star.  */
         let body_attrs = {
             class: 'GRAPH_LEGEND_ITEM button is-small' +
-                   (focused? ' is-primary is-light' : '') +
+                   (focused? ' pressed_state' : '') +
                    (is_main? ' GRAPH_LEGEND_MAIN' : ''),
             type: 'button',
             style: 'gap:0; flex:0 0 auto;',
@@ -2430,7 +2440,7 @@ function refresh_legend(gobj)
          *  is a button too: pressing it hands the choice back to the
          *  graph (deduced again). On a deduced one it is a mark.  */
         if(is_main && state.main_chosen) {
-            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small is-warning is-light',
+            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small pressed_state',
                                     type: 'button', style: 'padding:0 .4rem;',
                                     title: t('main topic'), 'data-i18n-title': 'main topic',
                                     'aria-label': t('main topic'), 'aria-pressed': 'true'},
@@ -2466,7 +2476,7 @@ function refresh_legend(gobj)
         if(!hidden && entry.linked && entry.loose > 0) {
             extras.push(['button', {
                 class: 'GRAPH_LEGEND_LOOSE button is-small' +
-                       (entry.loose_shown? ' is-warning is-light' : ''),
+                       (entry.loose_shown? ' pressed_state' : ''),
                 type: 'button', style: 'padding:0 .45rem;',
                 title: t('loose records'), 'data-i18n-title': 'loose records',
                 'aria-label': t('loose records'),
@@ -2483,7 +2493,7 @@ function refresh_legend(gobj)
         if(!hidden) {
             extras.push(['button', {
                 class: 'GRAPH_LEGEND_FOCUS button is-small' +
-                       (focused? ' is-primary is-light' : ''),
+                       (focused? ' pressed_state' : ''),
                 type: 'button', style: 'padding:0 .4rem;',
                 title: t('highlight topic'), 'data-i18n-title': 'highlight topic',
                 'aria-label': t('highlight topic'),

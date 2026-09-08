@@ -170,3 +170,35 @@ describe("the outline", () => {
         expect(pos.get("norte").y).toBe(96 + 10 + 48);
     });
 });
+
+describe("a deep tree", () => {
+    /*  A self-referent hook -- a place inside a place inside a place --
+     *  is as deep as the data says. The walks are iterative for exactly
+     *  this: recursive ones died here with "Maximum call stack size
+     *  exceeded", and a graph that cannot be drawn is not a layout
+     *  choice, it is an exception in the console.  */
+    const DEEP = 20000;
+    const deep_nodes = [];
+    const deep_edges = [];
+    for(let i = 0; i < DEEP; i++) {
+        deep_nodes.push({id: `n${i}`, w: 100, h: 40});
+        if(i > 0) {
+            deep_edges.push({source: `n${i - 1}`, target: `n${i}`, rank: 0});
+        }
+    }
+
+    test("the spanning tree reaches the bottom", () => {
+        let t = spanning_tree(deep_nodes, deep_edges);
+        expect(t.roots).toEqual(["n0"]);
+        expect(t.depth.get(`n${DEEP - 1}`)).toBe(DEEP - 1);
+    });
+
+    test("the three layouts place every node of it", () => {
+        for(let layout of [layout_tree, layout_outline, layout_radial]) {
+            let pos = layout(deep_nodes, deep_edges);
+            expect(pos.size).toBe(DEEP);
+            expect(Number.isFinite(pos.get(`n${DEEP - 1}`).x)).toBe(true);
+            expect(Number.isFinite(pos.get(`n${DEEP - 1}`).y)).toBe(true);
+        }
+    });
+});

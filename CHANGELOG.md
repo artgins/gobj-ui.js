@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.73
+
+- **The treedb layouts stop being recursive, and a deep tree stops
+  crashing them.** `layout_tree`, `layout_radial` and `layout_outline`
+  walked the spanning tree with recursion -- the natural way to write it,
+  and the one that dies on the data: a self-referent hook (a place inside
+  a place inside a place) is as deep as the store says, and the stack is
+  not. A chain of 20000 nodes answered `RangeError: Maximum call stack
+  size exceeded`, and a graph that cannot be drawn is not a layout choice,
+  it is an exception in the console. The five walks share one
+  `walk_order()` now -- parent before child, read forwards for a
+  pre-order pass and backwards for a post-order one -- and a test pins
+  the deep case, having first been made to fail on the old code.
+- **A state in the graph legend looks PRESSED instead of wearing a colour
+  of the palette.** The focused chip, the focused crosshair, the shown
+  loose records and the chosen main topic each paired a STATE with
+  `is-primary`/`is-warning`, which is what `set_pressed_state()` was
+  written against in `7.23.12`: every colour of that palette names a KIND
+  of action, so a state painted with one reads as a category. Same lesson,
+  the other strip.
+- **The legend says its topic names at a readable size.** `7.23.69` raised
+  the GLYPHS of the chips out of `is-small` and left the topic name and
+  the count at 0.75rem and 0.6rem -- and the name is the thing a layer
+  control is read for. The button stays small so the strip keeps its
+  height; the label comes up inside it, exactly as the glyphs did.
+
 ## 7.23.72
 
 - **No record could be SAVED from a treedb form dialog.** Since `7.23.64`

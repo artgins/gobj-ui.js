@@ -143,6 +143,32 @@ export function spanning_tree(nodes, edges)
 }
 
 /************************************************************
+ *  The ids of a spanning tree in PARENT-BEFORE-CHILD order.
+ *
+ *  Every pass below used to be a recursive walk, which is the natural
+ *  way to write it and the one that dies on a deep tree: a
+ *  self-referent hook (a place inside a place inside a place) is as
+ *  deep as the data says, and the stack is not. Read this list
+ *  forwards for a pre-order pass and BACKWARDS for a post-order one
+ *  -- a child always sits after its parent, so reversed it always
+ *  sits before it, which is the whole of what post-order was for.
+ ************************************************************/
+function walk_order(t)
+{
+    let order = [];
+    let stack = t.roots.slice().reverse();
+    while(stack.length) {
+        let id = stack.pop();
+        order.push(id);
+        let kids = t.children.get(id) || [];
+        for(let i = kids.length - 1; i >= 0; i--) {
+            stack.push(kids[i]);
+        }
+    }
+    return order;
+}
+
+/************************************************************
  *  The tidy tree, left to right.
  *
  *  Returns Map<id, {x, y}> with the CENTRE of each node, the way G6
@@ -167,60 +193,54 @@ export function layout_tree(nodes, edges, opts)
         x += (col_w[d] || 0) + o.ranksep;
     }
 
-    /*  Subtree heights, post-order.  */
+    /*  Subtree heights: post-order, so children before parents.  */
+    let order = walk_order(t);
     let height = new Map();
-    let measure = (id) => {
+    for(let i = order.length - 1; i >= 0; i--) {
+        let id = order[i];
         let kids = t.children.get(id) || [];
         let own = t.by_id.get(id).h;
-        if(!kids.length) {
-            height.set(id, own);
-            return own;
-        }
         let sum = 0;
-        for(let i = 0; i < kids.length; i++) {
-            sum += measure(kids[i]);
-            if(i > 0) {
+        for(let k = 0; k < kids.length; k++) {
+            sum += height.get(kids[k]);
+            if(k > 0) {
                 sum += o.nodesep;
             }
         }
-        let h = Math.max(own, sum);
-        height.set(id, h);
-        return h;
-    };
-    for(let root of t.roots) {
-        measure(root);
+        height.set(id, kids.length? Math.max(own, sum) : own);
     }
 
     /*  Placement, pre-order: a node is centred on the block of its
-     *  children, which starts at the top of its own block.  */
-    let place = (id, top) => {
-        let n = t.by_id.get(id);
+     *  children, which starts at the top of its own block. Every node
+     *  in a column is centred on the column, whatever its own width --
+     *  the cards of one depth line up by their middles.  */
+    let tops = new Map();
+    let top = 0;
+    for(let root of t.roots) {
+        tops.set(root, top);
+        top += height.get(root) + o.nodesep * 2;
+    }
+    for(let id of order) {
         let d = t.depth.get(id);
         let kids = t.children.get(id) || [];
         let block = height.get(id);
-        let cx = col_x[d] + (col_w[d] - n.w) / 2 + n.w / 2;
+        let own_top = tops.get(id);
+        pos.set(id, {x: col_x[d] + col_w[d] / 2, y: own_top + block / 2});
         if(!kids.length) {
-            pos.set(id, {x: cx, y: top + block / 2});
-            return;
+            continue;
         }
         let kids_h = 0;
-        for(let i = 0; i < kids.length; i++) {
-            kids_h += height.get(kids[i]);
-            if(i > 0) {
+        for(let k = 0; k < kids.length; k++) {
+            kids_h += height.get(kids[k]);
+            if(k > 0) {
                 kids_h += o.nodesep;
             }
         }
-        let cursor = top + (block - kids_h) / 2;
+        let cursor = own_top + (block - kids_h) / 2;
         for(let kid of kids) {
-            place(kid, cursor);
+            tops.set(kid, cursor);
             cursor += height.get(kid) + o.nodesep;
         }
-        pos.set(id, {x: cx, y: top + block / 2});
-    };
-    let top = 0;
-    for(let root of t.roots) {
-        place(root, top);
-        top += height.get(root) + o.nodesep * 2;
     }
 
     return pos;
@@ -253,24 +273,25 @@ export function layout_radial(nodes, edges, opts)
         return pos;
     }
 
-    /*  Leaves under each node: the sector it deserves.  */
+    /*  Leaves under each node: the sector it deserves. Post-order.  */
+    let order = walk_order(t);
     let leaves = new Map();
-    let count = (id) => {
+    for(let i = order.length - 1; i >= 0; i--) {
+        let id = order[i];
         let kids = t.children.get(id) || [];
         if(!kids.length) {
             leaves.set(id, 1);
-            return 1;
+            continue;
         }
         let n = 0;
         for(let kid of kids) {
-            n += count(kid);
+            n += leaves.get(kid);
         }
         leaves.set(id, n);
-        return n;
-    };
+    }
     let total = 0;
     for(let root of t.roots) {
-        total += count(root);
+        total += leaves.get(root);
     }
 
     /*  One root sits at the centre; several sit on the first ring
@@ -283,20 +304,27 @@ export function layout_radial(nodes, edges, opts)
      *  Angles do not depend on the radii, so they come first.  */
     let angle = new Map();
     let rings = [];         /*  ring -> [{id, angle, diag}]  */
-    let sector = (id, from, span) => {
-        let a = from + span / 2;
-        angle.set(id, a);
-        let ring = ring_of(id);
-        if(!rings[ring]) {
-            rings[ring] = [];
-        }
-        let n = t.by_id.get(id);
-        rings[ring].push({id: id, angle: a, diag: Math.hypot(n.w, n.h)});
-        let cursor = from;
-        for(let kid of (t.children.get(id) || [])) {
-            let part = span * leaves.get(kid) / leaves.get(id);
-            sector(kid, cursor, part);
-            cursor += part;
+    /*  An explicit stack, not recursion: the sectors of a ring are
+     *  sorted by angle in pass 2, so the order they are pushed in does
+     *  not matter -- only that every node gets its own.  */
+    let sector = (root_id, root_from, root_span) => {
+        let stack = [{id: root_id, from: root_from, span: root_span}];
+        while(stack.length) {
+            let {id, from, span} = stack.pop();
+            let a = from + span / 2;
+            angle.set(id, a);
+            let ring = ring_of(id);
+            if(!rings[ring]) {
+                rings[ring] = [];
+            }
+            let n = t.by_id.get(id);
+            rings[ring].push({id: id, angle: a, diag: Math.hypot(n.w, n.h)});
+            let cursor = from;
+            for(let kid of (t.children.get(id) || [])) {
+                let part = span * leaves.get(kid) / leaves.get(id);
+                stack.push({id: kid, from: cursor, span: part});
+                cursor += part;
+            }
         }
     };
     if(single) {
@@ -362,13 +390,20 @@ export function layout_outline(nodes, edges, opts)
     let pos = new Map();
 
     let y = 0;
-    let visit = (id) => {
-        let n = t.by_id.get(id);
-        let d = t.depth.get(id);
-        pos.set(id, {x: d * o.indent + n.w / 2, y: y + n.h / 2});
-        y += n.h + o.nodesep;
-        for(let kid of (t.children.get(id) || [])) {
-            visit(kid);
+    let visit = (root_id) => {
+        let stack = [root_id];
+        while(stack.length) {
+            let id = stack.pop();
+            let n = t.by_id.get(id);
+            let d = t.depth.get(id);
+            pos.set(id, {x: d * o.indent + n.w / 2, y: y + n.h / 2});
+            y += n.h + o.nodesep;
+            /*  Reversed, so a sibling pops in the order it was given:
+             *  here the order of the walk IS the order of the rows.  */
+            let kids = t.children.get(id) || [];
+            for(let i = kids.length - 1; i >= 0; i--) {
+                stack.push(kids[i]);
+            }
         }
     };
     for(let root of t.roots) {
