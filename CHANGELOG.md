@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.71
+
+- **A user could no longer be given a role.** `7.23.55` fixed a real bug --
+  a `<select>` ignores `readonly`, so a col that is not `writable` rendered
+  an EDITABLE select -- by disabling what the attribute cannot reach. It
+  caught the **fkey** with it, and an fkey is the one column `writable` does
+  not govern: a link is not written, it is LINKED, and an fkey is normally
+  declared with no `writable` flag at all (`treedb_authzs`'s `users.roles`
+  is `['fkey']`, and so is almost every fkey in the tree). The two halves of
+  the same view then disagreed -- `c_yui_treedb_topic_with_form.js` sends
+  back "the writable cols, the fkeys (a link is edited by linking) and the
+  pkey", while the form disabled the control whose value that save was
+  waiting for -- so the Role of a user opened as a dead grey box with its
+  four options inside. The rule now lives in one pure module,
+  `form_field_readonly.js`, tested: a form opened to LOOK still has no
+  editable field, fkey included; a `file` column (an fkey too, but
+  `type: "file"`, whose bytes travel beside the record) is deliberately not
+  covered.
+
 ## 7.23.70
 
 - **Three layouts made for a treedb.** `treedb-tree` is

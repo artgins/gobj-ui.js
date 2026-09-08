@@ -65,6 +65,7 @@ import {
 import "./c_yui_form.css";
 import {attach_clear, refresh_clear} from "./yui_inputs.js";
 import {plan_toolbar, DEFAULT_TOOLBAR} from "./form_toolbar_plan.js";
+import {field_is_readonly} from "./form_field_readonly.js";
 /*  Read at field-build time only — deliberately NOT watched: the hosting
  *  dialog rebuilds the form on every open, and re-rendering a form under
  *  the user mid-edit would throw away what they typed. */
@@ -601,8 +602,13 @@ function build_form_field_conf(gobj, field_desc)
         extras: {},             // extra html input/textarea attributes
         /*  A form opened to LOOK at a record has no editable field, and
          *  that is a property of the opening, not of the schema: the same
-         *  col is writable when the same form is opened to edit.  */
-        readonly: gobj_read_bool_attr(gobj, "readonly") || !field_desc.is_writable,
+         *  col is writable when the same form is opened to edit.  And an
+         *  fkey is editable WITHOUT `writable`, because a link is not
+         *  written, it is linked -- the rule and its why live in
+         *  form_field_readonly.js.  */
+        readonly: field_is_readonly(
+            gobj_read_bool_attr(gobj, "readonly"), field_desc
+        ),
         required: field_desc.is_required,
         hidden: field_desc.is_hidden,
         default_value: field_desc.default_value,
