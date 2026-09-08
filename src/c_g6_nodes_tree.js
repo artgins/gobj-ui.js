@@ -7666,6 +7666,61 @@ function copy_size_to_ports(gobj, same_topic_only)
 /*  A card with pills is this much taller; the row sits under the subtitle.  */
 const PILL_ROW_HEIGHT = 24;
 const MORE_CHIP_SIZE = [76, 26];
+/*  The chip beside CLOSED nodes: a square of 22 next to a chip of 76
+ *  read as the biggest thing in the row, so it takes the closed
+ *  scale -- the count and nothing else.  */
+const MORE_CHIP_SIZE_COMPACT = [40, 22];
+
+/*  A `+N` chip follows the shape of the card it continues: closed
+ *  beside a square, open beside a card. A root group's chip has no
+ *  parent and follows the mode.  */
+function more_chip_is_compact(gobj, nd)
+{
+    let parent_id = nd && nd.data? nd.data.parent_node : "";
+    if(parent_id) {
+        return node_is_compact(gobj, parent_id);
+    }
+    return gobj_read_str_attr(gobj, "node_mode") === "compact";
+}
+
+function more_chip_style(gobj, nd, color, rest)
+{
+    let compact = more_chip_is_compact(gobj, nd);
+    let size = compact? MORE_CHIP_SIZE_COMPACT : MORE_CHIP_SIZE;
+    return {
+        size: [...size],
+        dx: -size[0] / 2,
+        dy: -size[1] / 2,
+        innerHTML: build_more_innerHTML(color, gobj.priv.theme, rest, compact),
+    };
+}
+
+/*  Every `+N` chip re-sized to the shape of its parent: after a
+ *  change of mode, or of one node.  */
+function reshape_more_chips(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph) {
+        return;
+    }
+    let updates = [];
+    for(let nd of (graph.getNodeData() || [])) {
+        if(!is_more_node(nd)) {
+            continue;
+        }
+        let child_desc = priv.descs? priv.descs[nd.data.child_topic] : null;
+        let color = (child_desc && child_desc.color) || "#94a3b8";
+        updates.push({id: nd.id, style: more_chip_style(gobj, nd, color, nd.data.rest)});
+    }
+    if(updates.length) {
+        try {
+            graph.updateNodeData(updates);
+        } catch(e) {
+            log_error(`${gobj_short_name(gobj)}: cannot reshape the +N chips: ${e}`);
+        }
+    }
+}
 
 /************************************************************
  *  The three card sizes, with room for the pill row when there
@@ -7805,19 +7860,20 @@ function pills_signature(gobj, node_key)
  *  the one WORD of the folding, and it is translated at build
  *  time: the chips are rebuilt on a language change.
  ************************************************************/
-function build_more_innerHTML(color, theme, rest)
+function build_more_innerHTML(color, theme, rest, compact)
 {
     let c = pill_colors(color, theme);
+    let tail = compact? "" : `<span style="font-size: 10px; opacity: .8;">&#8230;</span>`;
     return `
 <div class="TREEDB_MORE" title="${escapeHtml(t('show more'))}" style="
     box-sizing: border-box; width: 100%; height: 100%;
     display: flex; align-items: center; justify-content: center; gap: 4px;
     background: ${c.bg}; color: ${c.fg}; border: 1px dashed ${c.border};
-    border-radius: 13px;
+    border-radius: ${compact? "6px" : "13px"};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    font-size: 12px; font-weight: 700; line-height: 1;
+    font-size: ${compact? "10px" : "12px"}; font-weight: 700; line-height: 1;
     cursor: pointer; user-select: none;
-">+${rest}<span style="font-size: 10px; opacity: .8;">&#8230;</span></div>
+">+${rest}${tail}</div>
 `;
 }
 
@@ -7829,7 +7885,7 @@ function more_innerHTML_of(gobj, nd, theme)
     let priv = gobj.priv;
     let child_desc = priv.descs? priv.descs[nd.data.child_topic] : null;
     let color = (child_desc && child_desc.color) || "#94a3b8";
-    return build_more_innerHTML(color, theme, nd.data.rest);
+    return build_more_innerHTML(color, theme, nd.data.rest, more_chip_is_compact(gobj, nd));
 }
 
 /************************************************************
@@ -8147,27 +8203,30 @@ async function reconcile_fold_apply(gobj, opts, visible)
                 nd.data.rest = p.rest;
                 graph.updateNodeData([{
                     id: id,
-                    style: {innerHTML: build_more_innerHTML(color, priv.theme, p.rest)},
+                    style: {innerHTML: build_more_innerHTML(
+                        color, priv.theme, p.rest, more_chip_is_compact(gobj, nd)
+                    )},
                 }]);
             }
             continue;
         }
         let xy = get_default_ne_xy(gobj);
+        let parent_node = "";
+        if(p.node_key) {
+            let parent = model.nodes.get(p.node_key);
+            parent_node = build_node_name(gobj, parent.topic_name, parent.id);
+        }
+        let chip_data = {
+            more: p.group_key,
+            child_topic: child_topic,
+            rest: p.rest,
+            parent_node: parent_node,
+        };
         graph.addNodeData([{
             id: id,
             type: 'html',
-            style: {
-                x: xy, y: xy,
-                size: [...MORE_CHIP_SIZE],
-                dx: -MORE_CHIP_SIZE[0] / 2,
-                dy: -MORE_CHIP_SIZE[1] / 2,
-                innerHTML: build_more_innerHTML(color, priv.theme, p.rest),
-            },
-            data: {
-                more: p.group_key,
-                child_topic: child_topic,
-                rest: p.rest,
-            },
+            style: Object.assign({x: xy, y: xy}, more_chip_style(gobj, {data: chip_data}, color, p.rest)),
+            data: chip_data,
         }]);
         if(p.node_key) {
             let parent = model.nodes.get(p.node_key);
@@ -9113,6 +9172,7 @@ function ac_set_node_mode(gobj, event, kw, src)
         return 0;       /*  applied when the records arrive  */
     }
     reshape_nodes(gobj, all_record_node_ids(gobj));
+    reshape_more_chips(gobj);
     reconcile_fold(gobj, {relayout: true, fit: true});
     return 0;
 }
@@ -9159,6 +9219,7 @@ function ac_toggle_node_mode(gobj, event, kw, src)
     }
     let vp = yui_graph_viewport_of(priv.graph, node_id);
     reshape_nodes(gobj, [node_id]);
+    reshape_more_chips(gobj);
     if(priv._fold_model) {
         reconcile_fold(gobj, {relayout: true, keep: node_id, keep_vp: vp});
     }

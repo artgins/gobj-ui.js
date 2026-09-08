@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.77
+
+- **The `+N` chip shrinks beside closed nodes.** A chip of 76×26 next to a
+  square of 22 read as the biggest thing in the row, so it takes the closed
+  scale (40×22, the count and nothing else) and follows the shape of the
+  card it continues: closed beside a square, open beside a card, the mode's
+  for a root group's chip. Re-sized with the nodes on a change of mode or of
+  one node (`reshape_more_chips`). The test-app's treedb graph now shows a
+  chip: a page of ONE record per hook.
+
 ## 7.23.76
 
 - **`treedb-outline` was still a key the library asked for.** `7.23.75`

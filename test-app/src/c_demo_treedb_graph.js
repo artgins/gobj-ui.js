@@ -173,7 +173,11 @@ function mt_start(gobj)
         transport: backend,
         kw: {
             treedb_name: "demo_treedb",
-            readonly:    false
+            readonly:    false,
+            /*  A page of ONE, so the demo's eight records show a `+N`
+             *  chip -- the thing that continues a hook's children --
+             *  in both shapes of the graph.  */
+            fold_page_size: 1
         }
     });
     if(!tree) {
