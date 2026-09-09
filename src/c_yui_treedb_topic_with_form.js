@@ -1652,6 +1652,16 @@ function create_tabulator(gobj)
         tabulator.element.classList.toggle("yui-no-paginator", no_paginator);
     }
 
+    /*  `columnsLoaded` and not only `tableBuilt`: EVERY rebuild of the
+     *  columns rebuilds the header, and the header carries two things
+     *  Tabulator draws without a name -- the per-column filter box and the
+     *  select-all checkbox. A language change runs `setColumns()`, so the
+     *  names put on at build were thrown away with the old header and the
+     *  boxes came back in English. This event fires on both paths.  */
+    tabulator.on("columnsLoaded", function() {
+        yui_tabulator_name_filters(tabulator, t);
+        yui_tabulator_name_row_selects(tabulator, t);
+    });
     tabulator._ready = false;
     tabulator.on("tableBuilt", function() {
         /*  Tabulator gives its header-filter boxes no name of any kind:

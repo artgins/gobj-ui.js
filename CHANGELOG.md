@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.127
+
+- **The header is rebuilt more often than it is built, so the naming hangs
+  off `columnsLoaded`.** Tabulator draws two things in its header with no
+  name of their own -- the per-column filter box and the select-all checkbox
+  -- and EVERY rebuild of the columns draws them again, blank. A language
+  change runs `setColumns()`, the column chooser runs it, and each time the
+  names put on at `tableBuilt` went away with the old header. One event
+  covers the build and every rebuild; `renderComplete` stays for the BODY
+  boxes, which a sort or a page redraws on their own.
+
 ## 7.23.126
 
 - **fix: `yui_tabulator_relocalize()` named the boxes BEFORE `setLocale()`,
