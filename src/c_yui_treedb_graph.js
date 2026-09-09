@@ -2638,7 +2638,16 @@ function refresh_legend(gobj)
                                     'aria-label': t('main topic'),
                                     'data-i18n-aria-label': 'main topic',
                                     'aria-pressed': 'true'},
-                         [['span', {style: LEGEND_STAR_MAIN_STYLE}, '★']], {
+                         /*  `LEGEND_GLYPH_STYLE` and not the gold one:
+                          *  `pressed_state` inverts the ground, and an
+                          *  INLINE colour beats the ink it sets with it.
+                          *  The gold then sat on the scheme's own text
+                          *  colour -- 1.06:1 in dark, ~2:1 in light --
+                          *  so the one star the reader CHOSE was the one
+                          *  that could not be seen. `color: inherit`
+                          *  takes the pressed ink, like the crosshair
+                          *  and the `+N` beside it.  */
+                         [['span', {style: LEGEND_GLYPH_STYLE}, '★']], {
                 click: (evt) => {
                     evt.stopPropagation();
                     gobj_send_event(gobj, "EV_LEGEND_TOPIC",

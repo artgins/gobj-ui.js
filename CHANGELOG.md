@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.99
+
+- **The main topic the reader CHOSE was the one star that could not be
+  seen.** Its button in the legend carries `pressed_state`, which inverts
+  the ground, while the glyph inside kept the gold fixed INLINE — and an
+  inline colour beats the ink the pressed rule sets with the fill. The
+  star then sat on the scheme's own text colour: **1.06:1** on the dark
+  scheme, ~2:1 on the light one. It now takes `color: inherit`, like the
+  crosshair and the `+N` beside it in the same chip.
+- Only the CHOSEN main shows it, which is why it survived: the deduced
+  main is a `span` mark with no pressed ground, so the same strip looks
+  right wherever nobody has picked a main topic (`main_topic` is a
+  per-treedb, per-user persistent preference).
+
 ## 7.23.98
 
 - **Connected and disconnected are told apart by a SHAPE, not only by
