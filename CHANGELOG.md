@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.126
+
+- **fix: `yui_tabulator_relocalize()` named the boxes BEFORE `setLocale()`,
+  which throws the name away.** Neither the header filters (`7.23.119`) nor
+  the row-selection boxes (`7.23.123`) have a name of their own, and the
+  re-render `setLocale()` triggers REBUILDS the header -- so both names were
+  written onto a header about to be discarded, and came back in Tabulator's
+  English. The dump says it plainly: clean on first paint, *"Select Row"*
+  again after one language change, which is the only reason the header-filter
+  half looked right when it shipped. Both renames now run AFTER `setLocale`.
+
 ## 7.23.125
 
 - **fix: an EMPTY table renders no body, so `renderComplete` never fires** --

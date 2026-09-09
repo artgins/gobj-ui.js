@@ -192,10 +192,6 @@ function yui_tabulator_relocalize(table, t)
     if(!table) {
         return;
     }
-    /*  Neither the header filters nor the row-selection boxes have a
-     *  name of their own; give them one again in the new language.  */
-    yui_tabulator_name_filters(table, t);
-    yui_tabulator_name_row_selects(table, t);
     try {
         let name = next_lang_name();
         let strings = tabulator_strings(t);
@@ -219,6 +215,16 @@ function yui_tabulator_relocalize(table, t)
         }
 
         table.setLocale(name);      /*  a NEW name: this is what re-renders  */
+
+        /*  AFTER setLocale, never before. Neither the header filters nor
+         *  the row-selection boxes have a name of their own, and the
+         *  re-render setLocale triggers REBUILDS the header -- so a name
+         *  written first is thrown away with the old header, and the boxes
+         *  come back in Tabulator's English. Which is exactly what a dump
+         *  of the deployed page showed: clean on first paint, "Select Row"
+         *  again after one language change.  */
+        yui_tabulator_name_filters(table, t);
+        yui_tabulator_name_row_selects(table, t);
     } catch(e) {
         log_warning(`yui_tabulator_relocalize: table gone: ${e}`);
     }
