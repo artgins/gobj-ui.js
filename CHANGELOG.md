@@ -5,6 +5,38 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.92
+
+The minimap has no legend of its own; what is READ in it are its blocks, its
+viewport rectangle and its frame, and three of those four were wrong:
+
+| what | before, dark | before, light | after |
+|---|---|---|---|
+| a topic's block | 5.28 | **1.61** | 9.11 / 3.80 |
+| the `+N` block | **1.94** | **1.34** | 3.35 / 3.19 |
+| the panel's frame, over the canvas | **1.43** | **1.18** | 4.63 / 4.69 |
+| the viewport rectangle | 3.51 | 5.16 | 5.65 / 6.33 |
+| a cloned edge on the panel | 6.36 / 5.92 | 5.36 / 4.83 | unchanged |
+
+- **A block is a topic colour on the panel's own paper**, which is the scheme
+  background — so on the light scheme the palette's yellow was 1.61:1: a
+  minimap whose content could not be told from the paper it is drawn on. The
+  blocks take the same treatment the ports took in `7.23.91`, the topic's hue
+  pushed 60% towards the surface.
+- **The `+N` block is meant to be quieter** — a cut, not a card — and at
+  1.34:1 it was not quiet, it was absent. Raising the alpha only ever reached
+  1.86 on white, because the slate it was painted with is nearly white
+  itself: the light scheme takes a DARK slate instead.
+- **The frame separates a floating panel from the CANVAS behind it**, and
+  every `--bulma-border-*` token is built for a line inside a surface: over
+  the graph they measured 1.18–2.32. A mid grey does it on both schemes
+  (4.6), and the box-shadow keeps helping where there is light for a shadow.
+- The viewport rectangle follows the convention of `7.23.89` and takes
+  `--bulma-link-on-scheme`.
+- **The minimap is created once, and its blocks are painted from the theme**,
+  so a theme change now rebuilds it. It was keeping the colours of the scheme
+  it was born in.
+
 ## 7.23.91
 
 The edges and the ports, measured as what they are — **graphical objects**,

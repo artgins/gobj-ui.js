@@ -6985,7 +6985,16 @@ function refresh_minimap(gobj)
                 bottom:       "12px",
                 left:         "12px",
                 background:   "var(--bulma-scheme-main, #fff)",
-                border:       "1px solid var(--bulma-border-weak, #ddd)",
+                /*  A mid grey and not a `--bulma-border-*` token: those
+                 *  are made for a line INSIDE a surface, and this one has
+                 *  to separate a floating panel from the CANVAS behind
+                 *  it -- which is near-black in one scheme and white in
+                 *  the other. `border-weak` was 1.43:1 over the dark
+                 *  canvas and 1.18 over the light one; every border token
+                 *  fails at least one of them. This one is 4.6 on both.
+                 *  (The box-shadow below separates it only where there
+                 *  is light to cast a shadow on.)  */
+                border:       "1px solid var(--bulma-text-weak, #94a3b8)",
                 borderRadius: "6px",
                 boxShadow:    "0 2px 8px rgba(0, 0, 0, 0.15)",
             },
@@ -6993,7 +7002,7 @@ function refresh_minimap(gobj)
              *  invisible over a dark minimap. A link-coloured outline
              *  reads on both.  */
             maskStyle: {
-                border:     "2px solid var(--bulma-link, #3b82f6)",
+                border:     "2px solid var(--bulma-link-on-scheme, var(--bulma-link, #3b82f6))",
                 background: "rgba(59, 130, 246, 0.12)",
             },
             shape: (id, element_type, element) => {
@@ -7003,12 +7012,24 @@ function refresh_minimap(gobj)
                 try {
                     let nd = graph.getNodeData(id);
                     let size = (nd && nd.style && nd.style.size) || [120, 60];
-                    let color = (nd && nd.data && nd.data.desc && nd.data.desc.color)
-                        || "#94a3b8";
+                    /*  The topic's colour PUSHED TOWARDS THE SURFACE, the
+                     *  same treatment a port's rim takes: a block here is
+                     *  the topic colour on the panel's own background, and
+                     *  on the light scheme the palette's yellow was 1.61:1
+                     *  on white -- a minimap whose content could not be
+                     *  told from its paper. 3.80 in light, 9.11 in dark.  */
+                    let color = port_rim(
+                        (nd && nd.data && nd.data.desc && nd.data.desc.color) || "#94a3b8",
+                        priv.theme
+                    );
                     if(is_more_node(nd)) {
-                        /*  A `+N` chip is a cut, not a card: a faint
-                         *  mark at that scale.  */
-                        color = "rgba(148, 163, 184, 0.35)";
+                        /*  A `+N` chip is a cut, not a card: quieter than a
+                         *  block, and still visible. The slate had to become
+                         *  a DARK slate on a white panel -- raising the alpha
+                         *  of the light one only ever reached 1.86.  */
+                        color = (priv.theme === "dark")
+                            ? "rgba(148, 163, 184, 0.60)"    /*  3.35:1  */
+                            : "rgba(71, 85, 105, 0.65)";     /*  3.19:1  */
                     }
                     return new RectGeometry({
                         style: {
@@ -9808,6 +9829,14 @@ function ac_theme(gobj, event, kw, src)
     refresh_default_edges_theme(gobj, theme);
     refresh_port_rims(gobj, theme);
     repaint_more_chips(gobj);
+
+    /*  The minimap paints its blocks from the theme (see its `shape`),
+     *  and it is created ONCE: rebuilt, or it keeps the colours of the
+     *  scheme it was born in.  */
+    if(graph_get_plugin(gobj, "minimap")) {
+        graph_remove_plugin(gobj, "minimap");
+        refresh_minimap(gobj);
+    }
 
     graph_draw(gobj).then(() => {
         // Restore toolbar icon states lost when G6 re-renders the DOM
