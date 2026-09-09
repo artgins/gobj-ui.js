@@ -1374,6 +1374,20 @@ screen every card is a smudge. Since `7.23.82` a record has **three views**
   popover's own scope: this node, the topic, every node), remembered as the
   topic's default and saved per node in `__graphs__` as `node_shape`.
 
+**The colours are remembered the same way** (since `7.23.85`): `apply` writes
+`fill`, `stroke` and `lineWidth` into the node's entry in `__graphs__` — and
+into the topic's defaults for the wider scopes — and the three views read
+them back through one `node_paint_of()`, while every repaint takes the colour
+from the style the node is wearing rather than from `desc.color`. Before
+that, the colour lived on the live style alone, which on an html card is
+UNDER the html: the first repaint (a selection, the focus, a theme switch, a
+pill appearing) rebuilt that html from the topic's colour and the choice was
+gone, and nothing of it ever reached the store. Choosing the topic's own
+colour back, with the stroke and line width that go with it, **forgets** the
+entry instead of writing it: the palette is assigned by position, so a
+colour written down would freeze today's palette on that card — the trap the
+sizes fell into in `7.23.80`.
+
 In the view's toolbar (`C_YUI_TREEDB_GRAPH`), next to the fold pair: three
 push buttons in one group — a card, a line, a figure — the pressed one being
 the view that is on (`full` / `compact` / `shape`, persisted as `node_mode`;

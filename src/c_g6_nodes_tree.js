@@ -2104,6 +2104,54 @@ function topic_defaults_of(gobj, topic_name)
 }
 
 /************************************************************
+ *  What a node is PAINTED with: its own colours, then the
+ *  topic's default, then the topic's colour.
+ *
+ *  A card is html, and its html was built with `desc.color`
+ *  every time it was repainted -- so a colour chosen in the node
+ *  properties popover lasted until the next selection, focus,
+ *  theme or pill change, and was never written to `__graphs__`
+ *  at all. Only the `shape` view kept it, because a figure is a
+ *  native G6 node and `style.fill` is what paints it. The FIGURE
+ *  was already remembered (`node_shape`); this is the wiring the
+ *  colour was missing.
+ ************************************************************/
+function node_paint_of(gobj, desc, geometry)
+{
+    let defaults = topic_defaults_of(gobj, desc.topic_name);
+    let g = is_object(geometry)? geometry : {};
+    let fill = g.fill || (defaults && defaults.fill) || desc.color;
+    let stroke = g.stroke || (defaults && defaults.stroke) || getStrokeColor(fill);
+    let line_width = g.lineWidth || (defaults && defaults.lineWidth) || 1;
+    return {fill: fill, stroke: stroke, lineWidth: line_width};
+}
+
+/************************************************************
+ *  Write a chosen paint into an entry of `__graphs__` -- a
+ *  node's or a topic's defaults.
+ *
+ *  A colour nobody chose is not saved: the topic's own colour,
+ *  with the stroke and the line width that go with it, is what a
+ *  card wears anyway, and writing it down would freeze today's
+ *  palette on that card -- the trap the SIZES fell into in
+ *  7.23.80, and the palette is assigned by POSITION (`ac_descs`),
+ *  so it moves when a topic is added. Choosing it back MEANS
+ *  forgetting the entry.
+ ************************************************************/
+function paint_into(entry, desc, fill, stroke, line_width)
+{
+    if(fill === desc.color && stroke === getStrokeColor(desc.color) && line_width === 1) {
+        delete entry.fill;
+        delete entry.stroke;
+        delete entry.lineWidth;
+        return;
+    }
+    entry.fill = fill;
+    entry.stroke = stroke;
+    entry.lineWidth = line_width;
+}
+
+/************************************************************
  *  The CARD: an html node, the tier's size, the ports, the
  *  saved geometry on top. The flags (focus, selection, anchor)
  *  are not painted here: repaint_cards() reads them where they
@@ -2115,11 +2163,12 @@ function card_shape_of(gobj, desc, record, geometry, pills_html)
     let node_treedb_type = desc.node_treedb_type;
     let label = node_label(desc, record);
     let ports = build_ports(gobj, desc);
+    let paint = node_paint_of(gobj, desc, geometry);
 
     let style = {
-        fill: desc.color,
-        stroke: getStrokeColor(desc.color),
-        lineWidth: 1,
+        fill: paint.fill,
+        stroke: paint.stroke,
+        lineWidth: paint.lineWidth,
         lineDash: [],
         halo: false,
         labelText: "",      /*  a card says its name inside; the label is the square's  */
@@ -2136,20 +2185,20 @@ function card_shape_of(gobj, desc, record, geometry, pills_html)
         // Pure child (LEAF): smallest tier. Rounded-rect chip,
         // same card language as entities, lighter.
         style.innerHTML = build_chip_innerHTML(
-            desc.color, priv.theme, record.icon, label, record.id
+            paint.fill, priv.theme, record.icon, label, record.id
         );
     } else if(node_treedb_type === 'extended') {
         // Extended (structural / INTERMEDIATE): middle tier. Card
         // with name; "structural" style (neutral grey, dashed
         // border) to read as a container/junction.
         style.innerHTML = build_node_innerHTML(
-            desc.color, priv.theme, record.icon, label,
+            paint.fill, priv.theme, record.icon, label,
             desc.topic_name, true, record.id, false, false, false, pills_html
         );
     } else {
         // Hierarchical entity (ROOT / container): largest tier.
         style.innerHTML = build_node_innerHTML(
-            desc.color, priv.theme, record.icon, label,
+            paint.fill, priv.theme, record.icon, label,
             desc.topic_name, false, record.id, false, false, false, pills_html
         );
     }
@@ -2252,11 +2301,12 @@ function pill_shape_of(gobj, desc, record, geometry)
     let tier = desc.node_treedb_type;
     let size = PILL_SIZE[tier] || PILL_SIZE.hierarchical;
     let ports = build_ports(gobj, desc);
+    let paint = node_paint_of(gobj, desc, geometry);
 
     let style = {
-        fill: desc.color,
-        stroke: getStrokeColor(desc.color),
-        lineWidth: 1,
+        fill: paint.fill,
+        stroke: paint.stroke,
+        lineWidth: paint.lineWidth,
         lineDash: [],
         halo: false,
         labelText: "",
@@ -2264,7 +2314,7 @@ function pill_shape_of(gobj, desc, record, geometry)
         dx: -size[0] / 2,
         dy: -size[1] / 2,
         innerHTML: build_chip_innerHTML(
-            desc.color, priv.theme, record.icon, node_label(desc, record), record.id
+            paint.fill, priv.theme, record.icon, node_label(desc, record), record.id
         ),
     };
     dress_ports(gobj, style, ports, geometry, topic_defaults_of(gobj, desc.topic_name),
@@ -2278,7 +2328,7 @@ function pill_innerHTML_of(gobj, nd, theme, highlight, selected, anchored)
     let desc = nd.data.desc;
     let record = nd.data.record || {};
     return build_chip_innerHTML(
-        desc.color, theme, record.icon, node_label(desc, record), record.id,
+        node_fill_of(nd), theme, record.icon, node_label(desc, record), record.id,
         highlight, selected, anchored
     );
 }
@@ -2315,9 +2365,10 @@ function figure_shape_of(gobj, desc, record, geometry, flags)
     let side = SHAPE_SIZE[tier] || SHAPE_SIZE.hierarchical;
     let labels = gobj_read_bool_attr(gobj, "node_labels");
     let figure = node_figure_of(gobj, desc, geometry || {});
+    let paint = node_paint_of(gobj, desc, geometry);
 
-    let stroke = getStrokeColor(desc.color);
-    let line_width = 1.5;
+    let stroke = paint.stroke;
+    let line_width = Math.max(paint.lineWidth, 1.5);
     if(f.selected) {
         stroke = SELECT_RING;
         line_width = 3;
@@ -2340,7 +2391,7 @@ function figure_shape_of(gobj, desc, record, geometry, flags)
     let style = {
         size: [side, side],
         radius: (figure === 'square')? Math.round(side / 5) : 0,
-        fill: desc.color,
+        fill: paint.fill,
         stroke: stroke,
         lineWidth: line_width,
         lineDash: dash,
@@ -6503,43 +6554,26 @@ function show_node_popover(gobj)
         'g6-node-popover', '#d9d9d9', 180
     );
 
-    let node_graph_type = nodeData.data && nodeData.data.desc ?
-        nodeData.data.desc.node_treedb_type : null;
+    /*  Paint the node with these colours, whatever it is wearing:
+     *  the style for a figure, and the html of a card or a pill,
+     *  which repaint_cards() rebuilds from the style it is given
+     *  here (node_fill_of).  */
+    let paint_node = (fill, stroke, lw) => {
+        graph.updateNodeData([{
+            id: node_id, style: {fill: fill, stroke: stroke, lineWidth: lw},
+        }]);
+        repaint_cards(gobj, new Set([node_id]));
+        graph.draw();
+    };
 
     /*  What the preview writes, undone (see set_preview_undo).  */
     let undo_node = () => {
-        let restoreStyle = { fill: origFill, stroke: origStroke, lineWidth: origLW };
-        if(node_graph_type === 'hierarchical') {
-            let record = nodeData.data.record || {};
-            restoreStyle.innerHTML = build_node_innerHTML(
-                origFill, priv.theme, record.icon,
-                node_label(nodeData.data.desc, record),
-                nodeData.data.desc.topic_name, false, record.id,
-                false, false, false, pills_html_of(gobj, nodeData)
-            );
-        }
-        graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
-        graph.draw();
+        paint_node(origFill, origStroke, origLW);
     };
 
     // Live preview
     function preview_node() {
-        let fill = fillInput.value;
-        let stroke = strokeInput.value;
-        let lw = parseInt(lwInput.value) || 1;
-        let updateStyle = { fill: fill, stroke: stroke, lineWidth: lw };
-
-        if(node_graph_type === 'hierarchical') {
-            let record = nodeData.data.record || {};
-            updateStyle.innerHTML = build_node_innerHTML(
-                fill, priv.theme, record.icon,
-                node_label(nodeData.data.desc, record),
-                nodeData.data.desc.topic_name, false, record.id,
-                false, false, false, pills_html_of(gobj, nodeData)
-            );
-        }
-        graph.updateNodeData([{ id: node_id, style: updateStyle }]);
-        graph.draw();
+        paint_node(fillInput.value, strokeInput.value, parseInt(lwInput.value) || 1);
     }
 
     // Fill color
@@ -6933,6 +6967,16 @@ function refresh_minimap(gobj)
  *  same three-way choice — it lived inline in the theme refresh and is
  *  shared now. Returns null for a node that carries no desc.
  ************************************************************/
+/*  The colour a node is WEARING, from its live style: the shape
+ *  functions put the node's own paint there when it has one (see
+ *  node_paint_of), and a repaint has to keep it -- rebuilding the
+ *  html from `desc.color` is what threw away every colour applied
+ *  to a card at the first selection.  */
+function node_fill_of(nd)
+{
+    return (nd && nd.style && nd.style.fill) || nd.data.desc.color;
+}
+
 function node_innerHTML_of(nd, theme, highlight, selected, anchored, pills_html)
 {
     if(!nd || !nd.data || !nd.data.desc) {
@@ -6941,22 +6985,23 @@ function node_innerHTML_of(nd, theme, highlight, selected, anchored, pills_html)
     let desc = nd.data.desc;
     let record = nd.data.record || {};
     let label = node_label(desc, record);
+    let fill = node_fill_of(nd);
 
     switch(desc.node_treedb_type) {
         case 'child':
             return build_chip_innerHTML(
-                desc.color, theme, record.icon, label, record.id,
+                fill, theme, record.icon, label, record.id,
                 highlight, selected, anchored
             );
         case 'extended':
             return build_node_innerHTML(
-                desc.color, theme, record.icon, label,
+                fill, theme, record.icon, label,
                 desc.topic_name, true, record.id, highlight, selected, anchored,
                 pills_html
             );
         case 'hierarchical':
             return build_node_innerHTML(
-                desc.color, theme, record.icon, label,
+                fill, theme, record.icon, label,
                 desc.topic_name, false, record.id, highlight, selected, anchored,
                 pills_html
             );
@@ -7801,21 +7846,33 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope, sh
 
     let source_topic = nodeData.data.desc ? nodeData.data.desc.topic_name : null;
     let updates = [];
+    let repaint = new Set();
     const nodes = graph.getData().nodes;
 
-    /*  The figure: written where Save reads it (the node's entry in
-     *  `__graphs__`), and as the topic's default for the wider
-     *  scopes, so a record that arrives later is born with it.  */
+    /*  The figure AND the colours: written where Save reads them (the
+     *  node's entry in `__graphs__`), and as the topic's default for
+     *  the wider scopes, so a record that arrives later is born with
+     *  them. The colours used to be written on the live style alone,
+     *  which on an html card is under the html: the first repaint
+     *  rebuilt that html from the topic's colour and the choice was
+     *  gone, and nothing of it ever reached the store.  */
     let figure = (shape && str_in_list(NODE_SHAPES, shape))? shape : "";
     let reshaped = [];
-    if(figure && scope !== 'this') {
+    if(scope !== 'this') {
         let topics = (scope === 'same_topic')? [source_topic] : Object.keys(priv.descs || {});
         for(let topic_name of topics) {
+            let desc = priv.descs[topic_name];
+            if(!desc) {
+                continue;
+            }
             if(!is_object(priv._graph_properties[topic_name])) {
                 priv._graph_properties[topic_name] = {};
             }
             let defaults = priv._graph_properties[topic_name].defaults || {};
-            defaults.node_shape = figure;
+            if(figure) {
+                defaults.node_shape = figure;
+            }
+            paint_into(defaults, desc, fill, stroke, lineWidth);
             priv._graph_properties[topic_name].defaults = defaults;
         }
     }
@@ -7833,24 +7890,21 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope, sh
             continue;
         }
 
+        let entry = node_props_entry(gobj, nd);
         if(figure) {
-            node_props_entry(gobj, nd).node_shape = figure;
+            entry.node_shape = figure;
             if(node_mode_of(gobj, nodes[i].id) === 'shape') {
                 reshaped.push(nodes[i].id);
             }
         }
+        paint_into(entry, nd.data.desc, fill, stroke, lineWidth);
 
+        /*  The style for the figure, the html for the card and the
+         *  pill: every tier is repainted, and the repaint reads the
+         *  style it is given here (node_fill_of).  */
         let updateStyle = { fill: fill, stroke: stroke, lineWidth: lineWidth };
-        if(nd.data.desc.node_treedb_type === 'hierarchical') {
-            let record = nd.data.record || {};
-            updateStyle.innerHTML = build_node_innerHTML(
-                fill, priv.theme, record.icon,
-                node_label(nd.data.desc, record),
-                nd.data.desc.topic_name, false, record.id,
-                false, false, false, pills_html_of(gobj, nd)
-            );
-        }
         updates.push({ id: nodes[i].id, style: updateStyle });
+        repaint.add(nodes[i].id);
     }
 
     if(updates.length > 0) {
@@ -7858,6 +7912,7 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope, sh
         if(reshaped.length) {
             reshape_nodes(gobj, reshaped);
         }
+        repaint_cards(gobj, repaint);
         graph.draw().then(() => {
             mark_graph_dirty(gobj);
         });

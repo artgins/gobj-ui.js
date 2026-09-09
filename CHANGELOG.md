@@ -5,6 +5,29 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.85
+
+- **The colour of a CARD is remembered.** The node properties popover wrote
+  `fill`, `stroke` and `lineWidth` on the live style and nothing else, and a
+  card is html: its html was rebuilt from the TOPIC's colour on every
+  repaint, so a colour chosen by hand lasted until the next selection, focus,
+  theme change or pill change -- and it never reached `__graphs__` at all, so
+  a reload never brought it back. Only the `shape` view kept it, because a
+  figure is a native G6 node and `style.fill` is what paints it; the FIGURE
+  was already remembered (`node_shape`), which is what showed the colour's
+  wiring was the half that was missing. Now `apply` writes the three into the
+  node's entry -- and into the topic's defaults for the wider scopes, so a
+  record that arrives later is born with them -- `card_shape_of()`,
+  `pill_shape_of()` and `figure_shape_of()` read them back through one
+  `node_paint_of()`, and every repaint takes the colour from the style it is
+  wearing (`node_fill_of()`) instead of from `desc.color`. **A colour nobody
+  chose is still not saved**: picking the topic's own colour back, with the
+  stroke and the line width that go with it, FORGETS the entry rather than
+  writing it -- the palette is assigned by position (`ac_descs`), so a
+  colour written down would freeze today's palette on that card, which is the
+  trap the sizes fell into in `7.23.80`. The preview and its undo go through
+  the same one path, so all three views preview alike.
+
 ## 7.23.84
 
 - **The legend speaks the app's language.** A chip's title says an ACTION
