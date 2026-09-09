@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.108
+
+- **`yui_shell_show_modal({dialog: true, wide: true})`**: a dialog that
+  holds a DOCUMENT — a json viewer, a record, a log — instead of a
+  question with two buttons. It lifts the desktop cap from 640px to
+  1000px and nothing else: on mobile a dialog is already a full-screen
+  sheet and that media query still wins. At 640px a viewer wraps every
+  long value and pushes its own view switch behind the toolbar's scroll
+  arrow.
+
 ## 7.23.107
 
 - **The figure of `shape` mode wears the card's paint**, which is both a

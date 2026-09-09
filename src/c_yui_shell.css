@@ -755,6 +755,12 @@ textarea::placeholder {
     overflow: hidden;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
 }
+/*  A dialog holding a DOCUMENT (`opts.wide`): a json viewer, a record, a
+ *  log. The cap above is a width for a question with two buttons.  */
+.yui-dialog.yui-dialog-wide .yui-dialog-content {
+    max-width: 1000px;
+}
+
 .yui-dialog-header {
     display: flex;
     align-items: center;

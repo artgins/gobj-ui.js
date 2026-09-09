@@ -263,9 +263,18 @@ export function yui_shell_show_modal(shell, content, opts)
      *  only this tells one popup from another in the Inspector or a selector. */
     let logical = (opts && opts.logical_class) || "";
 
+    /*  `opts.wide`: a dialog that holds a DOCUMENT and not a form. The
+     *  640px of the standard card is a width for a question with two
+     *  buttons; a json viewer, a log or a record read in it wraps every
+     *  long value and pushes its own toolbar behind a scroll arrow. It
+     *  only lifts the desktop cap -- on mobile a dialog is a full-screen
+     *  sheet already, and the media query below still wins.  */
+    let wide = !!(opts && opts.wide);
+
     let $modal = createElement2(
         ["div", {class: "MODAL" + (logical ? " " + logical : "") +
-                        " modal yui-modal" + (dialog ? " yui-dialog" : "") + " is-active",
+                        " modal yui-modal" + (dialog ? " yui-dialog" : "") +
+                        (dialog && wide ? " yui-dialog-wide" : "") + " is-active",
                  role: "dialog", "aria-modal": "true"},
             modal_children
         ]
