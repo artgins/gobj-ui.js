@@ -62,6 +62,7 @@ import {
     yui_graph_update_anchor,
     yui_graph_center_on,
     yui_graph_fold_items,
+    yui_graph_icon,
     yui_graph_refresh_item,
     yui_graph_update_zoom,
 } from "./yui_graph_camera.js";
@@ -906,7 +907,7 @@ function make_find_items(gobj)
                  style: 'margin-left:.5rem; margin-right:.5rem; ' +
                         'max-width:12rem; min-width:7rem;'}, [
             $find_input,
-            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
+            ['span', {class: 'icon is-left'}, [yui_graph_icon('yi-magnifying-glass')]]
         ]]);
     attach_clear($find_control, $find_input);
 

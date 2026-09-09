@@ -82,7 +82,11 @@ import {
 import {yui_toolbar} from "./yui_toolbar.js";
 import {attach_clear} from "./yui_inputs.js";
 import {register_c_g6_nodes_tree} from "./c_g6_nodes_tree.js";
-import {yui_graph_fold_items} from "./yui_graph_camera.js";
+import {
+    yui_graph_fold_items,
+    yui_graph_icon,
+    YUI_GRAPH_ICON_SIZE,
+} from "./yui_graph_camera.js";
 import {
     removeChildElements,
     disableElements,
@@ -574,7 +578,7 @@ function node_shape_items(gobj, wide)
                            title: t(key), 'data-i18n-title': key,
                            'aria-label': t(key), 'data-i18n-aria-label': key,
                            'aria-pressed': 'false'},
-            ['i', {style: 'font-size:1.5em; color:inherit;', class: NODE_MODE_ICONS[mode]}],
+            yui_graph_icon(NODE_MODE_ICONS[mode]),
             {
                 click: (evt) => {
                     evt.stopPropagation();
@@ -591,7 +595,7 @@ function node_shape_items(gobj, wide)
                     title: t('node labels'), 'data-i18n-title': 'node labels',
                     'aria-label': t('node labels'), 'data-i18n-aria-label': 'node labels',
                     'aria-pressed': 'false'},
-            ['i', {style: 'font-size:1.5em; color:inherit;', class: 'yi-font'}],
+            yui_graph_icon('yi-font'),
             {
                 click: (evt) => {
                     evt.stopPropagation();
@@ -693,7 +697,7 @@ function make_toolbar(gobj)
         }],
 
         ['button', {class: 'GRAPH_REFRESH button'}, [
-            ['i', {class: 'yi-arrows-rotate'}],
+            yui_graph_icon('yi-arrows-rotate'),
             ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'refresh'}, 'refresh']
         ], {
             click: (evt) => {
@@ -718,7 +722,7 @@ function make_toolbar(gobj)
         ['button', {class: 'button ml-2 TREEDB_JSON_BTN',
                     title: t('raw json'), 'aria-label': t('raw json'),
                     'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
-            ['i', {class: 'yi-eye'}],
+            yui_graph_icon('yi-eye'),
             ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'raw json'}, 'raw json']
         ], {
             click: (evt) => {
@@ -775,7 +779,7 @@ function make_toolbar(gobj)
         ['div', {class: 'GRAPH_FIND control has-icons-left',
                  style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
             $find_input,
-            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
+            ['span', {class: 'icon is-left'}, [yui_graph_icon('yi-magnifying-glass')]]
         ]]);
     attach_clear($find_control, $find_input);
 
@@ -2453,19 +2457,20 @@ function ac_set_operation_mode(gobj, event, kw, src)
  *  card's graph icon travels — as EV_TOPIC_SELECTED, which the host turns
  *  into the URL, so what you are looking at stays linkable.
  ************************************************************/
-/*  The glyphs of a chip's small buttons: `is-small` sets a 0.75rem
- *  font and a star or a crosshair at that size is a speck. The BUTTON
- *  stays small so the strip keeps its height; the glyph inside grows.  */
-const LEGEND_GLYPH_STYLE = 'font-size:1.5em; line-height:1; color:inherit;';
-
-/*  And the same for what a chip SAYS. The legend is a layer control --
- *  a gadget somebody uses, not a footnote somebody glances at -- and a
- *  topic name is the thing it is read for, so 0.75rem is the wrong
- *  size for it. The button stays `is-small` because the strip has to
- *  hold a chip per topic on one row; the name and the count come back
- *  up inside it, exactly as the glyphs did.  */
-const LEGEND_NAME_STYLE  = 'font-size:1.2em; line-height:1.2;';
-const LEGEND_COUNT_STYLE = 'margin-left:.4rem; font-size:1em;';
+/*  The legend is the strip UNDER the toolbar, and the two are read as
+ *  one thing: what they say has to be the same size, or the lower one
+ *  reads as a footnote to the upper. `is-small` earns its place in the
+ *  PADDING -- a chip per topic has to fit on one row -- and nowhere
+ *  else, so the text and the glyphs are given back in `rem`, which is
+ *  measured against the page instead of against the 0.75rem the class
+ *  sets. In `em` they were 18px and 14.4px against the toolbar's 24px
+ *  and 16px: three sizes in two strips.
+ *
+ *  The count is the one deliberate step down: it is the number beside
+ *  the name, not the name.  */
+const LEGEND_GLYPH_STYLE = `font-size:${YUI_GRAPH_ICON_SIZE}; line-height:1; color:inherit;`;
+const LEGEND_NAME_STYLE  = 'font-size:1rem; line-height:1.2;';
+const LEGEND_COUNT_STYLE = 'margin-left:.4rem; font-size:.875rem;';
 
 /*  The focused chip is HIGHLIGHTED, not pressed. The body of a chip is
  *  the show/hide toggle, and that is what its `aria-pressed` says;
@@ -2653,8 +2658,15 @@ function refresh_legend(gobj)
         }
 
         let $chip = createElement2(
+            /*  `align-items: stretch`: Bulma's `.buttons` centres its
+             *  children, so the star and the crosshair -- a glyph and
+             *  nothing else -- stood 20px tall beside a 30px chip body
+             *  that carries a swatch, a name and a count. In a
+             *  `has-addons` group that reads as three buttons of three
+             *  heights welded together.  */
             ['div', {class: 'GRAPH_LEGEND_CHIP buttons has-addons',
-                     style: 'margin:0; flex:0 0 auto; flex-wrap:nowrap;'},
+                     style: 'margin:0; flex:0 0 auto; flex-wrap:nowrap; ' +
+                            'align-items:stretch;'},
              [$body].concat(extras.map((spec) => createElement2(spec)))]
         );
         $legend.appendChild($chip);

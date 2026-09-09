@@ -850,6 +850,16 @@ both keys, either — a G6 `trigger` is a CHORD, not a list of alternatives:
 `Shortcut.match()` compares the keys held to the keys bound as a SET, so
 `['Control', 'Meta']` would mean both at once.
 
+**One glyph size for the whole row** (`7.23.86`): `YUI_GRAPH_ICON_SIZE` in
+`yui_graph_camera.js`, with a `yui_graph_icon()` that builds the `<i>`. It is
+in **`rem` and not `em`** for a reason worth keeping: in `em` the same
+`1.5em` drew 24px inside a plain button, 18px inside an `is-small` chip of
+the legend, and a labelled button left its icon at the inherited 16px — three
+sizes in two strips that are read as one thing. The legend under the toolbar
+follows it: topic name at `1rem`, count at `.875rem` (the one deliberate step
+down), glyphs at the shared size, and `align-items: stretch` so a chip's star
+and crosshair are as tall as its body.
+
 `C_G6_NODES_TREE` floats a vertical toolbar over the canvas:
 
 | control | what it does |

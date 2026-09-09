@@ -43,6 +43,35 @@ import {set_pressed_state} from "./lib_graph.js";
 
 
 /************************************************************
+ *   ONE size for every glyph of a graph's toolbar ROW, in
+ *   `rem` and not `em`.
+ *
+ *   In `em` the same declaration draws three different icons:
+ *   `1.5em` is 24px inside a plain button, 18px inside an
+ *   `is-small` one, and a labelled button left its icon at the
+ *   inherited 16px -- so one row held 16px, 18px and 24px
+ *   glyphs and looked like three toolbars pushed together.
+ *   `rem` is measured against the page, so a chip that is
+ *   deliberately shorter than a button still carries the same
+ *   glyph.
+ *
+ *   20px against the row's 16px text: an icon-only button is
+ *   legible at half its 40px height, and beside a label the
+ *   glyph reads as a marker rather than as a second word.
+ ************************************************************/
+export const YUI_GRAPH_ICON_SIZE = "1.25rem";
+
+/*  The `<i>` spec of a toolbar glyph, at that one size.  */
+export function yui_graph_icon(icon_class, extra_style)
+{
+    return ['i', {
+        class: icon_class,
+        style: `font-size:${YUI_GRAPH_ICON_SIZE}; line-height:1; color:inherit;` +
+               (extra_style || ''),
+    }];
+}
+
+/************************************************************
  *   One icon button that fires `event_name`.
  ************************************************************/
 function camera_button(gobj, icon, event_name, label_key, wide, extra_style)
@@ -51,8 +80,7 @@ function camera_button(gobj, icon, event_name, label_key, wide, extra_style)
                        style: {height: wide, width: '2.5em'},
                        title: t(label_key), 'data-i18n-title': label_key,
                        'aria-label': t(label_key), 'data-i18n-aria-label': label_key},
-        ['i', {style: 'font-size:1.5em; color:inherit;' + (extra_style || ''),
-               class: icon}],
+        yui_graph_icon(icon, extra_style),
         {
             click: (evt) => {
                 evt.stopPropagation();

@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.86
+
+- **The toolbar row and the legend under it are ONE scale.** Three glyph
+  sizes shared a single row: a labelled button (`refresh`, `raw json`) and
+  the search magnifier left their icon at the inherited **16px**, the
+  icon-only buttons (the fold pair, the three views, the labels toggle) drew
+  it at `1.5em` = **24px**, and the legend's chips, being `is-small`, turned
+  that same `1.5em` into **18px** with a 14.4px topic name under a 16px
+  toolbar. The size is one number now — `YUI_GRAPH_ICON_SIZE`, exported by
+  `yui_graph_camera.js` with a `yui_graph_icon()` that builds the `<i>` — and
+  it is in **`rem`, not `em`**: measured against the page, so a chip that is
+  deliberately shorter than a button still carries the same glyph. 20px
+  against the row's 16px text, in the treedb graph, the JSON graph and the
+  gobj tree alike.
+- **The legend reads like the toolbar it sits under**: the topic name at
+  `1rem` (it was 14.4px), the count at `.875rem` — the one deliberate step
+  down, because it is the number beside the name — and the glyphs at the
+  shared size. `is-small` earns its place in the PADDING, which is what keeps
+  a chip per topic on one row, and nowhere else.
+- **A chip's buttons are as tall as the chip.** Bulma's `.buttons` centres
+  its children, so the star and the crosshair — a glyph and nothing else —
+  stood 20px tall welded to a 30px body carrying a swatch, a name and a
+  count. `align-items: stretch` on the `has-addons` group.
+
 ## 7.23.85
 
 - **The colour of a CARD is remembered.** The node properties popover wrote
