@@ -1,6 +1,6 @@
 {
   "name": "@yuneta/gobj-ui",
-  "version": "7.23.120",
+  "version": "7.23.121",
   "type": "module",
   "main": "dist/gobj-ui.cjs.js",
   "module": "dist/gobj-ui.es.js",
@@ -30,13 +30,13 @@
   "devDependencies": {
     "@rollup/plugin-terser": "^1.0.0",
     "@vitest/coverage-v8": "^4.1.10",
-    "@yuneta/gobj-js": "^7.16.3",
+    "@yuneta/gobj-js": "^7.16.6",
     "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "@antv/g6": "^5.1.0",
-    "@yuneta/gobj-js": "^7.13.2",
+    "@yuneta/gobj-js": "^7.16.6",
     "bulma": "^1.0.4",
     "i18next": "^26.3.6",
     "maplibre-gl": "^6.4.1",

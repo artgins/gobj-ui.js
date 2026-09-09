@@ -5,7 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## 7.23.119
+## 7.23.121
+
+- **deps: the gobj-js floor rises to `^7.16.6`**, where `refresh_language()`
+  finally translates the element it is GIVEN and not only its descendants.
+  This library depends on that: the toolbar's dropdown panel is built lazily
+  and translated as a unit (`yui_shell_translate(gobj, $panel)`), so its own
+  `role="menu" aria-label` stayed in the source language for the life of the
+  panel — read back on a deployed shell, where the language menu announced
+  itself as *"select language"* right beside a trigger reading *"Elegir
+  idioma"*. No API moved here; the fix is entirely in the runtime.
+
+## 7.23.119 – 7.23.120
 
 - **Tabulator's header-filter boxes have a name now.** Tabulator draws one
   text input per filterable column and gives it nothing — no label, no
