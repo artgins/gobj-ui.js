@@ -699,9 +699,17 @@ function make_toolbar(gobj)
      *  via populate_nodes_tree_options()
      */
     let left_items = [
+        /*  The rótulo beside a select is a SPAN: it names it for the eye
+         *  and for nothing else -- and it is `is-hidden-mobile`, so on a
+         *  phone even the eye loses it and the control says only its
+         *  current value. The name goes on the select, and a `title`
+         *  with it, which is what carries the meaning where the label
+         *  is gone.  */
         ['span', {class: 'GRAPH_LAYOUT_LABEL is-hidden-mobile', style: 'padding-right:5px;', i18n: 'layout'}, 'layout'],
         ['div', {class: 'select'}, [
-            ['select', {class: 'GRAPH_LAYOUT_SELECT'}]
+            ['select', {class: 'GRAPH_LAYOUT_SELECT',
+                        title: t('layout'), 'data-i18n-title': 'layout',
+                        'aria-label': t('layout'), 'data-i18n-aria-label': 'layout'}]
         ], {
             change: (evt) => {
                 evt.stopPropagation();
@@ -711,7 +719,10 @@ function make_toolbar(gobj)
 
         ['span', {class: 'GRAPH_MODE_LABEL is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;', i18n: 'operation mode'}, 'operation mode'],
         ['div', {class: 'select'}, [
-            ['select', {class: 'GRAPH_MODE_SELECT'}, mode_options]
+            ['select', {class: 'GRAPH_MODE_SELECT',
+                        title: t('operation mode'), 'data-i18n-title': 'operation mode',
+                        'aria-label': t('operation mode'),
+                        'data-i18n-aria-label': 'operation mode'}, mode_options]
         ], {
             change: (evt) => {
                 evt.stopPropagation();

@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.117
+
+- **The treedb graph's two selects had no name.** Their rótulo is a
+  `<span>` beside them — which names a control for the eye and for
+  nothing else — and it carries `is-hidden-mobile`, so on a phone even
+  the eye loses it and the control says only its current value. They take
+  `title` and `aria-label` from the same keys now (`layout`, `operation
+  mode`).
+- The other three graphs already did this: the FSM graph, the gobj tree
+  and the JSON graph name their layout select. The treedb one was the
+  odd one out — the same shape as the wheel it was ahead on and the
+  camera it was behind on.
+
 ## 7.23.116
 
 - **`C_YUI_FORM`'s fields had no name, and the source said they did.**
