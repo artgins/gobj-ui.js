@@ -2900,8 +2900,13 @@ function ac_layout_autoset(gobj, event, kw, src)
  ************************************************************/
 function ac_camera_changed(gobj, event, kw, src)
 {
+    /*  `node` travels with the rest and is not optional: a camera is a
+     *  NODE at a viewport pixel, and one rebuilt here as `{zoom, x, y}`
+     *  -- which is what this did -- is a camera the engine refuses to
+     *  restore, so the graph came back at the right zoom in the wrong
+     *  place. Copy the fields the contract names, all of them.  */
     gobj_write_attr(gobj, "camera", {
-        zoom: kw.zoom, x: kw.x, y: kw.y
+        zoom: kw.zoom, node: kw.node, x: kw.x, y: kw.y
     });
     gobj_save_persistent_attrs(gobj, "camera");
     return 0;

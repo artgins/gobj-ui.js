@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.106
+
+- **The host was dropping the `node` from the camera it persisted.**
+  `ac_camera_changed` rebuilt the payload as `{zoom, x, y}` — written when
+  that WAS the shape — so 7.23.105 read back a camera with no node and
+  refused it, and the graph opened fitted. The engine had it right and the
+  view threw a field away between the event and the store.
+
 ## 7.23.105
 
 - **The reload restored the zoom and not the position**, and the cause is
