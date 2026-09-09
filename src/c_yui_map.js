@@ -119,6 +119,19 @@ function mt_create(gobj)
     }
     Object.assign(map_settings, {
         container: $map,
+        /*  THE WHEEL DOES NOT ZOOM; Ctrl + wheel does -- the same
+         *  vocabulary as the three graphs (`yui_graph_camera.js`), so a
+         *  reader with a map and a graph open does not have to remember
+         *  which is which. maplibre calls it `cooperativeGestures`, and
+         *  it never blocks a wheel carrying ctrlKey, so a trackpad PINCH
+         *  keeps zooming on every platform (a Mac gets Cmd as well, its
+         *  own convention, which costs nothing).
+         *
+         *  HERE and not in the attr's default value: a JSON attr is
+         *  replaced WHOLESALE by a host that passes its own, so a
+         *  default is a suggestion -- the demo passes `map_settings` and
+         *  never saw it. This is the house gesture, not a suggestion.  */
+        cooperativeGestures: true,
     });
 
     /*-----------------------------*

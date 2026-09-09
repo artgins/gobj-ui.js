@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.110
+
+- **The map speaks the same gesture as the graphs**: the wheel does not
+  zoom, Ctrl + wheel does. maplibre calls it `cooperativeGestures`, and
+  it never blocks a wheel carrying `ctrlKey`, so a trackpad PINCH keeps
+  zooming everywhere (a Mac gets Cmd as well, its own convention). Its
+  own notice — *"Use Ctrl + scroll to zoom the map"* — teaches the
+  gesture, which a graph has to do without.
+- Set where the map is BUILT and not in the attr's default value, which
+  is the part worth remembering: **a JSON attr is replaced WHOLESALE by a
+  host that passes its own**, so a default is a suggestion. The demo
+  passes `map_settings` and never saw the first version of this change.
+  This is the house gesture, not a suggestion.
+- Measured in the demo: a plain wheel leaves the map untouched (with the
+  notice up), Ctrl + wheel moves it. The signature had to be taken after
+  the notice fades — it is drawn OVER the map, so a measurement taken
+  while it is up reports the notice as if it were the map.
+
 ## 7.23.109
 
 - **The wheel SCROLLS and Ctrl + wheel zooms in every graph of the
