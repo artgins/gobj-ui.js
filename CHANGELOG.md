@@ -5,6 +5,36 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.90
+
+- **The graph's own node graphics, measured across the WHOLE palette** — the
+  seven topic colours, not the three a demo happens to show. Everything a
+  card carries is written on a tint of its topic's colour, and at 10–12px
+  that is where contrast goes to die:
+
+  | role | before, dark | before, light | after, dark | after, light |
+  |---|---|---|---|---|
+  | record name | 5.17 | 17.03 | 5.80 | 17.03 |
+  | topic name (11px) | **2.47** | **4.28** | 4.64 | 5.99 |
+  | pill / leaf chip / `+N` (10–12px) | **4.36** | **3.89** | 4.57 | 5.07 |
+  | the count inside a pill | **3.22** | **2.61** | 4.57 | 5.07 |
+
+  (the worst of the seven colours in each column, which is the palette's
+  yellow.) Three changes buy it: the dark card's tint goes from 30% to
+  **25%** of the topic colour — five points that cost the hue almost nothing
+  and lift everything written on it; the subtitle greys go from
+  `#9aa4b2`/`#64748b` to `#ccd3dd`/`#556173`, so the hierarchy lives in the
+  size and the weight instead of in a grey nobody can read; and the ink of a
+  pill takes 25%/45% of the topic colour instead of 35%/55%.
+
+- **The count inside a pill was faded with `opacity: .75`**, which is how a
+  number that is already the smallest thing on the card ends at 2.61:1. It
+  is told apart by its weight (600 against the hook's 700), as it already
+  was — the opacity was doing the same job twice and failing the second one.
+
+  Verified against the browser, not only computed: the painted values match
+  the table to the second decimal.
+
 ## 7.23.89
 
 - **Every brand colour used as INK takes `-on-scheme` now**, the sweep the

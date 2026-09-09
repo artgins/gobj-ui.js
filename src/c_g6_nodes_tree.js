@@ -7297,8 +7297,14 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
         // On dark, lift the card off the (near-black) canvas with a
         // clearly-lighter slate base + a vivid border, or the cards
         // become invisible.
+        /*  25% and not 30% in dark: the tint is what says WHICH topic
+         *  a card belongs to, and it is also the ground everything on
+         *  the card is written on. At 30% the yellow of the palette
+         *  left the record's name at 5.17:1 and the topic under it at
+         *  2.47 -- unreadable at 11px. Five points of tint buy the
+         *  name 5.80 and cost the colour almost nothing.  */
         bg = dark
-            ? `color-mix(in srgb, ${color} 30%, #2c3542)`
+            ? `color-mix(in srgb, ${color} 25%, #2c3542)`
             : `color-mix(in srgb, ${color} 10%, ${surface})`;
         border = dark
             ? `color-mix(in srgb, ${color} 85%, #ffffff)`
@@ -7310,7 +7316,12 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
         border_style = "solid";
     }
     let title_color = dark ? "#e8eaed" : "#0f172a";
-    let sub_color = dark ? "#9aa4b2" : "#64748b";
+    /*  The topic name under the record's, at 11px, so it needs the
+     *  4.5:1 of small text on the WORST tint of the palette: the old
+     *  greys gave 2.47 in dark and 4.28 in light. These give 4.64 and
+     *  5.65, and the hierarchy stays where it belongs -- in the size
+     *  and the weight, not in a grey nobody can read.  */
+    let sub_color = dark ? "#ccd3dd" : "#556173";
     let shadow = dark
         ? "0 1px 3px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.30)"
         : "0 1px 3px rgba(15,23,42,0.12), 0 1px 2px rgba(15,23,42,0.06)";
@@ -8605,9 +8616,14 @@ function pill_colors(color, theme)
         bg: dark
             ? `color-mix(in srgb, ${color} 45%, #1b2230)`
             : `color-mix(in srgb, ${color} 22%, #ffffff)`,
+        /*  The INK of a pill, a leaf chip and a `+N`: it carries the
+         *  topic's hue, and it is 10-12px text on the same hue. At
+         *  35/55 the palette's yellow read 4.36 in dark and 3.89 in
+         *  light; at 25/45 the worst of the seven is 4.57 and 5.07,
+         *  and the hue is still plainly there.  */
         fg: dark
-            ? `color-mix(in srgb, ${color} 35%, #ffffff)`
-            : `color-mix(in srgb, ${color} 55%, #0f172a)`,
+            ? `color-mix(in srgb, ${color} 25%, #ffffff)`
+            : `color-mix(in srgb, ${color} 45%, #0f172a)`,
         border: dark
             ? `color-mix(in srgb, ${color} 80%, #ffffff)`
             : color,
@@ -8637,7 +8653,7 @@ function build_pill_html(pill, color, theme)
         font-size: 10px; font-weight: 700; line-height: 1; white-space: nowrap;
         overflow: hidden; text-overflow: ellipsis;
         cursor: pointer; user-select: none;
-    "><span style="font-size: 9px;">${glyph}</span>${escapeHtml(pill.hook)}<span style="opacity: .75; font-weight: 600;">${count}</span></span>`;
+    "><span style="font-size: 9px;">${glyph}</span>${escapeHtml(pill.hook)}<span style="font-weight: 600;">${count}</span></span>`;
 }
 
 /************************************************************
