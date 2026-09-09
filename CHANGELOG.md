@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.93
+
+- **Seven options the engine had and no host could reach.**
+  `C_YUI_TREEDB_GRAPH` is what creates `C_G6_NODES_TREE`, so an option it does
+  not forward is an option that does not exist: `minimap_min_nodes`,
+  `with_gridline`, `with_fullscreen`, `with_toolbar`, `toolbar_position`,
+  `confirm_delete_node` and `confirm_unlink_edge` were fixed at the engine's
+  defaults for every consumer. They are attrs of the view now, forwarded at
+  creation, with the engine's own defaults — a host that says nothing gets
+  exactly what it got before. Found while verifying the minimap of `7.23.92`:
+  the demo could not show it, and there was no way to ask for it.
+- The demo's treedb chapter asks for the minimap from five nodes on
+  (`minimap_min_nodes: 5`), the same way it already asks for a page of one to
+  show the `+N` chip: a chapter that cannot show a thing is a chapter that
+  does not have it.
+
 ## 7.23.92
 
 The minimap has no legend of its own; what is READ in it are its blocks, its

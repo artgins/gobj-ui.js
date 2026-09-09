@@ -1257,7 +1257,14 @@ a level or two, with a count on every cut.
   their children. **`fold_page_size`** (default `24`) is how many children of
   one hook are shown at a time; the rest is a **`+N` chip** at the end of the
   page that opens the next one. Both are attrs of `C_YUI_TREEDB_GRAPH`,
-  forwarded to the engine.
+  forwarded to the engine — and since `7.23.93` so are the seven the engine
+  had always had and no host could reach, because this view is what creates
+  the engine and an option it does not forward is an option that does not
+  exist: **`minimap_min_nodes`** (default `30`), **`with_gridline`**,
+  **`with_fullscreen`**, **`with_toolbar`**, **`toolbar_position`**
+  (`right-top`), **`confirm_delete_node`** and **`confirm_unlink_edge`**. The
+  defaults repeat the engine's, so a host that says nothing gets what it got
+  before.
 - **A pill per hook on the card** — `▸ devices 142` folded, `▾ devices 24/142`
   open on a page — in the colour of the child topic, the same colour its hook
   port wears. Tapping it opens or folds that hook, and the card stays where it

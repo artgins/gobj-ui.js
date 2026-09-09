@@ -177,7 +177,12 @@ function mt_start(gobj)
             /*  A page of ONE, so the demo's eight records show a `+N`
              *  chip -- the thing that continues a hook's children --
              *  in both shapes of the graph.  */
-            fold_page_size: 1
+            fold_page_size: 1,
+            /*  And the minimap from five nodes on, where the library
+             *  waits for thirty: a chapter that cannot show it is a
+             *  chapter that does not have it. Forwarded to the G6 child
+             *  since 7.23.93 -- before that, no host could ask.  */
+            minimap_min_nodes: 5
         }
     });
     if(!tree) {

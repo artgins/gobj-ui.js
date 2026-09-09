@@ -115,6 +115,19 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb 
 SDATA(data_type_t.DTP_INTEGER,  "expand_depth",     0,  2,      "Levels of the treedb open when it loads: 1 = the roots alone, 2 = the roots and their children. Forwarded to the G6 child"),
 SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",   0,  24,     "Children of one hook shown per page in the graph; a `+N` chip opens the next page. Forwarded to the G6 child"),
 
+/*---------------- Forwarded to the G6 child (its own defaults) ----------------*/
+/*  Options the ENGINE has always had and no host could reach: this view
+ *  creates the child, so an option it does not forward is an option that
+ *  does not exist. The defaults repeat the child's -- a host that says
+ *  nothing gets exactly what it got before.  */
+SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes", 0, 30,    "Show the minimap from this many nodes on (0 = never). Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",    0,  true,  "Draw the grid under the graph. Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_fullscreen",  0,  true,  "Offer the full-screen button. Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",     0,  true,  "Float the camera toolbar over the canvas. Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_STRING,   "toolbar_position", 0,  "right-top", "Where that toolbar floats: top-left, top-right, bottom-left, bottom-right, left-top, right-top. Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node", 0, true, "Ask before deleting a node. Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_BOOLEAN,  "confirm_unlink_edge", 0, true, "Ask before unlinking an edge. Forwarded to the G6 child"),
+
 /*---------------- User last selections  ----------------*/
 SDATA(data_type_t.DTP_STRING,   "operation_mode",   sdata_flag_t.SDF_PERSIST, "reading", "Current operation mode (internal behaviour or role). Changed by the user trough the gui."),
 SDATA(data_type_t.DTP_STRING,   "layout",           sdata_flag_t.SDF_PERSIST, "", "Current graph layout. User preference. Changed by the user through the gui."),
@@ -256,6 +269,13 @@ function mt_create(gobj)
             fkey_port_position: "top",
             expand_depth: gobj_read_integer_attr(gobj, "expand_depth"),
             fold_page_size: gobj_read_integer_attr(gobj, "fold_page_size"),
+            minimap_min_nodes: gobj_read_integer_attr(gobj, "minimap_min_nodes"),
+            with_gridline: gobj_read_bool_attr(gobj, "with_gridline"),
+            with_fullscreen: gobj_read_bool_attr(gobj, "with_fullscreen"),
+            with_toolbar: gobj_read_bool_attr(gobj, "with_toolbar"),
+            toolbar_position: gobj_read_str_attr(gobj, "toolbar_position"),
+            confirm_delete_node: gobj_read_bool_attr(gobj, "confirm_delete_node"),
+            confirm_unlink_edge: gobj_read_bool_attr(gobj, "confirm_unlink_edge"),
             hidden_topics: gobj_read_attr(gobj, "hidden_topics") || [],
             main_topic: gobj_read_str_attr(gobj, "main_topic") || "",
             loose_topics: gobj_read_attr(gobj, "loose_topics") || [],
