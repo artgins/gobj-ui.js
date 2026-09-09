@@ -164,7 +164,7 @@
 
 .C_YUI_JSON .JSON_TOGGLE_REMOTE i {
     font-size: 0.8em;
-    color: var(--bulma-link, #3273dc);
+    color: var(--bulma-link-on-scheme, var(--bulma-link, #3273dc));
 }
 
 .C_YUI_JSON .JSON_KEY {
@@ -195,7 +195,7 @@
 }
 
 .C_YUI_JSON .JSON_STUB {
-    color: var(--bulma-link, #3273dc);
+    color: var(--bulma-link-on-scheme, var(--bulma-link, #3273dc));
     font-weight: 600;
 }
 
@@ -286,6 +286,12 @@
 /*  Bulma's `.button.is-active` only borrows the :active border, which on a
  *  three-way switch is not enough to say WHICH view you are looking at.
  *  Fill it instead — the mark has to survive a glance. */
+/*  The raw `--bulma-link` on purpose, and not `-on-scheme`: this is a
+ *  FILL. The `-on-scheme` variants exist for a brand colour used as
+ *  INK -- they darken it on a light scheme so text can sit on the
+ *  page -- and a darkened fill under `link-invert` text is a button
+ *  nobody asked for. Ink takes `-on-scheme`; a background takes the
+ *  raw token and pairs it with `-invert`.  */
 .C_YUI_JSON .JSON_VIEW_MODE.is-active {
     background-color: var(--bulma-link, #3273dc);
     border-color: var(--bulma-link, #3273dc);

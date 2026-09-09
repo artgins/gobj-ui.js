@@ -224,7 +224,7 @@
     background-color: var(--bulma-grey-darker, #2b2f38);
     color: var(--bulma-text-strong, #f5f6f7) !important;
     caret-color: var(--bulma-text-strong, #f5f6f7);
-    border-color: var(--bulma-link, #4a9eff);
+    border-color: var(--bulma-link-on-scheme, var(--bulma-link, #4a9eff));
 }
 
 [data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
@@ -263,7 +263,7 @@
 
 .tabulator .tabulator-header .tabulator-col .tabulator-header-filter input:focus,
 .tabulator .tabulator-header .tabulator-col .tabulator-header-filter select:focus {
-    border-color: var(--bulma-link, #4a9eff);
+    border-color: var(--bulma-link-on-scheme, var(--bulma-link, #4a9eff));
     outline: none;
 }
 
@@ -373,7 +373,7 @@
         background-color: var(--bulma-grey-darker, #2b2f38);
         color: var(--bulma-text-strong, #f5f6f7) !important;
         caret-color: var(--bulma-text-strong, #f5f6f7);
-        border-color: var(--bulma-link, #4a9eff);
+        border-color: var(--bulma-link-on-scheme, var(--bulma-link, #4a9eff));
     }
     [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
     [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input::placeholder {

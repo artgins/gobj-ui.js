@@ -5,6 +5,37 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.89
+
+- **Every brand colour used as INK takes `-on-scheme` now**, the sweep the
+  legend's gold star started in `7.23.88`. Measured against the scheme
+  background, the raw tokens as ink are:
+
+  | token | raw, light | raw, dark | `-on-scheme`, light | `-on-scheme`, dark |
+  |---|---|---|---|---|
+  | `link`    | 5.16 | **3.51** | 6.33 | 5.65 |
+  | `danger`  | **2.80** | 6.46 | 5.83 | 6.46 |
+  | `success` | **2.14** | 8.48 | 8.14 | 8.48 |
+  | `warning` | **1.75** | 10.38 | 7.09 | 10.38 |
+  | `info`    | **1.73** | 10.46 | 7.66 | 10.46 |
+  | `primary` | **1.95** | 9.28 | 6.45 | 9.28 |
+
+  A brand colour is built to carry white text ON it, so as ink it fails in
+  one scheme or the other — `link` in dark (3.51), the rest in light. The
+  eleven ink sites swapped: the JSON viewer's stub and remote toggle, the
+  treedb topic card's selected border and its action hover, the route map's
+  route, the shell's disconnected tab (`danger`, 2.80 in light), its nav-card
+  hover and active border, its dropdown check, and Tabulator's editing and
+  filter-focus borders. The route map, measured live: 3.51 → **5.65** in
+  dark, 5.16 → **6.33** in light.
+
+- **A FILL keeps the raw token**, and that is now written where it could be
+  mistaken for an oversight (`JSON_VIEW_MODE.is-active`): `-on-scheme`
+  darkens a colour so text can sit on the page, and a darkened background
+  under `-invert` text is a button nobody asked for. Ink takes
+  `-on-scheme`; a background takes the raw token and pairs it with
+  `-invert`.
+
 ## 7.23.88
 
 The legend strip, measured rather than judged by eye:

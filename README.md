@@ -2211,6 +2211,33 @@ metadata (`__md_treedb__`).
 
 ## Conventions
 
+### Colour: a brand token as INK takes `-on-scheme`, as a FILL it does not
+
+A Bulma brand colour (`--bulma-link`, `--bulma-danger`, …) is built to carry
+**white text on it**, so it is the wrong colour to write WITH: measured
+against the scheme background, the raw tokens as ink are
+
+| token | raw, light | raw, dark | `-on-scheme`, light | `-on-scheme`, dark |
+|---|---|---|---|---|
+| `link`    | 5.16 | **3.51** | 6.33 | 5.65 |
+| `danger`  | **2.80** | 6.46 | 5.83 | 6.46 |
+| `success` | **2.14** | 8.48 | 8.14 | 8.48 |
+| `warning` | **1.75** | 10.38 | 7.09 | 10.38 |
+| `info`    | **1.73** | 10.46 | 7.66 | 10.46 |
+| `primary` | **1.95** | 9.28 | 6.45 | 9.28 |
+
+— every one of them fails the 4.5:1 of small text in one scheme or the other
+(`link` in dark, the rest in light). So:
+
+- **ink** (`color`, a glyph, a thin border that MARKS a state):
+  `var(--bulma-<name>-on-scheme, var(--bulma-<name>, #fallback))`;
+- **fill** (`background`, a chip, a pressed button): the raw token, paired
+  with `--bulma-<name>-invert` for the text on it. A darkened background
+  under inverted text is a button nobody asked for.
+
+Bulma computes `-on-scheme` per scheme: the same hue, darkened on a light
+page (`warning` goes to 23% lightness), unchanged on a dark one.
+
 ### i18n: a string must be able to CHANGE language, not just be translated once
 
 Passing a string through `t()` is **not** enough. `refresh_language()` only

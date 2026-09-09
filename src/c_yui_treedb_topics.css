@@ -27,8 +27,8 @@
 }
 /*  Selected (clicked) card: link-coloured border + soft ring. */
 .TREEDB_TOPIC_CARD.is-selected {
-    border-color: var(--bulma-link, #485fc7);
-    box-shadow: 0 0 0 2px var(--bulma-link, #485fc7) inset;
+    border-color: var(--bulma-link-on-scheme, var(--bulma-link, #485fc7));
+    box-shadow: 0 0 0 2px var(--bulma-link-on-scheme, var(--bulma-link, #485fc7)) inset;
 }
 .TREEDB_TOPIC_CARD .TREEDB_TOPIC_CARD_NAME {
     font-weight: 600;
@@ -57,7 +57,7 @@
 .TREEDB_TOPIC_CARD_ACTIONS > a:hover,
 .TREEDB_TOPIC_CARD_ACTIONS > a:focus-visible {
     background: var(--bulma-background, #f5f5f5);
-    color: var(--bulma-link, #485fc7);
+    color: var(--bulma-link-on-scheme, var(--bulma-link, #485fc7));
 }
 
 /*  Routed topic-info panel. */
