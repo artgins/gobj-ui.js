@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.115
+
+- **The naming DESCENDS into the wrapper.** `select_input()` hands back
+  Bulma's `<div class="select"><select>`, so 7.23.114 named the div —
+  which names nothing — and every select of the two forms stayed
+  anonymous while the inputs beside them were fixed. Measured on a
+  deployed schema: `SELECT[type]` with no `aria-label` next to
+  `INPUT[header]` with one.
+- The hook's two controls are named where they are built (`hook topic`,
+  `hook column`): one field holding two controls cannot name them both
+  `hook`. New consumer keys, those two.
+- The flags are NOT a defect and it is worth writing down: each checkbox
+  sits inside its own `<label>`, and a wrapping label IS the accessible
+  name.
+
 ## 7.23.114
 
 - **Every field of the schema editor's forms has a NAME now.** `field()`

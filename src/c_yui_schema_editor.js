@@ -1556,6 +1556,46 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
  *  carries its name, so reading the form back is one query and
  *  a language change does not have to know the form exists.
  ***************************************************************/
+/***************************************************************
+ *  Put a NAME on the control of a field, from the label's key.
+ *
+ *  It DESCENDS: `select_input()` hands back Bulma's wrapper
+ *  (`<div class="select"><select>`), so a check on the outer tag
+ *  named the div -- which names nothing -- and every select of
+ *  the two forms stayed anonymous while the inputs beside them
+ *  were fixed. Measured on a deployed schema: `SELECT[type]` with
+ *  no `aria-label` while `INPUT[header]` had one.
+ *
+ *  The first control found is the one named: a field has one, and
+ *  where it has two (the hook's topic and column) they are named
+ *  where they are built, because "hook" would not tell them apart.
+ ***************************************************************/
+function named($spec, label)
+{
+    name_control($spec, label);
+    return $spec;
+}
+
+function name_control($spec, label)
+{
+    if(!is_array($spec) || !is_object($spec[1])) {
+        return false;
+    }
+    if(["input", "select", "textarea"].includes($spec[0])) {
+        if(!$spec[1]["aria-label"]) {
+            $spec[1]["aria-label"] = t(label);
+            $spec[1]["data-i18n-aria-label"] = label;
+        }
+        return true;
+    }
+    for(let child of ($spec[2] || [])) {
+        if(name_control(child, label)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function field(logical, name, label, $control, help)
 {
     /*  The label is a SIBLING of the control -- Bulma's `field` shape --
@@ -1563,12 +1603,7 @@ function field(logical, name, label, $control, help)
      *  wrapping, and a reader announces the box as unlabelled. The name
      *  is put on the control itself, from the label's own key, so the
      *  two cannot drift and a language change reaches both.  */
-    if(is_array($control) && is_object($control[1]) &&
-            ["input", "select", "textarea"].includes($control[0]) &&
-            !$control[1]["aria-label"]) {
-        $control[1]["aria-label"] = t(label);
-        $control[1]["data-i18n-aria-label"] = label;
-    }
+    name_control($control, label);
     return ["div", {class: `${logical} field mb-3`}, [
         ["label", {class: "label", i18n: label}, t(label)],
         ["div", {class: "control"}, [$control]],
@@ -1733,9 +1768,13 @@ function open_column_form(gobj, topic, col, prefill)
             ]],
             ["div", {class: "SCHEMA_COL_FORM_HOOK field mb-3"}, [
                 ["label", {class: "label", i18n: "hook"}, t("hook")],
+                /*  TWO controls in one field, so each says which half it
+                 *  is: `hook` alone would name them both the same.  */
                 ["div", {class: "is-flex", style: "gap:.4rem;"}, [
-                    select_input("hook_topic", hook_topic, [""].concat(sibling_topics)),
-                    text_input("hook_col", hook_col, t("the fkey column of the child"))
+                    named(select_input("hook_topic", hook_topic,
+                                       [""].concat(sibling_topics)), "hook topic"),
+                    named(text_input("hook_col", hook_col,
+                                     t("the fkey column of the child")), "hook column")
                 ]],
                 ["p", {class: "help", i18n: "a hook names the child topic and the column of the child that points back"},
                     t("a hook names the child topic and the column of the child that points back")]
