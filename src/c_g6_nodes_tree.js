@@ -240,8 +240,27 @@ const GCLASS_NAME = "C_G6_NODES_TREE";
  *  is an `html` node, whose key shape is a DOM element — the state's
  *  `stroke` / `halo` have nothing to paint on and the amber never
  *  appeared, for the topic focus either.  */
-const HIGHLIGHT_COLOR = "#f0a020";
-const HIGHLIGHT_HALO  = "rgba(240,160,32,0.35)";
+/*  The mark of a focused topic and of a find: one amber for a
+ *  near-black canvas (8.41:1) which on a WHITE one is 2.15 -- under
+ *  the 3:1 a graphical mark needs, and this one is the whole answer
+ *  to "which nodes matched". The light scheme takes the same hue
+ *  burnt down (5.02:1); the halo follows it at the same alpha. Same
+ *  rule as a brand colour used as ink: the colour that carries a
+ *  mark is not one colour, it is one per scheme.  */
+const HIGHLIGHT_COLOR_DARK  = "#f0a020";
+const HIGHLIGHT_COLOR_LIGHT = "#b45309";
+const HIGHLIGHT_HALO_DARK   = "rgba(240,160,32,0.35)";
+const HIGHLIGHT_HALO_LIGHT  = "rgba(180,83,9,0.35)";
+
+function highlight_color(theme)
+{
+    return (theme === "dark")? HIGHLIGHT_COLOR_DARK : HIGHLIGHT_COLOR_LIGHT;
+}
+
+function highlight_halo(theme)
+{
+    return (theme === "dark")? HIGHLIGHT_HALO_DARK : HIGHLIGHT_HALO_LIGHT;
+}
 
 /*
  *  The selection ring. Deliberately NOT the amber of the highlight:
@@ -1807,6 +1826,56 @@ function calculate_hooks_fkeys_counter(desc)
 /************************************************************
  *  Build ports for a topic desc
  ************************************************************/
+/************************************************************
+ *  Mix two colours the way `color-mix(in srgb, a p%, b)` does,
+ *  in JS.
+ *
+ *  The cards are html and can say `color-mix()`; a PORT is drawn
+ *  on the canvas by `@antv/g`, which parses a colour string and
+ *  knows nothing about CSS functions -- so the same arithmetic
+ *  has to happen here.
+ ************************************************************/
+function mix_colors(a, p, b)
+{
+    let rgb = (c) => {
+        if(c.charAt(0) === "#") {
+            let h = c.slice(1);
+            if(h.length === 3) {
+                h = h.split("").map((x) => x + x).join("");
+            }
+            return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+        }
+        let n = (c.match(/[\d.]+/g) || []).map(Number);
+        return n.slice(0, 3);
+    };
+    let A = rgb(a);
+    let B = rgb(b);
+    return `rgb(${A.map((v, i) => Math.round(v * p + B[i] * (1 - p))).join(",")})`;
+}
+
+/************************************************************
+ *  The rim of a port.
+ *
+ *  A port is a knob half on a CARD and half on the canvas, and
+ *  the card is a tint of a topic colour -- so a port of that
+ *  same topic used to sit on its own colour: 2.62:1 against the
+ *  card in dark, 1.54 in light, where a graphical object needs
+ *  3:1 to be told from what is next to it. The FILL keeps saying
+ *  which topic links there; the rim is what separates it, and it
+ *  is the port's own colour pushed towards the surface -- 60% of
+ *  the hue is enough to clear 3:1 on both grounds in both
+ *  themes (4.49 / 3.64 against the card, 9.11 / 3.80 against the
+ *  canvas) and little enough to keep the hue.
+ *
+ *  It used to be `getStrokeColor(color)` called with no theme,
+ *  which is its LIGHT branch always: a rim darkened by 20% of a
+ *  colour, on a card of the same colour.
+ ************************************************************/
+function port_rim(color, theme)
+{
+    return mix_colors(color, 0.6, (theme === "dark")? "#ffffff" : "#0f172a");
+}
+
 function build_ports(gobj, desc)
 {
     let priv = gobj.priv;
@@ -1833,7 +1902,7 @@ function build_ports(gobj, desc)
                     port = {
                         key: col.id,
                         fill: child_desc?child_desc.color:desc.color,
-                        stroke: getStrokeColor(desc.color),
+                        stroke: port_rim(child_desc?child_desc.color:desc.color, priv.theme),
                     };
                     bottom_ports.push(port);
                 }
@@ -1844,7 +1913,7 @@ function build_ports(gobj, desc)
                 port = {
                     key: col.id,
                     fill: desc.color,
-                    stroke: getStrokeColor(desc.color),
+                    stroke: port_rim(desc.color, priv.theme),
                 };
                 top_ports.push(port);
                 break;
@@ -2374,7 +2443,7 @@ function figure_shape_of(gobj, desc, record, geometry, flags)
         line_width = 3;
     }
     if(f.highlight) {
-        stroke = HIGHLIGHT_COLOR;
+        stroke = highlight_color(priv.theme);
         line_width = 3;
     }
     /*  Dashed says "structural", as the extended card does; the
@@ -2396,7 +2465,7 @@ function figure_shape_of(gobj, desc, record, geometry, flags)
         lineWidth: line_width,
         lineDash: dash,
         halo: !!f.highlight,
-        haloStroke: HIGHLIGHT_HALO,
+        haloStroke: highlight_halo(priv.theme),
         haloLineWidth: 8,
         port: false,
         ports: [],
@@ -6854,7 +6923,7 @@ function auto_layout(gobj)
  *  Its shapes are drawn by hand. G6's minimap clones each element's key
  *  shape into its own canvas, and every node here is an `html` node
  *  whose key shape is a DOM element — the same reason the `active`
- *  state never painted (see HIGHLIGHT_COLOR). A block in the topic's
+ *  state never painted (see highlight_color()). A block in the topic's
  *  colour is also what a minimap of cards SHOULD show: at that scale a
  *  card is a rectangle anyway.
  ************************************************************/
@@ -7194,12 +7263,12 @@ function anchor_outline(anchored)
     return anchored? "outline: 3px dashed #fa8c16; outline-offset: 2px;" : "";
 }
 
-function ring_shadow(highlight, selected, base_shadow)
+function ring_shadow(highlight, selected, base_shadow, theme)
 {
     let rings = [];
 
     if(highlight) {
-        rings.push(`0 0 0 4px ${HIGHLIGHT_HALO}`);
+        rings.push(`0 0 0 4px ${highlight_halo(theme)}`);
     }
     if(selected) {
         rings.push(`0 0 0 ${highlight? "7px" : "3px"} ${SELECT_RING}`);
@@ -7225,15 +7294,18 @@ function build_chip_innerHTML(color, theme, icon, label, key, highlight, selecte
     let title = key || label;
     let dark = (theme === "dark");
     let surface = dark ? "#1b2230" : "#ffffff";
+    /*  The same 25% as the card (build_node_innerHTML): a leaf chip and
+     *  the card it hangs from are side by side, and two tints of one
+     *  colour read as two topics.  */
     let bg = dark
-        ? `color-mix(in srgb, ${color} 30%, #2c3542)`
+        ? `color-mix(in srgb, ${color} 25%, #2c3542)`
         : `color-mix(in srgb, ${color} 10%, ${surface})`;
     let border = dark
         ? `color-mix(in srgb, ${color} 85%, #ffffff)`
         : color;
     let text_color = dark ? "#e8eaed" : "#0f172a";
     if(highlight) {
-        border = HIGHLIGHT_COLOR;
+        border = highlight_color(theme);
     }
 
     let icon_html = "";
@@ -7251,7 +7323,7 @@ function build_chip_innerHTML(color, theme, icon, label, key, highlight, selecte
     height: 100%;
     background: ${bg};
     border: ${highlight? "3px" : "1px"} solid ${border};
-    ${ring_shadow(highlight, selected, "")}
+    ${ring_shadow(highlight, selected, "", theme)}
     ${anchor_outline(anchored)}
     border-radius: 8px;
     color: ${text_color};
@@ -7312,7 +7384,7 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
         border_style = "solid";
     }
     if(highlight) {
-        border = HIGHLIGHT_COLOR;
+        border = highlight_color(theme);
         border_style = "solid";
     }
     let title_color = dark ? "#e8eaed" : "#0f172a";
@@ -7365,7 +7437,7 @@ function build_node_innerHTML(color, theme, icon, label, topic_name, structural,
     background: ${bg};
     border: ${highlight? "3px" : "1.5px"} ${border_style} ${border};
     border-radius: 10px;
-    ${ring_shadow(highlight, selected, shadow)}
+    ${ring_shadow(highlight, selected, shadow, theme)}
     ${anchor_outline(anchored)}
     color: ${title_color};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -9084,7 +9156,11 @@ async function reconcile_fold_apply(gobj, opts, visible)
                     sourcePort: p.hook,
                     lineWidth: 1,
                     lineDash: [4, 3],
-                    stroke: dark? '#8b94a3' : '#94a3b8',
+                    /*  The same grey as a cross link (refresh_default_edges_theme):
+                     *  `#94a3b8` on a white canvas is 2.56:1, under the 3:1 a
+                     *  line needs to be seen at all. The DASH is what says
+                     *  this one leads to a cut, not the colour.  */
+                    stroke: dark? '#8b94a3' : '#6b7280',
                     startArrow: false,
                     endArrow: false,
                 },
@@ -9171,6 +9247,40 @@ function ac_language_changed(gobj, event, kw, src)
     update_toolbar(gobj);
     repaint_more_chips(gobj);
     return 0;
+}
+
+/************************************************************
+ *  The rims of every port, on a theme change.
+ *
+ *  A rim is half of the surface it sits on (see port_rim), so it
+ *  belongs to the theme -- and it lives in each node's
+ *  `style.ports`, which is the one place refresh_html_nodes_theme()
+ *  does not reach: it rebuilds the html INSIDE a card.
+ ************************************************************/
+function refresh_port_rims(gobj, theme)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph) {
+        return;
+    }
+    let updates = [];
+    for(let nd of (graph.getNodeData() || [])) {
+        if(!nd || !nd.style || !is_array(nd.style.ports) || !nd.style.ports.length) {
+            continue;
+        }
+        updates.push({id: nd.id, style: {ports: nd.style.ports.map((p) =>
+            Object.assign({}, p, {stroke: port_rim(p.fill, theme)})
+        )}});
+    }
+    if(updates.length) {
+        try {
+            graph.updateNodeData(updates);
+        } catch(e) {
+            log_error(`${gobj_short_name(gobj)}: cannot repaint the port rims: ${e}`);
+        }
+    }
 }
 
 /************************************************************
@@ -9696,6 +9806,7 @@ function ac_theme(gobj, event, kw, src)
 
     refresh_html_nodes_theme(gobj, theme);
     refresh_default_edges_theme(gobj, theme);
+    refresh_port_rims(gobj, theme);
     repaint_more_chips(gobj);
 
     graph_draw(gobj).then(() => {

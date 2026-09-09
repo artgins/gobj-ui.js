@@ -5,6 +5,44 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.91
+
+The edges and the ports, measured as what they are — **graphical objects**,
+which need 3:1 against what is next to them, not the 4.5 of text.
+
+| object | before, dark | before, light | after |
+|---|---|---|---|
+| tree edge / cross edge | 6.36 / 5.92 | 5.36 / 4.83 | unchanged |
+| the `+N` chip's dashed line | 5.92 | **2.56** | 4.83 (the same grey as a cross link) |
+| the focus / find amber | 8.41 | **2.15** | 5.02 in light (`#b45309`) |
+| a port's RIM, vs its own card | **1.76** | **2.43** | 4.49 / 3.64 |
+| a port's rim, vs the canvas | 3.57 | **2.54** | 9.11 / 3.80 |
+
+- **A port is a knob half on a card and half on the canvas, and the card is a
+  tint of a topic colour** — so a port of that same topic sat on its own
+  colour. Its rim was `getStrokeColor(color)` called with no theme, which is
+  that helper's LIGHT branch always: a colour darkened by 20%, on a card of
+  the same colour. The rim is the port's colour pushed 60% towards the
+  surface now (white in dark, slate in light): enough to clear 3:1 on both
+  grounds in both themes, little enough to keep the hue. The FILL is left
+  alone on purpose — it is the cue for *what links here*, and it is the rim
+  that has to carry the boundary.
+- The rim belongs to the theme, so a theme change repaints it
+  (`refresh_port_rims`): the ports live in each node's `style.ports`, the one
+  place `refresh_html_nodes_theme()` does not reach.
+- **The amber that marks a focus and a find** was one colour for both
+  schemes: 8.41:1 on the near-black canvas and **2.15** on the white one,
+  where it is the whole answer to *which nodes matched*. Same hue burnt down
+  for the light scheme, halo included.
+- The `+N` chip's line took the palest grey of the two (`#94a3b8`, 2.56 in
+  light); it takes the same grey as a cross link. The DASH is what says it
+  leads to a cut, not the colour.
+- A leaf chip's tint follows the card's 25% (it was still on 30%): the two sit
+  side by side, and two tints of one colour read as two topics.
+
+Left as it is, deliberately: the **grid** (1.45 / 1.16). A grid is a whisper
+under the graph, not an object the reader has to make out.
+
 ## 7.23.90
 
 - **The graph's own node graphics, measured across the WHOLE palette** — the
