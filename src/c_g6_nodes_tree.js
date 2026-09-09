@@ -58,6 +58,7 @@ import {
     gobj_short_name,
     gobj_is_destroying,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
     gobj_publish_event,
     gobj_send_event,
     gobj_post_event,
@@ -143,7 +144,7 @@ import {
 } from '@antv/g6';
 
 import {Circle as CircleGeometry, Rect as RectGeometry} from '@antv/g';
-import i18next, {t} from "i18next";
+import {t} from "i18next";
 
 import {inject_svg_icons} from "./lib_icons.js";
 import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
@@ -157,6 +158,7 @@ import {
     consume_long_press_click,
 } from "./g6_touch_gestures.js";
 import {yui_theme_now, yui_watch_theme} from "./yui_theme.js";
+import {yui_shell_of} from "./c_yui_shell.js";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -465,11 +467,14 @@ let PRIVATE_DATA = {
     _edge_icon_el:      null,       // floating properties icon element
     _edge_delete_el:    null,       // floating delete icon element for edge
     _edge_popover_el:   null,       // edge properties popover element
+    _edge_preview_undo: null,       // ...and how to undo what it previewed
     _port_icon_el:      null,       // floating port properties icon element
     _port_popover_el:   null,       // port properties popover element
+    _port_preview_undo: null,       // ...and how to undo what it previewed
     _node_icon_el:      null,       // floating node properties icon element
     _node_delete_el:    null,       // floating delete icon element for node
     _node_popover_el:   null,       // node properties popover element
+    _node_preview_undo: null,       // ...and how to undo what it previewed
     _node_detail_el:    null,       // read-only detail popover (on click)
     _detail_node_id:    null,       // node id the detail popover is showing
     _delete_confirm_el: null,       // delete confirmation popover
@@ -613,6 +618,18 @@ function mt_writing(gobj, path)
  ***************************************************************/
 function mt_start(gobj)
 {
+    /*  A language change reaches the toolbars and the `+N` chips as
+     *  the shell's EVENT, not as a raw i18next listener: what the
+     *  toolbar draws and what a chip says are built here, out of
+     *  reach of refresh_language(), so somebody has to repaint them
+     *  -- and that somebody is an action of this machine, where the
+     *  `machine` trace can see it. Same wiring as C_YUI_PERIOD and
+     *  C_YUI_GOBJ_TREE_JS.  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+
     return 0;
 }
 
@@ -621,6 +638,11 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+
     return 0;
 }
 
@@ -630,11 +652,6 @@ function mt_stop(gobj)
 function mt_destroy(gobj)
 {
     let priv = gobj.priv;
-
-    if(priv._on_language_changed) {
-        i18next.off('languageChanged', priv._on_language_changed);
-        priv._on_language_changed = null;
-    }
 
     uninstall_fold_listener(gobj);
 
@@ -1022,12 +1039,6 @@ function configure_events(gobj)
         }
     });
 
-    // Re-render G6 toolbars (and the `+N` chips' titles) when language changes
-    priv._on_language_changed = () => {
-        update_toolbar(gobj);
-        repaint_more_chips(gobj);
-    };
-    i18next.on('languageChanged', priv._on_language_changed);
 
     /*  Clicking a CARD is clicking a DOM element inside the container,
      *  and that takes the keyboard away from G6's canvas -- the only
@@ -1865,6 +1876,17 @@ const LR_LAYOUTS = ["dagre"];
  *  toolbar's +/-, and the two-finger pinch of g6_touch_gestures.
  *  `enable` on the scroll keeps the two apart: a Ctrl wheel is
  *  the zoom's, so the scroll stands aside for it.
+ *
+ *  And the two have to name the SAME key, or the gesture falls
+ *  between them: the scroll stood aside for Meta as well, while
+ *  the zoom listened for Control alone, so Cmd + wheel neither
+ *  scrolled nor zoomed. It is ONE key and not two because a G6
+ *  `trigger` is a CHORD, not a list of alternatives -- its
+ *  `Shortcut.match()` compares the held keys to the bound ones
+ *  as a SET, so ["Control", "Meta"] means both keys down at
+ *  once. Control it is, on every platform: it is what a
+ *  trackpad pinch arrives as, so a Mac keeps its pinch and
+ *  gains nothing to press by mistake.
  ************************************************************/
 function camera_behaviors()
 {
@@ -1872,7 +1894,7 @@ function camera_behaviors()
         {
             type: "scroll-canvas",
             key: "scroll-canvas",
-            enable: (event) => !(event && (event.ctrlKey || event.metaKey)),
+            enable: (event) => !(event && event.ctrlKey),
         },
         {
             type: "zoom-canvas",
@@ -4046,6 +4068,42 @@ function hide_overlay(gobj, ...keys)
 /************************************************************
  *  Enable the save button (mark graph as dirty).
  ************************************************************/
+/************************************************************
+ *  A popover that PREVIEWS its changes owes an undo.
+ *
+ *  What the preview writes is not the reader's answer until
+ *  `apply` is pressed, and `cancel` used to be the only way
+ *  back: every other way out of the popover -- a click on the
+ *  canvas, the icon pressed again, the element going away --
+ *  left the preview standing on the element, and the next Save
+ *  wrote it to `__graphs__`. So the undo is kept beside the
+ *  popover and run by whoever hides it; `apply` drops it first,
+ *  because then the preview IS the answer.
+ ************************************************************/
+function set_preview_undo(gobj, key, undo)
+{
+    gobj.priv[key] = undo;
+}
+
+function drop_preview_undo(gobj, key)
+{
+    gobj.priv[key] = null;
+}
+
+function run_preview_undo(gobj, key)
+{
+    let undo = gobj.priv[key];
+    gobj.priv[key] = null;
+    if(!undo || gobj_is_destroying(gobj)) {
+        return;
+    }
+    try {
+        undo();
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot undo the preview: ${e}`);
+    }
+}
+
 function mark_graph_dirty(gobj)
 {
     let $container = gobj_read_attr(gobj, "$container");
@@ -4991,6 +5049,34 @@ function port_hit_slop_world(graph)
 }
 
 /************************************************************
+ *  Whether a point landed on a port, by the port's SHAPE.
+ *
+ *  A port was a circle and the test was a radius; since 7.23.81
+ *  it can be a square, a diamond or a triangle too, and a circle
+ *  around a diamond answers for the air off its corners while
+ *  missing the middle of its edges. `r` is the drawn radius with
+ *  the hit slop already added, and the shapes are the ones
+ *  TreedbCard.drawPortShapes() draws from it.
+ *
+ *      dx, dy  the point, relative to the port's centre
+ ************************************************************/
+function port_shape_hit(shape, dx, dy, r)
+{
+    switch(shape) {
+        case 'square':
+            return Math.abs(dx) <= r && Math.abs(dy) <= r;
+        case 'diamond':
+            return Math.abs(dx) + Math.abs(dy) <= r;
+        case 'triangle':
+            /*  (0,-r), (r,r), (-r,r): under the base and inside the
+             *  two slanted sides, which meet at 2|x| - y = r.  */
+            return dy <= r && (2 * Math.abs(dx) - dy) <= r;
+        default:
+            return Math.hypot(dx, dy) <= r;
+    }
+}
+
+/************************************************************
  *  Detect if a click in canvas coordinates hits a port.
  *  Returns the port key string, or null if no port hit.
  ************************************************************/
@@ -5021,8 +5107,9 @@ function detect_port_click(gobj, node_id, canvasX, canvasY)
         let dist = Math.sqrt(dx * dx + dy * dy);
 
         /*  Nearest wins, so the enlarged areas of two ports
-         *  overlapping is not a tie -- it is the closer one.  */
-        if(dist <= r + slop && dist < best_dist) {
+         *  overlapping is not a tie -- it is the closer one. The
+         *  distance ranks them; the SHAPE says who is in the running. */
+        if(port_shape_hit(ports[i].shape, dx, dy, r + slop) && dist < best_dist) {
             best_dist = dist;
             best_key = ports[i].key;
         }
@@ -5240,6 +5327,7 @@ function toggle_port_popover(gobj)
 
 function hide_port_popover(gobj)
 {
+    run_preview_undo(gobj, '_port_preview_undo');
     hide_overlay(gobj, '_port_popover_el');
 }
 
@@ -5280,6 +5368,17 @@ function show_port_popover(gobj)
         xy.x + floating_popover_dx(), xy.y, 'g6-port-popover', '#d9d9d9', 180
     );
 
+    /*  What the preview writes on this port, undone: whoever hides
+     *  the popover without applying runs it (see set_preview_undo).  */
+    let undo_port = () => {
+        graph.updateNodeData([{id: node_id, style: {
+            ports: ports_with(nodeData.style.ports, port_key, {shape: orig_shape, r: orig_r}),
+        }}]);
+        graph.draw().then(() => {
+            update_port_resize_handles_position(gobj);
+        });
+    };
+
     /*  Live preview on THIS port; the others wait for apply.  */
     function preview_port() {
         let r = parseInt(rInput.value) || orig_r;
@@ -5313,13 +5412,7 @@ function show_port_popover(gobj)
             text: 'cancel',
             style: BTN_STYLE_CANCEL,
             onClick: () => {
-                graph.updateNodeData([{id: node_id, style: {
-                    ports: ports_with(nodeData.style.ports, port_key, {shape: orig_shape, r: orig_r}),
-                }}]);
-                graph.draw().then(() => {
-                    update_port_resize_handles_position(gobj);
-                });
-                hide_port_popover(gobj);
+                hide_port_popover(gobj);    /*  which undoes the preview  */
             },
         },
         {
@@ -5327,6 +5420,7 @@ function show_port_popover(gobj)
             style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
             onClick: () => {
+                drop_preview_undo(gobj, '_port_preview_undo');
                 apply_port_properties(gobj, node_id, port_key,
                     shapeSelect.value, parseInt(rInput.value) || orig_r, scopeSelect.value
                 );
@@ -5336,6 +5430,7 @@ function show_port_popover(gobj)
 
     priv.$container.appendChild(popover);
     priv._port_popover_el = popover;
+    set_preview_undo(gobj, '_port_preview_undo', undo_port);
     clamp_popover_position(gobj, popover);
 }
 
@@ -6184,6 +6279,12 @@ function show_edge_popover(gobj)
         'g6-edge-popover', '#d9d9d9', 180
     );
 
+    /*  What the preview writes, undone (see set_preview_undo).  */
+    let undo_edge = () => {
+        graph.updateEdgeData([{ id: edge_id, style: { lineWidth: origLW, stroke: origStroke } }]);
+        graph.draw();
+    };
+
     // Live preview: update the selected edge in real time
     function preview_edge() {
         let lw = parseInt(lwInput.value) || 2;
@@ -6213,9 +6314,7 @@ function show_edge_popover(gobj)
             text: 'cancel',
             style: BTN_STYLE_CANCEL,
             onClick: () => {
-                graph.updateEdgeData([{ id: edge_id, style: { lineWidth: origLW, stroke: origStroke } }]);
-                graph.draw();
-                deselect_edge(gobj);
+                deselect_edge(gobj);        /*  which undoes the preview  */
             },
         },
         {
@@ -6223,6 +6322,7 @@ function show_edge_popover(gobj)
             style: 'flex:1;padding:6px;background:#52c41a;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
             onClick: () => {
+                drop_preview_undo(gobj, '_edge_preview_undo');
                 apply_edge_properties(gobj, edge_id,
                     parseInt(lwInput.value) || 2,
                     colorInput.value,
@@ -6234,6 +6334,7 @@ function show_edge_popover(gobj)
 
     priv.$container.appendChild(popover);
     priv._edge_popover_el = popover;
+    set_preview_undo(gobj, '_edge_preview_undo', undo_edge);
 
     // Clamp popover inside the container
     clamp_popover_position(gobj, popover);
@@ -6278,6 +6379,7 @@ function clamp_popover_position(gobj, popover)
 
 function hide_edge_popover(gobj)
 {
+    run_preview_undo(gobj, '_edge_preview_undo');
     hide_overlay(gobj, '_edge_popover_el');
 }
 
@@ -6404,6 +6506,22 @@ function show_node_popover(gobj)
     let node_graph_type = nodeData.data && nodeData.data.desc ?
         nodeData.data.desc.node_treedb_type : null;
 
+    /*  What the preview writes, undone (see set_preview_undo).  */
+    let undo_node = () => {
+        let restoreStyle = { fill: origFill, stroke: origStroke, lineWidth: origLW };
+        if(node_graph_type === 'hierarchical') {
+            let record = nodeData.data.record || {};
+            restoreStyle.innerHTML = build_node_innerHTML(
+                origFill, priv.theme, record.icon,
+                node_label(nodeData.data.desc, record),
+                nodeData.data.desc.topic_name, false, record.id,
+                false, false, false, pills_html_of(gobj, nodeData)
+            );
+        }
+        graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
+        graph.draw();
+    };
+
     // Live preview
     function preview_node() {
         let fill = fillInput.value;
@@ -6460,19 +6578,7 @@ function show_node_popover(gobj)
             text: 'cancel',
             style: BTN_STYLE_CANCEL,
             onClick: () => {
-                let restoreStyle = { fill: origFill, stroke: origStroke, lineWidth: origLW };
-                if(node_graph_type === 'hierarchical') {
-                    let record = nodeData.data.record || {};
-                    restoreStyle.innerHTML = build_node_innerHTML(
-                        origFill, priv.theme, record.icon,
-                        node_label(nodeData.data.desc, record),
-                        nodeData.data.desc.topic_name, false, record.id,
-                        false, false, false, pills_html_of(gobj, nodeData)
-                    );
-                }
-                graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
-                graph.draw();
-                hide_node_popover(gobj);
+                hide_node_popover(gobj);    /*  which undoes the preview  */
             },
         },
         {
@@ -6480,6 +6586,7 @@ function show_node_popover(gobj)
             style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
             onClick: () => {
+                drop_preview_undo(gobj, '_node_preview_undo');
                 apply_node_properties(gobj, node_id,
                     fillInput.value,
                     strokeInput.value,
@@ -6493,6 +6600,7 @@ function show_node_popover(gobj)
 
     priv.$container.appendChild(popover);
     priv._node_popover_el = popover;
+    set_preview_undo(gobj, '_node_preview_undo', undo_node);
 
     // Clamp popover inside the container
     clamp_popover_position(gobj, popover);
@@ -6500,6 +6608,7 @@ function show_node_popover(gobj)
 
 function hide_node_popover(gobj)
 {
+    run_preview_undo(gobj, '_node_preview_undo');
     hide_overlay(gobj, '_node_popover_el');
 }
 
@@ -8981,6 +9090,19 @@ async function reconcile_fold_apply(gobj, opts, visible)
 }
 
 /************************************************************
+ *  The application changed language: what this gclass DRAWS has
+ *  to be drawn again. `refresh_language()` reaches what carries
+ *  an i18n key in the DOM; a G6 toolbar and the html of a chip
+ *  are built here and carry none.
+ ************************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    update_toolbar(gobj);
+    repaint_more_chips(gobj);
+    return 0;
+}
+
+/************************************************************
  *  Repaint the `+N` chips (theme or language changed).
  ************************************************************/
 function repaint_more_chips(gobj)
@@ -10527,6 +10649,7 @@ function create_gclass(gclass_name)
             ["EV_HIDE",                     ac_hide,                null],
             ["EV_RESIZE",                   ac_resize,              null],
             ["EV_THEME",                    ac_theme,               null],
+            ["EV_LANGUAGE_CHANGED",         ac_language_changed,    null],
         ]]
     ];
 
@@ -10621,6 +10744,7 @@ function create_gclass(gclass_name)
         ["EV_HIDE",                     0],
         ["EV_RESIZE",                   0],
         ["EV_THEME",                    0],
+        ["EV_LANGUAGE_CHANGED",         0],
     ];
 
     /*----------------------------------------*

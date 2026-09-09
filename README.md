@@ -842,8 +842,13 @@ looked at from afar or read through a keyhole — never scrolled, which is what
 a wheel does on a map and on every page. Shift + wheel scrolls sideways, a
 trackpad pinch arrives as Ctrl + wheel and keeps zooming, and the two-finger
 pinch on a touch screen is [our own](#the-graphs-on-a-touch-screen). G6's
-`scroll-canvas` takes the plain wheel (its `enable` stands aside for a
-Ctrl/Meta wheel) and `zoom-canvas` takes `trigger: ['Control']`.
+`scroll-canvas` takes the plain wheel (its `enable` stands aside for a Ctrl
+wheel) and `zoom-canvas` takes `trigger: ['Control']`. **One key, named the
+same on both sides**: the scroll used to stand aside for Meta as well, so
+Cmd + wheel on a Mac neither scrolled nor zoomed (`7.23.84`). It cannot be
+both keys, either — a G6 `trigger` is a CHORD, not a list of alternatives:
+`Shortcut.match()` compares the keys held to the keys bound as a SET, so
+`['Control', 'Meta']` would mean both at once.
 
 `C_G6_NODES_TREE` floats a vertical toolbar over the canvas:
 
@@ -1317,9 +1322,14 @@ layouts by two thin adapters in `c_g6_nodes_tree.js`:
   list that indents is a JSON viewer, and this library already has one.
 - **`radial`** (`treedb-radial`) — the root in the middle, a ring per depth,
   every subtree an angular **sector** proportional to its leaves, and the
-  radius of each ring the larger of one step out from the ring before and
-  the length its cards need side by side. A fan that cannot overlap by
-  construction; several roots share the circle around an empty centre.
+  radius of each ring the largest of three: one `ranksep` out from the ring
+  before, the length its cards need side by side, and (since `7.23.84`) far
+  enough for each card to clear the one it HANGS FROM — `ranksep` is a step
+  between CENTRES, so 180 between two cards that reach ~95 each way is two
+  cards touching, where the tidy tree's `ranksep` is a gap between COLUMNS
+  and a column carries its own width. A fan that cannot overlap by
+  construction, across the ring or along the radius; several roots share the
+  circle around an empty centre.
 
 Both take the **same spanning tree**, chosen deterministically: roots are the
 nodes with no incoming edge, in node order; a node belongs to the **first
@@ -1411,11 +1421,19 @@ where a port's `shape` picks the G shape by the names G6 registers itself:
 `circle`, `square`, `diamond`, `triangle`. `r` stays the one size (the
 half-side of the square, the half-diagonal of the diamond), and the hit test,
 the resize handles and the edge's landing point read `r` and none of them care
-about the outline. A selected port shows a gear beside it, as the node does
+about the outline; the HIT TEST does, since `7.23.84` — a circle around a
+diamond answers for the air off its corners while missing the middle of its
+edges — so the distance ranks two overlapping ports and the shape says which
+are in the running. A selected port shows a gear beside it, as the node does
 (under the link icon on an fkey); it opens the **port properties** popover —
 shape, radius, and the scope: *this port*, *the same port of every card of
 the topic* (the hook or fkey column), or *every port there is* — with a live
-preview on the port and a cancel that puts it back. The choice is remembered
+preview on the port and a cancel that puts it back — and since `7.23.84` any
+other way out puts it back too: the undo is kept beside the popover and run
+by whoever hides it (a click on the canvas, the icon pressed again, the
+element going away), because a preview is not the reader's answer until
+`apply` is pressed. The same for the node and edge popovers. The choice is
+remembered
 as the topic's default (`port_shapes[key]` / `port_shape`, beside
 `port_sizes` / `portR`), so a card that arrives later is born with it, and
 saved per node in `__graphs__` as `port_shapes`. On a touch screen the port's
@@ -1482,6 +1500,14 @@ forwards them as `EV_SET_HIDDEN_TOPICS`, `EV_SET_MAIN_TOPIC`,
 `EV_SET_LOOSE_TOPICS`. Consumer i18n keys: `show topic`, `hide topic`,
 `main topic`, `highlight topic`, `loose records`, `hidden topics`; `legend`
 is no longer used.
+
+**The strip is repainted on a language change** (`7.23.84`): its chips are
+drawn on `EV_LEGEND_STATE`, which arrives after a reconcile and not when the
+language changes, and a chip's title says an ACTION that depends on the
+state — so the view subscribes to the shell's `EV_LANGUAGE_CHANGED` and
+redraws the strip and the find box's counted line. The keys travel in the
+DOM as well (`data-i18n-title`, `data-i18n-aria-label`), so
+`refresh_language()` reaches the titles even before the repaint.
 
 ### C_YUI_TREEDB_SCHEMA — the treedb drawn the way its `.c` draws it
 

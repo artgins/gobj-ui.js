@@ -173,6 +173,7 @@ let PRIVATE_DATA = {
     layout:             null,
     _topics_subscribed: {},
     _legend_state:      null,   /*  the engine's last EV_LEGEND_STATE  */
+    _find_result:       null,   /*  ...and its last EV_FIND_RESULT  */
     _links_subscribed:  false,  /*  EV_TREEDB_NODE_LINKED/UNLINKED (treedb-wide)  */
 
     is_pinhold_window:  false, // inherited of v6, todo review
@@ -303,6 +304,18 @@ function mt_start(gobj)
 {
     let priv = gobj.priv;
 
+    /*  The legend is built from the engine's EV_LEGEND_STATE, which
+     *  arrives after a reconcile and not when the language changes:
+     *  a chip's title says an ACTION (show / hide this topic), and
+     *  the strip would keep the old language until somebody folded
+     *  something. The keys travel in `data-i18n-title` too, so this
+     *  is the belt to that pair of braces -- and it is what repaints
+     *  the counted line of the find box, which has no key at all.  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+
     if(priv.gobj_nodes_tree) {
         gobj_start(priv.gobj_nodes_tree);
     }
@@ -323,6 +336,7 @@ function mt_stop(gobj)
     let shell = yui_shell_of(gobj);
     if(shell) {
         yui_shell_set_sub_routes(shell, gobj_read_str_attr(gobj, "base_route"), null);
+        gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
     }
     close_json_viewer(gobj);
     gobj_stop_children(gobj);
@@ -2523,6 +2537,8 @@ function refresh_legend(gobj)
              hidden? `${entry.total}` : `${entry.visible}/${entry.total}`]
         );
 
+        let body_key = is_main? 'main topic' : (hidden? 'show topic' : 'hide topic');
+
         /*  Built as an object first: an attribute that is `undefined`
          *  is still SET by createElement2 (to the string "undefined"),
          *  and a `disabled="undefined"` button is a disabled button --
@@ -2533,7 +2549,14 @@ function refresh_legend(gobj)
                    (is_main? ' GRAPH_LEGEND_MAIN' : ''),
             type: 'button',
             style: 'gap:0; flex:0 0 auto;' + (focused? ' ' + LEGEND_FOCUSED_STYLE : ''),
-            title: is_main? t('main topic') : (hidden? t('show topic') : t('hide topic')),
+            /*  The KEY as well as the text: the strip is redrawn only
+             *  when the engine speaks again (EV_LEGEND_STATE), and a
+             *  language change is not that -- refresh_language() reaches
+             *  what carries `data-i18n-title` and nothing else. The key
+             *  is picked here because the chip is rebuilt whenever the
+             *  state behind it changes.  */
+            title: t(body_key),
+            'data-i18n-title': body_key,
             'aria-label': topic_name,
             'aria-pressed': hidden? 'false' : 'true',
         };
@@ -2560,7 +2583,9 @@ function refresh_legend(gobj)
             extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small pressed_state',
                                     type: 'button', style: 'padding:0 .4rem;',
                                     title: t('main topic'), 'data-i18n-title': 'main topic',
-                                    'aria-label': t('main topic'), 'aria-pressed': 'true'},
+                                    'aria-label': t('main topic'),
+                                    'data-i18n-aria-label': 'main topic',
+                                    'aria-pressed': 'true'},
                          [['span', {style: LEGEND_GLYPH_STYLE}, '★']], {
                 click: (evt) => {
                     evt.stopPropagation();
@@ -2577,7 +2602,8 @@ function refresh_legend(gobj)
             extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small',
                                     type: 'button', style: 'padding:0 .4rem;',
                                     title: t('main topic'), 'data-i18n-title': 'main topic',
-                                    'aria-label': t('main topic')},
+                                    'aria-label': t('main topic'),
+                                    'data-i18n-aria-label': 'main topic'},
                          [['span', {style: LEGEND_GLYPH_STYLE}, '☆']], {
                 click: (evt) => {
                     evt.stopPropagation();
@@ -2597,6 +2623,7 @@ function refresh_legend(gobj)
                 type: 'button', style: 'padding:0 .45rem;',
                 title: t('loose records'), 'data-i18n-title': 'loose records',
                 'aria-label': t('loose records'),
+                'data-i18n-aria-label': 'loose records',
                 'aria-pressed': entry.loose_shown? 'true' : 'false'
             }, `+${entry.loose}`, {
                 click: (evt) => {
@@ -2614,6 +2641,7 @@ function refresh_legend(gobj)
                 type: 'button', style: 'padding:0 .4rem;',
                 title: t('highlight topic'), 'data-i18n-title': 'highlight topic',
                 'aria-label': t('highlight topic'),
+                'data-i18n-aria-label': 'highlight topic',
                 'aria-pressed': focused? 'true' : 'false'
             }, [['i', {class: 'yi-location-crosshairs', style: LEGEND_GLYPH_STYLE}]], {
                 click: (evt) => {
@@ -2631,6 +2659,20 @@ function refresh_legend(gobj)
         );
         $legend.appendChild($chip);
     }
+}
+
+/************************************************************
+ *  The application changed language. `refresh_language()` has
+ *  already been over the document by now (the shell runs it
+ *  before publishing), so what is left is what carries no key:
+ *  the legend, whose chips say an ACTION that depends on the
+ *  state, and the find box's counted line.
+ ************************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    refresh_legend(gobj);
+    refresh_find_result(gobj);
+    return 0;
 }
 
 /************************************************************
@@ -2848,6 +2890,18 @@ function ac_toggle_node_labels(gobj, event, kw, src)
  ************************************************************/
 function ac_find_result(gobj, event, kw, src)
 {
+    /*  Kept, because the line is COMPOSED -- a counted word and a
+     *  count of hidden topics -- so no i18n key in the DOM can
+     *  re-translate it: its owner repaints it from the last answer
+     *  when the language changes.  */
+    gobj.priv._find_result = kw || null;
+    refresh_find_result(gobj);
+    return 0;
+}
+
+function refresh_find_result(gobj)
+{
+    let kw = gobj.priv._find_result;
     let $container = gobj_read_attr(gobj, "$container");
     if(!$container) {
         return 0;
@@ -3004,6 +3058,7 @@ function create_gclass(gclass_name)
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
             ["EV_TRANSPORT_STATE",          ac_transport_state,         null],
+            ["EV_LANGUAGE_CHANGED",         ac_language_changed,        null],
         ]]
     ];
 
@@ -3052,6 +3107,7 @@ function create_gclass(gclass_name)
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
+        ["EV_LANGUAGE_CHANGED",         0],
         ["EV_TRANSPORT_STATE",          0],
     ];
 

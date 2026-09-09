@@ -5,6 +5,48 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.84
+
+- **The legend speaks the app's language.** A chip's title says an ACTION
+  that depends on the state (`hide topic` / `show topic` / `main topic`),
+  and it went into the DOM as text with no key: `refresh_language()` only
+  re-translates what carries `data-i18n-title`, and the strip itself is
+  redrawn on the engine's `EV_LEGEND_STATE`, which a language change is
+  not -- so the titles stayed in the old language until somebody folded
+  something. The key travels with the title now, on the chip and on its
+  three buttons (`data-i18n-aria-label` as well), and the view subscribes
+  to the shell's **`EV_LANGUAGE_CHANGED`** to repaint the strip and the
+  find box's counted line, which is composed and can carry no key at all.
+- **The graph engine takes the language change as an EVENT**, not as a raw
+  `i18next.on('languageChanged')` listener: what a G6 toolbar draws and
+  what a `+N` chip says are built in the gclass, out of reach of
+  `refresh_language()`, and repainting them belongs to an action of the
+  machine, where the `machine` trace can see it. Same wiring as
+  `C_YUI_PERIOD` and `C_YUI_GOBJ_TREE_JS`.
+- **A properties popover UNDOES its preview when it is dismissed.** The
+  node, edge and port popovers write their preview on the element as it is
+  typed, and `cancel` was the only way back: a click on the canvas, the
+  icon pressed again or the element going away left the preview standing,
+  and the next `Save` wrote it to `__graphs__`. The undo is kept beside the
+  popover and run by whoever hides it; `apply` drops it first, because then
+  the preview IS the answer.
+- **Ctrl and Meta named different gestures, so Cmd + wheel did nothing on a
+  Mac**: the scroll stood aside for both while the zoom listened for
+  Control alone. It is ONE key on both sides now -- a G6 `trigger` is a
+  CHORD and not a list of alternatives (`Shortcut.match()` compares the
+  held keys to the bound ones as a SET), and Control is what a trackpad
+  pinch arrives as, so a Mac keeps its pinch.
+- **A port is hit by its SHAPE.** Since `7.23.81` a port can be a square, a
+  diamond or a triangle, and the hit test was still a radius: a circle
+  around a diamond answers for the air off its corners while missing the
+  middle of its edges. The distance still ranks two overlapping ports; the
+  shape says who is in the running.
+- **A radial ring clears the ring inside it.** `ranksep` is a step between
+  CENTRES, so two rings 180 apart held two cards that reach ~95 each way --
+  they touched. The tidy tree never had this: its `ranksep` is a gap
+  between COLUMNS and a column carries its own width. Every card is
+  measured now against the one it HANGS FROM, in the direction it hangs in.
+
 ## 7.23.83
 
 - **The three views are three push buttons, not a select.** A view is

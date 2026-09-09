@@ -51,8 +51,10 @@
  *
  *      `radial`: the root in the middle and a ring per depth, each
  *      subtree owning a sector proportional to its leaves; the radius
- *      of a ring grows until its neighbours sit side by side, so
- *      nothing overlaps by construction (see `layout_radial`).
+ *      of a ring grows until its neighbours sit side by side AND
+ *      until it clears the ring inside it, so nothing overlaps by
+ *      construction, across the ring or along the radius (see
+ *      `layout_radial`).
  *
  *      Pure: takes plain nodes and edges, returns positions. The G6
  *      classes in c_g6_nodes_tree.js are two thin adapters over it.
@@ -272,6 +274,18 @@ function tidy_tree_lr(nodes, edges, o)
     return pos;
 }
 
+/*  How much of a card lies along the direction `a`: the projection
+ *  of its rectangle on that direction. Full width when the card is
+ *  read along its width, full height across it, and the honest
+ *  mixture in between.  */
+function extent_at(n, a)
+{
+    if(!n) {
+        return 0;
+    }
+    return Math.abs(n.w * Math.cos(a)) + Math.abs(n.h * Math.sin(a));
+}
+
 /************************************************************
  *  The radial tree: the root in the middle, a ring per depth.
  *
@@ -333,10 +347,10 @@ export function layout_radial(nodes, edges, opts)
     /*  An explicit stack, not recursion: the sectors of a ring are
      *  sorted by angle in pass 2, so the order they are pushed in does
      *  not matter -- only that every node gets its own.  */
-    let sector = (root_id, root_from, root_span) => {
-        let stack = [{id: root_id, from: root_from, span: root_span}];
+    let sector = (root_id, root_from, root_span, root_parent) => {
+        let stack = [{id: root_id, from: root_from, span: root_span, parent: root_parent}];
         while(stack.length) {
-            let {id, from, span} = stack.pop();
+            let {id, from, span, parent} = stack.pop();
             let a = from + span / 2;
             angle.set(id, a);
             let ring = ring_of(id);
@@ -344,11 +358,21 @@ export function layout_radial(nodes, edges, opts)
                 rings[ring] = [];
             }
             let n = t.by_id.get(id);
-            rings[ring].push({id: id, angle: a, diag: Math.hypot(n.w, n.h)});
+            rings[ring].push({
+                id: id,
+                angle: a,
+                diag: Math.hypot(n.w, n.h),
+                /*  How much of the card lies along the RADIUS at this
+                 *  angle -- the projection of the rectangle on that
+                 *  direction -- for itself and for the node it hangs
+                 *  from, which is the one it has to clear.  */
+                ext: extent_at(n, a),
+                parent_ext: parent? extent_at(t.by_id.get(parent), a) : 0,
+            });
             let cursor = from;
             for(let kid of (t.children.get(id) || [])) {
                 let part = span * leaves.get(kid) / leaves.get(id);
-                stack.push({id: kid, from: cursor, span: part});
+                stack.push({id: kid, from: cursor, span: part, parent: id});
                 cursor += part;
             }
         }
@@ -359,28 +383,43 @@ export function layout_radial(nodes, edges, opts)
         let cursor = -Math.PI / 2;      /*  the first child at the top  */
         for(let kid of (t.children.get(root) || [])) {
             let part = 2 * Math.PI * leaves.get(kid) / leaves.get(root);
-            sector(kid, cursor, part);
+            sector(kid, cursor, part, root);
             cursor += part;
         }
     } else {
         let cursor = -Math.PI / 2;
         for(let root of t.roots) {
             let part = 2 * Math.PI * leaves.get(root) / total;
-            sector(root, cursor, part);
+            sector(root, cursor, part, null);
             cursor += part;
         }
     }
 
-    /*  Pass 2, the RADII: a ring is one step further out than the
-     *  ring before, and as far out as its two closest neighbours need
-     *  to sit side by side -- the arc between two adjacent centres is
-     *  r·Δangle, and it has to hold half of each card plus the gap.
-     *  Measured on NEIGHBOURS, not on the ring's total length: a
-     *  leafless root squeezed between two big subtrees gets a sliver
-     *  of angle, and it is the sliver that sets the radius.  */
+    /*  Pass 2, the RADII. Two constraints, and the larger wins.
+     *
+     *  ACROSS the ring: its two closest neighbours have to sit side
+     *  by side -- the arc between two adjacent centres is r·Δangle,
+     *  and it has to hold half of each card plus the gap. Measured on
+     *  NEIGHBOURS, not on the ring's total length: a leafless root
+     *  squeezed between two big subtrees gets a sliver of angle, and
+     *  it is the sliver that sets the radius.
+     *
+     *  ALONG the radius: `ranksep` is a step between CENTRES, so a
+     *  ring one step out was one step out whatever the cards
+     *  measured -- 180 between the centres of two cards that reach
+     *  95 each way is two cards touching. The tidy tree never had
+     *  this: its `ranksep` is a gap between COLUMNS, and a column
+     *  carries its own width. Here every card is measured against
+     *  the one it HANGS FROM, in the direction it hangs in -- the
+     *  two are radially aligned, or nearly, since a child lives
+     *  inside its parent's sector -- and the ring goes out far
+     *  enough for the worst of them.  */
     let radius = [0];
     for(let ring = 1; ring < rings.length; ring++) {
         let r = radius[ring - 1] + o.ranksep;
+        for(let n of (rings[ring] || [])) {
+            r = Math.max(r, radius[ring - 1] + (n.parent_ext + n.ext) / 2 + o.nodesep);
+        }
         let list = (rings[ring] || []).slice().sort((a, b) => a.angle - b.angle);
         for(let i = 0; i < list.length && list.length > 1; i++) {
             let a = list[i];

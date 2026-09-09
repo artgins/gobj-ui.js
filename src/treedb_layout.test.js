@@ -181,6 +181,21 @@ describe("the radial tree", () => {
         expect(d).toBeGreaterThan(190);
     });
 
+    test("a ring clears the ring inside it: a card does not sit on its parent", () => {
+        /*  One child, straight below its root: `ranksep` alone is a
+         *  step between CENTRES, so two cards 96 tall 100 apart had
+         *  48 + 48 of card and 4 of air. The ring adds the halves. */
+        let pos = layout_radial(
+            [N("root", 172, 96), N("kid", 172, 96)],
+            [{source: "root", target: "kid", rank: 0}],
+            {nodesep: 18, ranksep: 100}
+        );
+        let d = Math.hypot(
+            pos.get("kid").x - pos.get("root").x, pos.get("kid").y - pos.get("root").y
+        );
+        expect(d).toBeGreaterThanOrEqual(48 + 48 + 18);
+    });
+
     test("several roots share the circle around an empty centre", () => {
         let pos = layout_radial(
             [N("a", 100, 50), N("b", 100, 50), N("c", 100, 50)], [], {ranksep: 100}
