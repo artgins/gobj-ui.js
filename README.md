@@ -1529,6 +1529,16 @@ forwards them as `EV_SET_HIDDEN_TOPICS`, `EV_SET_MAIN_TOPIC`,
 `main topic`, `highlight topic`, `loose records`, `hidden topics`; `legend`
 is no longer used.
 
+**The main topic's chip is not a disabled button** (`7.23.88`): it cannot be
+hidden, so its body is a `div` wearing the `.button` skin — bold, at full
+strength, with a gold star — and not a toggle painted at Bulma's half
+opacity, which is what made the trunk of the tree the weakest chip of the
+strip. The star takes `--bulma-warning-on-scheme` and not `--bulma-warning`:
+the raw brand gold is 1.75:1 on a light ground. The count dropped
+`has-text-grey` (3.86:1 in dark) for the chip's own colour at 80%, and the
+chips dropped `is-small`: the strip scrolls sideways, so it never had to fit
+a chip per topic on one row.
+
 **The strip is repainted on a language change** (`7.23.84`): its chips are
 drawn on `EV_LEGEND_STATE`, which arrives after a reconcile and not when the
 language changes, and a chip's title says an ACTION that depends on the

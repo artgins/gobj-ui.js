@@ -403,7 +403,7 @@ function build_ui(gobj)
             ['div', {class: 'GRAPH_LEGEND is-flex-grow-0',
                      style: 'display:flex; flex-wrap:nowrap; align-items:center; ' +
                             'gap:.35rem; padding:.3rem .5rem; overflow-x:auto; ' +
-                            'min-height:2.2rem;'}, []],
+                            'min-height:2.9rem;'}, []],
             ['div', {class: `GRAPH_BODY is-flex-grow-1 ${padding}`, style: 'height:100%; min-height:0; overflow:hidden;'}, [
                 ['div', {id: priv.canvas_id, class: `GRAPH_CANVAS graph-container`, style: 'height:100%; min-height:0;border: 1px solid var(--bulma-border-weak);border-radius:0.2rem;'}, [
                 ]]
@@ -2455,19 +2455,41 @@ function ac_set_operation_mode(gobj, event, kw, src)
  *  into the URL, so what you are looking at stays linkable.
  ************************************************************/
 /*  The legend is the strip UNDER the toolbar, and the two are read as
- *  one thing: what they say has to be the same size, or the lower one
- *  reads as a footnote to the upper. `is-small` earns its place in the
- *  PADDING -- a chip per topic has to fit on one row -- and nowhere
- *  else, so the text and the glyphs are given back in `rem`, which is
- *  measured against the page instead of against the 0.75rem the class
- *  sets. In `em` they were 18px and 14.4px against the toolbar's 24px
- *  and 16px: three sizes in two strips.
+ *  one thing: it is a layer CONTROL, so it is built at the toolbar's
+ *  size and not one step under it. `is-small` was kept for its
+ *  padding, on the argument that a chip per topic has to fit on one
+ *  row -- and the strip SCROLLS sideways (`overflow-x:auto`), so it
+ *  never had to fit anything. It is gone.
  *
  *  The count is the one deliberate step down: it is the number beside
- *  the name, not the name.  */
+ *  the name, not the name. `has-text-grey` is what it used to wear,
+ *  and Bulma's grey on the dark scheme is 3.86:1 -- under the 4.5 that
+ *  small text needs, which is why it read as a smudge. It takes the
+ *  chip's own colour at 80%: 12:1 in dark, 10:1 in light, and still
+ *  visibly secondary.  */
 const LEGEND_GLYPH_STYLE = `font-size:${YUI_TOOLBAR_ICON_SIZE}; line-height:1; color:inherit;`;
 const LEGEND_NAME_STYLE  = 'font-size:1rem; line-height:1.2;';
-const LEGEND_COUNT_STYLE = 'margin-left:.4rem; font-size:.875rem;';
+const LEGEND_COUNT_STYLE = 'margin-left:.4rem; font-size:.875rem; opacity:.8;';
+
+/*  The MAIN topic is the trunk the whole tree hangs from, and it was
+ *  the one chip drawn as unavailable: its body was a `<button
+ *  disabled>` (because it cannot be hidden) and Bulma paints that at
+ *  half opacity, with its star a grey `span` beside four bright ones.
+ *  The most important chip of the strip read as the dead one.
+ *
+ *  It is not a button any more -- a control that does nothing should
+ *  not look like a control that is broken. It is a `div` wearing the
+ *  same `.button` skin, at full strength, with the name in bold and
+ *  the star in gold.  */
+const LEGEND_MAIN_NAME_STYLE = LEGEND_NAME_STYLE + ' font-weight:700;';
+/*  `--bulma-warning-on-scheme` and NOT `--bulma-warning`: the raw
+ *  brand colour is the same bright gold in both schemes, which is
+ *  10.4:1 on the dark ground and **1.75:1** on the light one -- a
+ *  star nobody could see in daylight. The `-on-scheme` variant is
+ *  what Bulma keeps for a brand colour used as INK: the same hue,
+ *  darkened to 23% lightness when the scheme is light.  */
+const LEGEND_STAR_MAIN_STYLE = LEGEND_GLYPH_STYLE +
+    ' color:var(--bulma-warning-on-scheme, var(--bulma-warning, #ffdd57));';
 
 /*  The focused chip is HIGHLIGHTED, not pressed. The body of a chip is
  *  the show/hide toggle, and that is what its `aria-pressed` says;
@@ -2531,10 +2553,10 @@ function refresh_legend(gobj)
                              `border:1px solid rgba(0,0,0,.25);` +
                              (hidden? 'opacity:.35;' : '')}],
             ['span', {class: 'GRAPH_LEGEND_NAME',
-                      style: LEGEND_NAME_STYLE +
+                      style: (is_main? LEGEND_MAIN_NAME_STYLE : LEGEND_NAME_STYLE) +
                              (hidden? ' text-decoration:line-through; opacity:.6;' : '')},
              topic_name],
-            ['span', {class: 'GRAPH_LEGEND_COUNT has-text-grey',
+            ['span', {class: 'GRAPH_LEGEND_COUNT',
                       style: LEGEND_COUNT_STYLE},
              hidden? `${entry.total}` : `${entry.visible}/${entry.total}`]
         );
@@ -2546,7 +2568,7 @@ function refresh_legend(gobj)
          *  and a `disabled="undefined"` button is a disabled button --
          *  every chip was dead except its star.  */
         let body_attrs = {
-            class: 'GRAPH_LEGEND_ITEM button is-small' +
+            class: 'GRAPH_LEGEND_ITEM button' +
                    (focused? ' GRAPH_LEGEND_FOCUSED' : '') +
                    (is_main? ' GRAPH_LEGEND_MAIN' : ''),
             type: 'button',
@@ -2562,18 +2584,26 @@ function refresh_legend(gobj)
             'aria-label': topic_name,
             'aria-pressed': hidden? 'false' : 'true',
         };
+        /*  The main topic cannot be hidden, so its body is not a toggle
+         *  and must not be drawn as one that is broken: a `div` with the
+         *  same `.button` skin, at full strength. `disabled` on a button
+         *  is Bulma's half opacity, which put the trunk of the tree in
+         *  the strip's weakest chip.  */
+        let $body;
         if(is_main) {
-            body_attrs.disabled = 'disabled';
+            delete body_attrs['aria-pressed'];
+            $body = createElement2(['div', body_attrs, controls]);
+        } else {
+            $body = createElement2(
+                ['button', body_attrs, controls, {
+                    click: (evt) => {
+                        evt.stopPropagation();
+                        gobj_send_event(gobj, "EV_LEGEND_TOPIC",
+                            {topic: topic_name, action: "toggle"}, gobj);
+                    }
+                }]
+            );
         }
-        let $body = createElement2(
-            ['button', body_attrs, controls, {
-                click: (evt) => {
-                    evt.stopPropagation();
-                    gobj_send_event(gobj, "EV_LEGEND_TOPIC",
-                        {topic: topic_name, action: "toggle"}, gobj);
-                }
-            }]
-        );
 
         let extras = [];
 
@@ -2582,13 +2612,13 @@ function refresh_legend(gobj)
          *  is a button too: pressing it hands the choice back to the
          *  graph (deduced again). On a deduced one it is a mark.  */
         if(is_main && state.main_chosen) {
-            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small pressed_state',
-                                    type: 'button', style: 'padding:0 .4rem;',
+            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button pressed_state',
+                                    type: 'button', style: 'padding:0 .5rem;',
                                     title: t('main topic'), 'data-i18n-title': 'main topic',
                                     'aria-label': t('main topic'),
                                     'data-i18n-aria-label': 'main topic',
                                     'aria-pressed': 'true'},
-                         [['span', {style: LEGEND_GLYPH_STYLE}, '★']], {
+                         [['span', {style: LEGEND_STAR_MAIN_STYLE}, '★']], {
                 click: (evt) => {
                     evt.stopPropagation();
                     gobj_send_event(gobj, "EV_LEGEND_TOPIC",
@@ -2596,13 +2626,17 @@ function refresh_legend(gobj)
                 }
             }]);
         } else if(is_main) {
-            extras.push(['span', {class: 'GRAPH_LEGEND_STAR button is-small is-static',
-                                  style: 'padding:0 .4rem;',
+            /*  Deduced, not chosen: a MARK and not a button. Gold and at
+             *  full strength all the same -- `is-static` painted it the
+             *  grey of something switched off, next to four bright
+             *  stars that only offer to become this one.  */
+            extras.push(['span', {class: 'GRAPH_LEGEND_STAR button',
+                                  style: 'padding:0 .5rem; cursor:default;',
                                   title: t('main topic'), 'data-i18n-title': 'main topic'},
-                         [['span', {style: LEGEND_GLYPH_STYLE}, '★']]]);
+                         [['span', {style: LEGEND_STAR_MAIN_STYLE}, '★']]]);
         } else if(!hidden) {
-            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button is-small',
-                                    type: 'button', style: 'padding:0 .4rem;',
+            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button',
+                                    type: 'button', style: 'padding:0 .5rem;',
                                     title: t('main topic'), 'data-i18n-title': 'main topic',
                                     'aria-label': t('main topic'),
                                     'data-i18n-aria-label': 'main topic'},
@@ -2620,9 +2654,9 @@ function refresh_legend(gobj)
          *  the schema hangs from the main one.  */
         if(!hidden && entry.linked && entry.loose > 0) {
             extras.push(['button', {
-                class: 'GRAPH_LEGEND_LOOSE button is-small' +
+                class: 'GRAPH_LEGEND_LOOSE button' +
                        (entry.loose_shown? ' pressed_state' : ''),
-                type: 'button', style: 'padding:0 .45rem;',
+                type: 'button', style: 'padding:0 .55rem;',
                 title: t('loose records'), 'data-i18n-title': 'loose records',
                 'aria-label': t('loose records'),
                 'data-i18n-aria-label': 'loose records',
@@ -2638,9 +2672,9 @@ function refresh_legend(gobj)
 
         if(!hidden) {
             extras.push(['button', {
-                class: 'GRAPH_LEGEND_FOCUS button is-small' +
+                class: 'GRAPH_LEGEND_FOCUS button' +
                        (focused? ' pressed_state' : ''),
-                type: 'button', style: 'padding:0 .4rem;',
+                type: 'button', style: 'padding:0 .5rem;',
                 title: t('highlight topic'), 'data-i18n-title': 'highlight topic',
                 'aria-label': t('highlight topic'),
                 'data-i18n-aria-label': 'highlight topic',

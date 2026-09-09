@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.88
+
+The legend strip, measured rather than judged by eye:
+
+- **The count was 3.86:1 on the dark scheme** — under the 4.5 small text
+  needs — because it wore `has-text-grey`, whose grey is a fixed mid-tone
+  Bulma paints on both schemes. It takes the chip's own colour at 80%: 15:1
+  in dark, 12.7:1 in light, and still visibly the number beside the name.
+- **The MAIN topic was drawn as the DEAD chip of the strip.** Its body was a
+  `<button disabled>` — it cannot be hidden, so a toggle was disabled — and
+  Bulma paints that at half opacity, with its star a grey `span` beside four
+  bright ones. The trunk of the tree read as unavailable. It is a `div`
+  wearing the same `.button` skin now, at full strength, with the name in
+  **bold** and the star in gold: a control that does nothing should not look
+  like a control that is broken.
+- **The star used `--bulma-warning`, which is one bright gold for both
+  schemes**: 10.4:1 on the dark ground and **1.75:1** on the light one. It
+  uses `--bulma-warning-on-scheme`, which is what Bulma keeps for a brand
+  colour used as INK — the same hue at 23% lightness when the scheme is
+  light. 7.1:1 there now.
+- **`is-small` is gone from the strip.** It was kept for its padding, on the
+  argument that a chip per topic has to fit on one row — and the strip
+  SCROLLS sideways, so it never had to fit anything. The chips are a
+  toolbar's size (37px against the row's 40), which is what a layer control
+  is.
+
 ## 7.23.87
 
 The same yardstick over every chapter of the demo, measured with
