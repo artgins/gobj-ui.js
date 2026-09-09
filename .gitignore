@@ -8,3 +8,6 @@ playwright/.cache/
 
 # Session-local Playwright verification scratch scripts (test-app/_shot.mjs, ...)
 test-app/_*.mjs
+#  ...and the screenshots they take, which are evidence for one session
+#  and dead weight in the repo (six of them slipped in at 7.23.85/86).
+test-app/shot_*.png
