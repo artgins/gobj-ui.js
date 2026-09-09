@@ -5,6 +5,39 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.87
+
+The same yardstick over every chapter of the demo, measured with
+`getComputedStyle` and not by eye. What it found, beyond the graph row of
+`7.23.86`:
+
+- **The glyph size belongs to the TOOLBAR, not to the graph.** It moves from
+  `yui_graph_camera.js` to `yui_toolbar.js` as `YUI_TOOLBAR_ICON_SIZE` /
+  `yui_toolbar_icon()`, and now every view toolbar of the library speaks it:
+  the three graph rows, the JSON viewer (`C_YUI_JSON`, 16px until now — and
+  it is what the treedb graph's `raw json` opens, so the two sat side by
+  side), the treedb topics row and the treedb TABLE row (`edit`, `new`,
+  `delete`, `copy`, `paste`, `refresh`, `schema`, `columns`, `export`, all
+  16px). The app BAR keeps its own bigger size on purpose: 44px items are a
+  different band from a 40px row.
+- **`C_YUI_JSON_GRAPH` and `C_YUI_GOBJ_TREE_JS` had a row of three heights.**
+  Their `wide` was `36px`, so every button was 36 while the find box — which
+  nobody had told anything — was Bulma's own 40. `wide` is `40px` now, the
+  value the third graph of the family already used.
+- **`.select` was on the `<select>` itself in those two rows.** Bulma styles
+  `.select select`, i.e. a WRAPPER that holds the control, so the class
+  matched nothing: the layout picker kept the browser's 13.3px font and none
+  of Bulma's chrome, in a row where everything else says 16px. The class goes
+  where Bulma looks for it.
+- **The avatar was the only thing standing taller than the app bar**: a 2rem
+  badge plus the item's 0.5rem padding is 48px in a row of 44px items. The
+  padding gives way; the badge does not.
+
+Verified deliberate and left alone: `C_YUI_PERIOD`'s navigator, where the
+label is bigger than the arrows and its calendar glyph is smaller — both are
+decisions written down in the code and in `c_yui_period.css` (the label is
+the thing you read, the glyph is an affordance).
+
 ## 7.23.86
 
 - **The toolbar row and the legend under it are ONE scale.** Three glyph

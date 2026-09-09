@@ -54,7 +54,7 @@ import {
 } from "./yui_gclass_view.js";
 import {yui_shell_of} from "./c_yui_shell.js";
 
-import {yui_toolbar} from "./yui_toolbar.js";
+import {yui_toolbar, yui_toolbar_icon} from "./yui_toolbar.js";
 import {attach_clear} from "./yui_inputs.js";
 import {
     yui_graph_camera_items,
@@ -62,7 +62,6 @@ import {
     yui_graph_update_anchor,
     yui_graph_center_on,
     yui_graph_fold_items,
-    yui_graph_icon,
     yui_graph_refresh_item,
     yui_graph_update_zoom,
 } from "./yui_graph_camera.js";
@@ -99,7 +98,7 @@ SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Container eleme
 SDATA(data_type_t.DTP_STRING,   "canvas_id",        0,  "",     "Canvas ID"),
 
 /*---------------- Graph Settings ----------------*/
-SDATA(data_type_t.DTP_STRING,   "wide",             0,  "36px", "Height of header"),
+SDATA(data_type_t.DTP_STRING,   "wide",             0,  "40px", "Height of header. 40px and not 36: it is what an untouched Bulma control measures, so the find box stood 4px taller than every button beside it, and it is what the third graph of the family (C_YUI_TREEDB_GRAPH) uses"),
 SDATA(data_type_t.DTP_STRING,   "layout",           0,  "vertical-compact", "Current layout key"),
 SDATA(data_type_t.DTP_INTEGER,  "collapse_threshold", 0, 10, "Auto-collapse a node whose direct children exceed this number. 0 disables auto-collapse."),
 
@@ -907,7 +906,7 @@ function make_find_items(gobj)
                  style: 'margin-left:.5rem; margin-right:.5rem; ' +
                         'max-width:12rem; min-width:7rem;'}, [
             $find_input,
-            ['span', {class: 'icon is-left'}, [yui_graph_icon('yi-magnifying-glass')]]
+            ['span', {class: 'icon is-left'}, [yui_toolbar_icon('yi-magnifying-glass')]]
         ]]);
     attach_clear($find_control, $find_input);
 
@@ -1019,23 +1018,27 @@ function make_toolbar(gobj)
         options.push(['option', opt_attrs, LAYOUTS[key].label]);
     }
 
-    let $select = createElement2(
-        ['select', {
-                class: 'select',
-                style: {height: toolbar_wide, "margin-left": "0.5em"},
-                title: t("layout"),
-            },
-            options,
-            {
-                change: (evt) => {
-                    let value = evt.target.value;
-                    gobj_send_event(gobj, "EV_CHANGE_LAYOUT", {layout: value}, gobj);
-                }
+    /*  `.select` on the WRAPPER and not on the control: Bulma styles
+     *  `.select select`, so the class on the `<select>` itself matched
+     *  nothing and the box kept the browser's 13.3px font in a row of
+     *  16px controls.  */
+    let $wrap = createElement2(
+        ['div', {class: 'select', style: {"margin-left": "0.5em"}}, [
+            ['select', {
+                class: 'GOBJ_TREE_LAYOUT',
+                style: {height: toolbar_wide},
+                title: t("layout"), 'data-i18n-title': "layout",
+                'aria-label': t("layout"), 'data-i18n-aria-label': "layout",
+            }, options]
+        ], {
+            change: (evt) => {
+                let value = evt.target.value;
+                gobj_send_event(gobj, "EV_CHANGE_LAYOUT", {layout: value}, gobj);
             }
-        ]
+        }]
     );
-    priv.$layout_select = $select;
-    right_items.push($select);
+    priv.$layout_select = $wrap.querySelector("select");
+    right_items.push($wrap);
 
     const $toolbar = yui_toolbar({}, [
         ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],

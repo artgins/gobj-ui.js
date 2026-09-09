@@ -60,6 +60,7 @@ import "./c_yui_treedb_topics.css";
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {yui_shell_of, yui_shell_set_sub_routes} from "./c_yui_shell.js";
 import {nodes_answer} from "./nodes_answer.js";
+import {yui_toolbar_icon} from "./yui_toolbar.js";
 
 import {t} from "i18next";
 
@@ -273,7 +274,7 @@ function build_ui(gobj)
                     ['button', {class: 'button TREEDB_TOPICS_BACK is-hidden',
                                 title: t('topics'), 'aria-label': t('topics'),
                                 'data-i18n-title': 'topics', 'data-i18n-aria-label': 'topics'}, [
-                        ['span', {class: 'icon'}, [['i', {class: 'yi-arrow-left'}]]],
+                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-arrow-left')]],
                         ['span', {i18n: 'topics'}, 'topics']
                     ], {
                         click: (evt) => {
@@ -287,7 +288,7 @@ function build_ui(gobj)
                                 title: t('schema graph'), 'aria-label': t('schema graph'),
                                 'data-i18n-title': 'schema graph',
                                 'data-i18n-aria-label': 'schema graph'}, [
-                        ['span', {class: 'icon'}, [['i', {class: 'yi-hexagon-nodes'}]]],
+                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-hexagon-nodes')]],
                         ['span', {i18n: 'schema'}, 'schema']
                     ], {
                         click: (evt) => {
@@ -305,7 +306,7 @@ function build_ui(gobj)
                     ['div', {class: source_url?
                                 'TREEDB_TOPICS_SOURCE' : 'TREEDB_TOPICS_SOURCE is-hidden',
                              title: source_url, 'aria-label': source_url}, [
-                        ['span', {class: 'icon'}, [['i', {class: 'yi-cloudversify'}]]],
+                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-cloudversify')]],
                         ['span', {class: 'TREEDB_TOPICS_SOURCE_URL'}, source_url]
                     ]],
                     /*  Inspect the treedb's raw tranger json (whole service,
@@ -315,7 +316,7 @@ function build_ui(gobj)
                                 style: 'margin-left:auto;',
                                 title: t('raw json'), 'aria-label': t('raw json'),
                                 'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
-                        ['span', {class: 'icon'}, [['i', {class: 'yi-eye'}]]],
+                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-eye')]],
                         ['span', {i18n: 'raw json'}, 'raw json']
                     ], {
                         click: (evt) => {

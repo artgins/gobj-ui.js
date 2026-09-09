@@ -524,6 +524,16 @@
  *      Circular badge populated by the host-registered provider
  *      via yui_shell_set_avatar_provider().
  *============================================================*/
+/*  The badge is 2rem, and the item's own 0.5rem padding put the
+ *  avatar at 48px in a row of 44px items -- the only thing in the app
+ *  bar that stood taller than the rest. The padding gives way; the
+ *  badge (which is the identity, and the hit target) does not, and the
+ *  item keeps the row's 2.75rem min-height.  */
+.yui-toolbar-item.yui-toolbar-avatar {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+
 .yui-toolbar-avatar .yui-avatar {
     display: inline-flex;
     align-items: center;

@@ -47,7 +47,7 @@ import {
     refresh_language,
 } from "@yuneta/gobj-js";
 
-import {yui_toolbar} from "./yui_toolbar.js";
+import {yui_toolbar, yui_toolbar_icon} from "./yui_toolbar.js";
 import {attach_clear} from "./yui_inputs.js";
 import {
     yui_graph_camera_items,
@@ -57,7 +57,6 @@ import {
     yui_graph_place_at,
     yui_graph_viewport_of,
     yui_graph_fold_items,
-    yui_graph_icon,
     yui_graph_refresh_item,
     yui_graph_update_zoom,
 } from "./yui_graph_camera.js";
@@ -177,7 +176,7 @@ SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Container eleme
 SDATA(data_type_t.DTP_STRING,   "canvas_id",        0,  "",     "Canvas ID"),
 
 /*---------------- Graph Settings ----------------*/
-SDATA(data_type_t.DTP_STRING,   "wide",             0,  "36px", "Height of header"),
+SDATA(data_type_t.DTP_STRING,   "wide",             0,  "40px", "Height of header. 40px and not 36: it is what an untouched Bulma control measures, so the find box stood 4px taller than every button beside it, and it is what the third graph of the family (C_YUI_TREEDB_GRAPH) uses"),
 SDATA(data_type_t.DTP_STRING,   "layout",           0,  "json-tree", "Layout key (see LAYOUTS)"),
 
 SDATA_END()
@@ -586,7 +585,7 @@ function make_toolbar(gobj)
         ['div', {class: 'JSON_GRAPH_FIND control has-icons-left',
                  style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
             $find_input,
-            ['span', {class: 'icon is-left'}, [yui_graph_icon('yi-magnifying-glass')]]
+            ['span', {class: 'icon is-left'}, [yui_toolbar_icon('yi-magnifying-glass')]]
         ]]);
     attach_clear($find_control, $find_input);
 
@@ -657,13 +656,20 @@ function make_toolbar(gobj)
         return ['option', attrs, layout_label(key)];
     });
 
+    /*  Bulma's `.select` styles a WRAPPER that holds the control, not
+     *  the control: on the `<select>` itself its `.select select` rule
+     *  never matches, so the box kept the browser's own font -- 13.3px
+     *  in a row where everything else says 16 -- and none of Bulma's
+     *  chrome. The class goes where Bulma looks for it.  */
     let $layout_select = createElement2(
-        ['select', {
-            class: 'JSON_GRAPH_LAYOUT select',
-            style: {height: toolbar_wide, "margin-left": "0.5em"},
-            title: t("layout"), 'data-i18n-title': "layout",
-            'aria-label': t("layout"), 'data-i18n-aria-label': "layout"
-        }, options, {
+        ['div', {class: 'select', style: {"margin-left": "0.5em"}}, [
+            ['select', {
+                class: 'JSON_GRAPH_LAYOUT',
+                style: {height: toolbar_wide},
+                title: t("layout"), 'data-i18n-title': "layout",
+                'aria-label': t("layout"), 'data-i18n-aria-label': "layout"
+            }, options]
+        ], {
             change: (evt) => {
                 evt.stopPropagation();
                 gobj_send_event(gobj, "EV_CHANGE_LAYOUT", {layout: evt.target.value}, gobj);

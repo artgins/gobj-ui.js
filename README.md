@@ -850,12 +850,16 @@ both keys, either — a G6 `trigger` is a CHORD, not a list of alternatives:
 `Shortcut.match()` compares the keys held to the keys bound as a SET, so
 `['Control', 'Meta']` would mean both at once.
 
-**One glyph size for the whole row** (`7.23.86`): `YUI_GRAPH_ICON_SIZE` in
-`yui_graph_camera.js`, with a `yui_graph_icon()` that builds the `<i>`. It is
-in **`rem` and not `em`** for a reason worth keeping: in `em` the same
-`1.5em` drew 24px inside a plain button, 18px inside an `is-small` chip of
-the legend, and a labelled button left its icon at the inherited 16px — three
-sizes in two strips that are read as one thing. The legend under the toolbar
+**One glyph size for every toolbar of the library** (`7.23.86`, moved to its
+proper home in `7.23.87`): `YUI_TOOLBAR_ICON_SIZE` in `yui_toolbar.js`, with a
+`yui_toolbar_icon()` that builds the `<i>`. It is in **`rem` and not `em`**
+for a reason worth keeping: in `em` the same `1.5em` drew 24px inside a plain
+button, 18px inside an `is-small` chip of the legend, and a labelled button
+left its icon at the inherited 16px — three sizes in two strips that are read
+as one thing. It is the toolbar's size and not the graph's: the JSON viewer,
+the treedb topics row and the treedb table row take it too. The app BAR keeps
+its own, bigger glyph (`.yui-toolbar-item .icon`, 1.35rem on 44px items) —
+that is a different band, not drift. The legend under the toolbar
 follows it: topic name at `1rem`, count at `.875rem` (the one deliberate step
 down), glyphs at the shared size, and `align-items: stretch` so a chip's star
 and crosshair are as tall as its body.

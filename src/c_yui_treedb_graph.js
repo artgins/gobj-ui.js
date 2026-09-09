@@ -79,14 +79,11 @@ import {
     gobj_stop_children,
 } from "@yuneta/gobj-js";
 
-import {yui_toolbar} from "./yui_toolbar.js";
+
 import {attach_clear} from "./yui_inputs.js";
 import {register_c_g6_nodes_tree} from "./c_g6_nodes_tree.js";
-import {
-    yui_graph_fold_items,
-    yui_graph_icon,
-    YUI_GRAPH_ICON_SIZE,
-} from "./yui_graph_camera.js";
+import {yui_graph_fold_items} from "./yui_graph_camera.js";
+import {yui_toolbar, yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE} from "./yui_toolbar.js";
 import {
     removeChildElements,
     disableElements,
@@ -578,7 +575,7 @@ function node_shape_items(gobj, wide)
                            title: t(key), 'data-i18n-title': key,
                            'aria-label': t(key), 'data-i18n-aria-label': key,
                            'aria-pressed': 'false'},
-            yui_graph_icon(NODE_MODE_ICONS[mode]),
+            yui_toolbar_icon(NODE_MODE_ICONS[mode]),
             {
                 click: (evt) => {
                     evt.stopPropagation();
@@ -595,7 +592,7 @@ function node_shape_items(gobj, wide)
                     title: t('node labels'), 'data-i18n-title': 'node labels',
                     'aria-label': t('node labels'), 'data-i18n-aria-label': 'node labels',
                     'aria-pressed': 'false'},
-            yui_graph_icon('yi-font'),
+            yui_toolbar_icon('yi-font'),
             {
                 click: (evt) => {
                     evt.stopPropagation();
@@ -697,7 +694,7 @@ function make_toolbar(gobj)
         }],
 
         ['button', {class: 'GRAPH_REFRESH button'}, [
-            yui_graph_icon('yi-arrows-rotate'),
+            yui_toolbar_icon('yi-arrows-rotate'),
             ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'refresh'}, 'refresh']
         ], {
             click: (evt) => {
@@ -722,7 +719,7 @@ function make_toolbar(gobj)
         ['button', {class: 'button ml-2 TREEDB_JSON_BTN',
                     title: t('raw json'), 'aria-label': t('raw json'),
                     'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
-            yui_graph_icon('yi-eye'),
+            yui_toolbar_icon('yi-eye'),
             ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'raw json'}, 'raw json']
         ], {
             click: (evt) => {
@@ -779,7 +776,7 @@ function make_toolbar(gobj)
         ['div', {class: 'GRAPH_FIND control has-icons-left',
                  style: 'margin-right:.5rem; max-width:12rem; min-width:7rem;'}, [
             $find_input,
-            ['span', {class: 'icon is-left'}, [yui_graph_icon('yi-magnifying-glass')]]
+            ['span', {class: 'icon is-left'}, [yui_toolbar_icon('yi-magnifying-glass')]]
         ]]);
     attach_clear($find_control, $find_input);
 
@@ -2468,7 +2465,7 @@ function ac_set_operation_mode(gobj, event, kw, src)
  *
  *  The count is the one deliberate step down: it is the number beside
  *  the name, not the name.  */
-const LEGEND_GLYPH_STYLE = `font-size:${YUI_GRAPH_ICON_SIZE}; line-height:1; color:inherit;`;
+const LEGEND_GLYPH_STYLE = `font-size:${YUI_TOOLBAR_ICON_SIZE}; line-height:1; color:inherit;`;
 const LEGEND_NAME_STYLE  = 'font-size:1rem; line-height:1.2;';
 const LEGEND_COUNT_STYLE = 'margin-left:.4rem; font-size:.875rem;';
 

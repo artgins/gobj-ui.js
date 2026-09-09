@@ -91,6 +91,8 @@ import {row_matches} from "./yui_row_search.js";
 
 import {t} from "i18next";
 
+import {yui_toolbar_icon} from "./yui_toolbar.js";
+
 import {plan_treedb_writes, READONLY_FORM_TOOLBAR} from "./treedb_write_plan.js";
 import {yui_file_read, yui_files_manifest, yui_file_id_label} from "./yui_file_field.js";
 import {yui_asset_id} from "./yui_asset.js";
@@ -583,7 +585,7 @@ function build_ui(gobj)
              *  reorder this group as if they were peer actions.  */
             let $edit_button = createElement2(
                 ['button', {id: ``, class: 'button button-edit-record mr-1'}, [
-                    ['i', {class: 'yi-pen'}],
+                    yui_toolbar_icon('yi-pen'),
                     ['span',
                         {
                             class: 'is-hidden-mobile', i18n: 'edit', style: 'padding-left:5px;'
@@ -609,7 +611,7 @@ function build_ui(gobj)
             if(with_new_button) {
                 let $new_button = createElement2(
                     ['button', {id: ``, class: 'button button-new-record mr-1', disabled: true}, [
-                        ['i', {class: 'yi-plus'}],
+                        yui_toolbar_icon('yi-plus'),
                         ['span',
                             {
                                 class: 'is-hidden-mobile', i18n: 'new', style: 'padding-left:5px;'
@@ -629,7 +631,7 @@ function build_ui(gobj)
             if(with_delete_button) {
                 let $delete_button = createElement2(
                     ['button', {id: ``, class: 'button button-delete-record mr-1', disabled: true}, [
-                        ['i', {class: 'yi-trash'}],
+                        yui_toolbar_icon('yi-trash'),
                         ['span',
                             {
                                 class: 'is-hidden-mobile', i18n: 'delete', style: 'padding-left:5px;'
@@ -650,7 +652,7 @@ function build_ui(gobj)
             if(with_copy_button) {
                 let $copy_button = createElement2(
                     ['button', {id: ``, class: 'button button-copy-record mr-1', disabled: true}, [
-                        ['i', {class: 'yi-copy'}],
+                        yui_toolbar_icon('yi-copy'),
                         ['span',
                             {
                                 class: 'is-hidden-mobile', i18n: 'copy', style: 'padding-left:5px;'
@@ -671,7 +673,7 @@ function build_ui(gobj)
             if(with_paste_button) {
                 let $paste_button = createElement2(
                     ['button', {id: ``, class: 'button button-paste-record mr-1', disabled: true}, [
-                        ['i', {class: 'yi-paste'}],
+                        yui_toolbar_icon('yi-paste'),
                         ['span',
                             {
                                 class: 'is-hidden-mobile', i18n: 'paste', style: 'padding-left:5px;'
@@ -727,7 +729,7 @@ function build_ui(gobj)
                     'data-i18n-placeholder': 'search'
                 }],
                 ['span', {class: 'icon is-left'}, [
-                    ['i', {class: 'yi-magnifying-glass'}]
+                    yui_toolbar_icon('yi-magnifying-glass')
                 ]]
             ]]
         );
@@ -754,7 +756,7 @@ function build_ui(gobj)
     if(with_refresh_button) {
         let $refresh = createElement2(
             ['button', {class: 'button mr-1', title: t('refresh'), 'data-i18n-title': 'refresh'}, [
-                ['i', {class: 'yi-arrows-rotate'}],
+                yui_toolbar_icon('yi-arrows-rotate'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
             ], {
                 'click': (event) => {
@@ -775,7 +777,7 @@ function build_ui(gobj)
             ['button', {class: 'TREEDB_TABLE_SCHEMA button mr-1',
                         title: t('schema'), 'data-i18n-title': 'schema',
                         'aria-label': t('schema'), 'data-i18n-aria-label': 'schema'}, [
-                ['i', {class: 'yi-hexagon-nodes'}],
+                yui_toolbar_icon('yi-hexagon-nodes'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'schema', style: 'padding-left:5px;'}, 'schema']
             ], {
                 'click': (event) => {
@@ -796,7 +798,7 @@ function build_ui(gobj)
                         title: t('choose the columns to show'),
                         'data-i18n-title': 'choose the columns to show',
                         'aria-label': t('columns'), 'data-i18n-aria-label': 'columns'}, [
-                ['i', {class: 'yi-table'}],
+                yui_toolbar_icon('yi-table'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'columns', style: 'padding-left:5px;'}, 'columns']
             ], {
                 'click': (event) => {
@@ -817,7 +819,7 @@ function build_ui(gobj)
                         title: t('download the rows loaded in this table as csv'),
                         'data-i18n-title': 'download the rows loaded in this table as csv',
                         'aria-label': t('export'), 'data-i18n-aria-label': 'export'}, [
-                ['i', {class: 'yi-download'}],
+                yui_toolbar_icon('yi-download'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'export', style: 'padding-left:5px;'}, 'export']
             ], {
                 'click': (event) => {

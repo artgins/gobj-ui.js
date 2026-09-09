@@ -102,7 +102,7 @@ import {
     container_label,
 } from "./json_view_helpers.js";
 
-import {yui_toolbar} from "./yui_toolbar.js";
+import {yui_toolbar, yui_toolbar_icon} from "./yui_toolbar.js";
 import {register_c_yui_json_graph} from "./c_yui_json_graph.js";
 import {attach_clear} from "./yui_inputs.js";
 
@@ -388,7 +388,7 @@ function make_toolbar(gobj)
         ['div', {class: 'control has-icons-left JSON_SEARCH_CONTROL',
                  style: 'max-width:22em;'}, [
             $search_input,
-            ['span', {class: 'icon is-left'}, [['i', {class: 'yi-magnifying-glass'}]]]
+            ['span', {class: 'icon is-left'}, [yui_toolbar_icon('yi-magnifying-glass')]]
         ]]);
     /*  The GLOBAL fold leads the row, ahead of the find box — the same
      *  place both graphs put theirs.  It opens the whole document; the
@@ -426,7 +426,7 @@ function icon_button(gobj, icon, event_name, label_key)
     return ['button', {class: `button ${event_name}`, style: 'width:2.5em;',
                        title: t(label_key), 'data-i18n-title': label_key,
                        'aria-label': t(label_key), 'data-i18n-aria-label': label_key}, [
-        ['span', {class: 'icon'}, [['i', {class: icon}]]]
+        ['span', {class: 'icon'}, [yui_toolbar_icon(icon)]]
     ], {
         click: function(evt) {
             evt.stopPropagation();
@@ -452,7 +452,7 @@ function view_mode_switch(gobj)
                            type: 'button', style: 'width:2.5em;',
                            title: label, 'data-i18n-title': v.key,
                            'aria-label': label, 'data-i18n-aria-label': v.key}, [
-            ['span', {class: 'icon'}, [['i', {class: v.icon}]]]
+            ['span', {class: 'icon'}, [yui_toolbar_icon(v.icon)]]
         ], {
             click: function(evt) {
                 evt.stopPropagation();
