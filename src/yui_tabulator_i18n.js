@@ -160,12 +160,20 @@ const TABULATOR_ROW_SELECT_ARIA = "Select Row";
 
 function yui_tabulator_name_row_selects(table, t)
 {
-    if(!table || typeof table.getElement !== "function") {
+    if(!table) {
         return;
     }
     try {
-        let $el = table.getElement();
+        /*  A Tabulator INSTANCE carries its node as `.element`; only its
+         *  Column/Row components have `getElement()`. Testing for the
+         *  method and returning silently made this a no-op on every real
+         *  table -- and a no-op is what a dump of the deployed page
+         *  showed, with the boxes still saying "Select Row".  */
+        let $el = table.element
+            || (typeof table.getElement === "function" ? table.getElement() : null);
         if(!$el) {
+            log_warning("yui_tabulator_name_row_selects: table has no element: "
+                        + "its row-selection boxes keep Tabulator's English name");
             return;
         }
         let boxes = $el.querySelectorAll(

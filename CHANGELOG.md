@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.124
+
+- **fix: the rename of `7.23.123` was a silent no-op.** It reached the table's
+  node with `table.getElement()` and returned quietly when that was not a
+  function -- and on a Tabulator INSTANCE it never is: only its Column and Row
+  COMPONENTS carry `getElement()`, the table itself carries `.element`. So the
+  guard was true on every real table and the boxes went on saying *"Select
+  Row"*, which is what a second dump of the deployed page showed. It reads
+  `.element` now, and says so in the log when there is no node at all instead
+  of returning in silence.
+
 ## 7.23.123
 
 - **fix: Tabulator's row-selection checkbox announced itself as *"Select
