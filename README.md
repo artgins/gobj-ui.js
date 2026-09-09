@@ -2245,6 +2245,14 @@ against the scheme background, the raw tokens as ink are
 Bulma computes `-on-scheme` per scheme: the same hue, darkened on a light
 page (`warning` goes to 23% lightness), unchanged on a dark one.
 
+**Quiet text**: `.yui-text-quiet` (the text colour at 75%), never Bulma's
+`has-text-grey` — one mid grey for both schemes, 3.86:1 on the dark one, and
+what the library writes in grey is an empty state, a timestamp, a topic id, a
+notice's detail: text somebody has to read. And a **placeholder** is text
+too; the shell's stylesheet raises Bulma's 30% alpha to 70% (2.47:1 → 7.96 in
+dark) where Bulma declares the variable, since a `:root` override does not
+reach it.
+
 ### i18n: a string must be able to CHANGE language, not just be translated once
 
 Passing a string through `t()` is **not** enough. `refresh_language()` only

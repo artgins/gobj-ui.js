@@ -175,7 +175,7 @@ function build_ui(gobj)
     }
 
     children.push(
-        ["p", {class: "DEMO_META is-size-7 has-text-grey mt-auto"},
+        ["p", {class: "DEMO_META is-size-7 yui-text-quiet mt-auto"},
             `gobj: ${gobj_name(gobj)}  ·  instance #${id}`
         ]
     );

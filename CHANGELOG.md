@@ -5,6 +5,43 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.94
+
+The form and the tables, swept the same way — every visible piece of text of
+the view against the background it is actually painted on:
+
+| what | before, dark | before, light | after |
+|---|---|---|---|
+| a PLACEHOLDER | **2.47** | **1.79** | 7.96 / 4.95 |
+| Tabulator's filter placeholder | **4.07** | **3.09** | 7.96 / 4.95 |
+| the row count under a table | **3.29** | 4.83 | inherits the footer (~8) |
+| a read-only field's value | **4.07** | **4.26** | full text colour |
+| anything wearing `has-text-grey` | **3.86** | 4.69 | 11+ / 9+ |
+
+- **A placeholder is TEXT**, and Bulma paints it with the text colour at 30%
+  alpha: 2.47:1 on the dark scheme and 1.79 on the light one, for the thing
+  that says what a box is FOR (`search`, `filter column…`, a form's hint). It
+  is 70% now. The override goes where Bulma DECLARES the variable — inside
+  its `.input, .textarea, .select` block — because a `:root` override never
+  reaches it and a bare `input::placeholder` loses to Bulma's class selector.
+- **Tabulator's inputs are bare `input`s**, so Bulma's colour never reached
+  them at all: the light scheme left them at the browser's default and the
+  dark one painted them `--bulma-text-weak`. One rule for every scheme now,
+  the same 70%.
+- **The row count was `#6b7280` written into the html**, one grey for both
+  schemes: 3.29:1 on the dark footer. It inherits the footer's colour, which
+  `tabulator.css` themes.
+- **A read-only field's value was dimmed to say it is read-only** — but what
+  says that is the background and the cursor, and a value you may read and
+  not change is exactly a value you have to be able to read.
+- **`has-text-grey` is gone from the library** (25 uses) **and from the demo**
+  (12): Bulma's grey is one mid tone for both schemes, 3.86:1 on the dark one,
+  and every use of it was text somebody has to read — an empty state, a
+  timestamp, a topic id, the detail of a notice. `.yui-text-quiet` is the same
+  intent (the text colour at 75%) and legible. An app that does not load the
+  shell's stylesheet simply gets it at full strength, which is the right way
+  to fail.
+
 ## 7.23.93
 
 - **Seven options the engine had and no host could reach.**

@@ -522,6 +522,46 @@
 }
 
 /*============================================================
+ *      Legibility: two rules the whole library leans on
+ *
+ *      A PLACEHOLDER is text, and Bulma paints it with the text
+ *      colour at 30% alpha: 2.47:1 on the dark scheme, 1.79 on
+ *      the light one. It is what says what a box is FOR -- the
+ *      graph's `search`, a form's hint -- so it is written at
+ *      70%: 7.96 and 4.95, and plainly still secondary. The
+ *      `opacity: 1` is for Firefox, which dims a placeholder
+ *      again on top of its colour.
+ *
+ *      And `.yui-text-quiet` is what the library uses where it
+ *      used to say `has-text-grey`: Bulma's grey is ONE mid tone
+ *      for both schemes (3.86:1 on the dark one), and every use
+ *      of it in here is text somebody has to read -- an empty
+ *      state, a timestamp, a topic id, the detail of a notice.
+ *      The text colour at 75% is the same intent, legible.
+ *============================================================*/
+/*  Bulma declares `--bulma-input-placeholder-color` INSIDE the
+ *  `.input, .textarea, .select` block (its `.input::placeholder` rule
+ *  reads it there), so a `:root` override never reaches it and a bare
+ *  `input::placeholder` loses to Bulma's class selector. The variable
+ *  is redefined where Bulma defines it, with the alpha it should have
+ *  had: same hue, same lightness, 0.7 instead of 0.3.  */
+.input,
+.textarea,
+.select select {
+    --bulma-input-placeholder-color:
+        hsla(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l), 0.7);
+}
+
+input::placeholder,
+textarea::placeholder {
+    opacity: 1;     /*  Firefox dims a placeholder again, on top of its colour  */
+}
+
+.yui-text-quiet {
+    opacity: 0.75;
+}
+
+/*============================================================
  *      Toolbar — type:"avatar"
  *      Circular badge populated by the host-registered provider
  *      via yui_shell_set_avatar_provider().

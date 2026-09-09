@@ -597,7 +597,7 @@ function render_graph(gobj)
         teardown_graph_child(gobj);
         $graph.textContent = "";
         $graph.appendChild(createElement2(
-            ['div', {class: 'JSON_EMPTY has-text-grey p-3', 'data-i18n': 'no data'}, 'no data']
+            ['div', {class: 'JSON_EMPTY yui-text-quiet p-3', 'data-i18n': 'no data'}, 'no data']
         ));
         refresh_language($graph, t);
         return;
@@ -687,7 +687,7 @@ function render_text(gobj)
 
     if(priv.root === null || priv.root === undefined) {
         $text.appendChild(createElement2(
-            ['div', {class: 'JSON_EMPTY has-text-grey p-3', 'data-i18n': 'no data'}, 'no data']
+            ['div', {class: 'JSON_EMPTY yui-text-quiet p-3', 'data-i18n': 'no data'}, 'no data']
         ));
         return;
     }
@@ -736,7 +736,7 @@ function render_tree(gobj)
 
     if(priv.root === null || priv.root === undefined) {
         $tree.appendChild(createElement2(
-            ['div', {class: 'JSON_EMPTY has-text-grey p-3', 'data-i18n': 'no data'}, 'no data']
+            ['div', {class: 'JSON_EMPTY yui-text-quiet p-3', 'data-i18n': 'no data'}, 'no data']
         ));
         return;
     }
@@ -915,7 +915,7 @@ function toggle_row(gobj, key, size, is_object, depth, path, open, value)
         body.push(['span', {class: 'JSON_KEY'}, String(key)]);
         body.push(['span', {class: 'JSON_PUNCT'}, ': ']);
     }
-    body.push(['span', {class: 'JSON_SUMMARY has-text-grey'}, summary]);
+    body.push(['span', {class: 'JSON_SUMMARY yui-text-quiet'}, summary]);
 
     /*
      *  A dict that carries an id says WHICH one it is, right here.
@@ -977,7 +977,7 @@ function leaf_row(key, value, depth)
     if(key !== null && is_time_field(String(key))) {
         let wall = format_epoch(value);
         if(wall) {
-            body.push(['span', {class: 'JSON_TIME is-size-7 has-text-grey ml-2'}, wall]);
+            body.push(['span', {class: 'JSON_TIME is-size-7 yui-text-quiet ml-2'}, wall]);
         }
     }
 

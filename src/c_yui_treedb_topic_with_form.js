@@ -1503,9 +1503,13 @@ function create_tabulator(gobj)
         columns: columns,
         selectableRows: selectable,
         /*  Row-count footer (updated on every data change below). */
-        footerElement: "<span class='yui-tabulator-rowcount' " +
+        /*  No colour of its own: `#6b7280` was one grey written into
+         *  the html for both schemes, and on the dark footer it read
+         *  3.29:1. It inherits the footer's, which tabulator.css
+         *  themes.  */
+        footerElement: "<span class='yui-tabulator-rowcount yui-text-quiet' " +
             "style='display:block;text-align:right;font-size:0.8rem;" +
-            "color:#6b7280;padding:0 0.6rem;'></span>",
+            "padding:0 0.6rem;'></span>",
     });
 
     /*
@@ -1799,7 +1803,7 @@ function icon_formatter(cell)
          *  that mounts this table.  */
         return createElement2([
             "span",
-            {class: "ICON_CELL_UNKNOWN is-size-7 has-text-grey", title: name},
+            {class: "ICON_CELL_UNKNOWN is-size-7 yui-text-quiet", title: name},
             name
         ]);
     }

@@ -42,9 +42,13 @@
 }
 
 /*--- readonly fields (e.g. the pkey in update mode) look readonly ---*/
+/*  The BACKGROUND and the cursor are what say "not editable"; the text
+ *  is not dimmed for it. `--bulma-text-weak` on that background reads
+ *  4.07:1 in dark, under the 4.5 of small text -- and a value you may
+ *  read but not change is exactly a value you have to be able to read. */
 .C_YUI_FORM input.input[readonly] {
     background-color: var(--bulma-background, #f5f5f5);
-    color: var(--bulma-text-weak, #7a7a7a);
+    color: var(--bulma-text, #2e333d);
     border-color: var(--bulma-border, #dbdbdb);
     cursor: default;
 }

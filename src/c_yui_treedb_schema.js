@@ -547,7 +547,7 @@ function build_graph(gobj)
     let data = schema_to_graph(gobj);
     if(data.nodes.length === 0) {
         let $empty = createElement2(
-            ['div', {class: 'TREEDB_SCHEMA_EMPTY p-4 has-text-grey',
+            ['div', {class: 'TREEDB_SCHEMA_EMPTY p-4 yui-text-quiet',
                      i18n: 'no topics'}, t('no topics', {defaultValue: 'No topics'})]
         );
         $container.appendChild($empty);

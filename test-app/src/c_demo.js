@@ -405,7 +405,7 @@ function ac_open_prefs(gobj, event, kw, src)
 
     let $content = createElement2(
         ["div", {class: "DEMO_PREFS content", style: "min-width:16rem;"}, [
-            ["p", {class: "is-size-6 mb-3 has-text-grey", i18n: "prefs hint"},
+            ["p", {class: "is-size-6 mb-3 yui-text-quiet", i18n: "prefs hint"},
                 "prefs hint"],
             ["div", {class: "DEMO_PREFS_ROW field"}, [
                 ["label", {class: "checkbox"}, [
@@ -445,14 +445,14 @@ function ac_about(gobj, event, kw, src)
 
     /*  A package name is DATA (no i18n key); the version is monospaced. */
     let row = (name, version) => ["tr", {}, [
-        ["td", {class: "has-text-grey pr-4", style: "white-space:nowrap;"}, name],
+        ["td", {class: "yui-text-quiet pr-4", style: "white-space:nowrap;"}, name],
         ["td", {class: "has-text-weight-medium"},
             [["code", {}, version]]]
     ]];
 
     let $content = createElement2(
         ["div", {class: "DEMO_ABOUT content", style: "min-width:16rem;"}, [
-            ["p", {class: "is-size-6 mb-3 has-text-grey", i18n: "Packages and versions"},
+            ["p", {class: "is-size-6 mb-3 yui-text-quiet", i18n: "Packages and versions"},
                 "Packages and versions"],
             ["table", {class: "table is-narrow"}, [
                 ["tbody", {}, __PKG_VERSIONS__.map((pkg) => row(pkg.name, pkg.version))]

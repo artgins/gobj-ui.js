@@ -297,7 +297,7 @@ function build_ui(gobj)
             ["div", {class: "DEMO_FORM_HOST box p-2",
                      style: "max-width:640px;"}, []],
             ["div", {class: "DEMO_FORM_RESULT", style: "max-width:640px;"}, [
-                ["p", {class: "is-size-7 has-text-grey mb-1",
+                ["p", {class: "is-size-7 yui-text-quiet mb-1",
                        i18n: "Last saved record:"}, "Last saved record:"],
                 ["pre", {class: "DEMO_FORM_JSON is-size-7",
                          style: "max-width:640px; overflow:auto;"},

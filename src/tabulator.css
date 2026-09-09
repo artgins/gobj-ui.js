@@ -227,9 +227,16 @@
     border-color: var(--bulma-link-on-scheme, var(--bulma-link, #4a9eff));
 }
 
-[data-theme=dark] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
-[data-theme=dark] .tabulator .tabulator-header .tabulator-header-filter input::placeholder {
-    color: var(--bulma-text-weak, #8a8f98);
+/*  Tabulator's inputs are bare `input`s, so Bulma's placeholder colour
+ *  never reaches them: in the light scheme they were left at the
+ *  BROWSER's default (3.09:1) and in the dark one they were painted
+ *  with `--bulma-text-weak` (4.07). One rule for every scheme, the same
+ *  70% of the text colour the rest of the library uses -- `filter
+ *  column…` is what says what that box does.  */
+.tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
+.tabulator .tabulator-header .tabulator-header-filter input::placeholder {
+    color: hsla(var(--bulma-text-h), var(--bulma-text-s), var(--bulma-text-strong-l), 0.7);
+    opacity: 1;
 }
 
 /* ====================================================================
@@ -374,10 +381,6 @@
         color: var(--bulma-text-strong, #f5f6f7) !important;
         caret-color: var(--bulma-text-strong, #f5f6f7);
         border-color: var(--bulma-link-on-scheme, var(--bulma-link, #4a9eff));
-    }
-    [data-theme=system] .tabulator-row .tabulator-cell.tabulator-editing input::placeholder,
-    [data-theme=system] .tabulator .tabulator-header .tabulator-header-filter input::placeholder {
-        color: var(--bulma-text-weak, #8a8f98);
     }
     /*  same furniture-not-editor rule as [data-theme=dark] above  */
     [data-theme=system] .tabulator .tabulator-header .tabulator-col .tabulator-header-filter input,

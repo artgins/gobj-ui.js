@@ -268,7 +268,7 @@ function build_body(shell, t)
      *  every keystroke, is what repaints it.  */
     let $count_n = createElement2(["span", {class: "ROUTEMAP_COUNT_N"}, ""]);
     let $count = createElement2(
-        ["span", {class: "ROUTEMAP_COUNT is-size-7 has-text-grey is-hidden"},
+        ["span", {class: "ROUTEMAP_COUNT is-size-7 yui-text-quiet is-hidden"},
             [$count_n]]
     );
     /*  References are hidden by default and revealed by this toggle.

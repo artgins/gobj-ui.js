@@ -319,7 +319,7 @@ function build_ui(gobj)
                  style: "height:100%; display:flex; flex-direction:column; min-height:0;"}, [
             ["div", {class: "SCHEMA_TOOLBAR is-flex is-align-items-center",
                      style: "gap:.25rem; padding:.25rem;"}, []],
-            ["div", {class: "SCHEMA_NOTICE p-4 has-text-grey is-hidden"}, []],
+            ["div", {class: "SCHEMA_NOTICE p-4 yui-text-quiet is-hidden"}, []],
             ["div", {class: "SCHEMA_BODY", style: "flex:1 1 auto; min-height:0; overflow:auto;"}, []]
         ]]
     );
@@ -721,7 +721,7 @@ function show_notice(gobj, key, detail)
     ));
     if(detail) {
         $notice.appendChild(createElement2(
-            ["span", {class: "SCHEMA_NOTICE_DETAIL has-text-grey ml-2"}, `${detail}`]
+            ["span", {class: "SCHEMA_NOTICE_DETAIL yui-text-quiet ml-2"}, `${detail}`]
         ));
     }
 }
@@ -800,7 +800,7 @@ function render_toolbar(gobj)
         $trail.push(["span", {class: "SCHEMA_CRUMB_SEP"}, "/"]);
         $trail.push(["span", {class: "SCHEMA_CRUMB_DIAGRAM", i18n: "diagram"}, t("diagram")]);
     }
-    $left.push(["nav", {class: "SCHEMA_CRUMBS is-size-7 has-text-grey ml-1"}, $trail]);
+    $left.push(["nav", {class: "SCHEMA_CRUMBS is-size-7 yui-text-quiet ml-1"}, $trail]);
 
     /*----------------------------------------------*
      *  Right: what is legal HERE. A button that is not
@@ -1061,7 +1061,7 @@ function render_topics(gobj, $body)
                                 i18n: "system"}, t("system")]
                     : ["span", {}, ""],
                 ambiguous
-                    ? ["div", {class: "SCHEMA_TOPIC_ID is-size-7 has-text-grey"},
+                    ? ["div", {class: "SCHEMA_TOPIC_ID is-size-7 yui-text-quiet"},
                         [["code", {}, `${topic.id}`]]]
                     : ["span", {}, ""]
             ]],
@@ -1215,7 +1215,7 @@ function render_columns(gobj, $body)
 
     if(topic.cols.length === 0) {
         $wrap.appendChild(createElement2(
-            ["p", {class: "SCHEMA_COLUMNS_EMPTY has-text-grey p-3",
+            ["p", {class: "SCHEMA_COLUMNS_EMPTY yui-text-quiet p-3",
                    i18n: "this topic has no column"}, t("this topic has no column")]
         ));
     }
@@ -1320,12 +1320,12 @@ function column_row(gobj, topic, col, index, readonly, twice)
         ["tr", {class: "SCHEMA_COL_ROW", "data-index": `${index}`,
                 draggable: readonly ? "false" : "true"}, [
             ["td", {class: "SCHEMA_COL_HANDLE"},
-                readonly ? [] : [["span", {class: "icon has-text-grey"},
+                readonly ? [] : [["span", {class: "icon yui-text-quiet"},
                     [["i", {class: "yi-grip-vertical"}]]]]],
             ["td", {class: "SCHEMA_COL_NAME"}, [
                 ["code", {}, `${col.name}`],
                 ambiguous
-                    ? ["span", {class: "SCHEMA_COL_ID is-size-7 has-text-grey ml-2"},
+                    ? ["span", {class: "SCHEMA_COL_ID is-size-7 yui-text-quiet ml-2"},
                         [["code", {}, `${col.id}`]]]
                     : ["span", {}, ""],
                 is_pkey
@@ -1640,7 +1640,7 @@ function flags_field(gobj, type, current)
     for(let group of grouped_flags(type, current)) {
         let $boxes = group.flags.map((flag) => {
             return ["label", el_attrs({class: "SCHEMA_FLAG checkbox " +
-                                     (flag.meaningful ? "" : "SCHEMA_FLAG_DIM has-text-grey-light"),
+                                     (flag.meaningful ? "" : "SCHEMA_FLAG_DIM yui-text-quiet-light"),
                               title: flag.desc ? t(flag.desc) : "",
                               "data-i18n-title": flag.desc || undefined}), [
                 ["input", el_attrs({type: "checkbox", class: "SCHEMA_FLAG_BOX",
@@ -1651,7 +1651,7 @@ function flags_field(gobj, type, current)
         });
 
         $groups.push(["div", {class: "SCHEMA_FLAG_GROUP mb-2"}, [
-            ["p", {class: "SCHEMA_FLAG_GROUP_NAME has-text-weight-semibold has-text-grey",
+            ["p", {class: "SCHEMA_FLAG_GROUP_NAME has-text-weight-semibold yui-text-quiet",
                    i18n: group.group}, t(group.group)],
             ["div", {class: "SCHEMA_FLAG_LIST"}, $boxes]
         ]]);
@@ -2109,7 +2109,7 @@ function render_import_plan(gobj, plan)
 
     $pane.appendChild(createElement2(
         ["div", {class: "SCHEMA_IMPORT_SUMMARY"}, [
-            ["p", {class: "SCHEMA_IMPORT_COUNT is-size-7 has-text-grey mb-2"}, [
+            ["p", {class: "SCHEMA_IMPORT_COUNT is-size-7 yui-text-quiet mb-2"}, [
                 ["span", {i18n: "writes"}, t("writes")],
                 ["span", {class: "ml-1"}, `${plan.writes.length}`],
                 ["span", {class: "ml-3", i18n: "deletions"}, t("deletions")],

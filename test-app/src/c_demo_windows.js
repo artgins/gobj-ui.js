@@ -163,7 +163,7 @@ function spawn_window(gobj)
             body: ['div', {class: 'p-3'}, [
                 ['p', {class: 'mb-2'},
                     t("A plain C_YUI_WINDOW. Drag the titlebar, resize the edges.")],
-                ['p', {class: 'is-size-7 has-text-grey'},
+                ['p', {class: 'is-size-7 yui-text-quiet'},
                     t("Minimize docks it as a chip; a press raises it; the x closes it.")]
             ]],
             x: x,
@@ -216,12 +216,12 @@ function build_ui(gobj)
                     }
                 }]
             ]],
-            ["p", {class: "DEMO_WINDOWS_DOCK_LABEL is-size-7 has-text-grey mb-1",
+            ["p", {class: "DEMO_WINDOWS_DOCK_LABEL is-size-7 yui-text-quiet mb-1",
                    i18n: "Dock (minimized windows land here):"},
                 "Dock (minimized windows land here):"],
             ["div", {class: "DEMO_WINDOWS_DOCK box p-2 mb-2",
                      style: "min-height:3rem;"}, []],
-            ["p", {class: "DEMO_WINDOWS_RESULT is-size-7 has-text-grey"}, "—"]
+            ["p", {class: "DEMO_WINDOWS_RESULT is-size-7 yui-text-quiet"}, "—"]
         ]]
     );
 

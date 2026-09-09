@@ -439,7 +439,7 @@ function render_raw(gobj)
     let description = gobj_read_attr(gobj, "description");
     if(description === null || description === undefined) {
         $raw.appendChild(createElement2(
-            ['div', {class: 'GCLASS_EMPTY p-4 has-text-grey',
+            ['div', {class: 'GCLASS_EMPTY p-4 yui-text-quiet',
                      i18n: 'no data'}, t("no data")]));
         return;
     }
@@ -450,7 +450,7 @@ function render_raw(gobj)
     ];
     if(dump.capped) {
         children.push(
-            ['div', {class: 'GCLASS_RAW_CAPPED has-text-grey is-size-7 p-2',
+            ['div', {class: 'GCLASS_RAW_CAPPED yui-text-quiet is-size-7 p-2',
                      i18n: 'text truncated'}, t("text truncated")]);
     }
     if(dump.error) {
@@ -484,7 +484,7 @@ function render_zones(gobj)
     let model = priv.model;
     if(!model) {
         $zones.appendChild(createElement2(
-            ['div', {class: 'GCLASS_EMPTY p-4 has-text-grey',
+            ['div', {class: 'GCLASS_EMPTY p-4 yui-text-quiet',
                      i18n: 'no data'}, t("no data")]));
         return;
     }

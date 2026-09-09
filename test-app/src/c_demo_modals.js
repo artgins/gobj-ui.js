@@ -232,7 +232,7 @@ function build_ui(gobj)
             ["div", {class: "DEMO_HEAD"}, head],
             ["div", {class: "DEMO_MODALS_TRIGGERS buttons"},
                 trigger_buttons(TRIGGERS)],
-            ["p", {class: "DEMO_MODALS_RESULT is-size-7 has-text-grey"}, "—"]
+            ["p", {class: "DEMO_MODALS_RESULT is-size-7 yui-text-quiet"}, "—"]
         ]]
     );
 

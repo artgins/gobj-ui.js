@@ -1055,7 +1055,7 @@ function build_days_grid(gobj, view, locale)
     }
     for(let i = 0; i < 7; i++) {
         let d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-        $dow.push(["div", {class: "has-text-centered is-size-7 has-text-grey YUI_PERIOD_CAL_DOW"},
+        $dow.push(["div", {class: "has-text-centered is-size-7 yui-text-quiet YUI_PERIOD_CAL_DOW"},
             new Intl.DateTimeFormat(locale, {weekday: "narrow"}).format(d)]);
     }
     $rows.push(["div", {class: "YUI_PERIOD_CAL_WEEK",
@@ -1073,7 +1073,7 @@ function build_days_grid(gobj, view, locale)
             let wk = iso_week(monday).week;
             let wk_name = t("week {{n}}", {n: wk});
             let $wk = createElement2(
-                ["button", {class: "button is-small is-ghost is-size-7 has-text-grey " +
+                ["button", {class: "button is-small is-ghost is-size-7 yui-text-quiet " +
                                    "YUI_PERIOD_CAL_WEEKNUM",
                             type: "button", style: "width:100%;",
                             title: wk_name, "aria-label": wk_name}, String(wk)]);
@@ -1093,7 +1093,7 @@ function build_days_grid(gobj, view, locale)
             let $btn = cell_button(gobj, d.getDate(), ts, selected, "YUI_PERIOD_CAL_DAY",
                                    day_name.format(d));
             if(d.getMonth() !== view.getMonth()) {
-                $btn.classList.add("has-text-grey-light");
+                $btn.classList.add("yui-text-quiet-light");
             }
             if(day_number(d) === today) {
                 $btn.classList.add("has-text-weight-bold", "YUI_PERIOD_CAL_TODAY_CELL");

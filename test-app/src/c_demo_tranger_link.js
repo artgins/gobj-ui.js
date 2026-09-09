@@ -242,7 +242,7 @@ function render(gobj)
     let $body = $c.querySelector(".TRANGER_BODY");
     if(!priv.mode) {
         $body.replaceChildren(createElement2(
-            ["p", {class: "TRANGER_EMPTY has-text-grey",
+            ["p", {class: "TRANGER_EMPTY yui-text-quiet",
                    i18n: "pick how to read this topic"},
                 "Pick how to read this topic."]
         ));

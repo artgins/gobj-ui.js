@@ -169,7 +169,7 @@ function build_ui(gobj)
         ["div", {class: "C_DEMO_WIZARD DEMO_CARD view-card"}, [
             ["div", {class: "DEMO_HEAD"}, head],
             ["div", {class: "DEMO_WIZARD_HOLDER box p-2", style: "max-width:560px;"}, []],
-            ["p", {class: "DEMO_WIZARD_RESULT is-size-7 has-text-grey"}, "—"]
+            ["p", {class: "DEMO_WIZARD_RESULT is-size-7 yui-text-quiet"}, "—"]
         ]]
     );
     gobj_write_attr(gobj, "$container", $c);

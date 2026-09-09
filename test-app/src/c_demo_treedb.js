@@ -282,7 +282,7 @@ function build_ui(gobj)
             ["div", {class: "DEMO_HEAD"}, head],
             ["div", {class: "DEMO_TREEDB_HOST box p-2"}, []],
             ["div", {class: "DEMO_TREEDB_RESULT"}, [
-                ["p", {class: "is-size-7 has-text-grey mb-1",
+                ["p", {class: "is-size-7 yui-text-quiet mb-1",
                        i18n: "Last published record event:"}, "Last published record event:"],
                 ["pre", {class: "DEMO_TREEDB_JSON is-size-7",
                          style: "overflow:auto;"},

@@ -110,7 +110,7 @@ export function yui_graph_camera_items(gobj, graph, wide)
     return [
         camera_button(gobj, "yi-magnifying-glass-plus", "EV_ZOOM_IN", "zoom in", wide),
         camera_button(gobj, "yi-magnifying-glass-minus", "EV_ZOOM_OUT", "zoom out", wide),
-        ['span', {class: 'GRAPH_ZOOM_LEVEL is-flex is-align-items-center px-2 has-text-grey',
+        ['span', {class: 'GRAPH_ZOOM_LEVEL is-flex is-align-items-center px-2 yui-text-quiet',
                   style: 'font-size:.85rem; min-width:3.5em; justify-content:center;',
                   title: t('zoom level'), 'data-i18n-title': 'zoom level'},
          yui_graph_zoom_text(graph)],
