@@ -31,7 +31,7 @@ import * as gobj_js from "@yuneta/gobj-js";
 
 import {log_signature, log_is_periodic} from "./dev_machine_trace.js";
 
-import i18next from 'i18next';
+import i18next, {t} from 'i18next';
 
 /***********************************************************************
  *          Traffic model (bounded ring buffer)
@@ -62,14 +62,18 @@ const TRAFFIC_TS_FIELDS = {
 };
 
 /*  Trace toggles: [localStorage key, display label, handler]. */
+/*  `data-label` carries the i18n KEY and not the text: the chips are
+ *  repainted from it by `refresh_dev_chrome()` on every toggle, so a
+ *  label translated once at build time would come back in English at
+ *  the first click.  */
 const TRACE_DEFS = [
-    ["trace_automata",      "Automata",      trace_automata],
-    ["trace_creation",      "Creation",      trace_creation],
-    ["trace_start_stop",    "Start/Stop",    trace_start_stop],
-    ["trace_subscriptions", "Subscriptions", trace_subscriptions],
-    ["trace_i18n",          "I18n",          trace_i18n],
-    ["trace_traffic",       "Traffic",       trace_traffic],
-    ["no_poll",             "No Poll",       set_no_poll],
+    ["trace_automata",      "automata",      trace_automata],
+    ["trace_creation",      "creation",      trace_creation],
+    ["trace_start_stop",    "start / stop",  trace_start_stop],
+    ["trace_subscriptions", "subscriptions", trace_subscriptions],
+    ["trace_i18n",          "i18n",          trace_i18n],
+    ["trace_traffic",       "traffic",       trace_traffic],
+    ["no_poll",             "no poll",       set_no_poll],
 ];
 
 
@@ -703,7 +707,10 @@ function traffic_bullets(obj)
 /*  A small mute affordance that silences this signature (persistent). */
 function mute_button(sig)
 {
-    return ['button', {class: 'TRAFFIC_MUTE', type: 'button', title: 'Mute ' + sig}, '⊘', {
+    /*  `t('mute this message')` and not `'Mute ' + sig`: a composed
+     *  title is no i18n key, and the row already says which message.  */
+    return ['button', {class: 'TRAFFIC_MUTE', type: 'button',
+        title: t('mute this message'), 'data-i18n-title': 'mute this message'}, '⊘', {
         click: (ev) => {
             ev.stopPropagation();
             ev.preventDefault();
@@ -1328,7 +1335,7 @@ function refresh_dev_chrome()
 {
     document.querySelectorAll('.YDEV_CHIP[data-trace]').forEach(($b) => {
         let key = $b.getAttribute('data-trace');
-        let label = $b.getAttribute('data-label') || '';
+        let label = t($b.getAttribute('data-label') || '');
         let v = dev_num(key, 0);
         $b.textContent = (key === "trace_automata" && v > 0) ? (label + " " + v) : label;
         $b.classList.toggle('is-active', v > 0);
@@ -1373,11 +1380,13 @@ function refresh_dev_chrome()
         if(set.size) {
             let $lbl = document.createElement('span');
             $lbl.className = 'YDEV_LABEL';
-            $lbl.textContent = 'Muted';
+            $lbl.textContent = t('muted');
+            $lbl.setAttribute('data-i18n', 'muted');
             $m.appendChild($lbl);
             set.forEach((sig) => {
                 $m.appendChild(createElement2(
-                    ['button', {class: 'YDEV_MUTED_CHIP', type: 'button', title: 'Unmute'},
+                    ['button', {class: 'YDEV_MUTED_CHIP', type: 'button',
+                        title: t('unmute'), 'data-i18n-title': 'unmute'},
                         '⊘ ' + sig + '  ✕', {
                         click: (ev) => {
                             ev.stopPropagation();
@@ -1457,9 +1466,10 @@ function dev_fallback_copy(text)
  *  periodic filters, free-text search, copy, clear. Returns an element. */
 function build_control_bar()
 {
-    let trace_chips = TRACE_DEFS.map(([key, label, fn]) => ['button', {
-        class: 'YDEV_CHIP', 'data-trace': key, 'data-label': label, type: 'button',
-    }, label, {
+    let trace_chips = TRACE_DEFS.map(([key, label_key, fn]) => ['button', {
+        class: 'YDEV_CHIP', 'data-trace': key, 'data-label': label_key,
+        'data-i18n': label_key, type: 'button',
+    }, t(label_key), {
         click: (ev) => {
             ev.stopPropagation();
             fn();
@@ -1471,10 +1481,9 @@ function build_control_bar()
      *  emitted while Automata is on. */
     let simple_mach = ['button', {
         class: 'YDEV_CHIP', 'data-toggle': 'automata-simple', type: 'button',
-        title: 'Machine trace shape. On (default): one line per transition, ' +
-            'event first, like the C kernel. Off: the legacy three-line shape ' +
-            '(the call, the state change and the return)',
-    }, 'Simple mach', {
+        title: t('machine trace shape'), 'data-i18n-title': 'machine trace shape',
+        'data-i18n': 'simple mach',
+    }, t('simple mach'), {
         click: (ev) => {
             ev.stopPropagation();
             let v = dev_simple_mach() ? 0 : 1;
@@ -1484,7 +1493,8 @@ function build_control_bar()
         }
     }];
 
-    let mk_view = (v, label) => ['button', {class: 'YDEV_SEG_BTN', 'data-view': v, type: 'button'}, label, {
+    let mk_view = (v, label) => ['button', {class: 'YDEV_SEG_BTN', 'data-view': v,
+                                            'data-i18n': label, type: 'button'}, t(label), {
         click: (ev) => {
             ev.stopPropagation();
             set_view(v);
@@ -1492,53 +1502,62 @@ function build_control_bar()
     }];
 
     let view_seg = ['div', {class: 'YDEV_SEG', id: 'ydev-seg'}, [
-        mk_view('detailed', 'Detailed'),
-        mk_view('full', 'Expanded'),
-        mk_view('compact', 'Compact'),
-        mk_view('name', 'Name only'),
+        mk_view('detailed', 'detailed'),
+        mk_view('full', 'expanded'),
+        mk_view('compact', 'compact'),
+        mk_view('name', 'name only'),
     ]];
 
     /*  Output routing: send traffic + all logs + automata to the dev window,
      *  the browser console, or both. */
     let OUT_TITLES = {
-        window:  'Dev window only (browser console stays clean)',
-        console: 'Browser console only (nothing shown in this window)',
-        both:    'Dev window and browser console',
+        window:  'dev window only',
+        console: 'browser console only',
+        both:    'dev window and browser console',
     };
     let mk_out = (v, label) => ['button', {
-        class: 'YDEV_SEG_BTN', 'data-output': v, type: 'button', title: OUT_TITLES[v],
-    }, label, {
+        class: 'YDEV_SEG_BTN', 'data-output': v, type: 'button',
+        title: t(OUT_TITLES[v]), 'data-i18n-title': OUT_TITLES[v],
+        'data-i18n': label,
+    }, t(label), {
         click: (ev) => {
             ev.stopPropagation();
             set_output_route(v);
         }
     }];
     let output_seg = ['div', {class: 'YDEV_SEG', id: 'ydev-output'}, [
-        mk_out('window', 'Window'),
-        mk_out('console', 'Console'),
-        mk_out('both', 'Both'),
+        mk_out('window', 'window'),
+        mk_out('console', 'console'),
+        mk_out('both', 'both'),
     ]];
 
     /*  Expanded-view section toggles (only meaningful in the 'full' view;
      *  the group is shown/hidden by refresh_dev_chrome). */
+    /*  The title says WHAT it does and not which section: composing
+     *  `'Show ' + label + '...'` gives a string that is no i18n key, so
+     *  it could never re-translate -- and the button's own label is the
+     *  section anyway.  */
     let mk_expand = (key, label) => ['button', {
         class: 'YDEV_CHIP', 'data-expand': key, type: 'button',
-        title: 'Show ' + label + ' in the Expanded view',
-    }, label, {
+        title: t('show this section in the expanded view'),
+        'data-i18n-title': 'show this section in the expanded view',
+        'data-i18n': label,
+    }, t(label), {
         click: (ev) => {
             ev.stopPropagation();
             toggle_pref(key, (key === 'dev_full_data') ? 1 : 0);
         }
     }];
     let expand_grp = ['div', {class: 'YDEV_GROUP', id: 'ydev-expand-grp'}, [
-        ['span', {class: 'YDEV_LABEL'}, 'Expand'],
-        mk_expand('dev_full_schema', 'Schema'),
-        mk_expand('dev_full_data', 'Data'),
-        mk_expand('dev_full_meta', 'Metadata'),
+        ['span', {class: 'YDEV_LABEL', 'data-i18n': 'expand'}, t('expand')],
+        mk_expand('dev_full_schema', 'schema'),
+        mk_expand('dev_full_data', 'data'),
+        mk_expand('dev_full_meta', 'metadata'),
     ]];
 
     let mk_dir = (dir, glyph, key, title) => ['button', {
-        class: 'YDEV_CHIP s-' + dir, 'data-dir': key, type: 'button', title: title,
+        class: 'YDEV_CHIP s-' + dir, 'data-dir': key, type: 'button',
+        title: t(title), 'data-i18n-title': title,
     }, glyph, {
         click: (ev) => {
             ev.stopPropagation();
@@ -1547,16 +1566,23 @@ function build_control_bar()
     }];
 
     let dir_chips = [
-        mk_dir('out', '⇢', 'dev_filter_out', 'Outgoing'),
-        mk_dir('in', '⇠', 'dev_filter_in', 'Incoming'),
-        mk_dir('err', '⚠', 'dev_filter_err', 'Errors'),
+        mk_dir('out', '⇢', 'dev_filter_out', 'outgoing'),
+        mk_dir('in', '⇠', 'dev_filter_in', 'incoming'),
+        mk_dir('err', '⚠', 'dev_filter_err', 'errors'),
     ];
 
     let periodic_chip = ['button', {
         class: 'YDEV_CHIP', 'data-toggle': 'periodic', type: 'button',
-        title: 'Hide the timers: EV_TIMEOUT / PERIODIC / HEARTBEAT / PING ' +
-            'transitions, and recurring traffic. On by default',
-    }, '⊘ Periodic', {
+        title: t('hide the timers and the recurring traffic'),
+        'data-i18n-title': 'hide the timers and the recurring traffic',
+    }, [
+        /*  The glyph is its own element so the label beside it can carry
+         *  its key: `refresh_language()` replaces the FIRST text node of
+         *  the element that carries `data-i18n`, and that would have
+         *  eaten the glyph with the word.  */
+        ['span', {class: 'YDEV_GLYPH'}, '⊘'],
+        ['span', {'data-i18n': 'periodic'}, t('periodic')]
+    ], {
         click: (ev) => {
             ev.stopPropagation();
             toggle_pref('dev_hide_periodic', HIDE_PERIODIC_DEFAULT);
@@ -1564,7 +1590,9 @@ function build_control_bar()
     }];
 
     let search = ['input', {
-        class: 'YDEV_SEARCH', type: 'search', placeholder: 'filter events / payload…', 'data-role': 'search',
+        class: 'YDEV_SEARCH', type: 'search', 'data-role': 'search',
+        placeholder: t('filter events / payload'),
+        'data-i18n-placeholder': 'filter events / payload',
     }, '', {
         input: (ev) => {
             SEARCH_TEXT = String(ev.target.value || '').toLowerCase().trim();
@@ -1572,35 +1600,42 @@ function build_control_bar()
         }
     }];
 
-    let copy = ['button', {class: 'YDEV_CHIP', type: 'button', title: 'Copy visible traffic to clipboard'}, 'Copy', {
+    let copy = ['button', {class: 'YDEV_CHIP', type: 'button',
+        title: t('copy visible traffic to clipboard'),
+        'data-i18n-title': 'copy visible traffic to clipboard',
+        'data-i18n': 'copy'}, t('copy'), {
         click: (ev) => {
             ev.stopPropagation();
             let btn = ev.currentTarget;
             dev_copy_text(traffic_to_text()).then(() => {
                 let prev = btn.textContent;
-                btn.textContent = 'Copied';
+                btn.textContent = t('copied');
                 setTimeout(() => { btn.textContent = prev; }, 1000);
             });
         }
     }];
 
-    let clear = ['button', {class: 'YDEV_CHIP', type: 'button', title: 'Clear captured traffic'}, 'Clear', {
+    let clear = ['button', {class: 'YDEV_CHIP', type: 'button',
+        title: t('clear captured traffic'),
+        'data-i18n-title': 'clear captured traffic',
+        'data-i18n': 'clear'}, t('clear'), {
         click: (ev) => {
             ev.stopPropagation();
             clear_traffic();
         }
     }];
 
-    let grp = (label, items) => ['div', {class: 'YDEV_GROUP'}, [['span', {class: 'YDEV_LABEL'}, label], ...items]];
+    let grp = (label, items) => ['div', {class: 'YDEV_GROUP'},
+        [['span', {class: 'YDEV_LABEL', 'data-i18n': label}, t(label)], ...items]];
     let sep = () => ['span', {class: 'YDEV_SEP'}, ''];
 
     return createElement2(['div', {class: 'YDEV_BAR'}, [
-        grp('Traces', [...trace_chips, simple_mach]), sep(),
-        grp('Output', [output_seg]), sep(),
-        grp('View', [view_seg]), expand_grp, sep(),
-        grp('Show', [...dir_chips, periodic_chip]), sep(),
-        grp('Find', [search]), sep(),
-        grp('Log', [copy, clear]),
+        grp('traces', [...trace_chips, simple_mach]), sep(),
+        grp('output', [output_seg]), sep(),
+        grp('view', [view_seg]), expand_grp, sep(),
+        grp('show', [...dir_chips, periodic_chip]), sep(),
+        grp('find', [search]), sep(),
+        grp('log', [copy, clear]),
     ]]);
 }
 
@@ -1608,8 +1643,9 @@ function build_control_bar()
 function build_title_header()
 {
     return createElement2(['div', {class: 'YDEV_TITLE'}, [
-        ['span', {class: 'YDEV_TITLE_MAIN'}, 'Developer'],
-        ['span', {class: 'YDEV_TITLE_SUB'}, 'yuno monitor · traffic & traces'],
+        ['span', {class: 'YDEV_TITLE_MAIN', 'data-i18n': 'developer'}, t('developer')],
+        ['span', {class: 'YDEV_TITLE_SUB', 'data-i18n': 'yuno monitor'},
+         t('yuno monitor')],
     ]]);
 }
 
@@ -1710,7 +1746,7 @@ function setup_dev(self, show)
                 showFooter: false,
                 auto_save_size_and_position: true,
                 center: false,
-                title: "Developer",
+                title: "developer",
                 icon: "yi-terminal",
                 /*  Opt into the dock/taskbar if the app provides one. `|| null`
                  *  because gobj_find_service returns undefined when absent, and

@@ -5,6 +5,33 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.113
+
+- **The Developer window speaks the app's language.** `yui_dev.js` had no
+  i18n at all: its ~30 strings — the trace chips, the view and output
+  selectors, the direction filters, the search placeholder, the copy and
+  clear buttons, the muted row and the window's own title — were English
+  literals. A debugging tool is still a tool somebody reads.
+- Two details make it re-translate rather than translate once:
+  - `TRACE_DEFS` carries the i18n KEY where it carried the label, because
+    `refresh_dev_chrome()` repaints those chips from `data-label` on every
+    toggle — a label translated at build time came back in English at the
+    first click;
+  - the two COMPOSED titles are gone. `'Show ' + label + ' in the Expanded
+    view'` and `'Mute ' + sig` are strings that are no i18n key, so they
+    could never re-translate; the button's own label and the row beside it
+    already say which section and which message.
+  - the `⊘ Periodic` chip is a glyph span plus a labelled span:
+    `refresh_language()` replaces the FIRST text node of the element that
+    carries `data-i18n`, which would have eaten the glyph with the word.
+- The window's `title` is now the key `developer` — `C_YUI_WINDOW`
+  documents that attr as an i18n KEY, and `"Developer"` only looked right
+  because i18next answers an unknown key with the key itself.
+- Verified in the demo, opening the window and switching language:
+  Traces/Output/View → Trazas/Salida/Vista, the chips
+  Automata/Creation/Start-Stop → Autómata/Creación/Arranque-Parada, the
+  placeholder and the title with them.
+
 ## 7.23.112
 
 - **A sweep of every tooltip the library draws**, looking for the two
