@@ -201,9 +201,12 @@ function ensure_dock_style()
  *  the same hue on itself -- 4.49:1 on the light chip, under the 4.5
  *  its 12px label needs. The label takes the text colour (11:1).  */
 .yui-dock-chip.is-active { border-color: #2563eb; color: var(--bulma-text, #2e333d); background: rgba(37,99,235,0.10); font-weight: 600; }
-/*  A minimised window is quieter, not unreadable: 0.65 is 4.3:1 on the
- *  light scheme for a 12px label.  */
-.yui-dock-chip.is-min { opacity: 0.7; }
+/*  A minimised window is quieter, not unreadable. 0.65 was 4.3:1 for a
+ *  12px label; 0.7 (7.23.95) was measured against the PAGE and is 4.10
+ *  against what the label actually sits on, which is the chip's own
+ *  white. 0.8 is 5.34 / 5.81, and an active chip at 9.45 is still
+ *  plainly the loud one.  */
+.yui-dock-chip.is-min { opacity: 0.8; }
 .yui-dock-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex: 0 0 auto; }
 .yui-dock-chip.is-min .yui-dock-dot { background: var(--bulma-text-weak); }
 .yui-dock-icon { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; font-size: 14px; flex: 0 0 auto; }

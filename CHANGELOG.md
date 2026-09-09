@@ -5,6 +5,39 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.96
+
+Modals, toasts and windows, measured in the states you have to open — each
+kind of confirm, each kind of notice, two windows and one of them minimised:
+
+| overlay | dark | light |
+|---|---|---|
+| confirm: message / buttons | 8.43 / 4.79 | 9.45 / 4.79 |
+| toast: info, warning / error | 10.69 / 7.69 | 10.69 / 7.69 |
+| a window's title / its body | 14.62 / 8.43 | 12.13 / 9.45 |
+| the dock chip of a MINIMISED window | 4.74 | **4.10** |
+
+One failure: the minimised window's chip. `7.23.95` raised it from `0.65` to
+`0.7` — and that number was measured against the PAGE, while the label
+actually sits on the chip's own white: 4.10:1 there. `0.8` is 5.34 / 5.81,
+and an active chip at 9.45 is still plainly the loud one.
+
+Everything else passed. Three findings about the HARNESS rather than the
+library, worth writing down because each one looked like a bug first:
+
+- **A `goto` that only changes the hash does not reload**, so an overlay left
+  open in one measurement was still open in the next — its backdrop swallowed
+  the click, and the modal I was reading was the previous one. Playwright says
+  so in its own log (*"CONFIRM_BACKDROP … intercepts pointer events"*).
+- **`querySelector` with a comma list returns the first element in DOCUMENT
+  order**, not the first match of the first selector: `.modal.is-active,
+  .yui-modal` handed me a hidden modal while the active one was elsewhere.
+- **A window from the previous theme was still floating** over the next pass,
+  for the same hash-navigation reason. A fresh page per theme is the fix.
+
+Which is the whole point of measuring: `yui_shell_show_error` was doing
+exactly what it says, and three probes said otherwise.
+
 ## 7.23.95
 
 The shell and its navigation, swept over the app bar, the side nav, the tabs,
