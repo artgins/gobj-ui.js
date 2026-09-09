@@ -947,6 +947,38 @@ Two things a host does not have to think about but a maintainer does:
 **New keys for consumers: `anchor view`, `click the element to centre on`,
 `centred: click to release`.**
 
+### The camera belongs to the reader
+
+Once somebody has chosen a zoom, nothing changes it but a camera command. Not a
+**refresh**, not a change of **node mode**, not a new **main topic**: those
+rebuild the CONTENT, and content moving is no reason to move the reader. The
+opening frame is the only one the graph picks — a fit, and only for a graph
+nobody has arranged.
+
+Two mechanisms, because the question is not the same in the two cases:
+
+- **Across a rebuild in the same view**, a NODE is held at the pixel it was on:
+  `yui_graph_viewport_of()` before, `yui_graph_place_at()` after — the pair the
+  folds have always used. It keeps the zoom because it only translates, and it
+  survives a relayout that moves everything, which restoring raw coordinates
+  would not.
+- **Across a RELOAD** there is no node to hold on to yet, so the viewport itself
+  is restored: `{zoom, x, y}` as G6 reports them (`getZoom()` + `getPosition()`,
+  the documented pair of `zoomTo()` + `translateTo()`).
+
+Wiring: `C_G6_NODES_TREE` takes a `camera` attr — the viewport to restore on its
+FIRST draw, empty meaning *open fitted* — and publishes **`EV_CAMERA_CHANGED
+{zoom, x, y}`** once a move has settled. The settle is a real time (700 ms of
+the browser's `setTimeout`, not a `C_TIMER`): a wheel notch, a pinch and a drag
+each fire `aftertransform` many times, and what is worth saving is where the
+gesture ENDED. It fires for a PAN as well as a zoom — a pan is the reader's just
+as much. `C_YUI_TREEDB_GRAPH` holds the other half: `camera` is one more
+`SDF_PERSIST` attr of the view, saved under its name like `main_topic`, so the
+graph opens where that treedb was left.
+
+A host that does not care persists nothing and loses nothing: the event carries
+`EVF_NO_WARN_SUBS`, and the attr defaults to empty.
+
 ### Moving the cards, and folding without losing your place
 
 The JSON graph and the gobj tree take `drag-element`: a card can be dragged.

@@ -136,6 +136,7 @@ SDATA(data_type_t.DTP_STRING,   "main_topic",       sdata_flag_t.SDF_PERSIST, ""
 SDATA(data_type_t.DTP_LIST,     "loose_topics",     sdata_flag_t.SDF_PERSIST, "[]", "Topics whose LOOSE records (no parent) are shown. User preference, per treedb"),
 SDATA(data_type_t.DTP_STRING,   "node_mode",        sdata_flag_t.SDF_PERSIST, "expanded", "How the records are drawn: `expanded` = the cards with their pills and ports, `compact` = one-line pills with the name, `shape` = coloured figures, the topology alone. User preference"),
 SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",      sdata_flag_t.SDF_PERSIST, true, "A `shape` node says its name under its figure. User preference"),
+SDATA(data_type_t.DTP_DICT,     "camera",           sdata_flag_t.SDF_PERSIST, "{}", "Where the reader left the viewport: {zoom, x, y}. Handed to the engine on creation and written back when a move settles, so the graph opens where it was left. User preference, per treedb"),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -281,6 +282,7 @@ function mt_create(gobj)
             loose_topics: gobj_read_attr(gobj, "loose_topics") || [],
             node_mode: gobj_read_str_attr(gobj, "node_mode") || "expanded",
             node_labels: gobj_read_bool_attr(gobj, "node_labels"),
+            camera: gobj_read_attr(gobj, "camera") || {},
         },
         gobj
     );
@@ -2889,6 +2891,23 @@ function ac_layout_autoset(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The reader moved the camera, and it has settled.
+ *
+ *  Persisted like every other choice of this toolbar, and for the
+ *  same reason: a zoom is a decision, and a decision that dies with
+ *  the tab has to be taken again every morning. The engine debounces,
+ *  so this runs once per gesture and not once per wheel notch.
+ ************************************************************/
+function ac_camera_changed(gobj, event, kw, src)
+{
+    gobj_write_attr(gobj, "camera", {
+        zoom: kw.zoom, x: kw.x, y: kw.y
+    });
+    gobj_save_persistent_attrs(gobj, "camera");
+    return 0;
+}
+
+/************************************************************
  *  Forward the find down to the graph child.
  ************************************************************/
 function ac_find_nodes(gobj, event, kw, src)
@@ -3128,6 +3147,7 @@ function create_gclass(gclass_name)
             ["EV_SET_NODE_MODE",            ac_set_node_mode,           null],
             ["EV_TOGGLE_NODE_LABELS",       ac_toggle_node_labels,      null],
             ["EV_LAYOUT_AUTOSET",           ac_layout_autoset,          null],
+            ["EV_CAMERA_CHANGED",           ac_camera_changed,          null],
             ["EV_LEGEND_TOPIC",             ac_legend_topic,            null],
             ["EV_LEGEND_STATE",             ac_legend_state,            null],
             ["EV_FIND_RESULT",              ac_find_result,             null],
@@ -3173,6 +3193,7 @@ function create_gclass(gclass_name)
         ["EV_TOGGLE_NODE_LABELS",       0],
         ["EV_FIND_RESULT",              0],
         ["EV_LAYOUT_AUTOSET",           0],
+        ["EV_CAMERA_CHANGED",           0],
         ["EV_LEGEND_TOPIC",             0],
         ["EV_LEGEND_STATE",             0],
         ["EV_TOPIC_SELECTED",

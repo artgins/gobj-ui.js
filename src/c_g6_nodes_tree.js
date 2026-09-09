@@ -70,6 +70,7 @@ import {
     empty_string,
     is_object,
     is_number,
+    empty_json,
     kw_get_int,
     kw_get_str,
     kw_get_dict_value,
@@ -442,6 +443,9 @@ SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",          0,  true,   "A `shape` n
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_unlink_edge",  0,  true,   "Ask confirmation before unlinking an edge"),
 
+/*---------------- Camera ----------------*/
+SDATA(data_type_t.DTP_DICT,     "camera",               0,  "{}",   "Where the reader left the viewport: {zoom, x, y}. Empty = the graph opens fitted. Restored on the FIRST draw and published back as EV_CAMERA_CHANGED once a move settles, so a host can persist it"),
+
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
 
 SDATA_END()
@@ -452,6 +456,9 @@ let PRIVATE_DATA = {
     anchor_id:      "",     // the node the camera keeps in the middle
     anchor_state:   "off",  // "off" | "arming" | "on"
     last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
+    _camera_placed: false,  // the first draw has decided the viewport
+    _camera_restoring: false,   // a move WE made: not the reader's, do not publish it
+    _camera_timer:  null,   // browser timer: the gesture has to END before it is saved
 
     _xy:                100,
     _edge_seq:          0,
@@ -657,9 +664,17 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
     let shell = yui_shell_of(gobj);
     if(shell) {
         gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+
+    /*  A camera move that settles after the view is gone has nobody
+     *  to tell and a graph that is no longer there to read.  */
+    if(priv._camera_timer) {
+        clearTimeout(priv._camera_timer);
+        priv._camera_timer = null;
     }
 
     return 0;
@@ -1035,6 +1050,11 @@ function configure_events(gobj)
         update_link_icon_position(gobj);
         update_port_icon_position(gobj);
         update_zoom_readout(gobj);
+
+        /*  Before the zoom/pan test below and not inside it: a PAN is
+         *  a camera move too, and it is the reader's just as much as
+         *  a zoom is.  */
+        publish_camera_later(gobj);
 
         /*
          *  A ZOOM re-centres on the anchor; a PAN does not.
@@ -3328,6 +3348,106 @@ async function graph_fitview(gobj)
 
 /*  Below this the cards carry no readable text at all. */
 const MIN_READABLE_ZOOM = 0.5;
+
+
+/************************************************************
+ *  THE CAMERA IS THE READER'S.
+ *
+ *  Once somebody has chosen a zoom, nothing but a camera
+ *  command may change it -- not a refresh, not a change of node
+ *  mode, not a new main topic. Those rebuild the CONTENT, and
+ *  the content moving is no reason to move the reader.
+ *
+ *  Two mechanisms, because they answer two different questions:
+ *
+ *    - across a rebuild in the same view, the anchor pair
+ *      (`yui_graph_viewport_of` / `yui_graph_place_at`) keeps a
+ *      NODE at the pixel it was on, which survives a relayout
+ *      that moves everything;
+ *    - across a RELOAD there is no node to hold on to yet, so
+ *      the viewport itself is restored -- zoom and position, as
+ *      G6 reports them.
+ ************************************************************/
+const CAMERA_SETTLE_MS = 700;
+
+function read_camera(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph || typeof graph.getZoom !== "function" || typeof graph.getPosition !== "function") {
+        return null;
+    }
+    try {
+        let z = graph.getZoom();
+        let p = graph.getPosition();
+        if(!is_number(z) || !p || !is_number(p[0]) || !is_number(p[1])) {
+            return null;
+        }
+        return {zoom: z, x: p[0], y: p[1]};
+    } catch(e) {
+        return null;    /*  between renders: there is no camera to read  */
+    }
+}
+
+/*  Returns true when it placed the viewport, so the caller knows
+ *  not to fit.  */
+async function restore_camera(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let cam = gobj_read_attr(gobj, "camera");
+
+    if(!graph || empty_json(cam) || !is_number(cam.zoom)) {
+        return false;
+    }
+    priv._camera_restoring = true;
+    try {
+        await graph.zoomTo(cam.zoom);
+        if(is_number(cam.x) && is_number(cam.y)) {
+            await graph.translateTo([cam.x, cam.y]);
+        }
+        return true;
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot restore the camera: ${e}`);
+        return false;
+    } finally {
+        priv._camera_restoring = false;
+    }
+}
+
+/************************************************************
+ *  A move settled: tell whoever persists it.
+ *
+ *  Debounced on a REAL time and with the browser's timer: a
+ *  wheel notch, a pinch and a drag each fire `aftertransform`
+ *  many times, and what is worth saving is where the gesture
+ *  ENDED. (`set_timeout` from gobj-js is a C_TIMER and shadows
+ *  the global -- this module imports neither.)
+ ************************************************************/
+function publish_camera_later(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv._camera_restoring || !priv._camera_placed) {
+        return;     /*  our own move, or the opening one  */
+    }
+    if(priv._camera_timer) {
+        clearTimeout(priv._camera_timer);
+    }
+    priv._camera_timer = setTimeout(() => {
+        priv._camera_timer = null;
+        if(gobj_is_destroying(gobj)) {
+            return;
+        }
+        let cam = read_camera(gobj);
+        if(!cam) {
+            return;     /*  Error already logged, or nothing to read  */
+        }
+        gobj_write_attr(gobj, "camera", cam);
+        gobj_publish_event(gobj, "EV_CAMERA_CHANGED", cam);
+    }, CAMERA_SETTLE_MS);
+}
 
 /************************************************************
  *  Fit the graph in the viewport, but never zoom out past the point
@@ -9241,11 +9361,26 @@ async function reconcile_fold_apply(gobj, opts, visible)
         await graph_layout(gobj);
     }
 
-    if(opts.fit) {
-        await graph_fit_readable(gobj);
-    } else if(opts.keep && opts.keep_vp) {
-        await yui_graph_place_at(graph, opts.keep, opts.keep_vp);
+    /*  THE VIEWPORT, and only here.
+     *
+     *  `restore` is the reader's saved camera coming back on the
+     *  first draw after a reload; `fit` is the opening frame of a
+     *  graph nobody has looked at yet; `keep` holds a node at the
+     *  pixel it was on across a rebuild. Anything else leaves the
+     *  camera alone, which is the default on purpose: a rebuild of
+     *  the CONTENT is not a reason to move the reader.  */
+    if(!(opts.restore && await restore_camera(gobj))) {
+        if(opts.fit) {
+            await graph_fit_readable(gobj);
+        } else if(opts.keep && opts.keep_vp) {
+            await yui_graph_place_at(graph, opts.keep, opts.keep_vp);
+        }
     }
+    /*  Whichever branch ran -- including none of them, which is a
+     *  graph somebody had arranged and left where it was -- the
+     *  opening viewport is decided from here on, and every move after
+     *  it is the reader's and worth remembering.  */
+    priv._camera_placed = true;
 
     update_resize_handles_position(gobj);
     update_port_resize_handles_position(gobj);
@@ -9484,10 +9619,23 @@ function ac_load_data(gobj, event, kw, src)
          *  nodes are about to be built: settle it first.  */
         apply_layout_direction(gobj);
 
-        /*  A graph laid out by us opens WHOLE (fit). Only when WE laid
-         *  it out — a saved arrangement includes where its owner was
-         *  looking. */
-        reconcile_fold(gobj, {relayout: true, fit: auto_laid}).then(() => {
+        /*  THE FIRST load decides the viewport: the reader's saved
+         *  camera if there is one, else the opening fit -- and only
+         *  when WE laid the graph out, since a saved arrangement
+         *  includes where its owner was looking.
+         *
+         *  Every load AFTER that is a REFRESH, and a refresh must not
+         *  move the camera: the reader asked for fresh data, not for a
+         *  new viewport. It holds a node instead, so the graph does not
+         *  jump even if the layout changed under it.  */
+        let vp_opts;
+        if(!priv._camera_placed) {
+            vp_opts = {restore: true, fit: auto_laid};
+        } else {
+            let keep = fold_keep_node(gobj);
+            vp_opts = {keep: keep, keep_vp: yui_graph_viewport_of(priv.graph, keep)};
+        }
+        reconcile_fold(gobj, Object.assign({relayout: true}, vp_opts)).then(() => {
             sync_history_plugin(gobj);
             /*  Nodes exist and are positioned now: apply a focus
              *  requested before the data was ready (deep link). */
@@ -10160,12 +10308,18 @@ function ac_set_main_topic(gobj, event, kw, src)
     if(!priv._fold_model) {
         return 0;
     }
+    /*  Read BEFORE the model is rebuilt: the node is looked up in the
+     *  tree that is on screen. If the new trunk leaves it out,
+     *  `yui_graph_place_at` finds nothing and the camera simply stays
+     *  where it was -- which is still not a refit.  */
+    let keep = fold_keep_node(gobj);
+    let vp = yui_graph_viewport_of(priv.graph, keep);
     rebuild_fold_model(gobj);
     fold_expand_to_depth(
         priv._fold_model, priv._fold_state,
         gobj_read_integer_attr(gobj, "expand_depth")
     );
-    reconcile_fold(gobj, {relayout: true, fit: true});
+    reconcile_fold(gobj, {relayout: true, keep: keep, keep_vp: vp});
     return 0;
 }
 
@@ -10200,9 +10354,15 @@ function ac_set_node_mode(gobj, event, kw, src)
     if(!priv.graph || !priv._fold_model) {
         return 0;       /*  applied when the records arrive  */
     }
+    /*  The camera is the reader's: a square and a card do not occupy
+     *  the same room, so the graph is laid out again -- and the node
+     *  being read stays at its pixel, at the zoom it was chosen at,
+     *  instead of the whole graph being fitted from scratch.  */
+    let keep = fold_keep_node(gobj);
+    let vp = yui_graph_viewport_of(priv.graph, keep);
     reshape_nodes(gobj, all_record_node_ids(gobj));
     reshape_more_chips(gobj);
-    reconcile_fold(gobj, {relayout: true, fit: true});
+    reconcile_fold(gobj, {relayout: true, keep: keep, keep_vp: vp});
     return 0;
 }
 
@@ -10898,6 +11058,9 @@ function create_gclass(gclass_name)
         ["EV_FIND_NODES",               0],
         ["EV_FIND_RESULT",              event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_LAYOUT_AUTOSET",           event_flag_t.EVF_OUTPUT_EVENT],
+        /*  Optional: a host that does not persist the viewport is not
+         *  doing anything wrong, so no "publish without subscribers".  */
+        ["EV_CAMERA_CHANGED",           event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_TOGGLE_FOLD",              0],
         ["EV_SHOW_MORE",                0],
         ["EV_EXPAND_ALL",               0],

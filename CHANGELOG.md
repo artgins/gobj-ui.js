@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.104
+
+- **The camera belongs to the reader.** Once a zoom is chosen, nothing but a
+  camera command changes it: not a **refresh**, not a change of **node
+  mode**, not a new **main topic**. Those three asked for a full refit, and
+  a refit throws away the one thing the reader had decided — a rebuild of
+  the CONTENT is not a reason to move the reader.
+- Across a rebuild the viewport is held by a NODE, with the pair the folds
+  already used (`yui_graph_viewport_of` / `yui_graph_place_at`): it keeps the
+  zoom because it only translates, and it survives a relayout that moves
+  everything, which restoring raw coordinates would not.
+- **And it survives a reload.** `C_G6_NODES_TREE` takes a `camera` attr —
+  the viewport to restore on its FIRST draw, empty meaning *open fitted* —
+  and publishes `EV_CAMERA_CHANGED {zoom, x, y}` when a move settles;
+  `C_YUI_TREEDB_GRAPH` persists it (`SDF_PERSIST`, under the view's name,
+  like `main_topic`), so a treedb opens where it was left. `{zoom, x, y}` is
+  `getZoom()` + `getPosition()`, the documented pair of `zoomTo()` +
+  `translateTo()`.
+- The settle is a real time and uses the browser's `setTimeout` (700 ms): a
+  wheel notch, a pinch and a drag each fire `aftertransform` many times, and
+  what is worth saving is where the gesture ENDED. It publishes for a PAN as
+  well as a zoom — a pan is the reader's just as much — and never for a move
+  the library itself made.
+- A host that persists nothing loses nothing: `EVF_NO_WARN_SUBS` on the
+  event, empty default on the attr.
+
 ## 7.23.103
 
 - **Two controls, two marks — and telling them apart is the point.** A
