@@ -107,6 +107,7 @@ import {
     kw_get_str,
     kw_get_dict,
     is_object,
+    is_array,
     empty_string,
 } from "@yuneta/gobj-js";
 import {yui_tint} from "./bulma_tint.js";
@@ -1557,6 +1558,17 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
  ***************************************************************/
 function field(logical, name, label, $control, help)
 {
+    /*  The label is a SIBLING of the control -- Bulma's `field` shape --
+     *  so it names it for the eye and for nothing else: no `for`, no
+     *  wrapping, and a reader announces the box as unlabelled. The name
+     *  is put on the control itself, from the label's own key, so the
+     *  two cannot drift and a language change reaches both.  */
+    if(is_array($control) && is_object($control[1]) &&
+            ["input", "select", "textarea"].includes($control[0]) &&
+            !$control[1]["aria-label"]) {
+        $control[1]["aria-label"] = t(label);
+        $control[1]["data-i18n-aria-label"] = label;
+    }
     return ["div", {class: `${logical} field mb-3`}, [
         ["label", {class: "label", i18n: label}, t(label)],
         ["div", {class: "control"}, [$control]],

@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.114
+
+- **Every field of the schema editor's forms has a NAME now.** `field()`
+  draws Bulma's shape — a `<label>` as a SIBLING of the control, with no
+  `for` and no wrapping — so the label named the box for the eye and for
+  nothing else: a screen reader announced every input of the column and
+  topic forms as unlabelled. The name is put on the control itself, from
+  the label's own key, so the two cannot drift and a language change
+  reaches both.
+- Done in `field()` and not field by field: it already receives the key,
+  and one place is also one place to be right. Composite controls (the
+  hook's two selects) are left alone — a name on their wrapper would
+  say nothing.
+
 ## 7.23.113
 
 - **The Developer window speaks the app's language.** `yui_dev.js` had no
