@@ -347,7 +347,7 @@ function toolbar_button(gobj, name)
 {
     switch(name) {
         case "save":
-            return ['button', {class: 'button p-1 button-save', title: 'save', 'aria-label': 'save', disabled: true}, [
+            return ['button', {class: 'button p-1 button-save', title: t('save'), 'data-i18n-title': 'save', 'aria-label': t('save'), 'data-i18n-aria-label': 'save', disabled: true}, [
                 ['span', {class: 'icon m-0'}, '<i class="yi-floppy-disk"></i>'],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'save'}, 'save']
             ], {
@@ -357,7 +357,7 @@ function toolbar_button(gobj, name)
                 }
             }];
         case "undo":
-            return ['button', {class: 'button p-1 button-undo', title: 'undo', 'aria-label': 'undo', disabled: true}, [
+            return ['button', {class: 'button p-1 button-undo', title: t('undo'), 'data-i18n-title': 'undo', 'aria-label': t('undo'), 'data-i18n-aria-label': 'undo', disabled: true}, [
                 ['span', {class: 'icon m-0'}, '<i class="yi-arrow-rotate-left"></i>'],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'undo'}, 'undo']
             ], {
@@ -367,7 +367,7 @@ function toolbar_button(gobj, name)
                 }
             }];
         case "clear":
-            return ['button', {class: 'button p-1 button-clear', title: 'clear', 'aria-label': 'clear'}, [
+            return ['button', {class: 'button p-1 button-clear', title: t('clear'), 'data-i18n-title': 'clear', 'aria-label': t('clear'), 'data-i18n-aria-label': 'clear'}, [
                 ['span', {class: 'icon m-0'}, '<i class="yi-broom-wide"></i>'],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'clear'}, 'clear']
             ], {
@@ -377,7 +377,7 @@ function toolbar_button(gobj, name)
                 }
             }];
         case "copy":
-            return ['button', {class: 'button p-1 button-copy', title: 'copy', 'aria-label': 'copy'}, [
+            return ['button', {class: 'button p-1 button-copy', title: t('copy'), 'data-i18n-title': 'copy', 'aria-label': t('copy'), 'data-i18n-aria-label': 'copy'}, [
                 ['span', {class: 'icon m-0'}, '<i class="yi-copy"></i>'],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'copy'}, 'copy']
             ], {click: function(evt) {
@@ -386,7 +386,7 @@ function toolbar_button(gobj, name)
                 }
             }];
         case "paste":
-            return ['button', {class: 'button p-1 button-paste', title: 'paste', 'aria-label': 'paste'}, [
+            return ['button', {class: 'button p-1 button-paste', title: t('paste'), 'data-i18n-title': 'paste', 'aria-label': t('paste'), 'data-i18n-aria-label': 'paste'}, [
                 ['span', {class: 'icon m-0'}, '<i class="yi-paste"></i>'],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'paste'}, 'paste']
             ], {click: async function(evt) {
@@ -2011,7 +2011,10 @@ function template2columns(gobj, columns, template, sub_elements)
                     format: "dd/MM/yyyy hh:mm", // the format of the date value stored in the cell
                     verticalNavigation: "table", //navigate cursor around table without changing the value
                     elementAttributes: {
-                        title:"slide bar to choose option" // custom tooltip
+                        /*  Tabulator writes this attribute once, when the
+                         *  editor opens, so it is translated then -- which
+                         *  is also when it is read.  */
+                        title: t("slide bar to choose option")
                     }
                 };
                 switch(field_desc.real_type) {

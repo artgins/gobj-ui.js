@@ -74,6 +74,8 @@ import {
     createElement2, empty_string, is_array, is_object, is_string,
 } from "@yuneta/gobj-js";
 
+import {t} from "i18next";
+
 import { cards_grid_descriptor } from "./nav_cards_helpers.js";
 import {
     BULMA_BP_ORDER,
@@ -407,7 +409,8 @@ function render_tabs(gobj, items)
         if(it.closable) {
             children.push(["span", {class: "icon is-small yui-nav-close ml-2",
                     "data-close-item": it.id, role: "button",
-                    "aria-label": "close", title: "close"},
+                    "aria-label": t("close"), "data-i18n-aria-label": "close",
+                    title: t("close"), "data-i18n-title": "close"},
                 ["i", {class: "yi-xmark", "aria-hidden":"true"}]]);
         }
         let a_attrs = {

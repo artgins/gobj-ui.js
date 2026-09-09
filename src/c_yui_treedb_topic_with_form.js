@@ -1384,7 +1384,13 @@ function create_tabulator(gobj)
     if(with_in_row_edit_icons) {
         columns.push({
             field: '_operation',
-            title: 'Op',
+            /*  A FORMATTER and not a `title`, like every other column of
+             *  this table: a language change re-runs `setColumns()` over
+             *  the SAME definitions, so a title decided when they were
+             *  built -- `'Op'`, in English and abbreviated -- is frozen
+             *  there for the life of the view.  */
+            title: '',
+            titleFormatter: () => t('operations'),
             hozAlign: 'center',
             frozen: "right",
             visible: false,

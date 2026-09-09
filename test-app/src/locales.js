@@ -37,6 +37,13 @@ const es_translation = {
     "use cmd + scroll to zoom the map":   "Usa ⌘ + rueda para hacer zoom en el mapa",
     "use two fingers to move the map":    "Usa dos dedos para mover el mapa",
     "map":                                "Mapa",
+    /*  Los tres controles PROPIOS del mapa (lib_maplibre.js). Sin estas
+     *  claves el tooltip enseñaba la clave misma: `maplibre.drag_mark`.  */
+    "operations":                         "Operaciones",
+    "slide bar to choose option":         "Desliza la barra para elegir",
+    "maplibre.drag_mark":                 "Arrastrar la marca",
+    "maplibre.center_map":                "Centrar el mapa",
+    "maplibre.user_location":             "Mi posición",
 
     "fsm state":                        "Estado FSM",
     "accepted with no action":        "Aceptado, sin acción",
@@ -462,8 +469,23 @@ const en_translation = {
     "use cmd + scroll to zoom the map":   "Use \u2318 + scroll to zoom the map",
     "use two fingers to move the map":    "Use two fingers to move the map",
     "map":                                "Map",
+    /*  The map's own three controls (lib_maplibre.js) -- without these
+     *  the tooltip showed the key itself.  */
+    "maplibre.drag_mark":                 "Drag the mark",
+    "maplibre.center_map":                "Centre the map",
+    "maplibre.user_location":             "My location",
     /*  The graph toolbars ask for these too, and English had been
      *  falling back to the KEY -- which reads `zoom in`, lower case.  */
+    /*  The library's own buttons ask for these; English had been falling
+     *  back to the KEY, which reads `save`, lower case.  */
+    "save":                               "Save",
+    "undo":                               "Undo",
+    "clear":                              "Clear",
+    "copy":                               "Copy",
+    "paste":                              "Paste",
+    "close":                              "Close",
+    "operations":                         "Operations",
+    "slide bar to choose option":         "Slide the bar to choose",
     "zoom in":                            "Zoom in",
     "zoom out":                           "Zoom out",
 

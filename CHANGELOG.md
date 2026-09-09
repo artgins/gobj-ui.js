@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.112
+
+- **A sweep of every tooltip the library draws**, looking for the two
+  defects that make one: a `title` written as a literal (never
+  translated) and a `title: t(...)` with no `data-i18n-title` (translated
+  once, frozen for the life of the view). Four real ones out of 51 hits:
+  - the FORM's toolbar — `save`, `undo`, `clear`, `copy`, `paste` — where
+    the visible label carried its i18n key and the `title`/`aria-label`
+    beside it were raw English. What a pointer reads and what a screen
+    reader announces were the untranslated half.
+  - the tab CLOSE of `C_YUI_NAV`, same shape.
+  - the map's own three controls (`lib_maplibre.js`), which carried
+    `t('maplibre.…')` once and never again — and, where a consumer had
+    not defined the keys, showed `maplibre.drag_mark` as the tooltip.
+  - the treedb table's operations column, titled `'Op'` in English: it
+    takes a `titleFormatter` now, like every other column of that table,
+    because a language change re-runs `setColumns()` over the SAME
+    definitions and a title decided when they were built is frozen there.
+- The rest of the hits are not defects and are worth writing down: a
+  `title:` handed to `yui_shell_show_modal`/`C_YUI_WINDOW` is an i18n KEY
+  those helpers translate themselves, and the G6 plugin toolbar rebuilds
+  whole on a language change, so its `t()` calls need no attribute.
+- New consumer keys: `operations`, `slide bar to choose option` (and
+  `maplibre.drag_mark` / `maplibre.center_map` / `maplibre.user_location`
+  for a host that mounts `C_YUI_MAP`).
+
 ## 7.23.111
 
 - **maplibre's own chrome speaks the app's language**: the zoom tooltips,
