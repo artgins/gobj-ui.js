@@ -14,6 +14,8 @@ import {
     createElement2, debounce
 } from "@yuneta/gobj-js";
 
+import {t} from "i18next";
+
 import "./yui_toolbar.css"; // Must be in index.js ?
 
 
@@ -66,8 +68,16 @@ function yui_toolbar(attrs={}, items = [])
                  *  never a flash of both arrows on a toolbar that doesn't scroll. */
                 style: 'display:none',
                 type: 'button',
-                title: label,
-                'aria-label': label,
+                /*  Translated HERE, not left as the raw key for the host to
+                 *  repaint: a toolbar is rebuilt on every action it carries
+                 *  (a mode, a chip, a filter), and a host that translates its
+                 *  view once at mount never sees the rebuilt arrows again.
+                 *  Read back on a deployed Spanish map, where the strip that
+                 *  scrolls the family chips offered "scroll left". The keys
+                 *  stay on the element so a language change still reaches
+                 *  them through refresh_language(). */
+                title: t(label),
+                'aria-label': t(label),
                 'data-i18n-title': label,
                 'data-i18n-aria-label': label
             },

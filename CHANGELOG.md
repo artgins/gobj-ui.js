@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.122
+
+- **fix: `yui_toolbar()`'s scroll arrows shipped their raw i18n KEY.** They
+  carried `data-i18n-title` / `-aria-label` and left the English key as the
+  value, waiting for the host to repaint them — but a view's toolbar is
+  REBUILT on every action it carries (a mode, a chip, a filter), and a host
+  that translates its tree once at mount never sees the new arrows. Read back
+  on a deployed Spanish map, whose strip of family chips offered *"scroll
+  left"*. They now go through `t()` where they are built, and keep their keys
+  so a language change still reaches them.
+
 ## 7.23.121
 
 - **deps: the gobj-js floor rises to `^7.16.6`**, where `refresh_language()`
