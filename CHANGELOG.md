@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.105
+
+- **The reload restored the zoom and not the position**, and the cause is
+  the trap this library already had written down: `translateTo()` does not
+  take viewport pixels. An absolute translate leaves the camera at
+  `canvasCentre - T/zoom`, so `getPosition()` and `translateTo()` are each
+  other's inverse only at zoom 1 — and 7.23.104 saved one and replayed it
+  with the other.
+- A camera is a **node at a viewport pixel** now, plus the zoom, restored
+  with `yui_graph_place_at()` — the same thing the folds keep across a
+  rebuild, and the helper that exists precisely because this arithmetic is
+  not guessable. One idea, used twice.
+- A saved node this load does not have leaves the graph to its opening fit,
+  and that is checked BEFORE the zoom is touched: a zoom with no framing to
+  go with it is worse than a fit. A camera saved by 7.23.104 has no node and
+  is ignored the same way.
+
 ## 7.23.104
 
 - **The camera belongs to the reader.** Once a zoom is chosen, nothing but a

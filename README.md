@@ -962,13 +962,18 @@ Two mechanisms, because the question is not the same in the two cases:
   folds have always used. It keeps the zoom because it only translates, and it
   survives a relayout that moves everything, which restoring raw coordinates
   would not.
-- **Across a RELOAD** there is no node to hold on to yet, so the viewport itself
-  is restored: `{zoom, x, y}` as G6 reports them (`getZoom()` + `getPosition()`,
-  the documented pair of `zoomTo()` + `translateTo()`).
+- **Across a RELOAD** the same thing is saved and replayed: the zoom, a NODE,
+  and the viewport pixel that node was on. **Not G6's own position** — an
+  absolute `translateTo()` leaves the camera at `canvasCentre - T/zoom`, so
+  `getPosition()` and `translateTo()` are each other's inverse only at zoom 1,
+  and restoring one with the other brings the zoom back and puts the graph
+  somewhere else. That is the whole reason `yui_graph_place_at()` exists.
 
 Wiring: `C_G6_NODES_TREE` takes a `camera` attr — the viewport to restore on its
 FIRST draw, empty meaning *open fitted* — and publishes **`EV_CAMERA_CHANGED
-{zoom, x, y}`** once a move has settled. The settle is a real time (700 ms of
+{zoom, node, x, y}`** once a move has settled. A saved node this load does not
+have leaves the graph to its opening fit, checked before the zoom is touched:
+a zoom with no framing to go with it is worse than a fit. The settle is a real time (700 ms of
 the browser's `setTimeout`, not a `C_TIMER`): a wheel notch, a pinch and a drag
 each fire `aftertransform` many times, and what is worth saving is where the
 gesture ENDED. It fires for a PAN as well as a zoom — a pan is the reader's just

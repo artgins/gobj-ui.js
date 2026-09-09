@@ -444,7 +444,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirm
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_unlink_edge",  0,  true,   "Ask confirmation before unlinking an edge"),
 
 /*---------------- Camera ----------------*/
-SDATA(data_type_t.DTP_DICT,     "camera",               0,  "{}",   "Where the reader left the viewport: {zoom, x, y}. Empty = the graph opens fitted. Restored on the FIRST draw and published back as EV_CAMERA_CHANGED once a move settles, so a host can persist it"),
+SDATA(data_type_t.DTP_DICT,     "camera",               0,  "{}",   "Where the reader left the viewport: {zoom, node, x, y} -- a NODE at a viewport pixel, not G6's own position, which does not restore. Empty = the graph opens fitted. Restored on the FIRST draw and published back as EV_CAMERA_CHANGED once a move settles, so a host can persist it"),
 
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
 
@@ -3370,21 +3370,35 @@ const MIN_READABLE_ZOOM = 0.5;
  ************************************************************/
 const CAMERA_SETTLE_MS = 700;
 
+/*  A camera is saved as a NODE at a VIEWPORT PIXEL, plus the zoom --
+ *  never as G6's own position.
+ *
+ *  `translateTo()` does not take viewport pixels: an absolute translate
+ *  leaves the camera at `canvasCentre - T/zoom`, so `getPosition()` and
+ *  `translateTo()` are only each other's inverse at zoom 1. Restoring
+ *  one with the other brought the zoom back and put the graph somewhere
+ *  else, which is exactly what it looks like -- and the reason to write
+ *  the pair down (`yui_graph_place_at`, gobj-ui 7.23.29) was that it
+ *  had already cost fifteen iterations once.
+ *
+ *  A node and a pixel is also the SAME thing the folds keep across a
+ *  rebuild. One idea, used twice.  */
 function read_camera(gobj)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    if(!graph || typeof graph.getZoom !== "function" || typeof graph.getPosition !== "function") {
+    if(!graph || typeof graph.getZoom !== "function") {
         return null;
     }
     try {
         let z = graph.getZoom();
-        let p = graph.getPosition();
-        if(!is_number(z) || !p || !is_number(p[0]) || !is_number(p[1])) {
+        let node = fold_keep_node(gobj);
+        let vp = node? yui_graph_viewport_of(graph, node) : null;
+        if(!is_number(z) || !node || !vp || !is_number(vp[0]) || !is_number(vp[1])) {
             return null;
         }
-        return {zoom: z, x: p[0], y: p[1]};
+        return {zoom: z, node: node, x: vp[0], y: vp[1]};
     } catch(e) {
         return null;    /*  between renders: there is no camera to read  */
     }
@@ -3398,15 +3412,21 @@ async function restore_camera(gobj)
     let graph = priv.graph;
     let cam = gobj_read_attr(gobj, "camera");
 
-    if(!graph || empty_json(cam) || !is_number(cam.zoom)) {
+    if(!graph || empty_json(cam) || !is_number(cam.zoom) ||
+            !cam.node || !is_number(cam.x) || !is_number(cam.y)) {
+        return false;   /*  nothing saved, or saved by a version that wrote
+                            G6's own position -- which never restored  */
+    }
+    /*  Checked BEFORE the zoom is touched: a saved node that this load
+     *  does not have (the treedb changed under it) must leave the graph
+     *  to its opening fit, not at a zoom with no framing to go with it.  */
+    if(!yui_graph_viewport_of(graph, cam.node)) {
         return false;
     }
     priv._camera_restoring = true;
     try {
         await graph.zoomTo(cam.zoom);
-        if(is_number(cam.x) && is_number(cam.y)) {
-            await graph.translateTo([cam.x, cam.y]);
-        }
+        await yui_graph_place_at(graph, cam.node, [cam.x, cam.y]);
         return true;
     } catch(e) {
         log_error(`${gobj_short_name(gobj)}: cannot restore the camera: ${e}`);
