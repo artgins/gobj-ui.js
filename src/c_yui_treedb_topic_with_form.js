@@ -75,7 +75,8 @@ import {register_c_yui_form} from "./c_yui_form.js";
 import {register_c_yui_json} from "./c_yui_json.js";
 import {attach_clear} from "./yui_inputs.js";
 
-import {yui_tabulator_lang, yui_tabulator_relocalize} from "./yui_tabulator_i18n.js";
+import {yui_tabulator_lang, yui_tabulator_relocalize,
+        yui_tabulator_name_filters} from "./yui_tabulator_i18n.js";
 
 import {
     yui_selection_column,
@@ -1652,6 +1653,10 @@ function create_tabulator(gobj)
 
     tabulator._ready = false;
     tabulator.on("tableBuilt", function() {
+        /*  Tabulator gives its header-filter boxes no name of any kind:
+         *  on screen the column above says what each one filters, and to
+         *  a reader they are a row of anonymous text boxes.  */
+        yui_tabulator_name_filters(tabulator, t);
         tabulator._ready = true;
         update_rowcount();
         /*  La ✕ de cada filtro de cabecera. Un filtro se quita borrando lo

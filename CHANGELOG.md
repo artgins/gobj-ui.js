@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.119
+
+- **Tabulator's header-filter boxes have a name now.** Tabulator draws one
+  text input per filterable column and gives it nothing — no label, no
+  `aria-label`, no placeholder: on screen the column title above says what
+  it filters, and to anything that is not an eye it is a row of anonymous
+  text boxes. `yui_tabulator_name_filters(table, t)` composes the name
+  from the column's own title, so it costs ONE consumer key with an
+  interpolation (`filter column` → `Filtrar {{column}}`) instead of one
+  per column.
+- It runs from `yui_tabulator_relocalize()` as well, so a language change
+  renames them. Four views in the ecosystem use header filters and call it
+  at `tableBuilt`: the treedb topic table here, the tranger view, and
+  yunovatios' alarms and map.
+
 ## 7.23.118
 
 - **The graph's refresh button had no name on a phone**: icon plus a

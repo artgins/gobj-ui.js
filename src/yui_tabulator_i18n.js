@@ -89,11 +89,62 @@ function tabulator_strings(t)
  *  Silent no-op on a table that is gone: a language switch races nothing,
  *  but a view torn down mid-switch must not log a failure it cannot act on.
  ***************************************************************/
+
+/***************************************************************
+ *  Name the HEADER FILTER inputs.
+ *
+ *  Tabulator draws one text box per filterable column and gives
+ *  it nothing: no label, no `aria-label`, no placeholder. On
+ *  screen its position says what it filters -- it sits under the
+ *  column's title -- and to anything that is not an eye it is a
+ *  row of anonymous text boxes.
+ *
+ *  The name is composed from the column's own title, so it needs
+ *  ONE consumer key with an interpolation (`filter column` ->
+ *  "Filtrar {{column}}") instead of one per column, and it
+ *  follows a language change because this runs from
+ *  `yui_tabulator_relocalize()` as well as at build.
+ ***************************************************************/
+function yui_tabulator_name_filters(table, t)
+{
+    if(!table || typeof table.getColumns !== "function") {
+        return;
+    }
+    try {
+        for(let col of table.getColumns()) {
+            let $el = typeof col.getElement === "function" ? col.getElement() : null;
+            if(!$el) {
+                continue;
+            }
+            let $input = $el.querySelector(".tabulator-header-filter input, " +
+                                           ".tabulator-header-filter select");
+            if(!$input) {
+                continue;
+            }
+            let title = (typeof col.getDefinition === "function")
+                ? String(col.getDefinition().title || "") : "";
+            let $title = $el.querySelector(".tabulator-col-title");
+            if(!title && $title) {
+                title = $title.textContent.trim();
+            }
+            if(!title) {
+                continue;   /*  a column with no title names nothing  */
+            }
+            $input.setAttribute("aria-label", t("filter column", {column: title}));
+        }
+    } catch(e) {
+        /*  a table between renders has no columns to name  */
+    }
+}
+
 function yui_tabulator_relocalize(table, t)
 {
     if(!table) {
         return;
     }
+    /*  The header filters have no name of their own; give them one
+     *  again in the new language.  */
+    yui_tabulator_name_filters(table, t);
     try {
         let name = next_lang_name();
         let strings = tabulator_strings(t);
@@ -125,4 +176,5 @@ function yui_tabulator_relocalize(table, t)
 export {
     yui_tabulator_lang,
     yui_tabulator_relocalize,
+    yui_tabulator_name_filters,
 };
