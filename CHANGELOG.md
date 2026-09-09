@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.125
+
+- **fix: an EMPTY table renders no body, so `renderComplete` never fires** --
+  and the row-select rename hung off that event alone, so the one box such a
+  table DOES draw, the header's, kept Tabulator's English name. Eight tables
+  were on screen in the deployed schemas window with six boxes between them
+  and not a single row. It is named at `tableBuilt` as well now; the
+  `renderComplete` half stays, because the BODY boxes are redrawn on every
+  sort and page.
+
 ## 7.23.124
 
 - **fix: the rename of `7.23.123` was a silent no-op.** It reached the table's

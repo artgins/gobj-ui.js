@@ -1658,6 +1658,13 @@ function create_tabulator(gobj)
          *  on screen the column above says what each one filters, and to
          *  a reader they are a row of anonymous text boxes.  */
         yui_tabulator_name_filters(tabulator, t);
+        /*  The HEADER box too, and here rather than only in
+         *  `renderComplete`: an EMPTY table renders no body, so that event
+         *  never fires and the one box it does draw -- the header's -- kept
+         *  Tabulator's English name. Eight such tables were on screen in
+         *  the deployed schemas window, with six boxes between them and not
+         *  one row.  */
+        yui_tabulator_name_row_selects(tabulator, t);
         tabulator._ready = true;
         update_rowcount();
         /*  La ✕ de cada filtro de cabecera. Un filtro se quita borrando lo

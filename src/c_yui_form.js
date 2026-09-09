@@ -1842,6 +1842,11 @@ function create_tabulator(gobj, $extend, name, template)
     tabulator.on("renderComplete", function() {
         yui_tabulator_name_row_selects(tabulator, t);
     });
+    /*  And at build: an EMPTY table renders no body, so `renderComplete`
+     *  never fires and the header's own box would keep its English name.  */
+    tabulator.on("tableBuilt", function() {
+        yui_tabulator_name_row_selects(tabulator, t);
+    });
     tabulator.on("rowClick", function(e, row) {
         //e - the click event object
         //row - row component
