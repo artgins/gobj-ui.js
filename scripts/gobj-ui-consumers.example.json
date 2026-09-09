@@ -1,0 +1,30 @@
+{
+    "//": [
+        "Copy to ~/.yuneta/gobj-ui-consumers.json and fill in the apps of THIS",
+        "machine. It lives outside the repository on purpose: most consumers are",
+        "private, and their paths and hosts are not this package's business.",
+        "",
+        "The DEMO (test-app -> demo.yuneta.io + niyamaka.com) is NOT listed here:",
+        "it is in the repo, so deploy-round.mjs carries it built in and always",
+        "runs it. That is the whole point -- it was the surface that kept being",
+        "forgotten, because it consumes the working tree and needs no registry.",
+        "",
+        "  name        what to call it in the report",
+        "  path        the app that builds and deploys (npm run build runs here)",
+        "  range_dirs  every dir declaring the @yuneta/gobj-ui range, if not just",
+        "              `path` -- a workspace sibling keeps its own node_modules",
+        "              and would install the version before behind the app",
+        "  deploys     argv arrays, run from `path`",
+        "  urls        what to read back afterwards; the entry bundle name of the",
+        "              live page must match the one just built"
+    ],
+    "consumers": [
+        {
+            "name": "example_spa",
+            "path": "/path/to/the/spa",
+            "range_dirs": ["/path/to/the/spa", "/path/to/a/shared/lib"],
+            "deploys": [["./deploy.sh"]],
+            "urls": ["https://example.invalid/"]
+        }
+    ]
+}

@@ -34,8 +34,21 @@ gobj-ui-specific layer on top.
   working tree with no publish. Try a change there — `npm run dev` — before
   spending a version on it. It deploys to `demo.yuneta.io` (the public demo
   linked from doc.yuneta.io) and to `niyamaka.com` (the mobile-test host) with
-  its own `deploy.sh`; both are the SAME bundle and both get forgotten, so
-  deploy them together after a library round.
+  its own `deploy.sh`; both are the SAME bundle.
+- **A published version reaches an app only through the deploy round, and the
+  round is a command**: `npm run deploy-round`. It waits for the registry to
+  SERVE the version (a publish returning is not that — a consumer installed in
+  that window silently keeps the version before), then per app raises the
+  range, installs, builds, deploys, and READS BACK the entry bundle each host
+  serves. `--check` only reads back; `--only <name>` does one; `--no-wait`
+  skips the registry.
+  **The demo is built into the runner, not a line of its manifest**, and that
+  is deliberate: it is the one surface that needs no registry (it consumes the
+  working tree), so it falls outside the rhythm of the others and was skipped
+  twice — a config nobody can forget to fill in is the fix. The other
+  consumers are private repos, so they come from
+  `~/.yuneta/gobj-ui-consumers.json` (see `scripts/gobj-ui-consumers.example.json`)
+  and nothing about them is committed here.
 - The yunetas submodule tracks `main`/v2. To ship: commit on the right branch
   here, `npm publish` when releasing, then **bump the `kernel/js/gobj-ui`
   submodule pointer in yunetas** (v2 only).

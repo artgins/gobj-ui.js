@@ -24,6 +24,7 @@
   "scripts": {
     "build": "vite build",
     "test": "vitest run",
+    "deploy-round": "node scripts/deploy-round.mjs",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
