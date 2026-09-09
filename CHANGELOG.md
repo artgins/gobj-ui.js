@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.100
+
+- **The star of the chosen main topic keeps its GOLD and is marked with a
+  ring**, not with a pressed ground. 7.23.99 fixed the contrast by making
+  the glyph inherit the pressed ink, which made it legible and took away
+  the colour — and the gold IS what the star says: it is the mark of the
+  main topic, in the strip and on the trunk of the tree. The ring is the
+  library's own idiom for this, the same `box-shadow: inset` the focused
+  chip wears (`LEGEND_FOCUSED_STYLE`), inset because a chip lives in a
+  `has-addons` group and a shadow outside the box is clipped by its
+  neighbours.
+- So the strip now says the two things separately: gold ★ = this is the
+  main topic (deduced or chosen), ring around it = a reader CHOSE it and
+  pressing gives the choice back to the graph. `aria-pressed` is
+  unchanged.
+
 ## 7.23.99
 
 - **The main topic the reader CHOSE was the one star that could not be

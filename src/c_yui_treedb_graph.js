@@ -2632,22 +2632,22 @@ function refresh_legend(gobj)
          *  is a button too: pressing it hands the choice back to the
          *  graph (deduced again). On a deduced one it is a mark.  */
         if(is_main && state.main_chosen) {
-            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button pressed_state',
-                                    type: 'button', style: 'padding:0 .5rem;',
+            /*  MARKED, not pressed -- the same distinction the focused
+             *  chip makes two constants above, and for the same reason
+             *  here: the star IS the gold mark of the main topic, and a
+             *  `pressed_state` repaints the ground under it. 7.23.99
+             *  made the glyph inherit the pressed ink so it could be
+             *  seen at all; that cost the colour, which is what the
+             *  star says. The ring inside the border marks the CHOICE
+             *  and leaves the gold alone.  */
+            extras.push(['button', {class: 'GRAPH_LEGEND_STAR button',
+                                    type: 'button',
+                                    style: 'padding:0 .5rem; ' + LEGEND_FOCUSED_STYLE,
                                     title: t('main topic'), 'data-i18n-title': 'main topic',
                                     'aria-label': t('main topic'),
                                     'data-i18n-aria-label': 'main topic',
                                     'aria-pressed': 'true'},
-                         /*  `LEGEND_GLYPH_STYLE` and not the gold one:
-                          *  `pressed_state` inverts the ground, and an
-                          *  INLINE colour beats the ink it sets with it.
-                          *  The gold then sat on the scheme's own text
-                          *  colour -- 1.06:1 in dark, ~2:1 in light --
-                          *  so the one star the reader CHOSE was the one
-                          *  that could not be seen. `color: inherit`
-                          *  takes the pressed ink, like the crosshair
-                          *  and the `+N` beside it.  */
-                         [['span', {style: LEGEND_GLYPH_STYLE}, '★']], {
+                         [['span', {style: LEGEND_STAR_MAIN_STYLE}, '★']], {
                 click: (evt) => {
                     evt.stopPropagation();
                     gobj_send_event(gobj, "EV_LEGEND_TOPIC",
