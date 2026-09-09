@@ -2456,8 +2456,29 @@ function figure_shape_of(gobj, desc, record, geometry, flags)
     let figure = node_figure_of(gobj, desc, geometry || {});
     let paint = node_paint_of(gobj, desc, geometry);
 
-    let stroke = paint.stroke;
-    let line_width = Math.max(paint.lineWidth, 1.5);
+    /*  THE SAME PAINT AS THE CARD, and that is the point: a card, a
+     *  pill and a figure are one record drawn at three sizes, so they
+     *  cannot wear two different colour languages. The card is html and
+     *  writes `color-mix()`; a canvas shape cannot, so the same mix is
+     *  computed here -- with `mix_colors()`, which is in this file
+     *  already and for this very reason (the ports).
+     *
+     *  It also gives the figure an EDGE. It used to be the raw topic
+     *  colour filled, ringed by `getStrokeColor()` -- the same colour
+     *  darkened 20%, which measures 1.4:1 against its own fill: not a
+     *  border, a ramp, and a fan of them reads as a blurred picture.
+     *  Tint inside, vivid colour around it, and the canto is there.  */
+    let fill = dark? mix_colors(paint.fill, 0.25, "#2c3542")
+                   : mix_colors(paint.fill, 0.10, "#ffffff");
+    let stroke = dark? mix_colors(paint.fill, 0.85, "#ffffff") : paint.fill;
+    let line_width = 2;
+    /*  A paint somebody CHOSE (a node's or a topic's own, saved in
+     *  `__graphs__`) is not ours to reinterpret: it comes through as
+     *  it was chosen.  */
+    if(paint.stroke !== getStrokeColor(paint.fill)) {
+        stroke = paint.stroke;
+        line_width = Math.max(paint.lineWidth, 2);
+    }
     if(f.selected) {
         stroke = SELECT_RING;
         line_width = 3;
@@ -2480,7 +2501,7 @@ function figure_shape_of(gobj, desc, record, geometry, flags)
     let style = {
         size: [side, side],
         radius: (figure === 'square')? Math.round(side / 5) : 0,
-        fill: paint.fill,
+        fill: fill,
         stroke: stroke,
         lineWidth: line_width,
         lineDash: dash,

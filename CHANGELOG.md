@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.107
+
+- **The figure of `shape` mode wears the card's paint**, which is both a
+  consistency fix and the reason the graph looked out of focus. A card, a
+  pill and a figure are one record drawn at three sizes and cannot speak
+  two colour languages: the card is a TINT of the topic colour with the
+  vivid colour around it (`color-mix` 25% / 85% in dark, 10% / raw in
+  light), and the figure was the raw colour filled, ringed by
+  `getStrokeColor()` — the same colour darkened 20%.
+- Measured on a deployed graph, that ring is **1.58:1 against its own
+  fill**: not a border, a ramp. Twenty-five of them in a fan is what reads
+  as a blurred picture. The same figure now measures **4.67:1** fill to
+  rim, and 12.08:1 rim to canvas, at `lineWidth: 2` — verified in the
+  rendered pixels, where the rim is a 2px band with one antialiased pixel
+  either side instead of a three-step ramp.
+- The mix is computed with `mix_colors()`, which was already in the file
+  and for exactly this reason: the card is html and can write
+  `color-mix()`, a canvas shape cannot. A paint somebody CHOSE (a node's
+  or a topic's own, in `__graphs__`) is passed through untouched — it is
+  not ours to reinterpret.
+
 ## 7.23.106
 
 - **The host was dropping the `node` from the camera it persisted.**
