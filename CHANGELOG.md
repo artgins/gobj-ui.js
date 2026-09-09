@@ -5,6 +5,48 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.97
+
+The charts and the maps, and the chart turned out not to be a contrast
+question but a THEME one: `c_yui_uplot.js` had no idea a dark scheme existed
+— not one reference to it in the file.
+
+| what | before, light | before, dark | after |
+|---|---|---|---|
+| the axis labels (uPlot's `#000`) | 21 | **1.16** | the text colour, both schemes |
+| the grid (uPlot's `rgba(0,0,0,.07)`) | 18.88 | **1.04** | 12–16% of the text colour |
+| series `blue` | 8.59 | **2.11** | palette, ≥3.39 on both |
+| series `orange` | **1.97** | 9.17 | palette, ≥3.39 on both |
+
+- **uPlot is built for a white page**: its axis ink is `#000` and its grid
+  `rgba(0,0,0,0.07)`, which on the dark scheme are 1.16:1 and 1.04 — an axis
+  nobody can read under a grid that is not there. Both are given as
+  FUNCTIONS now, so uPlot resolves them when it draws and the value can never
+  be stale; what goes stale is the canvas, and `EV_THEME` (from
+  `yui_watch_theme`, the same wiring the graphs use) redraws it.
+- **The series were CSS colour names** — `red`, `green`, `blue`, `orange` —
+  so whichever scheme you were in, one of the lines was a rumour. The palette
+  is six colours that clear 3:1 on BOTH grounds (worst 3.39 on white, 3.71 on
+  near-black), ordered so the first two are the pair that survives colour
+  blindness: blue and orange, never red and green as the opening pair.
+- **The palette's first colour was never used**: `ac_add_serie` indexed it
+  with uPlot's series index, and `series[0]` is the X AXIS. The data series
+  are counted from zero now — and the colours wrap instead of falling back to
+  one fixed `Orange` (1.97:1 on a white page) for every series past the
+  fourth.
+- **A map label is not text on a page**: what is behind it is a tile, and a
+  tile is any colour there is. `green` / `red` measured 4.48 and 3.48 on the
+  beige of a street tile and mean nothing over water or an aerial layer. The
+  colours are the stronger pair and, more to the point, they have a **halo**
+  now — which is what carries a label over anything. The cluster count had no
+  paint at all (maplibre's black on a red circle, 5.25, on a green one 4.09):
+  white with a dark halo, the same ink whatever colour the cluster takes.
+
+Still open, and NOT changed because it is a design decision and not a
+measurement: connected / disconnected is told apart by green vs red alone, in
+the map's circles as in its labels. Colour blindness does not read that pair;
+a shape or an icon would.
+
 ## 7.23.96
 
 Modals, toasts and windows, measured in the states you have to open — each

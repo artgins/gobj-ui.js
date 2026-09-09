@@ -442,6 +442,16 @@ function load_devices(gobj)
             'text-field': '{point_count_abbreviated}',
             'text-font': ['Noto Sans Regular'],
             'text-size': 14
+        },
+        /*  It had no paint at all, which is maplibre's black -- on the
+         *  red circle of a cluster that is 5.25:1 and on the green one
+         *  4.09, both of them a number read at a glance. White with a
+         *  dark halo is 5.14 and 4.0 with the halo behind it, and it is
+         *  the same ink whatever colour the cluster takes.  */
+        paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(0,0,0,0.35)',
+            'text-halo-width': 1
         }
     });
 
@@ -459,11 +469,21 @@ function load_devices(gobj)
             'text-anchor': 'top'
         },
         paint: {
+            /*  A label on a MAP is not text on a page: what is behind it
+             *  is a tile, and a tile is any colour there is. `green` and
+             *  `red` measured 4.48 and 3.48 on the beige of a typical
+             *  street tile -- and over water, forest or an aerial layer
+             *  the number means nothing at all. The colours are the
+             *  stronger pair (4.69 / 5.66 on that beige), and the HALO
+             *  is what actually carries them: it is drawn around every
+             *  glyph, so the label reads on whatever the tile is.  */
             'text-color': [
                 'case',
-                ['get', 'connected'], 'green',
-                'red'
-            ]
+                ['get', 'connected'], '#1e7a3c',
+                '#b3243a'
+            ],
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 1.4
         }
     });
 

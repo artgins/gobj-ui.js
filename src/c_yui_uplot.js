@@ -32,6 +32,62 @@ import {
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 
+import {yui_is_dark, yui_watch_theme} from "./yui_theme.js";
+
+
+/***************************************************************
+ *  The ink of a chart, and its palette.
+ *
+ *  uPlot is built for a white page: its axis labels are `#000`
+ *  and its grid `rgba(0,0,0,0.07)`, which on the dark scheme are
+ *  1.16:1 and 1.04 -- an axis nobody can read and a grid that is
+ *  not there. And the series were CSS colour names: `blue` is
+ *  2.11:1 on the dark ground, `orange` 1.97 on the light one, so
+ *  whichever scheme you were in, one of the lines was a rumour.
+ *
+ *  These are given to uPlot as FUNCTIONS: it calls them when it
+ *  draws, so the value can never be stale -- what goes stale is
+ *  the canvas, and that is what EV_THEME redraws.
+ *
+ *  The palette is six colours that clear 3:1 on BOTH grounds
+ *  (worst 3.39 on white, 3.71 on near-black), ordered so the
+ *  first two are the pair that survives colour blindness -- blue
+ *  and orange, never red and green as the opening pair.
+ ***************************************************************/
+function axis_ink()
+{
+    return yui_is_dark()? "#c7cdd8" : "#2e333d";
+}
+
+function grid_ink()
+{
+    return yui_is_dark()? "rgba(199,205,216,0.16)" : "rgba(46,51,61,0.12)";
+}
+
+const CHART_PALETTE = [
+    {stroke: "#2f6fd0", fill: "rgba(47,111,208,0.10)"},     /*  4.88 / 3.71  */
+    {stroke: "#b8620a", fill: "rgba(184,98,10,0.10)"},      /*  4.38 / 4.13  */
+    {stroke: "#2f8f4e", fill: "rgba(47,143,78,0.10)"},      /*  4.07 / 4.45  */
+    {stroke: "#8b5cf6", fill: "rgba(139,92,246,0.10)"},     /*  4.23 / 4.28  */
+    {stroke: "#0e9aa7", fill: "rgba(14,154,167,0.10)"},     /*  3.39 / 5.35  */
+    {stroke: "#d1344b", fill: "rgba(209,52,75,0.10)"},      /*  4.88 / 3.71  */
+];
+
+/*  The axes the host asked for, with the ink it did not ask about.  */
+function themed_axes(axes)
+{
+    let list = Array.isArray(axes)? axes : [axes || {}];
+    return list.map((ax) => {
+        let a = Object.assign({}, ax || {});
+        if(a.stroke === undefined) {
+            a.stroke = axis_ink;
+        }
+        a.grid = Object.assign({stroke: grid_ink}, a.grid || {});
+        a.ticks = Object.assign({stroke: grid_ink}, a.ticks || {});
+        return a;
+    });
+}
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -50,12 +106,8 @@ SDATA(data_type_t.DTP_JSON,     "series",           0,  [{}],   "Data series"),
 SDATA(data_type_t.DTP_JSON,     "axes",             0,  [{}],   "Chart axes"),
 SDATA(data_type_t.DTP_JSON,     "scales",           0,  {},     "Chart scales"),
 SDATA(data_type_t.DTP_JSON,     "data",             0,  [[]],   "Chart data"),
-SDATA(data_type_t.DTP_JSON,     "colors",           0,  [
-    {stroke:"red", fill: "rgba(255,0,0,0.05)"},
-    {stroke:"green", fill: "rgba(0,255,0,0.07)"},
-    {stroke:"blue", fill: "rgba(0,0,255,0.05)"},
-    {stroke:"orange", fill: "rgba(255,165,0,0.1)"},
-], "Color settings"),
+SDATA(data_type_t.DTP_JSON,     "colors",           0,  CHART_PALETTE,
+    "Series colours, in order. The default palette clears 3:1 on both schemes and opens with the colour-blind-safe pair (blue, orange)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "HTML container for the chart"),
 SDATA(data_type_t.DTP_BOOLEAN,  "own_container",    0,  false,  "If true, container is gobj-managed"),
 SDATA(data_type_t.DTP_POINTER,  "uplot",            0,  null,   "uPlot instance"),
@@ -64,7 +116,9 @@ SDATA(data_type_t.DTP_INTEGER,  "timeout_idle",     0,  5,      "Idle timeout (s
 SDATA_END()
 ];
 
-let PRIVATE_DATA = {};
+let PRIVATE_DATA = {
+    theme_observer: null,   /*  the DOM's data-theme, as an EV_THEME  */
+};
 
 let __gclass__ = null;
 
@@ -84,6 +138,11 @@ let __gclass__ = null;
 function mt_create(gobj)
 {
     build_ui(gobj);
+
+    /*  A canvas does not restyle itself: the ink is read when uPlot
+     *  DRAWS (see axis_ink), so a theme change only has to reach the
+     *  machine and ask for a redraw. Same wiring as the graphs.  */
+    gobj.priv.theme_observer = yui_watch_theme(gobj);
 
     /*
      *  CHILD subscription model
@@ -114,6 +173,10 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    if(gobj.priv.theme_observer) {
+        gobj.priv.theme_observer.disconnect();
+        gobj.priv.theme_observer = null;
+    }
     let uplot = gobj_read_attr(gobj, "uplot");
     if(uplot) {
         uplot.destroy();
@@ -159,7 +222,7 @@ function build_ui(gobj)
         width: gobj_read_attr(gobj, "width"),
         height: gobj_read_attr(gobj, "height"),
         series: gobj_read_attr(gobj, "series"),
-        axes: gobj_read_attr(gobj, "axes"),
+        axes: themed_axes(gobj_read_attr(gobj, "axes")),
         scales: gobj_read_attr(gobj, "scales"),
     };
     let uplot = new uPlot(
@@ -381,15 +444,41 @@ function ac_add_serie(gobj, event, kw, src)
             return -1;
         }
     }
-    let color = {stroke: "Orange", fill: "rgb(255, 165, 0, 0.05)"};
     let colors = gobj_read_attr(gobj, "colors");
-    if(idx<colors.length) {
-        color = colors[idx];
+    if(!Array.isArray(colors) || !colors.length) {
+        colors = CHART_PALETTE;
     }
+    /*  `idx` counts uPlot's series, and series[0] is the X AXIS -- so
+     *  the first line drawn was taking colours[1] and the palette's
+     *  opener, the blue of the colour-blind-safe pair, was never used
+     *  by anybody. The data series are counted from zero here.
+     *
+     *  And it wraps around instead of falling back to one fixed
+     *  colour: the old fallback was `Orange`, 1.97:1 on a white page,
+     *  and it was what every series past the fourth got.  */
+    let color = colors[Math.max(0, idx - 1) % colors.length];
     kw_get_str(gobj, kw, "stroke", color.stroke, kw_flag_t.KW_CREATE);
     kw_get_str(gobj, kw, "fill", color.fill, kw_flag_t.KW_CREATE);
     //kw["paths"] = beziercurve_path; //rectangle_path;
     uplot.addSeries(kw);
+    return 0;
+}
+
+/******************************************************
+ *   The scheme changed: the ink functions answer the new
+ *   one already, the canvas is what has to be painted again.
+ ******************************************************/
+function ac_theme(gobj, event, kw, src)
+{
+    let uplot = gobj_read_attr(gobj, "uplot");
+    if(!uplot) {
+        return 0;
+    }
+    try {
+        uplot.redraw();
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot redraw the chart: ${e}`);
+    }
     return 0;
 }
 
@@ -466,7 +555,8 @@ function create_gclass(gclass_name)
             ["EV_LOAD_DATA",            ac_load_data,           null],
             ["EV_ADD_SERIE",            ac_add_serie,           null],
             ["EV_DEL_SERIE",            ac_del_serie,           null],
-            ["EV_CLEAR",                ac_clear,               null]
+            ["EV_CLEAR",                ac_clear,               null],
+            ["EV_THEME",                ac_theme,               null]
         ]]
     ];
 
@@ -477,7 +567,8 @@ function create_gclass(gclass_name)
         ["EV_LOAD_DATA",            0],
         ["EV_ADD_SERIE",            0],
         ["EV_DEL_SERIE",            0],
-        ["EV_CLEAR",                0]
+        ["EV_CLEAR",                0],
+        ["EV_THEME",                0]
     ];
 
     __gclass__ = gclass_create(
