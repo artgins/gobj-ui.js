@@ -18,6 +18,26 @@
 import i18next from "i18next";
 
 const es_translation = {
+    /*
+     *  MapLibre's own chrome: what the map draws with words. It reads
+     *  them from its `locale` when each control builds its dom, so the
+     *  library also rewrites them on a language change
+     *  (`yui_maplibre_relocalize`).
+     */
+    "drag to rotate the map, click to reset north": "Arrastra para girar el mapa, pulsa para volver al norte",
+    "find my location":                   "Encontrar mi posición",
+    "location not available":             "Posición no disponible",
+    "toggle attribution":                 "Mostrar u ocultar la atribución",
+    "map feedback":                       "Comentarios sobre el mapa",
+    "enter fullscreen":                   "Pantalla completa",
+    "exit fullscreen":                    "Salir de pantalla completa",
+    "close popup":                        "Cerrar el globo",
+    "map marker":                         "Marca del mapa",
+    "use ctrl + scroll to zoom the map":  "Usa Ctrl + rueda para hacer zoom en el mapa",
+    "use cmd + scroll to zoom the map":   "Usa ⌘ + rueda para hacer zoom en el mapa",
+    "use two fingers to move the map":    "Usa dos dedos para mover el mapa",
+    "map":                                "Mapa",
+
     "fsm state":                        "Estado FSM",
     "accepted with no action":        "Aceptado, sin acción",
     /*
@@ -428,6 +448,25 @@ const es_translation = {
  *  as "Q3 2026" — so unlike the demo's own keys they need an `en` bundle.
  */
 const en_translation = {
+    /*  MapLibre's own chrome -- see the note in the Spanish block.  */
+    "drag to rotate the map, click to reset north": "Drag to rotate the map, click to reset north",
+    "find my location":                   "Find my location",
+    "location not available":             "Location not available",
+    "toggle attribution":                 "Toggle attribution",
+    "map feedback":                       "Map feedback",
+    "enter fullscreen":                   "Enter fullscreen",
+    "exit fullscreen":                    "Exit fullscreen",
+    "close popup":                        "Close popup",
+    "map marker":                         "Map marker",
+    "use ctrl + scroll to zoom the map":  "Use Ctrl + scroll to zoom the map",
+    "use cmd + scroll to zoom the map":   "Use \u2318 + scroll to zoom the map",
+    "use two fingers to move the map":    "Use two fingers to move the map",
+    "map":                                "Map",
+    /*  The graph toolbars ask for these too, and English had been
+     *  falling back to the KEY -- which reads `zoom in`, lower case.  */
+    "zoom in":                            "Zoom in",
+    "zoom out":                           "Zoom out",
+
     "frontend view": "Frontend view",
     "site map": "Site map",
     "site map hint": "Every reachable position of the app is a URL. Click a route to jump there.",

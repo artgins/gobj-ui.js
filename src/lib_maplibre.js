@@ -215,10 +215,116 @@ class MarkerControl {
     }
 }
 
+
+/***********************************************************************
+ *      MAPLIBRE'S OWN CHROME, IN THE APP'S LANGUAGE
+ *
+ *  Everything maplibre draws with words -- the zoom tooltips, the
+ *  geolocate button, the attribution toggle, a popup's close, and the
+ *  notice that teaches the Ctrl + wheel gesture -- comes from its
+ *  `locale`, an option merged over its own English defaults at
+ *  construction. So a map in a Spanish app was saying *"Zoom in"* and
+ *  *"Use Ctrl + scroll to zoom the map"*, which is the same rule this
+ *  GUI applies to every other string.
+ *
+ *  Two halves, because maplibre reads its strings ONCE, when each
+ *  control builds its DOM:
+ *
+ *      `yui_maplibre_locale(t)`      the `locale` option, for the map's
+ *                                    first paint;
+ *      `yui_maplibre_relocalize()`   after a language change, which is
+ *                                    the half a `locale` alone cannot
+ *                                    do -- it writes the strings into
+ *                                    the DOM already drawn, and updates
+ *                                    the map's locale so anything built
+ *                                    later is right too.
+ *
+ *  The scale units (`km`, `mi`, `nm`) are symbols and are left alone;
+ *  the MapLibre logo keeps its name, which is a brand.
+ ***********************************************************************/
+function yui_maplibre_locale(t)
+{
+    return {
+        "NavigationControl.ZoomIn": t("zoom in"),
+        "NavigationControl.ZoomOut": t("zoom out"),
+        "NavigationControl.ResetBearing": t("drag to rotate the map, click to reset north"),
+        "GeolocateControl.FindMyLocation": t("find my location"),
+        "GeolocateControl.LocationNotAvailable": t("location not available"),
+        "AttributionControl.ToggleAttribution": t("toggle attribution"),
+        "AttributionControl.MapFeedback": t("map feedback"),
+        "FullscreenControl.Enter": t("enter fullscreen"),
+        "FullscreenControl.Exit": t("exit fullscreen"),
+        "Popup.Close": t("close popup"),
+        "Map.Title": t("map"),
+        "Marker.Title": t("map marker"),
+        "CooperativeGesturesHandler.WindowsHelpText": t("use ctrl + scroll to zoom the map"),
+        "CooperativeGesturesHandler.MacHelpText": t("use cmd + scroll to zoom the map"),
+        "CooperativeGesturesHandler.MobileHelpText": t("use two fingers to move the map"),
+    };
+}
+
+/*  One drawn control: its tooltip and its aria-label say the same
+ *  thing, and a screen reader needs the second even when the first is
+ *  what a pointer finds.  */
+function label_ctrl($root, selector, text)
+{
+    if(!$root || !text) {
+        return;
+    }
+    for(const $el of $root.querySelectorAll(selector)) {
+        $el.setAttribute("title", text);
+        $el.setAttribute("aria-label", text);
+    }
+}
+
+function yui_maplibre_relocalize(map, t)
+{
+    if(!map || typeof map.getContainer !== "function") {
+        return;
+    }
+    const strings = yui_maplibre_locale(t);
+
+    /*  The map's own table first: a control added later (or a popup
+     *  opened later) reads it when it builds itself.  */
+    try {
+        map._locale = Object.assign({}, map._locale, strings);
+    } catch(e) {
+        /*  a maplibre that keeps its locale elsewhere: the DOM below
+         *  still gets translated, which is what is on screen  */
+    }
+
+    const $c = map.getContainer();
+    label_ctrl($c, ".maplibregl-ctrl-zoom-in", strings["NavigationControl.ZoomIn"]);
+    label_ctrl($c, ".maplibregl-ctrl-zoom-out", strings["NavigationControl.ZoomOut"]);
+    label_ctrl($c, ".maplibregl-ctrl-compass", strings["NavigationControl.ResetBearing"]);
+    label_ctrl($c, ".maplibregl-ctrl-geolocate", strings["GeolocateControl.FindMyLocation"]);
+    label_ctrl($c, ".maplibregl-ctrl-attrib-button", strings["AttributionControl.ToggleAttribution"]);
+    label_ctrl($c, ".maplibregl-ctrl-fullscreen", strings["FullscreenControl.Enter"]);
+    label_ctrl($c, ".maplibregl-popup-close-button", strings["Popup.Close"]);
+
+    /*  The notice of the cooperative gesture: two lines, one for a
+     *  pointer and one for a finger, built by `_setupUI()` as
+     *  `.maplibregl-desktop-message` / `.maplibregl-mobile-message`.  */
+    const mac = (typeof navigator !== "undefined" &&
+                 (navigator.userAgent || "").includes("Mac"));
+    const $desktop = $c.querySelector(".maplibregl-desktop-message");
+    if($desktop) {
+        $desktop.textContent = mac
+            ? strings["CooperativeGesturesHandler.MacHelpText"]
+            : strings["CooperativeGesturesHandler.WindowsHelpText"];
+    }
+    const $mobile = $c.querySelector(".maplibregl-mobile-message");
+    if($mobile) {
+        $mobile.textContent = strings["CooperativeGesturesHandler.MobileHelpText"];
+    }
+}
+
 //=======================================================================
 //      Expose the class via the global object
 //=======================================================================
 export {
     EditControl,
-    MarkerControl
+    MarkerControl,
+    yui_maplibre_locale,
+    yui_maplibre_relocalize
 };

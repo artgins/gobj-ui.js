@@ -29,6 +29,7 @@ import {
     gobj_create_service,
     gobj_start,
     gobj_name,
+    gobj_unsubscribe_event,
 } from "@yuneta/gobj-js";
 
 import "maplibre-gl/dist/maplibre-gl.css"; // Import MapLibre styles
@@ -36,8 +37,14 @@ import * as maplibregl from "maplibre-gl"; // MapLibre GL JS 6 is ESM-only, no d
 
 import {
     EditControl,
-    MarkerControl
+    MarkerControl,
+    yui_maplibre_locale,
+    yui_maplibre_relocalize
 } from "./lib_maplibre.js";
+
+import {t} from "i18next";
+
+import {yui_shell_of} from "./c_yui_shell.js";
 
 import "./c_yui_map.css"; // Must be in index.js ?
 
@@ -45,6 +52,9 @@ import "./c_yui_map.css"; // Must be in index.js ?
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_MAP";
+
+/*  How long the cooperative-gesture notice stays up, in ms.  */
+const GESTURE_HINT_MS = 2000;
 
 /***************************************************************
  *              Data
@@ -74,6 +84,7 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     xmap: null,
+    gesture_hint_timer: null,   /*  keeps the gesture notice up long enough  */
     geojson: null,
     resizeObserver: null,
     width: 0,      // map size, data got from resize observer
@@ -132,6 +143,13 @@ function mt_create(gobj)
          *  default is a suggestion -- the demo passes `map_settings` and
          *  never saw it. This is the house gesture, not a suggestion.  */
         cooperativeGestures: true,
+        /*  maplibre draws words of its own -- the zoom tooltips, the
+         *  geolocate button, the attribution toggle and the notice that
+         *  teaches the gesture above -- and they came out in ITS
+         *  English inside a Spanish app. `locale` is read once, when
+         *  each control builds its DOM, so the language CHANGE is the
+         *  other half, in ac_language_changed.  */
+        locale: yui_maplibre_locale(t),
     });
 
     /*-----------------------------*
@@ -157,6 +175,35 @@ function mt_create(gobj)
      *      Create the Map
      *-----------------------------*/
     const map = priv.xmap = new maplibregl.Map(map_settings);
+
+    /*  HOW LONG THE NOTICE STAYS UP.
+     *
+     *  maplibre shows it for 100ms and lets it FADE for a second more
+     *  (`transition: opacity 1s ease 1s`). Nothing in this GUI has
+     *  transitions, so that fade is cut -- and with it the only thing
+     *  that made the notice readable, because 100ms is not reading
+     *  time. It is held by the clock instead: on and off at once, and
+     *  still in between for as long as it takes to read it.
+     *
+     *  In maplibre's callback and not through the machine, for the same
+     *  reason as the zoom readout: it is not an action, it is the map
+     *  acknowledging a gesture it refused, and one wheel fires it
+     *  dozens of times.  */
+    map.on("cooperativegestureprevented", () => {
+        const $s = map.getCanvasContainer()
+            .querySelector(".maplibregl-cooperative-gesture-screen");
+        if(!$s) {
+            return;
+        }
+        $s.classList.add("MAP_GESTURE_SHOWN");
+        if(priv.gesture_hint_timer) {
+            clearTimeout(priv.gesture_hint_timer);
+        }
+        priv.gesture_hint_timer = setTimeout(() => {
+            priv.gesture_hint_timer = null;
+            $s.classList.remove("MAP_GESTURE_SHOWN");
+        }, GESTURE_HINT_MS);
+    });
 
     /*-----------------------------*
      *      Controls
@@ -220,12 +267,61 @@ function mt_create(gobj)
 }
 
 /***************************************************************
+ *  The application changed language: maplibre's own words are
+ *  rewritten in place, and the map's locale with them so a
+ *  control or a popup built later is right too.
+ ***************************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.xmap) {
+        yui_maplibre_relocalize(priv.xmap, t);
+    }
+    return 0;
+}
+
+/***************************************************************
+ *          Framework Method: Start
+ *
+ *  The application's LANGUAGE: what maplibre draws with words is
+ *  built from its `locale` when each control builds its DOM, so
+ *  `refresh_language()` -- which reaches what carries an i18n key
+ *  in OUR dom -- cannot touch any of it. The shell says when the
+ *  language changed and this view rewrites those strings.
+ ***************************************************************/
+function mt_start(gobj)
+{
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+    return 0;
+}
+
+/***************************************************************
+ *          Framework Method: Stop
+ ***************************************************************/
+function mt_stop(gobj)
+{
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+    return 0;
+}
+
+/***************************************************************
  *          Framework Method: Destroy
  ***************************************************************/
 function mt_destroy(gobj)
 {
     let priv = gobj.priv;
 
+    if(priv.gesture_hint_timer) {
+        clearTimeout(priv.gesture_hint_timer);
+        priv.gesture_hint_timer = null;
+    }
     if(priv.resizeObserver) {
         priv.resizeObserver.disconnect();
         priv.resizeObserver = null;
@@ -934,6 +1030,8 @@ function ac_hide(gobj, event, kw, src)
  *---------------------------------------------*/
 const gmt = {
     mt_create:  mt_create,
+    mt_start:   mt_start,
+    mt_stop:    mt_stop,
     mt_destroy: mt_destroy
 };
 
@@ -952,6 +1050,7 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
+            ["EV_LANGUAGE_CHANGED",         ac_language_changed,    null],
             ["EV_EDIT_MAP",                 ac_edit_map,            null],
             ["EV_CONTROL_MAP",              ac_control_map,         null],
             ["EV_MAP_ON_LOAD",              ac_map_on_load,         null],
@@ -966,6 +1065,7 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
+        ["EV_LANGUAGE_CHANGED",         0],
         ["EV_EDIT_MAP",                 0],
         ["EV_CONTROL_MAP",              0],
         ["EV_MAP_ON_LOAD",              0],

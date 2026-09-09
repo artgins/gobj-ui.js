@@ -33,3 +33,29 @@
 .xmap .column {
     padding: 0 !important;
 }
+
+/*
+ *  The cooperative-gesture notice: "Use Ctrl + scroll to zoom the map".
+ *
+ *  maplibre's own sheet shows it for 100ms and lets it FADE for a second
+ *  more (`transition: opacity 1s ease 1s`). Nothing here has transitions,
+ *  so that fade is cut -- and with it the only thing that made the notice
+ *  readable, since 100ms is not reading time. `c_yui_map.js` holds it by
+ *  the clock instead: it appears and disappears at once, and stands still
+ *  in between.
+ */
+.maplibregl-cooperative-gesture-screen,
+.maplibregl-cooperative-gesture-screen.maplibregl-show {
+    transition: none !important;
+}
+
+.maplibregl-cooperative-gesture-screen.MAP_GESTURE_SHOWN {
+    opacity: 1;
+}
+
+/*  1.4em leaves the notice in four lines on the small map of a card. It
+ *  is an instruction, not a headline.  */
+.maplibregl-cooperative-gesture-screen {
+    font-size: 1rem;
+    text-align: center;
+}

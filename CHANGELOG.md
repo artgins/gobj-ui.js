@@ -5,6 +5,34 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.111
+
+- **maplibre's own chrome speaks the app's language**: the zoom tooltips,
+  the geolocate button, the attribution toggle, a popup's close and the
+  notice that teaches the Ctrl + wheel gesture were all coming out in
+  maplibre's English inside a Spanish app. `yui_maplibre_locale(t)` is the
+  `locale` for the map's first paint, and `yui_maplibre_relocalize(map, t)`
+  is the other half — maplibre reads its strings ONCE, when each control
+  builds its DOM, so a `locale` alone cannot answer a language change. It
+  writes the strings into the DOM already drawn and updates the map's own
+  table, so a control or a popup built later is right too.
+- `C_YUI_MAP` gained `mt_start`/`mt_stop` and an `EV_LANGUAGE_CHANGED`
+  action for it — it had no i18n at all before.
+- **And the notice stays up long enough to READ.** maplibre shows it for
+  100ms and lets it fade for a second more; nothing here has transitions,
+  so the fade was cut and what was left was a 100ms blink — worse than no
+  notice, since the reader sees something black and never learns what is
+  being asked. It is held by the clock for 2s: on and off at once, still
+  in between. The recipe is yunovatios' (`yv_map_base.js`), which had
+  solved it in the app; it belongs here.
+- New consumer keys: `drag to rotate the map, click to reset north`,
+  `find my location`, `location not available`, `toggle attribution`,
+  `map feedback`, `enter fullscreen`, `exit fullscreen`, `close popup`,
+  `map marker`, `use ctrl + scroll to zoom the map`, `use cmd + scroll to
+  zoom the map`, `use two fingers to move the map` (plus `map`, `zoom in`,
+  `zoom out`, which most consumers already have). The scale units and the
+  MapLibre logo are left alone: symbols and a brand.
+
 ## 7.23.110
 
 - **The map speaks the same gesture as the graphs**: the wheel does not
