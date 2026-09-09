@@ -439,7 +439,15 @@ function load_devices(gobj)
         source: 'devices',
         filter: ['has', 'point_count'],
         layout: {
-            'text-field': '{point_count_abbreviated}',
+            /*  The mark travels INSIDE the count, not as a second symbol
+             *  layer on the same point: two symbols on one feature is a
+             *  placement question (and the badge lost it), while a
+             *  `concat` is just the label this cluster has.  */
+            'text-field': ['case',
+                ['<', ['get', 'connected'], ['get', 'point_count']],
+                ['concat', ['get', 'point_count_abbreviated'], ' !'],
+                ['get', 'point_count_abbreviated']
+            ],
             'text-font': ['Noto Sans Regular'],
             'text-size': 14
         },
@@ -501,6 +509,38 @@ function load_devices(gobj)
             'circle-radius': 14,
             'circle-stroke-width': 1,
             'circle-stroke-color': '#fff'
+        }
+    });
+
+    /*  The state is a SHAPE too, and not only a colour.
+     *
+     *  Connected and disconnected were told apart by green vs red
+     *  alone -- in the circles as in the labels -- and that is the one
+     *  pair colour blindness does not read; in greyscale the two discs
+     *  are the same disc. A device that is DOWN carries an exclamation
+     *  mark on it, and a CLUSTER with something down carries the same
+     *  mark as a badge at its corner (its middle is taken by the
+     *  count). One glyph, legible without colour at any zoom, drawn
+     *  with the font the style already loads -- no image to fetch, so
+     *  it works offline like the rest of the chapter.
+     *
+     *  Added last, so they draw over the circles they mark.  */
+    map.addLayer({
+        id: 'unclustered-alert',
+        type: 'symbol',
+        source: 'devices',
+        filter: ['all', ['!', ['has', 'point_count']], ['!', ['get', 'connected']]],
+        layout: {
+            'text-field': '!',
+            'text-font': ['Noto Sans Regular'],
+            'text-size': 18,
+            'text-allow-overlap': true,
+            'text-ignore-placement': true
+        },
+        paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(0,0,0,0.45)',
+            'text-halo-width': 1
         }
     });
 

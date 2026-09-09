@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.98
+
+- **Connected and disconnected are told apart by a SHAPE, not only by
+  green vs red** — the one pair colour blindness does not read, and in
+  greyscale two discs are the same disc. A device that is down carries an
+  exclamation mark on it (`unclustered-alert`), and a cluster with something
+  down carries it **inside its own count**: `4 !` instead of `4`. One glyph,
+  legible without colour at any zoom, drawn with the font the style already
+  loads — no image to fetch, so it works offline like the rest.
+- The cluster's mark travels in the count's `text-field` and not as a second
+  symbol layer on the same point, because that is a placement question and
+  the badge lost it: two symbols on one feature, and only the count was
+  drawn. A `concat` is just the label that cluster has.
+- Both cases verified on screen: with one device down the cluster reads
+  `4 !` in red, and with all four connected it reads `4` in green — the
+  filter proved on the negative case too, which is the half that is usually
+  taken on faith.
+
 ## 7.23.97
 
 The charts and the maps, and the chart turned out not to be a contrast
