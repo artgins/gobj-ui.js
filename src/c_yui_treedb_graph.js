@@ -730,7 +730,11 @@ function make_toolbar(gobj)
             }
         }],
 
-        ['button', {class: 'GRAPH_REFRESH button'}, [
+        /*  Icon + label, and the label is `is-hidden-mobile`: on a phone
+         *  this is a bare icon, so the name has to be on the button.  */
+        ['button', {class: 'GRAPH_REFRESH button',
+                    title: t('refresh'), 'data-i18n-title': 'refresh',
+                    'aria-label': t('refresh'), 'data-i18n-aria-label': 'refresh'}, [
             yui_toolbar_icon('yi-arrows-rotate'),
             ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'refresh'}, 'refresh']
         ], {

@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.118
+
+- **The graph's refresh button had no name on a phone**: icon plus a
+  label that is `is-hidden-mobile`, and nothing else — the same shape as
+  the commands console's Execute. It carries `title` and `aria-label`
+  now.
+- **And the toolbar's own scroll arrows were speaking English in every
+  app.** `yui_toolbar.js` asks for `scroll left` / `scroll right` and NO
+  consumer defined them, so i18next answered with the key itself — which
+  is why they read as English beside a Spanish toolbar. The keys are the
+  library's ask; the apps carry them now. Worth knowing: a key asked for
+  by a module the app does not import DIRECTLY can slip past
+  `validate-locales`, which is how two keys stayed missing in five apps.
+
 ## 7.23.117
 
 - **The treedb graph's two selects had no name.** Their rótulo is a

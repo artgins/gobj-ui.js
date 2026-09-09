@@ -18,6 +18,8 @@
 import i18next from "i18next";
 
 const es_translation = {
+    "scroll left": "Desplazar a la izquierda",
+    "scroll right": "Desplazar a la derecha",
     /*  The Developer window (yui_dev.js).  */
     "traces": "Trazas",
     "output": "Salida",
@@ -498,6 +500,8 @@ const es_translation = {
  *  as "Q3 2026" — so unlike the demo's own keys they need an `en` bundle.
  */
 const en_translation = {
+    "scroll left": "Scroll left",
+    "scroll right": "Scroll right",
     /*  The Developer window (yui_dev.js).  */
     "traces": "Traces",
     "output": "Output",
