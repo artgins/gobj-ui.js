@@ -490,6 +490,38 @@ function destroy_ui(gobj)
 /******************************************************************
  *   Build form with bulma and createElement2
  ******************************************************************/
+/************************************************************
+ *  Put the field's NAME on its control.
+ *
+ *  The label of a field is written `<label for={name}>` -- and
+ *  `for` matches an **id**, which no control here sets: they
+ *  carry `name`. So the association reads right in the source
+ *  and does not exist in the document, and every field of every
+ *  form of this library was unlabelled for anything that is not
+ *  an eye.
+ *
+ *  `aria-label` and not an `id`: two forms can be open at once
+ *  (a record in a window and another in a modal), and duplicate
+ *  ids would break the association for both. The key is the
+ *  label's own, so a language change reaches it.
+ ************************************************************/
+function name_form_control($field, conf)
+{
+    if(!$field || typeof $field.querySelector !== "function" || !conf) {
+        return;
+    }
+    let key = conf.label_i18n || conf.label || "";
+    if(!key) {
+        return;     /*  a field with no label names nothing  */
+    }
+    let $control = $field.querySelector("input, select, textarea");
+    if(!$control || $control.getAttribute("aria-label")) {
+        return;
+    }
+    $control.setAttribute("aria-label", t(key));
+    $control.setAttribute("data-i18n-aria-label", key);
+}
+
 function build_form(gobj)
 {
     let form_id = gobj_read_str_attr(gobj, "form_id");
@@ -566,6 +598,7 @@ function build_html_form(gobj, $form, prefix, template)
          */
         if(html_field_conf.tag) {
             let $field = create_form_field(gobj, $form, prefix, field_desc, html_field_conf);
+            name_form_control($field, html_field_conf);
             $form.appendChild($field);
         }
     });

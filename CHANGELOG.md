@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.116
+
+- **`C_YUI_FORM`'s fields had no name, and the source said they did.**
+  Every label is written `<label for={name}>` — and `for` matches an
+  **id**, which no control of this form sets: they carry `name`. So the
+  association reads right and does not exist in the document, and every
+  field of every form built by the library (the treedb record editor,
+  wattyzer's, yunovatios') was unlabelled for anything that is not an
+  eye. This is the same defect as the schema editor's sibling label,
+  wearing the disguise of a correct one.
+- The name goes on the control as `aria-label`, from the label's own key,
+  in the ONE place a field is finished. Not an `id`: two forms can be
+  open at once — a record in a window and another in a modal — and
+  duplicate ids would break the association for both.
+
 ## 7.23.115
 
 - **The naming DESCENDS into the wrapper.** `select_input()` hands back
