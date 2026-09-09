@@ -160,4 +160,30 @@ function yui_toolbar(attrs={}, items = [])
     return $toolbar;
 }
 
-export {yui_toolbar, yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE};
+/************************************************************
+ *  Set or reset the PRESSED state of a toggle.
+ *
+ *  It lives here, with `yui_toolbar.css`, and not in
+ *  `lib_graph.js` where it was born: a pressed toggle is a
+ *  TOOLBAR thing, and a stylesheet rides its JS import -- while
+ *  the rule sat in the graph's file, an app without a graph got
+ *  the class and no paint, which from the outside is a button
+ *  that does not work. `lib_graph.js` re-exports it, so every
+ *  caller written against that path keeps working.
+ *
+ *  Written with `querySelectorAll` and not with `addClasses`
+ *  from `lib_graph.js` on purpose: importing that would drag
+ *  `lib_graph.css` into every toolbar, which is the same trap
+ *  the other way round.
+ ************************************************************/
+function set_pressed_state($container, selector, set)
+{
+    if(!$container) {
+        return;
+    }
+    $container.querySelectorAll(selector).forEach(($el) => {
+        $el.classList.toggle("pressed_state", !!set);
+    });
+}
+
+export {yui_toolbar, yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE, set_pressed_state};

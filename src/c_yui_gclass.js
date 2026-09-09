@@ -404,7 +404,7 @@ function apply_view_mode(gobj)
 
     if(priv.$mode_btns) {
         for(let [m, $btn] of priv.$mode_btns) {
-            $btn.classList.toggle('is-active', m === mode);
+            $btn.classList.toggle('pressed_state', m === mode);
             $btn.setAttribute("aria-pressed", (m === mode)? "true": "false");
         }
     }
@@ -983,7 +983,7 @@ function machine_view_switch(gobj)
         let on = (priv.machine_view === v.mode);
         return ['button', {class: 'button is-small GCLASS_MACHINE_VIEW ' +
                                   `GCLASS_MACHINE_VIEW_${v.mode.toUpperCase()}` +
-                                  (on? ' is-active': ''),
+                                  (on? ' pressed_state': ''),
                            type: 'button',
                            'aria-pressed': on? 'true': 'false',
                            title: t(v.key), 'data-i18n-title': v.key,

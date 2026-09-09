@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.101
+
+- **One name for "this toggle is ON": `pressed_state`**, and it lives in
+  `yui_toolbar.css` now instead of `lib_graph.css`. A pressed toggle is a
+  TOOLBAR thing, and while its rule sat in the graph's stylesheet it only
+  reached an app that mounted a graph — a stylesheet rides its JS import.
+  That is why the class had grown three spellings across the code: this
+  one, `is-active` with a fill of its own, and a copy of the rule under
+  the name `is-pressed` in a consumer's `app.css`.
+- `set_pressed_state()` moved with it, from `lib_graph.js` to
+  `yui_toolbar.js`, written with `querySelectorAll` rather than
+  `lib_graph.js`'s `addClasses` so importing it does not drag the graph
+  stylesheet back in. **`lib_graph.js` re-exports it**, so every caller
+  written against the old path keeps working.
+- **The JSON viewer's view switch stops filling itself with
+  `--bulma-link`.** It was right that Bulma's `.button.is-active` cannot
+  say WHICH of three views you are looking at, and wrong about the
+  answer: a colour of the palette names a kind of ACTION, and the
+  current view is a STATE. Measured, Bulma's is-active is a 10-point
+  lightness shift — 1.27:1 in light, 1.33:1 in dark, against 9.44:1 /
+  8.46:1 for `pressed_state`, with a hover (5 points) landing halfway to
+  it.
+- **The gclass viewer's two switches were wearing `is-active` and
+  nothing else** — no rule anywhere painted them, so its view mode and
+  its machine view were marked at 1.3:1. Both on `pressed_state` now.
+
 ## 7.23.100
 
 - **The star of the chosen main topic keeps its GOLD and is marked with a

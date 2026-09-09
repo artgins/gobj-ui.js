@@ -442,7 +442,12 @@ function icon_button(gobj, icon, event_name, label_key)
  *   aimed — reaching the graph from the tree would mean passing
  *   through the text and rebuilding it on the way — so each view gets
  *   its own button and says where it goes.  apply_view_mode() moves
- *   the `is-active` mark.
+ *   the `pressed_state` mark -- the library's one way of saying a
+ *   toggle is ON, the same the graph toolbars and the treedb legend
+ *   use.  It used to be `is-active` with a blue fill of its own: a
+ *   STATE wearing a palette colour, which is what the palette does
+ *   NOT mean (it names kinds of ACTION), and a third spelling of a
+ *   thing the library already had a name for.
  ************************************************************/
 function view_mode_switch(gobj)
 {
@@ -553,7 +558,7 @@ function apply_view_mode(gobj)
 
     if(priv.$mode_btns) {
         for(let [m, $btn] of priv.$mode_btns) {
-            $btn.classList.toggle('is-active', m === mode);
+            $btn.classList.toggle('pressed_state', m === mode);
             $btn.setAttribute("aria-pressed", (m === mode)? "true": "false");
         }
     }

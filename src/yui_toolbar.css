@@ -85,3 +85,28 @@ a.flex-horizontal-section { /* To make flex any <a> */
     padding-inline-end: 2rem;
 }
 
+
+/*********************************************************
+ *      A toggle that is ON looks PRESSED
+ *
+ *  A neutral inverted pill, no hue: the toolbar palette names KINDS of
+ *  ACTION (create, pending changes, undo/redo, destructive), and a
+ *  toggle is not an action -- it is a state the control is IN. Without
+ *  a hue it also survives colour blindness and greyscale.
+ *
+ *  NOT Bulma's `.button.is-active`, which shares its declaration with
+ *  `.button:active` (the look of a finger down right now) and only
+ *  shifts the background 10 points of lightness -- 1.27:1 in light,
+ *  1.33:1 in dark, against 9.44:1 / 8.46:1 for this one. A hovered
+ *  button (5 points) lands halfway to it.
+ *
+ *  The `:hover` half is not decoration: without it, hovering a pressed
+ *  button hands it back to Bulma's `.button:hover` and the toggle
+ *  appears to switch off under the pointer.
+ *********************************************************/
+.button.pressed_state,
+.button.pressed_state:hover {
+    background-color: var(--bulma-text, #2e333d);
+    color: var(--bulma-background, #ffffff);
+    border-color: var(--bulma-text, #2e333d);
+}

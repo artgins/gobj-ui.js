@@ -13,6 +13,7 @@ import {
 
 // import {t} from "i18next";
 import "./lib_graph.css";
+import {set_pressed_state} from "./yui_toolbar.js";
 
 /************************************************************
  *  Add class to elements selected
@@ -110,23 +111,12 @@ function set_active_state($container, selector, set)
     }
 }
 
-/************************************************************
- *  Set or reset the 'pressed' state of a TOGGLE.
- *
- *  Not one of the colours above: each of those names a KIND of
- *  action (create, pending, history, destructive), and a toggle
- *  is not an action -- it is a state the control is IN. So it
- *  looks pressed instead of changing category, which also keeps
- *  it out of the way of a neighbour wearing the same hue.
- ************************************************************/
-function set_pressed_state($container, selector, set)
-{
-    if(set) {
-        addClasses($container, selector, "pressed_state");
-    } else {
-        removeClasses($container, selector, "pressed_state");
-    }
-}
+/*  `set_pressed_state` moved to `yui_toolbar.js`, with the rule that
+ *  paints it: a toggle is not one of the colours above -- each of those
+ *  names a KIND of action (create, pending, history, destructive) and a
+ *  toggle is a STATE -- and it belongs to a toolbar, not to a graph. It
+ *  is re-exported below so every caller written against this path keeps
+ *  working.  */
 
 /**
  * Returns a smart stroke color in `rgba()` format based on:
