@@ -5,6 +5,38 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.95
+
+The shell and its navigation, swept over the app bar, the side nav, the tabs,
+the breadcrumbs, the section-index cards, the drawer, the site map and the
+window dock — in both schemes, and with the states that only exist once
+something is opened or clicked (41 elements with the drawer open).
+
+Two things failed, and they are the same shape: **coloured ink on a tint of
+its own hue**.
+
+| what | before, dark | before, light | after |
+|---|---|---|---|
+| the site map's route, on the row you are ON | **4.42** | **3.95** | 6.59 / 5.89 |
+| the dock's ACTIVE chip label | 7.73 | **4.49** | 11.81 / 11.00 |
+
+- The site map marks the current row with a tint of `--bulma-link`, and the
+  route on it was written in link blue: blue ink on blue paper. The NAME
+  beside it was always the text colour (5.89 / 6.59) — the route joins it. The
+  row is already marked by the tint and its outline; the blue said nothing
+  there.
+- Same for the dock's active chip: the BORDER says active, so the label takes
+  the text colour.
+
+And two dimmed states, which WCAG exempts (a disabled control has no contrast
+minimum) and which are fixed anyway, because a nav entry you cannot reach is
+one you still have to be able to READ: the disabled nav card and the
+minimised dock chip go from `opacity: 0.5` / `0.65` (2.85:1 and 4.3:1 in
+light) to `0.7` — 4.96, and still plainly quieter than a live card at 12.67.
+
+Everything else in the shell passed: the badge (7.16), the breadcrumbs
+(15.34 / 12.67), the drawer's items (7.41 / 8.42), the nav labels, the tabs.
+
 ## 7.23.94
 
 The form and the tables, swept the same way — every visible piece of text of

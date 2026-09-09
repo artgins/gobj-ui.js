@@ -177,6 +177,17 @@ a.ROUTEMAP_LINK .ROUTEMAP_NAME {
     background: rgba(120, 150, 255, 0.16) !important;
     outline-color: rgba(120, 150, 255, 0.55);
 }
+/*  On the row you are ON, the route leaves the blue.
+ *
+ *  The tint that marks the row and the ink of a route are the SAME
+ *  HUE, so the ink lands on its own colour: 3.95:1 in light (the row
+ *  is a saturated `--bulma-link-light`) and 4.42 in dark. The row is
+ *  already marked by that tint and its outline, so the blue says
+ *  nothing there -- and the NAME beside it has always been written
+ *  in the text colour, at 5.89 and 6.59. The route joins it.  */
+.ROUTEMAP_CURRENT .ROUTEMAP_ROUTE {
+    color: var(--bulma-text, #2e333d);
+}
 /*--- reference row: this route's subtree is drawn where the nav owns
  *    it, so the copy reachable from a drawer or the account menu is a
  *    live link without the repeated branch.  Quiet on purpose: it is a

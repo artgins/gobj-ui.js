@@ -197,8 +197,13 @@ function ensure_dock_style()
     background: var(--bulma-scheme-main); color: var(--bulma-text); cursor: pointer; white-space: nowrap;
 }
 .yui-dock-chip:hover { border-color: var(--bulma-text-weak); }
-.yui-dock-chip.is-active { border-color: #2563eb; color: #2563eb; background: rgba(37,99,235,0.10); font-weight: 600; }
-.yui-dock-chip.is-min { opacity: 0.65; }
+/*  The BORDER says active, not the text: blue ink on a blue tint is
+ *  the same hue on itself -- 4.49:1 on the light chip, under the 4.5
+ *  its 12px label needs. The label takes the text colour (11:1).  */
+.yui-dock-chip.is-active { border-color: #2563eb; color: var(--bulma-text, #2e333d); background: rgba(37,99,235,0.10); font-weight: 600; }
+/*  A minimised window is quieter, not unreadable: 0.65 is 4.3:1 on the
+ *  light scheme for a 12px label.  */
+.yui-dock-chip.is-min { opacity: 0.7; }
 .yui-dock-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex: 0 0 auto; }
 .yui-dock-chip.is-min .yui-dock-dot { background: var(--bulma-text-weak); }
 .yui-dock-icon { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; font-size: 14px; flex: 0 0 auto; }
@@ -216,7 +221,7 @@ function ensure_dock_style()
 }
 .yui-dock-close:hover { background: #e0364a; color: #fff; }
 .yui-dock-close svg { width: 11px; height: 11px; display: block; }
-:root[data-theme="dark"] .yui-dock-chip.is-active { border-color: #60a5fa; color: #93c5fd; background: rgba(96,165,250,0.16); }
+:root[data-theme="dark"] .yui-dock-chip.is-active { border-color: #60a5fa; color: var(--bulma-text, #ebecf0); background: rgba(96,165,250,0.16); }
 `;
     let $style = document.createElement('style');
     $style.id = 'yui-dock-style';
