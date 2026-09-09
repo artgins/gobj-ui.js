@@ -65,9 +65,26 @@ const ONLY = (() => {
 /************************************************************
  *  Shell helpers
  ************************************************************/
+/*  `NODE` is deleted from the environment on purpose. `npm run`
+ *  exports it pointing at the node BINARY, and a deploy script that
+ *  reads `NODE="${NODE:-<vhost>}"` -- as one of these did -- then
+ *  rsyncs the site to `/yuneta/gui/<path to node>`. Removing it makes
+ *  `npm run deploy-round` and a bare `node scripts/deploy-round.mjs`
+ *  behave the same, which is the real argument: a runner must not
+ *  hand a child anything the child would not get from a shell.  */
+function child_env()
+{
+    let env = Object.assign({}, process.env);
+    delete env.NODE;
+    return env;
+}
+
 function run(cmd, cmd_args, cwd)
 {
-    return execFileSync(cmd, cmd_args, {cwd: cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"]});
+    return execFileSync(cmd, cmd_args, {
+        cwd: cwd, encoding: "utf8", env: child_env(),
+        stdio: ["ignore", "pipe", "pipe"]
+    });
 }
 
 function curl(url)
@@ -165,6 +182,9 @@ function raise_range(dir)
     return true;
 }
 
+/*  One target's failure does not end the round: the other seven
+ *  hosts are not to blame, and a report that lists what is live is
+ *  worth more than a stack trace where the loop stopped.  */
 function do_round(c)
 {
     console.log(`\n=== ${c.name}`);
@@ -173,23 +193,29 @@ function do_round(c)
         return {name: c.name, urls: c.urls || [], state: "skipped"};
     }
 
-    if(!c.worktree) {
-        const dirs = (c.range_dirs && c.range_dirs.length)? c.range_dirs : [c.path];
-        for(const d of dirs) {
-            console.log(`    range  ${raise_range(d)? "raised" : "already"} ^${VERSION}  (${d})`);
+    try {
+        if(!c.worktree) {
+            const dirs = (c.range_dirs && c.range_dirs.length)? c.range_dirs : [c.path];
+            for(const d of dirs) {
+                console.log(`    range  ${raise_range(d)? "raised" : "already"} ^${VERSION}  (${d})`);
+            }
+            for(const d of dirs) {
+                console.log(`    install ${d}`);
+                run("npm", ["install"], d);
+            }
         }
-        for(const d of dirs) {
-            console.log(`    install ${d}`);
-            run("npm", ["install"], d);
+
+        console.log("    build");
+        run("npm", ["run", "build"], c.path);
+
+        for(const cmd of c.deploys) {
+            console.log(`    deploy ${cmd.join(" ")}`);
+            run(cmd[0], cmd.slice(1), c.path);
         }
-    }
-
-    console.log("    build");
-    run("npm", ["run", "build"], c.path);
-
-    for(const cmd of c.deploys) {
-        console.log(`    deploy ${cmd.join(" ")}`);
-        run(cmd[0], cmd.slice(1), c.path);
+    } catch(e) {
+        let out = (e.stderr || e.stdout || "").toString().trim().split("\n").slice(-3).join(" | ");
+        console.log(`    FAILED: ${out || e.message}`);
+        return {name: c.name, urls: c.urls || [], path: c.path, state: "failed"};
     }
     return {name: c.name, urls: c.urls || [], path: c.path, state: "deployed"};
 }
