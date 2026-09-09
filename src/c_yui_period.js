@@ -96,6 +96,9 @@ import {
 
 import i18next, {t} from "i18next";
 
+/*  `yui_toolbar.css` for `pressed_state`: the mark of a toggle that
+ *  is ON lives with the toolbar, and a stylesheet rides its import.  */
+import "./yui_toolbar.css";
 import "./c_yui_period.css";
 
 
@@ -699,12 +702,31 @@ function repaint(gobj)
     let priv = gobj.priv;
     let mode = cur_mode(gobj);
 
+    /*  The granularity in use looks PRESSED, like every other toggle of
+     *  the library (`pressed_state`, `yui_toolbar.css`). It used to be
+     *  `is-active` plus an `is-link` fill: a STATE painted with a colour,
+     *  and colours here name kinds of ACTION. An overflow granularity is
+     *  a `dropdown-item` and not a button, and there `is-active` is
+     *  Bulma's own mark for the current item of a menu -- which is
+     *  exactly what it is.  */
     for(let m of priv.modes) {
         if(!m.$btn) {
             continue;
         }
-        m.$btn.classList.toggle("is-active", m === mode);
-        m.$btn.classList.toggle("is-link", m === mode && !m.overflow);
+        let on = (m === mode);
+        if(m.overflow) {
+            m.$btn.classList.toggle("is-active", on);
+            /*  `aria-current` and not `aria-pressed`: the item is a link
+             *  in a menu, and `aria-pressed` belongs to a button.  */
+            if(on) {
+                m.$btn.setAttribute("aria-current", "true");
+            } else {
+                m.$btn.removeAttribute("aria-current");
+            }
+        } else {
+            m.$btn.classList.toggle("pressed_state", on);
+            m.$btn.setAttribute("aria-pressed", on? "true" : "false");
+        }
     }
     if(mode && mode.$btn) {
         scroll_mode_into_view(gobj, mode.$btn);
@@ -713,7 +735,7 @@ function repaint(gobj)
         /*  An overflow granularity in use must SAY so on the trigger: the
          *  control shows no active segment otherwise, and the user cannot
          *  tell a quarter from a month by the arrows alone.  */
-        priv.$more.classList.toggle("is-link", !!(mode && mode.overflow));
+        priv.$more.classList.toggle("pressed_state", !!(mode && mode.overflow));
     }
 
     /*  The navigator STAYS, disabled, in the modes with nothing to walk: it
@@ -991,8 +1013,12 @@ function cell_button(gobj, label, anchor_ms, selected, logical, aria)
      *  year around it.  */
     let $btn = createElement2(
         /*  The ONE place `is-small` is earned: 42 cells in a popover.  */
-        ["button", {class: `button is-small ${selected? "is-link" : "is-ghost"} ${logical}`,
+        /*  The picked instant is PRESSED, like every other mark of the
+         *  library -- it used to be an `is-link` fill, a colour on a
+         *  state. `aria-current="date"` is the same fact for a reader.  */
+        ["button", {class: `button is-small ${selected? "pressed_state" : "is-ghost"} ${logical}`,
                     type: "button", style: "width:100%;",
+                    ...(selected? {"aria-current": "date"} : {}),
                     title: aria || "", "aria-label": aria || ""}, String(label)]);
     $btn.addEventListener("click", () => {
         gobj_send_event(gobj, "EV_DATE_PICKED", {anchor: anchor_ms}, gobj);

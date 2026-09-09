@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.102
+
+- **`C_YUI_PERIOD` speaks the same vocabulary**: the granularity in use is
+  PRESSED, not filled with `--bulma-link`. It was the last place in the
+  library where a STATE wore a colour, and colours name kinds of ACTION.
+  The picked instant in the calendar goes the same way — one mark for
+  "this is the current one", everywhere.
+- **The overflow granularities keep `is-active`, and that is correct**:
+  those are `dropdown-item` links in a menu, where `is-active` is Bulma's
+  own mark for the current item. `pressed_state` is for a button. The
+  trigger that stands in for them IS a button, so it looks pressed when
+  the granularity in use is hidden behind it.
+- ARIA follows the element rather than the look: `aria-pressed` on the
+  strip's buttons, `aria-current` on the menu item, `aria-current="date"`
+  on the picked calendar cell. The widget carried none of the three
+  before.
+
 ## 7.23.101
 
 - **One name for "this toggle is ON": `pressed_state`**, and it lives in
