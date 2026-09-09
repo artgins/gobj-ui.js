@@ -50,6 +50,8 @@ import {
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
+
+import {yui_tabulator_name_row_selects} from "./yui_tabulator_i18n.js";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 import TomSelect from "tom-select"; // Import Tom-Select JS
 
@@ -1833,6 +1835,13 @@ function create_tabulator(gobj, $extend, name, template)
         $extend,
         tabulator_settings
     );
+    /*  Tabulator hard-codes `aria-label="Select Row"` on the box its
+     *  rowSelection formatter draws, and it draws a fresh one on EVERY
+     *  render -- so this hangs off `renderComplete`, not `tableBuilt`:
+     *  a name put on once is gone with the next sort or page.  */
+    tabulator.on("renderComplete", function() {
+        yui_tabulator_name_row_selects(tabulator, t);
+    });
     tabulator.on("rowClick", function(e, row) {
         //e - the click event object
         //row - row component

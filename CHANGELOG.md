@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.123
+
+- **fix: Tabulator's row-selection checkbox announced itself as *"Select
+  Row"*, in English, in every language.** Its `rowSelection` formatter
+  hard-codes `aria-label="Select Row"` on the box it draws -- no locale key,
+  no option, nothing to configure -- so it is renamed after the render, the
+  same shape as the header filters of `7.23.119`. It hangs off
+  `renderComplete` and not `tableBuilt` on purpose: a fresh box is drawn on
+  EVERY render, so a name put on once is gone with the next sort or page. It
+  matches Tabulator's own literal and only that, so a box a view named itself
+  is left alone. New consumer key `select row`; also re-applied by
+  `yui_tabulator_relocalize()`.
+
 ## 7.23.122
 
 - **fix: `yui_toolbar()`'s scroll arrows shipped their raw i18n KEY.** They

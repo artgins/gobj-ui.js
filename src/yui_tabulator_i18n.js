@@ -142,14 +142,52 @@ function yui_tabulator_name_filters(table, t)
     }
 }
 
+/***************************************************************
+ *  Name the ROW-SELECTION checkboxes.
+ *
+ *  Tabulator's `rowSelection` formatter hard-codes
+ *  `aria-label="Select Row"` on the box it draws -- no locale
+ *  key, no option, nothing to configure -- so a table in any
+ *  other language announces every row in English. Same shape as
+ *  the header filters above: rename after the render, and again
+ *  from `yui_tabulator_relocalize()` so a language change
+ *  reaches them.
+ *
+ *  It matches Tabulator's OWN literal and only that, so a box a
+ *  view named itself is left alone.
+ ***************************************************************/
+const TABULATOR_ROW_SELECT_ARIA = "Select Row";
+
+function yui_tabulator_name_row_selects(table, t)
+{
+    if(!table || typeof table.getElement !== "function") {
+        return;
+    }
+    try {
+        let $el = table.getElement();
+        if(!$el) {
+            return;
+        }
+        let boxes = $el.querySelectorAll(
+            `input[type=checkbox][aria-label="${TABULATOR_ROW_SELECT_ARIA}"]`);
+        for(let $box of boxes) {
+            $box.setAttribute("aria-label", t("select row"));
+            $box.setAttribute("data-i18n-aria-label", "select row");
+        }
+    } catch(e) {
+        /*  a table between renders has no boxes to name  */
+    }
+}
+
 function yui_tabulator_relocalize(table, t)
 {
     if(!table) {
         return;
     }
-    /*  The header filters have no name of their own; give them one
-     *  again in the new language.  */
+    /*  Neither the header filters nor the row-selection boxes have a
+     *  name of their own; give them one again in the new language.  */
     yui_tabulator_name_filters(table, t);
+    yui_tabulator_name_row_selects(table, t);
     try {
         let name = next_lang_name();
         let strings = tabulator_strings(t);
@@ -182,4 +220,5 @@ export {
     yui_tabulator_lang,
     yui_tabulator_relocalize,
     yui_tabulator_name_filters,
+    yui_tabulator_name_row_selects,
 };

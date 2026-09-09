@@ -76,7 +76,8 @@ import {register_c_yui_json} from "./c_yui_json.js";
 import {attach_clear} from "./yui_inputs.js";
 
 import {yui_tabulator_lang, yui_tabulator_relocalize,
-        yui_tabulator_name_filters} from "./yui_tabulator_i18n.js";
+        yui_tabulator_name_filters,
+        yui_tabulator_name_row_selects} from "./yui_tabulator_i18n.js";
 
 import {
     yui_selection_column,
@@ -1674,6 +1675,13 @@ function create_tabulator(gobj)
      *  rows, because filtering fires its own event and neither of the other
      *  two. Nobody had noticed while the only filter was the global search
      *  box; a filter per column made it a claim you read on every keystroke. */
+    /*  Tabulator hard-codes `aria-label="Select Row"` on the box its
+     *  rowSelection formatter draws, and it draws a fresh one on EVERY
+     *  render -- so this hangs off `renderComplete`, not `tableBuilt`:
+     *  a name put on once is gone with the next sort or page. */
+    tabulator.on("renderComplete", function() {
+        yui_tabulator_name_row_selects(tabulator, t);
+    });
     tabulator.on("dataProcessed", update_rowcount);
     tabulator.on("dataChanged", update_rowcount);
     /*  The reader changed the page size. The widget has already done the
