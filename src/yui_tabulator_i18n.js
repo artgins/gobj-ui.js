@@ -100,8 +100,8 @@ function tabulator_strings(t)
  *  row of anonymous text boxes.
  *
  *  The name is composed from the column's own title, so it needs
- *  ONE consumer key with an interpolation (`filter column` ->
- *  "Filtrar {{column}}") instead of one per column, and it
+ *  ONE consumer key with an interpolation (`filter by column` ->
+ *  "Filtrar por {{column}}") instead of one per column, and it
  *  follows a language change because this runs from
  *  `yui_tabulator_relocalize()` as well as at build.
  ***************************************************************/
@@ -130,7 +130,12 @@ function yui_tabulator_name_filters(table, t)
             if(!title) {
                 continue;   /*  a column with no title names nothing  */
             }
-            $input.setAttribute("aria-label", t("filter column", {column: title}));
+            /*  `filter by column` and NOT `filter column`: that key
+             *  already exists in two apps as the header filter's
+             *  PLACEHOLDER ("filtrar columna...") and carries no
+             *  interpolation, so reusing it named all five boxes the
+             *  same -- which is where this started.  */
+            $input.setAttribute("aria-label", t("filter by column", {column: title}));
         }
     } catch(e) {
         /*  a table between renders has no columns to name  */

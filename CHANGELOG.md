@@ -13,8 +13,10 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   it filters, and to anything that is not an eye it is a row of anonymous
   text boxes. `yui_tabulator_name_filters(table, t)` composes the name
   from the column's own title, so it costs ONE consumer key with an
-  interpolation (`filter column` → `Filtrar {{column}}`) instead of one
-  per column.
+  interpolation (`filter by column` → `Filtrar por {{column}}`) instead
+  of one per column — and NOT the existing `filter column`, which two apps
+  already use as the box's PLACEHOLDER and which carries no
+  interpolation, so reusing it named all five boxes the same.
 - It runs from `yui_tabulator_relocalize()` as well, so a language change
   renames them. Four views in the ecosystem use header filters and call it
   at `tableBuilt`: the treedb topic table here, the tranger view, and
