@@ -110,6 +110,7 @@ import {delete_impact} from "./delete_impact.js";
 import {
     yui_graph_center_on,
     yui_graph_viewport_of,
+    yui_graph_camera_behaviors,
     yui_graph_place_at,
 } from "./yui_graph_camera.js";
 import {
@@ -1955,42 +1956,17 @@ function build_ports(gobj, desc)
 const LR_LAYOUTS = ["dagre"];
 
 /************************************************************
- *  The camera behaviors every operation mode shares.
+ *  The camera behaviors every operation mode shares: the wheel
+ *  SCROLLS and Ctrl + wheel zooms.
  *
- *  The wheel SCROLLS, as it does on a map and on every page: a
- *  graph of many nodes is taller than the screen, and a wheel
- *  that zoomed instead made it a thing to be looked at from afar
- *  or read through a keyhole -- never scrolled. Zoom is Ctrl +
- *  wheel (which is also what a trackpad pinch arrives as), the
- *  toolbar's +/-, and the two-finger pinch of g6_touch_gestures.
- *  `enable` on the scroll keeps the two apart: a Ctrl wheel is
- *  the zoom's, so the scroll stands aside for it.
- *
- *  And the two have to name the SAME key, or the gesture falls
- *  between them: the scroll stood aside for Meta as well, while
- *  the zoom listened for Control alone, so Cmd + wheel neither
- *  scrolled nor zoomed. It is ONE key and not two because a G6
- *  `trigger` is a CHORD, not a list of alternatives -- its
- *  `Shortcut.match()` compares the held keys to the bound ones
- *  as a SET, so ["Control", "Meta"] means both keys down at
- *  once. Control it is, on every platform: it is what a
- *  trackpad pinch arrives as, so a Mac keeps its pinch and
- *  gains nothing to press by mistake.
+ *  Written in `yui_graph_camera.js` now, with the reasoning and
+ *  the two traps, so the json graph and the gobj tree speak it
+ *  too. It was the last gesture of the camera that this graph
+ *  said one way and its siblings another.
  ************************************************************/
 function camera_behaviors()
 {
-    return [
-        {
-            type: "scroll-canvas",
-            key: "scroll-canvas",
-            enable: (event) => !(event && event.ctrlKey),
-        },
-        {
-            type: "zoom-canvas",
-            key: "zoom-canvas",
-            trigger: ["Control"],
-        },
-    ];
+    return yui_graph_camera_behaviors();
 }
 
 function layout_direction(gobj)

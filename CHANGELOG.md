@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.109
+
+- **The wheel SCROLLS and Ctrl + wheel zooms in every graph of the
+  library**, not only in the treedb one. `C_YUI_JSON_GRAPH` and
+  `C_YUI_GOBJ_TREE_JS` kept a bare `zoom-canvas` and no `scroll-canvas`
+  at all, so the same gesture meant two different things in two graphs a
+  reader has open side by side — and the JSON viewer is reached from
+  inside the other two, which makes the disagreement a matter of seconds.
+- The pair moves to `yui_graph_camera.js`
+  (`yui_graph_camera_behaviors()`), where the rest of the camera
+  vocabulary already lives, with the two traps written next to it: the
+  scroll's `enable` and the zoom's `trigger` must name the SAME key (a G6
+  `trigger` is a CHORD, so `["Control","Meta"]` means both at once), and
+  the zoom carries `animation: false` — the house rule, and what makes an
+  anchor measurable, since `aftertransform` fires while G6's easing is
+  still running.
+- The treedb graph gains the `animation: false` it did not have, which is
+  the same rule it was already applying everywhere else.
+- Measured in the demo, all three: a plain wheel leaves the zoom
+  untouched and moves the drawing; Ctrl + wheel takes it 100% → 150%
+  (130% → 195% in the treedb one).
+
 ## 7.23.108
 
 - **`yui_shell_show_modal({dialog: true, wide: true})`**: a dialog that

@@ -100,6 +100,56 @@ export function yui_graph_update_zoom($container, graph)
 }
 
 /************************************************************
+ *   THE WHEEL SCROLLS; CTRL + WHEEL ZOOMS. In every graph.
+ *
+ *   The vocabulary of a camera is one vocabulary or it is
+ *   nothing: this file exists because the three graphs of the
+ *   library were each naming the same gestures differently, and
+ *   the wheel was the last one left -- `C_G6_NODES_TREE` scrolled
+ *   with it since 7.23.75 while the json graph and the gobj tree
+ *   went on zooming.
+ *
+ *   Why scroll and not zoom: a graph of many nodes is taller than
+ *   the screen, and a wheel that zoomed made it a thing to be
+ *   looked at from afar or read through a keyhole -- never
+ *   scrolled, which is what a wheel does on a map and on every
+ *   page. Zoom is Ctrl + wheel (what a trackpad pinch arrives
+ *   as), the toolbar's +/-, and the two-finger pinch.
+ *
+ *   Two things this pair has learnt, both the hard way:
+ *
+ *   - `enable` on the scroll is what keeps the two apart, and the
+ *     two must name the SAME key or the gesture falls between
+ *     them: the scroll once stood aside for Meta as well while
+ *     the zoom listened for Control alone, so Cmd + wheel neither
+ *     scrolled nor zoomed. It is ONE key because a G6 `trigger`
+ *     is a CHORD, not a list of alternatives -- `Shortcut.match()`
+ *     compares the held keys to the bound ones as a SET.
+ *   - `animation: false` on the zoom. The house rule first
+ *     (nothing here slides), and then the anchor: `aftertransform`
+ *     fires while G6's 200ms easing is still running, so a
+ *     re-centring measured a camera that was still moving --
+ *     passes of -272, +411, +183, oscillating because the ground
+ *     moved between two reads.
+ ************************************************************/
+export function yui_graph_camera_behaviors()
+{
+    return [
+        {
+            type: "scroll-canvas",
+            key: "scroll-canvas",
+            enable: (event) => !(event && event.ctrlKey),
+        },
+        {
+            type: "zoom-canvas",
+            key: "zoom-canvas",
+            trigger: ["Control"],
+            animation: false,
+        },
+    ];
+}
+
+/************************************************************
  *   The camera cluster: zoom in, zoom out, readout, fit,
  *   actual size.  Returns createElement2 specs, in order.
  *

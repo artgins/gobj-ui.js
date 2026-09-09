@@ -51,6 +51,7 @@ import {yui_toolbar, yui_toolbar_icon} from "./yui_toolbar.js";
 import {attach_clear} from "./yui_inputs.js";
 import {
     yui_graph_camera_items,
+    yui_graph_camera_behaviors,
     yui_graph_anchor_item,
     yui_graph_update_anchor,
     yui_graph_center_on,
@@ -978,10 +979,15 @@ const FOLD_SPACER = `<span style="width:24px; flex:0 0 auto;"></span>`;
  *  reads the easing had moved the ground. With the zoom instantaneous
  *  the camera is still by the time anything measures it.
  */
-const ZOOM_CANVAS = {type: 'zoom-canvas', animation: false};
+/*  The wheel SCROLLS and Ctrl + wheel zooms, like every other graph
+ *  of the library: the pair, and the reasoning, live in
+ *  `yui_graph_camera.js`. This view used to zoom on a bare wheel --
+ *  the same gesture meaning two different things in two graphs a
+ *  reader has open side by side.  */
+const CAMERA = yui_graph_camera_behaviors();
 
-const BEHAVIORS_READING = ['drag-canvas', ZOOM_CANVAS, 'drag-element'];
-const BEHAVIORS_PICKING = ['drag-canvas', ZOOM_CANVAS];
+const BEHAVIORS_READING = ['drag-canvas', ...CAMERA, 'drag-element'];
+const BEHAVIORS_PICKING = ['drag-canvas', ...CAMERA];
 
 /*
  *  The card's geometry, in ONE place.
