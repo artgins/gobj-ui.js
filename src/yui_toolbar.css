@@ -110,3 +110,36 @@ a.flex-horizontal-section { /* To make flex any <a> */
     color: var(--bulma-background, #ffffff);
     border-color: var(--bulma-text, #2e333d);
 }
+
+/*********************************************************
+ *      The CHOSEN segment of a selector is FILLED
+ *
+ *  Two different controls, two different marks, and telling them apart
+ *  is the whole point:
+ *
+ *    - a TOGGLE is on or off, and looks PRESSED (above) -- a neutral
+ *      pill, no hue, because there is no "which one" to answer;
+ *    - a SELECTOR picks ONE of N, and the chosen segment is FILLED with
+ *      the link colour. A hue is what the eye finds in a row of
+ *      identical grey buttons: measured against the button's own ground
+ *      the fill is 5.14:1 in light and 3.53:1 in dark -- less luminance
+ *      than the pressed pill (9.44 / 8.46) and a different HUE, which
+ *      is what says "this one, of these".
+ *
+ *  The raw `--bulma-link` and not `-on-scheme`: this is a FILL. The
+ *  `-on-scheme` variants exist for a brand colour used as INK -- they
+ *  darken it on a light scheme so text can sit on the page -- and a
+ *  darkened fill under `link-invert` text is a button nobody asked for.
+ *  Ink takes `-on-scheme`; a background takes the raw token and pairs
+ *  it with `-invert`.
+ *
+ *  `:hover` for the same reason as the pressed rule: without it, Bulma's
+ *  `.button:hover` takes the fill back and the chosen segment appears to
+ *  come unchosen under the pointer.
+ *********************************************************/
+.button.selected_state,
+.button.selected_state:hover {
+    background-color: var(--bulma-link, #3273dc);
+    border-color: var(--bulma-link, #3273dc);
+    color: var(--bulma-link-invert, #fff);
+}

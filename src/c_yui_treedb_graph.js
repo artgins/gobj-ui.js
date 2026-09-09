@@ -652,9 +652,13 @@ function refresh_node_shape_buttons(gobj, $root)
         mode = 'expanded';
     }
     let labels = gobj_read_bool_attr(gobj, "node_labels");
+    /*  A SELECTOR, not a toggle: it picks one of three views, so the
+     *  chosen segment is FILLED (`selected_state`) and not drawn as a
+     *  pressed pill. The labels button below IS a toggle -- on or off,
+     *  no "which one" -- and keeps the pill.  */
     for(let $btn of $root.querySelectorAll('.GRAPH_NODE_MODE_BTN')) {
         let on = ($btn.getAttribute('data-mode') === mode);
-        $btn.classList.toggle('pressed_state', on);
+        $btn.classList.toggle('selected_state', on);
         $btn.setAttribute('aria-pressed', on? 'true' : 'false');
     }
     set_pressed_state($root, '.GRAPH_NODE_LABELS', labels);

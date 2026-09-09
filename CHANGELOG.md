@@ -5,6 +5,29 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.103
+
+- **Two controls, two marks — and telling them apart is the point.** A
+  TOGGLE is on or off and looks PRESSED: a neutral pill, no hue, because
+  there is no *which one* to answer. A SELECTOR picks ONE of N, and the
+  chosen segment is now FILLED with the link colour (`selected_state`,
+  `set_selected_state()`, both in the toolbar module beside the pressed
+  pair).
+- The reason is what the eye does in a row of identical grey buttons: a
+  HUE is found, a shade is compared. Measured against the button's own
+  ground the fill is 5.14:1 in light and 3.53:1 in dark — less luminance
+  than the pressed pill (9.44 / 8.46) and a different hue, which is what
+  says *this one, of these*. (Bulma's own `.button.is-active`, for the
+  record, is neither: 1.27:1 / 1.33:1, and it shares its declaration with
+  `:active`.)
+- Filled now: the treedb graph's three node views, the JSON viewer's
+  three views, the gclass viewer's two switches, `C_YUI_PERIOD`'s
+  granularities (its overflow trigger with them) and the picked calendar
+  cell. Still pressed, because they are toggles: node labels, the
+  legend's loose/focus buttons, the graph's anchor and selection mode.
+  The raw `--bulma-link` and not `-on-scheme`, because this is a FILL and
+  it pairs with `-invert`.
+
 ## 7.23.102
 
 - **`C_YUI_PERIOD` speaks the same vocabulary**: the granularity in use is

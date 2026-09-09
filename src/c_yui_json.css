@@ -283,14 +283,14 @@
     margin-bottom: 0;
 }
 
-/*  The current view is marked with `pressed_state` (`yui_toolbar.css`),
- *  which is the library's one way of saying a toggle is ON. This switch
- *  used to fill itself with `--bulma-link`: right about Bulma's own
- *  `is-active` being too weak to say WHICH view you are looking at, and
- *  wrong about the answer -- a colour names a kind of ACTION, and this
- *  is a STATE. `z-index` is all that is left, so the marked button's
- *  border wins over its neighbours' in the `has-addons` group.  */
-.C_YUI_JSON .JSON_VIEW_MODE.pressed_state {
+/*  The current view is marked with `selected_state` (`yui_toolbar.css`):
+ *  the library's one way of saying WHICH segment of a selector is
+ *  chosen. This switch used to write that fill here itself -- the right
+ *  idea in the wrong place, since the same question is answered by the
+ *  graph's node modes, the map's modes and the period's granularities.
+ *  `z-index` is all that is left, so the marked button's border wins
+ *  over its neighbours' in the `has-addons` group.  */
+.C_YUI_JSON .JSON_VIEW_MODE.selected_state {
     z-index: 1;
 }
 

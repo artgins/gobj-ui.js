@@ -186,4 +186,25 @@ function set_pressed_state($container, selector, set)
     });
 }
 
-export {yui_toolbar, yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE, set_pressed_state};
+/************************************************************
+ *  Set or reset the CHOSEN state of one segment of a selector.
+ *
+ *  Not the same control as a toggle, and not the same mark: a
+ *  toggle is on or off and looks pressed (a neutral pill, no
+ *  hue, because there is no "which one" to answer); a selector
+ *  picks ONE of N and fills the chosen segment with the link
+ *  colour, which is what the eye finds in a row of identical
+ *  grey buttons. See `yui_toolbar.css` for the measurements.
+ ************************************************************/
+function set_selected_state($container, selector, set)
+{
+    if(!$container) {
+        return;
+    }
+    $container.querySelectorAll(selector).forEach(($el) => {
+        $el.classList.toggle("selected_state", !!set);
+    });
+}
+
+export {yui_toolbar, yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE,
+        set_pressed_state, set_selected_state};
