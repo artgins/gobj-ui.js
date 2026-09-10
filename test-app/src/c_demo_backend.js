@@ -92,7 +92,12 @@ const DESCS = {
             {id: "teams",         header: "Teams",       type: "list",
              flag: ["hook"], hook: {"teams": "department"}},
             {id: "users",         header: "Users",       type: "list",
-             flag: ["hook"], hook: {"users": "department"}}
+             flag: ["hook"], hook: {"users": "department"}},
+            /*  Who runs it: a user who is often one of its own users,
+             *  so the department and that user point at EACH OTHER --
+             *  the reciprocal pair the graph has to draw apart.  */
+            {id: "manager",       header: "Manager",     type: "string",
+             flag: ["persistent", "fkey"], fkey: {"users": "manages"}}
         ]
     },
     teams: {
@@ -148,7 +153,9 @@ const DESCS = {
             {id: "department", header: "Department", type: "string",
              flag: ["persistent", "fkey"], fkey: {"departments": "users"}},
             {id: "teams",      header: "Teams",      type: "list",
-             flag: ["persistent", "fkey"], fkey: {"teams": "members"}}
+             flag: ["persistent", "fkey"], fkey: {"teams": "members"}},
+            {id: "manages",    header: "Manages",    type: "list",
+             flag: ["hook"], hook: {"departments": "manager"}}
         ]
     }
 };
@@ -180,8 +187,12 @@ const RECORDS = {
     departments: [
         {id: "engineering", name: "Engineering", department_id: ""},
         {id: "sales",       name: "Sales",       department_id: ""},
+        /*  Run by Grace, who is one of its users: `operations` and
+         *  `grace` point at each other, and `operations` still hangs
+         *  from `engineering`, so the pair is on the tree.  */
         {id: "operations",  name: "Operations",
-         department_id: "departments^engineering^departments"}
+         department_id: "departments^engineering^departments",
+         manager: "users^grace^manages"}
     ],
     teams: [
         {id: "core",  name: "Core",

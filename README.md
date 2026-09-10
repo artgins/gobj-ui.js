@@ -1438,6 +1438,17 @@ direction, and a layout with no rows (`rowless_layouts`: `radial`,
 `edge_shape` is `SDF_PERSIST` on `C_YUI_TREEDB_GRAPH`, a preference per
 treedb like `node_labels`. Consumer key: `elbow edges`.
 
+Two cases are not a channel (`7.23.150`, `treedb_elbow.js`, pure and
+tested). An elbow that does not run **forward** — the target above its
+source or in the same row, which one edge of every reciprocal pair is —
+goes **round** the two cards instead of through them: a short run out of its
+port, along the outside of both, and in from the other port's own side. And
+the edges joining the **same two cards**, either way round, take **lanes**
+10px apart in the order they were made (0, +1, −1…), so a new one never
+moves the ones already drawn; a detour on a negative lane goes round the
+left. The detour clears the two cards it joins, not the others: a card of a
+third record standing in its way is crossed, as a curve would cross it.
+
 All three take the **same spanning tree**, chosen deterministically: roots are the
 nodes with no incoming edge, in node order; a node belongs to the **first
 parent that reaches it** in a breadth-first walk (the place, not the

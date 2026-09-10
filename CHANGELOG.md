@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.150
+
+- **treedb graph, elbow edges: a reciprocal pair is drawn apart.** Of the two
+  edges of a pair (A -> B and B -> A) one always runs backwards, from the
+  lower card up to the upper one, and its channel half way between fell on
+  top of its partner's while its legs ran through both cards. Now an elbow
+  that does not run FORWARD (the target above its source, or in the same row)
+  goes ROUND: a short run out of its port, along the outside of both cards,
+  and into the other port from that port's own side. And the edges joining
+  the same two cards, either way round, take LANES: the first stays where it
+  is, the next moves 10px to one side, the next to the other -- in the order
+  they were made, so a new edge never moves the ones already drawn. A detour
+  on a negative lane goes round the left, any other the right.
+- The geometry is `treedb_elbow.js` (`elbow_lane`, `elbow_points`), pure and
+  tested; the two elbow edge types read each card's box and their lane on
+  every draw and ask it for the control points.
+- test-app: the demo treedb has a reciprocal pair to show it -- `operations`
+  is run by `grace`, one of its own users (`departments.manager` fkey,
+  `users.manages` hook).
+
 ## 7.23.149
 
 - **treedb graph: elbow edges, as an option.** A toggle beside the node

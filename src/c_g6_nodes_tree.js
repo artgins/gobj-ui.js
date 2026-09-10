@@ -133,6 +133,7 @@ import {
     fold_root_group_key,
 } from "./treedb_fold_model.js";
 import {layout_tree, layout_radial, layout_compact} from "./treedb_layout.js";
+import {elbow_lane, elbow_points} from "./treedb_elbow.js";
 
 import {
     BaseLayout,
@@ -4221,16 +4222,53 @@ class TreedbTreeLayout extends BaseLayout
  *
  *  Computed on every draw from where the two ends ARE, so a
  *  dragged card, a fold or a layout needs nothing else. `-v` runs
- *  between rows (top to bottom), `-h` between columns.
+ *  between rows (top to bottom), `-h` between columns. An edge that
+ *  does not run forward goes round the two cards, and the edges
+ *  joining the same two cards take lanes (treedb_elbow.js).
  ************************************************************/
 const ELBOW_RADIUS = 6;
+
+/*  The box of a card on the canvas, for a detour to go round it.  */
+function elbow_box(node)
+{
+    try {
+        let b = node.getShape('key').getBounds();
+        return {x1: b.min[0], y1: b.min[1], x2: b.max[0], y2: b.max[1]};
+    } catch(e) {
+        log_error(`elbow edge: no bounds for node ${node && node.id}: ${e}`);
+        let c = node.getCenter();
+        return {x1: c[0], y1: c[1], x2: c[0], y2: c[1]};
+    }
+}
+
+/*  The lane of an edge among the edges joining the same two cards,
+ *  either way round (treedb_elbow.js).  */
+function elbow_lane_of(edge)
+{
+    let graph = edge.context && edge.context.graph;
+    let s = edge.sourceNode && edge.sourceNode.id;
+    let t = edge.targetNode && edge.targetNode.id;
+    if(!graph || s === undefined || t === undefined || s === t) {
+        return 0;
+    }
+    try {
+        let ids = graph.getRelatedEdgesData(s)
+            .filter((d) => (d.source === s && d.target === t) ||
+                           (d.source === t && d.target === s))
+            .map((d) => d.id);
+        return elbow_lane(ids, edge.id);
+    } catch(e) {
+        log_error(`elbow edge ${edge.id}: cannot read the edges of ${s}: ${e}`);
+        return 0;
+    }
+}
 
 class TreedbElbowV extends Polyline
 {
     getControlPoints(attributes) {
         let [s, t] = this.getEndpoints(attributes, false);
-        let mid = (s[1] + t[1]) / 2;
-        return [[s[0], mid], [t[0], mid]];
+        return elbow_points(s, t, elbow_box(this.sourceNode), elbow_box(this.targetNode),
+                            elbow_lane_of(this), true);
     }
 
     getKeyPath(attributes) {
@@ -4243,8 +4281,8 @@ class TreedbElbowH extends Polyline
 {
     getControlPoints(attributes) {
         let [s, t] = this.getEndpoints(attributes, false);
-        let mid = (s[0] + t[0]) / 2;
-        return [[mid, s[1]], [mid, t[1]]];
+        return elbow_points(s, t, elbow_box(this.sourceNode), elbow_box(this.targetNode),
+                            elbow_lane_of(this), false);
     }
 
     getKeyPath(attributes) {
