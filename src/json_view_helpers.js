@@ -5,7 +5,8 @@
  *      viewer).  Kept out of the gclass so it can be unit-tested with
  *      no DOM: collapsed-sentinel detection, path (segments) algebra,
  *      search matching, timestamp recognition/formatting, the JSON
- *      type discriminator and the text view's capped dump.
+ *      type discriminator and the text view's capped dump -- and the
+ *      differences of two documents, for the JSON pad's compare.
  *
  *      Path convention mirrors the C kernel (kw_collapse / kw_find_path
  *      in kwid.c): segments are joined by the backtick delimiter, arrays
@@ -14,6 +15,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+import {json2flat, flat_diff} from "@yuneta/gobj-js";
 
 /*
  *  Path delimiter, identical to the kernel's `delimiter` in kwid.c.
@@ -396,4 +398,57 @@ export function count_branches(value)
         }
     }
     return n;
+}
+
+/************************************************************
+ *  What differs between two documents: one row per id of
+ *  their flat form (json2flat), sorted by id in natural order,
+ *  so `[2]` comes before `[10]`:
+ *
+ *      [{id, kind: "added"|"removed"|"changed", from?, to?}]
+ *
+ *  `from` is the first document's value and `to` the second's:
+ *  an added row has no `from`, a removed row no `to`.
+ *
+ *  Two roots that are not containers of the same kind have no
+ *  ids in common to compare by: they are one value each, and
+ *  the row that says they differ has the empty id.
+ *
+ *  Throws what json2flat throws (a document too deep).
+ ************************************************************/
+export function json_diff_rows(doc_a, doc_b)
+{
+    const kind_of = (v) => {
+        if(Array.isArray(v)) {
+            return "array";
+        }
+        if(v !== null && typeof v === "object") {
+            return "object";
+        }
+        return "scalar";
+    };
+
+    let kind_a = kind_of(doc_a);
+    if(kind_a === "scalar" || kind_a !== kind_of(doc_b)) {
+        if(JSON.stringify(doc_a) === JSON.stringify(doc_b)) {
+            return [];
+        }
+        return [{id: "", kind: "changed", from: doc_a, to: doc_b}];
+    }
+
+    let diff = flat_diff(json2flat(doc_a), json2flat(doc_b));
+    let rows = [];
+    for(const id of Object.keys(diff.added)) {
+        rows.push({id: id, kind: "added", to: diff.added[id]});
+    }
+    for(const id of Object.keys(diff.removed)) {
+        rows.push({id: id, kind: "removed", from: diff.removed[id]});
+    }
+    for(const id of Object.keys(diff.changed)) {
+        rows.push({id: id, kind: "changed", from: diff.changed[id].from, to: diff.changed[id].to});
+    }
+
+    const collator = new Intl.Collator("en", {numeric: true});
+    rows.sort((x, y) => collator.compare(x.id, y.id));
+    return rows;
 }

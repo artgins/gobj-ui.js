@@ -1,0 +1,94 @@
+/***********************************************************************
+ *          c_yui_json_pad.css
+ *
+ *          Layout of C_YUI_JSON_PAD: the two panes side by side, stacked
+ *          when the PAD (not the screen) is narrow -- it lives in a window
+ *          the reader resizes.  The logical block names double as hooks.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+.JSON_PAD {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    padding: .5rem;
+    container-type: inline-size;
+}
+
+.JSON_PAD_TOOLBAR {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem;
+}
+
+.JSON_PAD_NOTICE {
+    flex: 1 1 auto;
+}
+
+.JSON_PAD_PANES {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: row;
+    gap: .5rem;
+}
+
+.JSON_PAD_PANE {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+
+/*  Comparing: the viewers give their place to the differences, and the
+ *  panes keep only their text areas.  */
+.JSON_PAD.is-comparing .JSON_PAD_PANES {
+    flex: 0 0 auto;
+}
+
+.JSON_PAD_DIFF {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+}
+
+.JSON_PAD_DIFF_SUMMARY {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: .5rem;
+}
+
+.JSON_PAD_DIFF_COUNT {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+
+.JSON_PAD_DIFF_TABLE {
+    font-size: .85rem;
+}
+
+.JSON_PAD_DIFF_TABLE td.JSON_PAD_DIFF_PATH,
+.JSON_PAD_DIFF_TABLE td.JSON_PAD_DIFF_FROM,
+.JSON_PAD_DIFF_TABLE td.JSON_PAD_DIFF_TO {
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+@container (max-width: 40rem) {
+    .JSON_PAD_PANES {
+        flex-direction: column;
+    }
+    .JSON_PAD.is-comparing .JSON_PAD_PANE {
+        flex: 0 0 auto;
+    }
+}

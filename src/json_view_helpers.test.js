@@ -21,7 +21,50 @@ import {
     is_pure_collection,
     has_branch,
     count_branches,
+    json_diff_rows,
 } from "./json_view_helpers.js";
+
+
+/*============================================================
+ *      json_diff_rows
+ *============================================================*/
+test("json_diff_rows: two equal documents have no rows, whatever their key order", () => {
+    expect(json_diff_rows({a: 1, b: [1, {c: null}]}, {b: [1, {c: null}], a: 1})).toEqual([]);
+});
+
+test("json_diff_rows: one row per differing id, sorted by id", () => {
+    let a = {a: 1, b: {c: [1, 2]}, e: "x"};
+    let b = {a: 2, b: {c: [1]}, d: {}, e: "x"};
+    expect(json_diff_rows(a, b)).toEqual([
+        {id: "a",       kind: "changed", from: 1, to: 2},
+        {id: "b`c`[1]", kind: "removed", from: 2},
+        {id: "d",       kind: "added",   to: {}},
+    ]);
+});
+
+test("json_diff_rows: array indexes sort as numbers, [2] before [10]", () => {
+    let a = [];
+    let b = [];
+    for(let i = 0; i < 12; i++) {
+        a.push(i);
+        b.push((i === 2 || i === 10)? -1 : i);
+    }
+    expect(json_diff_rows(a, b).map((r) => r.id)).toEqual(["[2]", "[10]"]);
+});
+
+test("json_diff_rows: a leaf that becomes a container is one id gone and one new", () => {
+    expect(json_diff_rows({a: 1}, {a: {b: 2}})).toEqual([
+        {id: "a",   kind: "removed", from: 1},
+        {id: "a`b", kind: "added",   to: 2},
+    ]);
+});
+
+test("json_diff_rows: roots that are not containers of one kind are one value each", () => {
+    expect(json_diff_rows(1, 1)).toEqual([]);
+    expect(json_diff_rows("x", "y")).toEqual([{id: "", kind: "changed", from: "x", to: "y"}]);
+    expect(json_diff_rows({}, [])).toEqual([{id: "", kind: "changed", from: {}, to: []}]);
+    expect(json_diff_rows(null, {a: 1})).toEqual([{id: "", kind: "changed", from: null, to: {a: 1}}]);
+});
 
 
 /*============================================================

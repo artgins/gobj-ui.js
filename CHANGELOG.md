@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.144
+
+- **JSON viewer: two panes, compare, and what was pasted is kept.**
+  `C_YUI_JSON_PAD` gains a second pane on demand (*second json*, a toggle in
+  the pad's toolbar) and *compare*, which puts the differences of the two
+  documents in place of the viewers: one row per id of the flat form,
+  added / removed / changed, sorted by id, following every paste or view. Both
+  texts and the layout are kept in `localStorage` under the new `storage_key`
+  attribute (default `yui_json_pad`, empty keeps nothing), so the pad opens as
+  it was left; a text the browser refuses to store is said in the toolbar. The
+  FSM states are now the layout -- `ST_SINGLE`, `ST_DUAL`, `ST_DIFF` -- and
+  every pane event carries its `pane` (`"a"` / `"b"`).
+- `json_diff_rows(doc_a, doc_b)` in `json_view_helpers.js`: the differences of
+  two documents on `json2flat` / `flat_diff` (gobj-js), natural order so `[2]`
+  comes before `[10]`.
+- Icons `yi-columns` and `yi-right-left`.
+- New consumer keys: `first json`, `second json`, `compare`, `added`,
+  `removed`, `changed`, `path`, `no differences`, `compare needs two json`,
+  `cannot compare`, `json not kept`.
+
 ## 7.23.143
 
 - **JSON viewer: `setup_json_pad()` + `C_YUI_JSON_PAD`.** A blank pad in a

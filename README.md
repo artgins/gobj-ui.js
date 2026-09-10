@@ -1918,15 +1918,29 @@ frontend view it returns `null` when the window is already open, so the host
 toggles with it, and it registers `C_YUI_JSON_PAD` (and the `C_YUI_JSON` it
 hosts) itself when the app did not.
 
-- A **paste anywhere in the pad** replaces the document and shows it at once;
+- A **paste anywhere in a pane** replaces its document and shows it at once;
   **view** (or Ctrl+Enter) reads the text area as typed; **clear** empties it.
 - Text that is not JSON leaves the last document on screen and says so under
   the text area, with the parser's reason.
+- **Two panes.** *Second json* opens a second pane beside the first (stacked
+  when the pad is narrower than 40rem), and *compare* puts the differences of
+  the two documents in place of the two viewers: one row per id of the flat
+  form (`json2flat`, `json_diff_rows()` in `json_view_helpers.js`), tagged
+  added / removed / changed, sorted by id. Edit either text area and view it
+  again: the differences follow.
+- **What was pasted is kept**: both texts and the layout, in `localStorage`
+  under the pad's `storage_key` attribute (default `yui_json_pad`; empty keeps
+  nothing), so the next pad opens as the last one was left. A text too big for
+  the browser's quota is not kept, and the pad says so in its toolbar.
 - A `__collapsed__` sentinel in a pasted dump is answered with
   `EV_SUBTREE_ERROR`: the source truncated it, and a pad has no backend to ask.
 
 Consumer i18n keys: `json viewer`, `paste json here`, `invalid json`,
-`collapsed in the source` (plus `view` and `clear`, which every app has).
+`collapsed in the source`, `first json`, `second json`, `compare`, `added`,
+`removed`, `changed`, `path`, `no differences`, `compare needs two json`,
+`cannot compare`, `json not kept` (plus `view` and `clear`, which every app
+has). `compare`, `view` and `clear` reach `t()` as variables, so a consumer's
+`validate-locales` does not see them.
 
 ### Frontend view — `setup_frontend_view`
 

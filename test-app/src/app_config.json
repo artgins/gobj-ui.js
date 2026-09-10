@@ -90,6 +90,18 @@
                 }
             },
             {
+                "_comment": "The JSON viewer, one click away: the same EV_OPEN_JSON_VIEWER as the account-menu row, for a reader who pastes JSON here all day. A toggle: the second click closes the window.",
+                "id": "jsonviewer",
+                "icon": "yi-code",
+                "align": "end",
+                "aria_label": "json viewer",
+                "tooltip": "json viewer",
+                "action": {
+                    "type": "event",
+                    "event": "EV_OPEN_JSON_VIEWER"
+                }
+            },
+            {
                 "id": "alerts",
                 "icon": "yi-triangle-exclamation",
                 "align": "end",
