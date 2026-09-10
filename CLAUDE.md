@@ -14,6 +14,33 @@ transitions, icon-only mobile buttons, Bulma `!important`, `yui_icons`), and
 the two-line consumption model of this very repo. This file only adds the
 gobj-ui-specific layer on top.
 
+## A control without a name is a bug: `title` + `aria-label`, always
+
+This library draws controls for six apps, so a control it leaves unnamed is
+unnamed in all of them. Every `input`, `select`, `textarea`, `button` — or
+anything that behaves as one — carries BOTH attributes, each through `t()` and
+each with its key (`data-i18n-title`, `data-i18n-aria-label`), written where
+the control is built. A floor, not a preference.
+
+Two cases the rule reaches that no attribute can:
+
+- **What a widget draws for itself** — Tabulator's header filters and its
+  row-selection checkbox, Tom Select's box in front of the `<select>` it hides
+  — is named AFTER the render, and again on every rebuild (`columnsLoaded`,
+  `renderComplete`). A name written onto a widget's DOM is a race with the
+  next render.
+- **An `<option>`** is text like any other: `data-i18n`, with `value` kept
+  explicit.
+
+⚠️ **A key that arrives as a VARIABLE is invisible to every consumer's
+`validate-locales`** — a data table, a helper's argument, a local alias of
+`t()`. `yui_dev.js` is the worst case (46 keys, six such sites); its list is
+written above `TRACE_DEFS` for a consumer to copy.
+
+The full rule, with what does NOT count as a name, is in the README
+("Conventions"). The check is not a grep: **dump `title`/`aria-label` from the
+DEPLOYED DOM and switch language.**
+
 ## This repo in the yunetas ecosystem
 
 - Two maintained lines: **`main`/v2** (declarative shell
