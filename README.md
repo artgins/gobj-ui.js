@@ -1664,6 +1664,15 @@ forwards them as `EV_SET_HIDDEN_TOPICS`, `EV_SET_MAIN_TOPIC`,
 `main topic`, `highlight topic`, `loose records`, `hidden topics`; `legend`
 is no longer used.
 
+**The layout select has a stepper beside it** (`7.23.146`): ▲ and ▼ step to
+the layout before or after the current one, in the order the engine offers
+them (`layout_names`), without opening the list. Layouts are picked by trying
+them one after another, and a list closes on every pick. The stepper reads the
+layout the engine is USING (its `layout` attr, which `auto_layout` can set),
+not the persisted choice, and disables the button at each end of the list. A
+press is `EV_STEP_LAYOUT {step}` (internal), which sends `EV_SET_LAYOUT` with
+the neighbour. Consumer i18n keys: `previous layout`, `next layout`.
+
 **The main topic's chip is not a disabled button** (`7.23.88`): it cannot be
 hidden, so its body is a `div` wearing the `.button` skin — bold, at full
 strength, with a gold star — and not a toggle painted at Bulma's half

@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.146
+
+- **treedb graph: a layout stepper beside the layout select.** Two buttons,
+  ▲ and ▼, step to the layout before or after the current one without
+  opening the list, in the order the engine offers them. Layouts are picked
+  by trying them one after another, and a list closes on every pick. The
+  button at each end of the list is disabled, like the fold stepper. Each
+  press is `EV_STEP_LAYOUT {step}`, which sends `EV_SET_LAYOUT` with the
+  neighbour, so it is in the `machine` trace. The stepper reads the layout
+  the engine is USING, including one `auto_layout` picked.
+- New consumer keys: `previous layout`, `next layout`.
+
 ## 7.23.145
 
 - **treedb graph: changing the layout left a blank view and a stale

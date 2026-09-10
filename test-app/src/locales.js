@@ -427,6 +427,8 @@ const es_translation = {
     "json not kept": "no guardado: el navegador no ha dejado almacenarlo",
     "expand one level": "desplegar un nivel",
     "collapse one level": "plegar un nivel",
+    "previous layout":    "layout anterior",
+    "next layout":        "layout siguiente",
     "fold level": "árbol principal: su topic y el nivel mostrado",
     "level": "nivel",
     "hidden topics": "en topics ocultos",

@@ -783,6 +783,48 @@ function refresh_fold_level(gobj)
     }
 }
 
+/*  A button of the layout stepper: the layout before (`step` -1) or
+ *  after (+1) the current one, in the order the engine offers them.  */
+function layout_step_button(gobj, cls, icon, key, step)
+{
+    return ['button', {class: `${cls} button`, type: 'button',
+                       style: {height: gobj_read_str_attr(gobj, "wide"), width: '2.5em'},
+                       disabled: true,
+                       title: t(key), 'data-i18n-title': key,
+                       'aria-label': t(key), 'data-i18n-aria-label': key},
+        yui_toolbar_icon(icon),
+        {
+            click: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_STEP_LAYOUT", {step: step}, gobj);
+            }
+        }
+    ];
+}
+
+/*  Paint the layout stepper from the layout the engine is USING: it can
+ *  differ from the persisted choice (auto_layout picks one for a treedb
+ *  nobody arranged). The ends of the list disable their button.  */
+function refresh_layout_stepper(gobj)
+{
+    let priv = gobj.priv;
+    let $container = priv.$container;
+    if(!$container || !priv.gobj_nodes_tree) {
+        return;
+    }
+    let names = gobj_read_attr(priv.gobj_nodes_tree, "layout_names") || [];
+    let index = names.indexOf(gobj_read_str_attr(priv.gobj_nodes_tree, "layout"));
+
+    let $prev = $container.querySelector('.GRAPH_LAYOUT_PREV');
+    let $next = $container.querySelector('.GRAPH_LAYOUT_NEXT');
+    if($prev) {
+        $prev.disabled = !(index > 0);
+    }
+    if($next) {
+        $next.disabled = !(index >= 0 && index < names.length - 1);
+    }
+}
+
 function make_toolbar(gobj)
 {
     let priv = gobj.priv;
@@ -833,6 +875,15 @@ function make_toolbar(gobj)
                 gobj_send_event(gobj, "EV_SET_LAYOUT", {layout: evt.target.value}, gobj);
             }
         }],
+        /*  One step up or down the list without opening it: layouts are
+         *  picked by trying them one after another, and a list closes on
+         *  every pick. Born disabled, like the fold stepper: the options
+         *  arrive with the child (populate_nodes_tree_options).  */
+        ['div', {class: 'GRAPH_LAYOUT_STEPPER buttons has-addons',
+                 style: 'margin:0 0 0 .25rem; flex:0 0 auto; flex-wrap:nowrap; align-items:stretch;'}, [
+            layout_step_button(gobj, 'GRAPH_LAYOUT_PREV', 'yi-chevron-up', 'previous layout', -1),
+            layout_step_button(gobj, 'GRAPH_LAYOUT_NEXT', 'yi-chevron-down', 'next layout', 1),
+        ]],
 
         ['span', {class: 'GRAPH_MODE_LABEL is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;', i18n: 'operation mode'}, 'operation mode'],
         ['div', {class: 'select'}, [
@@ -1264,6 +1315,7 @@ function populate_nodes_tree_options(gobj)
         if(current_layout) {
             $layout_select.value = current_layout;
         }
+        refresh_layout_stepper(gobj);
     }
 
     // Restore persisted operation_mode selection
@@ -2558,7 +2610,30 @@ function ac_set_layout(gobj, event, kw, src)
         },
         gobj
     );
+    refresh_layout_stepper(gobj);
 
+    return 0;
+}
+
+/************************************************************
+ *  One press of the layout stepper (EV_STEP_LAYOUT {step}): the
+ *  layout before or after the one the engine is using, in the order
+ *  it offers them. The buttons are disabled at the ends, so a step
+ *  out of the list is a sender that did not read them.
+ ************************************************************/
+function ac_step_layout(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    let step = (kw && kw.step) || 0;
+    let names = gobj_read_attr(priv.gobj_nodes_tree, "layout_names") || [];
+    let index = names.indexOf(gobj_read_str_attr(priv.gobj_nodes_tree, "layout")) + step;
+    if(step === 0 || index < 0 || index >= names.length) {
+        log_error(`${gobj_short_name(gobj)}: layout step ${step} is out of the list`);
+        return -1;
+    }
+
+    gobj_send_event(gobj, "EV_SET_LAYOUT", {layout: names[index]}, gobj);
     return 0;
 }
 
@@ -3037,6 +3112,7 @@ function ac_layout_autoset(gobj, event, kw, src)
         return 0;
     }
     $select.value = layout;
+    refresh_layout_stepper(gobj);
     return 0;
 }
 
@@ -3308,6 +3384,7 @@ function create_gclass(gclass_name)
             ["EV_RUN_NODE",                 ac_run_node,                null],
             ["EV_CLOSE_WINDOW",             ac_close_window,            null],
             ["EV_SET_LAYOUT",               ac_set_layout,              null],
+            ["EV_STEP_LAYOUT",              ac_step_layout,             null],
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
             ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
             ["EV_FIND_NODES",               ac_find_nodes,              null],
@@ -3353,6 +3430,7 @@ function create_gclass(gclass_name)
         ["EV_RUN_NODE",                 0],
         ["EV_CLOSE_WINDOW",             0],
         ["EV_SET_LAYOUT",               0],
+        ["EV_STEP_LAYOUT",              0],
         ["EV_SET_OPERATION_MODE",       0],
         ["EV_SET_FOCUS_TOPIC",          0],
         ["EV_FIND_NODES",               0],
