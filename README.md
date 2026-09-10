@@ -1457,8 +1457,11 @@ the lane, plus the two ends; a turn costs 40px of line), over the cards within
 400px first and all of them if that finds no way; with no way at all the
 simple elbow stays. A parent and the row of children under it keep their bus;
 what gets routed is a detour with a third card in its way, an edge dropping
-several rows, an edge between two cards of one row. Ports are not obstacles,
-only cards. G6's `shortest-path` router is not used: it is not exported, it
+several rows, an edge between two cards of one row. Since `7.23.152` a node is
+measured **whole** — card, ports and label — so a line keeps clear of the
+ports as well; the edge's own ports stick out of its own cards, so its first
+and last segments are not tested against their own box. G6's `shortest-path`
+router is not used: it is not exported, it
 falls back in silence to a route that crosses cards, and it rewrites its
 module defaults with every config it is given.
 

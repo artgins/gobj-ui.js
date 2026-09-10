@@ -96,8 +96,10 @@ export function elbow_points(s, t, box_s, box_t, lane, vertical)
     let side = (lane < 0)
         ? Math.min(box_s.x1, box_t.x1) - ELBOW_CLEAR - Math.abs(shift)
         : Math.max(box_s.x2, box_t.x2) + ELBOW_CLEAR + Math.abs(shift);
-    let y1 = s[1] + out;        /*  a hook port is on the bottom edge  */
-    let y2 = t[1] - out;        /*  an fkey port is on the top edge  */
+    /*  From the border of the whole box, which holds the ports: a
+     *  port sticks out of its card, and the run has to clear it.  */
+    let y1 = Math.max(s[1], box_s.y2) + out;     /*  a hook port is on the bottom edge  */
+    let y2 = Math.min(t[1], box_t.y1) - out;     /*  an fkey port is on the top edge  */
     return [[s[0], y1], [side, y1], [side, y2], [t[0], y2]];
 }
 
@@ -133,16 +135,33 @@ function segment_hits(a, c, b)
     return x1 < b.x2 && x2 > b.x1 && y1 < b.y2 && y2 > b.y1;
 }
 
+function same_box(a, b)
+{
+    return !!a && !!b && a.x1 === b.x1 && a.y1 === b.y1 && a.x2 === b.x2 && a.y2 === b.y2;
+}
+
 /************************************************************
  *  Does the polyline `points` (its ends included) cross any of
- *  `boxes`? A card is a box shrunk by a pixel, so a line along
- *  its border or leaving from a port on it is not a hit.
+ *  `boxes`? A box is shrunk by a pixel, so a line along its
+ *  border is not a hit.
+ *
+ *  A box is a whole node, its ports included, and the edge's own
+ *  ports stick out of its own two cards: its first segment starts
+ *  inside `box_s` and its last one ends inside `box_t`. Those two
+ *  segments are not tested against their own box; every other
+ *  segment is, so a line may not run back over its own cards.
  ************************************************************/
-export function elbow_path_hits(points, boxes)
+export function elbow_path_hits(points, boxes, box_s, box_t)
 {
+    let last = points.length - 2;
     for(let b of boxes) {
         let inner = box_expand(b, -1);
-        for(let i = 0; i + 1 < points.length; i++) {
+        let own_s = same_box(b, box_s);
+        let own_t = same_box(b, box_t);
+        for(let i = 0; i <= last; i++) {
+            if((own_s && i === 0) || (own_t && i === last)) {
+                continue;
+            }
             if(segment_hits(points[i], points[i + 1], inner)) {
                 return true;
             }
@@ -332,8 +351,11 @@ function orth_search(a, z, boxes)
  *  port, the shortest way along the gaps between the cards, in.
  *  A parent and the row of children under it keep their bus.
  *
- *  `boxes` are all the cards on screen, the two of the edge
- *  included. The route keeps a clearance from every card, which
+ *  `boxes` are all the nodes on screen, the two of the edge
+ *  included, each as the box of the WHOLE node -- card, ports and
+ *  label -- so a line clears the ports too. `box_s` and `box_t`
+ *  are the edge's own two, measured the same way. The route keeps
+ *  a clearance from every box, which
  *  grows with the lane so that two routed edges of one pair do not
  *  coincide. Nearby cards first; all of them if that finds no way;
  *  the simple elbow if nothing does.
@@ -347,13 +369,14 @@ export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes)
     }
 
     let simple = elbow_points(s, t, box_s, box_t, lane, true);
-    if(!elbow_path_hits([s, ...simple, t], others)) {
+    if(!elbow_path_hits([s, ...simple, t], others, box_s, box_t)) {
         return simple;
     }
 
     let m = ELBOW_CLEAR / 2 + Math.abs(lane) * ELBOW_STEP;
-    let a = [s[0], s[1] + m + 4];       /*  out of a bottom port  */
-    let z = [t[0], t[1] - m - 4];       /*  into a top port  */
+    /*  Just outside the grown box of each end, which holds its ports.  */
+    let a = [s[0], Math.max(s[1], box_s.y2) + m + 1];     /*  out of a bottom port  */
+    let z = [t[0], Math.min(t[1], box_t.y1) - m - 1];     /*  into a top port  */
     let region = box_expand({
         x1: Math.min(a[0], z[0], box_s.x1, box_t.x1),
         y1: Math.min(a[1], z[1], box_s.y1, box_t.y1),

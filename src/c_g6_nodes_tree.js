@@ -4229,11 +4229,17 @@ class TreedbTreeLayout extends BaseLayout
  ************************************************************/
 const ELBOW_RADIUS = 6;
 
-/*  The box of a card on the canvas, for a detour to go round it.  */
+/*  The box of a WHOLE node on the canvas -- the card, its ports and
+ *  its label -- for an elbow to keep clear of. The ports are the
+ *  reason it is not the key shape's box: they stick out of the
+ *  card, and a line over a port reads as a link to it.  */
 function elbow_box(node)
 {
     try {
-        let b = node.getShape('key').getBounds();
+        let b = node.getRenderBounds();
+        if(!b || b.isEmpty && b.isEmpty()) {
+            b = node.getShape('key').getBounds();
+        }
         return {x1: b.min[0], y1: b.min[1], x2: b.max[0], y2: b.max[1]};
     } catch(e) {
         log_error(`elbow edge: no bounds for node ${node && node.id}: ${e}`);

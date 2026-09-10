@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.152
+
+- **treedb graph, elbow edges: the ports are obstacles too.** A routed elbow
+  kept clear of every CARD and ran over their ports -- the circles that stick
+  out of a card's top and bottom edges -- and a line over a port reads as a
+  link to it. Every node is now measured WHOLE (`getRenderBounds()`: the card,
+  its ports and its label), both to decide whether the simple elbow crosses
+  something and to route round it.
+- An edge's own ports stick out of its own two cards, so its first segment
+  starts inside its source's box and its last one ends inside its target's:
+  `elbow_path_hits(points, boxes, box_s, box_t)` does not test those two
+  segments against their own box (every other segment is tested, so a line
+  still may not run back over its own cards). The detour and the route leave
+  from the border of the whole box, not from the port.
+- Three new tests: an edge's own ports do not make its line a hit, a port of
+  a third card reaching into the channel is gone round, a detour clears the
+  ports of its own two cards.
+
 ## 7.23.151
 
 - **treedb graph, elbow edges: a line that would cross a card goes round it.**

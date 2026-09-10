@@ -165,6 +165,43 @@ describe("the route round the other cards", () => {
     });
 });
 
+describe("the ports are obstacles too", () => {
+    /*  Whole-node boxes: a port of 14px sticks 7px out of the bottom
+     *  and the top of each card.  */
+    const AP = {x1: 0, y1: -7, x2: 100, y2: 47};
+    const BP = {x1: 350, y1: 123, x2: 450, y2: 177};
+    const S = [50, 40];
+    const T2 = [400, 130];
+
+    test("an edge's own ports do not make its line a hit", () => {
+        let simple = elbow_points(S, T2, AP, BP, 0, true);
+        expect(elbow_path_hits([S, ...simple, T2], [AP, BP], AP, BP)).toBe(false);
+        expect(elbow_route(S, T2, AP, BP, 0, true, [AP, BP])).toEqual(simple);
+    });
+
+    test("a port of a third card in the channel is gone round", () => {
+        /*  F's card ends at y 80, above the channel (85); its port
+         *  reaches down to 95, into it.  */
+        const F_CARD = {x1: 200, y1: 0, x2: 300, y2: 80};
+        const F = {x1: 200, y1: -7, x2: 300, y2: 95};
+        let simple = elbow_points(S, T2, AP, BP, 0, true);
+        expect(elbow_path_hits([S, ...simple, T2], [AP, BP, F_CARD], AP, BP)).toBe(false);
+        expect(elbow_path_hits([S, ...simple, T2], [AP, BP, F], AP, BP)).toBe(true);
+        let route = elbow_route(S, T2, AP, BP, 0, true, [AP, BP, F]);
+        expect(elbow_path_hits([S, ...route, T2], [AP, BP, F], AP, BP)).toBe(false);
+    });
+
+    test("a detour clears the ports of its own two cards", () => {
+        /*  B below A, both with their ports: B -> A goes round.  */
+        const AB = {x1: 0, y1: -7, x2: 100, y2: 47};
+        const BB = {x1: 0, y1: 123, x2: 100, y2: 177};
+        let pts = elbow_points([60, 170], [50, 0], BB, AB, 0, true);
+        expect(pts[0][1]).toBeGreaterThan(BB.y2);
+        expect(pts[3][1]).toBeLessThan(AB.y1);
+        expect(elbow_path_hits([[60, 170], ...pts, [50, 0]], [AB, BB], BB, AB)).toBe(false);
+    });
+});
+
 describe("read left to right", () => {
     test("is the same geometry with the axes swapped", () => {
         let sw = (p) => [p[1], p[0]];
