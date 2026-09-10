@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.137
+
+- **treedb graph: the toolbar is arranged by what a control is about.** Left,
+  how the graph is built (layout, operation mode); center, how it is SHOWN
+  (the fold pair, the node views); right, what it is asked (find, then
+  `refresh` and `raw json`, which used to sit on the left).
+- **fix: the graph could open BLANK**, the whole tree in the minimap and
+  nothing in the viewport. A camera was saved by `fold_keep_node()` -- the
+  first root of the tree, wherever it was -- so a reader who had panned away
+  saved a node OFF screen at a pixel off screen, and a reload whose layout had
+  moved by a hair put that node back there and nothing else in view. Three
+  changes: the camera is saved by the node nearest the middle of the viewport
+  (or the anchor, when one is set); a saved camera whose pixel is off screen
+  is not restored (the opening fit instead); and after ANY placement -- a
+  restore, a refresh or a global fold holding a node still, a saved
+  arrangement opened with no camera -- a viewport with no node in it is
+  fitted. A view with nothing in it is not a place anybody chose to be.
+
 ## 7.23.136
 
 - **treedb graph and schema view: a topic keeps its colour.** The palette was

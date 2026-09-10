@@ -694,6 +694,11 @@ function make_toolbar(gobj)
     );
 
     /*
+     *  Three sections, by what the control is ABOUT:
+     *      left    how the graph is built: layout and operation mode
+     *      center  how it is SHOWN: the fold pair and the node views
+     *      right   what it is asked: find, refresh, the raw json
+     *
      *  Left: layout and mode selectors
      *  Layout options are empty — populated after child creation
      *  via populate_nodes_tree_options()
@@ -730,6 +735,28 @@ function make_toolbar(gobj)
             }
         }],
 
+    ];
+
+    /*
+     *  Center: how the graph is SHOWN.
+     */
+    let center_items = [
+        /*  The fold pair, the same two chevrons the JSON graph and the
+         *  lazy tree use: the graph opens folded (see the G6 child), and
+         *  these are the whole thing and the roots alone. Refresh is the
+         *  way back to the default depth.  */
+        ...yui_graph_fold_items(gobj, gobj_read_str_attr(gobj, "wide")),
+
+        /*  The view of the nodes -- full cards, one-line pills or
+         *  figures -- and the name under a figure.  */
+        ...node_shape_items(gobj, gobj_read_str_attr(gobj, "wide")),
+    ];
+
+    /*
+     *  Right, after the find box: ask the backend again, and read its
+     *  raw json.
+     */
+    let backend_items = [
         /*  Icon + label, and the label is `is-hidden-mobile`: on a phone
          *  this is a bare icon, so the name has to be on the button.  */
         ['button', {class: 'GRAPH_REFRESH button',
@@ -743,16 +770,6 @@ function make_toolbar(gobj)
                 gobj_send_event(gobj, "EV_REFRESH_TREEDB", {evt}, gobj);
             }
         }],
-
-        /*  The fold pair, the same two chevrons the JSON graph and the
-         *  lazy tree use: the graph opens folded (see the G6 child), and
-         *  these are the whole thing and the roots alone. Refresh is the
-         *  way back to the default depth.  */
-        ...yui_graph_fold_items(gobj, gobj_read_str_attr(gobj, "wide")),
-
-        /*  The view of the nodes -- full cards, one-line pills or
-         *  figures -- and the name under a figure.  */
-        ...node_shape_items(gobj, gobj_read_str_attr(gobj, "wide")),
 
         /*  Inspect the treedb's raw tranger json in the lazy tree viewer
          *  (print-tranger on the C_NODE service). A treedb can be huge, so
@@ -771,7 +788,7 @@ function make_toolbar(gobj)
     ];
 
     /*
-     *  Center: find a node.
+     *  Right: find a node.
      *
      *  A graph of a few hundred records has no other way in: the only way
      *  to locate one was to read every card. The box highlights every
@@ -821,7 +838,7 @@ function make_toolbar(gobj)
         ]]);
     attach_clear($find_control, $find_input);
 
-    let center_items = [
+    let find_items = [
         $find_control,
         /*  ONE counted span, not a number beside a word: "1 matches" is
          *  what two spans always produce, because nothing there can see
@@ -844,10 +861,9 @@ function make_toolbar(gobj)
         ]]
     ];
 
-    /*
-     *  Right, fill in set_mode
-     */
     let right_items = [
+        ...find_items,
+        ...backend_items,
     ];
 
     const $toolbar_header = yui_toolbar({}, [

@@ -3382,6 +3382,58 @@ const CAMERA_SETTLE_MS = 700;
  *
  *  A node and a pixel is also the SAME thing the folds keep across a
  *  rebuild. One idea, used twice.  */
+/*  The drawn node nearest the middle of the VIEWPORT, among the ones
+ *  inside it; "" when there is none -- which is a blank view.  */
+function node_nearest_view_centre(gobj)
+{
+    let graph = gobj.priv.graph;
+    let size;
+    try {
+        size = graph.getSize();
+    } catch(e) {
+        return "";      /*  between renders: nothing is drawn  */
+    }
+    if(!is_array(size) || !(size[0] > 0) || !(size[1] > 0)) {
+        return "";
+    }
+    let [w, h] = size;
+    let best = "";
+    let best_d = Infinity;
+    for(let nd of (graph.getNodeData() || [])) {
+        let vp = yui_graph_viewport_of(graph, nd.id);
+        if(!vp || !is_number(vp[0]) || !is_number(vp[1])) {
+            continue;
+        }
+        if(vp[0] < 0 || vp[1] < 0 || vp[0] > w || vp[1] > h) {
+            continue;
+        }
+        let d = (vp[0] - w / 2) ** 2 + (vp[1] - h / 2) ** 2;
+        if(d < best_d) {
+            best_d = d;
+            best = nd.id;
+        }
+    }
+    return best;
+}
+
+/*  The node a camera is SAVED by: the anchor when one is set, else the
+ *  node nearest the middle of the viewport.
+ *
+ *  It used to be fold_keep_node() -- the first root of the tree,
+ *  wherever it was. A reader who had panned away saved a node OFF
+ *  screen at a pixel off screen, and a reload whose layout had moved
+ *  by a hair put that one node back at that pixel and nothing else in
+ *  view: a blank graph, with the whole tree sitting in the minimap.  */
+function camera_anchor_node(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv.anchor_state === "on" && priv.anchor_id) {
+        return priv.anchor_id;
+    }
+    return node_nearest_view_centre(gobj) || fold_keep_node(gobj);
+}
+
 function read_camera(gobj)
 {
     let priv = gobj.priv;
@@ -3392,7 +3444,7 @@ function read_camera(gobj)
     }
     try {
         let z = graph.getZoom();
-        let node = fold_keep_node(gobj);
+        let node = camera_anchor_node(gobj);
         let vp = node? yui_graph_viewport_of(graph, node) : null;
         if(!is_number(z) || !node || !vp || !is_number(vp[0]) || !is_number(vp[1])) {
             return null;
@@ -3420,6 +3472,13 @@ async function restore_camera(gobj)
      *  does not have (the treedb changed under it) must leave the graph
      *  to its opening fit, not at a zoom with no framing to go with it.  */
     if(!yui_graph_viewport_of(graph, cam.node)) {
+        return false;
+    }
+    /*  A camera saved by a node OFF screen (before 7.23.137 the node was
+     *  the first root, wherever it was) frames nothing it can promise:
+     *  the opening fit instead.  */
+    let size = graph.getSize() || [0, 0];
+    if(cam.x < 0 || cam.y < 0 || cam.x > size[0] || cam.y > size[1]) {
         return false;
     }
     priv._camera_restoring = true;
@@ -9708,6 +9767,15 @@ async function reconcile_fold_apply(gobj, opts, visible)
         } else if(opts.keep && opts.keep_vp) {
             await yui_graph_place_at(graph, opts.keep, opts.keep_vp);
         }
+    }
+    /*  And never a BLANK viewport. Every branch above can leave one: a
+     *  restore by a node whose surroundings moved, a refresh or a global
+     *  fold holding the first root still at a pixel off screen, a saved
+     *  arrangement opened with no camera (no fit: its owner's view is
+     *  part of it) far from where G6 starts looking. A view with nothing
+     *  in it is not a place anybody chose to be.  */
+    if((graph.getNodeData() || []).length > 0 && !node_nearest_view_centre(gobj)) {
+        await graph_fit_readable(gobj);
     }
     /*  Whichever branch ran -- including none of them, which is a
      *  graph somebody had arranged and left where it was -- the
