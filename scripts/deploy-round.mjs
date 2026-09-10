@@ -31,7 +31,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {execFileSync} from "node:child_process";
-import {readFileSync, existsSync} from "node:fs";
+import {readFileSync, existsSync, statSync} from "node:fs";
 import {dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {homedir} from "node:os";
@@ -190,7 +190,7 @@ function do_round(c)
     console.log(`\n=== ${c.name}`);
     if(!existsSync(c.path)) {
         console.log("    absent on this machine -- skipped");
-        return {name: c.name, urls: c.urls || [], state: "skipped"};
+        return {name: c.name, urls: c.urls || [], worktree: c.worktree, state: "skipped"};
     }
 
     try {
@@ -215,9 +215,52 @@ function do_round(c)
     } catch(e) {
         let out = (e.stderr || e.stdout || "").toString().trim().split("\n").slice(-3).join(" | ");
         console.log(`    FAILED: ${out || e.message}`);
-        return {name: c.name, urls: c.urls || [], path: c.path, state: "failed"};
+        return {name: c.name, urls: c.urls || [], path: c.path, worktree: c.worktree, state: "failed"};
     }
-    return {name: c.name, urls: c.urls || [], path: c.path, state: "deployed"};
+    return {name: c.name, urls: c.urls || [], path: c.path, worktree: c.worktree, state: "deployed"};
+}
+
+/************************************************************
+ *  Is the local build one of THIS version?
+ *
+ *  The read-back compares the live bundle with `dist/`, and `dist/`
+ *  is only this round's build if the build ran. A build that fails in
+ *  `prebuild` (validate-locales) stops before vite writes anything, so
+ *  `dist/` still holds the PREVIOUS build -- the one the host is
+ *  serving -- and the comparison says OK. Three consumers stayed two
+ *  rounds behind that way with an OK beside each.
+ *
+ *  So a consumer's `dist/` has to be newer than the dependency tree it
+ *  was built from. `node_modules/.package-lock.json` is what npm
+ *  rewrites when it changes that tree; the installed gobj-ui's own
+ *  files are no clock, npm packs them with a fixed 1985 date.
+ *
+ *  Returns what is wrong, or null. The demo builds from the working
+ *  tree and has neither question to answer.
+ ************************************************************/
+function local_build_problem(entry)
+{
+    if(entry.worktree || !entry.path) {
+        return null;
+    }
+    const nm = join(entry.path, "node_modules");
+    const pkg = join(nm, "@yuneta", "gobj-ui", "package.json");
+    const tree = join(nm, ".package-lock.json");
+    const index = join(entry.path, "dist", "index.html");
+    if(!existsSync(pkg)) {
+        return null;    /*  resolved from elsewhere: nothing to judge here  */
+    }
+    const installed = JSON.parse(readFileSync(pkg, "utf8")).version;
+    if(installed !== VERSION) {
+        return `BEHIND (installed gobj-ui ${installed})`;
+    }
+    if(!existsSync(index)) {
+        return "NOT BUILT (no dist/index.html)";
+    }
+    if(existsSync(tree) && statSync(index).mtimeMs < statSync(tree).mtimeMs) {
+        return `NOT REBUILT (dist/ is older than the install of gobj-ui ${installed})`;
+    }
+    return null;
 }
 
 /************************************************************
@@ -226,12 +269,16 @@ function do_round(c)
 function verify(entry)
 {
     const local = local_bundle(entry.path || "");
+    const problem = (entry.state === "failed")? "FAILED in this round" :
+                                                local_build_problem(entry);
     const rows = [];
     for(const url of (entry.urls || [])) {
         const live = entry_bundle(curl(url));
         let state;
         if(!live) {
             state = "UNREACHABLE";
+        } else if(problem) {
+            state = `${problem} -- still serving ${live}`;
         } else if(!local) {
             state = `live ${live}`;
         } else {
@@ -260,7 +307,7 @@ console.log(`\ngobj-ui ${VERSION} -- ${targets.length} target(s), ` +
 const done = [];
 if(CHECK_ONLY) {
     for(const c of targets) {
-        done.push({name: c.name, urls: c.urls || [], path: c.path, state: "checked"});
+        done.push({name: c.name, urls: c.urls || [], path: c.path, worktree: c.worktree, state: "checked"});
     }
 } else {
     if(!NO_WAIT && targets.some((c) => !c.worktree)) {
