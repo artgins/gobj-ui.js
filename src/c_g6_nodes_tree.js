@@ -133,7 +133,7 @@ import {
     fold_root_group_key,
 } from "./treedb_fold_model.js";
 import {layout_tree, layout_radial, layout_compact} from "./treedb_layout.js";
-import {elbow_lane, elbow_rank, elbow_route} from "./treedb_elbow.js";
+import {elbow_lane, elbow_rank, elbow_route, elbow_combs} from "./treedb_elbow.js";
 
 import {
     BaseLayout,
@@ -4324,13 +4324,22 @@ function elbow_stagger_of(edge, vertical)
     try {
         let ps = pos(s);
         let pt = pos(t);
-        let dep = graph.getRelatedEdgesData(s, 'out')
-            .filter((d) => d.source === s && pos(d.target)[along] > ps[along])
-            .map((d) => ({
+        let leaving = graph.getRelatedEdgesData(s, 'out')
+            .filter((d) => d.source === s && pos(d.target)[along] > ps[along]);
+        /*  The cards they reach, for the combs of a stack; a comb's
+         *  run ends at its lane, so that is what its span measures.  */
+        let combs = elbow_combs(leaving.map((d) => ({
+            id: d.id,
+            box: elbow_box(element.getElement(d.target)),
+        })), vertical);
+        let dep = leaving.map((d) => {
+            let comb = combs.get(d.id);
+            let far = comb? comb.lane : pos(d.target)[across];
+            return {
                 id: d.id,
-                span: Math.abs(pos(d.target)[across] -
-                               port_of(s, d.style && d.style.sourcePort)[across]),
-            }));
+                span: Math.abs(far - port_of(s, d.style && d.style.sourcePort)[across]),
+            };
+        });
         let arr = graph.getRelatedEdgesData(t, 'in')
             .filter((d) => d.target === t && pos(d.source)[along] < pt[along])
             .map((d) => ({
@@ -4338,7 +4347,11 @@ function elbow_stagger_of(edge, vertical)
                 span: Math.abs(port_of(d.source, d.style && d.style.sourcePort)[across] -
                                pt[across]),
             }));
-        return {dep: elbow_rank(dep, edge.id), arr: elbow_rank(arr, edge.id)};
+        return {
+            dep: elbow_rank(dep, edge.id),
+            arr: elbow_rank(arr, edge.id),
+            comb: combs.get(edge.id) || null,
+        };
     } catch(e) {
         log_error(`elbow edge ${edge.id}: cannot read the edges sharing its ends: ${e}`);
         return null;

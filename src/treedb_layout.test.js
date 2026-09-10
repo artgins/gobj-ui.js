@@ -6,7 +6,9 @@
  *      tidy tree's rows and centring, the radial tree's rings.
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
-import { spanning_tree, layout_tree, layout_radial, layout_compact } from "./treedb_layout.js";
+import {
+    spanning_tree, layout_tree, layout_radial, layout_compact, stack_trunk_width, STACK_GAP,
+} from "./treedb_layout.js";
 
 /*  es -> (norte, sur); norte -> nave; nave -> d0, d1 (hook rank 1) and
  *  c1 (hook rank 2); c1 -> d0 as well (second parent).  */
@@ -134,12 +136,15 @@ const wide_edges = [
 ].concat([0, 1, 2, 3, 4, 5].map((i) => ({source: "hall", target: `d${i}`})));
 
 describe("the compact tree", () => {
-    test("the rows are the tidy tree's rows", () => {
+    test("the rows are the tidy tree's rows; a stack starts on its row", () => {
         let tidy = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
         let pos = layout_compact(nodes, edges, {nodesep: 10, ranksep: 100});
-        for(let n of nodes) {
-            expect(pos.get(n.id).y).toBe(tidy.get(n.id).y);
+        /*  nave's three leaves (d0, d1, c1) are a stack: d0 and d1 are
+         *  its first row, on the tidy row; c1 opens the next one.  */
+        for(let id of ["es", "norte", "sur", "nave", "d0", "d1"]) {
+            expect(pos.get(id).y).toBe(tidy.get(id).y);
         }
+        expect(pos.get("c1").y).toBeGreaterThan(pos.get("d0").y);
     });
 
     test("no two cards of a row are closer than the gap", () => {
@@ -147,14 +152,13 @@ describe("the compact tree", () => {
         expect_no_overlap_in_rows(wide, layout_compact(wide, wide_edges, {nodesep: 18, ranksep: 90}), 18);
     });
 
-    test("a parent is centred over its children, which keep their order", () => {
-        let pos = layout_compact(nodes, edges, {nodesep: 10, ranksep: 100});
-        expect(pos.get("d0").x).toBeLessThan(pos.get("d1").x);
-        expect(pos.get("d1").x).toBeLessThan(pos.get("c1").x);
-        let first = pos.get("d0").x - 58;
-        let last = pos.get("c1").x + 86;
-        expect(pos.get("nave").x).toBeCloseTo((first + last) / 2, 6);
-        expect(pos.get("norte").x).toBeLessThan(pos.get("sur").x);
+    test("two leaves stay side by side, and the parent is centred over them", () => {
+        let two = [N("p", 172, 96), N("a", 116, 40), N("b", 116, 40)];
+        let pos = layout_compact(two, [{source: "p", target: "a"}, {source: "p", target: "b"}],
+                                 {nodesep: 10, ranksep: 100});
+        expect(pos.get("a").y).toBe(pos.get("b").y);
+        expect(pos.get("b").x - pos.get("a").x).toBe(116 + 10);
+        expect(pos.get("p").x).toBeCloseTo((pos.get("a").x + pos.get("b").x) / 2, 6);
     });
 
     test("a closed sibling sits beside an open branch, not beside its block", () => {
@@ -195,6 +199,74 @@ describe("the compact tree", () => {
         let pos = layout_compact(chain, links, {});
         expect(pos.size).toBe(5000);
         expect(Number.isFinite(pos.get("n4999").x)).toBe(true);
+    });
+});
+
+describe("the compact tree stacks a run of leaves", () => {
+    const P6 = N("p", 172, 96);
+    const L6 = [0, 1, 2, 3, 4, 5].map((i) => N(`l${i}`, 116, 40));
+    const E6 = L6.map((l) => ({source: "p", target: l.id}));
+    const OPTS = {nodesep: 18, ranksep: 90};
+
+    test("in two columns, row after row, against a corridor", () => {
+        let pos = layout_compact([P6, ...L6], E6, OPTS);
+        let y = (id) => pos.get(id).y;
+        let x = (id) => pos.get(id).x;
+        expect(y("l0")).toBe(y("l1"));
+        expect(y("l2")).toBe(y("l3"));
+        expect(y("l2") - y("l0")).toBe(40 + STACK_GAP);
+        expect(y("l4") - y("l2")).toBe(40 + STACK_GAP);
+        /*  The first column lines up on its right edge, the second on
+         *  its left, and between them the corridor.  */
+        expect(x("l0")).toBe(x("l2"));
+        expect(x("l1")).toBe(x("l5"));
+        expect((x("l1") - 58) - (x("l0") + 58)).toBe(stack_trunk_width(6));
+        /*  The parent over the block.  */
+        expect(x("p")).toBeCloseTo(((x("l0") - 58) + (x("l1") + 58)) / 2, 6);
+    });
+
+    test("no two cards overlap", () => {
+        let all = [P6, ...L6];
+        let pos = layout_compact(all, E6, OPTS);
+        for(let i = 0; i < all.length; i++) {
+            for(let j = i + 1; j < all.length; j++) {
+                let a = all[i];
+                let b = all[j];
+                let pa = pos.get(a.id);
+                let pb = pos.get(b.id);
+                let apart_x = Math.abs(pa.x - pb.x) >= (a.w + b.w) / 2;
+                let apart_y = Math.abs(pa.y - pb.y) >= (a.h + b.h) / 2;
+                expect(apart_x || apart_y).toBe(true);
+            }
+        }
+    });
+
+    test("a whole level of leaves takes a fraction of the row it took", () => {
+        let tidy = layout_tree([P6, ...L6], E6, OPTS);
+        let pos = layout_compact([P6, ...L6], E6, OPTS);
+        let span = (p) => {
+            let xs = L6.map((l) => p.get(l.id).x);
+            return Math.max(...xs) - Math.min(...xs) + 116;
+        };
+        expect(span(pos)).toBeLessThan(span(tidy) / 2);
+    });
+
+    test("a run is broken by a child with children, and the order is kept", () => {
+        /*  p -> a, b, c (leaves), m (has a child), d, e (leaves).  */
+        let list = [N("p", 172, 96), N("a", 116, 40), N("b", 116, 40), N("c", 116, 40),
+                    N("m", 172, 96), N("d", 116, 40), N("e", 116, 40), N("mk", 116, 40)];
+        let links = ["a", "b", "c", "m", "d", "e"].map((k) => ({source: "p", target: k}))
+            .concat([{source: "m", target: "mk"}]);
+        let pos = layout_compact(list, links, OPTS);
+        /*  a, b, c: a stack (c under a); d, e: a pair on the row.  */
+        expect(pos.get("c").y).toBeGreaterThan(pos.get("a").y);
+        expect(pos.get("c").x).toBe(pos.get("a").x);
+        expect(pos.get("d").y).toBe(pos.get("a").y);
+        expect(pos.get("e").y).toBe(pos.get("a").y);
+        /*  Left to right: the stack, m, then d and e.  */
+        expect(pos.get("b").x).toBeLessThan(pos.get("m").x);
+        expect(pos.get("m").x).toBeLessThan(pos.get("d").x);
+        expect(pos.get("d").x).toBeLessThan(pos.get("e").x);
     });
 });
 

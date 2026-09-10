@@ -5,6 +5,48 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.154
+
+- **treedb graph: `compact tree` is compact now.** Packing by contour alone
+  gained nothing where a treedb is usually looked at -- a whole level opened
+  with the stepper -- because there every parent still needed the whole row
+  of its children beside it: it drew exactly like `tree`. Now a run of three
+  or more consecutive LEAF children (a hall's devices, a region's places when
+  none is open) is STACKED: two columns under the parent, a corridor between
+  them, row after row. The first row lines up with the depth's row; the
+  columns line up against the corridor; the children keep their order (runs,
+  not all the leaves of a parent); a child that has children stays in the
+  row. The tree grows taller instead of wider. On a treedb shaped like a
+  real one (one root, 25 regions), against `tree`:
+
+  | fold state | `tree` | compact before | compact now |
+  |---|---|---|---|
+  | regions only | 4732px | 100% | 10% |
+  | one region open, a hall of 24 devices | 8518px | 70% | 21% |
+  | every region open (level 3) | 24112px | 100% | 41% |
+  | every region open + the hall | 27138px | 91% | 39% |
+
+- **Elbow edges into a stack run down its corridor -- a COMB.** A card in a
+  lower row cannot be reached from the channel: the card above it stands in
+  the way. Its edge runs along the channel to a LANE of its own in the
+  corridor, down it, and into the gap above its card, which it shares only
+  with the other card of its row, reached from the other side. Lanes go
+  outermost first by row, so no line crosses or lies on another; the
+  corridor is sized from how many lanes it carries. The comb is recognised
+  from the geometry (cards lined up against a corridor, within a stack gap
+  of the card above) -- the layout and the edges share constants, not state.
+- `layout_compact` stacks (`STACK_MIN_RUN` 3, `STACK_GAP` 40,
+  `stack_trunk_width(k)`); `elbow_combs(targets, vertical)` and a `comb` in the
+  elbow's `stagger`; a comb is drawn as laid out, never routed.
+- With CURVED edges a stack reads worse: a curve into a lower row passes over
+  the cards above it. The compact tree is meant to be read with elbow edges.
+- Nine new tests: the stack's columns, corridor and rows; no two cards
+  overlapping; a whole level of leaves in under half the row; a run broken by
+  a child with children, the order kept; only the cards under another get a
+  comb; no line crossing a card; no two lines on each other past the port's
+  stub; a comb drawn as laid out. Two compact tests that assumed every child
+  in one row were rewritten.
+
 ## 7.23.153
 
 - **treedb graph, elbow edges: the edges sharing an end no longer lie on top

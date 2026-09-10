@@ -7,8 +7,10 @@
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
 import {
-    elbow_lane, elbow_points, elbow_route, elbow_path_hits, elbow_rank, ELBOW_STEP, ELBOW_CLEAR,
+    elbow_lane, elbow_points, elbow_route, elbow_path_hits, elbow_rank, elbow_combs,
+    ELBOW_STEP, ELBOW_CLEAR,
 } from "./treedb_elbow.js";
+import { layout_compact } from "./treedb_layout.js";
 
 /*  Two cards 100x40: A on top, B one row below it.  */
 const A = {x1: 0, y1: 0, x2: 100, y2: 40};
@@ -268,6 +270,89 @@ describe("edges sharing an end are staggered", () => {
         let one = {rank: 0, count: 1};
         expect(elbow_points(PORT, [160, 130], P, KIDS[1].box, 0, true, {dep: one, arr: one}))
             .toEqual(elbow_points(PORT, [160, 130], P, KIDS[1].box, 0, true));
+    });
+});
+
+describe("the comb of a stack", () => {
+    /*  A parent over eight leaves, laid out by the compact tree (a
+     *  stack: four rows of two). Boxes as the graph measures them,
+     *  with 14px ports sticking 7px out of the top and bottom.  */
+    const P = {id: "p", w: 172, h: 96};
+    const LEAVES = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({id: `l${i}`, w: 116, h: 40}));
+    const pos = layout_compact([P, ...LEAVES], LEAVES.map((l) => ({source: "p", target: l.id})),
+                               {nodesep: 18, ranksep: 90});
+    const box = (n) => {
+        let c = pos.get(n.id);
+        return {x1: c.x - n.w / 2, y1: c.y - n.h / 2 - 7, x2: c.x + n.w / 2, y2: c.y + n.h / 2 + 7};
+    };
+    const BOX_P = box(P);
+    const PORT = [pos.get("p").x, pos.get("p").y + 48];
+    const targets = LEAVES.map((l, i) => ({id: `e-${i + 1}`, box: box(l), leaf: l}));
+    const combs = elbow_combs(targets.map((t) => ({id: t.id, box: t.box})), true);
+    const paths = targets.map((t) => {
+        let comb = combs.get(t.id) || null;
+        let items = targets.map((u) => {
+            let c = combs.get(u.id);
+            let far = c? c.lane : pos.get(u.leaf.id).x;
+            return {id: u.id, span: Math.abs(far - PORT[0])};
+        });
+        let end = [pos.get(t.leaf.id).x, t.box.y1 + 7];
+        let pts = elbow_points(PORT, end, BOX_P, t.box, 0, true,
+                               {dep: elbow_rank(items, t.id), comb: comb});
+        return {id: t.id, box: t.box, full: [PORT, ...pts, end]};
+    });
+
+    test("only the cards under another card get a comb", () => {
+        expect(combs.size).toBe(6);
+        expect(combs.has("e-1")).toBe(false);
+        expect(combs.has("e-2")).toBe(false);
+    });
+
+    test("no line crosses a card", () => {
+        let all = [BOX_P, ...targets.map((t) => t.box)];
+        for(let p of paths) {
+            expect(elbow_path_hits(p.full, all, BOX_P, p.box)).toBe(false);
+        }
+    });
+
+    test("no two lines lie on each other past the stub of the port", () => {
+        /*  Two axis-aligned segments overlap when they are on one line
+         *  and share more than a point of it.  */
+        let overlap = (a, b, c, d) => {
+            let va = a[0] === b[0];
+            let vc = c[0] === d[0];
+            let ha = a[1] === b[1];
+            let hc = c[1] === d[1];
+            if(va && vc && Math.abs(a[0] - c[0]) < 0.5) {
+                return Math.min(Math.max(a[1], b[1]), Math.max(c[1], d[1])) -
+                       Math.max(Math.min(a[1], b[1]), Math.min(c[1], d[1])) > 0.5;
+            }
+            if(ha && hc && Math.abs(a[1] - c[1]) < 0.5) {
+                return Math.min(Math.max(a[0], b[0]), Math.max(c[0], d[0])) -
+                       Math.max(Math.min(a[0], b[0]), Math.min(c[0], d[0])) > 0.5;
+            }
+            return false;
+        };
+        for(let i = 0; i < paths.length; i++) {
+            for(let j = i + 1; j < paths.length; j++) {
+                let A = paths[i].full;
+                let B = paths[j].full;
+                for(let m = 1; m + 1 < A.length; m++) {
+                    for(let n = 1; n + 1 < B.length; n++) {
+                        expect(overlap(A[m], A[m + 1], B[n], B[n + 1])).toBe(false);
+                    }
+                }
+            }
+        }
+    });
+
+    test("a comb is drawn as laid out, not routed", () => {
+        let t = targets[6];
+        let c = combs.get(t.id);
+        let end = [pos.get(t.leaf.id).x, t.box.y1 + 7];
+        let st = {comb: c};
+        expect(elbow_route(PORT, end, BOX_P, t.box, 0, true, [BOX_P, ...targets.map((u) => u.box)], st))
+            .toEqual(elbow_points(PORT, end, BOX_P, t.box, 0, true, st));
     });
 });
 

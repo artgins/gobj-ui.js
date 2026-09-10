@@ -34,12 +34,20 @@
  *        farthest turns lowest -- the two orders in which the lines of
  *        one end nest without crossing.
  *
+ *      - A card in a lower row of a STACK (treedb_layout.js lays a
+ *        run of leaf children out as two columns with a corridor
+ *        between them): the card above it stands in the way of the
+ *        channel, so its edge runs down the corridor in a lane of
+ *        its own -- a COMB -- and turns into the gap above its card.
+ *
  *      Written for the top-down reading; left to right is the same
  *      geometry with the axes swapped.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+
+import {STACK_GAP, STACK_LANE_PAD, STACK_LANE_STEP, STACK_TRUNK_MIN} from "./treedb_layout.js";
 
 export const ELBOW_STEP = 10;      /*  between two lanes  */
 export const ELBOW_JETTY = 16;     /*  straight run out of a port before a detour turns  */
@@ -92,6 +100,154 @@ function swap_box(b)
     return {x1: b.y1, y1: b.x1, x2: b.y2, y2: b.x2};
 }
 
+/*  Where a forward edge turns between `lo` and `hi`: the middle, or
+ *  its staggered place among the edges sharing one of its ends --
+ *  leaving, the farthest highest; arriving, the farthest lowest.  */
+function staggered_turn(lo, hi, st)
+{
+    let mid = (lo + hi) / 2;
+    let group = null;
+    let k = 0;
+    if(st.dep && st.dep.count > 1) {
+        group = st.dep;
+        k = st.dep.rank;
+    } else if(st.arr && st.arr.count > 1) {
+        group = st.arr;
+        k = st.arr.count - 1 - st.arr.rank;
+    }
+    if(group) {
+        let room = Math.max(0, hi - lo - 2 * ELBOW_STAGGER_PAD);
+        let step = Math.min(ELBOW_STEP, room / (group.count - 1));
+        mid = mid - (group.count - 1) * step / 2 + k * step;
+    }
+    return mid;
+}
+
+/************************************************************
+ *  The combs of the stacks under one card.
+ *
+ *  treedb_layout.js lays a run of leaf children out as two columns
+ *  with a corridor between them. A card in the first row is reached
+ *  from the channel like any other; one in a lower row cannot be --
+ *  the card above it stands in the way -- so its edge runs down
+ *  the corridor in a LANE of its own and turns into the gap above
+ *  its card, which it shares only with the other card of its row,
+ *  reached from the other side.
+ *
+ *      targets     [{id, box}]: the forward edges leaving one card,
+ *                  each with the box of the card it reaches
+ *      vertical    as in elbow_points; false swaps the boxes
+ *
+ *  Returns Map id -> {lane, z, top}: the lane, the height of the
+ *  gap it turns into, and the top of the stack's first row (where
+ *  the channel over the stack ends). Only for a card that stands
+ *  under another of the group, within a stack gap and lined up
+ *  with it on the corridor side -- what a stack looks like.
+ *
+ *  Lanes go outermost first, row by row: a line into a higher row
+ *  keeps outside the lines going deeper, and none crosses another.
+ ************************************************************/
+export function elbow_combs(targets, vertical)
+{
+    let list = vertical? targets : targets.map((it) => ({id: it.id, box: swap_box(it.box)}));
+    let cy = (b) => (b.y1 + b.y2) / 2;
+    let near = (a, b) => Math.abs(a - b) < 1.5;
+
+    let under = [];
+    for(let it of list) {
+        let b = it.box;
+        let above = null;
+        for(let o of list) {
+            let a = o.box;
+            if(o === it || a.y2 > b.y1 || b.y1 - a.y2 > STACK_GAP) {
+                continue;
+            }
+            if(!(near(a.x2, b.x2) || near(a.x1, b.x1))) {
+                continue;
+            }
+            if(!above || a.y2 > above.y2) {
+                above = a;
+            }
+        }
+        if(!above) {
+            continue;
+        }
+        /*  Its column: lined up on the corridor side, which is the
+         *  right edge of the first column and the left edge of the
+         *  second. Two cards of one width line up on both; then the
+         *  card beside it in its row says.  */
+        let side;
+        if(near(above.x2, b.x2) && !near(above.x1, b.x1)) {
+            side = 0;
+        } else if(near(above.x1, b.x1) && !near(above.x2, b.x2)) {
+            side = 1;
+        } else {
+            let left_of_it = list.some((o) => o !== it && near(cy(o.box), cy(b)) &&
+                                               o.box.x2 <= b.x1);
+            side = left_of_it? 1 : 0;
+        }
+        under.push({id: it.id, box: b, above: above, side: side});
+    }
+
+    /*  The corridor of a card: from the first column's edge to the
+     *  second's, read off any row of the stack that has both.  */
+    let corridor = (u) => {
+        if(u.side === 0) {
+            let l = u.box.x2;
+            let col = list.filter((o) => near(o.box.x2, l));
+            let r = Infinity;
+            for(let c of col) {
+                for(let o of list) {
+                    if(o !== c && near(cy(o.box), cy(c.box)) && o.box.x1 >= l - 0.5) {
+                        r = Math.min(r, o.box.x1);
+                    }
+                }
+            }
+            return {l: l, r: isFinite(r)? r : l + STACK_TRUNK_MIN, col: col};
+        }
+        let r = u.box.x1;
+        let col = list.filter((o) => near(o.box.x1, r));
+        let l = -Infinity;
+        for(let c of col) {
+            for(let o of list) {
+                if(o !== c && near(cy(o.box), cy(c.box)) && o.box.x2 <= r + 0.5) {
+                    l = Math.max(l, o.box.x2);
+                }
+            }
+        }
+        return {l: isFinite(l)? l : r - STACK_TRUNK_MIN, r: r, col: col};
+    };
+
+    let groups = new Map();
+    for(let u of under) {
+        let c = corridor(u);
+        u.top = Math.min(...c.col.map((o) => o.box.y1));
+        let key = `${Math.round(c.l)}|${Math.round(c.r)}`;
+        if(!groups.has(key)) {
+            groups.set(key, {l: c.l, r: c.r, left: [], right: []});
+        }
+        groups.get(key)[(u.side === 0)? 'left' : 'right'].push(u);
+    }
+
+    let out = new Map();
+    for(let g of groups.values()) {
+        g.left.sort((a, b) => a.box.y1 - b.box.y1);
+        g.right.sort((a, b) => a.box.y1 - b.box.y1);
+        let n = g.left.length + g.right.length;
+        let room = g.r - g.l - 2 * STACK_LANE_PAD;
+        let step = (n > 1)? Math.max(0, Math.min(STACK_LANE_STEP, room / (n - 1))) : 0;
+        g.left.forEach((u, i) => {
+            out.set(u.id, {lane: g.l + STACK_LANE_PAD + i * step,
+                           z: (u.above.y2 + u.box.y1) / 2, top: u.top});
+        });
+        g.right.forEach((u, j) => {
+            out.set(u.id, {lane: g.r - STACK_LANE_PAD - j * step,
+                           z: (u.above.y2 + u.box.y1) / 2, top: u.top});
+        });
+    }
+    return out;
+}
+
 /************************************************************
  *  The control points of an elbow from the port `s` to the port
  *  `t` ([x, y] each), knowing the boxes of the two cards
@@ -99,10 +255,12 @@ function swap_box(b)
  *
  *      vertical    the rows are stacked (top to bottom); false
  *                  when they are side by side (left to right)
- *      stagger     {dep, arr}: the edge's rank among the forward
- *                  edges leaving its source card and among those
- *                  reaching its target card (elbow_rank). Absent,
- *                  the channel is the middle.
+ *      stagger     {dep, arr, comb}: the edge's rank among the
+ *                  forward edges leaving its source card and among
+ *                  those reaching its target card (elbow_rank), and
+ *                  its comb when the target is in a lower row of a
+ *                  stack (elbow_combs). Absent, the channel is the
+ *                  middle.
  ************************************************************/
 export function elbow_points(s, t, box_s, box_t, lane, vertical, stagger)
 {
@@ -115,27 +273,20 @@ export function elbow_points(s, t, box_s, box_t, lane, vertical, stagger)
 
     /*  Forward: the channel half way between the two cards, each
      *  edge of a shared end at its own height round it, moved by the
-     *  lane, and kept between the two rows.  */
+     *  lane, and kept between the two rows. Into a lower row of a
+     *  stack: along the channel to its corridor lane, down the lane,
+     *  and into the gap above its card.  */
     if(t[1] - s[1] > 2 * ELBOW_STEP) {
-        let lo = Math.max(s[1], box_s.y2);
-        let hi = Math.min(t[1], box_t.y1);
-        let mid = (lo + hi) / 2;
         let st = stagger || {};
-        let group = null;
-        let k = 0;
-        if(st.dep && st.dep.count > 1) {
-            group = st.dep;
-            k = st.dep.rank;                          /*  farthest highest  */
-        } else if(st.arr && st.arr.count > 1) {
-            group = st.arr;
-            k = st.arr.count - 1 - st.arr.rank;       /*  farthest lowest  */
+        let lo = Math.max(s[1], box_s.y2);
+        if(st.comb) {
+            let c = st.comb;
+            let turn = staggered_turn(lo, c.top, {dep: st.dep}) + shift;
+            turn = Math.min(Math.max(turn, lo + 4), c.top - 4);
+            return [[s[0], turn], [c.lane, turn], [c.lane, c.z], [t[0], c.z]];
         }
-        if(group) {
-            let room = Math.max(0, hi - lo - 2 * ELBOW_STAGGER_PAD);
-            let step = Math.min(ELBOW_STEP, room / (group.count - 1));
-            mid = mid - (group.count - 1) * step / 2 + k * step;
-        }
-        mid += shift;
+        let hi = Math.min(t[1], box_t.y1);
+        let mid = staggered_turn(lo, hi, st) + shift;
         mid = Math.min(Math.max(mid, lo + 4), hi - 4);
         return [[s[0], mid], [t[0], mid]];
     }
@@ -427,6 +578,12 @@ export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes, stagger)
     if(!vertical) {
         return elbow_route(swap(s), swap(t), swap_box(box_s), swap_box(box_t), lane, true,
                            others.map(swap_box), stagger).map(swap);
+    }
+
+    /*  A comb runs where the layout left room for it: its corridor
+     *  and its gap are empty by construction.  */
+    if(stagger && stagger.comb) {
+        return elbow_points(s, t, box_s, box_t, lane, true, stagger);
     }
 
     let simple = elbow_points(s, t, box_s, box_t, lane, true, stagger);

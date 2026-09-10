@@ -291,6 +291,14 @@ function tidy_tree_lr(nodes, edges, o)
  *  the packing across the depths differs, so switching between the
  *  two moves cards sideways and never reorders them.
  *
+ *  And a run of three or more LEAF children -- a hall's devices, a
+ *  region's places when none is open -- is STACKED: two columns
+ *  under the parent with a corridor between them, row after row.
+ *  That is what makes it compact when a whole level is open, where
+ *  the contour alone gains nothing: every parent needed the whole
+ *  row of its children beside it. The tree grows taller instead of
+ *  wider. Its elbow edges run down the corridor (elbow_combs).
+ *
  *  The contour arithmetic is Moen's ("Drawing dynamic trees", IEEE
  *  Software, 1990) in the form mxGraph gave it in mxCompactTreeLayout
  *  -- Copyright (c) 2006-2015 JGraph Ltd, Apache License 2.0 -- read in
@@ -397,11 +405,124 @@ function contour_merge(p1, p2)
     return total;
 }
 
+/*  How the compact tree STACKS a run of leaf children: two columns
+ *  under their parent, a CORRIDOR between them that the elbow edges
+ *  run down (treedb_elbow.js, elbow_combs), a gap between the rows
+ *  that they turn into. The corridor is sized here from how many
+ *  lines will run down it; the edges count the lanes from where the
+ *  cards stand.  */
+export const STACK_MIN_RUN = 3;        /*  shorter runs stay in the row  */
+export const STACK_GAP = 40;           /*  between two rows of a stack  */
+export const STACK_LANE_PAD = 10;      /*  from a column to its first lane  */
+export const STACK_LANE_STEP = 6;      /*  between two lanes  */
+export const STACK_TRUNK_MIN = 36;
+
+/*  The corridor of a stack of `k` cards: every card below the first
+ *  row gets a lane.  */
+export function stack_trunk_width(k)
+{
+    let lanes = Math.max(0, k - 2);
+    return Math.max(STACK_TRUNK_MIN,
+                    2 * STACK_LANE_PAD + Math.max(0, lanes - 1) * STACK_LANE_STEP);
+}
+
+/*  A stack in the LR frame (depth along x, siblings along y): `side`
+ *  is how far each column reaches across, `starts`/`row_len` where
+ *  each row begins and how long it is along the depth. Its first row
+ *  IS the depth's column, so it lines up with every other card there.  */
+function stack_geometry(t, st, col_x, col_w)
+{
+    let d = st.depth;
+    let k = st.ids.length;
+    let rows = Math.ceil(k / 2);
+    let side = [0, 0];
+    let row_len = [];
+    for(let i = 0; i < k; i++) {
+        let n = t.by_id.get(st.ids[i]);
+        let r = Math.floor(i / 2);
+        side[i % 2] = Math.max(side[i % 2], n.h);
+        row_len[r] = Math.max(row_len[r] || 0, n.w);
+    }
+    row_len[0] = col_w[d];
+    let trunk = stack_trunk_width(k);
+    let starts = [col_x[d]];
+    for(let r = 1; r < rows; r++) {
+        starts[r] = starts[r - 1] + row_len[r - 1] + STACK_GAP;
+    }
+    return {
+        side: side,
+        trunk: trunk,
+        starts: starts,
+        row_len: row_len,
+        len: starts[rows - 1] + row_len[rows - 1] - col_x[d],
+        ext: side[0] + trunk + side[1],
+    };
+}
+
+/*  The cards of a stack whose block starts across at `top`: row by
+ *  row, the first of each row against the corridor from one side,
+ *  the second against it from the other.  */
+function place_stack(t, st, g, top, pos)
+{
+    for(let i = 0; i < st.ids.length; i++) {
+        let n = t.by_id.get(st.ids[i]);
+        let r = Math.floor(i / 2);
+        let across = (i % 2 === 0)
+            ? top + g.side[0] - n.h / 2
+            : top + g.side[0] + g.trunk + n.h / 2;
+        pos.set(st.ids[i], {x: g.starts[r] + g.row_len[r] / 2, y: across});
+    }
+}
+
 function compact_tree_lr(nodes, edges, o)
 {
     let t = spanning_tree(nodes, edges);
-    let order = walk_order(t);
     let pos = new Map();
+
+    /*  A run of STACK_MIN_RUN or more consecutive LEAF children is laid
+     *  out as one block, a STACK. The contour packing below takes the
+     *  block as one leaf of its own length, so nothing is packed under
+     *  it. Runs, not all the leaves of a parent: the children keep
+     *  their order. A stack's key is an OBJECT, so it can never be
+     *  taken for a node id, which is a string.  */
+    let kids_of = new Map();
+    let stacks = new Map();
+    for(let [id, kids] of t.children) {
+        let out = [];
+        let run = [];
+        let flush = () => {
+            if(run.length >= STACK_MIN_RUN) {
+                let key = {stack: stacks.size};
+                stacks.set(key, {ids: run, depth: t.depth.get(run[0])});
+                out.push(key);
+            } else {
+                out.push(...run);
+            }
+            run = [];
+        };
+        for(let kid of kids) {
+            if((t.children.get(kid) || []).length === 0) {
+                run.push(kid);
+            } else {
+                flush();
+                out.push(kid);
+            }
+        }
+        flush();
+        kids_of.set(id, out);
+    }
+
+    /*  Parents before children, a stack being one child.  */
+    let order = [];
+    let todo = t.roots.slice().reverse();
+    while(todo.length) {
+        let id = todo.pop();
+        order.push(id);
+        let kids = kids_of.get(id) || [];
+        for(let i = kids.length - 1; i >= 0; i--) {
+            todo.push(kids[i]);
+        }
+    }
 
     /*  Columns, as in the tidy tree: a depth is as wide as its widest
      *  card, and a column's gap is `ranksep`.  */
@@ -423,25 +544,31 @@ function compact_tree_lr(nodes, edges, o)
     let dist = o.nodesep;
     let level_distance = o.ranksep - pad;
 
-    /*  `len` along the depth (the column's width: the rows are aligned),
-     *  `ext` across it (the card's own height).  */
+    /*  `len` along the depth (the column's width: the rows are aligned;
+     *  a stack's own length), `ext` across it.  */
     let tn = new Map();
     for(let id of order) {
-        tn.set(id, {
-            len: col_w[t.depth.get(id)],
-            ext: t.by_id.get(id).h,
-            off_x: 0,
-            off_y: 0,
-            y: 0,
-            contour: null,
-        });
+        let st = stacks.get(id);
+        if(st) {
+            let g = stack_geometry(t, st, col_x, col_w);
+            tn.set(id, {len: g.len, ext: g.ext, geom: g, off_x: 0, off_y: 0, y: 0, contour: null});
+        } else {
+            tn.set(id, {
+                len: col_w[t.depth.get(id)],
+                ext: t.by_id.get(id).h,
+                off_x: 0,
+                off_y: 0,
+                y: 0,
+                contour: null,
+            });
+        }
     }
 
     /*  Contours, children before parents.  */
     for(let i = order.length - 1; i >= 0; i--) {
         let id = order[i];
         let n = tn.get(id);
-        let kids = t.children.get(id) || [];
+        let kids = kids_of.get(id) || [];
 
         if(!kids.length) {
             let upper = contour_line(n.len + dist, 0);
@@ -492,7 +619,7 @@ function compact_tree_lr(nodes, edges, o)
         if(!root_of.has(id)) {
             root_of.set(id, id);
         }
-        let kids = t.children.get(id) || [];
+        let kids = kids_of.get(id) || [];
         if(!kids.length) {
             continue;
         }
@@ -524,9 +651,14 @@ function compact_tree_lr(nodes, edges, o)
     }
 
     for(let id of order) {
-        let d = t.depth.get(id);
         let n = tn.get(id);
         let y = n.y + shift.get(root_of.get(id));
+        let st = stacks.get(id);
+        if(st) {
+            place_stack(t, st, n.geom, y, pos);
+            continue;
+        }
+        let d = t.depth.get(id);
         pos.set(id, {x: col_x[d] + col_w[d] / 2, y: y + n.ext / 2});
     }
     return pos;

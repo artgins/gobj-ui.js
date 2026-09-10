@@ -1413,7 +1413,13 @@ layouts by three thin adapters in `c_g6_nodes_tree.js`:
   shaped like a real one; a uniform tree is the same width. The contour
   arithmetic is Moen's (1990) as mxGraph wrote it in `mxCompactTreeLayout`
   (JGraph Ltd, Apache-2.0), read in maxGraph — a port, not a dependency,
-  because maxGraph's layouts drive its own graph model.
+  because maxGraph's layouts drive its own graph model. Since `7.23.154` a run
+  of three or more **leaf** children is **stacked**: two columns under the
+  parent with a corridor between them, row after row — the contour alone
+  gained nothing on a whole level opened with the stepper, where every parent
+  still needed the row of its children beside it. Against `tree`: regions
+  only 10% of the width, one region open with a 24-device hall 21%, a whole
+  level open 41%. The tree grows taller instead; read it with elbow edges.
 - **`radial`** (`treedb-radial`) — the root in the middle, a ring per depth,
   every subtree an angular **sector** proportional to its leaves, and the
   radius of each ring the largest of three: one `ranksep` out from the ring
@@ -1471,7 +1477,11 @@ is short. Leaving, the farthest turns highest; arriving, the farthest turns
 lowest: the orders in which the lines of one end nest without crossing. A
 routed line leaves its port and reaches the other one **sideways**, because
 the column straight under or over a port is where the staggered edges of that
-port run. Only the stub at the port is shared. G6's `shortest-path` router is not used: it is
+port run. Only the stub at the port is shared. Into a lower row of a stack of
+the compact tree an edge runs a **comb** (`7.23.154`): along the channel to a
+lane of its own in the stack's corridor, down it, and into the gap above its
+card; lanes go outermost first by row, so none crosses another, and a comb is
+drawn as laid out, never routed. G6's `shortest-path` router is not used: it is
 not exported, it
 falls back in silence to a route that crosses cards, and it rewrites its
 module defaults with every config it is given.
