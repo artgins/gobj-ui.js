@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.142
+
+- **treedb graph: only a HIERARCHICAL topic can be the main one** -- a topic
+  hooked to itself (places inside places, roles inside roles). The trunk was
+  "the topic whose hooks reach the most others", which drew the agent's treedb
+  from `yunos` instead of `realms`. Now: the reader's pick, if it is
+  hierarchical; else the topic the schema MARKS (`main_topic: true`, sent in
+  the desc from SDK 7.19); else the hierarchical topic that reaches the most
+  others. No hierarchical topic = no trunk, every topic a tree of its own. A
+  saved pick the rule refuses is ignored. The legend offers the star only on
+  hierarchical topics, and only when there are two or more.
+- **The graph opens on the first level**: `expand_depth` defaults to `1`
+  (engine and view). A level the reader stepped to is still persisted and
+  wins.
+- `C_G6_NODES_TREE`: the card tier `hierarchical` is renamed **`entity`**
+  (hooks AND fkeys: it sizes a card and nothing else), so the word is free for
+  a topic hooked to itself. `EV_LEGEND_STATE` topics carry `hierarchical`.
+  `treedb_fold_model`: `fold_is_hierarchical()`.
+- Schema editor: the `main_topic` mark is a checkbox of the topic form and a
+  gold star in its row; it is imported and exported with the rest of the
+  topic, and the check refuses two marks in one treedb or a mark on a topic
+  not hooked to itself. New keys (the editor's consumer, gui_agent): `more
+  than one main topic`, `main topic not hooked to itself`. The `main topic`
+  text now says *main hierarchical topic*.
+
 ## 7.23.141
 
 - **treedb graph: the fold pair is a STEPPER over the main tree.** `expand

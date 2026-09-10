@@ -417,7 +417,7 @@ const es_translation = {
     "hidden topics": "en topics ocultos",
     "loose records": "Registros sueltos: no cuelgan de nada; pulsa para verlos u ocultarlos",
     "highlight topic": "Resaltar topic",
-    "main topic": "Topic principal: el árbol cuelga de él",
+    "main topic": "Topic jerárquico principal: el árbol cuelga de él",
     "hide topic": "Ocultar topic",
     "show topic": "Mostrar topic",
     "search": "buscar",

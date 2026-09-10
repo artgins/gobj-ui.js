@@ -152,7 +152,13 @@ export function fold_build_model(descs, records, opts)
 
     let hidden = new Set(is_array(opts.hidden_topics)? opts.hidden_topics : []);
     let loose_shown = new Set(is_array(opts.loose_topics)? opts.loose_topics : []);
-    let main_topic = opts.main_topic || fold_main_topic(descs);
+    let main_topic = opts.main_topic || "";
+    if(main_topic && !fold_is_hierarchical(descs, main_topic)) {
+        main_topic = "";    /*  a pick the rule does not allow (see fold_main_topic): deduce  */
+    }
+    if(!main_topic) {
+        main_topic = fold_main_topic(descs);
+    }
     if(main_topic && (!descs[main_topic] || hidden.has(main_topic))) {
         main_topic = "";    /*  a main topic that is not drawn governs nothing  */
     }
@@ -355,34 +361,60 @@ function count_levels(model)
 }
 
 /************************************************************
- *  The topic the schema hangs the others from: the one whose hooks
- *  reach the most OTHER topics, a self-referent hook breaking a tie
- *  (a tree of places over a flat list of groups), schema order
- *  breaking the rest. "" when no topic reaches another -- a treedb of
- *  unrelated lists has no trunk, and every topic is a tree of its own.
+ *  A HIERARCHICAL topic: one hooked to ITSELF -- places inside
+ *  places, groups inside groups, roles inside roles. It is the
+ *  only kind of topic a tree can hang from: a topic that only
+ *  reaches OTHER topics is a list with children, and making it
+ *  the trunk drew the agent's treedb from `yunos` instead of
+ *  `realms`.
+ *
+ *  (Not the engine's `entity` tier, which is any topic with
+ *  hooks AND fkeys: that one sizes a card and says nothing about
+ *  where a tree starts.)
+ ************************************************************/
+export function fold_is_hierarchical(descs, topic_name)
+{
+    if(!is_object(descs) || !descs[topic_name]) {
+        return false;
+    }
+    return hook_targets(descs, topic_name).has(topic_name);
+}
+
+/************************************************************
+ *  The topic the tree hangs from. Only a HIERARCHICAL topic can
+ *  be it, and in this order:
+ *
+ *      the one the schema MARKS (`main_topic: true` on the topic,
+ *      sent by the backend in its desc since SDK 7.19; the first
+ *      one in schema order if a schema marks two);
+ *      else the one whose hooks reach the most OTHER topics,
+ *      schema order breaking a tie.
+ *
+ *  "" when no topic is hooked to itself: there is no trunk, and
+ *  every topic is a tree of its own. (A pick by the reader comes
+ *  first of all, and is fold_build_model's business.)
  ************************************************************/
 export function fold_main_topic(descs)
 {
     descs = is_object(descs)? descs : {};
-    let best = "";
-    let best_score = 0;
-    let best_self = false;
+    let candidates = Object.keys(descs).filter((topic_name) => {
+        return topic_name.substring(0, 2) !== "__" && fold_is_hierarchical(descs, topic_name);
+    });
 
-    for(let topic_name of Object.keys(descs)) {
-        if(topic_name.substring(0, 2) === "__") {
-            continue;
+    for(let topic_name of candidates) {
+        if(descs[topic_name].main_topic === true) {
+            return topic_name;
         }
+    }
+
+    let best = "";
+    let best_score = -1;
+    for(let topic_name of candidates) {
         let reach = hook_targets(descs, topic_name);
-        let self = reach.has(topic_name);
         reach.delete(topic_name);
-        let score = reach.size;
-        if(score === 0) {
-            continue;
-        }
-        if(score > best_score || (score === best_score && self && !best_self)) {
+        if(reach.size > best_score) {
             best = topic_name;
-            best_score = score;
-            best_self = self;
+            best_score = reach.size;
         }
     }
     return best;

@@ -122,6 +122,7 @@ import {
     fold_open_levels,
     fold_close_levels,
     fold_level_clamp,
+    fold_is_hierarchical,
     fold_toggle,
     fold_show_more,
     fold_reveal,
@@ -301,14 +302,14 @@ const PORT_LINE_WIDTH = 2;
 const NODE_MODES = ['expanded', 'compact', 'shape'];
 
 const PILL_SIZE = {
-    hierarchical: [200, 30],
+    entity:       [200, 30],
     extended:     [180, 28],
     child:        [160, 26],
 };
 const PORT_R_PILL = 6;
 
 const SHAPE_SIZE = {
-    hierarchical: 32,
+    entity:       32,
     extended:     28,
     child:        22,
 };
@@ -436,7 +437,7 @@ SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook po
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
 
 /*---------------- Folding ----------------*/
-SDATA(data_type_t.DTP_INTEGER,  "expand_depth",         0,  2,      "Levels open when a treedb loads, until the reader steps (`fold_level`): 1 = the roots alone, 2 = the roots and their children. Every open hook shows its first page"),
+SDATA(data_type_t.DTP_INTEGER,  "expand_depth",         0,  1,      "Levels open when a treedb loads, until the reader steps (`fold_level`): 1 = the roots alone (the default), 2 = the roots and their children. Every open hook shows its first page"),
 SDATA(data_type_t.DTP_INTEGER,  "fold_level",           0,  0,      "The level of the MAIN tree the toolbar's stepper stands on: 1 = its roots, N = N-1 levels under them; 0 = `expand_depth`. The host persists it and sends EV_SET_FOLD_LEVEL; it is published back in EV_LEGEND_STATE (`fold`) with the levels the tree has"),
 SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",       0,  24,     "Children of one hook shown per page; the `+N` chip after the page opens the next one"),
 SDATA(data_type_t.DTP_LIST,     "hidden_topics",        0,  "[]",   "Topics left out of the tree: no card, no pill counts them, no edge reaches them"),
@@ -545,7 +546,7 @@ let PRIVATE_DATA = {
     _nodes_placed:      0,          // ...of which carry a saved position
 
     /*---------------- folding ----------------*/
-    expand_depth:       2,
+    expand_depth:       1,
     fold_level:         0,
     fold_page_size:     24,
     hidden_topics:      null,
@@ -1859,7 +1860,12 @@ function configure_behaviour(gobj)
 }
 
 /************************************************************
- *  Count hooks and fkeys in topic desc, classify node type
+ *  Count hooks and fkeys in topic desc, classify node type:
+ *  `child` (no hooks), `extended` (hooks, no fkeys), `entity`
+ *  (both). It sizes the card and nothing else. It used to be
+ *  called `hierarchical`, and that word means something else now:
+ *  a topic hooked to ITSELF, the only kind a tree can hang from
+ *  (treedb_fold_model).
  ************************************************************/
 function calculate_hooks_fkeys_counter(desc)
 {
@@ -1885,7 +1891,7 @@ function calculate_hooks_fkeys_counter(desc)
     } else if(desc.fkeys_counter === 0) {
         desc.node_treedb_type = 'extended';
     } else {
-        desc.node_treedb_type = 'hierarchical';
+        desc.node_treedb_type = 'entity';
     }
 }
 
@@ -2306,7 +2312,7 @@ function card_shape_of(gobj, desc, record, geometry, pills_html)
             desc.topic_name, true, record.id, false, false, false, pills_html
         );
     } else {
-        // Hierarchical entity (ROOT / container): largest tier.
+        // Entity, hooks and fkeys (ROOT / container): largest tier.
         style.innerHTML = build_node_innerHTML(
             paint.fill, priv.theme, record.icon, label,
             desc.topic_name, false, record.id, false, false, false, pills_html
@@ -2409,7 +2415,7 @@ function pill_shape_of(gobj, desc, record, geometry)
 {
     let priv = gobj.priv;
     let tier = desc.node_treedb_type;
-    let size = PILL_SIZE[tier] || PILL_SIZE.hierarchical;
+    let size = PILL_SIZE[tier] || PILL_SIZE.entity;
     let ports = build_ports(gobj, desc);
     let paint = node_paint_of(gobj, desc, geometry);
 
@@ -2472,7 +2478,7 @@ function figure_shape_of(gobj, desc, record, geometry, flags)
     let dark = (priv.theme === "dark");
     let f = flags || {};
     let tier = desc.node_treedb_type;
-    let side = SHAPE_SIZE[tier] || SHAPE_SIZE.hierarchical;
+    let side = SHAPE_SIZE[tier] || SHAPE_SIZE.entity;
     let labels = gobj_read_bool_attr(gobj, "node_labels");
     let figure = node_figure_of(gobj, desc, geometry || {});
     let paint = node_paint_of(gobj, desc, geometry);
@@ -7042,7 +7048,7 @@ function show_node_detail_popover(gobj, node_id)
 }
 
 /************************************************************
- *  Re-render every HTML (hierarchical) node so its card adopts
+ *  Re-render every HTML (entity) node so its card adopts
  *  the given theme: entity cards and leaf chips (baked innerHTML,
  *  not re-themed by setTheme()) are regenerated; structural
  *  junction diamonds get their neutral fill/stroke re-themed.
@@ -7258,7 +7264,7 @@ function refresh_minimap(gobj)
 
 /************************************************************
  *  The innerHTML of ONE node, in the given theme and highlight state.
- *  The three treedb tiers (hierarchical / extended / child) each have
+ *  The three treedb tiers (entity / extended / child) each have
  *  their own card, and both the theme refresh and the highlight need the
  *  same three-way choice — it lived inline in the theme refresh and is
  *  shared now. Returns null for a node that carries no desc.
@@ -7295,7 +7301,7 @@ function node_innerHTML_of(nd, theme, highlight, selected, anchored, pills_html)
                 desc.topic_name, true, record.id, highlight, selected, anchored,
                 pills_html
             );
-        case 'hierarchical':
+        case 'entity':
             return build_node_innerHTML(
                 fill, theme, record.icon, label,
                 desc.topic_name, false, record.id, highlight, selected, anchored,
@@ -7569,7 +7575,7 @@ function build_chip_innerHTML(color, theme, icon, label, key, highlight, selecte
 }
 
 /************************************************************
- *  Build innerHTML for hierarchical (HTML) nodes.
+ *  Build innerHTML for entity (HTML) nodes.
  *
  *  Card style modelled on the documentation schema graphs
  *  (docs gen_treedb_graphs.py): rounded card, soft tint of the
@@ -9538,12 +9544,16 @@ function publish_legend_state(gobj, visible)
             loose_shown: model.loose_shown.has(topic_name),
             hidden: model.hidden.has(topic_name),
             linked: model.linked.has(topic_name),
+            hierarchical: fold_is_hierarchical(priv.descs, topic_name),
         });
     }
 
     gobj_publish_event(gobj, "EV_LEGEND_STATE", {
         main_topic: model.main_topic,
-        main_chosen: !!gobj_read_str_attr(gobj, "main_topic"),
+        /*  CHOSEN only when the reader's pick is the one in force: a
+         *  pick the rule refuses (not hierarchical) is ignored.  */
+        main_chosen: !!model.main_topic &&
+                     gobj_read_str_attr(gobj, "main_topic") === model.main_topic,
         topics: topics,
         /*  The toolbar's stepper: the tree it walks, where it stands,
          *  and how deep it goes. `levels` 0 = nothing to step through.  */

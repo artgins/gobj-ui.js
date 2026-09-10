@@ -1294,8 +1294,8 @@ a level or two, with a count on every cut.
   parent shows it or it is a shown root — the **union**, so a device that hangs
   from its place AND its controller is drawn once, under whichever opened
   first, and folding one of the two leaves it where the other shows it.
-- **`expand_depth`** (default `2`) is how much opens on load: the roots and
-  their children. **`fold_page_size`** (default `24`) is how many children of
+- **`expand_depth`** (default `1` since `7.23.142`, `2` before) is how much
+  opens on load until the reader steps: the roots alone. **`fold_page_size`** (default `24`) is how many children of
   one hook are shown at a time; the rest is a **`+N` chip** at the end of the
   page that opens the next one. Both are attrs of `C_YUI_TREEDB_GRAPH`,
   forwarded to the engine — and since `7.23.93` so are the seven the engine
@@ -1596,18 +1596,31 @@ them:
 | control | what it does |
 |---|---|
 | the chip body | **show / hide** the topic. A hidden topic leaves the MODEL, not just the drawing: no card, no pill counts it, no edge reaches it, and whatever hung from it alone has no parent any more. The name is struck through and the count is the total. |
-| `★` / `☆` | the **main topic**: the trunk the tree hangs from. Filled on the main one (a mark, not a button — the main topic cannot be hidden, because hiding the trunk turns everything into roots, which is the pile); hollow on the others, where it moves the star. |
+| `★` / `☆` | the **main topic**: the trunk the tree hangs from, always a **hierarchical** topic (hooked to itself); the hollow star appears only on the other hierarchical topics, and only when there are two or more (`7.23.142`). Filled on the main one (a mark, not a button — the main topic cannot be hidden, because hiding the trunk turns everything into roots, which is the pile); hollow on the others, where it moves the star. |
 | `+N` | the topic's **loose records**: the ones that should hang from the main tree and do not (a device with no place). Counted here, shown only on request. |
 | `⌖` | **highlight** the topic — the focus, with `reveal: "all"`. |
 
-The **main topic is deduced** when none is chosen: the topic whose hooks reach
-the most OTHER topics, a self-referent hook breaking a tie (a tree of places
-over a flat list of groups). On the yunovatios central that is `places` (it
-reaches places, devices, users and controllers); `device_types` reaches one.
-An `extended` topic (hooks, no fkeys) never wins: the engine draws no edge
-from one, so its records hang nothing. A treedb where no topic reaches
-another has no trunk, and every topic is a tree of its own — the behaviour
-before this existed.
+**Only a HIERARCHICAL topic can be the main one** (since `7.23.142`): a topic
+hooked to ITSELF — places inside places, groups inside groups, roles inside
+roles (`fold_is_hierarchical()`). A topic that only reaches OTHER topics is a
+list with children, and the old rule (*the topic whose hooks reach the most
+others*) drew the agent's treedb from `yunos` instead of `realms`. In order:
+
+1. the reader's pick (the star), if it is hierarchical — a saved pick the rule
+   refuses is ignored;
+2. the topic the schema **marks**, `main_topic: true` on the topic, sent in the
+   desc by SDK 7.19+ (`tranger2_topic_desc()`); the schema allows one, and only
+   on a topic hooked to itself;
+3. the hierarchical topic that reaches the most other topics, schema order
+   breaking a tie.
+
+In every treedb of the SDK and the apps there is exactly one hierarchical
+topic (`places`, `device_groups`, `systems`, `roles`, `realms`), so the mark
+only has something to decide once a schema grows a second one. A treedb with
+no topic hooked to itself has no trunk, and every topic is a tree of its own.
+
+(Not the engine's card tier: a topic with hooks AND fkeys is an `entity` card
+— it was called `hierarchical` until `7.23.142` — and that only sizes a card.)
 
 What the main topic governs, in `treedb_fold_model.js`:
 

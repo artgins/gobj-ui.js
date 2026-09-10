@@ -183,7 +183,7 @@ function sort_by_order(list)
  *              schema_version, c_schema_version, system_schema_version,
  *              topics: [{
  *                  id, name, order, record,
- *                  pkey, topic_version, system_topic,
+ *                  pkey, topic_version, system_topic, main_topic,
  *                  cols: [{id, name, order, record}]
  *              }]
  *          }],
@@ -239,6 +239,7 @@ function build_schema_model(records)
             tkey:          record.tkey || "",
             topic_version: record.topic_version,
             system_topic:  !!record.system_topic,
+            main_topic:    !!record.main_topic,
             cols:          []
         };
         by_topic_id[entry.id] = entry;

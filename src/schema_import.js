@@ -38,7 +38,8 @@ import {
  *  the fkey, `order`) is composed, and `_geometry` belongs to whoever
  *  laid the graph out — an import must not move their boxes.  */
 const TOPIC_FIELDS = [
-    "pkey", "pkey2s", "system_flag", "tkey", "topic_version", "system_topic"
+    "pkey", "pkey2s", "system_flag", "tkey", "topic_version", "system_topic",
+    "main_topic"
 ];
 
 /*  Same for a `cols` record.  */

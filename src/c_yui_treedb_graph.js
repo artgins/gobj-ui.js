@@ -111,7 +111,7 @@ SDATA(data_type_t.DTP_LIST,     "operation_modes",  0,
 '["reading", "operation", "writing", "edition"]',
 "Available **permission** or behaviour modes. These operation modes are required to be accomplish by the graph handler (G6 child). TODO permissions must match treedb permissions."),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb tables"),
-SDATA(data_type_t.DTP_INTEGER,  "expand_depth",     0,  2,      "Levels of the treedb open when it loads: 1 = the roots alone, 2 = the roots and their children. Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_INTEGER,  "expand_depth",     0,  1,      "Levels of the treedb open when it loads, until the reader steps (`fold_level`): 1 = the roots alone (the default), 2 = the roots and their children. Forwarded to the G6 child"),
 SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",   0,  24,     "Children of one hook shown per page in the graph; a `+N` chip opens the next page. Forwarded to the G6 child"),
 
 /*---------------- Forwarded to the G6 child (its own defaults) ----------------*/
@@ -2699,6 +2699,11 @@ function refresh_legend(gobj)
         return String(a.topic).localeCompare(String(b.topic));
     });
 
+    /*  Only a topic hooked to ITSELF can be the main one, so only those
+     *  offer the star -- and only when there is more than one to pick
+     *  from: with a single hierarchical topic the choice is made.  */
+    let hierarchical_count = topics.filter((e) => e.hierarchical && !e.hidden).length;
+
     for(let entry of topics) {
         let topic_name = entry.topic;
         let is_main = (topic_name === state.main_topic);
@@ -2813,7 +2818,7 @@ function refresh_legend(gobj)
                                   style: 'padding:0 .5rem; cursor:default;',
                                   title: t('main topic'), 'data-i18n-title': 'main topic'},
                          [['span', {style: LEGEND_STAR_MAIN_STYLE}, '★']]]);
-        } else if(!hidden) {
+        } else if(!hidden && entry.hierarchical && hierarchical_count > 1) {
             extras.push(['button', {class: 'GRAPH_LEGEND_STAR button',
                                     type: 'button', style: 'padding:0 .5rem;',
                                     title: t('main topic'), 'data-i18n-title': 'main topic',

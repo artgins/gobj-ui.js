@@ -1061,6 +1061,13 @@ function render_topics(gobj, $body)
                     ? ["span", {class: "SCHEMA_TOPIC_SYSTEM tag ml-2",
                                 i18n: "system"}, t("system")]
                     : ["span", {}, ""],
+                /*  The schema's mark of the topic the tree hangs from: the
+                 *  same gold star the treedb graph's legend wears.  */
+                topic.main_topic
+                    ? ["span", {class: "SCHEMA_TOPIC_MAIN ml-2",
+                                style: "color:#d4a017;",
+                                title: t("main topic"), "data-i18n-title": "main topic"}, "★"]
+                    : ["span", {}, ""],
                 ambiguous
                     ? ["div", {class: "SCHEMA_TOPIC_ID is-size-7 yui-text-quiet"},
                         [["code", {}, `${topic.id}`]]]
@@ -1898,6 +1905,14 @@ function open_topic_form(gobj, treedb, topic)
                     ["span", {class: "ml-1", i18n: "system topic"}, t("system topic")]
                 ]]
             ]],
+            /*  A LABEL that wraps its control names it: no aria-label.  */
+            ["div", {class: "SCHEMA_TOPIC_FORM_MAIN field mb-3"}, [
+                ["label", {class: "checkbox"}, [
+                    ["input", el_attrs({type: "checkbox", "data-name": "main_topic",
+                               checked: record.main_topic ? "checked" : undefined})],
+                    ["span", {class: "ml-1", i18n: "main topic"}, t("main topic")]
+                ]]
+            ]],
             ["div", {class: "SCHEMA_TOPIC_FORM_ACTIONS is-flex mt-4",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
                 ["button", {class: "SCHEMA_TOPIC_FORM_CANCEL button", type: "button"},
@@ -2501,6 +2516,7 @@ function topic_record(gobj, treedb, topic, values)
     record.tkey = values.tkey || "";
     record.topic_version = values.topic_version === "" ? 1 : Number(values.topic_version);
     record.system_topic = !!values.system_topic;
+    record.main_topic = !!values.main_topic;
 
     return record;
 }

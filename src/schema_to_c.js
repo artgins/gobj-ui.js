@@ -47,7 +47,7 @@ const DEFAULT_PAD = 68;
  *  and every export diffs against the last one.  */
 const TOPIC_KEY_ORDER = [
     "id", "pkey", "pkey2s", "system_flag", "tkey",
-    "topic_version", "system_topic"
+    "topic_version", "system_topic", "main_topic"
 ];
 
 /*  Same for a column, in the order the .c literals write it.  */

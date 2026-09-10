@@ -189,6 +189,26 @@ function validate_schema(treedb, options)
         }
     }
 
+    /*  The topic the tree hangs from (`main_topic`): ONE per treedb, and
+     *  only a topic hooked to itself. treedb_open_db logs either mistake
+     *  and ignores the mark, so the restart succeeds and the graph goes
+     *  on deducing -- better said here, before it.  */
+    let marked = treedb.topics.filter((topic) => topic.main_topic);
+    if(marked.length > 1) {
+        add("error", "more than one main topic", marked[1].name, "",
+            marked.map((topic) => topic.name).join(", "));
+    }
+    for(let topic of marked) {
+        let hooks_itself = topic.cols.some((col) => {
+            let hook = col_hook(col.record);
+            return col_flags(col.record).indexOf("hook") >= 0 &&
+                   !!hook && Object.prototype.hasOwnProperty.call(hook, topic.name);
+        });
+        if(!hooks_itself) {
+            add("error", "main topic not hooked to itself", topic.name, "", "");
+        }
+    }
+
     /*  How many hooks name each fkey column. Both answers are a
      *  finding: NONE and the parent side of the link was renamed or
      *  deleted, so the references are written by nobody; TWO and the

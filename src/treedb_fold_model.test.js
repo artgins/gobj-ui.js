@@ -31,11 +31,12 @@ import {
     fold_open_levels,
     fold_close_levels,
     fold_expand_to_level,
+    fold_is_hierarchical,
 } from "./treedb_fold_model.js";
 
 const places_desc = {
     topic_name: "places",
-    node_treedb_type: "hierarchical",
+    node_treedb_type: "entity",
     cols: [
         {id: "id", flag: []},
         {id: "place", flag: ["fkey"], fkey: {places: "places"}},
@@ -56,13 +57,20 @@ const devices_desc = {
 };
 const controllers_desc = {
     topic_name: "controllers",
-    node_treedb_type: "hierarchical",
+    node_treedb_type: "entity",
     cols: [
         {id: "id", flag: []},
         {id: "place", flag: ["fkey"], fkey: {places: "controllers"}},
         {id: "devices", flag: ["hook"], hook: {devices: "controller"}},
     ],
 };
+/*  controllers inside controllers: a second HIERARCHICAL topic  */
+const controllers_self = Object.assign({}, controllers_desc, {
+    cols: controllers_desc.cols.concat([
+        {id: "controllers", flag: ["hook"], hook: {controllers: "parent"}},
+        {id: "parent", flag: ["fkey"], fkey: {controllers: "controllers"}},
+    ]),
+});
 const groups_desc = {
     topic_name: "device_groups",
     node_treedb_type: "extended",
@@ -189,10 +197,33 @@ describe("main topic, hidden topics, loose records", () => {
         expect(m.linked.has("device_groups")).toBe(false);
     });
 
+    test("only a topic hooked to ITSELF can be the main one", () => {
+        expect(fold_is_hierarchical(descs, "places")).toBe(true);
+        expect(fold_is_hierarchical(descs, "controllers")).toBe(false);
+        expect(fold_is_hierarchical(descs, "device_groups")).toBe(false);
+        /*  c reaches x and nothing reaches itself: no trunk at all  */
+        let c = {topic_name: "c", cols: [{id: "id", flag: []},
+                 {id: "xs", flag: ["hook"], hook: {x: "c"}}]};
+        let x = {topic_name: "x", cols: [{id: "id", flag: []}, {id: "c", flag: ["fkey"]}]};
+        expect(fold_main_topic({c: c, x: x})).toBe("");
+        /*  a tree of places alone, reaching no other topic, is still a trunk  */
+        expect(fold_main_topic({places: places_desc})).toBe("places");
+    });
+
+    test("the schema's mark wins over the deduction, among hierarchical topics", () => {
+        let d = Object.assign({}, descs, {controllers: controllers_self});
+        expect(fold_main_topic(d)).toBe("places");  /*  places reaches more  */
+        let marked = Object.assign({}, d, {controllers: Object.assign({}, controllers_self, {main_topic: true})});
+        expect(fold_main_topic(marked)).toBe("controllers");
+        /*  a mark on a topic that is not hierarchical is not a trunk  */
+        let wrong = Object.assign({}, descs, {devices: Object.assign({}, devices_desc, {main_topic: true})});
+        expect(fold_main_topic(wrong)).toBe("places");
+    });
+
     test("a self-referent hook breaks a tie", () => {
         let a = {topic_name: "a", node_treedb_type: "extended",
                  cols: [{id: "id", flag: []}, {id: "xs", flag: ["hook"], hook: {x: "a"}}]};
-        let b = {topic_name: "b", node_treedb_type: "hierarchical",
+        let b = {topic_name: "b", node_treedb_type: "entity",
                  cols: [{id: "id", flag: []}, {id: "xs", flag: ["hook"], hook: {x: "b"}},
                         {id: "bs", flag: ["hook"], hook: {b: "parent"}},
                         {id: "parent", flag: ["fkey"], fkey: {b: "bs"}}]};
@@ -201,12 +232,16 @@ describe("main topic, hidden topics, loose records", () => {
         expect(fold_main_topic({x: x})).toBe("");
     });
 
-    test("an explicit main topic wins over the deduced one", () => {
-        let m = fold_build_model(descs, make_records(3), {main_topic: "controllers"});
+    test("the reader's pick wins -- if it is a hierarchical topic", () => {
+        let d = Object.assign({}, descs, {controllers: controllers_self});
+        let m = fold_build_model(d, make_records(3), {main_topic: "controllers"});
         expect(m.main_topic).toBe("controllers");
         expect([...m.linked].sort()).toEqual(["controllers", "devices"]);
         /*  places is not linked to controllers, so its roots are roots  */
         expect(m.groups.get(fold_root_group_key("places"))).toEqual([K("places", "es")]);
+        /*  a pick the rule refuses is ignored, and the trunk is deduced  */
+        let m2 = fold_build_model(descs, make_records(3), {main_topic: "controllers"});
+        expect(m2.main_topic).toBe("places");
     });
 
     test("a device with no place is LOOSE: counted, not a root, unless asked for", () => {

@@ -94,6 +94,50 @@ describe("the topic will not open", () => {
     });
 });
 
+describe("the main topic mark", () => {
+    /*  departments hooked to itself: the one topic the mark can go on  */
+    const self_hook = {
+        id: "db.departments.departments", value: "departments", order: 3,
+        type: "dict", flag: ["hook"], hook: {departments: "departments"},
+        topics: ["topics^db.departments^cols"]
+    };
+
+    test("on a topic hooked to itself, says nothing", () => {
+        const t = schema({extra_col: self_hook});
+        t.topics[0].main_topic = true;
+        const c = codes(validate_schema(t));
+        expect(c).not.toContain("main topic not hooked to itself");
+        expect(c).not.toContain("more than one main topic");
+    });
+
+    test("on a topic that is not hooked to itself", () => {
+        const t = schema();
+        t.topics[1].main_topic = true;
+        const f = validate_schema(t);
+        expect(codes(f)).toContain("main topic not hooked to itself");
+        expect(has_errors(f)).toBe(true);
+    });
+
+    test("on two topics", () => {
+        const t = schema({extra_col: self_hook});
+        t.topics[0].main_topic = true;
+        t.topics[1].main_topic = true;
+        const f = validate_schema(t);
+        expect(codes(f)).toContain("more than one main topic");
+        expect(f.find((x) => x.code === "more than one main topic").detail)
+            .toBe("departments, users");
+    });
+
+    test("the model reads the mark from the record", () => {
+        const model = build_schema_model({
+            treedbs: [{id: "db"}],
+            topics:  [{id: "db.a", value: "a", main_topic: true, treedbs: ["treedbs^db^topics"]}],
+            cols:    [],
+        });
+        expect(model.treedbs[0].topics[0].main_topic).toBe(true);
+    });
+});
+
 describe("the link does nothing, and the write succeeded", () => {
     test("a hook with no mapping", () => {
         expect(codes(validate_schema(schema({hook: null})))).toContain("hook has no mapping");
