@@ -25,6 +25,15 @@
  *        the order the edges were made, so a new edge never moves the
  *        ones already drawn.
  *
+ *      - Several forward edges sharing one END: the children of one
+ *        card, or the parents of one card (all its fkeys enter by one
+ *        point). They are STAGGERED: each turns at its own height in
+ *        the channel, so their runs lie side by side instead of on top
+ *        of each other. Leaving a card, the one that runs farthest
+ *        turns highest; reaching a card, the one that comes from
+ *        farthest turns lowest -- the two orders in which the lines of
+ *        one end nest without crossing.
+ *
  *      Written for the top-down reading; left to right is the same
  *      geometry with the axes swapped.
  *
@@ -35,6 +44,7 @@
 export const ELBOW_STEP = 10;      /*  between two lanes  */
 export const ELBOW_JETTY = 16;     /*  straight run out of a port before a detour turns  */
 export const ELBOW_CLEAR = 24;     /*  how far outside the two cards a detour runs  */
+export const ELBOW_STAGGER_PAD = 6;    /*  staggered turns keep this far from the rows  */
 
 /************************************************************
  *  The lane of `id` among `ids`, the edges joining the same two
@@ -54,6 +64,24 @@ export function elbow_lane(ids, id)
     return side * Math.ceil(k / 2);
 }
 
+/************************************************************
+ *  The rank of `id` among `items` ([{id, span}]): the forward
+ *  edges that share one end with it, each with how far it runs
+ *  ACROSS. Farthest first; a tie goes to the edge made first.
+ *  Returns {rank, count}.
+ ************************************************************/
+export function elbow_rank(items, id)
+{
+    let sorted = items.slice().sort((a, b) => {
+        if(b.span !== a.span) {
+            return b.span - a.span;
+        }
+        return String(a.id).localeCompare(String(b.id), undefined, {numeric: true});
+    });
+    let rank = sorted.findIndex((it) => it.id === id);
+    return {rank: (rank < 0)? 0 : rank, count: sorted.length};
+}
+
 function swap(p)
 {
     return [p[1], p[0]];
@@ -71,21 +99,44 @@ function swap_box(b)
  *
  *      vertical    the rows are stacked (top to bottom); false
  *                  when they are side by side (left to right)
+ *      stagger     {dep, arr}: the edge's rank among the forward
+ *                  edges leaving its source card and among those
+ *                  reaching its target card (elbow_rank). Absent,
+ *                  the channel is the middle.
  ************************************************************/
-export function elbow_points(s, t, box_s, box_t, lane, vertical)
+export function elbow_points(s, t, box_s, box_t, lane, vertical, stagger)
 {
     if(!vertical) {
-        return elbow_points(swap(s), swap(t), swap_box(box_s), swap_box(box_t), lane, true)
-            .map(swap);
+        return elbow_points(swap(s), swap(t), swap_box(box_s), swap_box(box_t), lane, true,
+                            stagger).map(swap);
     }
 
     let shift = lane * ELBOW_STEP;
 
-    /*  Forward: the channel half way down, moved by the lane and
-     *  kept strictly between the two ports.  */
+    /*  Forward: the channel half way between the two cards, each
+     *  edge of a shared end at its own height round it, moved by the
+     *  lane, and kept between the two rows.  */
     if(t[1] - s[1] > 2 * ELBOW_STEP) {
-        let mid = (s[1] + t[1]) / 2 + shift;
-        mid = Math.min(Math.max(mid, s[1] + ELBOW_STEP), t[1] - ELBOW_STEP);
+        let lo = Math.max(s[1], box_s.y2);
+        let hi = Math.min(t[1], box_t.y1);
+        let mid = (lo + hi) / 2;
+        let st = stagger || {};
+        let group = null;
+        let k = 0;
+        if(st.dep && st.dep.count > 1) {
+            group = st.dep;
+            k = st.dep.rank;                          /*  farthest highest  */
+        } else if(st.arr && st.arr.count > 1) {
+            group = st.arr;
+            k = st.arr.count - 1 - st.arr.rank;       /*  farthest lowest  */
+        }
+        if(group) {
+            let room = Math.max(0, hi - lo - 2 * ELBOW_STAGGER_PAD);
+            let step = Math.min(ELBOW_STEP, room / (group.count - 1));
+            mid = mid - (group.count - 1) * step / 2 + k * step;
+        }
+        mid += shift;
+        mid = Math.min(Math.max(mid, lo + 4), hi - 4);
         return [[s[0], mid], [t[0], mid]];
     }
 
@@ -215,8 +266,12 @@ function heap_pop(h)
 /************************************************************
  *  The shortest orthogonal line from `a` to `z` that enters none
  *  of `boxes` (already expanded by the clearance), a turn costing
- *  ROUTE_BEND. The line leaves `a` going down and ends at `z`
- *  going down, since after `z` it drops into a port.
+ *  ROUTE_BEND. The line leaves `a` SIDEWAYS and reaches `z`
+ *  SIDEWAYS: the column straight under a port and the one straight
+ *  over it belong to the forward edges that share that port, which
+ *  run along them to their staggered turns -- a route going down
+ *  that column lay on top of them. So a routed line shares only
+ *  the stub between the port and `a` (or `z`).
  *
  *  The grid is SPARSE: only the lines of the boxes' borders and
  *  of the two ends, which is all an orthogonal shortest path ever
@@ -302,7 +357,10 @@ function orth_search(a, z, boxes)
         let k = state >> 2;
         let dir = state & 3;
         if(k === goal) {
-            let total = cost + ((dir === 2)? 0 : ROUTE_BEND);
+            if(dir >= 2) {
+                continue;       /*  down the port's own column: not allowed  */
+            }
+            let total = cost + ROUTE_BEND;      /*  the turn into the port  */
             if(total < found_cost) {
                 found_cost = total;
                 found = state;
@@ -310,6 +368,9 @@ function orth_search(a, z, boxes)
             continue;
         }
         for(let [nk, nd, len] of moves(k)) {
+            if(k === start && nd >= 2) {
+                continue;       /*  out of the port sideways, not down its column  */
+            }
             let c = cost + len + ((nd === dir)? 0 : ROUTE_BEND);
             let ns = nk * 4 + nd;
             if(c < best[ns]) {
@@ -360,15 +421,15 @@ function orth_search(a, z, boxes)
  *  coincide. Nearby cards first; all of them if that finds no way;
  *  the simple elbow if nothing does.
  ************************************************************/
-export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes)
+export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes, stagger)
 {
     let others = boxes || [];
     if(!vertical) {
         return elbow_route(swap(s), swap(t), swap_box(box_s), swap_box(box_t), lane, true,
-                           others.map(swap_box)).map(swap);
+                           others.map(swap_box), stagger).map(swap);
     }
 
-    let simple = elbow_points(s, t, box_s, box_t, lane, true);
+    let simple = elbow_points(s, t, box_s, box_t, lane, true, stagger);
     if(!elbow_path_hits([s, ...simple, t], others, box_s, box_t)) {
         return simple;
     }

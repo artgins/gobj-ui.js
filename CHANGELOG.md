@@ -5,6 +5,38 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.153
+
+- **treedb graph, elbow edges: the edges sharing an end no longer lie on top
+  of each other.** The children of one card all turned at the same height --
+  one trunk and one bus, drawn once per child -- and the parents of one card
+  all ended on the same last run, since every fkey of a card enters by one
+  point. Now the forward edges sharing an END are STAGGERED: each turns at
+  its own height in the channel, so their runs lie side by side. Leaving a
+  card, the one that runs farthest turns highest; reaching a card, the one
+  that comes from farthest turns lowest -- the two orders in which the lines
+  of one end nest without crossing. Only the short stub at the port is
+  shared. The step is 10px at most and narrows to fit the channel (24
+  children in a 90px channel sit about 3px apart).
+- Every forward edge LEAVING a card counts, not only those of one port: two
+  hooks side by side would otherwise put their runs at the same heights and
+  overlap them. Each edge's span is measured from the real position of the
+  port it leaves by.
+- A ROUTED elbow now leaves its port and reaches the other one SIDEWAYS. It
+  used to prefer running down the column straight under or over the port --
+  the column the staggered forward edges of that port run along to their
+  turns -- and in the demo it lay 60px on top of `engineering -> ada` above
+  `ada`'s fkey point. Now it shares only the stub between the port and its
+  first (or last) turn.
+- `elbow_rank(items, id)` and an optional `stagger` ({dep, arr}) in
+  `elbow_points()` / `elbow_route()` (treedb_elbow.js); without it the channel
+  is the middle, as before. Edges that do not run forward keep their detour or
+  route, and the lanes of a reciprocal pair stay.
+- Five new tests: the rank, the children of one port at distinct heights
+  inside the channel, farthest highest with no crossing, the parents of one
+  card farthest lowest with no crossing, an end shared by nobody keeping the
+  middle.
+
 ## 7.23.152
 
 - **treedb graph, elbow edges: the ports are obstacles too.** A routed elbow

@@ -133,7 +133,7 @@ import {
     fold_root_group_key,
 } from "./treedb_fold_model.js";
 import {layout_tree, layout_radial, layout_compact} from "./treedb_layout.js";
-import {elbow_lane, elbow_route} from "./treedb_elbow.js";
+import {elbow_lane, elbow_rank, elbow_route} from "./treedb_elbow.js";
 
 import {
     BaseLayout,
@@ -4224,8 +4224,9 @@ class TreedbTreeLayout extends BaseLayout
  *  dragged card, a fold or a layout needs nothing else. `-v` runs
  *  between rows (top to bottom), `-h` between columns. An edge that
  *  does not run forward goes round the two cards, the edges joining
- *  the same two cards take lanes, and a line that would cross any
- *  other card is routed round it (treedb_elbow.js).
+ *  the same two cards take lanes, the edges sharing an end turn at
+ *  staggered heights, and a line that would cross any other card is
+ *  routed round it (treedb_elbow.js).
  ************************************************************/
 const ELBOW_RADIUS = 6;
 
@@ -4297,12 +4298,60 @@ function elbow_lane_of(edge)
     }
 }
 
+/*  Where `edge` stands among the forward edges sharing one of its
+ *  ends, for the stagger (treedb_elbow.js): the ones leaving its
+ *  source card, and the ones reaching its target card. How far each
+ *  runs ACROSS is measured from the real port it leaves by -- the
+ *  hooks of one card sit at different places along its edge.  */
+function elbow_stagger_of(edge, vertical)
+{
+    let graph = edge.context && edge.context.graph;
+    let element = edge.context && edge.context.element;
+    let s = edge.sourceNode && edge.sourceNode.id;
+    let t = edge.targetNode && edge.targetNode.id;
+    if(!graph || !element || s === undefined || t === undefined) {
+        return null;
+    }
+    let across = vertical? 0 : 1;
+    let along = vertical? 1 : 0;
+    let pos = (id) => graph.getElementPosition(id);
+    let port_of = (node_id, key) => {
+        let node = element.getElement(node_id);
+        let ports = (node && typeof node.getPorts === 'function')? node.getPorts() : {};
+        let port = key? ports[key] : null;
+        return port? port.getPosition() : pos(node_id);
+    };
+    try {
+        let ps = pos(s);
+        let pt = pos(t);
+        let dep = graph.getRelatedEdgesData(s, 'out')
+            .filter((d) => d.source === s && pos(d.target)[along] > ps[along])
+            .map((d) => ({
+                id: d.id,
+                span: Math.abs(pos(d.target)[across] -
+                               port_of(s, d.style && d.style.sourcePort)[across]),
+            }));
+        let arr = graph.getRelatedEdgesData(t, 'in')
+            .filter((d) => d.target === t && pos(d.source)[along] < pt[along])
+            .map((d) => ({
+                id: d.id,
+                span: Math.abs(port_of(d.source, d.style && d.style.sourcePort)[across] -
+                               pt[across]),
+            }));
+        return {dep: elbow_rank(dep, edge.id), arr: elbow_rank(arr, edge.id)};
+    } catch(e) {
+        log_error(`elbow edge ${edge.id}: cannot read the edges sharing its ends: ${e}`);
+        return null;
+    }
+}
+
 class TreedbElbowV extends Polyline
 {
     getControlPoints(attributes) {
         let [s, t] = this.getEndpoints(attributes, false);
         return elbow_route(s, t, elbow_box(this.sourceNode), elbow_box(this.targetNode),
-                           elbow_lane_of(this), true, elbow_obstacles(this));
+                           elbow_lane_of(this), true, elbow_obstacles(this),
+                           elbow_stagger_of(this, true));
     }
 
     getKeyPath(attributes) {
@@ -4316,7 +4365,8 @@ class TreedbElbowH extends Polyline
     getControlPoints(attributes) {
         let [s, t] = this.getEndpoints(attributes, false);
         return elbow_route(s, t, elbow_box(this.sourceNode), elbow_box(this.targetNode),
-                           elbow_lane_of(this), false, elbow_obstacles(this));
+                           elbow_lane_of(this), false, elbow_obstacles(this),
+                           elbow_stagger_of(this, false));
     }
 
     getKeyPath(attributes) {

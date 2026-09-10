@@ -1460,8 +1460,19 @@ what gets routed is a detour with a third card in its way, an edge dropping
 several rows, an edge between two cards of one row. Since `7.23.152` a node is
 measured **whole** — card, ports and label — so a line keeps clear of the
 ports as well; the edge's own ports stick out of its own cards, so its first
-and last segments are not tested against their own box. G6's `shortest-path`
-router is not used: it is not exported, it
+and last segments are not tested against their own box.
+
+The edges sharing an **end** do not lie on top of each other either
+(`7.23.153`): the forward edges leaving one card — all of them, not only one
+port's, or two hooks side by side would stack their runs — and those reaching
+one card (all its fkeys enter by one point) are **staggered**, each turning at
+its own height in the channel, 10px apart at most and closer when the channel
+is short. Leaving, the farthest turns highest; arriving, the farthest turns
+lowest: the orders in which the lines of one end nest without crossing. A
+routed line leaves its port and reaches the other one **sideways**, because
+the column straight under or over a port is where the staggered edges of that
+port run. Only the stub at the port is shared. G6's `shortest-path` router is not used: it is
+not exported, it
 falls back in silence to a route that crosses cards, and it rewrites its
 module defaults with every config it is given.
 

@@ -7,7 +7,7 @@
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
 import {
-    elbow_lane, elbow_points, elbow_route, elbow_path_hits, ELBOW_STEP, ELBOW_CLEAR,
+    elbow_lane, elbow_points, elbow_route, elbow_path_hits, elbow_rank, ELBOW_STEP, ELBOW_CLEAR,
 } from "./treedb_elbow.js";
 
 /*  Two cards 100x40: A on top, B one row below it.  */
@@ -162,6 +162,112 @@ describe("the route round the other cards", () => {
         let ms = performance.now() - t0;
         expect(elbow_path_hits([s, ...route, t], boxes)).toBe(false);
         expect(ms).toBeLessThan(200);
+    });
+});
+
+describe("edges sharing an end are staggered", () => {
+    test("the rank is farthest first, a tie to the edge made first", () => {
+        let items = [{id: "e-3", span: 10}, {id: "e-1", span: 300}, {id: "e-2", span: 10}];
+        expect(elbow_rank(items, "e-1")).toEqual({rank: 0, count: 3});
+        expect(elbow_rank(items, "e-2")).toEqual({rank: 1, count: 3});
+        expect(elbow_rank(items, "e-3")).toEqual({rank: 2, count: 3});
+    });
+
+    /*  One parent on top (port at x 50, bottom at 40) and a row of
+     *  children below (tops at 130).  */
+    const P = {x1: 0, y1: 0, x2: 100, y2: 40};
+    const PORT = [50, 40];
+    const KIDS = [50, 160, 290, 420, -120].map((x, i) => ({
+        id: `e-${i + 1}`, x: x, box: {x1: x - 50, y1: 130, x2: x + 50, y2: 170},
+    }));
+    const channel_of = (kid) => {
+        let items = KIDS.map((k) => ({id: k.id, span: Math.abs(k.x - PORT[0])}));
+        let dep = elbow_rank(items, kid.id);
+        return elbow_points(PORT, [kid.x, 130], P, kid.box, 0, true, {dep: dep})[0][1];
+    };
+
+    test("the children of one port turn each at its own height, inside the channel", () => {
+        let ys = KIDS.map(channel_of);
+        expect(new Set(ys).size).toBe(KIDS.length);
+        for(let y of ys) {
+            expect(y).toBeGreaterThan(40);
+            expect(y).toBeLessThan(130);
+        }
+    });
+
+    test("the farthest turns highest, and the lines of one port do not cross", () => {
+        let y = Object.fromEntries(KIDS.map((k) => [k.id, channel_of(k)]));
+        expect(y["e-4"]).toBeLessThan(y["e-2"]);        /*  420 is farther than 160  */
+        /*  A crossing: one edge's drop (at its child's x, from its turn
+         *  down to the row) cut by another's run (from the port to its
+         *  child, at its own turn).  */
+        for(let a of KIDS) {
+            for(let b of KIDS) {
+                if(a === b) {
+                    continue;
+                }
+                let lo = Math.min(PORT[0], b.x);
+                let hi = Math.max(PORT[0], b.x);
+                let cuts = a.x > lo && a.x < hi && y[b.id] > y[a.id] && y[b.id] < 130;
+                expect(cuts).toBe(false);
+            }
+        }
+    });
+
+    test("the parents of one card: the farthest turns lowest, and they do not cross", () => {
+        /*  Parents on top at these x (port at the middle of each bottom),
+         *  one child below at x 200 whose fkeys all enter at its top.  */
+        const C = {x1: 150, y1: 130, x2: 250, y2: 170};
+        const T0 = [200, 130];
+        const PARENTS = [0, 120, 330, 560].map((x, i) => ({id: `p-${i + 1}`, x: x}));
+        let items = PARENTS.map((p) => ({id: p.id, span: Math.abs(p.x - T0[0])}));
+        let y = {};
+        for(let p of PARENTS) {
+            let box = {x1: p.x - 50, y1: 0, x2: p.x + 50, y2: 40};
+            let arr = elbow_rank(items, p.id);
+            y[p.id] = elbow_points([p.x, 40], T0, box, C, 0, true, {arr: arr})[0][1];
+        }
+        expect(new Set(Object.values(y)).size).toBe(PARENTS.length);
+        expect(y["p-4"]).toBeGreaterThan(y["p-2"]);     /*  560 is farther than 120  */
+        /*  A crossing: one parent's drop (at its x, from its row down to
+         *  its turn) cut by another's run (from its x to the child).  */
+        for(let a of PARENTS) {
+            for(let b of PARENTS) {
+                if(a === b) {
+                    continue;
+                }
+                let lo = Math.min(b.x, T0[0]);
+                let hi = Math.max(b.x, T0[0]);
+                let cuts = a.x > lo && a.x < hi && y[b.id] > 40 && y[b.id] < y[a.id];
+                expect(cuts).toBe(false);
+            }
+        }
+    });
+
+    test("a routed edge leaves and reaches its ports sideways, sharing only the stub", () => {
+        /*  A same-row edge from A to C, with D standing between them:
+         *  it is routed. It must not run down the column over C's
+         *  port, which is where a forward edge into C drops.  */
+        const A2 = {x1: 0, y1: 200, x2: 100, y2: 240};
+        const D2 = {x1: 150, y1: 180, x2: 250, y2: 260};
+        const C2 = {x1: 300, y1: 200, x2: 400, y2: 240};
+        let s = [50, 240];
+        let t = [350, 200];
+        let boxes = [A2, D2, C2];
+        let route = elbow_route(s, t, A2, C2, 0, true, boxes);
+        expect(route.length).toBeGreaterThan(2);
+        expect(elbow_path_hits([s, ...route, t], boxes, A2, C2)).toBe(false);
+        let a = route[0];
+        let z = route[route.length - 1];
+        expect(route[1][1]).toBe(a[1]);                     /*  leaves a sideways  */
+        expect(route[route.length - 2][1]).toBe(z[1]);      /*  reaches z sideways  */
+        expect(t[1] - z[1]).toBeLessThan(20);               /*  the stub is short  */
+    });
+
+    test("an end shared by nobody keeps the middle", () => {
+        let one = {rank: 0, count: 1};
+        expect(elbow_points(PORT, [160, 130], P, KIDS[1].box, 0, true, {dep: one, arr: one}))
+            .toEqual(elbow_points(PORT, [160, 130], P, KIDS[1].box, 0, true));
     });
 });
 
