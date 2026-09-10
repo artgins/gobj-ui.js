@@ -274,6 +274,264 @@ function tidy_tree_lr(nodes, edges, o)
     return pos;
 }
 
+/************************************************************
+ *  The compact tree.
+ *
+ *  The tidy tree above gives every subtree its whole BLOCK: open a
+ *  hall with twenty-four devices and its block widens, and with it
+ *  every block above it, so the siblings of its ancestors move apart
+ *  at depths where nothing of theirs touches. This one keeps the
+ *  CONTOUR of each subtree instead -- its outline on each side, depth
+ *  by depth -- and slides every sibling against the outline of the
+ *  ones before it. A folded region then sits as close to an open one
+ *  as their cards allow at each depth, which is what a folded treedb
+ *  is: one branch open among closed ones.
+ *
+ *  Same spanning tree, same order, same rows as the tidy tree: only
+ *  the packing across the depths differs, so switching between the
+ *  two moves cards sideways and never reorders them.
+ *
+ *  The contour arithmetic is Moen's ("Drawing dynamic trees", IEEE
+ *  Software, 1990) in the form mxGraph gave it in mxCompactTreeLayout
+ *  -- Copyright (c) 2006-2015 JGraph Ltd, Apache License 2.0 -- read in
+ *  maxGraph's CompactTreeLayout.ts: leaf, join, merge, offset and
+ *  bridge below follow that form. What is ours: it runs on the
+ *  spanning tree of a FOREST, every depth is a row as wide as its
+ *  widest card (mxGraph's `alignRanks`), several roots sit side by
+ *  side, and there is no recursion.
+ ************************************************************/
+export function layout_compact(nodes, edges, opts)
+{
+    let o = Object.assign({}, DEFAULTS, opts || {});
+    if(o.direction === "LR") {
+        return compact_tree_lr(nodes, edges, o);
+    }
+    let transposed = nodes.map((n) => Object.assign({}, n, {w: n.h, h: n.w}));
+    let lr = compact_tree_lr(transposed, edges, o);
+    let pos = new Map();
+    for(let [id, p] of lr) {
+        pos.set(id, {x: p.y, y: p.x});
+    }
+    return pos;
+}
+
+/*  One segment of a contour: a step of `dx` along the depth and `dy`
+ *  across it, then the next segment.  */
+function contour_line(dx, dy, next)
+{
+    return {dx: dx, dy: dy, next: next || null};
+}
+
+/*  How far the segment (a1, a2) at (p1, p2) has to move across to
+ *  clear the segment (b1, b2) at the origin.  */
+function contour_offset(p1, p2, a1, a2, b1, b2)
+{
+    if(b1 <= p1 || p1 + a1 <= 0) {
+        return 0;
+    }
+    let d;
+    let t = b1 * a2 - a1 * b2;
+    if(t > 0) {
+        if(p1 < 0) {
+            d = (p1 * a2) / a1 - p2;
+        } else if(p1 > 0) {
+            d = (p1 * b2) / b1 - p2;
+        } else {
+            d = -p2;
+        }
+    } else if(b1 < p1 + a1) {
+        d = b2 - (p2 + ((b1 - p1) * a2) / a1);
+    } else if(b1 > p1 + a1) {
+        d = ((a1 + p1) * b2) / b1 - (p2 + a2);
+    } else {
+        d = b2 - (p2 + a2);
+    }
+    return (d > 0)? d : 0;
+}
+
+function contour_bridge(line1, x1, y1, line2, x2, y2)
+{
+    let dx = x2 + line2.dx - x1;
+    let dy = (line2.dx === 0)? line2.dy : (dx * line2.dy) / line2.dx;
+    let r = contour_line(dx, dy, line2.next);
+    line1.next = contour_line(0, y2 + line2.dy - dy - y1, r);
+    return r;
+}
+
+/*  Slide contour `p2` against `p1` until they clear; returns how far,
+ *  and leaves in `p1` the outline of the two together.  */
+function contour_merge(p1, p2)
+{
+    let x = 0;
+    let y = 0;
+    let total = 0;
+    let upper = p1.lower_head;
+    let lower = p2.upper_head;
+
+    while(lower && upper) {
+        let d = contour_offset(x, y, lower.dx, lower.dy, upper.dx, upper.dy);
+        y += d;
+        total += d;
+        if(x + lower.dx <= upper.dx) {
+            x += lower.dx;
+            y += lower.dy;
+            lower = lower.next;
+        } else {
+            x -= upper.dx;
+            y -= upper.dy;
+            upper = upper.next;
+        }
+    }
+
+    if(lower) {
+        let b = contour_bridge(p1.upper_tail, 0, 0, lower, x, y);
+        p1.upper_tail = b.next? p2.upper_tail : b;
+        p1.lower_tail = p2.lower_tail;
+    } else {
+        let b = contour_bridge(p2.lower_tail, x, y, upper, 0, 0);
+        if(!b.next) {
+            p1.lower_tail = b;
+        }
+    }
+    p1.lower_head = p2.lower_head;
+    return total;
+}
+
+function compact_tree_lr(nodes, edges, o)
+{
+    let t = spanning_tree(nodes, edges);
+    let order = walk_order(t);
+    let pos = new Map();
+
+    /*  Columns, as in the tidy tree: a depth is as wide as its widest
+     *  card, and a column's gap is `ranksep`.  */
+    let col_w = [];
+    for(let [id, d] of t.depth) {
+        col_w[d] = Math.max(col_w[d] || 0, t.by_id.get(id).w);
+    }
+    let col_x = [];
+    let x = 0;
+    for(let d = 0; d < col_w.length; d++) {
+        col_x[d] = x;
+        x += (col_w[d] || 0) + o.ranksep;
+    }
+
+    /*  mxGraph's nodeDistance is padding on EACH side of a card, so two
+     *  neighbours end `nodesep` apart; its levelDistance is what is
+     *  left of the column gap after that padding.  */
+    let pad = o.nodesep / 2;
+    let dist = o.nodesep;
+    let level_distance = o.ranksep - pad;
+
+    /*  `len` along the depth (the column's width: the rows are aligned),
+     *  `ext` across it (the card's own height).  */
+    let tn = new Map();
+    for(let id of order) {
+        tn.set(id, {
+            len: col_w[t.depth.get(id)],
+            ext: t.by_id.get(id).h,
+            off_x: 0,
+            off_y: 0,
+            y: 0,
+            contour: null,
+        });
+    }
+
+    /*  Contours, children before parents.  */
+    for(let i = order.length - 1; i >= 0; i--) {
+        let id = order[i];
+        let n = tn.get(id);
+        let kids = t.children.get(id) || [];
+
+        if(!kids.length) {
+            let upper = contour_line(n.len + dist, 0);
+            let lower_tail = contour_line(0, -n.ext - dist);
+            n.contour = {
+                upper_head: upper,
+                upper_tail: upper,
+                lower_tail: lower_tail,
+                lower_head: contour_line(n.len + dist, 0, lower_tail),
+            };
+            continue;
+        }
+
+        /*  join: the children side by side, each slid against the
+         *  outline of the ones before it.  */
+        let first = tn.get(kids[0]);
+        n.contour = first.contour;
+        let h = first.ext + dist;
+        let span = h;
+        for(let k = 1; k < kids.length; k++) {
+            let kid = tn.get(kids[k]);
+            let d = contour_merge(n.contour, kid.contour);
+            kid.off_y = d + h;
+            kid.off_x = 0;
+            h = kid.ext + dist;
+            span += d + h;
+        }
+
+        /*  attach: the parent centred across the span of its children,
+         *  one column before them.  */
+        let gap = pad + level_distance;
+        let y2 = (span - n.ext) / 2 - pad;
+        let y1 = y2 + n.ext + 2 * pad - span;
+        first.off_x = gap + n.len;
+        first.off_y = y1;
+        n.contour.upper_head = contour_line(n.len, 0,
+                                   contour_line(gap, y1, n.contour.upper_head));
+        n.contour.lower_head = contour_line(n.len, 0,
+                                   contour_line(gap, y2, n.contour.lower_head));
+    }
+
+    /*  Positions across, parents before children: the first child at
+     *  its offset from the parent, each next one at its offset from
+     *  the one before.  */
+    let root_of = new Map();
+    for(let id of order) {
+        let n = tn.get(id);
+        if(!root_of.has(id)) {
+            root_of.set(id, id);
+        }
+        let kids = t.children.get(id) || [];
+        if(!kids.length) {
+            continue;
+        }
+        let running = n.y + tn.get(kids[0]).off_y;
+        tn.get(kids[0]).y = running;
+        root_of.set(kids[0], root_of.get(id));
+        for(let k = 1; k < kids.length; k++) {
+            let kid = tn.get(kids[k]);
+            kid.y = running + kid.off_y;
+            running = kid.y;
+            root_of.set(kids[k], root_of.get(id));
+        }
+    }
+
+    /*  Several roots: each tree after the one before, by its extent.  */
+    let lo = new Map();
+    let hi = new Map();
+    for(let id of order) {
+        let r = root_of.get(id);
+        let n = tn.get(id);
+        lo.set(r, Math.min(lo.has(r)? lo.get(r) : Infinity, n.y));
+        hi.set(r, Math.max(hi.has(r)? hi.get(r) : -Infinity, n.y + n.ext));
+    }
+    let shift = new Map();
+    let top = 0;
+    for(let r of t.roots) {
+        shift.set(r, top - lo.get(r));
+        top += hi.get(r) - lo.get(r) + o.nodesep * 2;
+    }
+
+    for(let id of order) {
+        let d = t.depth.get(id);
+        let n = tn.get(id);
+        let y = n.y + shift.get(root_of.get(id));
+        pos.set(id, {x: col_x[d] + col_w[d] / 2, y: y + n.ext / 2});
+    }
+    return pos;
+}
+
 /*  How much of a card lies along the direction `a`: the projection
  *  of its rectangle on that direction. Full width when the card is
  *  read along its width, full height across it, and the honest

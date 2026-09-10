@@ -132,7 +132,7 @@ import {
     fold_split_group_key,
     fold_root_group_key,
 } from "./treedb_fold_model.js";
-import {layout_tree, layout_radial} from "./treedb_layout.js";
+import {layout_tree, layout_radial, layout_compact} from "./treedb_layout.js";
 
 import {
     BaseLayout,
@@ -346,6 +346,16 @@ const _layouts = {
      *  has arranged (see auto_layout).  */
     "treedb-tree": {
         type: 'treedb-tree',
+        direction: 'TB',
+        nodesep: 18,
+        ranksep: 90,
+    },
+    /*  The same tree packed by CONTOUR (Moen, as mxGraph drew it): a
+     *  closed branch sits beside an open one at the depth they share,
+     *  instead of beside the whole block of the open one. Same rows
+     *  and order as `treedb-tree` (treedb_layout.js).  */
+    "compact-tree": {
+        type: 'treedb-compact',
         direction: 'TB',
         nodesep: 18,
         ranksep: 90,
@@ -925,6 +935,7 @@ function register_layouts(gobj)
         _g6_extensions_registered = true;
         register(ExtensionCategory.LAYOUT, 'manual', ManualLayout);
         register(ExtensionCategory.LAYOUT, 'treedb-tree', TreedbTreeLayout);
+        register(ExtensionCategory.LAYOUT, 'treedb-compact', TreedbCompactLayout);
         register(ExtensionCategory.LAYOUT, 'treedb-radial', TreedbRadialLayout);
         register(ExtensionCategory.NODE, 'light', LightNode);
         register(ExtensionCategory.NODE, 'treedb-card', TreedbCard);
@@ -4185,6 +4196,14 @@ class TreedbTreeLayout extends BaseLayout
     async execute(data, options) {
         let input = treedb_layout_input(data);
         return treedb_layout_output(layout_tree(input.nodes, input.edges, options));
+    }
+}
+
+class TreedbCompactLayout extends BaseLayout
+{
+    async execute(data, options) {
+        let input = treedb_layout_input(data);
+        return treedb_layout_output(layout_compact(input.nodes, input.edges, options));
     }
 }
 

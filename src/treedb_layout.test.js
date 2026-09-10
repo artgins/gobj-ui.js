@@ -6,7 +6,7 @@
  *      tidy tree's rows and centring, the radial tree's rings.
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
-import { spanning_tree, layout_tree, layout_radial } from "./treedb_layout.js";
+import { spanning_tree, layout_tree, layout_radial, layout_compact } from "./treedb_layout.js";
 
 /*  es -> (norte, sur); norte -> nave; nave -> d0, d1 (hook rank 1) and
  *  c1 (hook rank 2); c1 -> d0 as well (second parent).  */
@@ -94,6 +94,107 @@ describe("the tidy tree, read down (the default)", () => {
         );
         expect(pos.get("a").x).toBe(50);
         expect(pos.get("b").x).toBe(50 + 100 + 20);
+    });
+});
+
+/*  Every two cards of one row stand at least `gap` apart.  */
+function expect_no_overlap_in_rows(list, pos, gap)
+{
+    for(let i = 0; i < list.length; i++) {
+        for(let j = i + 1; j < list.length; j++) {
+            let a = list[i];
+            let b = list[j];
+            let pa = pos.get(a.id);
+            let pb = pos.get(b.id);
+            if(Math.abs(pa.y - pb.y) > 1e-6) {
+                continue;
+            }
+            expect(Math.abs(pa.x - pb.x) + 1e-6).toBeGreaterThanOrEqual((a.w + b.w) / 2 + gap);
+        }
+    }
+}
+
+function width_of(list, pos)
+{
+    let lo = Infinity;
+    let hi = -Infinity;
+    for(let n of list) {
+        let p = pos.get(n.id);
+        lo = Math.min(lo, p.x - n.w / 2);
+        hi = Math.max(hi, p.x + n.w / 2);
+    }
+    return hi - lo;
+}
+
+/*  r -> a, b;  a -> hall -> six devices;  b is a closed sibling.  */
+const wide = [N("r", 172, 96), N("a", 172, 96), N("b", 172, 96), N("hall", 172, 96)]
+    .concat([0, 1, 2, 3, 4, 5].map((i) => N(`d${i}`, 116, 40)));
+const wide_edges = [
+    {source: "r", target: "a"}, {source: "r", target: "b"}, {source: "a", target: "hall"},
+].concat([0, 1, 2, 3, 4, 5].map((i) => ({source: "hall", target: `d${i}`})));
+
+describe("the compact tree", () => {
+    test("the rows are the tidy tree's rows", () => {
+        let tidy = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
+        let pos = layout_compact(nodes, edges, {nodesep: 10, ranksep: 100});
+        for(let n of nodes) {
+            expect(pos.get(n.id).y).toBe(tidy.get(n.id).y);
+        }
+    });
+
+    test("no two cards of a row are closer than the gap", () => {
+        expect_no_overlap_in_rows(nodes, layout_compact(nodes, edges, {nodesep: 10, ranksep: 100}), 10);
+        expect_no_overlap_in_rows(wide, layout_compact(wide, wide_edges, {nodesep: 18, ranksep: 90}), 18);
+    });
+
+    test("a parent is centred over its children, which keep their order", () => {
+        let pos = layout_compact(nodes, edges, {nodesep: 10, ranksep: 100});
+        expect(pos.get("d0").x).toBeLessThan(pos.get("d1").x);
+        expect(pos.get("d1").x).toBeLessThan(pos.get("c1").x);
+        let first = pos.get("d0").x - 58;
+        let last = pos.get("c1").x + 86;
+        expect(pos.get("nave").x).toBeCloseTo((first + last) / 2, 6);
+        expect(pos.get("norte").x).toBeLessThan(pos.get("sur").x);
+    });
+
+    test("a closed sibling sits beside an open branch, not beside its block", () => {
+        let opts = {nodesep: 18, ranksep: 90};
+        let tidy = layout_tree(wide, wide_edges, opts);
+        let pos = layout_compact(wide, wide_edges, opts);
+        /*  In the tidy tree `b` waits for the whole fan of devices; here it
+         *  only has to clear `a`, the card beside it.  */
+        expect(pos.get("b").x - pos.get("a").x).toBeLessThan(tidy.get("b").x - tidy.get("a").x);
+        expect(pos.get("b").x - pos.get("a").x).toBeGreaterThanOrEqual(172 + 18 - 1e-6);
+        expect(width_of(wide, pos)).toBeLessThanOrEqual(width_of(wide, tidy));
+    });
+
+    test("two trees sit side by side, not overlapped", () => {
+        let pos = layout_compact([N("a", 100, 50), N("b", 100, 50)], [], {nodesep: 10});
+        expect(pos.get("b").x - pos.get("a").x).toBe(100 + 20);
+    });
+
+    test("read right, it is the same tree with the axes swapped", () => {
+        let down = layout_compact(wide, wide_edges, {nodesep: 18, ranksep: 90});
+        let swapped = wide.map((n) => N(n.id, n.h, n.w));
+        let right = layout_compact(swapped, wide_edges, {nodesep: 18, ranksep: 90, direction: "LR"});
+        for(let n of wide) {
+            expect(right.get(n.id).x).toBeCloseTo(down.get(n.id).y, 6);
+            expect(right.get(n.id).y).toBeCloseTo(down.get(n.id).x, 6);
+        }
+    });
+
+    test("a tree as deep as the data places every node, without recursion", () => {
+        let chain = [];
+        let links = [];
+        for(let i = 0; i < 5000; i++) {
+            chain.push(N(`n${i}`, 40, 20));
+            if(i > 0) {
+                links.push({source: `n${i - 1}`, target: `n${i}`});
+            }
+        }
+        let pos = layout_compact(chain, links, {});
+        expect(pos.size).toBe(5000);
+        expect(Number.isFinite(pos.get("n4999").x)).toBe(true);
     });
 });
 

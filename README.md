@@ -1387,8 +1387,8 @@ G6 5.1 registers these layouts, and this is how each meets that shape:
 | `circular`, `concentric`, `grid`, `mds`, `random` | rings, rings by degree, a grid, projection, noise | none knows a parent from a child |
 | `combo-combined`, `fishbone` | combos / cause-effect | not this data |
 
-So two of our own, in `treedb_layout.js` (pure, tested), registered as G6
-layouts by two thin adapters in `c_g6_nodes_tree.js`:
+So three of our own, in `treedb_layout.js` (pure, tested), registered as G6
+layouts by three thin adapters in `c_g6_nodes_tree.js`:
 
 - **`treedb-tree`** — the classic tidy tree, **top to bottom**. A row per
   depth as tall as its tallest card, a node centred over the block of its
@@ -1402,6 +1402,18 @@ layouts by two thin adapters in `c_g6_nodes_tree.js`:
   keeps the other reading for a host that wants it). The outline that shipped
   beside it (`treedb-outline`, one row per node) was removed in `7.23.75`: a
   list that indents is a JSON viewer, and this library already has one.
+- **`compact-tree`** (`treedb-compact`, `7.23.148`) — the same tree packed by
+  **contour** instead of by block. The tidy tree gives each subtree its whole
+  block, so a hall opened with twenty-four devices pushes the siblings of its
+  ancestors apart at depths where nothing of theirs touches; here every
+  sibling slides against the outline of the ones before it, and a closed
+  branch sits beside an open one at the depth they share. Same rows and order
+  as `treedb-tree`, so switching moves cards sideways and never reorders them.
+  One region open with a 24-device hall is 70% of the tidy width on a treedb
+  shaped like a real one; a uniform tree is the same width. The contour
+  arithmetic is Moen's (1990) as mxGraph wrote it in `mxCompactTreeLayout`
+  (JGraph Ltd, Apache-2.0), read in maxGraph — a port, not a dependency,
+  because maxGraph's layouts drive its own graph model.
 - **`radial`** (`treedb-radial`) — the root in the middle, a ring per depth,
   every subtree an angular **sector** proportional to its leaves, and the
   radius of each ring the largest of three: one `ranksep` out from the ring
@@ -1413,7 +1425,7 @@ layouts by two thin adapters in `c_g6_nodes_tree.js`:
   construction, across the ring or along the radius; several roots share the
   circle around an empty centre.
 
-Both take the **same spanning tree**, chosen deterministically: roots are the
+All three take the **same spanning tree**, chosen deterministically: roots are the
 nodes with no incoming edge, in node order; a node belongs to the **first
 parent that reaches it** in a breadth-first walk (the place, not the
 controller, because the place's column came first) and its other links are

@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.148
+
+- **treedb graph: a `compact tree` layout** (`compact-tree`, beside `tree` in
+  the picker). The tidy tree gives every subtree its whole BLOCK, so opening a
+  hall with twenty-four devices pushes the siblings of its ancestors apart at
+  depths where nothing of theirs touches. The compact tree keeps each
+  subtree's CONTOUR and slides every sibling against the outline of the ones
+  before it: a closed branch sits beside an open one at the depth they share.
+  Same spanning tree, same rows, same order as `tree`, so switching between
+  the two moves cards sideways and never reorders them. On a treedb shaped
+  like a real one (one root, 25 regions), one region open with a hall of 24
+  devices is 70% of the tidy tree's width; a uniform tree is the same width.
+- The contour arithmetic is Moen's ("Drawing dynamic trees", 1990) in the
+  form mxGraph gave it in mxCompactTreeLayout (Copyright (c) 2006-2015 JGraph
+  Ltd, Apache License 2.0), read in maxGraph's `CompactTreeLayout.ts`.
+  maxGraph itself is not a dependency: its layouts read and write its own
+  graph model. `layout_compact(nodes, edges, opts)` in `treedb_layout.js`,
+  pure, iterative (no recursion), `direction` `TB` (default) or `LR`.
+- New consumer key: `compact-tree`.
+
 ## 7.23.147
 
 - **One icon shape per meaning.** The chevron was doing four jobs, several in
