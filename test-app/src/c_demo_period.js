@@ -180,9 +180,14 @@ function build_picker(gobj, name, heading, kw)
  ***************************************************************/
 function build_custom_slot()
 {
-    let mk = () => createElement2(
+    /*  The <label> beside a control names it for the eye and for nothing
+     *  else -- no `for`, no wrapping -- so the name goes on the box, from
+     *  the label's own key.  */
+    let mk = (key) => createElement2(
         ["input", {class: "input DEMO_PERIOD_CUSTOM_INPUT",
-                   type: "datetime-local", step: "1"}]);
+                   type: "datetime-local", step: "1",
+                   title: t(key), "data-i18n-title": key,
+                   "aria-label": t(key), "data-i18n-aria-label": key}]);
 
     return createElement2(
         ["div", {class: "mt-2 DEMO_PERIOD_CUSTOM"},
@@ -191,10 +196,10 @@ function build_custom_slot()
                     [
                         ["div", {class: "column is-half"},
                             [["label", {class: "label is-small mb-1", "data-i18n": "from"},
-                                t("from")], mk()]],
+                                t("from")], mk("from")]],
                         ["div", {class: "column is-half"},
                             [["label", {class: "label is-small mb-1", "data-i18n": "to"},
-                                t("to")], mk()]]
+                                t("to")], mk("to")]]
                     ]
                 ]
             ]

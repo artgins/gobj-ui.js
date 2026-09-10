@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.128
+
+- **fix: Tom Select's box had no name.** It HIDES the `<select>` it is given
+  (`ts-hidden-accessible`) and draws its own text box in front of it, so
+  naming the original named the element nobody can reach and the box the
+  reader lands on was anonymous -- measured on the demo, where the `skills`
+  field showed a named `<select>` next to an unnamed `<input>`.
+  `name_form_control()` names both, from the same key.
+- **fix: the topic table's row icons -- edit and delete -- had no name at
+  all.** They are ICON-ONLY and written as an HTML STRING inside a Tabulator
+  formatter, which is the one place a sweep of `createElement2` specs cannot
+  look. `t()` alone is enough there and needs no `data-i18n-aria-label`: a
+  language change re-runs `setColumns()`, which re-runs the formatter.
+
 ## 7.23.127
 
 - **The header is rebuilt more often than it is built, so the naming hangs

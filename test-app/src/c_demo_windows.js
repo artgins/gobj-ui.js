@@ -156,10 +156,10 @@ function spawn_window(gobj)
         "C_YUI_WINDOW",
         {
             subscriber: null,
-            title: `${t("window")} ${n}`,
+            title: `${t("demo window")} ${n}`,
             icon: icon,
             header: ['span', {class: 'px-2 has-text-weight-semibold'},
-                `${t("window")} ${n}`],
+                `${t("demo window")} ${n}`],
             body: ['div', {class: 'p-3'}, [
                 ['p', {class: 'mb-2'},
                     t("A plain C_YUI_WINDOW. Drag the titlebar, resize the edges.")],
@@ -178,7 +178,7 @@ function spawn_window(gobj)
         gobj
     );
     gobj_start(win);
-    set_result(gobj, `${t("window")} ${n} ${t("opened")}`);
+    set_result(gobj, `${t("demo window")} ${n} ${t("opened")}`);
 }
 
 /***************************************************************

@@ -517,11 +517,22 @@ function name_form_control($field, conf)
         return;     /*  a field with no label names nothing  */
     }
     let $control = $field.querySelector("input, select, textarea");
-    if(!$control || $control.getAttribute("aria-label")) {
-        return;
+    if($control && !$control.getAttribute("aria-label")) {
+        $control.setAttribute("aria-label", t(key));
+        $control.setAttribute("data-i18n-aria-label", key);
     }
-    $control.setAttribute("aria-label", t(key));
-    $control.setAttribute("data-i18n-aria-label", key);
+
+    /*  Tom Select HIDES the <select> it is given (`ts-hidden-accessible`)
+     *  and draws its own text box in front of it. Naming the original
+     *  therefore names the element nobody can reach: the box the reader
+     *  actually lands on had no name at all. Give it the same one -- it
+     *  is the same field -- and only when it has none, so a field that
+     *  named its own box keeps it.  */
+    let $ts = $field.querySelector(".ts-control input");
+    if($ts && !$ts.getAttribute("aria-label")) {
+        $ts.setAttribute("aria-label", t(key));
+        $ts.setAttribute("data-i18n-aria-label", key);
+    }
 }
 
 function build_form(gobj)

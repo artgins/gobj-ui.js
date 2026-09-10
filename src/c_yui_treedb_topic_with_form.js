@@ -1371,12 +1371,28 @@ function create_tabulator(gobj)
     /*
      *  Column with operators: edit, delete
      */
+    /*  Two ICON-ONLY buttons with no name of any kind -- and written as an
+     *  HTML STRING, where no sweep of `createElement2` specs can see them.
+     *  `t()` alone is enough and no `data-i18n-aria-label` is needed: a
+     *  language change re-runs `setColumns()`, which re-runs this
+     *  formatter. The text goes through an escaper because a translation
+     *  is text entering an attribute.  */
+    function attr_text(value) {
+        return String(value)
+            .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
     function operateFormatter(cell, formatterParams, onRendered) {
         return [
-            '<button class="button without-border px-2 edit">',
+            `<button class="button without-border px-2 edit" ` +
+                `title="${attr_text(t("edit"))}" ` +
+                `aria-label="${attr_text(t("edit"))}">`,
                 '<i style="" class="yi-pen has-text-link"></i>',
             '</button>',
-            '<button class="button without-border px-2 remove">',
+            `<button class="button without-border px-2 remove" ` +
+                `title="${attr_text(t("delete"))}" ` +
+                `aria-label="${attr_text(t("delete"))}">`,
                 '<i style="" class="yi-trash has-text-danger"></i>',
             '</button>'
         ].join('');

@@ -6,7 +6,8 @@
     "description": "Declarative-shell demo for @yuneta/gobj-ui (v2). Showcases every C_YUI_NAV menu layout — vertical, icon-bar, tabs, side submenu, cards (section-index) + backbar, drawer and accordion — plus the per-zone responsive model (same primary menu in the left rail on desktop and the bottom icon-bar on mobile). No backend: pure gobj tree + hash routing.",
     "scripts": {
         "dev": "vite",
-        "build": "vite build",
+        "validate-locales": "node scripts/validate-locales.mjs",
+        "build": "npm run validate-locales && vite build",
         "preview": "vite preview"
     },
     "dependencies": {
