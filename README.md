@@ -1425,6 +1425,19 @@ layouts by three thin adapters in `c_g6_nodes_tree.js`:
   construction, across the ring or along the radius; several roots share the
   circle around an empty centre.
 
+**Elbow edges** (`7.23.149`) are an option of the edges, not a layout: the
+toolbar's `GRAPH_EDGE_ELBOW` toggle sets `edge_shape` to `elbow`, and every
+edge goes straight out of the parent's port to the channel half way to the
+child, along it, and straight into the child's port — mxGraph's tree routing.
+The children of one hook share a row and a port, so they share the channel
+and read as one bus. The two edge types (`treedb-elbow-v` / `-h`) subclass
+G6's `Polyline` and compute the elbow from the ports on every draw, so
+dragging, folding and relayout need nothing else. It follows the reading
+direction, and a layout with no rows (`rowless_layouts`: `radial`,
+`d3-force`, `force-atlas2`) keeps the curve, with the toggle disabled.
+`edge_shape` is `SDF_PERSIST` on `C_YUI_TREEDB_GRAPH`, a preference per
+treedb like `node_labels`. Consumer key: `elbow edges`.
+
 All three take the **same spanning tree**, chosen deterministically: roots are the
 nodes with no incoming edge, in node order; a node belongs to the **first
 parent that reaches it** in a breadth-first walk (the place, not the

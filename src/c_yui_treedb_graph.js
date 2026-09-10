@@ -134,6 +134,7 @@ SDATA(data_type_t.DTP_LIST,     "hidden_topics",    sdata_flag_t.SDF_PERSIST, "[
 SDATA(data_type_t.DTP_STRING,   "main_topic",       sdata_flag_t.SDF_PERSIST, "", "The topic the tree hangs from; empty = deduced by the graph. User preference, per treedb"),
 SDATA(data_type_t.DTP_LIST,     "loose_topics",     sdata_flag_t.SDF_PERSIST, "[]", "Topics whose LOOSE records (no parent) are shown. User preference, per treedb"),
 SDATA(data_type_t.DTP_STRING,   "node_mode",        sdata_flag_t.SDF_PERSIST, "expanded", "How the records are drawn: `expanded` = the cards with their pills and ports, `compact` = one-line pills with the name, `shape` = coloured figures, the topology alone. User preference"),
+SDATA(data_type_t.DTP_STRING,   "edge_shape",       sdata_flag_t.SDF_PERSIST, "curved", "How the edges are drawn: `curved` or `elbow` (the bus of an org chart). User preference"),
 SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",      sdata_flag_t.SDF_PERSIST, true, "A `shape` node says its name under its figure. User preference"),
 SDATA(data_type_t.DTP_DICT,     "camera",           sdata_flag_t.SDF_PERSIST, "{}", "Where the reader left the viewport: {zoom, x, y}. Handed to the engine on creation and written back when a move settles, so the graph opens where it was left. User preference, per treedb"),
 SDATA(data_type_t.DTP_INTEGER,  "fold_level",       sdata_flag_t.SDF_PERSIST, 0, "The level of the MAIN tree the toolbar's stepper stands on: 1 = the main topic's roots, N = N-1 levels under them; 0 = never stepped, `expand_depth`. Handed to the engine on creation, so the graph opens at the level it was left. User preference, per treedb"),
@@ -283,6 +284,7 @@ function mt_create(gobj)
             loose_topics: gobj_read_attr(gobj, "loose_topics") || [],
             node_mode: gobj_read_str_attr(gobj, "node_mode") || "expanded",
             node_labels: gobj_read_bool_attr(gobj, "node_labels"),
+            edge_shape: gobj_read_str_attr(gobj, "edge_shape") || "curved",
             camera: gobj_read_attr(gobj, "camera") || {},
         },
         gobj
@@ -625,6 +627,22 @@ function node_shape_items(gobj, wide)
                 }
             }
         ],
+        /*  How the lines are drawn: curves, or the elbows of an org
+         *  chart. A toggle, so a pressed pill; disabled on a layout
+         *  with no rows, where the edges stay curved anyway.  */
+        ['button', {class: 'GRAPH_EDGE_ELBOW button', type: 'button',
+                    style: {height: wide, width: '2.5em'},
+                    title: t('elbow edges'), 'data-i18n-title': 'elbow edges',
+                    'aria-label': t('elbow edges'), 'data-i18n-aria-label': 'elbow edges',
+                    'aria-pressed': 'false'},
+            yui_toolbar_icon('yi-diagram-project'),
+            {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_TOGGLE_EDGE_SHAPE", {}, gobj);
+                }
+            }
+        ],
     ];
 }
 
@@ -671,6 +689,17 @@ function refresh_node_shape_buttons(gobj, $root)
     if($labels) {
         $labels.setAttribute('aria-pressed', labels? 'true' : 'false');
         $labels.disabled = (mode !== 'shape');
+    }
+
+    let elbow = (gobj_read_str_attr(gobj, "edge_shape") === "elbow");
+    set_pressed_state($root, '.GRAPH_EDGE_ELBOW', elbow);
+    let $elbow = $root.querySelector('.GRAPH_EDGE_ELBOW');
+    if($elbow) {
+        $elbow.setAttribute('aria-pressed', elbow? 'true' : 'false');
+        let child = gobj.priv.gobj_nodes_tree;
+        let rowless = child? (gobj_read_attr(child, "rowless_layouts") || []) : [];
+        let layout = child? gobj_read_str_attr(child, "layout") : "";
+        $elbow.disabled = rowless.includes(layout);
     }
 }
 
@@ -1319,6 +1348,7 @@ function populate_nodes_tree_options(gobj)
             $layout_select.value = current_layout;
         }
         refresh_layout_stepper(gobj);
+        refresh_node_shape_buttons(gobj, $container);
     }
 
     // Restore persisted operation_mode selection
@@ -2614,6 +2644,7 @@ function ac_set_layout(gobj, event, kw, src)
         gobj
     );
     refresh_layout_stepper(gobj);
+    refresh_node_shape_buttons(gobj, priv.$container);
 
     return 0;
 }
@@ -3116,6 +3147,7 @@ function ac_layout_autoset(gobj, event, kw, src)
     }
     $select.value = layout;
     refresh_layout_stepper(gobj);
+    refresh_node_shape_buttons(gobj, $container);
     return 0;
 }
 
@@ -3209,6 +3241,20 @@ function ac_set_node_mode(gobj, event, kw, src)
     refresh_node_shape_buttons(gobj, priv.$container);
     if(priv.gobj_nodes_tree) {
         gobj_send_event(priv.gobj_nodes_tree, "EV_SET_NODE_MODE", {node_mode: mode}, gobj);
+    }
+    return 0;
+}
+
+function ac_toggle_edge_shape(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let shape = (gobj_read_str_attr(gobj, "edge_shape") === "elbow")? "curved" : "elbow";
+
+    gobj_write_str_attr(gobj, "edge_shape", shape);
+    gobj_save_persistent_attrs(gobj, "edge_shape");
+    refresh_node_shape_buttons(gobj, priv.$container);
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(priv.gobj_nodes_tree, "EV_SET_EDGE_SHAPE", {edge_shape: shape}, gobj);
     }
     return 0;
 }
@@ -3395,6 +3441,7 @@ function create_gclass(gclass_name)
             ["EV_COLLAPSE_LEVEL",           ac_fold_level_step,         null],
             ["EV_SET_NODE_MODE",            ac_set_node_mode,           null],
             ["EV_TOGGLE_NODE_LABELS",       ac_toggle_node_labels,      null],
+            ["EV_TOGGLE_EDGE_SHAPE",        ac_toggle_edge_shape,       null],
             ["EV_LAYOUT_AUTOSET",           ac_layout_autoset,          null],
             ["EV_CAMERA_CHANGED",           ac_camera_changed,          null],
             ["EV_LEGEND_TOPIC",             ac_legend_topic,            null],
@@ -3441,6 +3488,7 @@ function create_gclass(gclass_name)
         ["EV_COLLAPSE_LEVEL",           0],
         ["EV_SET_NODE_MODE",            0],
         ["EV_TOGGLE_NODE_LABELS",       0],
+        ["EV_TOGGLE_EDGE_SHAPE",        0],
         ["EV_FIND_RESULT",              0],
         ["EV_LAYOUT_AUTOSET",           0],
         ["EV_CAMERA_CHANGED",           0],

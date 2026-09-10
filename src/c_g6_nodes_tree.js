@@ -146,6 +146,7 @@ import {
     HTML,
     Toolbar,
     register,
+    Polyline,
 } from '@antv/g6';
 
 import {Circle as CircleGeometry, Rect as RectGeometry} from '@antv/g';
@@ -456,6 +457,8 @@ SDATA(data_type_t.DTP_LIST,     "loose_topics",         0,  "[]",   "Topics whos
 
 /*---------------- Node shape ----------------*/
 SDATA(data_type_t.DTP_STRING,   "node_mode",            0,  "expanded", "How a record is drawn: `expanded` = the card with its pills and ports; `compact` = a one-line pill with the name and small ports; `shape` = a figure of the topic's colour (square, circle, diamond... per node or topic, from the node properties), no ports, no text -- the topology alone. One node can be toggled against it (EV_TOGGLE_NODE_MODE)"),
+SDATA(data_type_t.DTP_STRING,   "edge_shape",           0,  "curved", "How an edge is drawn: `curved` (the default) or `elbow` -- straight out of its port to the channel between the two rows, along it, and straight into the other port: the bus of an org chart, as mxGraph drew its trees. Layouts with no rows (`rowless_layouts`) keep the curve"),
+SDATA(data_type_t.DTP_LIST,     "rowless_layouts",      sdata_flag_t.SDF_RD, JSON.stringify(["radial", "d3-force", "force-atlas2"]), "Layouts with no rows for an elbow to run between: their edges stay curved whatever `edge_shape` says (read-only, for the parent to query)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",          0,  true,   "A `shape` node says its name under the figure. Off, it is a coloured figure and nothing else"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_unlink_edge",  0,  true,   "Ask confirmation before unlinking an edge"),
@@ -936,6 +939,8 @@ function register_layouts(gobj)
         register(ExtensionCategory.LAYOUT, 'manual', ManualLayout);
         register(ExtensionCategory.LAYOUT, 'treedb-tree', TreedbTreeLayout);
         register(ExtensionCategory.LAYOUT, 'treedb-compact', TreedbCompactLayout);
+        register(ExtensionCategory.EDGE, 'treedb-elbow-v', TreedbElbowV);
+        register(ExtensionCategory.EDGE, 'treedb-elbow-h', TreedbElbowH);
         register(ExtensionCategory.LAYOUT, 'treedb-radial', TreedbRadialLayout);
         register(ExtensionCategory.NODE, 'light', LightNode);
         register(ExtensionCategory.NODE, 'treedb-card', TreedbCard);
@@ -2036,9 +2041,17 @@ function layout_direction(gobj)
     return str_in_list(LR_LAYOUTS, gobj.priv.layout)? "LR" : "TB";
 }
 
+/*  A curve, or an elbow when the reader asked for one and the layout
+ *  has rows to run it between.  */
 function edge_type_for(gobj)
 {
-    return (layout_direction(gobj) === "LR")? "cubic-horizontal" : "cubic";
+    let lr = (layout_direction(gobj) === "LR");
+    let rowless = gobj_read_attr(gobj, "rowless_layouts") || [];
+    if(gobj_read_str_attr(gobj, "edge_shape") === "elbow" &&
+       !str_in_list(rowless, gobj.priv.layout)) {
+        return lr? "treedb-elbow-h" : "treedb-elbow-v";
+    }
+    return lr? "cubic-horizontal" : "cubic";
 }
 
 /************************************************************
@@ -4196,6 +4209,47 @@ class TreedbTreeLayout extends BaseLayout
     async execute(data, options) {
         let input = treedb_layout_input(data);
         return treedb_layout_output(layout_tree(input.nodes, input.edges, options));
+    }
+}
+
+/************************************************************
+ *  An ELBOW edge, the way mxGraph drew a tree: straight out of
+ *  the parent's port to the channel half way to the child, along
+ *  it, and straight into the child's port. The children of one
+ *  hook sit on one row and leave by one port, so they share the
+ *  channel and the lines read as one bus.
+ *
+ *  Computed on every draw from where the two ends ARE, so a
+ *  dragged card, a fold or a layout needs nothing else. `-v` runs
+ *  between rows (top to bottom), `-h` between columns.
+ ************************************************************/
+const ELBOW_RADIUS = 6;
+
+class TreedbElbowV extends Polyline
+{
+    getControlPoints(attributes) {
+        let [s, t] = this.getEndpoints(attributes, false);
+        let mid = (s[1] + t[1]) / 2;
+        return [[s[0], mid], [t[0], mid]];
+    }
+
+    getKeyPath(attributes) {
+        return super.getKeyPath(Object.assign({}, attributes,
+            {radius: attributes.radius || ELBOW_RADIUS}));
+    }
+}
+
+class TreedbElbowH extends Polyline
+{
+    getControlPoints(attributes) {
+        let [s, t] = this.getEndpoints(attributes, false);
+        let mid = (s[0] + t[0]) / 2;
+        return [[mid, s[1]], [mid, t[1]]];
+    }
+
+    getKeyPath(attributes) {
+        return super.getKeyPath(Object.assign({}, attributes,
+            {radius: attributes.radius || ELBOW_RADIUS}));
     }
 }
 
@@ -10876,6 +10930,25 @@ function ac_set_node_labels(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Curved or elbow edges (the host's toggle). Nothing moves: every
+ *  edge takes the type that goes with the shape and the layout,
+ *  and draws again.
+ ************************************************************/
+function ac_set_edge_shape(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    let shape = (kw && kw.edge_shape === "elbow")? "elbow" : "curved";
+    gobj_write_str_attr(gobj, "edge_shape", shape);
+    if(!priv.graph || !priv.graph_rendered) {
+        return 0;   /*  every edge is typed as it is drawn  */
+    }
+    apply_layout_direction(gobj);
+    graph_draw(gobj);
+    return 0;
+}
+
+/************************************************************
  *  ONE node opened or closed against the mode (a double click,
  *  or the context menu). It holds still on screen while the
  *  rest of the graph makes room, as a fold does.
@@ -11518,6 +11591,7 @@ function create_gclass(gclass_name)
             ["EV_SET_LOOSE_TOPICS",         ac_set_loose_topics,    null],
             ["EV_SET_NODE_MODE",            ac_set_node_mode,       null],
             ["EV_SET_NODE_LABELS",          ac_set_node_labels,     null],
+            ["EV_SET_EDGE_SHAPE",           ac_set_edge_shape,      null],
             ["EV_TOGGLE_NODE_MODE",         ac_toggle_node_mode,    null],
             ["EV_NODE_DBLCLICK",            ac_node_dblclick,       null],
             ["EV_CENTER",                   ac_center,              null],
@@ -11585,6 +11659,7 @@ function create_gclass(gclass_name)
         ["EV_SET_LOOSE_TOPICS",         0],
         ["EV_SET_NODE_MODE",            0],
         ["EV_SET_NODE_LABELS",          0],
+        ["EV_SET_EDGE_SHAPE",           0],
         ["EV_TOGGLE_NODE_MODE",         0],
         ["EV_NODE_DBLCLICK",            0],
         ["EV_LEGEND_STATE",             event_flag_t.EVF_OUTPUT_EVENT],

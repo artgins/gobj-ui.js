@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.149
+
+- **treedb graph: elbow edges, as an option.** A toggle beside the node
+  labels one (`GRAPH_EDGE_ELBOW`, icon `yi-diagram-project`) draws every edge
+  the way mxGraph drew a tree: straight out of the parent's port to the
+  channel half way to the child, along it, and straight into the child's
+  port. The children of one hook share a row and a port, so they share the
+  channel and the lines read as one bus -- an org chart. Rounded corners
+  (6px). It follows the reading direction (`dagre` gets the horizontal
+  elbow); a layout with no rows (`radial`, `d3-force`, `force-atlas2`) keeps
+  the curve and the toggle is disabled there.
+- Two edge types, `treedb-elbow-v` / `treedb-elbow-h`, subclasses of G6's
+  `Polyline` that compute the elbow from where the two ports ARE on every
+  draw, so a dragged card, a fold or a layout needs nothing else.
+- `C_G6_NODES_TREE`: attr `edge_shape` (`curved` | `elbow`), read-only
+  `rowless_layouts`, event `EV_SET_EDGE_SHAPE {edge_shape}`.
+  `C_YUI_TREEDB_GRAPH`: attr `edge_shape` (`SDF_PERSIST`, a preference per
+  treedb like `node_labels`), internal `EV_TOGGLE_EDGE_SHAPE`.
+- Icon `yi-diagram-project` (FontAwesome Free 7.3.1).
+- New consumer key: `elbow edges`.
+
 ## 7.23.148
 
 - **treedb graph: a `compact tree` layout** (`compact-tree`, beside `tree` in

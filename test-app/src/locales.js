@@ -379,6 +379,7 @@ const es_translation = {
     "radial": "radial",
     "treedb-tree": "árbol",
     "compact-tree": "árbol compacto",
+    "elbow edges":  "enlaces en codo",
     "node labels": "Etiquetas de los nodos",
     "nodes": "Nodos",
     "full": "Completo",
