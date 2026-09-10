@@ -2840,57 +2840,17 @@ function draw_link(
      *  Create the edge with independent id and semantic data
      *  HACK: source/target are interchanged so arrows point parent -> child
      */
-    // Doc-style default: neutral grey edges, teal for the
-    // containment/tree relation (parent and child same topic, i.e.
-    // a self-hierarchy). Saturated topic colour is dropped.
-    // `themed_default` marks edges still on the default colour so a
-    // theme toggle can re-theme them without touching user-saved ones.
-    let dark = (priv.theme === "dark");
     let is_tree = (parent_topic === child_topic);
-    let saved_lineWidth = is_tree ? 2 : 1.6;
-    let saved_stroke = is_tree
-        ? (dark ? '#22a7c2' : '#0e7490')
-        : (dark ? '#8b94a3' : '#6b7280');
-    let themed_default = true;
-    let topic_props = priv._graph_properties[parent_topic];
-    if(topic_props) {
-        // Per-edge saved style
-        if(is_object(topic_props.edges)) {
-            let edge_key = hook_name + ":" + parent_id + ":" + child_id;
-            let edge_props = topic_props.edges[edge_key];
-            if(edge_props) {
-                if(edge_props.lineWidth != null) {
-                    saved_lineWidth = edge_props.lineWidth;
-                }
-                if(edge_props.stroke) {
-                    saved_stroke = edge_props.stroke;
-                    themed_default = false;
-                }
-            }
-        }
-        // Fall back to topic defaults (only if not user-overridden)
-        if(themed_default && is_object(topic_props.defaults)) {
-            let defs = topic_props.defaults;
-            if(defs.edge_styles && defs.edge_styles[hook_name]) {
-                let hook_style = defs.edge_styles[hook_name];
-                if(hook_style.lineWidth != null) {
-                    saved_lineWidth = hook_style.lineWidth;
-                }
-                if(hook_style.stroke) {
-                    saved_stroke = hook_style.stroke;
-                    themed_default = false;
-                }
-            } else if(defs.edge_style) {
-                if(defs.edge_style.lineWidth != null) {
-                    saved_lineWidth = defs.edge_style.lineWidth;
-                }
-                if(defs.edge_style.stroke) {
-                    saved_stroke = defs.edge_style.stroke;
-                    themed_default = false;
-                }
-            }
-        }
-    }
+    let edge_style = edge_style_of(gobj, {
+        parent_topic: parent_topic,
+        parent_id:    parent_id,
+        hook_name:    hook_name,
+        child_id:     child_id,
+        is_tree:      is_tree,
+    });
+    let saved_lineWidth = edge_style.lineWidth;
+    let saved_stroke = edge_style.stroke;
+    let themed_default = edge_style.themed_default;
 
     let edge = {
         id: build_edge_id(gobj),
@@ -8303,8 +8263,88 @@ function apply_edge_properties(gobj, edge_id, lineWidth, stroke, scope)
 }
 
 /************************************************************
+ *  The style an edge INHERITS, before anything saved for the
+ *  edge itself: its hook's default in the parent topic, else the
+ *  parent topic's default for every edge, else the library's.
+ *
+ *  The library's: neutral grey, teal for the containment/tree
+ *  relation (parent and child of the same topic, a
+ *  self-hierarchy). `themed_default` says the colour is still the
+ *  library's, so a theme toggle re-themes it and leaves a chosen
+ *  one alone.
+ ************************************************************/
+function edge_inherited_style_of(gobj, d)
+{
+    let priv = gobj.priv;
+    let dark = (priv.theme === "dark");
+    let style = {
+        lineWidth: d.is_tree ? 2 : 1.6,
+        stroke: d.is_tree
+            ? (dark ? '#22a7c2' : '#0e7490')
+            : (dark ? '#8b94a3' : '#6b7280'),
+        themed_default: true,
+    };
+
+    let defs = topic_defaults_of(gobj, d.parent_topic);
+    if(!defs) {
+        return style;
+    }
+    let chosen = null;
+    if(is_object(defs.edge_styles) && is_object(defs.edge_styles[d.hook_name])) {
+        chosen = defs.edge_styles[d.hook_name];
+    } else if(is_object(defs.edge_style)) {
+        chosen = defs.edge_style;
+    }
+    if(chosen) {
+        if(chosen.lineWidth != null) {
+            style.lineWidth = chosen.lineWidth;
+        }
+        if(chosen.stroke) {
+            style.stroke = chosen.stroke;
+            style.themed_default = false;
+        }
+    }
+    return style;
+}
+
+/*  The key of an edge's own entry in its parent topic's `edges`.  */
+function edge_key_of(d)
+{
+    return d.hook_name + ":" + d.parent_id + ":" + d.child_id;
+}
+
+/************************************************************
+ *  The style an edge WEARS: what it inherits, with what was saved
+ *  for the edge itself on top.
+ ************************************************************/
+function edge_style_of(gobj, d)
+{
+    let style = edge_inherited_style_of(gobj, d);
+    let topic_props = gobj.priv._graph_properties[d.parent_topic];
+    let own = (is_object(topic_props) && is_object(topic_props.edges))?
+        topic_props.edges[edge_key_of(d)] : null;
+    if(is_object(own)) {
+        if(own.lineWidth != null) {
+            style.lineWidth = own.lineWidth;
+        }
+        if(own.stroke) {
+            style.stroke = own.stroke;
+            style.themed_default = false;
+        }
+    }
+    return style;
+}
+
+/************************************************************
  *  Save edge styles into _graph_properties (called from
  *  save_geometry).
+ *
+ *  Only what differs from what the edge INHERITS is written. It
+ *  used to be "any line width but 2", and the library's own width
+ *  for an edge between two topics is 1.6: every Save wrote every
+ *  such edge down with its width and its theme's colour, so the
+ *  default was frozen on it -- a theme toggle no longer re-themed
+ *  it after a reload, and a topic default never reached it.
  ************************************************************/
 function update_edge_geometry(gobj, edge_id)
 {
@@ -8317,16 +8357,20 @@ function update_edge_geometry(gobj, edge_id)
     }
 
     let style = edgeData.style || {};
-    let lineWidth = style.lineWidth;
-    let stroke = style.stroke;
+    let d = edgeData.data;
+    let inherited = edge_inherited_style_of(gobj, d);
+    let parent_topic = d.parent_topic;
+    let edge_key = edge_key_of(d);
 
-    let parent_topic = edgeData.data.parent_topic;
-    let edge_key = edgeData.data.hook_name + ":" +
-        edgeData.data.parent_id + ":" + edgeData.data.child_id;
+    let edge_props = {};
+    if(style.lineWidth != null && style.lineWidth !== inherited.lineWidth) {
+        edge_props.lineWidth = style.lineWidth;
+    }
+    if(style.stroke && style.stroke !== inherited.stroke) {
+        edge_props.stroke = style.stroke;
+    }
 
-    // If default values, remove any previously saved entry
-    let hasCustom = (lineWidth != null && lineWidth !== 2);
-    if(!hasCustom) {
+    if(Object.keys(edge_props).length === 0) {
         let topic_props = priv._graph_properties[parent_topic];
         if(topic_props && is_object(topic_props.edges)) {
             delete topic_props.edges[edge_key];
@@ -8343,11 +8387,6 @@ function update_edge_geometry(gobj, edge_id)
     let topic_props = priv._graph_properties[parent_topic];
     if(!is_object(topic_props.edges)) {
         topic_props.edges = {};
-    }
-
-    let edge_props = { lineWidth: lineWidth };
-    if(stroke) {
-        edge_props.stroke = stroke;
     }
     topic_props.edges[edge_key] = edge_props;
 }
@@ -8435,11 +8474,14 @@ function build_node_context_menu(gobj, node_id)
     if(gobj.priv.edit_mode && !node_is_compact(gobj, node_id)) {
         items.push(ctx_item('g6-icon-resize', t('resize all'), 'resize_all_nodes'));
         items.push(ctx_item('g6-icon-resize', t('resize topic nodes'), 'resize_topic_nodes'));
-        /*  The way back: the sizes somebody saved -- or that a Save
-         *  froze before 7.23.80 -- forgotten, the library's defaults
-         *  back on every card.  */
-        items.push(ctx_item('g6-icon-undo', t('reset sizes'), 'reset_all_sizes'));
-        items.push(ctx_item('g6-icon-undo', t('reset topic sizes'), 'reset_topic_sizes'));
+    }
+    if(gobj.priv.edit_mode) {
+        /*  The way back, in every view: what the node properties and
+         *  the resizes saved -- or a Save froze before 7.23.80 --
+         *  forgotten, the library's defaults back.  */
+        items.push(ctx_item('g6-icon-undo', t('reset node'), 'reset_node'));
+        items.push(ctx_item('g6-icon-undo', t('reset topic nodes'), 'reset_topic_nodes'));
+        items.push(ctx_item('g6-icon-undo', t('reset all nodes'), 'reset_all_nodes'));
     }
 
     return items;
@@ -8481,6 +8523,9 @@ function build_edge_context_menu(gobj)
         inject_svg_icons();
         items.push(ctx_item('g6-icon-edit', t('edge properties'), 'edge_properties'));
         items.push(ctx_item('g6-icon-delete', t('unlink'), 'unlink_edge'));
+        items.push(ctx_item('g6-icon-undo', t('reset edge'), 'reset_edge'));
+        items.push(ctx_item('g6-icon-undo', t('reset same type edges'), 'reset_same_type_edges'));
+        items.push(ctx_item('g6-icon-undo', t('reset all edges'), 'reset_all_edges'));
     }
 
     return items;
@@ -8505,11 +8550,23 @@ function handle_context_menu_click(gobj, value)
         case 'resize_topic_nodes':
             copy_size_to_nodes(gobj, true);
             break;
-        case 'reset_all_sizes':
-            reset_sizes(gobj, false);
+        case 'reset_node':
+            reset_nodes(gobj, 'this');
             break;
-        case 'reset_topic_sizes':
-            reset_sizes(gobj, true);
+        case 'reset_topic_nodes':
+            reset_nodes(gobj, 'same_topic');
+            break;
+        case 'reset_all_nodes':
+            reset_nodes(gobj, 'all');
+            break;
+        case 'reset_edge':
+            reset_edges(gobj, 'this');
+            break;
+        case 'reset_same_type_edges':
+            reset_edges(gobj, 'same_type');
+            break;
+        case 'reset_all_edges':
+            reset_edges(gobj, 'all');
             break;
         case 'port_properties':
             if(priv._context_node_id && priv._context_port_key) {
@@ -8647,40 +8704,47 @@ function copy_size_to_nodes(gobj, same_topic_only)
     }
 }
 
+/*
+ *  What a reset forgets, by what it resets. A node's own look is
+ *  its size, its colours, its line width and its figure; its ports
+ *  have their own reset. The POSITION is not a property and no reset
+ *  touches it: it is where somebody put the node.
+ */
+const NODE_STYLE_KEYS = ["size", "fill", "stroke", "lineWidth", "node_shape"];
+const PORT_STYLE_KEYS = ["portR", "port_sizes", "port_shapes", "port_shape"];
+
 /************************************************************
- *  Forget every SAVED size: the card sizes, the port radii and the
- *  per-port radii, per node and as topic defaults (`resize all`),
- *  for one topic or for all of them. The cards go back to the
- *  library's defaults on the spot, and Save writes the cleared
- *  entries -- a size nobody chose is not written back (see
- *  update_geometry). Positions and edge styles are not touched:
- *  they are a different choice.
+ *  Forget these saved keys -- on the node of the menu alone
+ *  ('this'), or on every node of its topic and in the topic's
+ *  defaults ('same_topic'), or everywhere ('all'). Both copies of
+ *  an entry are stripped: the one in `_graph_properties` (which
+ *  Save writes, folded nodes included) and the one the node
+ *  carries. Returns the ids of the nodes on screen to reshape.
  ************************************************************/
-function reset_sizes(gobj, same_topic_only)
+function forget_saved_node_keys(gobj, nd, scope, keys)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
-
-    let topic = "";
-    if(same_topic_only) {
-        let nd = priv._context_node_id? graph.getNodeData(priv._context_node_id) : null;
-        if(!nd || !nd.data || !nd.data.topic_name) {
-            log_error(`${gobj_short_name(gobj)}: reset topic sizes without a node`);
-            return;
-        }
-        topic = nd.data.topic_name;
-    }
-    const SIZE_KEYS = ["size", "portR", "port_sizes"];
     let strip = (props) => {
         if(!is_object(props)) {
             return;
         }
-        for(let k of SIZE_KEYS) {
+        for(let k of keys) {
             delete props[k];
         }
     };
 
-    /*  The saved entries, on screen or folded away.  */
+    if(scope === 'this') {
+        strip(node_props_entry(gobj, nd));
+        strip(nd.data.graph_props);
+        if(nd.data.record) {
+            strip(nd.data.record._geometry);
+        }
+        return [nd.id];
+    }
+
+    let topic = (scope === 'same_topic')? nd.data.topic_name : "";
+
     for(const [topic_name, props] of Object.entries(priv._graph_properties || {})) {
         if(topic && topic_name !== topic) {
             continue;
@@ -8693,27 +8757,53 @@ function reset_sizes(gobj, same_topic_only)
         strip(props.defaults);
     }
 
-    /*  The nodes on screen: their own copy of the entry, then the shape.  */
     let ids = [];
-    for(let nd of (graph.getNodeData() || [])) {
-        if(!nd || !nd.data || !nd.data.desc || is_more_node(nd)) {
+    for(let n of (graph.getNodeData() || [])) {
+        if(!n || !n.data || !n.data.desc || is_more_node(n)) {
             continue;
         }
-        if(topic && nd.data.topic_name !== topic) {
+        if(topic && n.data.topic_name !== topic) {
             continue;
         }
-        strip(nd.data.graph_props);
-        if(nd.data.record) {
-            strip(nd.data.record._geometry);
+        strip(n.data.graph_props);
+        if(n.data.record) {
+            strip(n.data.record._geometry);
         }
-        ids.push(nd.id);
+        ids.push(n.id);
     }
+    return ids;
+}
+
+/*  The nodes are reshaped from what is left saved, and Save writes
+ *  the cleared entries: a value nobody chose is not written back
+ *  (see update_geometry).  */
+function reshape_after_reset(gobj, ids)
+{
+    let graph = gobj.priv.graph;
     reshape_nodes(gobj, ids);
     graph.draw().then(() => {
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
+        update_port_icon_position(gobj);
         mark_graph_dirty(gobj);
     });
+}
+
+/************************************************************
+ *  Forget the saved look of nodes (NODE_STYLE_KEYS), back to the
+ *  library's: this node, its topic's, or all of them. A figure
+ *  saved as a square before the circle became the default goes
+ *  back to the default this way.
+ ************************************************************/
+function reset_nodes(gobj, scope)
+{
+    let priv = gobj.priv;
+    let nd = priv._context_node_id? priv.graph.getNodeData(priv._context_node_id) : null;
+    if(!nd || !nd.data || !nd.data.topic_name) {
+        log_error(`${gobj_short_name(gobj)}: reset nodes without a node`);
+        return;
+    }
+    reshape_after_reset(gobj, forget_saved_node_keys(gobj, nd, scope, NODE_STYLE_KEYS));
 }
 
 /************************************************************
@@ -8723,7 +8813,7 @@ function reset_sizes(gobj, same_topic_only)
  *      'same_topic'    every port of the node's topic, with the
  *                      topic's port defaults
  *      'all'           every port of every topic, likewise
- *  The node sizes are not touched: that is `reset sizes`.
+ *  The node's own look is not touched: that is `reset node`.
  ************************************************************/
 function reset_ports(gobj, scope)
 {
@@ -8738,7 +8828,12 @@ function reset_ports(gobj, scope)
         return;
     }
 
-    const PORT_KEYS = ["portR", "port_sizes", "port_shapes", "port_shape"];
+    if(scope !== 'this') {
+        reshape_after_reset(gobj, forget_saved_node_keys(gobj, nd, scope, PORT_STYLE_KEYS));
+        return;
+    }
+
+    /*  One port: its entries in the per-port maps, not the maps.  */
     let strip_port = (props) => {
         if(!is_object(props)) {
             return;
@@ -8752,59 +8847,101 @@ function reset_ports(gobj, scope)
             }
         }
     };
-    let strip_all = (props) => {
-        if(!is_object(props)) {
-            return;
+    strip_port(node_props_entry(gobj, nd));
+    strip_port(nd.data.graph_props);
+    if(nd.data.record) {
+        strip_port(nd.data.record._geometry);
+    }
+    reshape_after_reset(gobj, [node_id]);
+}
+
+/************************************************************
+ *  Forget the saved style of edges, back to what they inherit:
+ *      'this'          the edge of the menu, its own entry
+ *      'same_type'     every edge of its hook in its parent topic,
+ *                      with that hook's default
+ *      'all'           every edge, with every edge default
+ *  The same three scopes as the edge properties popover.
+ ************************************************************/
+function reset_edges(gobj, scope)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let ed = priv._context_edge_id? graph.getEdgeData(priv._context_edge_id) : null;
+    if(!ed || !ed.data || !ed.data.parent_topic) {
+        log_error(`${gobj_short_name(gobj)}: reset edges without an edge`);
+        return;
+    }
+    let src = ed.data;
+    let hits = (d) => {
+        if(!d || !d.parent_topic) {
+            return false;   /* a `+N` chip's line */
         }
-        for(let k of PORT_KEYS) {
-            delete props[k];
+        if(scope === 'this') {
+            return edge_key_of(d) === edge_key_of(src) && d.parent_topic === src.parent_topic;
         }
+        if(scope === 'same_type') {
+            return d.parent_topic === src.parent_topic && d.hook_name === src.hook_name;
+        }
+        return true;
     };
 
-    let ids = [];
-    if(scope === 'this') {
-        strip_port(node_props_entry(gobj, nd));
-        strip_port(nd.data.graph_props);
-        if(nd.data.record) {
-            strip_port(nd.data.record._geometry);
+    /*  The saved entries, on screen or folded away.  */
+    for(const [topic_name, props] of Object.entries(priv._graph_properties || {})) {
+        if(!is_object(props)) {
+            continue;
         }
-        ids.push(node_id);
-    } else {
-        let topic = (scope === 'same_topic')? nd.data.topic_name : "";
-
-        /*  The saved entries, on screen or folded away.  */
-        for(const [topic_name, props] of Object.entries(priv._graph_properties || {})) {
-            if(topic && topic_name !== topic) {
-                continue;
-            }
-            if(is_object(props.nodes)) {
-                for(let node_props of Object.values(props.nodes)) {
-                    strip_all(node_props);
+        if(scope !== 'all' && topic_name !== src.parent_topic) {
+            continue;
+        }
+        if(is_object(props.edges)) {
+            for(let key of Object.keys(props.edges)) {
+                let hook_name = key.split(":")[0];
+                if(scope === 'this' && key !== edge_key_of(src)) {
+                    continue;
                 }
+                if(scope === 'same_type' && hook_name !== src.hook_name) {
+                    continue;
+                }
+                delete props.edges[key];
             }
-            strip_all(props.defaults);
+            if(Object.keys(props.edges).length === 0) {
+                delete props.edges;
+            }
         }
-
-        /*  The nodes on screen: their own copy of the entry.  */
-        for(let n of (graph.getNodeData() || [])) {
-            if(!n || !n.data || !n.data.desc || is_more_node(n)) {
-                continue;
+        if(is_object(props.defaults)) {
+            if(scope === 'same_type' && is_object(props.defaults.edge_styles)) {
+                delete props.defaults.edge_styles[src.hook_name];
+                if(Object.keys(props.defaults.edge_styles).length === 0) {
+                    delete props.defaults.edge_styles;
+                }
+            } else if(scope === 'all') {
+                delete props.defaults.edge_styles;
+                delete props.defaults.edge_style;
             }
-            if(topic && n.data.topic_name !== topic) {
-                continue;
-            }
-            strip_all(n.data.graph_props);
-            if(n.data.record) {
-                strip_all(n.data.record._geometry);
-            }
-            ids.push(n.id);
         }
     }
 
-    reshape_nodes(gobj, ids);
+    /*  The edges on screen, restyled from what is left.  */
+    let updates = [];
+    for(let e of (graph.getEdgeData() || [])) {
+        if(!e || !hits(e.data)) {
+            continue;
+        }
+        let style = edge_style_of(gobj, e.data);
+        updates.push({
+            id: e.id,
+            style: {lineWidth: style.lineWidth, stroke: style.stroke},
+            data: Object.assign({}, e.data, {themed_default: style.themed_default}),
+        });
+    }
+
+    deselect_edge(gobj);
+    if(updates.length > 0) {
+        graph.updateEdgeData(updates);
+    }
     graph.draw().then(() => {
-        update_port_resize_handles_position(gobj);
-        update_port_icon_position(gobj);
         mark_graph_dirty(gobj);
     });
 }

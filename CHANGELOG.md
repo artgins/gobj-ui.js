@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.134
+
+- **treedb graph: every saved look has a way back, in the context menu.** The
+  node, the port and the edge menus each offer the same three resets --
+  this one, its kind (`reset topic nodes`, `reset topic ports`,
+  `reset same type edges`, the scopes of their properties popovers) and
+  `reset all ...` -- and a reset FORGETS the saved value, the element's own
+  and the defaults of its scope, so the library's default comes back. A figure
+  saved as a square before the circle became the default goes back to the
+  circle this way. The node reset is offered in every view (it was hidden on a
+  pill and a figure) and forgets the size, the colours, the line width and the
+  figure; the ports have their own reset, and no reset moves a node.
+- **It replaces `reset sizes` / `reset topic sizes`**, whose sizes are now
+  split between the node reset and the port reset. Their keys are no longer
+  used by the library.
+- **fix: a Save froze the default style of every edge between two topics.**
+  `update_edge_geometry` saved any line width but 2, and the library's width
+  for such an edge is 1.6: every Save wrote each one down with its width and
+  its theme's colour, so after a reload a theme toggle no longer re-themed it
+  and a topic default never reached it. An edge is saved now only where it
+  differs from what it INHERITS (its hook's default, the topic's, the
+  library's), computed by one function that the creation, the Save and the
+  reset share. `reset all edges` clears what the old Save froze.
+- New consumer i18n keys: `reset node`, `reset topic nodes`,
+  `reset all nodes`, `reset edge`, `reset same type edges`, `reset all edges`.
+
 ## 7.23.133
 
 - **treedb graph: the `shape` view wears the outline of the other two.** A
