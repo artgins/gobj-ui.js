@@ -1522,6 +1522,20 @@ function create_tabulator(gobj)
      *  had once opened the table. Only a real change is written.  */
     gobj.priv._page_size = tabulator_settings.paginationSize;
 
+    /*  Normalized records are read by their KEY: a topic table opens
+     *  sorted by `id` (the pkey), ascending and natural (`d2` before
+     *  `d10`) -- unless the app set its own order, or the table pages
+     *  from the backend, where a sort in the browser would reorder one
+     *  page and say nothing about the others.  */
+    let pkey_col = columns.find((c) => c && c.field === pkey);
+    if(pkey_col && !tabulator_settings.initialSort &&
+            !gobj_read_bool_attr(gobj, "with_remote_paging")) {
+        if(!pkey_col.sorter) {
+            pkey_col.sorter = "alphanum";
+        }
+        tabulator_settings.initialSort = [{column: pkey, dir: "asc"}];
+    }
+
     Object.assign(tabulator_settings, {
         index: pkey,
         columns: columns,

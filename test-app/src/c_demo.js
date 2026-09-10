@@ -47,6 +47,7 @@ import {yui_shell_show_route_map} from "@yuneta/gobj-ui/src/shell_route_map.js";
 
 import {setup_dev, dev_window_was_open} from "@yuneta/gobj-ui/src/yui_dev.js";
 import {setup_frontend_view} from "@yuneta/gobj-ui/src/yui_frontend_view.js";
+import {setup_json_pad} from "@yuneta/gobj-ui/src/yui_json_pad.js";
 
 import {t} from "i18next";
 import {toggle_locale} from "./locales.js";
@@ -133,6 +134,7 @@ function mt_create(gobj)
     gobj_subscribe_event(shell, "EV_CYCLE_BADGE",     {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_DEVTOOLS",   {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_FRONTEND_VIEW", {}, gobj);
+    gobj_subscribe_event(shell, "EV_OPEN_JSON_VIEWER",   {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_SITEMAP",    {}, gobj);
     gobj_subscribe_event(shell, "EV_OPEN_PREFS",      {}, gobj);
     gobj_subscribe_event(shell, "EV_ABOUT",           {}, gobj);
@@ -367,6 +369,27 @@ function ac_open_frontend_view(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  EV_OPEN_JSON_VIEWER -- the "JSON viewer" entry in the account
+ *  menu: a blank pad to paste JSON from outside and read it with
+ *  the library's own viewer (setup_json_pad, gobj-ui). A toggle,
+ *  like the frontend view: destroying the window takes the pad
+ *  down with it.
+ ***************************************************************/
+function ac_open_json_viewer(gobj, event, kw, src)
+{
+    let win = gobj_find_service("Json-Viewer-Window", false);
+    if(win) {
+        if(gobj_is_running(win)) {
+            gobj_stop_tree(win);
+        }
+        gobj_destroy(win);
+        return 0;
+    }
+    setup_json_pad(gobj);
+    return 0;
+}
+
+/***************************************************************
  *  Account-menu "Site map" entry — an ACTION ROUTE (/sitemap,
  *  redirect:"back", see app_config shell.routes + ROUTING.md §7.1):
  *  the shell restores the resting view/URL and publishes
@@ -502,6 +525,7 @@ function create_gclass(gclass_name)
             ["EV_CYCLE_BADGE",      ac_cycle_badge,      null],
             ["EV_OPEN_DEVTOOLS",    ac_open_devtools,    null],
             ["EV_OPEN_FRONTEND_VIEW", ac_open_frontend_view, null],
+            ["EV_OPEN_JSON_VIEWER",   ac_open_json_viewer,   null],
             ["EV_OPEN_SITEMAP",     ac_open_sitemap,     null],
             ["EV_OPEN_PREFS",       ac_open_prefs,       null],
             ["EV_ABOUT",            ac_about,            null]
@@ -518,6 +542,7 @@ function create_gclass(gclass_name)
         ["EV_CYCLE_BADGE",      0],
         ["EV_OPEN_DEVTOOLS",    0],
         ["EV_OPEN_FRONTEND_VIEW", 0],
+        ["EV_OPEN_JSON_VIEWER",   0],
         ["EV_OPEN_SITEMAP",     0],
         ["EV_OPEN_PREFS",       0],
         ["EV_ABOUT",            0]

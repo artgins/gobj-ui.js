@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.143
+
+- **JSON viewer: `setup_json_pad()` + `C_YUI_JSON_PAD`.** A blank pad in a
+  floating window to paste JSON from outside the app and read it with the
+  library's viewer (tree, text, graph): a paste anywhere replaces the document
+  and shows it, view (or Ctrl+Enter) reads the text area, clear empties it, and
+  text that is not JSON says why under the text area. Self-registering, and a
+  toggle like the frontend view. Every SPA wires it as an account-menu entry,
+  `EV_OPEN_JSON_VIEWER`. New consumer keys: `json viewer`, `paste json here`,
+  `invalid json`, `collapsed in the source`.
+- **A treedb topic table opens sorted by `id`** (the pkey), ascending and
+  natural (`alphanum`): normalized records are read by their key. Not when the
+  app sets its own `initialSort`, and not with `with_remote_paging`, where a
+  sort in the browser would reorder one page only.
+
 ## 7.23.142
 
 - **treedb graph: only a HIERARCHICAL topic can be the main one** -- a topic

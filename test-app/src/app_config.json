@@ -182,6 +182,15 @@
                             }
                         },
                         {
+                            "id": "d-jsonviewer",
+                            "name": "json viewer",
+                            "icon": "yi-code",
+                            "action": {
+                                "type": "event",
+                                "event": "EV_OPEN_JSON_VIEWER"
+                            }
+                        },
+                        {
                             "id": "d-sitemap",
                             "name": "Site map",
                             "icon": "yi-bars",

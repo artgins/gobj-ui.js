@@ -23,6 +23,7 @@ export { register_c_yui_map } from "./src/c_yui_map.js";
 export { register_c_yui_uplot } from "./src/c_yui_uplot.js";
 export { register_c_yui_json_graph } from "./src/c_yui_json_graph.js";
 export { register_c_yui_json } from "./src/c_yui_json.js";
+export { register_c_yui_json_pad } from "./src/c_yui_json_pad.js";
 export { register_c_yui_gclass } from "./src/c_yui_gclass.js";
 export { register_c_yui_fsm_graph } from "./src/c_yui_fsm_graph.js";
 export { register_c_yui_gobj_tree_js } from "./src/c_yui_gobj_tree_js.js";
@@ -129,6 +130,7 @@ export { yui_theme_now, yui_is_dark, yui_watch_theme } from "./src/yui_theme.js"
 export { attach_clear, refresh_clear } from "./src/yui_inputs.js";
 export { info_traffic, setup_dev, build_dev_panel, apply_dev_traces, dev_window_was_open } from "./src/yui_dev.js";
 export { setup_frontend_view } from "./src/yui_frontend_view.js";
+export { setup_json_pad } from "./src/yui_json_pad.js";
 
 /*
  *  CSS - import these in your main entry point

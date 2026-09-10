@@ -663,6 +663,11 @@ url is what gives way, cut with an ellipsis, and the whole value stays in the
 > only paginating the FETCH is not. `page_size` sets the display page for both
 > paths.
 
+**A topic table opens sorted by `id`** (since `7.23.143`): the pkey, ascending
+and natural (`alphanum`, so `d2` comes before `d10`) — normalized records are
+read by their key. Not when the app passes its own `initialSort`, and not with
+`with_remote_paging`, where a sort in the browser would reorder one page.
+
 `C_YUI_TREEDB_TOPICS` takes **`with_remote_paging`** (off by default) and
 forwards it to every topic table: the table pulls the page it is showing
 instead of the host pushing the whole topic down. It needs the SDK's `nodes`
@@ -1901,6 +1906,27 @@ if(id) {
 // ...and when the answer arrives, in the action:
 $box.appendChild(yui_asset_element(answer, {detail: device.foto_name}));
 ```
+
+### JSON viewer — `setup_json_pad`
+
+`setup_json_pad(self)` opens a **blank JSON pad** (`C_YUI_JSON_PAD`) in a
+floating `C_YUI_WINDOW`: paste JSON from outside — a log line, a config file, an
+answer copied from a terminal — and read it with the library's own viewer
+(`C_YUI_JSON`: tree, text, graph). Wire it to an account-menu entry, next to the
+frontend view (`EV_OPEN_JSON_VIEWER` in every SPA of the ecosystem). Like the
+frontend view it returns `null` when the window is already open, so the host
+toggles with it, and it registers `C_YUI_JSON_PAD` (and the `C_YUI_JSON` it
+hosts) itself when the app did not.
+
+- A **paste anywhere in the pad** replaces the document and shows it at once;
+  **view** (or Ctrl+Enter) reads the text area as typed; **clear** empties it.
+- Text that is not JSON leaves the last document on screen and says so under
+  the text area, with the parser's reason.
+- A `__collapsed__` sentinel in a pasted dump is answered with
+  `EV_SUBTREE_ERROR`: the source truncated it, and a pad has no backend to ask.
+
+Consumer i18n keys: `json viewer`, `paste json here`, `invalid json`,
+`collapsed in the source` (plus `view` and `clear`, which every app has).
 
 ### Frontend view — `setup_frontend_view`
 
