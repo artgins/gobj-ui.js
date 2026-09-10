@@ -8,7 +8,7 @@
 import { describe, test, expect } from "vitest";
 import {
     elbow_lane, elbow_points, elbow_route, elbow_path_hits, elbow_rank, elbow_combs,
-    ELBOW_STEP, ELBOW_CLEAR,
+    curve_hits, rounded_path, ELBOW_STEP, ELBOW_CLEAR,
 } from "./treedb_elbow.js";
 import { layout_compact } from "./treedb_layout.js";
 
@@ -353,6 +353,50 @@ describe("the comb of a stack", () => {
         let st = {comb: c};
         expect(elbow_route(PORT, end, BOX_P, t.box, 0, true, [BOX_P, ...targets.map((u) => u.box)], st))
             .toEqual(elbow_points(PORT, end, BOX_P, t.box, 0, true, st));
+    });
+});
+
+describe("a curve that would cross a card", () => {
+    /*  Whole-node boxes (ports 7px out of top and bottom).  */
+    const PB = {x1: 0, y1: -7, x2: 172, y2: 103};         /*  a parent  */
+    const R0 = {x1: 0, y1: 183, x2: 116, y2: 237};        /*  row 0 of a stack  */
+    const R1 = {x1: 0, y1: 277, x2: 116, y2: 331};        /*  row 1, under it  */
+    const SIB = {x1: 200, y1: -7, x2: 372, y2: 103};      /*  the parent's sibling  */
+    const S = [86, 96];
+
+    /*  The cubic G6 draws between two vertical ports: tangents along
+     *  the line, as its default curveOffset gives.  */
+    const cubic = (s, t) => [["M", s[0], s[1]],
+                             ["C", s[0], (s[1] + t[1]) / 2, t[0], (s[1] + t[1]) / 2, t[0], t[1]]];
+
+    test("a curve into a card of the next row crosses nothing", () => {
+        expect(curve_hits(cubic(S, [58, 190]), [PB, R0, R1, SIB], PB, R0)).toBe(false);
+    });
+
+    test("a curve into a lower row of a stack crosses the card above it", () => {
+        expect(curve_hits(cubic(S, [58, 284]), [PB, R0, R1, SIB], PB, R1)).toBe(true);
+    });
+
+    test("a curve that passes NEAR a card, beside its ports, does not count", () => {
+        /*  N0 in the target row with its port poking 7px up, beside
+         *  where the curve lands; the rectangle round the curve took it.  */
+        const T0 = {x1: 250, y1: 183, x2: 366, y2: 237};
+        const N0 = {x1: 120, y1: 183, x2: 236, y2: 237};
+        expect(curve_hits(cubic(S, [308, 190]), [PB, SIB, T0, N0], PB, T0)).toBe(false);
+    });
+
+    test("the rounded path: a straight line is one run", () => {
+        expect(rounded_path([[0, 0], [0, 100]], 24)).toEqual([["M", 0, 0], ["L", 0, 100]]);
+    });
+
+    test("the rounded path: each corner a quadratic, never past half a short run", () => {
+        let path = rounded_path([[0, 0], [0, 60], [100, 60], [100, 70]], 24);
+        expect(path[0]).toEqual(["M", 0, 0]);
+        expect(path[1]).toEqual(["L", 0, 36]);                  /*  24 before the corner  */
+        expect(path[2]).toEqual(["Q", 0, 60, 24, 60]);
+        expect(path[3]).toEqual(["L", 95, 60]);                 /*  the last run is 10: r = 5  */
+        expect(path[4]).toEqual(["Q", 100, 60, 100, 65]);
+        expect(path[5]).toEqual(["L", 100, 70]);
     });
 });
 

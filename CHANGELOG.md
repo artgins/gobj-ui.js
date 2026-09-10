@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.155
+
+- **treedb graph: curved edges keep off the cards too, so the compact tree
+  reads with curves.** With curves, the line into a lower row of a stack
+  passed over the card above it, and the return edge of a reciprocal pair ran
+  straight through its own two cards. Curved edges on a layout with rows are
+  now `treedb-curve-v` / `-h` (subclasses of G6's `Cubic` / `CubicHorizontal`):
+  G6's cubic as before, unless THAT curve -- the path G6 would draw, sampled
+  -- crosses a card other than its own two, or the edge does not run forward
+  (and so would cross its own). Then it goes the way its elbow would -- the
+  comb of a stack, the detour, the route, with the same lanes and staggered
+  turns -- with corners rounded to 24px, so it still reads as a curve. On a
+  layout with no rows (`radial`, `d3-force`, `force-atlas2`) the edges stay
+  G6's plain cubic.
+- `curve_hits(path, boxes, box_s, box_t)` and `rounded_path(points, radius)` in
+  `treedb_elbow.js`. A first version judged from the rectangle round the curve
+  and took every card it merely passed near -- the ports of a row stick well
+  into the space above it -- so curves that crossed nothing were bent too;
+  measuring the curve itself is what fixed it.
+- Five new tests: a curve into the next row crossing nothing, into a lower row
+  of a stack crossing the card above, one passing near a row's ports not
+  counting, and the rounded path's runs and corners (a corner never past half
+  a short run).
+
 ## 7.23.154
 
 - **treedb graph: `compact tree` is compact now.** Packing by contour alone

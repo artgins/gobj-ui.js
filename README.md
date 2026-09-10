@@ -1419,7 +1419,8 @@ layouts by three thin adapters in `c_g6_nodes_tree.js`:
   gained nothing on a whole level opened with the stepper, where every parent
   still needed the row of its children beside it. Against `tree`: regions
   only 10% of the width, one region open with a 24-device hall 21%, a whole
-  level open 41%. The tree grows taller instead; read it with elbow edges.
+  level open 41%. The tree grows taller instead; with elbow edges or curves
+  alike, since `7.23.155` a curve keeps off the cards too.
 - **`radial`** (`treedb-radial`) — the root in the middle, a ring per depth,
   every subtree an angular **sector** proportional to its leaves, and the
   radius of each ring the largest of three: one `ranksep` out from the ring
@@ -1481,7 +1482,16 @@ port run. Only the stub at the port is shared. Into a lower row of a stack of
 the compact tree an edge runs a **comb** (`7.23.154`): along the channel to a
 lane of its own in the stack's corridor, down it, and into the gap above its
 card; lanes go outermost first by row, so none crosses another, and a comb is
-drawn as laid out, never routed. G6's `shortest-path` router is not used: it is
+drawn as laid out, never routed.
+
+**Curved edges keep off the cards as well** (`7.23.155`). On a layout with
+rows a curve is `treedb-curve-v` / `-h`, a subclass of G6's cubic: the cubic
+as before, unless that very curve — the path G6 would draw, sampled, not the
+rectangle round it — would cross a card other than its own two, or the edge
+does not run forward and so would cross its own. Then it takes the way its
+elbow would (comb, detour, route, the same lanes and staggered turns) with
+corners rounded to 24px. On a layout with no rows the edges stay G6's plain
+cubic. G6's `shortest-path` router is not used: it is
 not exported, it
 falls back in silence to a route that crosses cards, and it rewrites its
 module defaults with every config it is given.

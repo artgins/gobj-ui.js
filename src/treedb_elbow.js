@@ -40,6 +40,10 @@
  *        channel, so its edge runs down the corridor in a lane of
  *        its own -- a COMB -- and turns into the gap above its card.
  *
+ *      And for CURVED edges (curve_hits, rounded_path): a curve
+ *      that would cross another card follows the same way an elbow
+ *      would, with round corners, so it reads as a curve.
+ *
  *      Written for the top-down reading; left to right is the same
  *      geometry with the axes swapped.
  *
@@ -608,4 +612,113 @@ export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes, stagger)
         route = orth_search(a, z, others.map((b) => box_expand(b, m)));
     }
     return route || simple;
+}
+
+/*----------------------------------------------------------------*
+ *      CURVED edges that would cross a card
+ *----------------------------------------------------------------*/
+export const CURVE_RADIUS = 24;     /*  the corners of a curve that goes round  */
+export const CURVE_STEPS = 16;      /*  samples of each curved stretch  */
+
+/*  Points along a G6 path: the ends of its runs and CURVE_STEPS
+ *  samples of each quadratic or cubic stretch.  */
+function path_points(path)
+{
+    let pts = [];
+    let cur = null;
+    for(let c of path) {
+        if(c[0] === 'M' || c[0] === 'L') {
+            cur = [c[1], c[2]];
+            pts.push(cur);
+        } else if(c[0] === 'C' && cur) {
+            let [x0, y0] = cur;
+            for(let k = 1; k <= CURVE_STEPS; k++) {
+                let u = k / CURVE_STEPS;
+                let v = 1 - u;
+                pts.push([
+                    v * v * v * x0 + 3 * v * v * u * c[1] + 3 * v * u * u * c[3] + u * u * u * c[5],
+                    v * v * v * y0 + 3 * v * v * u * c[2] + 3 * v * u * u * c[4] + u * u * u * c[6],
+                ]);
+            }
+            cur = [c[5], c[6]];
+        } else if(c[0] === 'Q' && cur) {
+            let [x0, y0] = cur;
+            for(let k = 1; k <= CURVE_STEPS; k++) {
+                let u = k / CURVE_STEPS;
+                let v = 1 - u;
+                pts.push([
+                    v * v * x0 + 2 * v * u * c[1] + u * u * c[3],
+                    v * v * y0 + 2 * v * u * c[2] + u * u * c[4],
+                ]);
+            }
+            cur = [c[3], c[4]];
+        }
+    }
+    return pts;
+}
+
+/************************************************************
+ *  Does the G6 path `path` of a curved edge cross a card other than
+ *  its own two? Measured on the curve itself -- the path G6 would
+ *  draw, sampled -- and not on the rectangle round it, which took
+ *  every card the curve merely passed near: the ports of a row
+ *  stick well into the space above it. Its own two cards are left
+ *  out: the curve starts and ends on their ports.
+ ************************************************************/
+export function curve_hits(path, boxes, box_s, box_t)
+{
+    let pts = path_points(path);
+    if(pts.length < 2) {
+        return false;
+    }
+    let bb = {x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity};
+    for(let p of pts) {
+        bb.x1 = Math.min(bb.x1, p[0]);
+        bb.y1 = Math.min(bb.y1, p[1]);
+        bb.x2 = Math.max(bb.x2, p[0]);
+        bb.y2 = Math.max(bb.y2, p[1]);
+    }
+    for(let b of (boxes || [])) {
+        if(same_box(b, box_s) || same_box(b, box_t) || !box_overlaps(b, box_expand(bb, 1))) {
+            continue;
+        }
+        let inner = box_expand(b, -1);
+        for(let k = 0; k + 1 < pts.length; k++) {
+            if(segment_hits(pts[k], pts[k + 1], inner)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/************************************************************
+ *  A G6 path (['M'|'L'|'Q', ...]) along `points` with every corner
+ *  rounded -- by `radius`, or by half the shorter of its two
+ *  segments, so a short run is never overshot. The rounding is the
+ *  quadratic G6's own polyline uses.
+ ************************************************************/
+export function rounded_path(points, radius)
+{
+    let path = [['M', points[0][0], points[0][1]]];
+    for(let i = 1; i + 1 < points.length; i++) {
+        let a = points[i - 1];
+        let m = points[i];
+        let b = points[i + 1];
+        let len_in = Math.hypot(m[0] - a[0], m[1] - a[1]);
+        let len_out = Math.hypot(b[0] - m[0], b[1] - m[1]);
+        let r = Math.min(radius, len_in / 2, len_out / 2);
+        let collinear = Math.abs((m[0] - a[0]) * (b[1] - m[1]) - (m[1] - a[1]) * (b[0] - m[0])) < 1e-9;
+        if(r <= 0 || collinear) {
+            path.push(['L', m[0], m[1]]);
+            continue;
+        }
+        let p1 = [m[0] - (m[0] - a[0]) / len_in * r, m[1] - (m[1] - a[1]) / len_in * r];
+        let p2 = [m[0] + (b[0] - m[0]) / len_out * r, m[1] + (b[1] - m[1]) / len_out * r];
+        path.push(['L', p1[0], p1[1]]);
+        path.push(['Q', m[0], m[1], p2[0], p2[1]]);
+    }
+    let last = points[points.length - 1];
+    path.push(['L', last[0], last[1]]);
+    return path;
 }
