@@ -281,7 +281,7 @@ export function fold_build_model(descs, records, opts)
         }
     }
 
-    return {
+    let model = {
         nodes: nodes,
         groups: groups,
         topics: topics,
@@ -291,7 +291,67 @@ export function fold_build_model(descs, records, opts)
         linked: linked,         /*  Set of topics the schema hangs from main  */
         loose: loose,           /*  {topic: [key, ...]} records that should hang and do not  */
         loose_shown: loose_shown,
+        level_of: null,         /*  Map<node_key, level> of the MAIN tree, see below  */
+        levels: 0,              /*  its deepest level (0 = no tree to step through)  */
     };
+    count_levels(model);
+    return model;
+}
+
+/************************************************************
+ *  The LEVELS of the main tree: the roots of the main topic --
+ *  and of the topics hung from it, whose roots are the loose
+ *  records the reader asked for -- are level 1, their children
+ *  level 2, and so on down every hook of every topic that is not
+ *  hidden. A node reached by two paths takes the shallowest.
+ *
+ *  With no main topic every topic is a tree of its own and all
+ *  of them count. A topic the schema does not tie to the main
+ *  one is a separate tree, and has no level: the stepper of the
+ *  toolbar speaks for the main tree and nothing else, those
+ *  trees are opened by their own pills.
+ ************************************************************/
+function count_levels(model)
+{
+    let level_of = new Map();
+    let queue = [];
+    let deepest = 0;
+
+    for(let topic_name of model.topics) {
+        if(model.main_topic && !model.linked.has(topic_name)) {
+            continue;
+        }
+        let roots = model.groups.get(fold_root_group_key(topic_name)) || [];
+        for(let key of roots) {
+            if(!level_of.has(key)) {
+                level_of.set(key, 1);
+                queue.push(key);
+            }
+        }
+    }
+    let head = 0;
+    while(head < queue.length) {
+        let key = queue[head++];
+        let lv = level_of.get(key);
+        if(lv > deepest) {
+            deepest = lv;
+        }
+        let node = model.nodes.get(key);
+        if(!node) {
+            continue;
+        }
+        for(let hook of Object.keys(node.hooks)) {
+            for(let child of node.hooks[hook]) {
+                if(!level_of.has(child)) {
+                    level_of.set(child, lv + 1);
+                    queue.push(child);
+                }
+            }
+        }
+    }
+
+    model.level_of = level_of;
+    model.levels = deepest;
 }
 
 /************************************************************
@@ -563,6 +623,78 @@ export function fold_expand_to_depth(model, state, depth)
             }
         }
     }
+}
+
+/************************************************************
+ *  The toolbar's STEPPER over the levels of the main tree (see
+ *  count_levels): level N shows the roots and N-1 levels under
+ *  them. A level is a floor of what is open, not a picture that
+ *  replaces it:
+ *
+ *      opening to N   opens, on its first page, every hook of
+ *                     every node above level N that is folded;
+ *                     what the reader opened, and every page
+ *                     already shown, stays
+ *      closing to N   folds every hook of every node at level N
+ *                     or below, and touches nothing above it
+ *
+ *  A separate tree (a topic not tied to the main one) has no
+ *  level, so neither ever touches it.
+ ************************************************************/
+export function fold_level_clamp(model, level)
+{
+    let top = (model.levels > 0)? model.levels : 1;
+    level = Math.floor(Number(level)) || 1;
+    if(level < 1) {
+        return 1;
+    }
+    if(level > top) {
+        return top;
+    }
+    return level;
+}
+
+export function fold_open_levels(model, state, level)
+{
+    for(let [key, lv] of model.level_of) {
+        if(lv >= level) {
+            continue;
+        }
+        let node = model.nodes.get(key);
+        if(!node) {
+            continue;
+        }
+        for(let hook of Object.keys(node.hooks)) {
+            let group_key = fold_group_key(key, hook);
+            if(node.hooks[hook].length > 0 && !fold_is_open(state, group_key)) {
+                state.shown.set(group_key, state.page_size);
+            }
+        }
+    }
+}
+
+export function fold_close_levels(model, state, level)
+{
+    for(let [key, lv] of model.level_of) {
+        if(lv < level) {
+            continue;
+        }
+        let node = model.nodes.get(key);
+        if(!node) {
+            continue;
+        }
+        for(let hook of Object.keys(node.hooks)) {
+            state.shown.delete(fold_group_key(key, hook));
+        }
+    }
+}
+
+/*  From scratch: the roots of every tree on their first page, and
+ *  the main tree open down to `level`. What a load opens.  */
+export function fold_expand_to_level(model, state, level)
+{
+    fold_collapse_all(model, state);
+    fold_open_levels(model, state, fold_level_clamp(model, level));
 }
 
 /************************************************************

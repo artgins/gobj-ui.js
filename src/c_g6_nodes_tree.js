@@ -13,8 +13,9 @@
  *          The graph opens FOLDED, like a JSON viewer.
  *
  *          Every record of every topic is fetched, but only the ones on
- *          screen become G6 nodes: the roots, `expand_depth` levels under
- *          them, one page (`fold_page_size`) of children per hook. Each
+ *          screen become G6 nodes: the roots, and the MAIN tree open to
+ *          the reader's level (`fold_level`, `expand_depth` until they
+ *          step it), one page (`fold_page_size`) of children per hook. Each
  *          card carries a pill per hook that has children -- `▸ devices
  *          142` -- which opens or folds that hook; an open hook with more
  *          children than its page ends in a `+N` chip that opens the next
@@ -117,9 +118,10 @@ import {
     fold_build_model,
     fold_new_state,
     fold_visible_set,
-    fold_expand_to_depth,
-    fold_expand_all,
-    fold_collapse_all,
+    fold_expand_to_level,
+    fold_open_levels,
+    fold_close_levels,
+    fold_level_clamp,
     fold_toggle,
     fold_show_more,
     fold_reveal,
@@ -434,7 +436,8 @@ SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook po
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
 
 /*---------------- Folding ----------------*/
-SDATA(data_type_t.DTP_INTEGER,  "expand_depth",         0,  2,      "Levels open when a treedb loads: 1 = the roots alone, 2 = the roots and their children. Every open hook shows its first page"),
+SDATA(data_type_t.DTP_INTEGER,  "expand_depth",         0,  2,      "Levels open when a treedb loads, until the reader steps (`fold_level`): 1 = the roots alone, 2 = the roots and their children. Every open hook shows its first page"),
+SDATA(data_type_t.DTP_INTEGER,  "fold_level",           0,  0,      "The level of the MAIN tree the toolbar's stepper stands on: 1 = its roots, N = N-1 levels under them; 0 = `expand_depth`. The host persists it and sends EV_SET_FOLD_LEVEL; it is published back in EV_LEGEND_STATE (`fold`) with the levels the tree has"),
 SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",       0,  24,     "Children of one hook shown per page; the `+N` chip after the page opens the next one"),
 SDATA(data_type_t.DTP_LIST,     "hidden_topics",        0,  "[]",   "Topics left out of the tree: no card, no pill counts them, no edge reaches them"),
 SDATA(data_type_t.DTP_STRING,   "main_topic",           0,  "",     "The topic the tree hangs from; empty = deduced (the one whose hooks reach the most others). Its parentless records are the roots; a parentless record of a topic linked to it is LOOSE and shown only on request"),
@@ -543,6 +546,7 @@ let PRIVATE_DATA = {
 
     /*---------------- folding ----------------*/
     expand_depth:       2,
+    fold_level:         0,
     fold_page_size:     24,
     hidden_topics:      null,
     main_topic:         "",
@@ -9541,6 +9545,13 @@ function publish_legend_state(gobj, visible)
         main_topic: model.main_topic,
         main_chosen: !!gobj_read_str_attr(gobj, "main_topic"),
         topics: topics,
+        /*  The toolbar's stepper: the tree it walks, where it stands,
+         *  and how deep it goes. `levels` 0 = nothing to step through.  */
+        fold: {
+            topic: model.main_topic,
+            level: current_fold_level(gobj),
+            levels: model.levels,
+        },
     });
 }
 
@@ -10003,14 +10014,13 @@ function ac_load_data(gobj, event, kw, src)
     }
 
     if(all_loaded && priv.graph) {
-        /*  The tree of the records, opened `expand_depth` levels: the
-         *  roots and their children by default. Only that much becomes
-         *  G6 nodes -- a treedb of a thousand records opens as a
-         *  handful of cards with a count on each cut.  */
+        /*  The tree of the records, the main one opened to the reader's
+         *  level: the roots and their children by default. Only that
+         *  much becomes G6 nodes -- a treedb of a thousand records opens
+         *  as a handful of cards with a count on each cut.  */
         rebuild_fold_model(gobj);
-        fold_expand_to_depth(
-            priv._fold_model, priv._fold_state,
-            gobj_read_integer_attr(gobj, "expand_depth")
+        fold_expand_to_level(
+            priv._fold_model, priv._fold_state, current_fold_level(gobj)
         );
 
         /*  Before the layout runs, and only now: whether anybody has
@@ -10622,21 +10632,62 @@ function ac_show_more(gobj, event, kw, src)
 }
 
 /************************************************************
- *  The whole treedb, every hook open on all its children. This
- *  is the reader asking for the pile on purpose; the pages are
- *  the other way in.
+ *  The level of the main tree the toolbar's stepper stands on:
+ *  `fold_level` once the reader has stepped, `expand_depth`
+ *  until then, clamped to the levels the tree has.
  ************************************************************/
-function ac_expand_all(gobj, event, kw, src)
+function current_fold_level(gobj)
 {
     let priv = gobj.priv;
+    let level = gobj_read_integer_attr(gobj, "fold_level");
 
+    if(!(level > 0)) {
+        level = gobj_read_integer_attr(gobj, "expand_depth");
+    }
     if(!priv._fold_model) {
-        log_error(`${gobj_short_name(gobj)}: expand all with no tree loaded`);
+        return level;
+    }
+    return fold_level_clamp(priv._fold_model, level);
+}
+
+/************************************************************
+ *  The toolbar's stepper: one level more or one less of the
+ *  MAIN tree (the host owns the number and persists it; this
+ *  applies it). Deeper opens the hooks above the new level,
+ *  shallower folds from it down -- a level is a floor, not a
+ *  picture, so what the reader opened by its pill stays (see
+ *  treedb_fold_model). Replaces expand all / collapse all
+ *  (7.23.141): the whole treedb at once was the pile, and
+ *  closing threw away everything the reader had opened.
+ ************************************************************/
+function ac_set_fold_level(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let level = Number(kw && kw.level);
+
+    if(!(level > 0)) {
+        log_error(`${gobj_short_name(gobj)}: fold level '${kw && kw.level}' is not a level`);
         return -1;
     }
+    if(!priv._fold_model) {
+        gobj_write_attr(gobj, "fold_level", level);
+        return 0;       /*  applied when the records arrive  */
+    }
+
+    let from = current_fold_level(gobj);
+    level = fold_level_clamp(priv._fold_model, level);
+    gobj_write_attr(gobj, "fold_level", level);
+    if(level === from) {
+        return 0;
+    }
+
     let keep = fold_keep_node(gobj);
     let vp = yui_graph_viewport_of(priv.graph, keep);
-    fold_expand_all(priv._fold_model, priv._fold_state);
+    if(level > from) {
+        fold_open_levels(priv._fold_model, priv._fold_state, level);
+    } else {
+        fold_close_levels(priv._fold_model, priv._fold_state, level);
+    }
     reconcile_fold(gobj, {keep: keep, keep_vp: vp});
 
     return 0;
@@ -10670,30 +10721,11 @@ function fold_keep_node(gobj)
 }
 
 /************************************************************
- *  The roots alone.
- ************************************************************/
-function ac_collapse_all(gobj, event, kw, src)
-{
-    let priv = gobj.priv;
-
-    if(!priv._fold_model) {
-        log_error(`${gobj_short_name(gobj)}: collapse all with no tree loaded`);
-        return -1;
-    }
-    let keep = fold_keep_node(gobj);
-    let vp = yui_graph_viewport_of(priv.graph, keep);
-    fold_collapse_all(priv._fold_model, priv._fold_state);
-    reconcile_fold(gobj, {keep: keep, keep_vp: vp});
-
-    return 0;
-}
-
-/************************************************************
  *  The legend's three settings, from the host, which persists
  *  them. Each rebuilds the tree; the fold state is kept -- it is
  *  keyed by group, and a group that is gone is never read -- except
  *  for a new MAIN topic, whose roots are other roots: the tree
- *  opens again at `expand_depth`.
+ *  opens again at the reader's level, now counted from them.
  ************************************************************/
 function ac_set_hidden_topics(gobj, event, kw, src)
 {
@@ -10724,9 +10756,8 @@ function ac_set_main_topic(gobj, event, kw, src)
     let keep = fold_keep_node(gobj);
     let vp = yui_graph_viewport_of(priv.graph, keep);
     rebuild_fold_model(gobj);
-    fold_expand_to_depth(
-        priv._fold_model, priv._fold_state,
-        gobj_read_integer_attr(gobj, "expand_depth")
+    fold_expand_to_level(
+        priv._fold_model, priv._fold_state, current_fold_level(gobj)
     );
     reconcile_fold(gobj, {relayout: true, keep: keep, keep_vp: vp});
     return 0;
@@ -11404,8 +11435,7 @@ function create_gclass(gclass_name)
             ["EV_FIND_NODES",               ac_find_nodes,          null],
             ["EV_TOGGLE_FOLD",              ac_toggle_fold,         null],
             ["EV_SHOW_MORE",                ac_show_more,           null],
-            ["EV_EXPAND_ALL",               ac_expand_all,          null],
-            ["EV_COLLAPSE_ALL",             ac_collapse_all,        null],
+            ["EV_SET_FOLD_LEVEL",           ac_set_fold_level,      null],
             ["EV_SET_HIDDEN_TOPICS",        ac_set_hidden_topics,   null],
             ["EV_SET_MAIN_TOPIC",           ac_set_main_topic,      null],
             ["EV_SET_LOOSE_TOPICS",         ac_set_loose_topics,    null],
@@ -11472,8 +11502,7 @@ function create_gclass(gclass_name)
         ["EV_CAMERA_CHANGED",           event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_TOGGLE_FOLD",              0],
         ["EV_SHOW_MORE",                0],
-        ["EV_EXPAND_ALL",               0],
-        ["EV_COLLAPSE_ALL",             0],
+        ["EV_SET_FOLD_LEVEL",           0],
         ["EV_SET_HIDDEN_TOPICS",        0],
         ["EV_SET_MAIN_TOPIC",           0],
         ["EV_SET_LOOSE_TOPICS",         0],

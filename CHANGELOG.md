@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.141
+
+- **treedb graph: the fold pair is a STEPPER over the main tree.** `expand
+  all` opened every hook of the treedb at once -- the pile, on purpose -- and
+  `collapse all` threw away everything the reader had opened. Now `▾` opens
+  ONE more level under the main topic's roots, through every topic that is
+  not hidden, and `▸` folds the deepest one, the way the frontend view opens a
+  level per press. Between them a readout says what they act on: the main
+  topic's swatch and name and `level N/M` -- the word too, since the legend
+  chip under it says `departments 2/3` for records on screen; each button is
+  disabled at its end. A level is a floor, not a picture: stepping keeps the pages and pills
+  the reader opened above it. A topic not tied to the main one is its own tree
+  and is left to its pills.
+- **The level persists, per treedb**: `fold_level` (`SDF_PERSIST` on
+  `C_YUI_TREEDB_GRAPH`, `0` = never stepped = `expand_depth`) is handed to the
+  engine on creation, so a reload or a refresh opens at the level it was left.
+- `C_G6_NODES_TREE`: new input `EV_SET_FOLD_LEVEL {level}` and attr
+  `fold_level`; `EV_LEGEND_STATE` carries `fold: {topic, level, levels}`;
+  **`EV_EXPAND_ALL` / `EV_COLLAPSE_ALL` are gone** from the engine (its only
+  host was `C_YUI_TREEDB_GRAPH`). The JSON graph and the frontend view keep
+  their pair. `treedb_fold_model.js`: the model counts `level_of` / `levels`,
+  plus `fold_level_clamp`, `fold_open_levels`, `fold_close_levels`,
+  `fold_expand_to_level`.
+- New consumer i18n keys: `expand one level`, `collapse one level`, `fold
+  level`, `level`.
+
 ## 7.23.140
 
 - **treedb topics: the `graph` button returns to the graph AS IT WAS LEFT,

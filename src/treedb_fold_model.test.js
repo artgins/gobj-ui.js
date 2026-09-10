@@ -26,6 +26,11 @@ import {
     fold_split_group_key,
     fold_main_topic,
     fold_group_shown,
+    fold_is_open,
+    fold_level_clamp,
+    fold_open_levels,
+    fold_close_levels,
+    fold_expand_to_level,
 } from "./treedb_fold_model.js";
 
 const places_desc = {
@@ -320,6 +325,81 @@ describe("depth", () => {
         expect(fold_visible_set(m, st).size).toBe(m.nodes.size);
         fold_collapse_all(m, st);
         expect(fold_visible_set(m, st).size).toBe(2);
+    });
+});
+
+describe("levels of the main tree (the toolbar's stepper)", () => {
+    test("levels count from the main topic's roots, down every hook", () => {
+        let m = fold_build_model(descs, make_records(30));
+        /*  es 1, norte/sur 2, nave1 3, its devices and c1 4  */
+        expect(m.levels).toBe(4);
+        expect(m.level_of.get(K("places", "es"))).toBe(1);
+        expect(m.level_of.get(K("places", "nave1"))).toBe(3);
+        /*  d0 hangs from nave1 (3) and c1 (4): the shallowest wins  */
+        expect(m.level_of.get(K("devices", "d0"))).toBe(4);
+        /*  device_groups is not tied to places: a tree of its own, no level  */
+        expect(m.level_of.has(K("device_groups", "g1"))).toBe(false);
+    });
+
+    test("a hidden topic takes its levels with it", () => {
+        let m = fold_build_model(descs, make_records(30), {hidden_topics: ["devices", "controllers"]});
+        expect(m.levels).toBe(3);
+        let m0 = fold_build_model({}, {});
+        expect(m0.levels).toBe(0);
+        expect(fold_level_clamp(m0, 5)).toBe(1);
+    });
+
+    test("clamp keeps a level between 1 and the deepest one", () => {
+        let m = fold_build_model(descs, make_records(3));
+        expect(fold_level_clamp(m, 0)).toBe(1);
+        expect(fold_level_clamp(m, 3)).toBe(3);
+        expect(fold_level_clamp(m, 9)).toBe(4);
+        expect(fold_level_clamp(m, "2")).toBe(2);
+    });
+
+    test("level 1 is the roots of every tree, and each step opens one more", () => {
+        let m = fold_build_model(descs, make_records(30));
+        let st = fold_new_state(24);
+        fold_expand_to_level(m, st, 1);
+        expect([...fold_visible_set(m, st)].sort())
+            .toEqual([K("device_groups", "g1"), K("places", "es")]);
+        fold_open_levels(m, st, 2);
+        let v = fold_visible_set(m, st);
+        expect(v.has(K("places", "norte"))).toBe(true);
+        expect(v.has(K("places", "nave1"))).toBe(false);
+        fold_open_levels(m, st, 3);
+        expect(fold_visible_set(m, st).has(K("places", "nave1"))).toBe(true);
+        expect(fold_visible_set(m, st).has(K("devices", "d0"))).toBe(false);
+        fold_open_levels(m, st, 4);
+        v = fold_visible_set(m, st);
+        expect(v.has(K("devices", "d23"))).toBe(true);
+        expect(v.has(K("devices", "d24"))).toBe(false);  /*  one page  */
+        expect(v.has(K("controllers", "c1"))).toBe(true);
+    });
+
+    test("opening keeps the pages already shown; closing folds only from its level down", () => {
+        let m = fold_build_model(descs, make_records(30));
+        let st = fold_new_state(24);
+        fold_expand_to_level(m, st, 4);
+        let g = fold_group_key(K("places", "nave1"), "devices");
+        fold_show_more(m, st, g);                           /*  30  */
+        fold_open_levels(m, st, 4);
+        expect(fold_group_shown(m, st, g)).toBe(30);
+        fold_close_levels(m, st, 3);
+        let v = fold_visible_set(m, st);
+        expect(v.has(K("places", "nave1"))).toBe(true);     /*  level 3 stays  */
+        expect(v.has(K("devices", "d0"))).toBe(false);      /*  its hooks folded  */
+        expect(v.has(K("controllers", "c1"))).toBe(false);
+        expect(fold_is_open(st, fold_group_key(K("places", "norte"), "places"))).toBe(true);
+    });
+
+    test("closing does not reopen what the reader folded above the level", () => {
+        let m = fold_build_model(descs, make_records(3));
+        let st = fold_new_state(24);
+        fold_expand_to_level(m, st, 4);
+        fold_toggle(m, st, fold_group_key(K("places", "es"), "places"));   /*  fold es  */
+        fold_close_levels(m, st, 3);
+        expect(fold_is_open(st, fold_group_key(K("places", "es"), "places"))).toBe(false);
     });
 });
 

@@ -1314,15 +1314,28 @@ a level or two, with a count on every cut.
   the container in the capture phase over four event types, exactly as the
   JSON graph's fold handles are — G6 never reads the DOM `click`, it builds its
   own from the pointer pair.
-- **The toolbar's fold pair** (the same two chevrons as the JSON graph):
-  *expand all* opens every hook on all its children — the reader asking for
-  the pile on purpose — and *collapse all* leaves the roots. *Refresh* is the
-  way back to the default depth. **Neither moves the zoom** (since `7.23.78`):
-  a fold is not a reason to change the scale the reader chose, and until then
-  both fitted the whole graph — opening everything zoomed out to a strip and
-  closing it zoomed in on the roots, every time. The camera holds the anchor
-  still when there is one, else the first root: the top of the tree, which is
-  where a JSON viewer keeps the eye when it opens or closes everything.
+- **The toolbar's fold STEPPER** (since `7.23.141`; it replaced the *expand
+  all* / *collapse all* pair): `▸` · **`places level 2/4`** · `▾`. It walks the
+  **main tree** one level at a time, the way the frontend view opens one level
+  per press: level 1 is the main topic's roots (and the loose records the
+  reader asked to see), each `▾` opens the next level through every topic that
+  is not hidden, each `▸` folds the deepest one. The readout says what the two
+  buttons act on — the main topic's swatch and name (data, never translated;
+  gone on a phone, the numbers stay) and `level N/M` — the WORD as well as the
+  numbers, because the legend chip under it says `places 2/4` too and there it
+  means records on screen — and a button is disabled at either end. **A level is a floor, not a picture**: stepping down
+  opens only what is folded above the new level and keeps the pages and pills
+  already open; stepping up folds from the new level down and touches nothing
+  above it. A topic the schema does not tie to the main one is a tree of its
+  own, has no level, and is opened by its pills. The level is the reader's,
+  per treedb: `fold_level` is `SDF_PERSIST` on `C_YUI_TREEDB_GRAPH`, handed to
+  the engine on creation (`0` = never stepped = `expand_depth`), so a reload
+  or a *refresh* opens where it was left. The old pair opened every hook of the
+  treedb at once — the pile, on purpose, which on a treedb of thousands nobody
+  reads — and closing threw away everything the reader had opened.
+  **It does not move the zoom** (since `7.23.78`): a fold is not a reason to
+  change the scale the reader chose. The camera holds the anchor still when
+  there is one, else the first root.
 - **`dagre` reads LEFT TO RIGHT** now, with explicit `nodesep`/`ranksep`: the
   children of a node are a column beside it and the graph reads like a file
   tree. The ports move to the sides with it (fkeys on the left edge, hooks
@@ -1616,13 +1629,17 @@ Three edges of it: the URL wins over the strip (a route that lands on a hidden
 topic shows it first, or it would highlight nothing and say nothing about
 why); the find searches hidden topics too and counts them apart (`3 matches
 (+2 in hidden topics)`), because `0` alone reads as *does not exist* when it
-means *is hidden*; and moving the star reopens the tree at `expand_depth`,
-since other roots are another tree.
+means *is hidden*; and moving the star reopens the tree at the reader's fold
+level, counted from the new roots, since other roots are another tree.
 
 Wiring: the engine publishes `EV_LEGEND_STATE` after every reconcile — one
 entry per topic (hidden ones included) with colour, total, visible, loose and
-flags, plus the main topic — and the view paints the strip from that and
-nothing else. The strip's clicks are `EV_LEGEND_TOPIC {topic, action}` with
+flags, plus the main topic and `fold: {topic, level, levels}` for the toolbar's
+stepper — and the view paints the strip and the stepper from that and nothing
+else. A step is `EV_EXPAND_LEVEL` / `EV_COLLAPSE_LEVEL` (internal); the view
+persists `fold_level` and forwards `EV_SET_FOLD_LEVEL {level}` (the engine's
+`EV_EXPAND_ALL` / `EV_COLLAPSE_ALL` are gone). Stepper keys: `expand one
+level`, `collapse one level`, `fold level`, `level`. The strip's clicks are `EV_LEGEND_TOPIC {topic, action}` with
 `action` one of `toggle`, `main`, `loose`, `focus`; the view persists and
 forwards them as `EV_SET_HIDDEN_TOPICS`, `EV_SET_MAIN_TOPIC`,
 `EV_SET_LOOSE_TOPICS`. Consumer i18n keys: `show topic`, `hide topic`,

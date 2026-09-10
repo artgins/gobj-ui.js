@@ -82,7 +82,6 @@ import {
 
 import {attach_clear} from "./yui_inputs.js";
 import {register_c_g6_nodes_tree} from "./c_g6_nodes_tree.js";
-import {yui_graph_fold_items} from "./yui_graph_camera.js";
 import {yui_toolbar, yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE} from "./yui_toolbar.js";
 import {
     removeChildElements,
@@ -137,6 +136,7 @@ SDATA(data_type_t.DTP_LIST,     "loose_topics",     sdata_flag_t.SDF_PERSIST, "[
 SDATA(data_type_t.DTP_STRING,   "node_mode",        sdata_flag_t.SDF_PERSIST, "expanded", "How the records are drawn: `expanded` = the cards with their pills and ports, `compact` = one-line pills with the name, `shape` = coloured figures, the topology alone. User preference"),
 SDATA(data_type_t.DTP_BOOLEAN,  "node_labels",      sdata_flag_t.SDF_PERSIST, true, "A `shape` node says its name under its figure. User preference"),
 SDATA(data_type_t.DTP_DICT,     "camera",           sdata_flag_t.SDF_PERSIST, "{}", "Where the reader left the viewport: {zoom, x, y}. Handed to the engine on creation and written back when a move settles, so the graph opens where it was left. User preference, per treedb"),
+SDATA(data_type_t.DTP_INTEGER,  "fold_level",       sdata_flag_t.SDF_PERSIST, 0, "The level of the MAIN tree the toolbar's stepper stands on: 1 = the main topic's roots, N = N-1 levels under them; 0 = never stepped, `expand_depth`. Handed to the engine on creation, so the graph opens at the level it was left. User preference, per treedb"),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -269,6 +269,7 @@ function mt_create(gobj)
             hook_port_position: "bottom",
             fkey_port_position: "top",
             expand_depth: gobj_read_integer_attr(gobj, "expand_depth"),
+            fold_level: gobj_read_integer_attr(gobj, "fold_level"),
             fold_page_size: gobj_read_integer_attr(gobj, "fold_page_size"),
             minimap_min_nodes: gobj_read_integer_attr(gobj, "minimap_min_nodes"),
             with_gridline: gobj_read_bool_attr(gobj, "with_gridline"),
@@ -671,6 +672,117 @@ function refresh_node_shape_buttons(gobj, $root)
     }
 }
 
+/************************************************************
+ *  The fold STEPPER: one level less, where the tree stands, one
+ *  level more.
+ *
+ *  It replaces the fold pair (7.23.141). `expand all` opened every
+ *  hook of the treedb -- the pile, on purpose, which on a treedb
+ *  of thousands is a pile nobody reads -- and `collapse all` threw
+ *  away everything the reader had opened. The stepper walks the
+ *  MAIN tree a level at a time, the way the frontend view opens
+ *  one level per press: `+` opens the next level under the main
+ *  topic's roots, through every topic that is not hidden; `-`
+ *  folds the deepest one. Pages and pills the reader opened stay.
+ *
+ *  The readout says what the two buttons act on, which no chevron
+ *  can: the main topic -- its swatch and its name, which is DATA
+ *  and never translated -- and `level/levels`. On a phone the name
+ *  goes and the numbers stay. The level is the reader's, per
+ *  treedb: persisted (`fold_level`) and handed to the engine on
+ *  creation, so a reload opens where it was left.
+ *
+ *  Both buttons are born disabled: nothing can be stepped until
+ *  the engine has said how deep the tree goes (EV_LEGEND_STATE).
+ ************************************************************/
+function fold_level_items(gobj, wide)
+{
+    let step_button = (cls, icon, key, event_name) => {
+        return ['button', {class: `${cls} button`, type: 'button',
+                           style: {height: wide, width: '2.5em'},
+                           disabled: true,
+                           title: t(key), 'data-i18n-title': key,
+                           'aria-label': t(key), 'data-i18n-aria-label': key},
+            yui_toolbar_icon(icon),
+            {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, event_name, {}, gobj);
+                }
+            }
+        ];
+    };
+
+    return [
+        ['div', {class: 'GRAPH_FOLD_STEPPER buttons has-addons',
+                 style: 'margin:0; flex:0 0 auto; flex-wrap:nowrap; align-items:stretch;'}, [
+            /*  The same two chevrons the pills speak: `▸` folded, `▾` open.  */
+            step_button('GRAPH_FOLD_COLLAPSE', 'yi-chevron-right',
+                        'collapse one level', 'EV_COLLAPSE_LEVEL'),
+            /*  A `div` with the button skin, like the legend's main
+             *  chip: a readout between two buttons of one group, not
+             *  a third button, and at full strength -- `is-static`
+             *  is Bulma's grey of something switched off.  */
+            ['div', {class: 'GRAPH_FOLD_LEVEL button',
+                     style: {height: wide, cursor: 'default', gap: '.35rem'},
+                     role: 'status',
+                     title: t('fold level'), 'data-i18n-title': 'fold level'}, [
+                ['span', {class: 'GRAPH_FOLD_SWATCH',
+                          style: 'display:none; width:.8rem; height:.8rem; border-radius:3px; ' +
+                                 'flex:0 0 auto; border:1px solid rgba(0,0,0,.25);'}],
+                ['span', {class: 'GRAPH_FOLD_TOPIC is-hidden-mobile',
+                          style: 'max-width:10em; overflow:hidden; text-overflow:ellipsis; ' +
+                                 'white-space:nowrap; font-weight:600;'}],
+                /*  The WORD, not just the numbers: the legend chip under
+                 *  it says `departments 2/3` too, and there it means
+                 *  records on screen.  */
+                ['span', {class: 'GRAPH_FOLD_WORD', i18n: 'level'}, 'level'],
+                ['span', {class: 'GRAPH_FOLD_COUNT',
+                          style: 'font-variant-numeric:tabular-nums;'}, '–'],
+            ]],
+            step_button('GRAPH_FOLD_EXPAND', 'yi-chevron-down',
+                        'expand one level', 'EV_EXPAND_LEVEL'),
+        ]],
+    ];
+}
+
+/*  Paint the stepper from the engine's last word (EV_LEGEND_STATE).  */
+function refresh_fold_level(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return;
+    }
+    let $readout = $container.querySelector('.GRAPH_FOLD_LEVEL');
+    if(!$readout) {
+        return;
+    }
+
+    let state = priv._legend_state || {};
+    let fold = state.fold || {};
+    let levels = (fold.levels > 0)? fold.levels : 0;
+    let level = (fold.level > 0)? fold.level : 0;
+    let topic = fold.topic || "";
+    let entry = (is_array(state.topics)? state.topics : []).find((e) => e.topic === topic);
+
+    let $swatch = $readout.querySelector('.GRAPH_FOLD_SWATCH');
+    $swatch.style.display = topic? 'inline-block' : 'none';
+    $swatch.style.background = (entry && entry.color) || '#94a3b8';
+    $readout.querySelector('.GRAPH_FOLD_TOPIC').textContent = topic;
+    $readout.querySelector('.GRAPH_FOLD_COUNT').textContent =
+        levels? `${level}/${levels}` : '–';
+
+    let $collapse = $container.querySelector('.GRAPH_FOLD_COLLAPSE');
+    let $expand = $container.querySelector('.GRAPH_FOLD_EXPAND');
+    if($collapse) {
+        $collapse.disabled = !(levels && level > 1);
+    }
+    if($expand) {
+        $expand.disabled = !(levels && level < levels);
+    }
+}
+
 function make_toolbar(gobj)
 {
     let priv = gobj.priv;
@@ -741,11 +853,9 @@ function make_toolbar(gobj)
      *  Center: how the graph is SHOWN.
      */
     let center_items = [
-        /*  The fold pair, the same two chevrons the JSON graph and the
-         *  lazy tree use: the graph opens folded (see the G6 child), and
-         *  these are the whole thing and the roots alone. Refresh is the
-         *  way back to the default depth.  */
-        ...yui_graph_fold_items(gobj, gobj_read_str_attr(gobj, "wide")),
+        /*  The fold stepper: one level less or more of the main tree,
+         *  and between the two, which tree and which level.  */
+        ...fold_level_items(gobj, gobj_read_str_attr(gobj, "wide")),
 
         /*  The view of the nodes -- full cards, one-line pills or
          *  figures -- and the name under a figure.  */
@@ -2795,6 +2905,7 @@ function ac_legend_state(gobj, event, kw, src)
     let priv = gobj.priv;
     priv._legend_state = kw || null;
     refresh_legend(gobj);
+    refresh_fold_level(gobj);
     return 0;
 }
 
@@ -2964,23 +3075,37 @@ function ac_find_nodes(gobj, event, kw, src)
 }
 
 /************************************************************
- *  The fold pair of the toolbar, forwarded to the G6 child,
- *  which owns the tree.
+ *  One press of the fold stepper (EV_EXPAND_LEVEL /
+ *  EV_COLLAPSE_LEVEL): the level moves by one, is SAVED (the
+ *  reader's, per treedb) and reaches the G6 child, which owns
+ *  the tree.
+ *
+ *  The readout moves at once, not when the engine speaks again:
+ *  a reconcile is asynchronous, and a second press that came
+ *  before it would step from the level already left -- two
+ *  presses, one level.
  ************************************************************/
-function ac_expand_all(gobj, event, kw, src)
+function ac_fold_level_step(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    if(priv.gobj_nodes_tree) {
-        gobj_send_event(priv.gobj_nodes_tree, "EV_EXPAND_ALL", {}, gobj);
-    }
-    return 0;
-}
+    let fold = priv._legend_state && priv._legend_state.fold;
 
-function ac_collapse_all(gobj, event, kw, src)
-{
-    let priv = gobj.priv;
+    if(!fold || !(fold.levels > 0)) {
+        log_error(`${gobj_short_name(gobj)}: ${event} with no tree to step through`);
+        return -1;
+    }
+    let level = fold.level + ((event === "EV_EXPAND_LEVEL")? 1 : -1);
+    if(level < 1 || level > fold.levels) {
+        log_error(`${gobj_short_name(gobj)}: ${event}: level ${level} out of 1..${fold.levels}`);
+        return -1;
+    }
+
+    gobj_write_attr(gobj, "fold_level", level);
+    gobj_save_persistent_attrs(gobj, "fold_level");
+    fold.level = level;
+    refresh_fold_level(gobj);
     if(priv.gobj_nodes_tree) {
-        gobj_send_event(priv.gobj_nodes_tree, "EV_COLLAPSE_ALL", {}, gobj);
+        gobj_send_event(priv.gobj_nodes_tree, "EV_SET_FOLD_LEVEL", {level: level}, gobj);
     }
     return 0;
 }
@@ -3181,8 +3306,8 @@ function create_gclass(gclass_name)
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
             ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
             ["EV_FIND_NODES",               ac_find_nodes,              null],
-            ["EV_EXPAND_ALL",               ac_expand_all,              null],
-            ["EV_COLLAPSE_ALL",             ac_collapse_all,            null],
+            ["EV_EXPAND_LEVEL",             ac_fold_level_step,         null],
+            ["EV_COLLAPSE_LEVEL",           ac_fold_level_step,         null],
             ["EV_SET_NODE_MODE",            ac_set_node_mode,           null],
             ["EV_TOGGLE_NODE_LABELS",       ac_toggle_node_labels,      null],
             ["EV_LAYOUT_AUTOSET",           ac_layout_autoset,          null],
@@ -3226,8 +3351,8 @@ function create_gclass(gclass_name)
         ["EV_SET_OPERATION_MODE",       0],
         ["EV_SET_FOCUS_TOPIC",          0],
         ["EV_FIND_NODES",               0],
-        ["EV_EXPAND_ALL",               0],
-        ["EV_COLLAPSE_ALL",             0],
+        ["EV_EXPAND_LEVEL",             0],
+        ["EV_COLLAPSE_LEVEL",           0],
         ["EV_SET_NODE_MODE",            0],
         ["EV_TOGGLE_NODE_LABELS",       0],
         ["EV_FIND_RESULT",              0],
