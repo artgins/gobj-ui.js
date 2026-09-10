@@ -9825,15 +9825,23 @@ function ac_descs(gobj, event, kw, src)
     /*
      *  Assign colors and calculate counters
      *  descs is a dict: { __snaps__: {…}, roles: {…}, users: {…} }
+     *
+     *  The palette goes by ALPHABETICAL order of the topic names, not
+     *  by the order the backend lists them in: that one is not the same
+     *  from one load to the next, and two topics swapped colours with
+     *  it. The legend is alphabetical too, so the strip reads as the
+     *  palette in order.
      */
-    let idx = 0;
-    for(const [topic_name, desc] of Object.entries(descs)) {
+    for(const desc of Object.values(descs)) {
         calculate_hooks_fkeys_counter(desc);
-        if(topic_name.substring(0, 2) === "__") {
-            continue;
-        }
-        desc.color = node_colors[idx % node_colors.length];
-        idx++;
+    }
+    let names = Object.keys(descs).filter((topic_name) => {
+        return topic_name.substring(0, 2) !== "__";
+    }).sort((a, b) => {
+        return a.localeCompare(b);
+    });
+    for(let idx = 0; idx < names.length; idx++) {
+        descs[names[idx]].color = node_colors[idx % node_colors.length];
     }
 
     return 0;

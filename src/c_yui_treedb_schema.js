@@ -406,7 +406,19 @@ function schema_to_graph(gobj)
         return {nodes: nodes, edges: []};
     }
 
-    let idx = 0;
+    /*  The palette by ALPHABETICAL rank, as the treedb graph does it:
+     *  the backend's order is not the same from one load to the next,
+     *  and a topic's colour must not change with it. The cards keep
+     *  the backend's order; only the colour is ranked.  */
+    let rank = {};
+    Object.keys(descs).filter((topic) => {
+        return topic.substring(0, 2) !== "__";
+    }).sort((a, b) => {
+        return a.localeCompare(b);
+    }).forEach((topic, i) => {
+        rank[topic] = i;
+    });
+
     for(let topic of Object.keys(descs)) {
         let is_system = (topic.substring(0, 2) === "__");
         if(!system && is_system) {
@@ -417,8 +429,7 @@ function schema_to_graph(gobj)
         if(is_system) {
             color = SYSTEM_TOPIC_COLOR;
         } else {
-            color = topic_colors[idx % topic_colors.length];
-            idx++;
+            color = topic_colors[rank[topic] % topic_colors.length];
         }
         cards[topic] = {rows: rows, size: card_size(rows), color: color};
     }

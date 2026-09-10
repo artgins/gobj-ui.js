@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.136
+
+- **treedb graph and schema view: a topic keeps its colour.** The palette was
+  handed out in the order the backend lists the topics, which is not the same
+  from one load to the next, so two topics could swap colours between loads.
+  It goes by ALPHABETICAL order of the topic names now, in the graph
+  (`ac_descs`) and in the schema diagram alike, so the legend -- alphabetical
+  since 7.23.135 -- reads as the palette in order. Every topic whose colour
+  nobody chose may change colour ONCE with this release; a colour chosen in
+  the node properties is saved and is not touched.
+
 ## 7.23.135
 
 - **treedb graph: the legend's chips keep their place.** The main topic used
