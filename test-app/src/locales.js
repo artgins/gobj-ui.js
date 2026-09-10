@@ -18,6 +18,11 @@
 import i18next from "i18next";
 
 const es_translation = {
+    "vertical tree compact": "Árbol vertical compacto",
+    "horizontal tree": "Árbol horizontal",
+    "horizontal tree compact": "Árbol horizontal compacto",
+    "lanes vertical": "Carriles vertical",
+    "lanes horizontal": "Carriles horizontal",
     "data": "Datos",
     "Root level. Push a page to drill down; the \"←\" in the header pops back.": "Nivel raíz. Empuja una página para entrar; la \"←\" de la cabecera vuelve.",
     "A deeper page. Use the header \"←\" to go back one level.": "Una página más adentro. Usa la \"←\" de la cabecera para subir un nivel.",

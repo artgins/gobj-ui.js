@@ -448,8 +448,16 @@ function get_node_category(d)
  *    g6_layout:   G6 layout config object applied to the graph
  *    edge_type:   matching G6 edge type
  ***************************************************************/
+/*  `key` is the i18n key of the layout and `label` its reference ENGLISH
+ *  wording -- the value a consumer's `en` bundle carries for that key.
+ *
+ *  The keys are SHARED with the JSON graph's own picker (`vertical tree`,
+ *  `dagre top-down`, `dagre left-right`): the two graphs sit side by side
+ *  in the same console, so the same layout must be called the same thing
+ *  in both -- the toolbar vocabulary rule, applied to a select.  */
 const LAYOUTS = {
     "vertical": {
+        key: "vertical tree",
         label: "Vertical",
         orientation: "V",
         compact: false,
@@ -457,6 +465,7 @@ const LAYOUTS = {
         edge_type: 'cubic-vertical',
     },
     "vertical-compact": {
+        key: "vertical tree compact",
         label: "Vertical compact",
         orientation: "V",
         compact: true,
@@ -464,6 +473,7 @@ const LAYOUTS = {
         edge_type: 'cubic-vertical',
     },
     "horizontal": {
+        key: "horizontal tree",
         label: "Horizontal",
         orientation: "H",
         compact: false,
@@ -471,6 +481,7 @@ const LAYOUTS = {
         edge_type: 'cubic-horizontal',
     },
     "horizontal-compact": {
+        key: "horizontal tree compact",
         label: "Horizontal compact",
         orientation: "H",
         compact: true,
@@ -478,6 +489,7 @@ const LAYOUTS = {
         edge_type: 'cubic-horizontal',
     },
     "lanes-v": {
+        key: "lanes vertical",
         label: "Lanes vertical",
         orientation: "V",
         compact: true,
@@ -485,6 +497,7 @@ const LAYOUTS = {
         edge_type: 'polyline',
     },
     "lanes-h": {
+        key: "lanes horizontal",
         label: "Lanes horizontal",
         orientation: "H",
         compact: true,
@@ -492,6 +505,7 @@ const LAYOUTS = {
         edge_type: 'polyline',
     },
     "dagre-tb": {
+        key: "dagre top-down",
         label: "Dagre (top → bottom)",
         orientation: "V",
         compact: true,
@@ -499,6 +513,7 @@ const LAYOUTS = {
         edge_type: 'polyline',
     },
     "dagre-lr": {
+        key: "dagre left-right",
         label: "Dagre (left → right)",
         orientation: "H",
         compact: true,
@@ -1015,13 +1030,20 @@ function make_toolbar(gobj)
     /*
      *  Layout selector
      */
+    /*  An <option> is text like any other, and it was the only text of
+     *  this window that stayed English: the labels were written into
+     *  LAYOUTS and put straight on the node. The KEY is the layout id --
+     *  the same choice the treedb graph makes for its own layouts -- and
+     *  `value` stays explicit, or a translated option would tell the FSM
+     *  to enter a layout called "Vertical compacto".  */
     let options = [];
     for(let key of Object.keys(LAYOUTS)) {
-        let opt_attrs = {value: key};
+        let i18n_key = LAYOUTS[key].key;
+        let opt_attrs = {value: key, 'data-i18n': i18n_key};
         if(key === current_layout) {
             opt_attrs.selected = "selected";
         }
-        options.push(['option', opt_attrs, LAYOUTS[key].label]);
+        options.push(['option', opt_attrs, t(i18n_key)]);
     }
 
     /*  `.select` on the WRAPPER and not on the control: Bulma styles

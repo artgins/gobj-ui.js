@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.131
+
+- **fix: the frontend view's layout `<option>`s were the last English text in
+  that window.** Its eight labels were written into the `LAYOUTS` table and
+  put straight on the node, so a language change renamed the select
+  (*"disposición"*) and left its options reading *"Vertical compact"*,
+  *"Lanes vertical"*, *"Dagre (top → bottom)"*. An `<option>` is text like any
+  other: it carries `data-i18n` now, with `value` kept explicit -- a
+  translated option with no value tells the FSM to enter a layout called
+  *"Vertical compacta"*.
+- **The keys are SHARED with the JSON graph's own picker** (`vertical tree`,
+  `dagre top-down`, `dagre left-right`): the two graphs sit side by side in
+  the same console, so the same layout is called the same thing in both. It
+  is the toolbar-vocabulary rule of `7.23.x`, applied to a select. Three new
+  keys for the layouts that have no counterpart there (`vertical tree
+  compact`, `horizontal tree`, `horizontal tree compact`, `lanes vertical`,
+  `lanes horizontal`).
+
 ## 7.23.130
 
 - **doc: the Developer window's 46 keys are a BLIND SPOT for a consumer's
