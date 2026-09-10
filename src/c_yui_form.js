@@ -1718,7 +1718,16 @@ function create_coordinates(gobj, attrs)
         ['div', {class: 'control has-icons-left'}, [
             [
                 'input',
-                {class: 'input', type: 'text', placeholder: t('coordinates') + '...'},
+                {class: 'input', type: 'text',
+                 /*  A placeholder is not a NAME: it disappears the moment
+                  *  something is typed, and a reader is not obliged to
+                  *  announce it. And the key must be whole -- a composed
+                  *  `t('coordinates') + '...'` cannot carry one, so it
+                  *  froze in the language it was built in.  */
+                 placeholder: t('coordinates...'),
+                 'data-i18n-placeholder': 'coordinates...',
+                 'aria-label': t('coordinates'),
+                 'data-i18n-aria-label': 'coordinates'},
                 '',
                 {
                     'input': function (evt) {

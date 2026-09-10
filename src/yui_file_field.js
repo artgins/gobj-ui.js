@@ -41,6 +41,8 @@ import {
 
 import "./yui_file_field.css";
 
+
+import {t} from "i18next";
 /*
  *  What the treedb's default ceiling accepts, as an `accept` attribute:
  *  a hint to the file dialog, never a check. The check is treedb's, on
@@ -261,7 +263,8 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
         type: "button",
         class: "FILE_PICK button is-small",
         "data-i18n-title": "choose a file",
-        "aria-label": "choose a file"
+        "aria-label": t("choose a file"),
+        "data-i18n-aria-label": "choose a file"
     }, [
         ["span", {class: "FILE_PICK_ICON yi-upload"}],
         /*  The label stays: this control is alone in its row, so nothing
@@ -274,7 +277,8 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
         type: "button",
         class: "FILE_CLEAR button is-small",
         "data-i18n-title": "remove the file",
-        "aria-label": "remove the file"
+        "aria-label": t("remove the file"),
+        "data-i18n-aria-label": "remove the file"
     }, [
         ["span", {class: "FILE_CLEAR_ICON yi-trash"}]
     ]]);

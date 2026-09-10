@@ -50,6 +50,8 @@ import {
     wizard_should_validate,
 } from "./wizard_helpers.js";
 
+import {t} from "i18next";
+
 
 /***************************************************************
  *              Constants
@@ -166,7 +168,7 @@ function build_ui(gobj)
             ],
             ['div', {class: 'yui-wizard-footer is-flex is-justify-content-space-between is-flex-grow-0',
                      style: 'gap:.5rem; padding:.5rem;'}, [
-                ['button', {class: 'yui-wizard-back button', 'aria-label': 'back'}, [
+                ['button', {class: 'yui-wizard-back button', 'aria-label': t('back'), 'data-i18n-aria-label': 'back'}, [
                     ['span', {class: 'icon'}, ['i', {class: 'yi-arrow-left'}]],
                     ['span', {class: 'is-hidden-mobile', i18n: 'back'}, 'back']
                 ], {
@@ -175,7 +177,7 @@ function build_ui(gobj)
                         gobj_send_event(gobj, "EV_PREV", {}, gobj);
                     }
                 }],
-                ['button', {class: 'yui-wizard-primary button is-link', 'aria-label': 'next'}, [
+                ['button', {class: 'yui-wizard-primary button is-link', 'aria-label': t('next'), 'data-i18n-aria-label': 'next'}, [
                     ['span', {class: 'yui-wizard-primary-label', i18n: 'next'}, 'next']
                 ], {
                     click: function(evt) {

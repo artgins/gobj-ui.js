@@ -44,6 +44,8 @@ import {
     gobj_name,
 } from "@yuneta/gobj-js";
 
+import {t} from "i18next";
+
 
 /***************************************************************
  *              Constants
@@ -494,7 +496,7 @@ function ac_register_window(gobj, event, kw, src)
         ), [
             chip_lead(kw.icon),
             ['span', {class: 'yui-dock-label'}, label_items],
-            ['button', {class: 'yui-dock-close', type: 'button', 'aria-label': 'close'}, WC_X, {
+            ['button', {class: 'yui-dock-close', type: 'button', 'aria-label': t('close'), 'data-i18n-aria-label': 'close'}, WC_X, {
                 click: (evt) => {
                     evt.stopPropagation();
                     gobj_send_event(entry.gobj, "EV_CLOSE_WINDOW", {}, gobj);

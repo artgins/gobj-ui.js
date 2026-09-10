@@ -148,7 +148,7 @@ function build_ui(gobj)
         ['div', {class: 'C_YUI_PAGER', style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'yui-pager-header is-flex is-align-items-center is-flex-grow-0',
                      style: 'gap:.25rem; padding:.25rem .25rem;'}, [
-                ['button', {class: 'yui-pager-back button is-white is-hidden', 'aria-label': 'back'}, [
+                ['button', {class: 'yui-pager-back button is-white is-hidden', 'aria-label': t('back'), 'data-i18n-aria-label': 'back'}, [
                     ['span', {class: 'icon'}, ['i', {class: 'yi-arrow-left'}]]
                 ], {
                     click: function(evt) {
@@ -157,7 +157,7 @@ function build_ui(gobj)
                     }
                 }],
                 ['span', {class: 'yui-pager-title is-flex-grow-1', style: 'font-weight:600;'}, ''],
-                ['button', {class: 'yui-pager-discard button is-white is-hidden', 'aria-label': 'discard'}, [
+                ['button', {class: 'yui-pager-discard button is-white is-hidden', 'aria-label': t('discard'), 'data-i18n-aria-label': 'discard'}, [
                     ['span', {class: 'icon'}, ['i', {class: 'yi-broom'}]],
                     ['span', {class: 'is-hidden-mobile', i18n: 'discard'}, 'discard']
                 ], {

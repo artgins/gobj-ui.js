@@ -550,7 +550,7 @@ function build_ui(gobj)
                      *      Minimize (to dock)
                      *----------------------------*/
                     ['button', {
-                        class: 'WINDOW_MIN yui-wc wc-min', type: 'button', 'aria-label': 'minimize',
+                        class: 'WINDOW_MIN yui-wc wc-min', type: 'button', 'aria-label': t('minimize'), 'data-i18n-aria-label': 'minimize',
                         style: (gobj_read_bool_attr(gobj, "showMin") &&
                                 gobj_read_pointer_attr(gobj, "manager")) ? '' : 'display:none;',
                     }, WC_MIN, {
@@ -563,7 +563,7 @@ function build_ui(gobj)
                      *      Maximize / restore
                      *----------------------------*/
                     ['button', {
-                        class: 'WINDOW_MAX yui-wc wc-max', type: 'button', 'aria-label': 'maximize',
+                        class: 'WINDOW_MAX yui-wc wc-max', type: 'button', 'aria-label': t('maximize'), 'data-i18n-aria-label': 'maximize',
                         style: gobj_read_bool_attr(gobj, "showMax") ? '' : 'display:none;',
                     }, WC_MAX, {
                         click: (evt) => {
@@ -575,7 +575,7 @@ function build_ui(gobj)
                      *      Close
                      *----------------------------*/
                     ['button', {
-                        class: 'WINDOW_CLOSE yui-wc wc-close', type: 'button', 'aria-label': 'close',
+                        class: 'WINDOW_CLOSE yui-wc wc-close', type: 'button', 'aria-label': t('close'), 'data-i18n-aria-label': 'close',
                     }, WC_CLOSE, {
                         click: (evt) => {
                             evt.stopPropagation();

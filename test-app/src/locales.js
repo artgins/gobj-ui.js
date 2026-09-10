@@ -18,6 +18,10 @@
 import i18next from "i18next";
 
 const es_translation = {
+    "breadcrumbs": "Miga de pan",
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "coordinates...": "Coordenadas...",
     /*  Keys the LIBRARY asks for and the demo did not define, plus the
      *  shell declaration's own. Found by dumping the deployed page and
      *  by the guard that now reads both.  */

@@ -379,7 +379,12 @@ function make_toolbar(gobj)
      *  which re-fires EV_SEARCH with an empty term through the FSM.  */
     let $search_input = createElement2(
         ['input', {class: 'JSON_SEARCH input', type: 'text',
-                   placeholder: t("search")}, [], {
+                   placeholder: t("search"),
+                   'data-i18n-placeholder': "search",
+                   /*  A placeholder is not a name: it is gone as soon as
+                    *  something is typed.  */
+                   'aria-label': t("search"),
+                   'data-i18n-aria-label': "search"}, [], {
             input: function(evt) {
                 gobj_send_event(gobj, "EV_SEARCH", {text: evt.target.value}, gobj);
             }

@@ -495,7 +495,7 @@ function render_breadcrumb(gobj, items)
     }
 
     return createElement2(
-        ["nav", {class: "breadcrumb is-small", "aria-label": "breadcrumbs"},
+        ["nav", {class: "breadcrumb is-small", "aria-label": t("breadcrumbs"), "data-i18n-aria-label": "breadcrumbs"},
             [["ul", {}, lis]]]
     );
 }

@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.129
+
+- **fix: sixteen literal `aria-label`s in the library's own widgets** -- the
+  pager's back and discard, a window's minimize/maximize/close, the dock's
+  close, the breadcrumb nav, the wizard's back and next, the file field's
+  choose/remove, the toast's ✕, the modal's back and ✕, the confirm's ✕.
+  **Every one of them is ICON-ONLY**, so the `aria-label` IS the name, and
+  every one of them was frozen English in all six consumers. Read on the
+  demo, where the wizard's back button said *"Atrás"* and announced itself
+  as *"back"*. They go through `t()` and carry `data-i18n-aria-label` now.
+- **fix: a placeholder was the only name of three search boxes** (the JSON
+  viewer's, the gclass viewer's, the form's coordinates box) -- a
+  placeholder vanishes the moment something is typed and a reader is not
+  obliged to announce it. They gain an `aria-label`, and the placeholder its
+  own key: the coordinates one was composed (`t('coordinates') + '...'`), so
+  no key could reach it and it froze in the language it was built in.
+- New consumer keys: `breadcrumbs`, `minimize`, `maximize`, `coordinates...`.
+
 ## 7.23.128
 
 - **fix: Tom Select's box had no name.** It HIDES the `<select>` it is given
