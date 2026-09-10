@@ -18,6 +18,33 @@
 import i18next from "i18next";
 
 const es_translation = {
+    "Root level. Push a page to drill down; the \"←\" in the header pops back.": "Nivel raíz. Empuja una página para entrar; la \"←\" de la cabecera vuelve.",
+    "A deeper page. Use the header \"←\" to go back one level.": "Una página más adentro. Usa la \"←\" de la cabecera para subir un nivel.",
+    "Items": "Elementos",
+    "no rows": "Sin filas",
+    "#": "#",
+    "version": "Versión",
+    "cpu": "CPU",
+    /*  What Tabulator draws for itself, asked through the `tr()` alias
+     *  of yui_tabulator_i18n.js -- which is why no scan of `t(` saw
+     *  these and the paginator stayed in English.  */
+    "expand loaded": "Expandir lo cargado",
+    "create mode": "Modo creación",
+    "update mode": "Modo actualización",
+    "Open item detail →": "Abrir el detalle del elemento →",
+    "first": "Primera",
+    "first page": "Primera página",
+    "last": "Última",
+    "last page": "Última página",
+    "prev": "Anterior",
+    "prev page": "Página anterior",
+    "next page": "Página siguiente",
+    "show page": "Ir a la página",
+    "page size": "Filas por página",
+    "all": "Todas",
+    "loading": "Cargando",
+    "error": "Error",
+    "filter column": "filtrar columna...",
     "breadcrumbs": "Miga de pan",
     "minimize": "Minimizar",
     "maximize": "Maximizar",
@@ -561,9 +588,9 @@ const es_translation = {
     "Modals": "Modales",
     "The shell modal helpers (shell_modals.js): Promise-based icon-centric confirms (yui_shell_confirm_ok / yesno / yesnocancel) on the shell's modal layer riding its Escape priority chain — Enter answers the primary, Escape dismisses with the safe default, repeat presses never stack a second modal — and auto-dismiss notifications (yui_shell_show_info / warning / error). Each answer is echoed below the buttons. Fully offline.":
         "Los helpers de modales del shell (shell_modals.js): confirms icon-céntricos basados en Promise (yui_shell_confirm_ok / yesno / yesnocancel) en la capa modal del shell montados en su cadena de prioridad de Escape — Enter responde la acción primaria, Escape descarta con el valor seguro, pulsar repetidamente nunca apila un segundo modal — y notificaciones con auto-descarte (yui_shell_show_info / warning / error). Cada respuesta se muestra bajo los botones. Totalmente offline.",
-    "confirm yes / no / cancel": "confirm sí / no / cancelar",
-    "confirm yes / no": "confirm sí / no",
-    "confirm ok": "confirm ok",
+    "confirm yes / no / cancel": "confirmar sí / no / cancelar",
+    "confirm yes / no": "confirmar sí / no",
+    "confirm ok": "confirmar aceptar",
     "notify info": "notificar info",
     "notify warning": "notificar aviso",
     "notify error": "notificar error",

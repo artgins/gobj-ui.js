@@ -274,8 +274,11 @@ function build_ui(gobj)
             ["div", {class: "DEMO_HEAD"}, head],
             ["div", {class: "DEMO_FORM_MODE buttons has-addons mb-2"}, [
                 ["button", {class: "button is-small DEMO_MODE_UPDATE is-primary",
-                            type: "button", title: "update mode",
-                            "aria-label": "update mode"}, [
+                            type: "button",
+                            title: t("update mode"),
+                            "data-i18n-title": "update mode",
+                            "aria-label": t("update mode"),
+                            "data-i18n-aria-label": "update mode"}, [
                     ["span", {i18n: "update"}, "update"]
                 ], {
                     click: function(evt) {
@@ -284,8 +287,11 @@ function build_ui(gobj)
                     }
                 }],
                 ["button", {class: "button is-small DEMO_MODE_CREATE",
-                            type: "button", title: "create mode",
-                            "aria-label": "create mode"}, [
+                            type: "button",
+                            title: t("create mode"),
+                            "data-i18n-title": "create mode",
+                            "aria-label": t("create mode"),
+                            "data-i18n-aria-label": "create mode"}, [
                     ["span", {i18n: "create"}, "create"]
                 ], {
                     click: function(evt) {

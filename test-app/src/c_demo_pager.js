@@ -146,15 +146,17 @@ function mt_destroy(gobj)
  ***************************************************************/
 function page_content(gobj, next_id, btn_label)
 {
+    /*  The key goes ON the node, not only through t(): a page built once
+     *  keeps the language it was born in for the life of the stack.  */
+    let lead_key = next_id === "detail"
+        ? "Root level. Push a page to drill down; the \"←\" in the header pops back."
+        : "A deeper page. Use the header \"←\" to go back one level.";
     let children = [
-        ["p", {class: "mb-3"},
-            next_id === "detail"
-                ? "Root level. Push a page to drill down; the \"←\" in the header pops back."
-                : "A deeper page. Use the header \"←\" to go back one level."]
+        ["p", {class: "mb-3", i18n: lead_key}, t(lead_key)]
     ];
     if(next_id) {
         children.push(
-            ["button", {class: "button is-small is-link"}, btn_label, {
+            ["button", {class: "button is-small is-link", i18n: btn_label}, t(btn_label), {
                 click: function(evt) {
                     evt.stopPropagation();
                     let priv = gobj.priv;

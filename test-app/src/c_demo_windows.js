@@ -203,8 +203,10 @@ function build_ui(gobj)
             ["div", {class: "DEMO_WINDOWS_ACTIONS buttons"}, [
                 ["button", {
                     class: "DEMO_WINDOWS_NEW button",
-                    title: "new window",
-                    "aria-label": "new window"
+                    title: t("new window"),
+                    "data-i18n-title": "new window",
+                    "aria-label": t("new window"),
+                    "data-i18n-aria-label": "new window"
                 }, [
                     ["i", {class: "yi-plus", "aria-hidden": "true"}],
                     ["span", {class: "is-hidden-mobile", i18n: "new window",

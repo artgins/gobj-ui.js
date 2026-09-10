@@ -20,6 +20,7 @@ import {
     gobj_parent,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
     gobj_name,
     createElement2,
     refresh_language,
@@ -28,6 +29,10 @@ import {
 import {lead_block} from "./demo_lead.js";
 
 import {t} from "i18next";
+
+import {yui_shell_of} from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {yui_tabulator_lang, yui_tabulator_relocalize}
+    from "@yuneta/gobj-ui/src/yui_tabulator_i18n.js";
 
 import {TabulatorFull as Tabulator} from "tabulator-tables";
 import "tabulator-tables/dist/css/tabulator.min.css";
@@ -112,22 +117,27 @@ function mt_start(gobj)
     let table = new Tabulator("#" + priv.table_id, {
         layout:         "fitColumns",
         height:         "100%",
-        placeholder:    "no rows",
+        placeholder:    t("no rows"),
         selectableRows: 1,
         columnDefaults: {headerHozAlign: "left", resizable: false},
         initialSort:    [{column: "id", dir: "asc"}],
-        columns: [
-            {title: "#",       field: "id",      width: 60, hozAlign: "right"},
-            {title: "Role",    field: "role",    minWidth: 140},
-            {title: "Name",    field: "name",    minWidth: 150},
-            {title: "Version", field: "version", width: 110},
-            {title: "CPU",     field: "cpu",     width: 90, hozAlign: "right",
-                formatter: cell => `${cell.getValue()} %`},
-            {title: "Status",  field: "status",  width: 130, formatter: status_formatter},
-        ],
+        columns:        make_columns(),
+        /*  What Tabulator draws for ITSELF -- the paginator, the loading
+         *  and error text, the header-filter placeholder -- speaks no
+         *  language until it is given one, and this demo is where a
+         *  consumer copies the recipe from.  */
+        ...yui_tabulator_lang(t),
     });
     table.on("tableBuilt", () => table.setData(SAMPLE_ROWS));
     priv.tabulator = table;
+
+    /*  A widget's own chrome carries no key an attribute could reach, so
+     *  it does not follow refresh_language(): the view re-renders it on
+     *  the shell's EV_LANGUAGE_CHANGED, which means subscribing to it.  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
 }
 
 /***************************************************************
@@ -137,6 +147,10 @@ function mt_stop(gobj)
 {
     let priv = gobj.priv;
 
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
     if(priv.tabulator) {
         priv.tabulator.destroy();
         priv.tabulator = null;
@@ -164,6 +178,44 @@ function mt_destroy(gobj)
 
 
 
+
+/***************************************************************
+ *  The columns, built EVERY time they are needed.
+ *
+ *  A `title` decided when the definitions are built is frozen there:
+ *  the language action re-runs `setColumns()` over the SAME objects, so
+ *  the header would keep the words it was born with. A `titleFormatter`
+ *  runs again.
+ ***************************************************************/
+function make_columns()
+{
+    return [
+        {field: "id",      width: 60,   hozAlign: "right",
+            titleFormatter: () => t("#")},
+        {field: "role",    minWidth: 140, titleFormatter: () => t("role")},
+        {field: "name",    minWidth: 150, titleFormatter: () => t("name")},
+        {field: "version", width: 110,  titleFormatter: () => t("version")},
+        {field: "cpu",     width: 90,   hozAlign: "right",
+            titleFormatter: () => t("cpu"),
+            formatter: cell => `${cell.getValue()} %`},
+        {field: "status",  width: 130,  titleFormatter: () => t("status"),
+            formatter: status_formatter},
+    ];
+}
+
+/***************************************************************
+ *  The language changed: the table's own chrome and its headers.
+ ***************************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.tabulator) {
+        yui_tabulator_relocalize(priv.tabulator, t);
+        priv.tabulator.setColumns(make_columns());
+    }
+    return 0;
+}
 
 /***************************************************************
  *  A coloured Bulma tag per status.
@@ -241,10 +293,14 @@ function create_gclass(gclass_name)
     }
 
     const states = [
-        ["ST_IDLE", []]
+        ["ST_IDLE", [
+            ["EV_LANGUAGE_CHANGED", ac_language_changed, null]
+        ]]
     ];
 
-    const event_types = [];
+    const event_types = [
+        ["EV_LANGUAGE_CHANGED", 0]
+    ];
 
     __gclass__ = gclass_create(
         gclass_name,

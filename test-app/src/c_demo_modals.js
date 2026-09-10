@@ -215,8 +215,14 @@ function build_ui(gobj)
                 ["button", {
                     class: "DEMO_MODALS_TRIGGER button",
                     "data-trigger": trig.id,
-                    title: trig.label,
-                    "aria-label": trig.label
+                    /*  The label arrives as a VARIABLE, which no scan of
+                     *  the source can see -- so the KEY goes on the element
+                     *  too, or the name freezes in the language it was
+                     *  built in.  */
+                    title: t(trig.label),
+                    "data-i18n-title": trig.label,
+                    "aria-label": t(trig.label),
+                    "data-i18n-aria-label": trig.label
                 }, [
                     ["i", {class: trig.icon, "aria-hidden": "true"}],
                     ["span", {class: "is-hidden-mobile", i18n: trig.label,
