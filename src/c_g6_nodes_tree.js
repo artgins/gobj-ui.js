@@ -290,7 +290,7 @@ const PORT_LINE_WIDTH = 2;
  *  gobj tree view has: `expanded` is the card with its pills and
  *  its ports; `compact` is a one-line pill with the name inside
  *  and small ports, the half-way house; `shape` is a figure of the
- *  topic's colour -- a square, a circle, a diamond... chosen in the
+ *  topic's colour -- a circle, a square, a diamond... chosen in the
  *  node's properties -- no ports, no text, topology and nothing
  *  else. The three tiers keep their order of size in every view,
  *  so a root is still bigger than a leaf when nothing says which
@@ -311,9 +311,11 @@ const SHAPE_SIZE = {
     child:        22,
 };
 /*  The figures a `shape` node can be, by G6's own node types
- *  (`square` is G6's `rect` with rounded corners).  */
+ *  (`square` is G6's `rect` with rounded corners). A circle by
+ *  default: a figure is a POINT of the topology, and a circle is
+ *  the one figure that says nothing more than that.  */
 const NODE_SHAPES = ['square', 'circle', 'diamond', 'triangle', 'hexagon', 'star'];
-const DEFAULT_NODE_SHAPE = 'square';
+const DEFAULT_NODE_SHAPE = 'circle';
 
 /***************************************************************
  *  Internal layout and operation mode definitions
@@ -519,6 +521,7 @@ let PRIVATE_DATA = {
     _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
     _focus_ids:         [],         // node ids carrying the focus 'active' state
     _on_pointerdown_focus: null,    // listener keeping the keyboard on the canvas
+    _on_native_contextmenu: null,   // listener keeping the browser's menu out
     _uninstall_long_press: null,    // touch door to the context menu
     toolbar_collapsed:  true,       // floating toolbars folded (narrow only)
     _toolbars_could_collapse: null, // last answer, to notice it changed
@@ -702,6 +705,13 @@ function mt_destroy(gobj)
             "focusout", priv._on_focusout_restore
         );
         priv._on_focusout_restore = null;
+    }
+
+    if(priv._on_native_contextmenu) {
+        priv.$container.removeEventListener(
+            "contextmenu", priv._on_native_contextmenu, true
+        );
+        priv._on_native_contextmenu = null;
     }
 
     if(priv.theme_observer) {
@@ -1141,6 +1151,32 @@ function configure_events(gobj)
     };
     priv.$container.addEventListener("focusout", priv._on_focusout_restore);
 
+    /*  The browser's own menu never opens over the graph.
+     *
+     *  The context-menu plugin calls preventDefault() on the event
+     *  it is handed, and that event is the one @antv/g SYNTHESISES
+     *  from `pointerdown` with `button === 2` -- not the DOM's
+     *  `contextmenu`, which nobody cancelled. So a right click opened
+     *  both menus, and where ours had nothing to show (an edge, the
+     *  empty canvas) it opened the browser's alone. A form field of a
+     *  popover keeps it: that is where cut and paste live.  */
+    if(priv._on_native_contextmenu) {
+        priv.$container.removeEventListener(
+            "contextmenu", priv._on_native_contextmenu, true
+        );
+    }
+    priv._on_native_contextmenu = (ev) => {
+        let target = ev.target;
+        if(target && typeof target.closest === "function" &&
+                target.closest("input, textarea, select, [contenteditable]")) {
+            return;
+        }
+        ev.preventDefault();
+    };
+    priv.$container.addEventListener(
+        "contextmenu", priv._on_native_contextmenu, true
+    );
+
     /*  The canvas carries a `tabIndex` of its own, so a keydown reaches
      *  us only while the GRAPH has focus. That is what keeps Ctrl+A in
      *  the find box a text selection and not a selection of every node:
@@ -1205,7 +1241,12 @@ function configure_plugins(gobj)
      *  press below, so the gesture arms itself on exactly what the
      *  menu would agree to open on.  */
     let menu_enable = (e) => {
-        return e.targetType === 'node' || e.targetType === 'edge';
+        if(e.targetType === 'node') {
+            return true;
+        }
+        /*  An edge's commands (its properties, unlink) are edition
+         *  commands: in reading mode it has nothing to offer.  */
+        return e.targetType === 'edge' && !!priv.edit_mode;
     };
 
     graph_add_plugin(
@@ -2400,7 +2441,7 @@ function pill_innerHTML_of(gobj, nd, theme, highlight, selected, anchored)
 
 /*  The figure a `shape` node wears: the node's own, then the
  *  topic's default (the node properties popover writes both), then
- *  a square.  */
+ *  a circle.  */
 function node_figure_of(gobj, desc, geometry)
 {
     let shape = geometry? geometry.node_shape : null;
@@ -2447,13 +2488,14 @@ function figure_shape_of(gobj, desc, record, geometry, flags)
     let fill = dark? mix_colors(paint.fill, 0.25, "#2c3542")
                    : mix_colors(paint.fill, 0.10, "#ffffff");
     let stroke = dark? mix_colors(paint.fill, 0.85, "#ffffff") : paint.fill;
-    let line_width = 2;
+    /*  The card's and the pill's line width, 1 unless somebody chose
+     *  another: the three views of a record wear the same outline.  */
+    let line_width = paint.lineWidth;
     /*  A paint somebody CHOSE (a node's or a topic's own, saved in
      *  `__graphs__`) is not ours to reinterpret: it comes through as
      *  it was chosen.  */
     if(paint.stroke !== getStrokeColor(paint.fill)) {
         stroke = paint.stroke;
-        line_width = Math.max(paint.lineWidth, 2);
     }
     if(f.selected) {
         stroke = SELECT_RING;
@@ -6804,6 +6846,7 @@ function show_node_popover(gobj)
     shapeSelect.value = nodeData.data && nodeData.data.desc
         ? node_figure_of(gobj, nodeData.data.desc, nodeData.data.graph_props || {})
         : DEFAULT_NODE_SHAPE;
+    let orig_figure = shapeSelect.value;
 
     // Apply-to scope
     create_form_label(popover, 'apply to');
@@ -6832,7 +6875,10 @@ function show_node_popover(gobj)
                     strokeInput.value,
                     parseInt(lwInput.value) || 1,
                     scopeSelect.value,
-                    shapeSelect.value
+                    /*  Only a figure somebody CHOSE is written: the
+                     *  one the select opened on is today's default,
+                     *  and saving it would freeze it on the node.  */
+                    (shapeSelect.value !== orig_figure)? shapeSelect.value : ""
                 );
             },
         },
@@ -8341,7 +8387,9 @@ function build_context_menu_items(gobj, e)
             gobj, node_id, canvasPoint[0], canvasPoint[1]
         );
 
-        if(port_key) {
+        /*  A port's commands are edition commands; out of edition a
+         *  port is part of its node, and gets the node's menu.  */
+        if(port_key && priv.edit_mode) {
             priv._context_port_key = port_key;
             return build_port_context_menu(gobj, node_id, port_key);
         } else {
@@ -8411,18 +8459,30 @@ function build_port_context_menu(gobj, node_id, port_key)
         items.push(ctx_item('g6-icon-edit', t('port properties'), 'port_properties'));
         items.push(ctx_item('g6-icon-resize', t('resize all ports'), 'resize_all_ports'));
         items.push(ctx_item('g6-icon-resize', t('resize topic ports'), 'resize_topic_ports'));
+        /*  The way back from the popover and the two above: the
+         *  library's own shape and radius.  */
+        items.push(ctx_item('g6-icon-undo', t('reset port'), 'reset_port'));
+        items.push(ctx_item('g6-icon-undo', t('reset topic ports'), 'reset_topic_ports'));
+        items.push(ctx_item('g6-icon-undo', t('reset all ports'), 'reset_all_ports'));
     }
 
     return items;
 }
 
 /************************************************************
- *  Build edge context menu items (prepared for expansion).
+ *  Build edge context menu items: the two floating icons of a
+ *  selected edge, for a right click and for a finger.
  ************************************************************/
 function build_edge_context_menu(gobj)
 {
     let items = [];
-    // Future: add edge-specific actions here
+
+    if(gobj.priv.edit_mode) {
+        inject_svg_icons();
+        items.push(ctx_item('g6-icon-edit', t('edge properties'), 'edge_properties'));
+        items.push(ctx_item('g6-icon-delete', t('unlink'), 'unlink_edge'));
+    }
+
     return items;
 }
 
@@ -8462,6 +8522,32 @@ function handle_context_menu_click(gobj, value)
             break;
         case 'resize_topic_ports':
             copy_size_to_ports(gobj, true);
+            break;
+        case 'reset_port':
+            reset_ports(gobj, 'this');
+            break;
+        case 'reset_topic_ports':
+            reset_ports(gobj, 'same_topic');
+            break;
+        case 'reset_all_ports':
+            reset_ports(gobj, 'all');
+            break;
+        case 'edge_properties':
+            if(priv._context_edge_id) {
+                deselect_node(gobj);
+                select_edge(gobj, priv._context_edge_id);
+                show_edge_popover(gobj);
+            }
+            break;
+        case 'unlink_edge':
+            if(priv._context_edge_id) {
+                deselect_node(gobj);
+                select_edge(gobj, priv._context_edge_id);
+                request_unlink_edge(gobj);
+            }
+            break;
+        default:
+            log_error(`${gobj_short_name(gobj)}: unknown context menu item: ${value}`);
             break;
     }
 }
@@ -8626,6 +8712,99 @@ function reset_sizes(gobj, same_topic_only)
     graph.draw().then(() => {
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
+        mark_graph_dirty(gobj);
+    });
+}
+
+/************************************************************
+ *  Forget the saved SHAPE and RADIUS of ports, back to the
+ *  library's own:
+ *      'this'          the port of the menu, on its node only
+ *      'same_topic'    every port of the node's topic, with the
+ *                      topic's port defaults
+ *      'all'           every port of every topic, likewise
+ *  The node sizes are not touched: that is `reset sizes`.
+ ************************************************************/
+function reset_ports(gobj, scope)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let node_id = priv._context_node_id;
+    let port_key = priv._context_port_key;
+    let nd = node_id? graph.getNodeData(node_id) : null;
+    if(!nd || !nd.data || !nd.data.topic_name || !port_key) {
+        log_error(`${gobj_short_name(gobj)}: reset ports without a port`);
+        return;
+    }
+
+    const PORT_KEYS = ["portR", "port_sizes", "port_shapes", "port_shape"];
+    let strip_port = (props) => {
+        if(!is_object(props)) {
+            return;
+        }
+        for(let k of ["port_sizes", "port_shapes"]) {
+            if(is_object(props[k])) {
+                delete props[k][port_key];
+                if(Object.keys(props[k]).length === 0) {
+                    delete props[k];
+                }
+            }
+        }
+    };
+    let strip_all = (props) => {
+        if(!is_object(props)) {
+            return;
+        }
+        for(let k of PORT_KEYS) {
+            delete props[k];
+        }
+    };
+
+    let ids = [];
+    if(scope === 'this') {
+        strip_port(node_props_entry(gobj, nd));
+        strip_port(nd.data.graph_props);
+        if(nd.data.record) {
+            strip_port(nd.data.record._geometry);
+        }
+        ids.push(node_id);
+    } else {
+        let topic = (scope === 'same_topic')? nd.data.topic_name : "";
+
+        /*  The saved entries, on screen or folded away.  */
+        for(const [topic_name, props] of Object.entries(priv._graph_properties || {})) {
+            if(topic && topic_name !== topic) {
+                continue;
+            }
+            if(is_object(props.nodes)) {
+                for(let node_props of Object.values(props.nodes)) {
+                    strip_all(node_props);
+                }
+            }
+            strip_all(props.defaults);
+        }
+
+        /*  The nodes on screen: their own copy of the entry.  */
+        for(let n of (graph.getNodeData() || [])) {
+            if(!n || !n.data || !n.data.desc || is_more_node(n)) {
+                continue;
+            }
+            if(topic && n.data.topic_name !== topic) {
+                continue;
+            }
+            strip_all(n.data.graph_props);
+            if(n.data.record) {
+                strip_all(n.data.record._geometry);
+            }
+            ids.push(n.id);
+        }
+    }
+
+    reshape_nodes(gobj, ids);
+    graph.draw().then(() => {
+        update_port_resize_handles_position(gobj);
+        update_port_icon_position(gobj);
         mark_graph_dirty(gobj);
     });
 }

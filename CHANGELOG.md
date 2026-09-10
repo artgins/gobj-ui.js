@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.133
+
+- **treedb graph: the `shape` view wears the outline of the other two.** A
+  figure was drawn with a line width of 2 (and never less than 2, even when a
+  line width of 1 was chosen), while the card and the pill wear 1: it is the
+  same record at three sizes. It wears 1 now, or the width somebody chose.
+- **treedb graph: a figure is a CIRCLE by default**, not a square. A figure
+  chosen in the node properties still wins -- and the popover now saves the
+  figure only when it was CHANGED, so applying a colour no longer freezes
+  today's default figure on the node.
+- **treedb graph: the browser's menu never opens over the graph.** The
+  context-menu plugin cancels the event @antv/g synthesises from `pointerdown`,
+  not the DOM's `contextmenu`, so a right click opened both menus -- and where
+  ours had nothing (an edge, the canvas) the browser's alone. The container
+  cancels the DOM event now; a popover's form field keeps it, for paste.
+- **treedb graph: an edge has a menu** in edition mode -- `edge properties` and
+  `unlink`, the two floating icons of a selected edge, reachable by a right
+  click and by a long press. Out of edition an edge offers no menu, and a port
+  gets its node's menu instead of an empty one.
+- **treedb graph: the way back from the port properties.** The port menu gains
+  `reset port` (this port's own shape and radius), `reset topic ports` and
+  `reset all ports` (with the topic's port defaults) -- the port twins of
+  `reset sizes`. New consumer i18n keys: `reset port`, `reset topic ports`,
+  `reset all ports`.
+
 ## 7.23.132
 
 - **doc: the rule is written down.** `title` + `aria-label` on EVERY control,
