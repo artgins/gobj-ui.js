@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.145
+
+- **treedb graph: changing the layout left a blank view and a stale
+  minimap.** A new layout moves every node, but `C_G6_NODES_TREE` kept the
+  camera on the old coordinates, so the view showed empty grid where the
+  previous arrangement was. And G6 moves the nodes of a layout with a SILENT
+  draw, which emits none of the events the minimap repaints on, so it went on
+  drawing the arrangement before. `EV_SET_LAYOUT` now goes through the fold
+  reconcile: the node the reader was looking at stays on the same pixel (the
+  zoom is kept), and the view is fitted only if nothing is left in it. The
+  minimap is repainted after every layout.
+
 ## 7.23.144
 
 - **JSON viewer: two panes, compare, and what was pasted is kept.**

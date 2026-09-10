@@ -7125,6 +7125,27 @@ function auto_layout(gobj)
 }
 
 /************************************************************
+ *  Paint the minimap again from where the nodes are NOW.
+ *
+ *  It repaints off the graph's draw events, and a layout emits none:
+ *  G6 moves the nodes with a SILENT draw. So after a layout change
+ *  the minimap went on showing the arrangement before it.
+ ************************************************************/
+function repaint_minimap(gobj)
+{
+    let plugin = graph_get_plugin(gobj, "minimap");
+    if(!plugin || plugin.destroyed) {
+        return;
+    }
+    try {
+        plugin.renderMinimap();
+        plugin.renderMask();
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: repaint_minimap failed: ${e}`);
+    }
+}
+
+/************************************************************
  *  Show or hide the minimap, deciding by the SIZE of the graph.
  *
  *  A minimap of a graph that already fits on screen is decoration; one
@@ -9772,6 +9793,7 @@ async function reconcile_fold_apply(gobj, opts, visible)
     await graph_draw(gobj);
     if(changed || opts.relayout) {
         await graph_layout(gobj);
+        repaint_minimap(gobj);
     }
 
     /*  THE VIEWPORT, and only here.
@@ -10924,18 +10946,44 @@ function ac_fullscreen(gobj, event, kw, src)
 
 /************************************************************
  *  Layout change
+ *
+ *  A new layout moves EVERY node, so the camera cannot stay on the
+ *  coordinates it had: it would look at empty grid where the old
+ *  arrangement was. It goes through the reconcile instead, which
+ *  holds the node the reader was looking at on the same pixel (the
+ *  zoom is kept) and fits only if nothing is left in view.
  ************************************************************/
 function ac_set_layout(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    let graph = priv.graph;
     let layout = select_layout(gobj, kw.layout);
+
+    /*  The reader chose it: a later load must not auto-lay it back.  */
+    priv._layout_asked = gobj_read_str_attr(gobj, "layout");
+
     /*  The ports turn with the reading direction, before the lines
      *  are laid out from them.  */
     apply_layout_direction(gobj);
-    graph_set_layout(gobj, layout).then(() => {
+
+    let done = () => {
         configure_behaviour(gobj);
         update_toolbar(gobj);
-    });
+    };
+
+    if(!priv._fold_model || !graph || !graph.rendered) {
+        /*  No records yet: nothing on screen to hold still.  */
+        graph_set_layout(gobj, layout).then(() => {
+            repaint_minimap(gobj);
+            done();
+        });
+        return 0;
+    }
+
+    let keep = camera_anchor_node(gobj);
+    let vp = keep? yui_graph_viewport_of(graph, keep) : null;
+    graph.setLayout(layout);
+    reconcile_fold(gobj, {relayout: true, keep: keep, keep_vp: vp}).then(done);
 
     return 0;
 }
