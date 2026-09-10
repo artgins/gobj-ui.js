@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.140
+
+- **treedb topics: the `graph` button returns to the graph AS IT WAS LEFT,
+  focus included.** A treedb graph's focus lives in its url
+  (`<graph>/<topic>`), so a button that opened the bare route took the focus
+  away every time it was used. It is a button now, not a fixed link: its
+  action (`EV_OPEN_GRAPH`, internal) asks the shell where the reader last was
+  under the graph's route and navigates there.
+- **shell: `yui_shell_last_route_under(shell, route)`** -- the most recent
+  visited route that is `route` or lies below it, else `route`. A bounded
+  memory of the routes the shell landed on (64), for the page: a mirror of
+  the url like the section memory, never stored and never applied on its own
+  -- a control that wants to go back to a view as it was left asks, and
+  navigates itself.
+- **node: a child spec can declare `remember_position`.** The attr existed
+  (a nav item points at where the operator left that child, for a node whose
+  children are workspaces: a treedb and its open topic, its focused graph),
+  but the spec never passed it on, so a config could not turn it on.
+
 ## 7.23.139
 
 - **treedb topics: the card has no graph icon any more, and says more about

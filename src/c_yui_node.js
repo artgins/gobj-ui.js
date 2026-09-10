@@ -1324,6 +1324,12 @@ function ac_add_node(gobj, event, kw, src)
     if(spec.link) {
         kw_child.link = spec.link;
     }
+    /*  A declared attr of this gclass that the spec could not reach: a
+     *  node whose children are workspaces (a treedb: its topics, its
+     *  graph) is declared in the config like every other one.  */
+    if(spec.remember_position) {
+        kw_child.remember_position = true;
+    }
     let child = gobj_create_pure_child(spec.id, GCLASS_NAME, kw_child, gobj);
 
     let index = (typeof kw.index === "number") ? kw.index : priv.children.length;

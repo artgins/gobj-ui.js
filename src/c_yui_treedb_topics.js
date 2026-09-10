@@ -58,7 +58,12 @@ import {
 import "./c_yui_treedb_topics.css";
 
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
-import {yui_shell_of, yui_shell_set_sub_routes} from "./c_yui_shell.js";
+import {
+    yui_shell_of,
+    yui_shell_set_sub_routes,
+    yui_shell_navigate,
+    yui_shell_last_route_under,
+} from "./c_yui_shell.js";
 import {nodes_answer} from "./nodes_answer.js";
 import {yui_toolbar_icon} from "./yui_toolbar.js";
 
@@ -254,26 +259,28 @@ function build_ui(gobj)
 {
     let source_url = gobj_read_str_attr(gobj, "source_url") || "";
 
-    /*  The whole treedb as a graph, with NO topic focused. A card's graph
-     *  icon lands on `<graph route>/<topic>`, and that segment is a
-     *  FOCUS: going through a card was the only way in, and it always
-     *  arrived with that topic highlighted. The route is the card's
-     *  template without its `/{topic}`; a host whose template does not
-     *  end in it, or gives none, gets no button.  */
-    let routes = gobj_read_attr(gobj, "card_action_routes");
-    let graph_tpl = is_object(routes) && typeof routes.graph === "string"? routes.graph : "";
-    let graph_href = /\/\{topic\}$/.test(graph_tpl)? graph_tpl.replace(/\/\{topic\}$/, "") : "";
+    /*  The treedb as a graph, AS THE READER LEFT IT. The route is the
+     *  card template without its `/{topic}`; a host whose template does
+     *  not end in it, or gives none, gets no button. Not a fixed link:
+     *  the graph's focus lives in its url (`<graph>/<topic>`), so the
+     *  bare route took it away every time -- the click asks the shell
+     *  where the reader last was under that route (ac_open_graph).  */
+    let graph_href = graph_route_of(gobj);
     let graph_items = [];
     if(graph_href) {
         graph_items.push(
-            ['a', {class: 'button TREEDB_GRAPH_BTN',
-                   href: graph_href,
-                   style: 'margin-left:auto;',
-                   title: t('graph'), 'aria-label': t('graph'),
-                   'data-i18n-title': 'graph', 'data-i18n-aria-label': 'graph'}, [
+            ['button', {class: 'button TREEDB_GRAPH_BTN',
+                        style: 'margin-left:auto;',
+                        title: t('graph'), 'aria-label': t('graph'),
+                        'data-i18n-title': 'graph', 'data-i18n-aria-label': 'graph'}, [
                 ['span', {class: 'icon'}, [yui_toolbar_icon('yi-hexagon-nodes')]],
                 ['span', {i18n: 'graph'}, 'graph']
-            ]]
+            ], {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_OPEN_GRAPH", {}, gobj);
+                }
+            }]
         );
     }
 
@@ -387,6 +394,21 @@ function build_ui(gobj)
     if(gobj_read_bool_attr(gobj, "with_cards_landing")) {
         show_topics_landing(gobj);
     }
+}
+
+/************************************************************
+ *  The graph's route with no topic: the host's card template
+ *  `card_action_routes.graph` without its trailing `/{topic}`,
+ *  as a ROUTE (no `#`). "" when the host gives no such template.
+ ************************************************************/
+function graph_route_of(gobj)
+{
+    let routes = gobj_read_attr(gobj, "card_action_routes");
+    let tpl = (is_object(routes) && typeof routes.graph === "string")? routes.graph : "";
+    if(!/\/\{topic\}$/.test(tpl)) {
+        return "";
+    }
+    return tpl.replace(/\/\{topic\}$/, "").replace(/^#/, "");
 }
 
 /************************************************************
@@ -2477,6 +2499,28 @@ function ac_open_json(gobj, event, kw, src)
 }
 
 /********************************************
+ *  Open the graph where the reader left it: its last visited
+ *  route under the graph's base -- `<graph>/<topic>` when a topic
+ *  was focused there -- or the bare base when the graph was never
+ *  opened in this page. A user move: pushed, so Back returns.
+ ********************************************/
+function ac_open_graph(gobj, event, kw, src)
+{
+    let base = graph_route_of(gobj);
+    if(!base) {
+        log_error(`${gobj_short_name(gobj)}: open graph with no graph route`);
+        return -1;
+    }
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${gobj_short_name(gobj)}: open graph with no shell`);
+        return -1;
+    }
+    yui_shell_navigate(shell, yui_shell_last_route_under(shell, base), {push: true});
+    return 0;
+}
+
+/********************************************
  *  The viewer asked to load a collapsed subtree (tranger mode only):
  *  re-issue print-tranger for that path.
  ********************************************/
@@ -2556,6 +2600,7 @@ function create_gclass(gclass_name)
             ["EV_DELETE_RECORD",        ac_delete_record,           null],
             ["EV_REFRESH_TOPIC",        ac_refresh_topic,           null],
             ["EV_OPEN_JSON",            ac_open_json,               null],
+            ["EV_OPEN_GRAPH",           ac_open_graph,              null],
             ["EV_EXPAND_PATH",          ac_json_expand_path,        null],
             ["EV_JSON_CLOSED",          ac_json_closed,             null],
             ["EV_SHOW",                 ac_show,                    null],
@@ -2586,6 +2631,7 @@ function create_gclass(gclass_name)
                                     event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_REFRESH_TOPIC",        0],
         ["EV_OPEN_JSON",            0],
+        ["EV_OPEN_GRAPH",           0],
         ["EV_EXPAND_PATH",          0],
         ["EV_JSON_CLOSED",          0],
         ["EV_SHOW",                 0],

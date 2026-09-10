@@ -117,6 +117,10 @@ let PRIVATE_DATA = {
     /*  Section route -> last position visited inside it.  Mirrors the
      *  url for the duration of the page; see remember_position(). */
     section_pos:     {},
+    /*  The routes visited, newest last, bounded -- for "where did the
+     *  reader leave this subtree" (yui_shell_last_route_under). Same
+     *  nature as section_pos: a mirror of the url, for the page.  */
+    route_mru:       [],
     /*  Sub-route contributor registry (ROUTING.md): a mounted view
      *  declares the deep, view-owned children of its base route
      *  (topics, /info, /schema, focus topics — subpaths that are NOT
@@ -1465,6 +1469,7 @@ function navigate_to(gobj, route, depth, no_drain)
     stage.active_route = matched_route;
     gobj_write_attr(gobj, "current_route", route);
     remember_position(gobj, route);
+    remember_route(gobj, route);
 
     /*  Show/hide secondary navs according to parent item */
     update_secondary_nav_visibility(gobj, entry);
@@ -3188,6 +3193,54 @@ function remembered_position(gobj, route)
 }
 
 /************************************************************
+ *  Every route the shell lands on, newest last, a route once.
+ *  Bounded: it answers "where was the reader last under X", and
+ *  a page that has been open all day has no business growing it.
+ ************************************************************/
+const ROUTE_MRU_MAX = 64;
+
+function remember_route(gobj, route)
+{
+    let priv = gobj.priv;
+    let mru = priv.route_mru;
+    let i = mru.indexOf(route);
+    if(i >= 0) {
+        mru.splice(i, 1);
+    }
+    mru.push(route);
+    if(mru.length > ROUTE_MRU_MAX) {
+        mru.splice(0, mru.length - ROUTE_MRU_MAX);
+    }
+}
+
+/************************************************************
+ *  Where the reader last was UNDER `route`: the most recent
+ *  visited route that is `route` itself or lies below it, or
+ *  `route` when none does. A mirror of the url for the page, like
+ *  the section memory -- never stored, never applied on its own:
+ *  a control that wants to go back to a view AS IT WAS LEFT asks,
+ *  and navigates there itself.
+ *
+ *  What it is for: a treedb graph's focus lives in the url
+ *  (`<graph>/<topic>`), so a button that opened the bare route
+ *  took the focus away every time it was used.
+ ************************************************************/
+function yui_shell_last_route_under(shell_gobj, route)
+{
+    let priv = shell_gobj && shell_gobj.priv;
+    if(!priv || !is_array(priv.route_mru) || !route) {
+        return route;
+    }
+    for(let i = priv.route_mru.length - 1; i >= 0; i--) {
+        let r = priv.route_mru[i];
+        if(r === route || r.indexOf(route + "/") === 0) {
+            return r;
+        }
+    }
+    return route;
+}
+
+/************************************************************
  *  Resolve the shell that governs `gobj`: the nearest
  *  C_YUI_SHELL ancestor, else the last shell created on the
  *  page (apps have exactly one).  Null when no shell exists —
@@ -3609,6 +3662,7 @@ export {
     yui_shell_of,
     yui_shell_zone,
     yui_shell_navigate,
+    yui_shell_last_route_under,
     yui_shell_nav_map,
     yui_shell_set_sub_routes,
     yui_shell_register_event_handler,
