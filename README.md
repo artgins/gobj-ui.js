@@ -221,7 +221,11 @@ seen*:
   Off by default: a tree whose children are pages wants the item to BE the
   destination. On for a tree whose children are workspaces with a position
   inside them — the agent console's strip of treedbs, each with its open topic.
-  Since 6.2.0.
+  Since 6.2.0. **Declarable in a child spec since 7.23.140** (`"remember_position":
+  true` next to its `id`): the attr existed, but the spec never passed it on,
+  so a node declared in a config could not turn it on. yunovatios turns it on
+  for its treedb nodes, so the graph tab returns to `<graph>/<topic>` with its
+  focus and the data tab to the topic that was open.
 
 - **`nav_mode` — the three shapes as one runtime knob.** The two bullets above
   describe what a tree *declares*; `nav_mode` is how a user *chooses* between
@@ -1424,9 +1428,11 @@ screen every card is a smudge. Since `7.23.82` a record has **three views**
   still be drawn. The same one-line chip a leaf record already is, at the
   tier's width (200 / 180 / 160 px). No pills.
 - **`shape`** — a **figure** of the topic's colour, no ports, no text: the
-  topology and nothing else. A native G6 node — square (rounded `rect`),
-  circle, diamond, triangle, hexagon or star — so the focus, the selection
-  and the anchor are its own stroke and halo. The three tiers keep their
+  topology and nothing else. A native G6 node — a **circle** by default
+  (since `7.23.133`; a square until then), or a square (rounded `rect`),
+  diamond, triangle, hexagon or star — in the outline the card and the pill
+  wear (1, or the width chosen; it was a floor of 2) — so the focus, the
+  selection and the anchor are its own stroke and halo. The three tiers keep their
   order of size (32 / 28 / 22), the structural tier its dashed border. The
   figure is chosen in the **node properties** popover (`shape`, with the
   popover's own scope: this node, the topic, every node), remembered as the
@@ -1442,9 +1448,12 @@ UNDER the html: the first repaint (a selection, the focus, a theme switch, a
 pill appearing) rebuilt that html from the topic's colour and the choice was
 gone, and nothing of it ever reached the store. Choosing the topic's own
 colour back, with the stroke and line width that go with it, **forgets** the
-entry instead of writing it: the palette is assigned by position, so a
-colour written down would freeze today's palette on that card — the trap the
-sizes fell into in `7.23.80`.
+entry instead of writing it: the palette is assigned by the topics'
+ALPHABETICAL order (since `7.23.136`, in the graph and the schema diagram
+alike; by the backend's order before, which varies from load to load, so two
+topics could swap colours), and adding a topic still shifts it — a colour
+written down would freeze today's palette on that card, the trap the sizes
+fell into in `7.23.80`.
 
 In the view's toolbar (`C_YUI_TREEDB_GRAPH`), next to the fold pair: three
 push buttons in one group — a card, a line, a figure — the pressed one being
@@ -1478,12 +1487,59 @@ the day into the treedb, and a later default (the bigger ports above) reached
 no saved treedb: the same trap as the invented cascade coordinates, for the
 size. A card on its tier's default now saves its position and nothing else;
 a closed node saves no size at all (a square is not the card's size), its
-entry keeps what it had. And the node's context menu, in edition, has the way
-back: **reset sizes** / **reset topic sizes** forget every saved size, port
-radius and per-port radius — per node and as topic defaults from `resize all`
-— for all topics or the node's, put the library's defaults back on every card
-on the spot, and arm Save. Positions and edge styles are not touched.
-Consumer i18n keys: `reset sizes`, `reset topic sizes`.
+entry keeps what it had.
+
+**Every saved look has a way back, in the context menu** (since `7.23.134`,
+replacing `reset sizes` / `reset topic sizes`). In edition, the node, the port
+and the edge menus each offer three resets — this one, its kind (`reset topic
+nodes`, `reset topic ports`, `reset same type edges`, the scopes of their
+properties popovers) and `reset all …` — and a reset FORGETS the saved value,
+the element's own and the defaults of its scope, so the library's default
+comes back on the spot and Save writes the cleared entries. The node reset is
+offered in every view and forgets size, colours, line width and figure; the
+ports have their own (shape and radius); no reset moves a node. Consumer i18n
+keys: `reset node`, `reset topic nodes`, `reset all nodes`, `reset port`,
+`reset topic ports`, `reset all ports`, `reset edge`, `reset same type edges`,
+`reset all edges`.
+
+**An edge is saved only where it differs from what it INHERITS** (since
+`7.23.134`): its hook's default in the parent topic, else the topic's, else the
+library's. It used to be "any line width but 2", and the library's width for an
+edge between two topics is 1.6, so every Save froze every such edge with its
+width and its theme's colour — a theme toggle no longer re-themed it after a
+reload. `reset all edges` clears what the old Save froze.
+
+**The browser's own menu never opens over the graph** (since `7.23.133`): G6's
+context-menu plugin cancels the event `@antv/g` synthesises from `pointerdown`,
+not the DOM's `contextmenu`, so the container cancels that one (a popover's form
+field keeps it, for paste). An edge has a menu in edition (`edge properties`,
+`unlink`).
+
+**The rest of the 7.23.133–7.23.140 round, in one place:**
+
+- **The legend keeps its order** (`7.23.135`): its chips are alphabetical,
+  always, and the main topic takes no seat of its own (its gold star and bold
+  name tell it apart) — starring a topic no longer moves the strip.
+- **Never a blank viewport** (`7.23.137`). A camera is saved by the node
+  nearest the middle of the viewport (or the anchor), a saved camera whose
+  pixel is off screen is not restored, and after any placement — a restore, a
+  refresh or a global fold holding a node still, a saved arrangement opened
+  with no camera — a viewport with no node in it is fitted. It used to save
+  the first root of the tree wherever it was, and a reload whose layout moved
+  by a hair showed the tree in the minimap and nothing in the view.
+- **The toolbar in three parts** (`7.23.137`): left, how the graph is built
+  (layout, operation mode); center, how it is shown (fold pair, node views);
+  right, what it is asked (find, refresh, raw json).
+- **The topics view opens the graph as it was left** (`7.23.138`–`7.23.140`).
+  `C_YUI_TREEDB_TOPICS` has a `graph` button left of `raw json`, in the
+  landing and with a topic open; its route is `card_action_routes.graph`
+  without its `/{topic}`, and its click navigates to
+  `yui_shell_last_route_under()` of that route, so a focused topic
+  (`<graph>/<topic>`) comes back with it. The cards dropped their graph icon
+  — its topic segment was a focus, laid over whatever the reader had left —
+  and show instead, from the desc with no request, the topic's version, its
+  number of columns, the topics it hangs from (`↑ parents`) and the ones
+  hanging from it (`↓ children`).
 
 **A port has a shape, and its own properties popover** (since `7.23.81`).
 G6 draws every port as a circle — `drawPortShapes` upserts a `Circle` and

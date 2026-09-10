@@ -677,6 +677,12 @@ Public helpers (import from `@yuneta/gobj-ui`):
   the app's transport handlers (`EV_ON_OPEN` → `true`, close/errors →
   `false`).
 - `yui_shell_navigate(shell, route)` — programmatic navigation.
+- `yui_shell_last_route_under(shell, route)` — where the reader last was
+  under `route`: the most recent route the shell landed on that is `route`
+  or lies below it, else `route`. For a control that returns to a view as it
+  was left (the treedb topics view's `graph` button, since the graph's focus
+  lives in its url). A page-lifetime mirror, never stored nor applied on its
+  own — see ROUTING.md §3.
 - `yui_shell_open_drawer(shell, menu_id?)`,
   `yui_shell_close_drawer(shell, menu_id?)`,
   `yui_shell_toggle_drawer(shell, menu_id?)` — act on the

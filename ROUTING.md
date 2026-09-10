@@ -229,6 +229,14 @@ rare exception — see the shell's action-route handling).
   to the index, the rail item of the section you are already in) the click
   means the route it names, or "← section" would put you back on the leaf you
   were leaving.
+- **Last route under a prefix** (`yui_shell_last_route_under(shell, route)`,
+  always on, since gobj-ui 7.23.140): the shell keeps the last 64 routes it
+  landed on, for the page, and answers "where was the reader last under
+  `route`". Same nature as the section memory — a mirror, never applied on its
+  own: a control that returns to a view **as it was left** asks and then
+  navigates itself (a push). Made for a view whose state lives in its tail: a
+  treedb graph's focus is `<graph>/<topic>`, so a button to the bare route
+  removed the focus every time.
 - **Back/Forward** need no code: they change the hash, the shell re-routes
   through the same path, views react to `EV_ROUTE_CHANGED` (including an empty
   `subpath` → view home).
