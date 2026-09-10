@@ -1264,7 +1264,7 @@ function version_banner(gobj, topic)
                         title: t("raise the version"), "aria-label": t("raise the version"),
                         "data-i18n-title": "raise the version",
                         "data-i18n-aria-label": "raise the version"}, [
-                ["span", {class: "icon"}, [["i", {class: "yi-chevron-up"}]]],
+                ["span", {class: "icon"}, [["i", {class: "yi-circle-up"}]]],
                 ["span", {i18n: "raise"}, t("raise")]
             ]]
         ]]

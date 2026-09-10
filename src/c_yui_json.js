@@ -399,8 +399,8 @@ function make_toolbar(gobj)
      *  place both graphs put theirs.  It opens the whole document; the
      *  per-row toggles live in the rows.  */
     left_items.push(
-        icon_button(gobj, "yi-chevron-right", "EV_EXPAND_ALL",   "expand loaded"),
-        icon_button(gobj, "yi-chevron-right", "EV_COLLAPSE_ALL", "collapse all")
+        icon_button(gobj, "yi-angles-down", "EV_EXPAND_ALL",   "expand loaded"),
+        icon_button(gobj, "yi-angles-up",   "EV_COLLAPSE_ALL", "collapse all")
     );
 
     attach_clear($search_control, $search_input);

@@ -497,8 +497,10 @@ cloned toolbar cannot drift apart again. The vocabulary is the treedb graph's
 sprite and so cannot share the code, only the decisions): zoom in / zoom out, a
 live **zoom readout**, `yi-fit` for fit — the same corner brackets the sprite
 draws for `g6-icon-fit` — and the WRITTEN `1:1` for actual size, which is
-written in every editor that offers it and never drawn. Fold is the chevron
-pair, from the lazy tree viewer's own toolbar. The readout hangs off G6's
+written in every editor that offers it and never drawn. Fold is the
+double-chevron pair (`yi-angles-down` / `yi-angles-up`, `7.23.147`), the same
+as the lazy tree viewer's toolbar: not the single chevron of a node's handle,
+which opens ONE node. The readout hangs off G6's
 `aftertransform`, the one hook that also covers the wheel.
 
 Both graph toolbars are arranged the same way (`7.23.7`): the **global**
@@ -1664,7 +1666,10 @@ forwards them as `EV_SET_HIDDEN_TOPICS`, `EV_SET_MAIN_TOPIC`,
 `main topic`, `highlight topic`, `loose records`, `hidden topics`; `legend`
 is no longer used.
 
-**The layout select has a stepper beside it** (`7.23.146`): ▲ and ▼ step to
+**The layout select has a stepper beside it** (`7.23.146`): ↑ and ↓
+(`yi-arrow-up` / `yi-arrow-down` since `7.23.147`, a shafted arrow steps a
+sequence; the fold stepper's level buttons are tree boxes, `yi-square-minus`
+/ `yi-square-plus`) step to
 the layout before or after the current one, in the order the engine offers
 them (`layout_names`), without opening the list. Layouts are picked by trying
 them one after another, and a list closes on every pick. The stepper reads the

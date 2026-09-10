@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.147
+
+- **One icon shape per meaning.** The chevron was doing four jobs, several in
+  the same toolbar: the treedb graph's row had four `chevron-down`s (the two
+  selects' carets, next layout, one more level) and three `chevron-right`s,
+  and "expand all" was the node handle's chevron turned 90°. Now:
+  - a **chevron** opens or closes ONE thing, or scrolls (a row's handle, a
+    pill, the toolbar's scroll arrows, the period navigation);
+  - a **shafted arrow** steps through a sequence: the treedb graph's layout
+    stepper is `yi-arrow-up` / `yi-arrow-down`;
+  - a **tree box** steps one LEVEL of the whole tree: the treedb graph's fold
+    stepper is `yi-square-minus` / `yi-square-plus`;
+  - a **double chevron** acts on ALL of it: expand all / collapse all in the
+    JSON viewer, the JSON graph and the gobj tree are `yi-angles-down` /
+    `yi-angles-up` (no more rotated chevron in `c_yui_json.css` or
+    `yui_graph_fold_items()`);
+  - the schema editor's "raise the version" is `yi-circle-up`.
+- Icons `yi-square-plus`, `yi-square-minus`, `yi-angles-down`, `yi-angles-up`,
+  `yi-arrow-up`, `yi-arrow-down`, `yi-circle-up` (FontAwesome Free 7.3.1).
+- No new consumer keys: the controls keep their names.
+
 ## 7.23.146
 
 - **treedb graph: a layout stepper beside the layout select.** Two buttons,

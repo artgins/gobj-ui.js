@@ -716,8 +716,9 @@ function fold_level_items(gobj, wide)
     return [
         ['div', {class: 'GRAPH_FOLD_STEPPER buttons has-addons',
                  style: 'margin:0; flex:0 0 auto; flex-wrap:nowrap; align-items:stretch;'}, [
-            /*  The same two chevrons the pills speak: `▸` folded, `▾` open.  */
-            step_button('GRAPH_FOLD_COLLAPSE', 'yi-chevron-right',
+            /*  Tree boxes, not the pills' chevrons: a pill opens ONE hook,
+             *  this steps a LEVEL of the whole tree.  */
+            step_button('GRAPH_FOLD_COLLAPSE', 'yi-square-minus',
                         'collapse one level', 'EV_COLLAPSE_LEVEL'),
             /*  A `div` with the button skin, like the legend's main
              *  chip: a readout between two buttons of one group, not
@@ -740,7 +741,7 @@ function fold_level_items(gobj, wide)
                 ['span', {class: 'GRAPH_FOLD_COUNT',
                           style: 'font-variant-numeric:tabular-nums;'}, '–'],
             ]],
-            step_button('GRAPH_FOLD_EXPAND', 'yi-chevron-down',
+            step_button('GRAPH_FOLD_EXPAND', 'yi-square-plus',
                         'expand one level', 'EV_EXPAND_LEVEL'),
         ]],
     ];
@@ -881,8 +882,8 @@ function make_toolbar(gobj)
          *  arrive with the child (populate_nodes_tree_options).  */
         ['div', {class: 'GRAPH_LAYOUT_STEPPER buttons has-addons',
                  style: 'margin:0 0 0 .25rem; flex:0 0 auto; flex-wrap:nowrap; align-items:stretch;'}, [
-            layout_step_button(gobj, 'GRAPH_LAYOUT_PREV', 'yi-chevron-up', 'previous layout', -1),
-            layout_step_button(gobj, 'GRAPH_LAYOUT_NEXT', 'yi-chevron-down', 'next layout', 1),
+            layout_step_button(gobj, 'GRAPH_LAYOUT_PREV', 'yi-arrow-up', 'previous layout', -1),
+            layout_step_button(gobj, 'GRAPH_LAYOUT_NEXT', 'yi-arrow-down', 'next layout', 1),
         ]],
 
         ['span', {class: 'GRAPH_MODE_LABEL is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;', i18n: 'operation mode'}, 'operation mode'],

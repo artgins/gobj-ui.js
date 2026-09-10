@@ -155,13 +155,6 @@
     transform: rotate(90deg);
 }
 
-/*  "Expand all" reuses the chevron (the only one available) rotated to point
- *  DOWN — the open state — while "collapse all" keeps it pointing right (the
- *  closed state), mirroring the per-node toggle. */
-.C_YUI_JSON .EV_EXPAND_ALL i {
-    transform: rotate(90deg);
-}
-
 .C_YUI_JSON .JSON_TOGGLE_REMOTE i {
     font-size: 0.8em;
     color: var(--bulma-link-on-scheme, var(--bulma-link, #3273dc));

@@ -181,17 +181,16 @@ export function yui_graph_camera_items(gobj, graph, wide)
 }
 
 /************************************************************
- *   The fold pair: expand all, collapse all.  Chevrons, the
- *   open one rotated down — the same pair the lazy tree
- *   viewer's toolbar uses, and the same direction the
- *   per-node handles speak.
+ *   The fold pair: expand all, collapse all.  Double chevrons,
+ *   down and up -- the same pair the lazy tree viewer's toolbar
+ *   uses. Not the single chevron of a node's handle: that opens
+ *   ONE node, these act on all of them.
  ************************************************************/
 export function yui_graph_fold_items(gobj, wide)
 {
     return [
-        camera_button(gobj, "yi-chevron-right", "EV_EXPAND_ALL", "expand all", wide,
-            ' transform: rotate(90deg);'),
-        camera_button(gobj, "yi-chevron-right", "EV_COLLAPSE_ALL", "collapse all", wide),
+        camera_button(gobj, "yi-angles-down", "EV_EXPAND_ALL", "expand all", wide),
+        camera_button(gobj, "yi-angles-up", "EV_COLLAPSE_ALL", "collapse all", wide),
     ];
 }
 
