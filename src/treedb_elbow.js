@@ -100,3 +100,271 @@ export function elbow_points(s, t, box_s, box_t, lane, vertical)
     let y2 = t[1] - out;        /*  an fkey port is on the top edge  */
     return [[s[0], y1], [side, y1], [side, y2], [t[0], y2]];
 }
+
+/*----------------------------------------------------------------*
+ *      Round the OTHER cards too
+ *----------------------------------------------------------------*/
+export const ROUTE_REACH = 400;     /*  how far around the two cards the first search looks  */
+export const ROUTE_BEND = 40;       /*  a turn costs as much as this many pixels of line  */
+
+function box_expand(b, m)
+{
+    return {x1: b.x1 - m, y1: b.y1 - m, x2: b.x2 + m, y2: b.y2 + m};
+}
+
+function box_overlaps(a, b)
+{
+    return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
+}
+
+function point_inside(p, b)
+{
+    return p[0] > b.x1 && p[0] < b.x2 && p[1] > b.y1 && p[1] < b.y2;
+}
+
+/*  Does the axis-aligned segment a-c pass through the INSIDE of b?
+ *  Running along its border does not count.  */
+function segment_hits(a, c, b)
+{
+    let x1 = Math.min(a[0], c[0]);
+    let x2 = Math.max(a[0], c[0]);
+    let y1 = Math.min(a[1], c[1]);
+    let y2 = Math.max(a[1], c[1]);
+    return x1 < b.x2 && x2 > b.x1 && y1 < b.y2 && y2 > b.y1;
+}
+
+/************************************************************
+ *  Does the polyline `points` (its ends included) cross any of
+ *  `boxes`? A card is a box shrunk by a pixel, so a line along
+ *  its border or leaving from a port on it is not a hit.
+ ************************************************************/
+export function elbow_path_hits(points, boxes)
+{
+    for(let b of boxes) {
+        let inner = box_expand(b, -1);
+        for(let i = 0; i + 1 < points.length; i++) {
+            if(segment_hits(points[i], points[i + 1], inner)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/*  A binary heap of [cost, state], smallest cost first.  */
+function heap_push(h, item)
+{
+    h.push(item);
+    let i = h.length - 1;
+    while(i > 0) {
+        let p = (i - 1) >> 1;
+        if(h[p][0] <= h[i][0]) {
+            break;
+        }
+        [h[p], h[i]] = [h[i], h[p]];
+        i = p;
+    }
+}
+
+function heap_pop(h)
+{
+    let top = h[0];
+    let last = h.pop();
+    if(h.length) {
+        h[0] = last;
+        let i = 0;
+        for(;;) {
+            let l = 2 * i + 1;
+            let r = l + 1;
+            let m = i;
+            if(l < h.length && h[l][0] < h[m][0]) {
+                m = l;
+            }
+            if(r < h.length && h[r][0] < h[m][0]) {
+                m = r;
+            }
+            if(m === i) {
+                break;
+            }
+            [h[m], h[i]] = [h[i], h[m]];
+            i = m;
+        }
+    }
+    return top;
+}
+
+/************************************************************
+ *  The shortest orthogonal line from `a` to `z` that enters none
+ *  of `boxes` (already expanded by the clearance), a turn costing
+ *  ROUTE_BEND. The line leaves `a` going down and ends at `z`
+ *  going down, since after `z` it drops into a port.
+ *
+ *  The grid is SPARSE: only the lines of the boxes' borders and
+ *  of the two ends, which is all an orthogonal shortest path ever
+ *  needs to turn on. Returns [a, ...turns, z], or null when every
+ *  way is closed.
+ ************************************************************/
+function orth_search(a, z, boxes)
+{
+    for(let b of boxes) {
+        if(point_inside(a, b) || point_inside(z, b)) {
+            return null;
+        }
+    }
+
+    let uniq = (list) => [...new Set(list)].sort((p, q) => p - q);
+    let xs = uniq([a[0], z[0]].concat(...boxes.map((b) => [b.x1, b.x2])));
+    let ys = uniq([a[1], z[1]].concat(...boxes.map((b) => [b.y1, b.y2])));
+    let W = xs.length;
+    let H = ys.length;
+
+    let free = (x, y) => !boxes.some((b) => point_inside([x, y], b));
+    let ok = new Uint8Array(W * H);
+    for(let j = 0; j < H; j++) {
+        for(let i = 0; i < W; i++) {
+            ok[j * W + i] = free(xs[i], ys[j])? 1 : 0;
+        }
+    }
+    /*  A step to the next line is open when both points are free and
+     *  so is the middle of the step: consecutive lines have no border
+     *  between them, so the middle speaks for the whole step.  */
+    let step_right = new Uint8Array(W * H);
+    let step_down = new Uint8Array(W * H);
+    for(let j = 0; j < H; j++) {
+        for(let i = 0; i < W; i++) {
+            let k = j * W + i;
+            if(!ok[k]) {
+                continue;
+            }
+            if(i + 1 < W && ok[k + 1] && free((xs[i] + xs[i + 1]) / 2, ys[j])) {
+                step_right[k] = 1;
+            }
+            if(j + 1 < H && ok[k + W] && free(xs[i], (ys[j] + ys[j + 1]) / 2)) {
+                step_down[k] = 1;
+            }
+        }
+    }
+
+    /*  States are (point, heading): 0 right, 1 left, 2 down, 3 up.  */
+    let start = ys.indexOf(a[1]) * W + xs.indexOf(a[0]);
+    let goal = ys.indexOf(z[1]) * W + xs.indexOf(z[0]);
+    let best = new Float64Array(W * H * 4).fill(Infinity);
+    let prev = new Int32Array(W * H * 4).fill(-1);
+    let heap = [];
+    best[start * 4 + 2] = 0;
+    heap_push(heap, [0, start * 4 + 2]);
+
+    let moves = (k) => {
+        let i = k % W;
+        let j = (k - i) / W;
+        let out = [];
+        if(step_right[k]) {
+            out.push([k + 1, 0, xs[i + 1] - xs[i]]);
+        }
+        if(i > 0 && step_right[k - 1]) {
+            out.push([k - 1, 1, xs[i] - xs[i - 1]]);
+        }
+        if(step_down[k]) {
+            out.push([k + W, 2, ys[j + 1] - ys[j]]);
+        }
+        if(j > 0 && step_down[k - W]) {
+            out.push([k - W, 3, ys[j] - ys[j - 1]]);
+        }
+        return out;
+    };
+
+    let found = -1;
+    let found_cost = Infinity;
+    while(heap.length) {
+        let [cost, state] = heap_pop(heap);
+        if(cost > best[state] || cost >= found_cost) {
+            continue;
+        }
+        let k = state >> 2;
+        let dir = state & 3;
+        if(k === goal) {
+            let total = cost + ((dir === 2)? 0 : ROUTE_BEND);
+            if(total < found_cost) {
+                found_cost = total;
+                found = state;
+            }
+            continue;
+        }
+        for(let [nk, nd, len] of moves(k)) {
+            let c = cost + len + ((nd === dir)? 0 : ROUTE_BEND);
+            let ns = nk * 4 + nd;
+            if(c < best[ns]) {
+                best[ns] = c;
+                prev[ns] = state;
+                heap_push(heap, [c, ns]);
+            }
+        }
+    }
+    if(found < 0) {
+        return null;
+    }
+
+    /*  Back from the goal, keeping only the points where it turns.  */
+    let states = [];
+    for(let s = found; s >= 0; s = prev[s]) {
+        states.push(s);
+    }
+    states.reverse();
+    let pts = [a];
+    for(let n = 1; n < states.length; n++) {
+        let turn = (n + 1 < states.length) && ((states[n + 1] & 3) !== (states[n] & 3));
+        if(turn) {
+            let k = states[n] >> 2;
+            pts.push([xs[k % W], ys[Math.floor(k / W)]]);
+        }
+    }
+    pts.push(z);
+    return pts;
+}
+
+/************************************************************
+ *  The control points of an elbow that does not cross any card.
+ *
+ *  The simple elbow first (elbow_points): the channel, or the
+ *  detour round the two cards. Only when that line crosses a card
+ *  -- a third record standing in a detour's way, a row in the way
+ *  of an edge that drops several rows -- is it ROUTED: out of the
+ *  port, the shortest way along the gaps between the cards, in.
+ *  A parent and the row of children under it keep their bus.
+ *
+ *  `boxes` are all the cards on screen, the two of the edge
+ *  included. The route keeps a clearance from every card, which
+ *  grows with the lane so that two routed edges of one pair do not
+ *  coincide. Nearby cards first; all of them if that finds no way;
+ *  the simple elbow if nothing does.
+ ************************************************************/
+export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes)
+{
+    let others = boxes || [];
+    if(!vertical) {
+        return elbow_route(swap(s), swap(t), swap_box(box_s), swap_box(box_t), lane, true,
+                           others.map(swap_box)).map(swap);
+    }
+
+    let simple = elbow_points(s, t, box_s, box_t, lane, true);
+    if(!elbow_path_hits([s, ...simple, t], others)) {
+        return simple;
+    }
+
+    let m = ELBOW_CLEAR / 2 + Math.abs(lane) * ELBOW_STEP;
+    let a = [s[0], s[1] + m + 4];       /*  out of a bottom port  */
+    let z = [t[0], t[1] - m - 4];       /*  into a top port  */
+    let region = box_expand({
+        x1: Math.min(a[0], z[0], box_s.x1, box_t.x1),
+        y1: Math.min(a[1], z[1], box_s.y1, box_t.y1),
+        x2: Math.max(a[0], z[0], box_s.x2, box_t.x2),
+        y2: Math.max(a[1], z[1], box_s.y2, box_t.y2),
+    }, ROUTE_REACH);
+    let near = others.filter((b) => box_overlaps(b, region));
+
+    let route = orth_search(a, z, near.map((b) => box_expand(b, m)));
+    if(!route && near.length < others.length) {
+        route = orth_search(a, z, others.map((b) => box_expand(b, m)));
+    }
+    return route || simple;
+}

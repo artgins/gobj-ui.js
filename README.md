@@ -1446,8 +1446,21 @@ port, along the outside of both, and in from the other port's own side. And
 the edges joining the **same two cards**, either way round, take **lanes**
 10px apart in the order they were made (0, +1, −1…), so a new one never
 moves the ones already drawn; a detour on a negative lane goes round the
-left. The detour clears the two cards it joins, not the others: a card of a
-third record standing in its way is crossed, as a curve would cross it.
+left.
+
+And no elbow crosses a card (`7.23.151`). Each is tried simple first — the
+channel, or the detour round its two cards — and only when that line crosses
+a card is it **routed**: out of its port, the shortest way along the gaps
+between the cards, and in. It is our own orthogonal search on a sparse grid
+(the lines of the cards' borders, grown by a 12px clearance that grows with
+the lane, plus the two ends; a turn costs 40px of line), over the cards within
+400px first and all of them if that finds no way; with no way at all the
+simple elbow stays. A parent and the row of children under it keep their bus;
+what gets routed is a detour with a third card in its way, an edge dropping
+several rows, an edge between two cards of one row. Ports are not obstacles,
+only cards. G6's `shortest-path` router is not used: it is not exported, it
+falls back in silence to a route that crosses cards, and it rewrites its
+module defaults with every config it is given.
 
 All three take the **same spanning tree**, chosen deterministically: roots are the
 nodes with no incoming edge, in node order; a node belongs to the **first

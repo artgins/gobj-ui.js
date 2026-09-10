@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.151
+
+- **treedb graph, elbow edges: a line that would cross a card goes round it.**
+  The detour of 7.23.150 cleared the two cards it joins and crossed any third
+  one standing in its way. Now every elbow is tried simple first -- the
+  channel, or the detour round its two cards -- and only when that line
+  crosses a card is it ROUTED: out of its port, the shortest way along the
+  gaps between the cards (a turn costing 40px of line), and in. A parent and
+  the row of children under it keep their bus. The same rule reaches an edge
+  that drops several rows at once (a second parent), whose channel used to
+  run through the rows in between, and an edge between two cards of one row.
+- The router is ours, in `treedb_elbow.js` (`elbow_route`,
+  `elbow_path_hits`): an orthogonal search on a sparse grid -- only the lines
+  of the cards' borders, grown by a 12px clearance, and of the two ends. The
+  clearance grows with the lane, so two routed edges joining the same cards
+  do not coincide. It looks at the cards within 400px first and at all of
+  them if that finds no way; with no way at all it keeps the simple elbow. G6's
+  own `shortest-path` router is not used: it is not exported, falls back in
+  silence to a route that crosses cards, and rewrites its module defaults
+  with every config it is given.
+- The cards are read once per draw and shared by every edge of that draw.
+- Seven new tests: an unblocked line left as it is, a detour round a third
+  card, an edge dropping two rows, a closed way keeping the simple elbow, two
+  routed edges of a pair apart, left to right as the transpose, and eighty
+  cards routed within 200ms.
+
 ## 7.23.150
 
 - **treedb graph, elbow edges: a reciprocal pair is drawn apart.** Of the two
