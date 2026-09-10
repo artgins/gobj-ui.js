@@ -130,6 +130,7 @@ const es_translation = {
     "reset edge": "Restablecer el enlace",
     "reset same type edges": "Restablecer los enlaces del mismo tipo",
     "reset all edges": "Restablecer todos los enlaces",
+    "graph": "Grafo",
     "running": "En marcha",
     "Demo toolbar": "Barra del demo",
     "Open the off-canvas drawer (a menu rendered with layout:\"drawer\")": "Abrir el cajón lateral (un menú con layout:\"drawer\")",
@@ -640,6 +641,7 @@ const es_translation = {
  *  as "Q3 2026" — so unlike the demo's own keys they need an `en` bundle.
  */
 const en_translation = {
+    "graph": "Graph",
     "scroll left": "Scroll left",
     "scroll right": "Scroll right",
     /*  The Developer window (yui_dev.js).  */

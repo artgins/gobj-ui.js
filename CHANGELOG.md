@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.138
+
+- **treedb topics: a `graph` button, left of `raw json`, opens the whole
+  treedb as a graph with NO topic focused.** A card's graph icon lands on
+  `<graph route>/<topic>`, and that segment is a focus: going through a card
+  was the only way in, and it always arrived with that topic highlighted. The
+  button's route is the card's `card_action_routes.graph` template without its
+  `/{topic}`, so every host that gives the cards a graph route gets it with no
+  change; a host with none gets no button. A real hash link, like the card's
+  icons. The toolbar now holds up to three buttons, labels kept on mobile (the
+  source url gives way). It uses the `graph` key the card's icon already used
+  -- which yunovatios and the demo did not have, so that icon's tooltip said
+  `graph` there.
+
 ## 7.23.137
 
 - **treedb graph: the toolbar is arranged by what a control is about.** Left,

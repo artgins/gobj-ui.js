@@ -254,6 +254,29 @@ function build_ui(gobj)
 {
     let source_url = gobj_read_str_attr(gobj, "source_url") || "";
 
+    /*  The whole treedb as a graph, with NO topic focused. A card's graph
+     *  icon lands on `<graph route>/<topic>`, and that segment is a
+     *  FOCUS: going through a card was the only way in, and it always
+     *  arrived with that topic highlighted. The route is the card's
+     *  template without its `/{topic}`; a host whose template does not
+     *  end in it, or gives none, gets no button.  */
+    let routes = gobj_read_attr(gobj, "card_action_routes");
+    let graph_tpl = is_object(routes) && typeof routes.graph === "string"? routes.graph : "";
+    let graph_href = /\/\{topic\}$/.test(graph_tpl)? graph_tpl.replace(/\/\{topic\}$/, "") : "";
+    let graph_items = [];
+    if(graph_href) {
+        graph_items.push(
+            ['a', {class: 'button TREEDB_GRAPH_BTN',
+                   href: graph_href,
+                   style: 'margin-left:auto;',
+                   title: t('graph'), 'aria-label': t('graph'),
+                   'data-i18n-title': 'graph', 'data-i18n-aria-label': 'graph'}, [
+                ['span', {class: 'icon'}, [yui_toolbar_icon('yi-hexagon-nodes')]],
+                ['span', {i18n: 'graph'}, 'graph']
+            ]]
+        );
+    }
+
     /*----------------------------------------------*
      *  Layout Schema
      *----------------------------------------------*/
@@ -262,12 +285,15 @@ function build_ui(gobj)
             ['div', {class: 'is-flex-grow-0'}, [
                 ['div', {class: 'is-flex is-align-items-center TREEDB_TOPICS_TOOLBAR',
                          style: 'gap:.25rem; padding:.25rem .25rem;'}, [
-                    /*  This toolbar never holds more than TWO buttons at once
-                     *  (back|toggle on the left, json on the right), so the
-                     *  labels stay on mobile — a deliberate exception to the
-                     *  icon-only-on-mobile rule: two bare squares side by side
-                     *  read as the same control. The graph's toolbar has many
-                     *  more, so it keeps is-hidden-mobile. */
+                    /*  This toolbar never holds more than THREE buttons at once
+                     *  (back|toggle on the left, graph and json on the right),
+                     *  so the labels stay on mobile — a deliberate exception
+                     *  to the icon-only-on-mobile rule: bare squares side by
+                     *  side read as the same control, and the toggle and the
+                     *  graph wear the same icon. They fit at 360px because the
+                     *  source url between them gives way down to its icon. The
+                     *  graph's toolbar has many more, so it keeps
+                     *  is-hidden-mobile. */
 
                     /*  Back to the topic-cards grid (cards-landing mode only);
                      *  hidden until a topic is open. */
@@ -309,11 +335,14 @@ function build_ui(gobj)
                         ['span', {class: 'icon'}, [yui_toolbar_icon('yi-cloudversify')]],
                         ['span', {class: 'TREEDB_TOPICS_SOURCE_URL'}, source_url]
                     ]],
+                    ...graph_items,
                     /*  Inspect the treedb's raw tranger json (whole service,
-                     *  print-tranger, lazy drill). Last + margin-left:auto:
-                     *  flush right, away from the back arrow it sat next to. */
+                     *  print-tranger, lazy drill). Last and flush right, away
+                     *  from the back arrow it sat next to: the `margin-left:
+                     *  auto` goes on the first button of the right group,
+                     *  which is the graph one when there is one. */
                     ['button', {class: 'button TREEDB_JSON_BTN',
-                                style: 'margin-left:auto;',
+                                style: graph_href? '' : 'margin-left:auto;',
                                 title: t('raw json'), 'aria-label': t('raw json'),
                                 'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
                         ['span', {class: 'icon'}, [yui_toolbar_icon('yi-eye')]],
