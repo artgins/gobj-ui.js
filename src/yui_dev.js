@@ -66,6 +66,21 @@ const TRAFFIC_TS_FIELDS = {
  *  repainted from it by `refresh_dev_chrome()` on every toggle, so a
  *  label translated once at build time would come back in English at
  *  the first click.  */
+/*  ⚠️  The keys of this window are a BLIND SPOT for a consumer's
+ *  `validate-locales`: the table below and the `mk_expand` / `mk_dir` /
+ *  `mk_out` helpers pass their key as a VARIABLE, so a scan of `t("…")`
+ *  sees none of them and reports OK with the whole window in English --
+ *  which is how it shipped in gui_agent and gui_treedb. The full set a
+ *  consumer must define, kept here so it can be copied:
+ *
+ *      automata, creation, start / stop, subscriptions, i18n, traffic,
+ *      no poll, output, window, console, both, view, detailed, expanded,
+ *      name only, expand, schema, data, metadata, show, outgoing,
+ *      incoming, errors, find, log, traces, developer, yuno monitor,
+ *      copied, muted, unmute
+ *
+ *  wattyzer and the yunovatios GUIs carry them; check a new consumer
+ *  against this list, and confirm it by DUMPING the window.  */
 const TRACE_DEFS = [
     ["trace_automata",      "automata",      trace_automata],
     ["trace_creation",      "creation",      trace_creation],

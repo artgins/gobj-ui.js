@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.130
+
+- **doc: the Developer window's keys are a BLIND SPOT for a consumer's
+  guard, and the list is written down now.** `TRACE_DEFS` and the
+  `mk_expand` / `mk_dir` / `mk_out` helpers pass their key as a VARIABLE, so
+  a scan of `t("…")` sees none of them and reports OK with the whole window
+  in English -- which is exactly how it shipped in `gui_agent` and
+  `gui_treedb`, 22 of 32 elements untranslated on a deployed page. The
+  library's own markup was already right; what was missing was the
+  vocabulary in two consumers. The full set sits above `TRACE_DEFS` so a new
+  consumer can copy it, and the way to confirm it stays the dump.
+
 ## 7.23.129
 
 - **fix: sixteen literal `aria-label`s in the library's own widgets** -- the
