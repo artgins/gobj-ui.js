@@ -2562,12 +2562,15 @@ function refresh_legend(gobj)
         return;     /*  nothing drawn yet: the engine has not spoken  */
     }
 
-    /*  The main topic leads the strip: it is the trunk everything else
-     *  hangs from, and the eye reads the strip left to right.  */
+    /*  ALPHABETICAL, always, and the main topic takes no seat of its
+     *  own. It used to lead the strip, so starring a topic moved every
+     *  chip -- the one just pressed jumped out from under the pointer
+     *  -- and the rest came in the backend's order, which is not the
+     *  same from one load to the next. A chip is found by WHERE it is;
+     *  the main one is already told apart by its gold star and its
+     *  bold name.  */
     let topics = state.topics.slice().sort((a, b) => {
-        let am = (a.topic === state.main_topic)? 0 : 1;
-        let bm = (b.topic === state.main_topic)? 0 : 1;
-        return am - bm;
+        return String(a.topic).localeCompare(String(b.topic));
     });
 
     for(let entry of topics) {

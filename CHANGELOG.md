@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.135
+
+- **treedb graph: the legend's chips keep their place.** The main topic used
+  to lead the strip, so starring a topic moved every chip -- the one just
+  pressed jumped out from under the pointer -- and the rest came in the
+  backend's order, which is not the same from one load to the next. The
+  strip is ALPHABETICAL now, always, and the main topic takes no seat of its
+  own: its gold star and bold name already tell it apart.
+
 ## 7.23.134
 
 - **treedb graph: every saved look has a way back, in the context menu.** The
