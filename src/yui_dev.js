@@ -67,17 +67,25 @@ const TRAFFIC_TS_FIELDS = {
  *  label translated once at build time would come back in English at
  *  the first click.  */
 /*  ⚠️  The keys of this window are a BLIND SPOT for a consumer's
- *  `validate-locales`: the table below and the `mk_expand` / `mk_dir` /
- *  `mk_out` helpers pass their key as a VARIABLE, so a scan of `t("…")`
+ *  `validate-locales`: the table below and the `grp` / `mk_view` /
+ *  `mk_expand` / `mk_dir` / `mk_out` helpers pass their key as a
+ *  VARIABLE, and `OUT_TITLES` holds three more in a lookup table --
+ *  so they, so a scan of `t("…")`
  *  sees none of them and reports OK with the whole window in English --
  *  which is how it shipped in gui_agent and gui_treedb. The full set a
  *  consumer must define, kept here so it can be copied:
  *
- *      automata, creation, start / stop, subscriptions, i18n, traffic,
- *      no poll, output, window, console, both, view, detailed, expanded,
- *      name only, expand, schema, data, metadata, show, outgoing,
- *      incoming, errors, find, log, traces, developer, yuno monitor,
- *      copied, muted, unmute
+ *      automata, both, browser console only, clear,
+ *      clear captured traffic, compact, console, copied, copy,
+ *      copy visible traffic to clipboard, creation, data, detailed,
+ *      dev window and browser console, dev window only, developer,
+ *      errors, expand, expanded, filter events / payload, find,
+ *      hide the timers and the recurring traffic, i18n, incoming, log,
+ *      machine trace shape, metadata, mute this message, muted,
+ *      name only, no poll, outgoing, output, periodic, schema, show,
+ *      show this section in the expanded view, simple mach,
+ *      start / stop, subscriptions, traces, traffic, unmute, view,
+ *      window, yuno monitor
  *
  *  wattyzer and the yunovatios GUIs carry them; check a new consumer
  *  against this list, and confirm it by DUMPING the window.  */
