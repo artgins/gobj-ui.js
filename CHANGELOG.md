@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.132
+
+- **doc: the rule is written down.** `title` + `aria-label` on EVERY control,
+  both translatable, no exceptions -- a floor, not a preference. README
+  ("Conventions"), with what does NOT count as a name (a sibling `<label>`, a
+  `<label for>` over a control that has no `id`, a placeholder, a visible text
+  that hides on mobile or says the STATE), the two things named after the
+  render instead (a widget's own DOM, an `<option>`), and the only check that
+  settles it: dump the deployed DOM and switch language.
+
 ## 7.23.131
 
 - **fix: the frontend view's layout `<option>`s were the last English text in

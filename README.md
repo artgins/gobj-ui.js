@@ -2290,6 +2290,56 @@ too; the shell's stylesheet raises Bulma's 30% alpha to 70% (2.47:1 → 7.96 in
 dark) where Bulma declares the variable, since a `:root` override does not
 reach it.
 
+### A control without a name is a bug: `title` + `aria-label`, always
+
+**Every control this library draws — and every control an app draws with it —
+carries a `title` AND an `aria-label`, and both are translatable.** A control
+is any `input`, `select`, `textarea`, `button`, or anything that behaves as
+one. All four attributes are written where the control is built:
+
+```js
+['button', {class: 'FOO_SAVE button',
+            title: t('save'),        'data-i18n-title': 'save',
+            'aria-label': t('save'), 'data-i18n-aria-label': 'save'}, …]
+```
+
+It is a floor, not a preference. The ecosystem was swept against it — the
+deployed page of six SPAs, read control by control — and the target is **zero
+controls without a name**. Three things it exists to stop, each of which
+shipped:
+
+| What looks like a name | Why it is not |
+|---|---|
+| A `<label>` **beside** the control (Bulma's `field`) | No `for`, no wrapping: it names the box for the eye and for nothing else |
+| `<label for="x">` over a control carrying only `name="x"` | `for` matches an **`id`**, which the control does not have — correct-looking source, no association |
+| A `placeholder` | Gone the moment something is typed; a reader need not announce it |
+| The visible text | Disappears with `is-hidden-mobile`; and where the text is the STATE (`on`/`off`), it does not say what the control DOES |
+
+A `<label>` that **wraps** its control is the one shape that needs no
+`aria-label` — the label IS the accessible name. And a **literal**
+`aria-label` next to a visible `i18n` label is worse than none: it OVERRIDES
+the translated text for a reader.
+
+Two things carry no attribute anyone can set, and are named after the render
+instead — and again on every rebuild, because a name written onto a widget's
+DOM is a race with the next one:
+
+- **What a widget draws for itself**: Tabulator's header filters and its
+  row-selection checkbox (`yui_tabulator_name_filters` /
+  `yui_tabulator_name_row_selects`, hung off `columnsLoaded` and
+  `renderComplete`), Tom Select's box in front of the `<select>` it hides
+  (`name_form_control`).
+- **An `<option>`**, which is text like any other: it carries `data-i18n`,
+  with `value` kept explicit — a translated option with no value tells the FSM
+  to enter a mode that does not exist.
+
+**How to check it.** Not with a grep: dump `title`/`aria-label` from the
+DEPLOYED DOM, resolve each control's name the way a reader does (`aria-label`
+→ `label[for]` → a wrapping `<label>` → the text → `title` → `placeholder`),
+then switch language and diff. A key that arrives as a VARIABLE — from a data
+table, a helper's argument, a local alias of `t()` — is invisible to
+`validate-locales` and shows up only there.
+
 ### i18n: a string must be able to CHANGE language, not just be translated once
 
 Passing a string through `t()` is **not** enough. `refresh_language()` only
