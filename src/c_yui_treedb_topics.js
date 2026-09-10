@@ -84,7 +84,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system t
 SDATA(data_type_t.DTP_STRING,   "tabs_style",       0,  "is-toggle is-fullwidth", "Bulma tab styling"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_cards_landing",0, false,  "Land on a grid of topic cards (list->detail): a card opens its table, with the tabs bar + a back-to-grid button. Off = tabs only (legacy)."),
 SDATA(data_type_t.DTP_BOOLEAN,  "readonly",         0,  false,  "The whole treedb is read-only: every topic opens without its write affordances and the write events are refused. Set it when this yuno is not the MASTER of the treedb's tranger -- only the master can write, and the yuno answers 'READ-ONLY' to a write since SDK 7.13.0 (ask `treedb-info`)"),
-SDATA(data_type_t.DTP_JSON,     "card_action_routes",0, null,   "Per-card hash-route templates {info, table, graph} with a {topic} placeholder (host-supplied, route-agnostic). Present ⇒ cards show 3 icon actions; absent ⇒ a single card that opens the table."),
+SDATA(data_type_t.DTP_JSON,     "card_action_routes",0, null,   "Hash-route templates {info, table, graph} with a {topic} placeholder (host-supplied, route-agnostic). Present ⇒ cards show the info and table icons, and `graph` without its `/{topic}` is the toolbar's graph button (the card has no graph icon: its topic segment is a focus); absent ⇒ a single card that opens the table."),
 SDATA(data_type_t.DTP_JSON,     "landing_routes",   0,  null,   "Host-supplied hashes for the two landing sub-views {cards, schema}; the toggle navigates to them so the landing is URL-addressable (ROUTING.md). Absent ⇒ toggle flips in-view only (legacy)."),
 SDATA(data_type_t.DTP_STRING,   "base_route",       0,  "",     "This view's base route (host-supplied); used to declare its sub-routes (topics / info / schema) to the site map (ROUTING.md contributor)."),
 SDATA(data_type_t.DTP_STRING,   "source_url",       0,  "",     "The backend this view browses (host-supplied, typically the wss url of the connection), shown in the toolbar. A tab label names the TREEDB, and the same treedb name lives on more than one node, so the node has to be readable somewhere -- and a tab is too narrow to carry a url. Empty ⇒ nothing is shown."),
@@ -600,13 +600,81 @@ function card_action_anchor(logical_class, icon, i18n_key, href)
 }
 
 /************************************************************
+ *  What a topic card says about its topic, from its desc alone
+ *  (no request): its version and how many columns it has, the
+ *  topics it hangs FROM (its fkeys) and the ones that hang from
+ *  it (its hooks). The names are DATA and are not translated;
+ *  each label carries its key. Lists are cut with an ellipsis,
+ *  whole in the title.
+ ************************************************************/
+function topic_card_meta(desc)
+{
+    if(!is_object(desc)) {
+        return [];
+    }
+    let cols = is_array(desc.cols)? desc.cols : [];
+    let n_cols = 0;
+    let parents = [];
+    let children = [];
+    for(let col of cols) {
+        if(!col || !col.id || col.id.charAt(0) === "_") {
+            continue;
+        }
+        n_cols++;
+        if(is_object(col.fkey)) {
+            for(let t_name of Object.keys(col.fkey)) {
+                if(!parents.includes(t_name)) {
+                    parents.push(t_name);
+                }
+            }
+        }
+        if(is_object(col.hook)) {
+            for(let t_name of Object.keys(col.hook)) {
+                if(!children.includes(t_name)) {
+                    children.push(t_name);
+                }
+            }
+        }
+    }
+
+    let meta = [];
+    let head = [];
+    if(desc.topic_version !== undefined && desc.topic_version !== null && desc.topic_version !== "") {
+        head.push(['span', {class: 'TREEDB_TOPIC_CARD_VERSION',
+                            title: t('version'), 'data-i18n-title': 'version'},
+                   `v${desc.topic_version}`]);
+    }
+    head.push(['span', {class: 'TREEDB_TOPIC_CARD_COLS'}, [
+        ['span', {}, `${n_cols}`],
+        ['span', {i18n: 'columns'}, 'columns']
+    ]]);
+    meta.push(['div', {class: 'TREEDB_TOPIC_CARD_META'}, head]);
+
+    let relation = (cls, key, arrow, names) => {
+        let list = names.join(", ");
+        return ['div', {class: `TREEDB_TOPIC_CARD_REL ${cls}`, title: list}, [
+            ['span', {class: 'TREEDB_TOPIC_CARD_REL_ARROW', 'aria-hidden': 'true'}, arrow],
+            ['span', {class: 'TREEDB_TOPIC_CARD_REL_LABEL', i18n: key}, key],
+            ['span', {class: 'TREEDB_TOPIC_CARD_REL_LIST'}, list]
+        ]];
+    };
+    if(parents.length) {
+        meta.push(relation('TREEDB_TOPIC_CARD_PARENTS', 'parents', '↑', parents));
+    }
+    if(children.length) {
+        meta.push(relation('TREEDB_TOPIC_CARD_CHILDREN', 'children', '↓', children));
+    }
+    return meta;
+}
+
+/************************************************************
  *  Add one topic card to the cards-landing grid (list->detail).
  *  With `card_action_routes` (host-supplied templates) the card
  *  shows three hash-routed icons — info / table / graph. Without,
  *  it falls back to a single card that opens the table (same id
  *  contract as the tab, `<gobj>?<topic>`).
  ************************************************************/
-function add_topic_card(gobj, id, text, icon)
+function add_topic_card(gobj, id, text, icon, desc)
 {
     let $container = gobj_read_attr(gobj, "$container");
     let $grid = $container.querySelector(".TREEDB_TOPICS_LANDING .yui-nav-cards");
@@ -635,9 +703,16 @@ function add_topic_card(gobj, id, text, icon)
         return;
     }
 
-    /*  Three-icon card: info / table / graph, all real hash anchors.
-     *  {topic} in each template is the raw topic name (identifier-safe,
-     *  matching the tab/host `<base_route>/<topic>` convention). */
+    /*  Two-icon card: info / table, real hash anchors. {topic} in each
+     *  template is the raw topic name (identifier-safe, matching the
+     *  tab/host `<base_route>/<topic>` convention).
+     *
+     *  NO graph icon any more. Its route was `<graph>/<topic>`, and that
+     *  segment is a FOCUS: every way into the graph from a card arrived
+     *  with that topic highlighted, over whatever the reader had left
+     *  there. The graph is one button in the toolbar now, with no topic
+     *  (routes.graph still feeds it), and the room goes to what the card
+     *  can say about its topic. */
     let topic = id.indexOf("?") >= 0 ? id.split("?")[1] : id;
     let fill = (tpl) => String(tpl || "").replace("{topic}", topic);
 
@@ -650,14 +725,11 @@ function add_topic_card(gobj, id, text, icon)
         actions.push(card_action_anchor(
             "TREEDB_CARD_TABLE", "yi-table", "table", fill(routes.table)));
     }
-    if(routes.graph) {
-        actions.push(card_action_anchor(
-            "TREEDB_CARD_GRAPH", "yi-hexagon-nodes", "graph", fill(routes.graph)));
-    }
 
     let $card = createElement2(
         ['div', {class: 'TREEDB_TOPIC_CARD', 'data-topic': topic}, [
             ['span', {class: 'TREEDB_TOPIC_CARD_NAME', i18n: text}, text],
+            ...topic_card_meta(desc),
             ['div', {class: 'TREEDB_TOPIC_CARD_ACTIONS'}, actions]
         ]]
     );
@@ -1087,7 +1159,7 @@ function process_treedb_descs(gobj)
 
         // TODO get icon from remote config
         add_tab(gobj, gobj_topic_form, id, key, "yi-table");
-        add_topic_card(gobj, id, key, "yi-table");
+        add_topic_card(gobj, id, key, "yi-table", desc);
 
         gobj_start(gobj_topic_form);
     }

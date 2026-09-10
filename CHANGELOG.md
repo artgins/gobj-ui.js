@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.139
+
+- **treedb topics: the card has no graph icon any more, and says more about
+  its topic.** The icon's route was `<graph>/<topic>`, and that segment is a
+  FOCUS: every way into the graph from a card arrived with that topic
+  highlighted, over whatever the reader had left there. The graph is the
+  toolbar's `graph` button (7.23.138, in the landing and with a topic open
+  alike), which lands with no focus and leaves the graph's own choices --
+  layout, operation mode, node view -- as they were. The room goes to what
+  the card can say from its desc, with no request: the topic's version and
+  its number of columns, the topics it hangs FROM (its fkeys, `↑ parents`)
+  and the ones that hang from it (its hooks, `↓ children`). Keys `version`,
+  `columns`, `parents`, `children` -- all already in every consumer.
+
 ## 7.23.138
 
 - **treedb topics: a `graph` button, left of `raw json`, opens the whole

@@ -36,6 +36,31 @@
     line-height: 1.2;
     word-break: break-word;
 }
+/*  What the card says about its topic: version + columns, then the
+ *  topics it hangs from and the ones hanging from it. Muted and small,
+ *  under the name; a long list is cut, whole in the title. The spans
+ *  are spaced by `gap` because createElement2 trims text nodes.  */
+.TREEDB_TOPIC_CARD_META,
+.TREEDB_TOPIC_CARD_REL {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.3rem;
+    max-width: 100%;
+    font-size: 0.75rem;
+    color: var(--bulma-text-weak, #7a7a7a);
+    white-space: nowrap;
+}
+.TREEDB_TOPIC_CARD_COLS {
+    display: inline-flex;
+    gap: 0.25rem;
+}
+.TREEDB_TOPIC_CARD_REL_LIST {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--bulma-text, inherit);
+}
 .TREEDB_TOPIC_CARD_ACTIONS {
     display: flex;
     justify-content: center;
