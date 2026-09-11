@@ -25,25 +25,6 @@
  *        the order the edges were made, so a new edge never moves the
  *        ones already drawn.
  *
- *      - Several forward edges sharing one END: the children of one
- *        card, or the parents of one card (all its fkeys enter by one
- *        point). They are STAGGERED: each turns at its own height in
- *        the channel, so their runs lie side by side instead of on top
- *        of each other. Leaving a card, the one that runs farthest
- *        turns highest; reaching a card, the one that comes from
- *        farthest turns lowest -- the two orders in which the lines of
- *        one end nest without crossing.
- *
- *      - A card in a lower row of a STACK (treedb_layout.js lays a
- *        run of leaf children out as two columns with a corridor
- *        between them): the card above it stands in the way of the
- *        channel, so its edge runs down the corridor in a lane of
- *        its own -- a COMB -- and turns into the gap above its card.
- *
- *      And for CURVED edges (curve_hits, rounded_path): a curve
- *      that would cross another card follows the same way an elbow
- *      would, with round corners, so it reads as a curve.
- *
  *      Written for the top-down reading; left to right is the same
  *      geometry with the axes swapped.
  *
@@ -51,12 +32,9 @@
  *          All Rights Reserved.
  ***********************************************************************/
 
-import {STACK_GAP, STACK_LANE_PAD, STACK_LANE_STEP, STACK_TRUNK_MIN} from "./treedb_layout.js";
-
 export const ELBOW_STEP = 10;      /*  between two lanes  */
 export const ELBOW_JETTY = 16;     /*  straight run out of a port before a detour turns  */
 export const ELBOW_CLEAR = 24;     /*  how far outside the two cards a detour runs  */
-export const ELBOW_STAGGER_PAD = 6;    /*  staggered turns keep this far from the rows  */
 
 /************************************************************
  *  The lane of `id` among `ids`, the edges joining the same two
@@ -76,24 +54,6 @@ export function elbow_lane(ids, id)
     return side * Math.ceil(k / 2);
 }
 
-/************************************************************
- *  The rank of `id` among `items` ([{id, span}]): the forward
- *  edges that share one end with it, each with how far it runs
- *  ACROSS. Farthest first; a tie goes to the edge made first.
- *  Returns {rank, count}.
- ************************************************************/
-export function elbow_rank(items, id)
-{
-    let sorted = items.slice().sort((a, b) => {
-        if(b.span !== a.span) {
-            return b.span - a.span;
-        }
-        return String(a.id).localeCompare(String(b.id), undefined, {numeric: true});
-    });
-    let rank = sorted.findIndex((it) => it.id === id);
-    return {rank: (rank < 0)? 0 : rank, count: sorted.length};
-}
-
 function swap(p)
 {
     return [p[1], p[0]];
@@ -104,154 +64,6 @@ function swap_box(b)
     return {x1: b.y1, y1: b.x1, x2: b.y2, y2: b.x2};
 }
 
-/*  Where a forward edge turns between `lo` and `hi`: the middle, or
- *  its staggered place among the edges sharing one of its ends --
- *  leaving, the farthest highest; arriving, the farthest lowest.  */
-function staggered_turn(lo, hi, st)
-{
-    let mid = (lo + hi) / 2;
-    let group = null;
-    let k = 0;
-    if(st.dep && st.dep.count > 1) {
-        group = st.dep;
-        k = st.dep.rank;
-    } else if(st.arr && st.arr.count > 1) {
-        group = st.arr;
-        k = st.arr.count - 1 - st.arr.rank;
-    }
-    if(group) {
-        let room = Math.max(0, hi - lo - 2 * ELBOW_STAGGER_PAD);
-        let step = Math.min(ELBOW_STEP, room / (group.count - 1));
-        mid = mid - (group.count - 1) * step / 2 + k * step;
-    }
-    return mid;
-}
-
-/************************************************************
- *  The combs of the stacks under one card.
- *
- *  treedb_layout.js lays a run of leaf children out as two columns
- *  with a corridor between them. A card in the first row is reached
- *  from the channel like any other; one in a lower row cannot be --
- *  the card above it stands in the way -- so its edge runs down
- *  the corridor in a LANE of its own and turns into the gap above
- *  its card, which it shares only with the other card of its row,
- *  reached from the other side.
- *
- *      targets     [{id, box}]: the forward edges leaving one card,
- *                  each with the box of the card it reaches
- *      vertical    as in elbow_points; false swaps the boxes
- *
- *  Returns Map id -> {lane, z, top}: the lane, the height of the
- *  gap it turns into, and the top of the stack's first row (where
- *  the channel over the stack ends). Only for a card that stands
- *  under another of the group, within a stack gap and lined up
- *  with it on the corridor side -- what a stack looks like.
- *
- *  Lanes go outermost first, row by row: a line into a higher row
- *  keeps outside the lines going deeper, and none crosses another.
- ************************************************************/
-export function elbow_combs(targets, vertical)
-{
-    let list = vertical? targets : targets.map((it) => ({id: it.id, box: swap_box(it.box)}));
-    let cy = (b) => (b.y1 + b.y2) / 2;
-    let near = (a, b) => Math.abs(a - b) < 1.5;
-
-    let under = [];
-    for(let it of list) {
-        let b = it.box;
-        let above = null;
-        for(let o of list) {
-            let a = o.box;
-            if(o === it || a.y2 > b.y1 || b.y1 - a.y2 > STACK_GAP) {
-                continue;
-            }
-            if(!(near(a.x2, b.x2) || near(a.x1, b.x1))) {
-                continue;
-            }
-            if(!above || a.y2 > above.y2) {
-                above = a;
-            }
-        }
-        if(!above) {
-            continue;
-        }
-        /*  Its column: lined up on the corridor side, which is the
-         *  right edge of the first column and the left edge of the
-         *  second. Two cards of one width line up on both; then the
-         *  card beside it in its row says.  */
-        let side;
-        if(near(above.x2, b.x2) && !near(above.x1, b.x1)) {
-            side = 0;
-        } else if(near(above.x1, b.x1) && !near(above.x2, b.x2)) {
-            side = 1;
-        } else {
-            let left_of_it = list.some((o) => o !== it && near(cy(o.box), cy(b)) &&
-                                               o.box.x2 <= b.x1);
-            side = left_of_it? 1 : 0;
-        }
-        under.push({id: it.id, box: b, above: above, side: side});
-    }
-
-    /*  The corridor of a card: from the first column's edge to the
-     *  second's, read off any row of the stack that has both.  */
-    let corridor = (u) => {
-        if(u.side === 0) {
-            let l = u.box.x2;
-            let col = list.filter((o) => near(o.box.x2, l));
-            let r = Infinity;
-            for(let c of col) {
-                for(let o of list) {
-                    if(o !== c && near(cy(o.box), cy(c.box)) && o.box.x1 >= l - 0.5) {
-                        r = Math.min(r, o.box.x1);
-                    }
-                }
-            }
-            return {l: l, r: isFinite(r)? r : l + STACK_TRUNK_MIN, col: col};
-        }
-        let r = u.box.x1;
-        let col = list.filter((o) => near(o.box.x1, r));
-        let l = -Infinity;
-        for(let c of col) {
-            for(let o of list) {
-                if(o !== c && near(cy(o.box), cy(c.box)) && o.box.x2 <= r + 0.5) {
-                    l = Math.max(l, o.box.x2);
-                }
-            }
-        }
-        return {l: isFinite(l)? l : r - STACK_TRUNK_MIN, r: r, col: col};
-    };
-
-    let groups = new Map();
-    for(let u of under) {
-        let c = corridor(u);
-        u.top = Math.min(...c.col.map((o) => o.box.y1));
-        let key = `${Math.round(c.l)}|${Math.round(c.r)}`;
-        if(!groups.has(key)) {
-            groups.set(key, {l: c.l, r: c.r, left: [], right: []});
-        }
-        groups.get(key)[(u.side === 0)? 'left' : 'right'].push(u);
-    }
-
-    let out = new Map();
-    for(let g of groups.values()) {
-        g.left.sort((a, b) => a.box.y1 - b.box.y1);
-        g.right.sort((a, b) => a.box.y1 - b.box.y1);
-        let n = g.left.length + g.right.length;
-        let room = g.r - g.l - 2 * STACK_LANE_PAD;
-        let step = (n > 1)? Math.max(0, Math.min(STACK_LANE_STEP, room / (n - 1))) : 0;
-        g.left.forEach((u, i) => {
-            out.set(u.id, {lane: g.l + STACK_LANE_PAD + i * step,
-                           z: (u.above.y2 + u.box.y1) / 2, top: u.top});
-        });
-        g.right.forEach((u, j) => {
-            out.set(u.id, {lane: g.r - STACK_LANE_PAD - j * step,
-                           z: (u.above.y2 + u.box.y1) / 2, top: u.top});
-        });
-    }
-    return out;
-}
-
 /************************************************************
  *  The control points of an elbow from the port `s` to the port
  *  `t` ([x, y] each), knowing the boxes of the two cards
@@ -259,39 +71,21 @@ export function elbow_combs(targets, vertical)
  *
  *      vertical    the rows are stacked (top to bottom); false
  *                  when they are side by side (left to right)
- *      stagger     {dep, arr, comb}: the edge's rank among the
- *                  forward edges leaving its source card and among
- *                  those reaching its target card (elbow_rank), and
- *                  its comb when the target is in a lower row of a
- *                  stack (elbow_combs). Absent, the channel is the
- *                  middle.
  ************************************************************/
-export function elbow_points(s, t, box_s, box_t, lane, vertical, stagger)
+export function elbow_points(s, t, box_s, box_t, lane, vertical)
 {
     if(!vertical) {
-        return elbow_points(swap(s), swap(t), swap_box(box_s), swap_box(box_t), lane, true,
-                            stagger).map(swap);
+        return elbow_points(swap(s), swap(t), swap_box(box_s), swap_box(box_t), lane, true)
+            .map(swap);
     }
 
     let shift = lane * ELBOW_STEP;
 
-    /*  Forward: the channel half way between the two cards, each
-     *  edge of a shared end at its own height round it, moved by the
-     *  lane, and kept between the two rows. Into a lower row of a
-     *  stack: along the channel to its corridor lane, down the lane,
-     *  and into the gap above its card.  */
+    /*  Forward: the channel half way down, moved by the lane and
+     *  kept strictly between the two ports.  */
     if(t[1] - s[1] > 2 * ELBOW_STEP) {
-        let st = stagger || {};
-        let lo = Math.max(s[1], box_s.y2);
-        if(st.comb) {
-            let c = st.comb;
-            let turn = staggered_turn(lo, c.top, {dep: st.dep}) + shift;
-            turn = Math.min(Math.max(turn, lo + 4), c.top - 4);
-            return [[s[0], turn], [c.lane, turn], [c.lane, c.z], [t[0], c.z]];
-        }
-        let hi = Math.min(t[1], box_t.y1);
-        let mid = staggered_turn(lo, hi, st) + shift;
-        mid = Math.min(Math.max(mid, lo + 4), hi - 4);
+        let mid = (s[1] + t[1]) / 2 + shift;
+        mid = Math.min(Math.max(mid, s[1] + ELBOW_STEP), t[1] - ELBOW_STEP);
         return [[s[0], mid], [t[0], mid]];
     }
 
@@ -421,12 +215,8 @@ function heap_pop(h)
 /************************************************************
  *  The shortest orthogonal line from `a` to `z` that enters none
  *  of `boxes` (already expanded by the clearance), a turn costing
- *  ROUTE_BEND. The line leaves `a` SIDEWAYS and reaches `z`
- *  SIDEWAYS: the column straight under a port and the one straight
- *  over it belong to the forward edges that share that port, which
- *  run along them to their staggered turns -- a route going down
- *  that column lay on top of them. So a routed line shares only
- *  the stub between the port and `a` (or `z`).
+ *  ROUTE_BEND. The line leaves `a` going down and ends at `z`
+ *  going down, since after `z` it drops into a port.
  *
  *  The grid is SPARSE: only the lines of the boxes' borders and
  *  of the two ends, which is all an orthogonal shortest path ever
@@ -512,10 +302,7 @@ function orth_search(a, z, boxes)
         let k = state >> 2;
         let dir = state & 3;
         if(k === goal) {
-            if(dir >= 2) {
-                continue;       /*  down the port's own column: not allowed  */
-            }
-            let total = cost + ROUTE_BEND;      /*  the turn into the port  */
+            let total = cost + ((dir === 2)? 0 : ROUTE_BEND);
             if(total < found_cost) {
                 found_cost = total;
                 found = state;
@@ -523,9 +310,6 @@ function orth_search(a, z, boxes)
             continue;
         }
         for(let [nk, nd, len] of moves(k)) {
-            if(k === start && nd >= 2) {
-                continue;       /*  out of the port sideways, not down its column  */
-            }
             let c = cost + len + ((nd === dir)? 0 : ROUTE_BEND);
             let ns = nk * 4 + nd;
             if(c < best[ns]) {
@@ -576,21 +360,15 @@ function orth_search(a, z, boxes)
  *  coincide. Nearby cards first; all of them if that finds no way;
  *  the simple elbow if nothing does.
  ************************************************************/
-export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes, stagger)
+export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes)
 {
     let others = boxes || [];
     if(!vertical) {
         return elbow_route(swap(s), swap(t), swap_box(box_s), swap_box(box_t), lane, true,
-                           others.map(swap_box), stagger).map(swap);
+                           others.map(swap_box)).map(swap);
     }
 
-    /*  A comb runs where the layout left room for it: its corridor
-     *  and its gap are empty by construction.  */
-    if(stagger && stagger.comb) {
-        return elbow_points(s, t, box_s, box_t, lane, true, stagger);
-    }
-
-    let simple = elbow_points(s, t, box_s, box_t, lane, true, stagger);
+    let simple = elbow_points(s, t, box_s, box_t, lane, true);
     if(!elbow_path_hits([s, ...simple, t], others, box_s, box_t)) {
         return simple;
     }
@@ -612,113 +390,4 @@ export function elbow_route(s, t, box_s, box_t, lane, vertical, boxes, stagger)
         route = orth_search(a, z, others.map((b) => box_expand(b, m)));
     }
     return route || simple;
-}
-
-/*----------------------------------------------------------------*
- *      CURVED edges that would cross a card
- *----------------------------------------------------------------*/
-export const CURVE_RADIUS = 24;     /*  the corners of a curve that goes round  */
-export const CURVE_STEPS = 16;      /*  samples of each curved stretch  */
-
-/*  Points along a G6 path: the ends of its runs and CURVE_STEPS
- *  samples of each quadratic or cubic stretch.  */
-function path_points(path)
-{
-    let pts = [];
-    let cur = null;
-    for(let c of path) {
-        if(c[0] === 'M' || c[0] === 'L') {
-            cur = [c[1], c[2]];
-            pts.push(cur);
-        } else if(c[0] === 'C' && cur) {
-            let [x0, y0] = cur;
-            for(let k = 1; k <= CURVE_STEPS; k++) {
-                let u = k / CURVE_STEPS;
-                let v = 1 - u;
-                pts.push([
-                    v * v * v * x0 + 3 * v * v * u * c[1] + 3 * v * u * u * c[3] + u * u * u * c[5],
-                    v * v * v * y0 + 3 * v * v * u * c[2] + 3 * v * u * u * c[4] + u * u * u * c[6],
-                ]);
-            }
-            cur = [c[5], c[6]];
-        } else if(c[0] === 'Q' && cur) {
-            let [x0, y0] = cur;
-            for(let k = 1; k <= CURVE_STEPS; k++) {
-                let u = k / CURVE_STEPS;
-                let v = 1 - u;
-                pts.push([
-                    v * v * x0 + 2 * v * u * c[1] + u * u * c[3],
-                    v * v * y0 + 2 * v * u * c[2] + u * u * c[4],
-                ]);
-            }
-            cur = [c[3], c[4]];
-        }
-    }
-    return pts;
-}
-
-/************************************************************
- *  Does the G6 path `path` of a curved edge cross a card other than
- *  its own two? Measured on the curve itself -- the path G6 would
- *  draw, sampled -- and not on the rectangle round it, which took
- *  every card the curve merely passed near: the ports of a row
- *  stick well into the space above it. Its own two cards are left
- *  out: the curve starts and ends on their ports.
- ************************************************************/
-export function curve_hits(path, boxes, box_s, box_t)
-{
-    let pts = path_points(path);
-    if(pts.length < 2) {
-        return false;
-    }
-    let bb = {x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity};
-    for(let p of pts) {
-        bb.x1 = Math.min(bb.x1, p[0]);
-        bb.y1 = Math.min(bb.y1, p[1]);
-        bb.x2 = Math.max(bb.x2, p[0]);
-        bb.y2 = Math.max(bb.y2, p[1]);
-    }
-    for(let b of (boxes || [])) {
-        if(same_box(b, box_s) || same_box(b, box_t) || !box_overlaps(b, box_expand(bb, 1))) {
-            continue;
-        }
-        let inner = box_expand(b, -1);
-        for(let k = 0; k + 1 < pts.length; k++) {
-            if(segment_hits(pts[k], pts[k + 1], inner)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/************************************************************
- *  A G6 path (['M'|'L'|'Q', ...]) along `points` with every corner
- *  rounded -- by `radius`, or by half the shorter of its two
- *  segments, so a short run is never overshot. The rounding is the
- *  quadratic G6's own polyline uses.
- ************************************************************/
-export function rounded_path(points, radius)
-{
-    let path = [['M', points[0][0], points[0][1]]];
-    for(let i = 1; i + 1 < points.length; i++) {
-        let a = points[i - 1];
-        let m = points[i];
-        let b = points[i + 1];
-        let len_in = Math.hypot(m[0] - a[0], m[1] - a[1]);
-        let len_out = Math.hypot(b[0] - m[0], b[1] - m[1]);
-        let r = Math.min(radius, len_in / 2, len_out / 2);
-        let collinear = Math.abs((m[0] - a[0]) * (b[1] - m[1]) - (m[1] - a[1]) * (b[0] - m[0])) < 1e-9;
-        if(r <= 0 || collinear) {
-            path.push(['L', m[0], m[1]]);
-            continue;
-        }
-        let p1 = [m[0] - (m[0] - a[0]) / len_in * r, m[1] - (m[1] - a[1]) / len_in * r];
-        let p2 = [m[0] + (b[0] - m[0]) / len_out * r, m[1] + (b[1] - m[1]) / len_out * r];
-        path.push(['L', p1[0], p1[1]]);
-        path.push(['Q', m[0], m[1], p2[0], p2[1]]);
-    }
-    let last = points[points.length - 1];
-    path.push(['L', last[0], last[1]]);
-    return path;
 }

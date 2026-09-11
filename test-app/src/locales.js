@@ -378,7 +378,6 @@ const es_translation = {
     "force-atlas2": "force-atlas2",
     "radial": "radial",
     "treedb-tree": "árbol",
-    "compact-tree": "árbol compacto",
     "elbow edges":  "enlaces en codo",
     "node labels": "Etiquetas de los nodos",
     "nodes": "Nodos",

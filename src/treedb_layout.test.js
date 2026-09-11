@@ -6,9 +6,7 @@
  *      tidy tree's rows and centring, the radial tree's rings.
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
-import {
-    spanning_tree, layout_tree, layout_radial, layout_compact, stack_trunk_width, STACK_GAP,
-} from "./treedb_layout.js";
+import { spanning_tree, layout_tree, layout_radial } from "./treedb_layout.js";
 
 /*  es -> (norte, sur); norte -> nave; nave -> d0, d1 (hook rank 1) and
  *  c1 (hook rank 2); c1 -> d0 as well (second parent).  */
@@ -99,177 +97,6 @@ describe("the tidy tree, read down (the default)", () => {
     });
 });
 
-/*  Every two cards of one row stand at least `gap` apart.  */
-function expect_no_overlap_in_rows(list, pos, gap)
-{
-    for(let i = 0; i < list.length; i++) {
-        for(let j = i + 1; j < list.length; j++) {
-            let a = list[i];
-            let b = list[j];
-            let pa = pos.get(a.id);
-            let pb = pos.get(b.id);
-            if(Math.abs(pa.y - pb.y) > 1e-6) {
-                continue;
-            }
-            expect(Math.abs(pa.x - pb.x) + 1e-6).toBeGreaterThanOrEqual((a.w + b.w) / 2 + gap);
-        }
-    }
-}
-
-function width_of(list, pos)
-{
-    let lo = Infinity;
-    let hi = -Infinity;
-    for(let n of list) {
-        let p = pos.get(n.id);
-        lo = Math.min(lo, p.x - n.w / 2);
-        hi = Math.max(hi, p.x + n.w / 2);
-    }
-    return hi - lo;
-}
-
-/*  r -> a, b;  a -> hall -> six devices;  b is a closed sibling.  */
-const wide = [N("r", 172, 96), N("a", 172, 96), N("b", 172, 96), N("hall", 172, 96)]
-    .concat([0, 1, 2, 3, 4, 5].map((i) => N(`d${i}`, 116, 40)));
-const wide_edges = [
-    {source: "r", target: "a"}, {source: "r", target: "b"}, {source: "a", target: "hall"},
-].concat([0, 1, 2, 3, 4, 5].map((i) => ({source: "hall", target: `d${i}`})));
-
-describe("the compact tree", () => {
-    test("the rows are the tidy tree's rows; a stack starts on its row", () => {
-        let tidy = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
-        let pos = layout_compact(nodes, edges, {nodesep: 10, ranksep: 100});
-        /*  nave's three leaves (d0, d1, c1) are a stack: d0 and d1 are
-         *  its first row, on the tidy row; c1 opens the next one.  */
-        for(let id of ["es", "norte", "sur", "nave", "d0", "d1"]) {
-            expect(pos.get(id).y).toBe(tidy.get(id).y);
-        }
-        expect(pos.get("c1").y).toBeGreaterThan(pos.get("d0").y);
-    });
-
-    test("no two cards of a row are closer than the gap", () => {
-        expect_no_overlap_in_rows(nodes, layout_compact(nodes, edges, {nodesep: 10, ranksep: 100}), 10);
-        expect_no_overlap_in_rows(wide, layout_compact(wide, wide_edges, {nodesep: 18, ranksep: 90}), 18);
-    });
-
-    test("two leaves stay side by side, and the parent is centred over them", () => {
-        let two = [N("p", 172, 96), N("a", 116, 40), N("b", 116, 40)];
-        let pos = layout_compact(two, [{source: "p", target: "a"}, {source: "p", target: "b"}],
-                                 {nodesep: 10, ranksep: 100});
-        expect(pos.get("a").y).toBe(pos.get("b").y);
-        expect(pos.get("b").x - pos.get("a").x).toBe(116 + 10);
-        expect(pos.get("p").x).toBeCloseTo((pos.get("a").x + pos.get("b").x) / 2, 6);
-    });
-
-    test("a closed sibling sits beside an open branch, not beside its block", () => {
-        let opts = {nodesep: 18, ranksep: 90};
-        let tidy = layout_tree(wide, wide_edges, opts);
-        let pos = layout_compact(wide, wide_edges, opts);
-        /*  In the tidy tree `b` waits for the whole fan of devices; here it
-         *  only has to clear `a`, the card beside it.  */
-        expect(pos.get("b").x - pos.get("a").x).toBeLessThan(tidy.get("b").x - tidy.get("a").x);
-        expect(pos.get("b").x - pos.get("a").x).toBeGreaterThanOrEqual(172 + 18 - 1e-6);
-        expect(width_of(wide, pos)).toBeLessThanOrEqual(width_of(wide, tidy));
-    });
-
-    test("two trees sit side by side, not overlapped", () => {
-        let pos = layout_compact([N("a", 100, 50), N("b", 100, 50)], [], {nodesep: 10});
-        expect(pos.get("b").x - pos.get("a").x).toBe(100 + 20);
-    });
-
-    test("read right, it is the same tree with the axes swapped", () => {
-        let down = layout_compact(wide, wide_edges, {nodesep: 18, ranksep: 90});
-        let swapped = wide.map((n) => N(n.id, n.h, n.w));
-        let right = layout_compact(swapped, wide_edges, {nodesep: 18, ranksep: 90, direction: "LR"});
-        for(let n of wide) {
-            expect(right.get(n.id).x).toBeCloseTo(down.get(n.id).y, 6);
-            expect(right.get(n.id).y).toBeCloseTo(down.get(n.id).x, 6);
-        }
-    });
-
-    test("a tree as deep as the data places every node, without recursion", () => {
-        let chain = [];
-        let links = [];
-        for(let i = 0; i < 5000; i++) {
-            chain.push(N(`n${i}`, 40, 20));
-            if(i > 0) {
-                links.push({source: `n${i - 1}`, target: `n${i}`});
-            }
-        }
-        let pos = layout_compact(chain, links, {});
-        expect(pos.size).toBe(5000);
-        expect(Number.isFinite(pos.get("n4999").x)).toBe(true);
-    });
-});
-
-describe("the compact tree stacks a run of leaves", () => {
-    const P6 = N("p", 172, 96);
-    const L6 = [0, 1, 2, 3, 4, 5].map((i) => N(`l${i}`, 116, 40));
-    const E6 = L6.map((l) => ({source: "p", target: l.id}));
-    const OPTS = {nodesep: 18, ranksep: 90};
-
-    test("in two columns, row after row, against a corridor", () => {
-        let pos = layout_compact([P6, ...L6], E6, OPTS);
-        let y = (id) => pos.get(id).y;
-        let x = (id) => pos.get(id).x;
-        expect(y("l0")).toBe(y("l1"));
-        expect(y("l2")).toBe(y("l3"));
-        expect(y("l2") - y("l0")).toBe(40 + STACK_GAP);
-        expect(y("l4") - y("l2")).toBe(40 + STACK_GAP);
-        /*  The first column lines up on its right edge, the second on
-         *  its left, and between them the corridor.  */
-        expect(x("l0")).toBe(x("l2"));
-        expect(x("l1")).toBe(x("l5"));
-        expect((x("l1") - 58) - (x("l0") + 58)).toBe(stack_trunk_width(6));
-        /*  The parent over the block.  */
-        expect(x("p")).toBeCloseTo(((x("l0") - 58) + (x("l1") + 58)) / 2, 6);
-    });
-
-    test("no two cards overlap", () => {
-        let all = [P6, ...L6];
-        let pos = layout_compact(all, E6, OPTS);
-        for(let i = 0; i < all.length; i++) {
-            for(let j = i + 1; j < all.length; j++) {
-                let a = all[i];
-                let b = all[j];
-                let pa = pos.get(a.id);
-                let pb = pos.get(b.id);
-                let apart_x = Math.abs(pa.x - pb.x) >= (a.w + b.w) / 2;
-                let apart_y = Math.abs(pa.y - pb.y) >= (a.h + b.h) / 2;
-                expect(apart_x || apart_y).toBe(true);
-            }
-        }
-    });
-
-    test("a whole level of leaves takes a fraction of the row it took", () => {
-        let tidy = layout_tree([P6, ...L6], E6, OPTS);
-        let pos = layout_compact([P6, ...L6], E6, OPTS);
-        let span = (p) => {
-            let xs = L6.map((l) => p.get(l.id).x);
-            return Math.max(...xs) - Math.min(...xs) + 116;
-        };
-        expect(span(pos)).toBeLessThan(span(tidy) / 2);
-    });
-
-    test("a run is broken by a child with children, and the order is kept", () => {
-        /*  p -> a, b, c (leaves), m (has a child), d, e (leaves).  */
-        let list = [N("p", 172, 96), N("a", 116, 40), N("b", 116, 40), N("c", 116, 40),
-                    N("m", 172, 96), N("d", 116, 40), N("e", 116, 40), N("mk", 116, 40)];
-        let links = ["a", "b", "c", "m", "d", "e"].map((k) => ({source: "p", target: k}))
-            .concat([{source: "m", target: "mk"}]);
-        let pos = layout_compact(list, links, OPTS);
-        /*  a, b, c: a stack (c under a); d, e: a pair on the row.  */
-        expect(pos.get("c").y).toBeGreaterThan(pos.get("a").y);
-        expect(pos.get("c").x).toBe(pos.get("a").x);
-        expect(pos.get("d").y).toBe(pos.get("a").y);
-        expect(pos.get("e").y).toBe(pos.get("a").y);
-        /*  Left to right: the stack, m, then d and e.  */
-        expect(pos.get("b").x).toBeLessThan(pos.get("m").x);
-        expect(pos.get("m").x).toBeLessThan(pos.get("d").x);
-        expect(pos.get("d").x).toBeLessThan(pos.get("e").x);
-    });
-});
-
 describe("the tidy tree, read right", () => {
     test("depths are columns; a column is as wide as its widest card", () => {
         let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100, direction: "LR"});
@@ -325,7 +152,7 @@ describe("the tidy tree, read right", () => {
 
 describe("the radial tree", () => {
     test("one root sits at the centre, its children on a ring around it", () => {
-        let pos = layout_radial(nodes, edges, {nodesep: 10, ranksep: 100, stack: false});
+        let pos = layout_radial(nodes, edges, {nodesep: 10, ranksep: 100});
         expect(pos.get("es")).toEqual({x: 0, y: 0});
         let r = Math.hypot(pos.get("norte").x, pos.get("norte").y);
         expect(r).toBeGreaterThanOrEqual(100);
@@ -346,7 +173,7 @@ describe("the radial tree", () => {
             many.push(N(`k${i}`, 172, 96));
             e.push({source: "root", target: `k${i}`, rank: 0});
         }
-        let pos = layout_radial(many, e, {nodesep: 10, ranksep: 100, stack: false});
+        let pos = layout_radial(many, e, {nodesep: 10, ranksep: 100});
         let r = Math.hypot(pos.get("k0").x, pos.get("k0").y);
         /*  40 diagonals of ~197 plus gaps on the circumference  */
         expect(2 * Math.PI * r).toBeGreaterThanOrEqual(40 * (Math.hypot(172, 96) + 10) - 1e-6);
@@ -377,99 +204,6 @@ describe("the radial tree", () => {
             expect(Math.hypot(pos.get(id).x, pos.get(id).y)).toBeCloseTo(100, 6);
         }
         expect(pos.get("a").x).not.toBe(pos.get("b").x);
-    });
-});
-
-/*  No two cards of `list` overlap (axis-aligned boxes).  */
-function expect_no_card_overlap(list, pos)
-{
-    for(let i = 0; i < list.length; i++) {
-        for(let j = i + 1; j < list.length; j++) {
-            let a = list[i];
-            let b = list[j];
-            let pa = pos.get(a.id);
-            let pb = pos.get(b.id);
-            let apart_x = Math.abs(pa.x - pb.x) >= (a.w + b.w) / 2 - 1e-6;
-            let apart_y = Math.abs(pa.y - pb.y) >= (a.h + b.h) / 2 - 1e-6;
-            expect(apart_x || apart_y, `${a.id} and ${b.id} overlap`).toBe(true);
-        }
-    }
-}
-
-/*  A treedb shaped like the central one: a root, 25 regions with a
- *  few places each, and one hall with 24 devices.  */
-function central_like()
-{
-    let list = [N("es", 172, 96)];
-    let links = [];
-    let seed = 7;
-    let rnd = () => {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        return seed / 0x7fffffff;
-    };
-    for(let p = 0; p < 25; p++) {
-        list.push(N(`p${p}`, 172, 96));
-        links.push({source: "es", target: `p${p}`});
-        let n = 3 + Math.floor(rnd() * 5);
-        for(let s = 0; s < n; s++) {
-            list.push(N(`p${p}s${s}`, 172, 96));
-            links.push({source: `p${p}`, target: `p${p}s${s}`});
-            if(p === 3 && s === 1) {
-                for(let d = 0; d < 24; d++) {
-                    list.push(N(`p${p}s${s}d${d}`, 116, 40));
-                    links.push({source: `p${p}s${s}`, target: `p${p}s${s}d${d}`});
-                }
-            }
-        }
-    }
-    return {list, links};
-}
-
-describe("the radial tree stacks a run of leaves", () => {
-    const HUB = [N("hub", 172, 96)].concat([...Array(24).keys()].map((i) => N(`d${i}`, 116, 40)));
-    const SPOKES = HUB.slice(1).map((n) => ({source: "hub", target: n.id}));
-    const OPTS = {nodesep: 24, ranksep: 180};
-    const reach = (list, pos) => Math.max(...list.map((n) => Math.hypot(pos.get(n.id).x, pos.get(n.id).y)));
-
-    test("a hub with 24 leaves: rows outward instead of one wide ring", () => {
-        let flat = layout_radial(HUB, SPOKES, Object.assign({stack: false}, OPTS));
-        let pos = layout_radial(HUB, SPOKES, OPTS);
-        /*  Small cards wholly round their parent: each row makes room
-         *  for a card at its worst slant, so the gain is least here --
-         *  smaller all the same, and nothing overlaps.  */
-        expect(reach(HUB, pos)).toBeLessThan(reach(HUB, flat));
-        expect_no_card_overlap(HUB, pos);
-    });
-
-    test("big cards round a parent, alone on their ring: no two overlap", () => {
-        /*  25 regions under a root, cards 172x96: rings round it, where
-         *  a card stands at every angle.  */
-        let list = [N("es", 172, 96)].concat([...Array(25).keys()].map((i) => N(`p${i}`, 172, 96)));
-        let links = list.slice(1).map((n) => ({source: "es", target: n.id}));
-        expect_no_card_overlap(list, layout_radial(list, links, OPTS));
-    });
-
-    test("the rows of a stack go outward, filled in order", () => {
-        let pos = layout_radial(HUB, SPOKES, OPTS);
-        let r = (id) => Math.hypot(pos.get(id).x, pos.get(id).y);
-        for(let i = 1; i < 24; i++) {
-            expect(r(`d${i}`)).toBeGreaterThanOrEqual(r(`d${i - 1}`) - 1e-6);
-        }
-        expect(r("d23")).toBeGreaterThan(r("d0"));
-    });
-
-    test("a treedb shaped like a real one: no two cards overlap, and it is smaller", () => {
-        let {list, links} = central_like();
-        let flat = layout_radial(list, links, Object.assign({stack: false}, OPTS));
-        let pos = layout_radial(list, links, OPTS);
-        expect_no_card_overlap(list, pos);
-        expect(reach(list, pos)).toBeLessThan(reach(list, flat));
-    });
-
-    test("without leaves in runs it is the radial it was", () => {
-        let few = [N("r", 172, 96), N("a", 172, 96), N("b", 172, 96)];
-        let e2 = [{source: "r", target: "a"}, {source: "r", target: "b"}];
-        expect(layout_radial(few, e2, OPTS)).toEqual(layout_radial(few, e2, Object.assign({stack: false}, OPTS)));
     });
 });
 

@@ -132,11 +132,8 @@ import {
     fold_split_group_key,
     fold_root_group_key,
 } from "./treedb_fold_model.js";
-import {layout_tree, layout_radial, layout_compact} from "./treedb_layout.js";
-import {
-    elbow_lane, elbow_rank, elbow_route, elbow_combs, curve_hits, rounded_path, CURVE_RADIUS,
-    ELBOW_STEP,
-} from "./treedb_elbow.js";
+import {layout_tree, layout_radial} from "./treedb_layout.js";
+import {elbow_lane, elbow_route} from "./treedb_elbow.js";
 
 import {
     BaseLayout,
@@ -151,8 +148,6 @@ import {
     Toolbar,
     register,
     Polyline,
-    Cubic,
-    CubicHorizontal,
 } from '@antv/g6';
 
 import {Circle as CircleGeometry, Rect as RectGeometry} from '@antv/g';
@@ -353,16 +348,6 @@ const _layouts = {
      *  has arranged (see auto_layout).  */
     "treedb-tree": {
         type: 'treedb-tree',
-        direction: 'TB',
-        nodesep: 18,
-        ranksep: 90,
-    },
-    /*  The same tree packed by CONTOUR (Moen, as mxGraph drew it): a
-     *  closed branch sits beside an open one at the depth they share,
-     *  instead of beside the whole block of the open one. Same rows
-     *  and order as `treedb-tree` (treedb_layout.js).  */
-    "compact-tree": {
-        type: 'treedb-compact',
         direction: 'TB',
         nodesep: 18,
         ranksep: 90,
@@ -944,11 +929,8 @@ function register_layouts(gobj)
         _g6_extensions_registered = true;
         register(ExtensionCategory.LAYOUT, 'manual', ManualLayout);
         register(ExtensionCategory.LAYOUT, 'treedb-tree', TreedbTreeLayout);
-        register(ExtensionCategory.LAYOUT, 'treedb-compact', TreedbCompactLayout);
         register(ExtensionCategory.EDGE, 'treedb-elbow-v', TreedbElbowV);
         register(ExtensionCategory.EDGE, 'treedb-elbow-h', TreedbElbowH);
-        register(ExtensionCategory.EDGE, 'treedb-curve-v', TreedbCurveV);
-        register(ExtensionCategory.EDGE, 'treedb-curve-h', TreedbCurveH);
         register(ExtensionCategory.LAYOUT, 'treedb-radial', TreedbRadialLayout);
         register(ExtensionCategory.NODE, 'light', LightNode);
         register(ExtensionCategory.NODE, 'treedb-card', TreedbCard);
@@ -2049,19 +2031,15 @@ function layout_direction(gobj)
     return str_in_list(LR_LAYOUTS, gobj.priv.layout)? "LR" : "TB";
 }
 
-/*  An elbow when the reader asked for one, a curve otherwise -- ours
- *  where the layout has rows, which keeps off the cards; G6's plain
- *  cubic on a layout with no rows to go round by.  */
+/*  A curve, or an elbow when the reader asked for one and the layout
+ *  has rows to run it between.  */
 function edge_type_for(gobj)
 {
     let lr = (layout_direction(gobj) === "LR");
     let rowless = gobj_read_attr(gobj, "rowless_layouts") || [];
-    let rows = !str_in_list(rowless, gobj.priv.layout);
-    if(rows && gobj_read_str_attr(gobj, "edge_shape") === "elbow") {
+    if(gobj_read_str_attr(gobj, "edge_shape") === "elbow" &&
+       !str_in_list(rowless, gobj.priv.layout)) {
         return lr? "treedb-elbow-h" : "treedb-elbow-v";
-    }
-    if(rows) {
-        return lr? "treedb-curve-h" : "treedb-curve-v";
     }
     return lr? "cubic-horizontal" : "cubic";
 }
@@ -4235,9 +4213,8 @@ class TreedbTreeLayout extends BaseLayout
  *  dragged card, a fold or a layout needs nothing else. `-v` runs
  *  between rows (top to bottom), `-h` between columns. An edge that
  *  does not run forward goes round the two cards, the edges joining
- *  the same two cards take lanes, the edges sharing an end turn at
- *  staggered heights, and a line that would cross any other card is
- *  routed round it (treedb_elbow.js).
+ *  the same two cards take lanes, and a line that would cross any
+ *  other card is routed round it (treedb_elbow.js).
  ************************************************************/
 const ELBOW_RADIUS = 6;
 
@@ -4309,73 +4286,12 @@ function elbow_lane_of(edge)
     }
 }
 
-/*  Where `edge` stands among the forward edges sharing one of its
- *  ends, for the stagger (treedb_elbow.js): the ones leaving its
- *  source card, and the ones reaching its target card. How far each
- *  runs ACROSS is measured from the real port it leaves by -- the
- *  hooks of one card sit at different places along its edge.  */
-function elbow_stagger_of(edge, vertical)
-{
-    let graph = edge.context && edge.context.graph;
-    let element = edge.context && edge.context.element;
-    let s = edge.sourceNode && edge.sourceNode.id;
-    let t = edge.targetNode && edge.targetNode.id;
-    if(!graph || !element || s === undefined || t === undefined) {
-        return null;
-    }
-    let across = vertical? 0 : 1;
-    let along = vertical? 1 : 0;
-    let pos = (id) => graph.getElementPosition(id);
-    let port_of = (node_id, key) => {
-        let node = element.getElement(node_id);
-        let ports = (node && typeof node.getPorts === 'function')? node.getPorts() : {};
-        let port = key? ports[key] : null;
-        return port? port.getPosition() : pos(node_id);
-    };
-    try {
-        let ps = pos(s);
-        let pt = pos(t);
-        let leaving = graph.getRelatedEdgesData(s, 'out')
-            .filter((d) => d.source === s && pos(d.target)[along] > ps[along]);
-        /*  The cards they reach, for the combs of a stack; a comb's
-         *  run ends at its lane, so that is what its span measures.  */
-        let combs = elbow_combs(leaving.map((d) => ({
-            id: d.id,
-            box: elbow_box(element.getElement(d.target)),
-        })), vertical);
-        let dep = leaving.map((d) => {
-            let comb = combs.get(d.id);
-            let far = comb? comb.lane : pos(d.target)[across];
-            return {
-                id: d.id,
-                span: Math.abs(far - port_of(s, d.style && d.style.sourcePort)[across]),
-            };
-        });
-        let arr = graph.getRelatedEdgesData(t, 'in')
-            .filter((d) => d.target === t && pos(d.source)[along] < pt[along])
-            .map((d) => ({
-                id: d.id,
-                span: Math.abs(port_of(d.source, d.style && d.style.sourcePort)[across] -
-                               pt[across]),
-            }));
-        return {
-            dep: elbow_rank(dep, edge.id),
-            arr: elbow_rank(arr, edge.id),
-            comb: combs.get(edge.id) || null,
-        };
-    } catch(e) {
-        log_error(`elbow edge ${edge.id}: cannot read the edges sharing its ends: ${e}`);
-        return null;
-    }
-}
-
 class TreedbElbowV extends Polyline
 {
     getControlPoints(attributes) {
         let [s, t] = this.getEndpoints(attributes, false);
         return elbow_route(s, t, elbow_box(this.sourceNode), elbow_box(this.targetNode),
-                           elbow_lane_of(this), true, elbow_obstacles(this),
-                           elbow_stagger_of(this, true));
+                           elbow_lane_of(this), true, elbow_obstacles(this));
     }
 
     getKeyPath(attributes) {
@@ -4389,66 +4305,12 @@ class TreedbElbowH extends Polyline
     getControlPoints(attributes) {
         let [s, t] = this.getEndpoints(attributes, false);
         return elbow_route(s, t, elbow_box(this.sourceNode), elbow_box(this.targetNode),
-                           elbow_lane_of(this), false, elbow_obstacles(this),
-                           elbow_stagger_of(this, false));
+                           elbow_lane_of(this), false, elbow_obstacles(this));
     }
 
     getKeyPath(attributes) {
         return super.getKeyPath(Object.assign({}, attributes,
             {radius: attributes.radius || ELBOW_RADIUS}));
-    }
-}
-
-/************************************************************
- *  A CURVED edge that keeps off the cards. G6's cubic, as before,
- *  unless that very curve -- sampled, not guessed from the
- *  rectangle round it -- would cross a card other than its own two,
- *  or when it does not run forward and so would cross its own:
- *  the card above a lower row of a stack, a row between a parent
- *  and a far child. Then it goes the way an elbow would (the comb,
- *  the detour, the route: the same lanes and staggered turns) with
- *  round corners, so it still reads as a curve. `-v` for rows
- *  stacked top to bottom, `-h` for columns.
- ************************************************************/
-function curve_key_path(edge, attributes, vertical, plain)
-{
-    let [s, t] = edge.getEndpoints(attributes, false);
-    let along = vertical? 1 : 0;
-    let box_s = elbow_box(edge.sourceNode);
-    let box_t = elbow_box(edge.targetNode);
-    let boxes = elbow_obstacles(edge);
-    /*  An edge that does not run forward -- one of every reciprocal
-     *  pair, an edge within one row -- runs through its OWN two cards
-     *  as a cubic, which curve_hits does not look at: it goes round
-     *  them, as its elbow does.  */
-    let forward = (t[along] - s[along] > 2 * ELBOW_STEP);
-    if(forward && !curve_hits(plain, boxes, box_s, box_t)) {
-        return plain;
-    }
-    let pts = elbow_route(s, t, box_s, box_t, elbow_lane_of(edge), vertical, boxes,
-                          elbow_stagger_of(edge, vertical));
-    return rounded_path([s, ...pts, t], CURVE_RADIUS);
-}
-
-class TreedbCurveV extends Cubic
-{
-    getKeyPath(attributes) {
-        return curve_key_path(this, attributes, true, super.getKeyPath(attributes));
-    }
-}
-
-class TreedbCurveH extends CubicHorizontal
-{
-    getKeyPath(attributes) {
-        return curve_key_path(this, attributes, false, super.getKeyPath(attributes));
-    }
-}
-
-class TreedbCompactLayout extends BaseLayout
-{
-    async execute(data, options) {
-        let input = treedb_layout_input(data);
-        return treedb_layout_output(layout_compact(input.nodes, input.edges, options));
     }
 }
 

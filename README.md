@@ -1387,8 +1387,8 @@ G6 5.1 registers these layouts, and this is how each meets that shape:
 | `circular`, `concentric`, `grid`, `mds`, `random` | rings, rings by degree, a grid, projection, noise | none knows a parent from a child |
 | `combo-combined`, `fishbone` | combos / cause-effect | not this data |
 
-So three of our own, in `treedb_layout.js` (pure, tested), registered as G6
-layouts by three thin adapters in `c_g6_nodes_tree.js`:
+So two of our own, in `treedb_layout.js` (pure, tested), registered as G6
+layouts by two thin adapters in `c_g6_nodes_tree.js`:
 
 - **`treedb-tree`** — the classic tidy tree, **top to bottom**. A row per
   depth as tall as its tallest card, a node centred over the block of its
@@ -1402,25 +1402,6 @@ layouts by three thin adapters in `c_g6_nodes_tree.js`:
   keeps the other reading for a host that wants it). The outline that shipped
   beside it (`treedb-outline`, one row per node) was removed in `7.23.75`: a
   list that indents is a JSON viewer, and this library already has one.
-- **`compact-tree`** (`treedb-compact`, `7.23.148`) — the same tree packed by
-  **contour** instead of by block. The tidy tree gives each subtree its whole
-  block, so a hall opened with twenty-four devices pushes the siblings of its
-  ancestors apart at depths where nothing of theirs touches; here every
-  sibling slides against the outline of the ones before it, and a closed
-  branch sits beside an open one at the depth they share. Same rows and order
-  as `treedb-tree`, so switching moves cards sideways and never reorders them.
-  One region open with a 24-device hall is 70% of the tidy width on a treedb
-  shaped like a real one; a uniform tree is the same width. The contour
-  arithmetic is Moen's (1990) as mxGraph wrote it in `mxCompactTreeLayout`
-  (JGraph Ltd, Apache-2.0), read in maxGraph — a port, not a dependency,
-  because maxGraph's layouts drive its own graph model. Since `7.23.154` a run
-  of three or more **leaf** children is **stacked**: two columns under the
-  parent with a corridor between them, row after row — the contour alone
-  gained nothing on a whole level opened with the stepper, where every parent
-  still needed the row of its children beside it. Against `tree`: regions
-  only 10% of the width, one region open with a 24-device hall 21%, a whole
-  level open 41%. The tree grows taller instead; with elbow edges or curves
-  alike, since `7.23.155` a curve keeps off the cards too.
 - **`radial`** (`treedb-radial`) — the root in the middle, a ring per depth,
   every subtree an angular **sector** proportional to its leaves, and the
   radius of each ring the largest of three: one `ranksep` out from the ring
@@ -1430,15 +1411,7 @@ layouts by three thin adapters in `c_g6_nodes_tree.js`:
   cards touching, where the tidy tree's `ranksep` is a gap between COLUMNS
   and a column carries its own width. A fan that cannot overlap by
   construction, across the ring or along the radius; several roots share the
-  circle around an empty centre. Since `7.23.156` a run of three or more
-  **leaf** children is **stacked**, as in the compact tree: it asks its ring
-  for one row of about the square root of its cards instead of one slot per
-  leaf, and lays them in rows going outward, each as full as its room allows
-  — rings round the parent when it is alone, a fan inside its sector when
-  not. Measured over the arc it covers (a card is wider slanted), and a
-  neighbour of the outer rings by the angle it covers, so nothing overlaps.
-  On a real-shaped treedb it is 53–63% of the radial it was; `stack: false`
-  keeps the old one.
+  circle around an empty centre.
 
 **Elbow edges** (`7.23.149`) are an option of the edges, not a layout: the
 toolbar's `GRAPH_EDGE_ELBOW` toggle sets `edge_shape` to `elbow`, and every
@@ -1475,36 +1448,12 @@ what gets routed is a detour with a third card in its way, an edge dropping
 several rows, an edge between two cards of one row. Since `7.23.152` a node is
 measured **whole** — card, ports and label — so a line keeps clear of the
 ports as well; the edge's own ports stick out of its own cards, so its first
-and last segments are not tested against their own box.
-
-The edges sharing an **end** do not lie on top of each other either
-(`7.23.153`): the forward edges leaving one card — all of them, not only one
-port's, or two hooks side by side would stack their runs — and those reaching
-one card (all its fkeys enter by one point) are **staggered**, each turning at
-its own height in the channel, 10px apart at most and closer when the channel
-is short. Leaving, the farthest turns highest; arriving, the farthest turns
-lowest: the orders in which the lines of one end nest without crossing. A
-routed line leaves its port and reaches the other one **sideways**, because
-the column straight under or over a port is where the staggered edges of that
-port run. Only the stub at the port is shared. Into a lower row of a stack of
-the compact tree an edge runs a **comb** (`7.23.154`): along the channel to a
-lane of its own in the stack's corridor, down it, and into the gap above its
-card; lanes go outermost first by row, so none crosses another, and a comb is
-drawn as laid out, never routed.
-
-**Curved edges keep off the cards as well** (`7.23.155`). On a layout with
-rows a curve is `treedb-curve-v` / `-h`, a subclass of G6's cubic: the cubic
-as before, unless that very curve — the path G6 would draw, sampled, not the
-rectangle round it — would cross a card other than its own two, or the edge
-does not run forward and so would cross its own. Then it takes the way its
-elbow would (comb, detour, route, the same lanes and staggered turns) with
-corners rounded to 24px. On a layout with no rows the edges stay G6's plain
-cubic. G6's `shortest-path` router is not used: it is
-not exported, it
+and last segments are not tested against their own box. G6's `shortest-path`
+router is not used: it is not exported, it
 falls back in silence to a route that crosses cards, and it rewrites its
 module defaults with every config it is given.
 
-All three take the **same spanning tree**, chosen deterministically: roots are the
+Both take the **same spanning tree**, chosen deterministically: roots are the
 nodes with no incoming edge, in node order; a node belongs to the **first
 parent that reaches it** in a breadth-first walk (the place, not the
 controller, because the place's column came first) and its other links are

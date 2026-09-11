@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.157
+
+- **Back to 7.23.152 for the treedb graph's edges and layouts, and the
+  `compact tree` removed.** Seen on a real treedb, the org-chart bus of the
+  first elbow edges and G6's plain curves read better than what came after:
+  - 7.23.153's STAGGER is gone -- the children of one card share one trunk
+    and one bus again, instead of a comb of parallel runs;
+  - 7.23.155's curves that went round the cards are gone -- curves are G6's
+    cubic again, everywhere;
+  - 7.23.156's stacked `radial` is gone -- every leaf sits on its ring again;
+  - the `compact tree` (7.23.148, stacked in 7.23.154 with its combs) is
+    removed: for the code it takes, it drew almost what `tree` draws.
+  Kept, because a normal tree draws exactly as it did: the elbow edges
+  themselves (7.23.149), a reciprocal pair drawn apart (7.23.150), a line
+  routed round a card in its way (7.23.151), the ports as obstacles
+  (7.23.152).
+- Consumer key `compact-tree` is no longer used (removed from the in-repo
+  apps and the demo).
+
 ## 7.23.156
 
 - **treedb graph: the `radial` layout is compact too.** Every leaf sat on its

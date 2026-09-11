@@ -555,8 +555,6 @@ function option_label(name)
             return t("manual");
         case "treedb-tree":
             return t("treedb-tree");
-        case "compact-tree":
-            return t("compact-tree");
         case "radial":
             return t("radial");
         case "dagre":
