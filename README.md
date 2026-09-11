@@ -1254,23 +1254,38 @@ construction rather than by a check in twenty places.
 ### Finding a node in the graph
 
 `C_YUI_TREEDB_GRAPH` carries a find box in the middle of its toolbar. It
-matches the term against the node's **label**, its id and its topic name, puts
-every match in the same amber `active` state the topic focus uses, and centres
-the viewport on them.
+matches the term against the node's **label**, its id and its topic name, and
+puts every match **on screen** in the same amber `active` state the topic focus
+uses. It changes nothing else: no group is opened, no layout runs, the camera
+does not move. Emptying the box takes the amber off and leaves the graph
+exactly as it was.
 
-Two details that are not decoration:
+Details that are not decoration:
 
+- it **only looks** (since `7.23.158`). It used to search the whole treedb and
+  unfold a page of the matches it found, so every keystroke re-laid the graph
+  out, and the groups it opened stayed open when the box was cleared. Opening
+  up to a topic is the legend's focus button, which still searches the whole
+  treedb and unfolds what it needs.
+- the term **stays live**. It is repainted after every change of what is on
+  screen (a group opened by hand, a fold level, a refresh, a hidden topic), so
+  newly shown matches arrive lit and the count follows the screen.
+- **Enter** centres the next lit card, **Shift+Enter** the previous one, in
+  reading order (top to bottom, then left to right). That is the one camera
+  move of the find, and the reader asks for it. The count then reads `k/N`.
 - it matches the **label**, not only the id. On a topic keyed by `rowid`,
   `uuid` or `qualified` the id is a counter or a path and the name a human
   knows the record by lives in a secondary key — the same reason `node_label()`
   exists.
-- it **says how many** it found. A graph that did not move looks identical
-  whether nothing matched or the only match was already on screen, so the count
-  is shown next to the box (hidden while the box is empty; a typed term that
-  matches nothing shows `0`, which is an answer).
+- it **says how many** it found, and how many more it did NOT light:
+  `12 matches (+513 not shown, +40 in hidden topics)`. A graph with no amber
+  looks identical whether nothing matched or the matches are folded away, so
+  the count is shown next to the box (hidden while the box is empty; a typed
+  term that matches nothing shows `0`, which is an answer).
 
 The find and the topic focus **share the highlight**: starting one clears the
-other. Two amber sets at once would say nothing about either.
+other (a topic focus also empties the box). Two amber sets at once would say
+nothing about either.
 
 The highlight is painted **into the card's own html**, not with G6's `active`
 element state. That state is an amber `stroke` + `halo`, both properties of a
@@ -1281,9 +1296,12 @@ changes are repainted, and a theme switch carries the highlight across (it
 rebuilds every card, and rebuilding them without it would clear what is on
 screen).
 
-Wiring: the box sends `EV_FIND_NODES {text}` to the view, which forwards it to
-`C_G6_NODES_TREE`; the graph answers `EV_FIND_RESULT {term, matches}`, which the
-view declares like every other event its child publishes.
+Wiring: the box sends `EV_FIND_NODES {text}` to the view, and Enter sends
+`EV_FIND_NEXT {back}`; the view forwards both to `C_G6_NODES_TREE`. The graph
+answers `EV_FIND_RESULT {term, matches, folded_matches, hidden_matches,
+current}`, which the view declares like every other event its child publishes.
+Consumer i18n keys: `matches` (counted), `not shown`, `hidden topics`,
+`find on screen` (the box's title and name).
 
 ### The graph opens FOLDED, like a JSON viewer
 

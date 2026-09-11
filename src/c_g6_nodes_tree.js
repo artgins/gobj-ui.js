@@ -543,8 +543,9 @@ let PRIVATE_DATA = {
                                     //  it exists to diff the repaint)
     _pending_focus_topic: null,     // focus requested before data was loaded
     _pending_focus_all: false,      // ...and whether it reveals the whole topic
-    _find_hidden_matches: 0,        // matches of the last find in HIDDEN topics
-    _pending_find:      null,       // find requested before data was loaded
+    _find_term:         "",         // the find box's term, repainted after every reconcile
+    _find_current:      "",         // node id the last Enter of the find centred on
+    _find_found:        null,       // ...and its last count (see find_matches)
     _layout_asked:      "",         // layout the host asked for at create (see mt_create)
     _nodes_total:       0,          // records of the treedb (auto_layout)
     _nodes_placed:      0,          // ...of which carry a saved position
@@ -3654,6 +3655,18 @@ function graph_focus_topic(gobj, topic, reveal_all)
     let model = priv._fold_model;
     let state = priv._fold_state;
 
+    /*  The two share the highlight slot. A topic takes it from the
+     *  find; an EMPTY topic (nothing focused) leaves a live find
+     *  alone, or clearing the legend's mark would wipe the find.  */
+    if(empty_string(topic) && priv._find_term) {
+        priv._focus_topic = null;
+        return;
+    }
+    if(!empty_string(topic)) {
+        priv._find_term = "";
+        priv._find_current = "";
+    }
+
     /*  "Show me these": the ones on screen are highlighted, and the
      *  hidden ones are opened up to. How many depends on who asks.
      *  A click on the LEGEND (`reveal_all`) means every record of the
@@ -3689,18 +3702,18 @@ function graph_focus_topic(gobj, topic, reveal_all)
     priv._focus_topic = topic || null;
 
     reconcile_fold(gobj, {}).then(() => {
-        apply_focus_ids(gobj, keys, "focus topic");
+        apply_focus_ids(gobj, keys, "focus topic", true);
     });
 }
 
 /************************************************************
- *  Paint the highlight on these records (by model key) and put
- *  the first of them in the middle. Shared by the find and the
- *  topic focus, after the reconcile that brought them on screen.
- *  Keys that are still off screen are skipped: a match beyond the
- *  page a reveal opened is counted, not painted.
+ *  Paint the highlight on these records (by model key) and, with
+ *  `center`, put the first of them in the middle. Shared by the
+ *  find and the topic focus. Keys that are not on screen are
+ *  skipped: a match beyond the page a reveal opened is counted,
+ *  not painted.
  ************************************************************/
-function apply_focus_ids(gobj, keys, what)
+function apply_focus_ids(gobj, keys, what, center)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
@@ -3734,7 +3747,7 @@ function apply_focus_ids(gobj, keys, what)
             graph.setElementState(states);
         }
         apply_node_highlight(gobj, prev_ids, ids);
-        if(ids.length) {
+        if(center && ids.length) {
             yui_graph_center_on(graph, ids[0]);
         }
     } catch(e) {
@@ -3753,94 +3766,186 @@ function node_id_of_key(gobj, key)
 }
 
 /************************************************************
- *  Find the nodes whose name, id or topic contains `term`, highlight
- *  them with the same amber 'active' state the topic focus uses, and
- *  centre the viewport on them. Returns how many matched, which is the
- *  half the toolbar needs: a search that finds nothing must SAY so,
- *  because a graph that did not move is also what a graph looks like
- *  when the match is off-screen.
+ *  The find box: highlight the cards ON SCREEN whose name, id or
+ *  topic contains `term`, and change nothing else -- no group is
+ *  opened, no layout runs, the camera does not move. The graph the
+ *  reader arranged is the graph they are searching; emptying the
+ *  box takes the amber off and leaves it exactly as it was.
+ *
+ *  It used to search the whole treedb and unfold a page of what it
+ *  found, which re-laid the graph out on every keystroke and left
+ *  the unfolded groups behind when the box was cleared. Opening up
+ *  to a topic is the legend's focus (graph_focus_topic); this only
+ *  LOOKS.
+ *
+ *  The term is kept and repainted after every reconcile (see
+ *  reconcile_fold_now): a group opened by hand shows its matches
+ *  already lit, and the count follows what is on screen.
  *
  *  It shares the highlight slot with graph_focus_topic on purpose —
- *  two amber sets at once would say nothing about either. An empty
- *  term clears it. Matching reads the node's LABEL and not only its
- *  id: on a topic keyed by rowid or by a qualified path, the id is a
- *  counter and the name a human knows is elsewhere (see node_label).
+ *  two amber sets at once would say nothing about either. Matching
+ *  reads the node's LABEL and not only its id: on a topic keyed by
+ *  rowid or by a qualified path, the id is a counter and the name a
+ *  human knows is elsewhere (see node_label).
  ************************************************************/
 function graph_find_nodes(gobj, term)
 {
     let priv = gobj.priv;
-    let graph = priv.graph;
-    if(!graph || !priv.graph_rendered || !priv._fold_model) {
-        priv._pending_find = term;
-        return 0;
-    }
+    let next = empty_string(term)? "" : String(term);
+    let was = priv._find_term;
 
-    let model = priv._fold_model;
-    let state = priv._fold_state;
+    priv._find_term = next;
+    priv._find_current = "";
+    priv._find_found = null;
 
-    /*  Searched over the RECORDS, not the cards: most of the treedb is
-     *  folded away, and a find that only read what was on screen would
-     *  answer "nothing" for a device three levels down.  */
-    let keys = [];
-    let hidden_matches = 0;
-    if(!empty_string(term)) {
-        let needle = String(term).toLowerCase();
-        let matches = (topic_name, record) => {
-            let label = "";
-            try {
-                label = node_label(priv.descs[topic_name] || {}, record) || "";
-            } catch(e) {
-                label = "";
-            }
-            let haystack = [
-                label,
-                record.id,
-                topic_name
-            ].filter((v) => typeof v === "string").join(" ").toLowerCase();
-            return haystack.includes(needle);
-        };
-        for(let node of model.nodes.values()) {
-            if(matches(node.topic_name, node.record || {})) {
-                keys.push(node.key);
-            }
+    let ready = priv.graph && priv.graph_rendered && priv._fold_model;
+    if(!next) {
+        /*  Only a find that HELD the slot is taken off: an empty box
+         *  that was already empty must not wipe a topic focus.  */
+        if(was && ready && !priv._focus_topic) {
+            apply_focus_ids(gobj, [], "find", false);
         }
-        /*  A hidden topic is searched too, and COUNTED apart: a term
-         *  that only matches there would otherwise answer "0", which
-         *  reads as "does not exist" when it means "is hidden".  */
-        for(let topic_name of model.hidden) {
-            for(let record of (priv.records[topic_name] || [])) {
-                if(is_object(record) && matches(topic_name, record)) {
-                    hidden_matches++;
-                }
-            }
-        }
-    }
-    priv._find_hidden_matches = hidden_matches;
-
-    /*  Hidden matches are opened up to, one page of them at most: a
-     *  single letter matches half the treedb, and unfolding half the
-     *  treedb on a keystroke is the pile this whole thing exists to
-     *  avoid. The count reported is of all the matches.  */
-    let visible = fold_visible_set(model, state);
-    let revealed = 0;
-    for(let key of keys) {
-        if(visible.has(key)) {
-            continue;
-        }
-        if(revealed >= state.page_size) {
-            break;
-        }
-        fold_reveal(model, state, key);
-        revealed++;
+        publish_find_result(gobj);
+        return;
     }
 
     priv._focus_topic = null;       /*  a find takes over the highlight  */
+    if(!ready) {
+        /*  Painted by the first reconcile, when the data arrives.  */
+        return;
+    }
+    refresh_find(gobj, fold_visible_set(priv._fold_model, priv._fold_state));
+}
 
-    reconcile_fold(gobj, {}).then(() => {
-        apply_focus_ids(gobj, keys, "find");
-    });
+/************************************************************
+ *  Repaint the find's highlight over the `visible` set and publish
+ *  the count. A no-op while no term is live, so the topic focus
+ *  keeps the slot.
+ ************************************************************/
+function refresh_find(gobj, visible)
+{
+    let priv = gobj.priv;
+    if(!priv._find_term) {
+        return;
+    }
 
-    return keys.length;
+    let found = find_matches(gobj, priv._find_term, visible);
+    apply_focus_ids(gobj, found.keys, "find", false);
+    if(priv._find_current && (priv._focus_ids || []).indexOf(priv._find_current) < 0) {
+        priv._find_current = "";
+    }
+    priv._find_found = found;
+    publish_find_result(gobj);
+}
+
+/************************************************************
+ *  The records matching `term`: the keys ON SCREEN, and how many
+ *  more match that are NOT -- folded away in the fold model, or in
+ *  a hidden topic. Those two are only counted: "0" alone would read
+ *  as "does not exist" when it means "is not on screen".
+ ************************************************************/
+function find_matches(gobj, term, visible)
+{
+    let priv = gobj.priv;
+    let model = priv._fold_model;
+    let found = {keys: [], folded: 0, hidden: 0};
+    if(!model || empty_string(term)) {
+        return found;
+    }
+
+    let needle = String(term).toLowerCase();
+    let matches = (topic_name, record) => {
+        let label = "";
+        try {
+            label = node_label(priv.descs[topic_name] || {}, record) || "";
+        } catch(e) {
+            label = "";
+        }
+        let haystack = [
+            label,
+            record.id,
+            topic_name
+        ].filter((v) => typeof v === "string").join(" ").toLowerCase();
+        return haystack.includes(needle);
+    };
+
+    for(let node of model.nodes.values()) {
+        if(matches(node.topic_name, node.record || {})) {
+            if(visible.has(node.key)) {
+                found.keys.push(node.key);
+            } else {
+                found.folded++;
+            }
+        }
+    }
+    for(let topic_name of model.hidden) {
+        for(let record of (priv.records[topic_name] || [])) {
+            if(is_object(record) && matches(topic_name, record)) {
+                found.hidden++;
+            }
+        }
+    }
+    return found;
+}
+
+/************************************************************
+ *  The lit cards in reading order: top to bottom, then left to
+ *  right. The order Enter walks, and the one the "k/N" counts in.
+ ************************************************************/
+function find_order(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let ids = (priv._focus_ids || []).slice();
+    if(!graph) {
+        return ids;
+    }
+
+    let pos = {};
+    for(let id of ids) {
+        let p = null;
+        try {
+            p = graph.getElementPosition(id);
+        } catch(e) {
+            p = null;
+        }
+        pos[id] = p || [0, 0];
+    }
+    ids.sort((a, b) => (pos[a][1] - pos[b][1]) || (pos[a][0] - pos[b][0]));
+    return ids;
+}
+
+/************************************************************
+ *  Enter in the find box: centre the next lit card (`back`: the
+ *  previous one). The one camera move of the find, and the reader
+ *  asks for it: the highlight alone cannot take anybody to a match
+ *  that is outside the frame.
+ ************************************************************/
+function graph_find_step(gobj, back)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph || !priv._find_term) {
+        return;
+    }
+    let ids = find_order(gobj);
+    if(ids.length === 0) {
+        return;
+    }
+
+    let i = ids.indexOf(priv._find_current);
+    if(i < 0) {
+        i = back? ids.length - 1 : 0;
+    } else {
+        i = (i + (back? ids.length - 1 : 1)) % ids.length;
+    }
+    priv._find_current = ids[i];
+    try {
+        yui_graph_center_on(graph, ids[i]);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: find step failed: ${e}`);
+    }
+    publish_find_result(gobj);
 }
 
 async function graph_zoom_in(gobj)
@@ -9648,6 +9753,7 @@ async function reconcile_fold_now(gobj, opts)
         history_resume(gobj);
     }
     publish_legend_state(gobj, visible);
+    refresh_find(gobj, visible);
     return changed;
 }
 
@@ -10222,11 +10328,6 @@ function ac_load_data(gobj, event, kw, src)
                 priv._pending_focus_topic = null;
                 priv._pending_focus_all = false;
                 graph_focus_topic(gobj, ft, all);
-            }
-            if(priv._pending_find !== null) {
-                let term = priv._pending_find;
-                priv._pending_find = null;
-                publish_find_result(gobj, term, graph_find_nodes(gobj, term));
             }
         });
     }
@@ -11054,16 +11155,30 @@ function ac_node_dblclick(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Tell whoever asked how many nodes the term matched. The count is
- *  the answer to the question the box asks; without it "nothing moved"
- *  and "nothing matched" look the same.
+ *  Tell whoever asked how many cards the term lit. The count is the
+ *  answer to the question the box asks; without it "nothing lit" and
+ *  "nothing matched" look the same.
+ *
+ *      matches         lit cards (on screen)
+ *      folded_matches  matches folded away, not on screen
+ *      hidden_matches  matches in hidden topics
+ *      current         1-based place of the card Enter centred on
+ *                      among the lit ones (reading order), 0 = none
  ************************************************************/
-function publish_find_result(gobj, term, matches)
+function publish_find_result(gobj)
 {
+    let priv = gobj.priv;
+    let found = priv._find_found || {keys: [], folded: 0, hidden: 0};
+    let current = 0;
+    if(priv._find_term && priv._find_current) {
+        current = find_order(gobj).indexOf(priv._find_current) + 1;
+    }
     gobj_publish_event(gobj, "EV_FIND_RESULT", {
-        term: term,
-        matches: matches,
-        hidden_matches: gobj.priv._find_hidden_matches || 0,
+        term: priv._find_term,
+        matches: priv._find_term? (priv._focus_ids || []).length : 0,
+        folded_matches: found.folded,
+        hidden_matches: found.hidden,
+        current: current,
     });
 }
 
@@ -11072,9 +11187,16 @@ function publish_find_result(gobj, term, matches)
  ************************************************************/
 function ac_find_nodes(gobj, event, kw, src)
 {
-    let term = (kw && kw.text) || "";
-    let matches = graph_find_nodes(gobj, term);
-    publish_find_result(gobj, term, matches);
+    graph_find_nodes(gobj, (kw && kw.text) || "");
+    return 0;
+}
+
+/************************************************************
+ *  Enter in the find box: {back: true} for Shift+Enter.
+ ************************************************************/
+function ac_find_next(gobj, event, kw, src)
+{
+    graph_find_step(gobj, !!(kw && kw.back));
     return 0;
 }
 
@@ -11636,6 +11758,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_SELECTION",           ac_zoom_selection,      null],
             ["EV_FOCUS_TOPIC",              ac_focus_topic,         null],
             ["EV_FIND_NODES",               ac_find_nodes,          null],
+            ["EV_FIND_NEXT",                ac_find_next,           null],
             ["EV_TOGGLE_FOLD",              ac_toggle_fold,         null],
             ["EV_SHOW_MORE",                ac_show_more,           null],
             ["EV_SET_FOLD_LEVEL",           ac_set_fold_level,      null],
@@ -11699,6 +11822,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_SELECTION",           0],
         ["EV_FOCUS_TOPIC",              0],
         ["EV_FIND_NODES",               0],
+        ["EV_FIND_NEXT",                0],
         ["EV_FIND_RESULT",              event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_LAYOUT_AUTOSET",           event_flag_t.EVF_OUTPUT_EVENT],
         /*  Optional: a host that does not persist the viewport is not

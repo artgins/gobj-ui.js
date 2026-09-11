@@ -80,7 +80,7 @@ import {
 } from "@yuneta/gobj-js";
 
 
-import {attach_clear} from "./yui_inputs.js";
+import {attach_clear, refresh_clear} from "./yui_inputs.js";
 import {register_c_g6_nodes_tree} from "./c_g6_nodes_tree.js";
 import {yui_toolbar, yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE} from "./yui_toolbar.js";
 import {
@@ -982,11 +982,13 @@ function make_toolbar(gobj)
      *  Right: find a node.
      *
      *  A graph of a few hundred records has no other way in: the only way
-     *  to locate one was to read every card. The box highlights every
-     *  match with the same amber the topic focus uses and centres the
-     *  viewport on them, and it SAYS how many it found — a graph that did
-     *  not move looks the same whether nothing matched or the match was
-     *  already on screen.
+     *  to locate one was to read every card. The box lights every match
+     *  ON SCREEN with the same amber the topic focus uses and changes
+     *  nothing else (no unfold, no layout, no camera); Enter centres the
+     *  next lit card, Shift+Enter the previous. It SAYS how many it found,
+     *  and how many more are folded away or in hidden topics — a graph
+     *  with no amber looks the same whether nothing matched or the matches
+     *  are not on screen.
      */
     /*  Materialised, not a spec: attach_clear() hangs the NORM clear (✕)
      *  on a real element.  Clearing dispatches a synthetic `input`, which
@@ -1000,8 +1002,12 @@ function make_toolbar(gobj)
              *  cannot reach it: it needs its own key. */
             placeholder: t('search'),
             'data-i18n-placeholder': 'search',
-            'aria-label': t('search'),
-            'data-i18n-aria-label': 'search'
+            /*  The title is where Enter is told: nothing else on the
+             *  box says it can step through the matches.  */
+            title: t('find on screen'),
+            'data-i18n-title': 'find on screen',
+            'aria-label': t('find on screen'),
+            'data-i18n-aria-label': 'find on screen'
         }, [], {
             /*  Rate-limited, not delayed for effect: a match repaints the
              *  cards it lands on, and on a large treedb the first letter
@@ -1018,6 +1024,24 @@ function make_toolbar(gobj)
                     priv.find_timer = null;
                     gobj_send_event(gobj, "EV_FIND_NODES", {text: text}, gobj);
                 }, 250);
+            },
+            /*  Enter steps through the lit cards. A term still waiting
+             *  on the rate limit is sent first, or Enter would step
+             *  through the matches of the term before it.  */
+            keydown: (evt) => {
+                if(evt.key !== 'Enter' || evt.isComposing) {
+                    return;
+                }
+                evt.preventDefault();
+                evt.stopPropagation();
+                if(priv.find_timer) {
+                    clearTimeout(priv.find_timer);
+                    priv.find_timer = null;
+                    gobj_send_event(
+                        gobj, "EV_FIND_NODES", {text: evt.target.value.trim()}, gobj
+                    );
+                }
+                gobj_send_event(gobj, "EV_FIND_NEXT", {back: evt.shiftKey}, gobj);
             }
         }]);
 
@@ -3189,6 +3213,23 @@ function ac_find_nodes(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Enter in the find box: forward the step down to the graph child.
+ ************************************************************/
+function ac_find_next(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(
+            priv.gobj_nodes_tree,
+            "EV_FIND_NEXT",
+            {back: !!(kw && kw.back)},
+            gobj
+        );
+    }
+    return 0;
+}
+
+/************************************************************
  *  One press of the fold stepper (EV_EXPAND_LEVEL /
  *  EV_COLLAPSE_LEVEL): the level moves by one, is SAVED (the
  *  reader's, per treedb) and reaches the G6 child, which owns
@@ -3307,15 +3348,45 @@ function refresh_find_result(gobj)
     }
 
     let text = t("matches", {count: (kw && kw.matches) || 0});
-    /*  Matches in HIDDEN topics, counted apart: "0" alone reads as
-     *  "does not exist" when it means "is hidden".  */
+    /*  Where Enter stands among the lit cards: "3/12 matches".  */
+    let current = (kw && kw.current) || 0;
+    if(current > 0) {
+        text = `${current}/${text}`;
+    }
+    /*  Matches NOT lit, counted apart: "0" alone reads as "does not
+     *  exist" when it means "is folded away" or "is hidden".  */
+    let extra = [];
+    let folded = (kw && kw.folded_matches) || 0;
+    if(folded > 0) {
+        extra.push(`+${folded} ${t("not shown")}`);
+    }
     let hidden = (kw && kw.hidden_matches) || 0;
     if(hidden > 0) {
-        text += ` (+${hidden} ${t("hidden topics")})`;
+        extra.push(`+${hidden} ${t("hidden topics")}`);
+    }
+    if(extra.length) {
+        text += ` (${extra.join(", ")})`;
     }
     $count.textContent = text;
     $result.classList.remove("is-hidden");
     return 0;
+}
+
+function clear_find_box(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.find_timer) {
+        clearTimeout(priv.find_timer);
+        priv.find_timer = null;
+    }
+    let $container = gobj_read_attr(gobj, "$container");
+    let $input = $container? $container.querySelector(".GRAPH_FIND_INPUT") : null;
+    if($input) {
+        $input.value = "";
+        refresh_clear($input);
+    }
+    priv._find_result = null;
+    refresh_find_result(gobj);
 }
 
 function ac_set_focus_topic(gobj, event, kw, src)
@@ -3332,6 +3403,13 @@ function ac_set_focus_topic(gobj, event, kw, src)
             delete_from_list(hidden, priv.focus_topic);
             set_legend_list_attr(gobj, "hidden_topics", "EV_SET_HIDDEN_TOPICS", hidden);
         }
+    }
+
+    /*  A topic focus takes the highlight from the find (the engine
+     *  drops its term), so the box must not go on showing a term
+     *  nothing is lit for.  */
+    if(priv.focus_topic) {
+        clear_find_box(gobj);
     }
 
     if(priv.gobj_nodes_tree) {
@@ -3435,6 +3513,7 @@ function create_gclass(gclass_name)
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
             ["EV_SET_FOCUS_TOPIC",          ac_set_focus_topic,         null],
             ["EV_FIND_NODES",               ac_find_nodes,              null],
+            ["EV_FIND_NEXT",                ac_find_next,               null],
             ["EV_EXPAND_LEVEL",             ac_fold_level_step,         null],
             ["EV_COLLAPSE_LEVEL",           ac_fold_level_step,         null],
             ["EV_SET_NODE_MODE",            ac_set_node_mode,           null],
@@ -3482,6 +3561,7 @@ function create_gclass(gclass_name)
         ["EV_SET_OPERATION_MODE",       0],
         ["EV_SET_FOCUS_TOPIC",          0],
         ["EV_FIND_NODES",               0],
+        ["EV_FIND_NEXT",                0],
         ["EV_EXPAND_LEVEL",             0],
         ["EV_COLLAPSE_LEVEL",           0],
         ["EV_SET_NODE_MODE",            0],

@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.158
+
+- **treedb graph: the find box only LOOKS.** It searched the whole treedb and
+  unfolded a page of what it found, so every keystroke re-laid the graph out
+  and moved the camera, and the groups it had opened stayed open when the box
+  was cleared -- the view the reader had arranged was gone. Now it lights the
+  matching cards that are ON SCREEN and changes nothing else: no unfold, no
+  layout, no camera. Emptying the box leaves the graph exactly as it was.
+  Opening up to a topic is still the legend's focus button, which searches the
+  whole treedb and unfolds what it needs.
+  - The term stays live: it is repainted after every change of what is on
+    screen (a group opened by hand, a fold level, a refresh), so newly shown
+    matches arrive lit and the count follows the screen. Before, a group opened
+    after the find showed its matches unlit.
+  - **Enter** centres the next lit card, **Shift+Enter** the previous one, in
+    reading order; the count then reads `k/N matches`.
+  - The count says what it did not light: `12 matches (+513 not shown, +40 in
+    hidden topics)`.
+  - A topic focus from the legend empties the box (the two share the
+    highlight, and the box went on showing a term nothing was lit for).
+- `EV_FIND_RESULT` carries `folded_matches` and `current` too; `C_G6_NODES_TREE`
+  takes a new input event `EV_FIND_NEXT {back}` (input only: no host has to
+  declare anything).
+- New consumer i18n keys: `not shown`, `find on screen` (the box's title and
+  name; the title is where Enter is told).
+
 ## 7.23.157
 
 - **Back to 7.23.152 for the treedb graph's edges and layouts, and the
