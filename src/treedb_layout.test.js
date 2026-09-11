@@ -325,7 +325,7 @@ describe("the tidy tree, read right", () => {
 
 describe("the radial tree", () => {
     test("one root sits at the centre, its children on a ring around it", () => {
-        let pos = layout_radial(nodes, edges, {nodesep: 10, ranksep: 100});
+        let pos = layout_radial(nodes, edges, {nodesep: 10, ranksep: 100, stack: false});
         expect(pos.get("es")).toEqual({x: 0, y: 0});
         let r = Math.hypot(pos.get("norte").x, pos.get("norte").y);
         expect(r).toBeGreaterThanOrEqual(100);
@@ -346,7 +346,7 @@ describe("the radial tree", () => {
             many.push(N(`k${i}`, 172, 96));
             e.push({source: "root", target: `k${i}`, rank: 0});
         }
-        let pos = layout_radial(many, e, {nodesep: 10, ranksep: 100});
+        let pos = layout_radial(many, e, {nodesep: 10, ranksep: 100, stack: false});
         let r = Math.hypot(pos.get("k0").x, pos.get("k0").y);
         /*  40 diagonals of ~197 plus gaps on the circumference  */
         expect(2 * Math.PI * r).toBeGreaterThanOrEqual(40 * (Math.hypot(172, 96) + 10) - 1e-6);
@@ -377,6 +377,99 @@ describe("the radial tree", () => {
             expect(Math.hypot(pos.get(id).x, pos.get(id).y)).toBeCloseTo(100, 6);
         }
         expect(pos.get("a").x).not.toBe(pos.get("b").x);
+    });
+});
+
+/*  No two cards of `list` overlap (axis-aligned boxes).  */
+function expect_no_card_overlap(list, pos)
+{
+    for(let i = 0; i < list.length; i++) {
+        for(let j = i + 1; j < list.length; j++) {
+            let a = list[i];
+            let b = list[j];
+            let pa = pos.get(a.id);
+            let pb = pos.get(b.id);
+            let apart_x = Math.abs(pa.x - pb.x) >= (a.w + b.w) / 2 - 1e-6;
+            let apart_y = Math.abs(pa.y - pb.y) >= (a.h + b.h) / 2 - 1e-6;
+            expect(apart_x || apart_y, `${a.id} and ${b.id} overlap`).toBe(true);
+        }
+    }
+}
+
+/*  A treedb shaped like the central one: a root, 25 regions with a
+ *  few places each, and one hall with 24 devices.  */
+function central_like()
+{
+    let list = [N("es", 172, 96)];
+    let links = [];
+    let seed = 7;
+    let rnd = () => {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+    };
+    for(let p = 0; p < 25; p++) {
+        list.push(N(`p${p}`, 172, 96));
+        links.push({source: "es", target: `p${p}`});
+        let n = 3 + Math.floor(rnd() * 5);
+        for(let s = 0; s < n; s++) {
+            list.push(N(`p${p}s${s}`, 172, 96));
+            links.push({source: `p${p}`, target: `p${p}s${s}`});
+            if(p === 3 && s === 1) {
+                for(let d = 0; d < 24; d++) {
+                    list.push(N(`p${p}s${s}d${d}`, 116, 40));
+                    links.push({source: `p${p}s${s}`, target: `p${p}s${s}d${d}`});
+                }
+            }
+        }
+    }
+    return {list, links};
+}
+
+describe("the radial tree stacks a run of leaves", () => {
+    const HUB = [N("hub", 172, 96)].concat([...Array(24).keys()].map((i) => N(`d${i}`, 116, 40)));
+    const SPOKES = HUB.slice(1).map((n) => ({source: "hub", target: n.id}));
+    const OPTS = {nodesep: 24, ranksep: 180};
+    const reach = (list, pos) => Math.max(...list.map((n) => Math.hypot(pos.get(n.id).x, pos.get(n.id).y)));
+
+    test("a hub with 24 leaves: rows outward instead of one wide ring", () => {
+        let flat = layout_radial(HUB, SPOKES, Object.assign({stack: false}, OPTS));
+        let pos = layout_radial(HUB, SPOKES, OPTS);
+        /*  Small cards wholly round their parent: each row makes room
+         *  for a card at its worst slant, so the gain is least here --
+         *  smaller all the same, and nothing overlaps.  */
+        expect(reach(HUB, pos)).toBeLessThan(reach(HUB, flat));
+        expect_no_card_overlap(HUB, pos);
+    });
+
+    test("big cards round a parent, alone on their ring: no two overlap", () => {
+        /*  25 regions under a root, cards 172x96: rings round it, where
+         *  a card stands at every angle.  */
+        let list = [N("es", 172, 96)].concat([...Array(25).keys()].map((i) => N(`p${i}`, 172, 96)));
+        let links = list.slice(1).map((n) => ({source: "es", target: n.id}));
+        expect_no_card_overlap(list, layout_radial(list, links, OPTS));
+    });
+
+    test("the rows of a stack go outward, filled in order", () => {
+        let pos = layout_radial(HUB, SPOKES, OPTS);
+        let r = (id) => Math.hypot(pos.get(id).x, pos.get(id).y);
+        for(let i = 1; i < 24; i++) {
+            expect(r(`d${i}`)).toBeGreaterThanOrEqual(r(`d${i - 1}`) - 1e-6);
+        }
+        expect(r("d23")).toBeGreaterThan(r("d0"));
+    });
+
+    test("a treedb shaped like a real one: no two cards overlap, and it is smaller", () => {
+        let {list, links} = central_like();
+        let flat = layout_radial(list, links, Object.assign({stack: false}, OPTS));
+        let pos = layout_radial(list, links, OPTS);
+        expect_no_card_overlap(list, pos);
+        expect(reach(list, pos)).toBeLessThan(reach(list, flat));
+    });
+
+    test("without leaves in runs it is the radial it was", () => {
+        let few = [N("r", 172, 96), N("a", 172, 96), N("b", 172, 96)];
+        let e2 = [{source: "r", target: "a"}, {source: "r", target: "b"}];
+        expect(layout_radial(few, e2, OPTS)).toEqual(layout_radial(few, e2, Object.assign({stack: false}, OPTS)));
     });
 });
 

@@ -426,6 +426,63 @@ export function stack_trunk_width(k)
                     2 * STACK_LANE_PAD + Math.max(0, lanes - 1) * STACK_LANE_STEP);
 }
 
+/************************************************************
+ *  The children of every node, with each run of STACK_MIN_RUN or
+ *  more consecutive LEAF children replaced by one STACK. Runs, not
+ *  all the leaves of a parent: the children keep their order. A
+ *  stack's key is an OBJECT, so it can never be taken for a node id,
+ *  which is a string. Shared by the compact tree and the radial.
+ *
+ *  Returns {kids_of: Map<id, [id | stack]>, stacks: Map<stack, {ids, depth}>}
+ ************************************************************/
+function leaf_runs(t)
+{
+    let kids_of = new Map();
+    let stacks = new Map();
+    for(let [id, kids] of t.children) {
+        let out = [];
+        let run = [];
+        let flush = () => {
+            if(run.length >= STACK_MIN_RUN) {
+                let key = {stack: stacks.size};
+                stacks.set(key, {ids: run, depth: t.depth.get(run[0])});
+                out.push(key);
+            } else {
+                out.push(...run);
+            }
+            run = [];
+        };
+        for(let kid of kids) {
+            if((t.children.get(kid) || []).length === 0) {
+                run.push(kid);
+            } else {
+                flush();
+                out.push(kid);
+            }
+        }
+        flush();
+        kids_of.set(id, out);
+    }
+    return {kids_of: kids_of, stacks: stacks};
+}
+
+/*  Parents before children, a stack being one child (walk_order's
+ *  form, over `kids_of`).  */
+function stacked_order(t, kids_of)
+{
+    let order = [];
+    let todo = t.roots.slice().reverse();
+    while(todo.length) {
+        let id = todo.pop();
+        order.push(id);
+        let kids = kids_of.get(id) || [];
+        for(let i = kids.length - 1; i >= 0; i--) {
+            todo.push(kids[i]);
+        }
+    }
+    return order;
+}
+
 /*  A stack in the LR frame (depth along x, siblings along y): `side`
  *  is how far each column reaches across, `starts`/`row_len` where
  *  each row begins and how long it is along the depth. Its first row
@@ -479,50 +536,11 @@ function compact_tree_lr(nodes, edges, o)
     let t = spanning_tree(nodes, edges);
     let pos = new Map();
 
-    /*  A run of STACK_MIN_RUN or more consecutive LEAF children is laid
-     *  out as one block, a STACK. The contour packing below takes the
-     *  block as one leaf of its own length, so nothing is packed under
-     *  it. Runs, not all the leaves of a parent: the children keep
-     *  their order. A stack's key is an OBJECT, so it can never be
-     *  taken for a node id, which is a string.  */
-    let kids_of = new Map();
-    let stacks = new Map();
-    for(let [id, kids] of t.children) {
-        let out = [];
-        let run = [];
-        let flush = () => {
-            if(run.length >= STACK_MIN_RUN) {
-                let key = {stack: stacks.size};
-                stacks.set(key, {ids: run, depth: t.depth.get(run[0])});
-                out.push(key);
-            } else {
-                out.push(...run);
-            }
-            run = [];
-        };
-        for(let kid of kids) {
-            if((t.children.get(kid) || []).length === 0) {
-                run.push(kid);
-            } else {
-                flush();
-                out.push(kid);
-            }
-        }
-        flush();
-        kids_of.set(id, out);
-    }
-
-    /*  Parents before children, a stack being one child.  */
-    let order = [];
-    let todo = t.roots.slice().reverse();
-    while(todo.length) {
-        let id = todo.pop();
-        order.push(id);
-        let kids = kids_of.get(id) || [];
-        for(let i = kids.length - 1; i >= 0; i--) {
-            todo.push(kids[i]);
-        }
-    }
+    /*  Runs of leaf children become STACKS (leaf_runs); the contour
+     *  packing below takes a stack as one leaf of its own length, so
+     *  nothing is packed under it.  */
+    let {kids_of, stacks} = leaf_runs(t);
+    let order = stacked_order(t, kids_of);
 
     /*  Columns, as in the tidy tree: a depth is as wide as its widest
      *  card, and a column's gap is `ranksep`.  */
@@ -693,76 +711,148 @@ function extent_at(n, a)
  *
  *      ranksep   the step between rings
  *      nodesep   the gap between neighbours on a ring
+ *      stack     (default true) a run of three or more LEAF children
+ *                is a STACK, as in the compact tree: it asks its
+ *                ring for one row of about the square root of its
+ *                cards, not for every leaf -- a hall with a hundred
+ *                devices no longer blows the ring up -- and lays
+ *                them in rows going OUTWARD, each row as full as
+ *                the room it has: rings round the parent when it is
+ *                alone, a fan inside its sector when it is not.
+ *                false keeps every leaf on the ring.
  ************************************************************/
 export function layout_radial(nodes, edges, opts)
 {
-    let o = Object.assign({}, DEFAULTS, opts || {});
+    let o = Object.assign({}, DEFAULTS, {stack: true}, opts || {});
     let t = spanning_tree(nodes, edges);
     let pos = new Map();
     if(!t.roots.length) {
         return pos;
     }
 
-    /*  Leaves under each node: the sector it deserves. Post-order.  */
-    let order = walk_order(t);
-    let leaves = new Map();
+    let runs = o.stack? leaf_runs(t) : {kids_of: t.children, stacks: new Map()};
+    let kids_of = runs.kids_of;
+    let stacks = runs.stacks;
+    let order = stacked_order(t, kids_of);
+
+    /*  A stack asks its ring for one row of about the square root of
+     *  its cards; how many each row really holds is decided once the
+     *  ring's radius is known (pass 2), by the room it has there.  */
+    for(let st of stacks.values()) {
+        st.per_row = Math.ceil(Math.sqrt(st.ids.length));
+        st.cards = st.ids.map((id) => t.by_id.get(id));
+    }
+    /*  A stack across its ring, at angle `a`: a card's width there, and
+     *  the row it asks for. Along the radius: how far one row reaches.  */
+    let stack_across = (st, a) => {
+        let w = 0;
+        for(let c of st.cards) {
+            w = Math.max(w, extent_at(c, a + Math.PI / 2));
+        }
+        return {card: w, row: st.per_row * w + (st.per_row - 1) * o.nodesep};
+    };
+    let stack_along = (st, a) => {
+        let e = 0;
+        for(let c of st.cards) {
+            e = Math.max(e, extent_at(c, a));
+        }
+        return e;
+    };
+    /*  The widest a set of cards is along the direction `th`, over
+     *  the arc a-half..a+half: a stack's cards stand anywhere in its
+     *  sector, and a card is wider slanted than square.  */
+    let widest_along = (cards, a, half) => {
+        let e = 0;
+        for(let k = 0; k <= 16; k++) {
+            let th = a - half + 2 * half * k / 16;
+            for(let c of cards) {
+                e = Math.max(e, extent_at(c, th));
+            }
+        }
+        return e;
+    };
+    let depth_of = (id) => stacks.has(id)? stacks.get(id).depth : t.depth.get(id);
+    let circ = (a, b) => {
+        let d = Math.abs(a - b) % (2 * Math.PI);
+        return (d > Math.PI)? 2 * Math.PI - d : d;
+    };
+
+    /*  What each node needs across its ring, the sector it deserves: a
+     *  card is one, a stack is one ROW of cards, a parent the sum of
+     *  its children. Post-order.  */
+    let weight = new Map();
     for(let i = order.length - 1; i >= 0; i--) {
         let id = order[i];
-        let kids = t.children.get(id) || [];
+        let st = stacks.get(id);
+        if(st) {
+            weight.set(id, st.per_row);
+            continue;
+        }
+        let kids = kids_of.get(id) || [];
         if(!kids.length) {
-            leaves.set(id, 1);
+            weight.set(id, 1);
             continue;
         }
         let n = 0;
         for(let kid of kids) {
-            n += leaves.get(kid);
+            n += weight.get(kid);
         }
-        leaves.set(id, n);
+        weight.set(id, n);
     }
     let total = 0;
     for(let root of t.roots) {
-        total += leaves.get(root);
+        total += weight.get(root);
     }
 
     /*  One root sits at the centre; several sit on the first ring
      *  around an empty centre, so every depth shifts out by one.  */
     let single = (t.roots.length === 1);
-    let ring_of = (id) => t.depth.get(id) + (single? 0 : 1);
+    let ring_of = (id) => depth_of(id) + (single? 0 : 1);
 
     /*  Pass 1, the ANGLES: a node's children split its sector by
-     *  their leaves, and a node sits at the middle of its sector.
+     *  their weight, and a node sits at the middle of its sector.
      *  Angles do not depend on the radii, so they come first.  */
     let angle = new Map();
-    let rings = [];         /*  ring -> [{id, angle, diag}]  */
+    let rings = [];         /*  ring -> [{id, angle, span, diag, ext, parent_ext}]  */
     /*  An explicit stack, not recursion: the sectors of a ring are
      *  sorted by angle in pass 2, so the order they are pushed in does
      *  not matter -- only that every node gets its own.  */
     let sector = (root_id, root_from, root_span, root_parent) => {
-        let stack = [{id: root_id, from: root_from, span: root_span, parent: root_parent}];
-        while(stack.length) {
-            let {id, from, span, parent} = stack.pop();
+        let todo = [{id: root_id, from: root_from, span: root_span, parent: root_parent}];
+        while(todo.length) {
+            let {id, from, span, parent} = todo.pop();
             let a = from + span / 2;
             angle.set(id, a);
             let ring = ring_of(id);
             if(!rings[ring]) {
                 rings[ring] = [];
             }
-            let n = t.by_id.get(id);
+            let st = stacks.get(id);
+            let n = st? null : t.by_id.get(id);
             rings[ring].push({
                 id: id,
                 angle: a,
-                diag: Math.hypot(n.w, n.h),
+                span: span,
+                /*  How much it needs along the ring: a card's diagonal,
+                 *  a stack's first row.  */
+                diag: st? stack_across(st, a).row : Math.hypot(n.w, n.h),
                 /*  How much of the card lies along the RADIUS at this
                  *  angle -- the projection of the rectangle on that
                  *  direction -- for itself and for the node it hangs
                  *  from, which is the one it has to clear.  */
-                ext: extent_at(n, a),
-                parent_ext: parent? extent_at(t.by_id.get(parent), a) : 0,
+                /*  A stack is measured, and measures its parent, over
+                 *  the whole sector it can cover: round a parent its
+                 *  first row stands at every angle.  */
+                ext: st? widest_along(st.cards, a, Math.min(span / 2, Math.PI))
+                       : extent_at(n, a),
+                parent_ext: !parent? 0
+                    : (st? widest_along([t.by_id.get(parent)], a, Math.min(span / 2, Math.PI))
+                         : extent_at(t.by_id.get(parent), a)),
             });
             let cursor = from;
-            for(let kid of (t.children.get(id) || [])) {
-                let part = span * leaves.get(kid) / leaves.get(id);
-                stack.push({id: kid, from: cursor, span: part, parent: id});
+            for(let kid of (kids_of.get(id) || [])) {
+                let part = span * weight.get(kid) / weight.get(id);
+                todo.push({id: kid, from: cursor, span: part, parent: id});
                 cursor += part;
             }
         }
@@ -771,15 +861,15 @@ export function layout_radial(nodes, edges, opts)
         let root = t.roots[0];
         angle.set(root, 0);
         let cursor = -Math.PI / 2;      /*  the first child at the top  */
-        for(let kid of (t.children.get(root) || [])) {
-            let part = 2 * Math.PI * leaves.get(kid) / leaves.get(root);
+        for(let kid of (kids_of.get(root) || [])) {
+            let part = 2 * Math.PI * weight.get(kid) / weight.get(root);
             sector(kid, cursor, part, root);
             cursor += part;
         }
     } else {
         let cursor = -Math.PI / 2;
         for(let root of t.roots) {
-            let part = 2 * Math.PI * leaves.get(root) / total;
+            let part = 2 * Math.PI * weight.get(root) / total;
             sector(root, cursor, part, null);
             cursor += part;
         }
@@ -803,31 +893,132 @@ export function layout_radial(nodes, edges, opts)
      *  the one it HANGS FROM, in the direction it hangs in -- the
      *  two are radially aligned, or nearly, since a child lives
      *  inside its parent's sector -- and the ring goes out far
-     *  enough for the worst of them.  */
-    let radius = [0];
-    for(let ring = 1; ring < rings.length; ring++) {
-        let r = radius[ring - 1] + o.ranksep;
-        for(let n of (rings[ring] || [])) {
-            r = Math.max(r, radius[ring - 1] + (n.parent_ext + n.ext) / 2 + o.nodesep);
-        }
-        let list = (rings[ring] || []).slice().sort((a, b) => a.angle - b.angle);
-        for(let i = 0; i < list.length && list.length > 1; i++) {
-            let a = list[i];
-            let b = list[(i + 1) % list.length];
-            let gap = (i + 1 < list.length)
+     *  enough for the worst of them.
+     *
+     *  Then the STACKS of the ring get their rows: each row holds as
+     *  many cards as fit in the room the stack has -- its own sector,
+     *  less what its neighbours on the ring take up -- at that row's
+     *  radius. A stack alone on its ring has the whole circle, and its
+     *  rows are rings round its parent; one between neighbours fans
+     *  out inside its sector, wider as it goes. The rows reaching out
+     *  are neighbours of the outer rings too, by the ANGLE they cover.  */
+    let fit = (list, r0) => {
+        let r = r0;
+        let sorted = list.slice().sort((a, b) => a.angle - b.angle);
+        for(let i = 0; i < sorted.length && sorted.length > 1; i++) {
+            let a = sorted[i];
+            let b = sorted[(i + 1) % sorted.length];
+            let gap = (i + 1 < sorted.length)
                 ? b.angle - a.angle
                 : b.angle + 2 * Math.PI - a.angle;
             if(gap > 1e-9) {
                 r = Math.max(r, (a.diag / 2 + b.diag / 2 + o.nodesep) / gap);
             }
         }
+        return r;
+    };
+    let radius = [0];
+    let reaching = [];      /*  planned stacks: {angle, half, reach}  */
+    for(let ring = 1; ring < rings.length; ring++) {
+        let members = rings[ring] || [];
+        let r = radius[ring - 1] + o.ranksep;
+        let band = 0;
+        for(let n of members) {
+            r = Math.max(r, radius[ring - 1] + (n.parent_ext + n.ext) / 2 + o.nodesep);
+            band = Math.max(band, n.ext);
+        }
+        r = fit(members, r);
+        /*  Clear the rows of the inner stacks that reach this far: by
+         *  the angle they cover, or, for a card standing in it, by
+         *  going past their reach.  */
+        for(let pass = 0; pass < 2; pass++) {
+            for(let g of reaching) {
+                if(g.reach < r - band / 2 - o.nodesep) {
+                    continue;
+                }
+                for(let m of members) {
+                    let d = circ(g.angle, m.angle);
+                    if(d > g.half + 1e-9) {
+                        r = Math.max(r, (m.diag / 2 + o.nodesep) / (d - g.half));
+                    } else {
+                        r = Math.max(r, g.reach + m.ext / 2 + o.nodesep);
+                    }
+                }
+            }
+        }
         radius[ring] = r;
+
+        let sorted = members.slice().sort((a, b) => a.angle - b.angle);
+        for(let i = 0; i < sorted.length; i++) {
+            let m = sorted[i];
+            let st = stacks.get(m.id);
+            if(!st) {
+                continue;
+            }
+            /*  The room each side: to the neighbour, less its half and
+             *  the gap; never past the stack's own sector.  */
+            let room = m.span / 2;
+            if(sorted.length > 1) {
+                let left = sorted[(i - 1 + sorted.length) % sorted.length];
+                let right = sorted[(i + 1) % sorted.length];
+                room = Math.min(room,
+                    circ(m.angle, left.angle) - (left.diag / 2 + o.nodesep) / r,
+                    circ(m.angle, right.angle) - (right.diag / 2 + o.nodesep) / r);
+            }
+            room = Math.min(room, Math.PI);
+            /*  Measured over the whole arc it will cover, not at its
+             *  middle: round a parent a card stands at every angle,
+             *  and a 172x96 card is wider at 45 degrees than facing
+             *  down.  */
+            let across = 0;
+            let along = 0;
+            for(let k = 0; k <= 16; k++) {
+                let th = m.angle - room + 2 * room * k / 16;
+                for(let c of st.cards) {
+                    across = Math.max(across, extent_at(c, th + Math.PI / 2));
+                    along = Math.max(along, extent_at(c, th));
+                }
+            }
+            let rows = [];
+            let left_to_place = st.ids.length;
+            let rr = r;
+            let half = 0;
+            while(left_to_place > 0) {
+                let fits = Math.floor(2 * room * rr / (across + o.nodesep));
+                let cnt = Math.max(1, Math.min(left_to_place, fits));
+                rows.push({rr: rr, cnt: cnt});
+                half = Math.max(half, ((cnt * (across + o.nodesep) - o.nodesep) / 2) / rr);
+                left_to_place -= cnt;
+                rr += along + STACK_GAP;
+            }
+            st.plan = {angle: m.angle, across: across, rows: rows};
+            reaching.push({
+                angle: m.angle,
+                half: half,
+                reach: rows[rows.length - 1].rr + along / 2,
+            });
+        }
     }
 
-    /*  Pass 3, the positions.  */
+    /*  Pass 3, the positions: a node at its angle on its ring; a
+     *  stack's cards row by row outward, each row centred on the
+     *  stack's angle, a card's width plus the gap apart along the arc.  */
     for(let [id, a] of angle) {
-        let r = radius[ring_of(id)] || 0;
-        pos.set(id, {x: r * Math.cos(a), y: r * Math.sin(a)});
+        let st = stacks.get(id);
+        if(!st) {
+            let r0 = radius[ring_of(id)] || 0;
+            pos.set(id, {x: r0 * Math.cos(a), y: r0 * Math.sin(a)});
+            continue;
+        }
+        let i = 0;
+        for(let row of st.plan.rows) {
+            let step = (st.plan.across + o.nodesep) / row.rr;
+            for(let j = 0; j < row.cnt; j++) {
+                let th = a + (j - (row.cnt - 1) / 2) * step;
+                pos.set(st.ids[i], {x: row.rr * Math.cos(th), y: row.rr * Math.sin(th)});
+                i++;
+            }
+        }
     }
 
     return pos;

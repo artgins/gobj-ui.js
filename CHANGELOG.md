@@ -5,6 +5,42 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.156
+
+- **treedb graph: the `radial` layout is compact too.** Every leaf sat on its
+  depth's ring, and a ring has to be long enough for all of its cards side by
+  side: one hall with many devices blew the whole ring up. Now a run of three
+  or more consecutive LEAF children is a STACK, as in the compact tree: it asks
+  its ring for one row of about the square root of its cards, not for every
+  leaf, and lays them in rows going OUTWARD, each row as full as the room it
+  has at that radius -- its own sector, less what its neighbours on the ring
+  take up. A stack alone on its ring has the whole circle, and its rows are
+  rings round the parent; one between neighbours fans out inside its sector.
+  On a treedb shaped like a real one, against the radial as it was:
+
+  | fold state | radial | compact now |
+  |---|---|---|
+  | regions only | 1927px | 63% |
+  | one region open, a hall of 24 devices | 4196px | 55% |
+  | every region open (level 3) | 9104px | 58% |
+  | every region open + the hall | 10878px | 53% |
+
+- No card overlaps another, and that took two fixes worth knowing. A stack is
+  measured over the whole ARC it covers, not at its middle angle: round a
+  parent a card stands at every angle, and a 172x96 card is wider slanted
+  than square. And the rows reaching out from a stack are neighbours of the
+  OUTER rings by the angle they cover, or a card of the next sector would sit
+  on them.
+- `leaf_runs()` / `stacked_order()` are shared by the compact tree and the
+  radial. `layout_radial(nodes, edges, {stack: false})` keeps every leaf on
+  its ring, as before.
+- Five new tests: rows outward instead of one wide ring, rows filled in order,
+  big cards round a parent without overlap, a real-shaped treedb without
+  overlap and smaller, and no stack meaning the radial it was. Two radial
+  tests that pin the ring rule itself now run with `stack: false`.
+- The radial's edges are unchanged: G6's cubic, which can pass over a card of
+  a stack's inner rows.
+
 ## 7.23.155
 
 - **treedb graph: curved edges keep off the cards too, so the compact tree

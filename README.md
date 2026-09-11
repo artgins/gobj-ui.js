@@ -1430,7 +1430,15 @@ layouts by three thin adapters in `c_g6_nodes_tree.js`:
   cards touching, where the tidy tree's `ranksep` is a gap between COLUMNS
   and a column carries its own width. A fan that cannot overlap by
   construction, across the ring or along the radius; several roots share the
-  circle around an empty centre.
+  circle around an empty centre. Since `7.23.156` a run of three or more
+  **leaf** children is **stacked**, as in the compact tree: it asks its ring
+  for one row of about the square root of its cards instead of one slot per
+  leaf, and lays them in rows going outward, each as full as its room allows
+  — rings round the parent when it is alone, a fan inside its sector when
+  not. Measured over the arc it covers (a card is wider slanted), and a
+  neighbour of the outer rings by the angle it covers, so nothing overlaps.
+  On a real-shaped treedb it is 53–63% of the radial it was; `stack: false`
+  keeps the old one.
 
 **Elbow edges** (`7.23.149`) are an option of the edges, not a layout: the
 toolbar's `GRAPH_EDGE_ELBOW` toggle sets `edge_shape` to `elbow`, and every
