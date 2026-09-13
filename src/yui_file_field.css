@@ -93,3 +93,20 @@
 .FILE_FIELD .FILE_PREVIEW iframe.FILE_PREVIEW_MEDIA {
     min-height: 18rem;
 }
+
+/*
+ *  The row a file control sits in must be allowed to be NARROWER than the
+ *  file's name. The name is one line cut with an ellipsis, but a flex item
+ *  with `min-width: auto` -- Bulma's `.field-body` in a horizontal field,
+ *  and the `.field` inside it -- measures its minimum with the WHOLE text,
+ *  so a long name ("Chicago - "25 or 6 to 4" Historic Live...") widened the
+ *  column past the form and the dialog grew a horizontal scroll. The audio
+ *  preview, `width: 100%`, followed the column out. Measured the same in
+ *  Firefox and Chromium: 674px where a text row is 473px.
+ *
+ *  Only these rows: the other controls keep Bulma's sizing.
+ */
+.field-body:has(.FILE_FIELD),
+.field-body:has(.FILE_FIELD) > .field {
+    min-width: 0;
+}

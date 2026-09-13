@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.167
+
+- **A long file name no longer pushes the form wider than its dialog.** The
+  name of a picked file is one line cut with an ellipsis, but the row it sits
+  in -- Bulma's `.field-body` and the `.field` inside it, both flex items with
+  `min-width: auto` -- measured its minimum with the WHOLE name. So a long
+  name widened the column past the form, and the dialog grew a horizontal
+  scroll. An audio preview (`width: 100%`) made it visible, running out with
+  the column. Measured the same in Firefox and Chromium: the Foto column was
+  674px where a text row is 473px.
+  - `yui_file_field.css` gives those two boxes `min-width: 0`, only in rows
+    that hold a file control (`:has(.FILE_FIELD)`); the other controls keep
+    Bulma's sizing. The same measure with the rule: 473px, no horizontal
+    scroll.
+
 ## 7.23.166
 
 - **Video and audio in a `file` column are no longer refused by the page.**
