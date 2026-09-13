@@ -2185,6 +2185,17 @@ function ac_toggle_landing_view(gobj, event, kw, src)
     let routes = gobj_read_attr(gobj, "landing_routes");
     let href = is_object(routes) ? routes[target] : null;
     if(href && typeof window !== "undefined") {
+        /*  The url already says `target` while the screen shows the other
+         *  view: assigning the same hash fires no route change, so the
+         *  switch would never come and the button would do nothing. The
+         *  screen and the url disagreeing is a broken invariant -- said,
+         *  and then the screen follows the url.  */
+        if(window.location.hash === href) {
+            log_error(`${gobj_short_name(gobj)}: landing view '${priv._landing_view}' ` +
+                `on screen under the '${target}' url (${href}): following the url`);
+            set_landing_view(gobj, target);
+            return 0;
+        }
         window.location.hash = href;   /*  push; route drives the switch  */
         return 0;
     }
@@ -2217,9 +2228,25 @@ function ac_set_landing_view(gobj, event, kw, src)
  ************************************************************/
 function ac_back_to_topics(gobj, event, kw, src)
 {
+    /*  With host routes the landing is a POSITION, so Back GOES there, the
+     *  way the toggle does, and the route drives the switch.
+     *
+     *  It used to paint the landing it remembered and tell the host "no
+     *  topic", which the host turns into the BARE route -- always the
+     *  cards. After a click on a node of the SCHEMA landing that left the
+     *  schema on screen under a cards url, and from then on the toggle
+     *  navigated to the url the page already had: no route change came and
+     *  the button did nothing. There was no way out of the schema.  */
+    let routes = gobj_read_attr(gobj, "landing_routes");
+    let href = is_object(routes) ? routes[gobj.priv._landing_view] : null;
+    if(href && typeof window !== "undefined") {
+        window.location.hash = href;   /*  push; route drives the switch  */
+        return 0;
+    }
+
+    /*  Legacy: no routes. Paint it here, and tell the host the topic
+     *  segment is gone so a reload re-lands on the grid.  */
     show_topics_landing(gobj);
-    /*  Tell the host the topic segment is gone so a reload re-lands on the
-     *  grid (empty topic ⇒ the host drops the <topic> from the URL). */
     gobj_publish_event(gobj, "EV_TOPIC_SELECTED", {topic: ""});
     return 0;
 }

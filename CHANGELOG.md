@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.165
+
+- **Back from a topic returns to the landing it came from, by url.** After a
+  click on a node of the SCHEMA landing, Back painted the schema but told the
+  host "no topic", which the host turns into the bare route: the CARDS url.
+  The screen showed the schema under a cards url, and from then on the landing
+  toggle navigated to the url the page already had, so no route change came
+  and the button did nothing. There was no way out of the schema.
+  - With `landing_routes`, Back now navigates to the route of the landing it
+    remembers, the way the toggle does, and the route drives the switch. Every
+    host resyncs its segment from the route, so none is left with a stale one.
+    Without `landing_routes`, nothing changes.
+  - The toggle no longer dies if the screen and the url ever disagree again:
+    when the target url is already the current one, it logs the mismatch and
+    applies the view itself.
+
 ## 7.23.164
 
 - **The treedb graph (`C_G6_NODES_TREE`) takes the wheel over its cards
