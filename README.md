@@ -861,6 +861,19 @@ C_YUI_TREEDB_TOPIC_WITH_FORM                      C_YUI_TREEDB_TOPICS
 "which topic" dialog. All three are input events; `EV_OPEN_LINKED` is the one
 output event, and `C_YUI_TREEDB_TOPICS` declares it.
 
+**The table loads a hook as its count** (since `7.23.163`). Its three loads
+ask with `hook_size`, so a hook arrives as `[{"size": N}]` and not as the ids
+of its children, which nothing in the table reads any more:
+
+```js
+const TABLE_READ_OPTIONS = {list_dict: true, hook_size: true};
+```
+
+The node events still carry whole hooks, so after a live update a row can
+hold the list again; the cell and a delete's question count either shape. The
+search box no longer finds a parent row by the id of one of its children: to
+find what hangs from a row, click its hook.
+
 ### Read-only treedbs: `readonly`
 
 `C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` take a **`readonly`** attr; the

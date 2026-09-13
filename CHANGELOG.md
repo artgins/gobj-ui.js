@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.163
+
+- **A topic table loads a hook as its COUNT, not as its children.** The three
+  table loads of `C_YUI_TREEDB_TOPICS` (the first load, a page, a refresh)
+  read with `hook_size`, so a hook comes back as `[{"size": N}]`. The cell only
+  ever showed the number, and since 7.23.162 its click opens the child topic
+  filtered, so the ids were downloaded for nothing: in yunovatios, every
+  device id once per device type, on every load of `device_types`.
+  - Only the loads change. The writes keep their options, and the node events
+    still carry whole hooks (`c_node` publishes them with `list_dict`); the
+    cell and the delete question count either shape.
+  - One thing is lost on purpose: the search box no longer finds a PARENT row
+    by the id of one of its children, because those ids are no longer in the
+    row. The child topic, filtered, is one click away on the hook.
+  - Also safe: a copied row pasted as a new record drops its hooks (a hook is
+    never written back), and the form's link picker reads parent ids, never a
+    hook.
+
 ## 7.23.162
 
 - **A hook opens the rows it links, not a list of their ids.** The `[N]` of a

@@ -74,6 +74,21 @@ import {t} from "i18next";
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_TREEDB_TOPICS";
 
+/*
+ *  How a topic TABLE reads its rows. `hook_size`: a hook comes back as
+ *  its COUNT, `[{"size": N}]`, not as the id of every child. The cell
+ *  only ever showed the number, and a click on it opens the child topic
+ *  filtered (EV_OPEN_LINKED) -- so the ids were downloaded for nothing:
+ *  every device id, once per device type, on every load of that topic.
+ *
+ *  Only the table LOADS use it. The writes keep their own options, and
+ *  the node events still carry whole hooks (c_node publishes them with
+ *  `list_dict`, whatever a reader asked for); the cell counts either
+ *  shape (`treedb_hook_data_size`), and so does a delete's question
+ *  (`delete_impact`'s ref_count).
+ */
+const TABLE_READ_OPTIONS = {list_dict: true, hook_size: true};
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -1316,9 +1331,7 @@ function get_nodes(gobj, topic_name)
         gobj,
         treedb_name,
         topic_name,
-        {
-            list_dict: true
-        }
+        Object.assign({}, TABLE_READ_OPTIONS)
     );
 }
 
@@ -2371,7 +2384,7 @@ function ac_request_page(gobj, event, kw, src)
         gobj,
         gobj_read_str_attr(gobj, "treedb_name"),
         topic_name,
-        {list_dict: true},
+        Object.assign({}, TABLE_READ_OPTIONS),
         {from: kw.from, limit: kw.limit, req_id: kw.req_id}
     );
 
@@ -2592,9 +2605,7 @@ function ac_refresh_topic(gobj, event, kw, src)
         return 0;
     }
 
-    let options = {
-        list_dict: true
-    };
+    let options = Object.assign({}, TABLE_READ_OPTIONS);
 
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
 
