@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.166
+
+- **Video and audio in a `file` column are no longer refused by the page.**
+  The Content-Security-Policy that `vite-plugin-yuneta-html.js` writes into
+  `index.html` had no `media-src`, so a `<video>` or `<audio>` fell back to
+  `default-src 'self'`: the browser refused the `blob:` url of a picked file
+  and the `data:` url of a stored one served inline. Images and PDFs showed,
+  because `img-src` and `child-src` already allow them. The policy now carries
+  `media-src 'self' data: blob:`.
+  - It reaches an app when the app is rebuilt, and only an app whose config
+    has `csp_connect_src`, because that is when the plugin writes a policy at
+    all: today yunovatios central and controlador, and gui_agent.
+
 ## 7.23.165
 
 - **Back from a topic returns to the landing it came from, by url.** After a

@@ -98,7 +98,14 @@ export function yunetaHtmlPlugin(options = {}) {
           worker-src 'self' blob:;
           child-src 'self' blob:;
           img-src 'self' data: blob:;
+          media-src 'self' data: blob:;
           font-src 'self' data:;">`;
+                /*  media-src: a treedb `file` column shows video and audio
+                 *  too (yui_asset.js). A picked file is previewed from a
+                 *  blob: url and a stored one arrives as a data: url when
+                 *  no web server signs one. Without the directive both fell
+                 *  back to default-src 'self' and the browser refused them,
+                 *  while the same bytes as an image or a PDF showed.  */
                 }
 
                 /*------------------------------------------*
