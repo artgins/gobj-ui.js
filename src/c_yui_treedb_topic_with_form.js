@@ -2928,13 +2928,19 @@ function show_edit_form(gobj, row, index)
  *  Does a click on this column already mean something else?
  *
  *  The `_` columns are the table's own scaffolding (the selection
- *  checkbox, the Op buttons); a hook opens its children and a col
- *  holding a json document opens it in a viewer. Anything else is
- *  plain data, and a click on it means "show me this record".
+ *  checkbox, the Op buttons); a hook opens its children, a col
+ *  holding a json document opens it in a viewer, and a `file` col
+ *  opens its asset in a popup. Anything else is plain data, and a
+ *  click on it means "show me this record".
+ *
+ *  `file` was missing when its popup arrived (7.23.159), so a click
+ *  on a photo opened the popup AND the record on top of it: Tabulator
+ *  fires `rowClick` from its own dispatcher, and the cell's
+ *  stopPropagation() does not reach it.
  ************************************************************/
 const CELL_WITH_ACTION = [
     "hook", "object", "dict", "template", "array", "list",
-    "coordinates", "blob", "gbuffer"
+    "coordinates", "blob", "gbuffer", "file"
 ];
 
 function cell_has_its_own_action(gobj, field)

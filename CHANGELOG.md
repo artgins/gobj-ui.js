@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.161
+
+- **A click on a file cell opens ONLY its popup.** Since 7.23.159 it also
+  opened the record, whose dialog covered the photo. A row click outside
+  edition mode opens the record unless the cell has its own action, and
+  `file` was missing from that list (`CELL_WITH_ACTION`). Tabulator fires
+  `rowClick` from its own dispatcher, so the cell's `stopPropagation()` never
+  reached it.
+
 ## 7.23.160
 
 - **The treedb schema graph (`C_YUI_TREEDB_SCHEMA`) behaves like the other
