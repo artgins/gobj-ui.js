@@ -31,6 +31,13 @@
  ***************************************************************/
 function ref_count(value)
 {
+    /*  A hook read with `hook_size` is not its children but their COUNT:
+     *  `[{"size": N}]`. Counted as a one-element list it said a parent of
+     *  5675 children took ONE with it.  */
+    if(Array.isArray(value) && value.length === 1 && value[0] &&
+            typeof value[0] === "object" && typeof value[0].size === "number") {
+        return value[0].size;
+    }
     if(Array.isArray(value)) {
         return value.length;
     }

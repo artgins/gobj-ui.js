@@ -805,6 +805,62 @@ Searching is a user action, so it crosses the FSM (`EV_SEARCH`) like the rest;
 it used to call `tabulator.setFilter` straight from the DOM handler, where the
 `machine` trace could not see it.
 
+### A hook opens the rows it links
+
+A hook cell shows how many children the row has (`[5675]`). A click on it
+opens the **child topic's table, filtered** to the rows whose fkey names this
+row (since `7.23.162`). Above the table, a chip says which filter is on,
+"filtered by device_types electric_bt", and its ✕ brings the whole topic back.
+
+The child table already pages, searches, opens a record and exports. Until
+`7.23.162` the click opened a popup that listed every child id instead:
+5,675 rows in a box with no height, no scroll and no way to close it but a
+click inside, and the ids did nothing.
+
+- The child topic and its fkey come from the hook's own mapping in the
+  schema, `{child_topic: fkey_col}`:
+
+  ```c
+  'devices': {
+      'header': 'Equipos',
+      'type': 'object',
+      'flag': ['hook'],
+      'hook': {
+          'devices': 'place'
+      }
+  }
+  ```
+
+  A click on this hook opens `devices`, filtered to the rows whose `place`
+  names the clicked row.
+- A hook whose children live in more than one topic asks which one, in the
+  standardized dialog (Escape, Back and a click outside close it).
+- The switch goes through the same entry point as a tab click, so the host
+  puts it in the URL and Back returns to the topic the hook was on. The
+  filter itself is not in the URL.
+- The parent filter and the search box are **one** filter. Tabulator's
+  `setFilter()` replaces every programmatic filter, so as two filters each
+  would wipe the other.
+- A child row matches when its fkey names the parent id, and also its topic
+  and hook when the ref carries them: one row can hang from the same parent
+  through two hooks.
+- The filter works on the rows the table holds. With `with_remote_paging`
+  that is one page, which is one more reason that flag stays off.
+
+The table asks its host to switch, because the tabs belong to the host:
+
+```
+C_YUI_TREEDB_TOPIC_WITH_FORM                      C_YUI_TREEDB_TOPICS
+  EV_OPEN_LINKED {topic_name: "devices", fkey: "place",
+                  parent_topic: "places", parent_id: "es", hook: "devices"}  ──►
+                                          select the tab of `devices`
+  EV_FILTER_BY_PARENT {fkey, parent_topic, parent_id, hook}  ◄──  to that topic's table
+```
+
+`EV_CLEAR_PARENT_FILTER` is the ✕, and `EV_CHOOSE_LINKED` is a pick in the
+"which topic" dialog. All three are input events; `EV_OPEN_LINKED` is the one
+output event, and `C_YUI_TREEDB_TOPICS` declares it.
+
 ### Read-only treedbs: `readonly`
 
 `C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` take a **`readonly`** attr; the

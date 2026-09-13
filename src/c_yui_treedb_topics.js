@@ -2385,6 +2385,47 @@ function ac_request_page(gobj, event, kw, src)
 }
 
 /********************************************
+ *  Event from formtable: open the records a hook of one row links --
+ *  the CHILD topic's table, filtered to the rows whose fkey names that
+ *  row. A hook is the question "which records hang from this one", and
+ *  the child's table is where that answer can be read: it pages, it
+ *  searches, it opens a record and it exports -- which a list of ids in
+ *  a popup could not do past a few dozen of them.
+ *  {
+ *      topic_name:     the child topic
+ *      fkey:           its fkey column that points back
+ *      parent_topic:   the topic of the row the hook is on
+ *      parent_id:      that row's id
+ *      hook:           the hook column
+ *  }
+ ********************************************/
+function ac_open_linked(gobj, event, kw, src)
+{
+    let child = get_gobj_formtable(gobj, kw.topic_name);
+    if(!child) {
+        /*  A child topic this view does not show: a system topic in a
+         *  user view, or one the schema names and the backend did not
+         *  describe.  */
+        log_error(`${gobj_short_name(gobj)}: cannot open '${kw.topic_name}', ` +
+            `linked from '${kw.parent_topic}^${kw.parent_id}': that topic is not in this view`);
+        return -1;
+    }
+
+    /*  Through the same entry point as a tab click: the switch is local
+     *  and the host mirrors it into the URL, so Back returns to the
+     *  topic the hook was clicked in.  */
+    select_topic_by_id(gobj, gobj_name(child));
+
+    gobj_send_event(child, "EV_FILTER_BY_PARENT", {
+        fkey:           kw.fkey,
+        parent_topic:   kw.parent_topic,
+        parent_id:      kw.parent_id,
+        hook:           kw.hook
+    }, gobj);
+    return 0;
+}
+
+/********************************************
  *  Event from formtable: the bytes of one asset a `file` column names,
  *  for the form's preview or the table's file popup.
  *
@@ -2676,6 +2717,7 @@ function create_gclass(gclass_name)
             ["EV_UPDATE_FIELD",         ac_update_field,            null],
             ["EV_REQUEST_PAGE",         ac_request_page,            null],
             ["EV_REQUEST_ASSET",        ac_request_asset,           null],
+            ["EV_OPEN_LINKED",          ac_open_linked,             null],
             ["EV_DELETE_RECORD",        ac_delete_record,           null],
             ["EV_REFRESH_TOPIC",        ac_refresh_topic,           null],
             ["EV_OPEN_JSON",            ac_open_json,               null],
@@ -2706,6 +2748,7 @@ function create_gclass(gclass_name)
         ["EV_UPDATE_FIELD",         0],
         ["EV_REQUEST_PAGE",         0],
         ["EV_REQUEST_ASSET",        0],
+        ["EV_OPEN_LINKED",          0],
         ["EV_DELETE_RECORD",        0],
         ["EV_RECORD_WRITTEN",       event_flag_t.EVF_OUTPUT_EVENT|
                                     event_flag_t.EVF_NO_WARN_SUBS],

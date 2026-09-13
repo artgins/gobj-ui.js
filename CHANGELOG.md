@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.162
+
+- **A hook opens the rows it links, not a list of their ids.** The `[N]` of a
+  hook cell opened a popup listing every child id: 5,675 rows for one device
+  type, in a box with no height, no scroll, no Escape and no click outside,
+  whose ids did nothing. Now it opens the CHILD topic's table, filtered to the
+  rows whose fkey names this row, with a chip above the table ("filtered by
+  <topic> <id>") and a ✕ that brings the whole topic back. That table already
+  pages, searches, opens a record and exports, so the popup had nothing to
+  add, and it is gone (`show_dropdown_popup_menu`).
+  - The switch goes through the same entry point as a tab click, so the host
+    mirrors it into the URL and Back returns to the topic the hook was on.
+  - A hook whose children live in more than one topic asks which one, in the
+    standardized dialog (Escape, Back and a click outside close it).
+  - The filter and the search box are ONE filter: Tabulator's `setFilter()`
+    replaces every programmatic filter, so each would have wiped the other.
+  - The hook link carries a name (`title` + `aria-label`). It had none.
+- Events: `C_YUI_TREEDB_TOPIC_WITH_FORM` publishes **`EV_OPEN_LINKED`**
+  `{topic_name, fkey, parent_topic, parent_id, hook}`, and takes
+  `EV_FILTER_BY_PARENT`, `EV_CLEAR_PARENT_FILTER` and `EV_CHOOSE_LINKED`.
+  `C_YUI_TREEDB_TOPICS`, its only host, declares the new output event.
+- `delete_impact()`'s `ref_count` reads a hook in its `hook_size` shape,
+  `[{"size": N}]`, as N and not as one child.
+- New consumer i18n keys: `filtered by`, `clear filter`, `choose a topic`,
+  `show linked records`.
+
 ## 7.23.161
 
 - **A click on a file cell opens ONLY its popup.** Since 7.23.159 it also

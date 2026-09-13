@@ -258,6 +258,10 @@ let PRIVATE_DATA = {
     cell_file_win:      null,   // C_YUI_WINDOW presenting it (laptop)
     _pending_assets:    null,   // req_id -> {target, col, id, slot, timer}
     _asset_seq:         0,      // correlation id of an asset request
+    parent_filter:      null,   // {fkey, parent_topic, parent_id, hook}: rows linked to one record
+    search_term:        "",     // the search box, lower-cased ("" = none)
+    $parent_filter:     null,   // the chip that says the parent filter is on
+    hook_choice_modal:  null,   // { close } of "which child topic?" (a hook with several)
 };
 
 let __gclass__ = null;
@@ -459,6 +463,7 @@ function mt_stop(gobj)
     close_schema_dialog(gobj);
     close_cell_json_dialog(gobj);
     close_cell_file_dialog(gobj);
+    close_hook_choice(gobj);
     drop_pending_assets(gobj);
     table__destroy(gobj);
 }
@@ -476,6 +481,7 @@ function mt_destroy(gobj)
     close_schema_dialog(gobj);
     close_cell_json_dialog(gobj);
     close_cell_file_dialog(gobj);
+    close_hook_choice(gobj);
     drop_pending_assets(gobj);
     destroy_ui(gobj);
 }
@@ -897,6 +903,31 @@ function build_ui(gobj)
         bar.$el.style.flex = "none";
         $container.insertBefore(bar.$el, $container.querySelector(`#${table_id}`));
     }
+
+    /*  The parent filter, when a hook of another row opened this table
+     *  (EV_FILTER_BY_PARENT). Hidden until then. The topic is a KEY (it is
+     *  translated like the tab that names it) and the id is DATA.  */
+    let $parent_filter = createElement2(
+        ['div', {class: 'TREEDB_PARENT_FILTER is-hidden', style: 'flex:none;'}, [
+            ['span', {class: 'PARENT_FILTER_LABEL', i18n: 'filtered by'}, 'filtered by'],
+            ['span', {class: 'PARENT_FILTER_TOPIC'}, ''],
+            ['strong', {class: 'PARENT_FILTER_ID'}, ''],
+            ['button', {
+                class: 'delete PARENT_FILTER_CLEAR',
+                type: 'button',
+                title: t('clear filter'),
+                'data-i18n-title': 'clear filter',
+                'aria-label': t('clear filter'),
+                'data-i18n-aria-label': 'clear filter'
+            }, [], {
+                click: () => {
+                    gobj_send_event(gobj, "EV_CLEAR_PARENT_FILTER", {}, gobj);
+                }
+            }]
+        ]]
+    );
+    gobj.priv.$parent_filter = $parent_filter;
+    $container.insertBefore($parent_filter, $container.querySelector(`#${table_id}`));
 
     let $toolbar_slot = $container.querySelector('.toolbar_tabulator_table');
     if($table_toolbar instanceof Element) {
@@ -1741,6 +1772,7 @@ function create_tabulator(gobj)
          *  one row.  */
         yui_tabulator_name_row_selects(tabulator, t);
         tabulator._ready = true;
+        apply_row_filters(gobj);
         update_rowcount();
         /*  La ✕ de cada filtro de cabecera. Un filtro se quita borrando lo
          *  escrito, y con varias columnas filtradas volver a la tabla entera
@@ -2031,8 +2063,14 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             let items = treedb_hook_data_size(value);
 
             if(items > 0) {
+                /*  An HTML STRING, so the name is escaped by hand; a language
+                 *  change re-runs setColumns(), which re-runs this.  */
+                let hook_title = String(t("show linked records"))
+                    .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+                    .replace(/</g, "&lt;").replace(/>/g, "&gt;");
                 value = [
                     '<a class="hook_cell" ',
+                    `title="${hook_title}" aria-label="${hook_title}" `,
                     `data-row_id="${row.id}" `,
                     `data-col_id="${col.id}" > `,
                     '<span style="" class="icon yi-eye"></span>',
@@ -2893,6 +2931,181 @@ function close_cell_file_dialog(gobj)
 }
 
 /************************************************************
+ *  Ask the host to open the rows of `topic_name` whose `fkey`
+ *  names this row -- what a hook of this row links.
+ ************************************************************/
+function publish_open_linked(gobj, topic_name, fkey, parent_id, hook)
+{
+    gobj_publish_event(gobj, "EV_OPEN_LINKED", {
+        topic_name:     topic_name,
+        fkey:           fkey,
+        parent_topic:   gobj_read_str_attr(gobj, "topic_name"),
+        parent_id:      parent_id,
+        hook:           hook
+    });
+}
+
+/************************************************************
+ *  "Which child topic?" -- for a hook whose children live in
+ *  more than one. The standardized dialog, so Escape, Back and
+ *  a click outside close it like every other one.
+ ************************************************************/
+function open_hook_choice_dialog(gobj, targets, parent_id, hook)
+{
+    close_hook_choice(gobj);
+    let priv = gobj.priv;
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${gobj_short_name(gobj)}: no shell, cannot ask which topic to open`);
+        return;
+    }
+    /*  The topic names are KEYS, translated like the tabs that name them.  */
+    let $body = createElement2(
+        ['div', {class: 'TREEDB_HOOK_CHOICE'}, targets.map((tg) => {
+            return ['button', {
+                class: 'button HOOK_CHOICE_TOPIC',
+                type: 'button',
+                title: t(tg.topic_name),
+                'data-i18n-title': tg.topic_name,
+                'aria-label': t(tg.topic_name),
+                'data-i18n-aria-label': tg.topic_name
+            }, [
+                ['span', {i18n: tg.topic_name}, tg.topic_name]
+            ], {
+                click: () => {
+                    gobj_send_event(gobj, "EV_CHOOSE_LINKED", {
+                        topic_name: tg.topic_name,
+                        fkey:       tg.fkey,
+                        parent_id:  parent_id,
+                        hook:       hook
+                    }, gobj);
+                }
+            }];
+        })]
+    );
+    priv.hook_choice_modal = yui_shell_show_modal(shell, $body, {
+        dialog:        true,
+        logical_class: "TREEDB_HOOK_CHOICE_SHEET",
+        title:         "choose a topic",
+        t:             t,
+        on_close:      function() {
+            priv.hook_choice_modal = null;
+        }
+    });
+}
+
+/************************************************************
+ *  Close "which child topic?" if it is open.
+ ************************************************************/
+function close_hook_choice(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.hook_choice_modal) {
+        let modal = priv.hook_choice_modal;
+        priv.hook_choice_modal = null;
+        modal.close();
+    }
+}
+
+/************************************************************
+ *  Does this row's `pf.fkey` name the parent record? The fkey
+ *  arrives as one ref, a list of them or a dict keyed by ref,
+ *  each in any of the shapes treedb_decoder_fkey() reads. The
+ *  topic and the hook are compared when the ref carries them:
+ *  one row can hang from the same parent through two hooks.
+ ************************************************************/
+function row_links_to(gobj, data, pf)
+{
+    let col = get_schema_col(gobj, pf.fkey);
+    let v = data? data[pf.fkey] : null;
+    if(!col || v === null || v === undefined || v === "") {
+        return false;
+    }
+    let refs;
+    if(is_array(v)) {
+        refs = v;
+    } else if(is_object(v) && v.id === undefined) {
+        refs = Object.keys(v);
+    } else {
+        refs = [v];
+    }
+    for(let ref of refs) {
+        if(ref === null || ref === undefined || ref === "") {
+            continue;
+        }
+        let fk = treedb_decoder_fkey(col, ref);
+        if(!fk || String(fk.id) !== pf.parent_id) {
+            continue;
+        }
+        if(fk.topic_name && pf.parent_topic && fk.topic_name !== pf.parent_topic) {
+            continue;
+        }
+        if(fk.hook_name && pf.hook && fk.hook_name !== pf.hook) {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
+/************************************************************
+ *  The ONE programmatic filter of the table: the parent filter
+ *  AND the search term. Kept as state and applied here, because
+ *  Tabulator's setFilter() replaces every programmatic filter.
+ *  Before `tableBuilt` the state waits; tableBuilt applies it.
+ ************************************************************/
+function apply_row_filters(gobj)
+{
+    let priv = gobj.priv;
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: no table to filter`);
+        return;
+    }
+    if(!tabulator._ready) {
+        return;     /*  tableBuilt applies it  */
+    }
+    let term = priv.search_term || "";
+    let pf = priv.parent_filter;
+    if(!term && !pf) {
+        tabulator.clearFilter();
+        return;
+    }
+    tabulator.setFilter(function(data) {
+        if(pf && !row_links_to(gobj, data, pf)) {
+            return false;
+        }
+        /*  A treedb row is not flat: an fkey arrives as a list of
+         *  objects. `row_matches()` walks into them and reads only the
+         *  `id` of an fkey. See yui_row_search.js.  */
+        return !term || row_matches(data, term);
+    });
+}
+
+/************************************************************
+ *  Show or hide the chip that says the parent filter is on.
+ ************************************************************/
+function render_parent_filter(gobj)
+{
+    let priv = gobj.priv;
+    let $chip = priv.$parent_filter;
+    if(!$chip) {
+        log_error(`${gobj_short_name(gobj)}: no parent-filter chip to paint`);
+        return;
+    }
+    let pf = priv.parent_filter;
+    if(!pf) {
+        $chip.classList.add("is-hidden");
+        return;
+    }
+    let $topic = $chip.querySelector(".PARENT_FILTER_TOPIC");
+    $topic.setAttribute("data-i18n", pf.parent_topic);
+    $topic.textContent = t(pf.parent_topic);
+    $chip.querySelector(".PARENT_FILTER_ID").textContent = pf.parent_id;
+    $chip.classList.remove("is-hidden");
+}
+
+/************************************************************
  *  True if the topic's pkey col carries the "rowid" flag.
  ************************************************************/
 function pkey_is_rowid(gobj)
@@ -3302,84 +3515,6 @@ function build_fkey_ref(gobj, col, value)
     return refs;
 }
 
-/***************************************************************************
- *  TODO con límite máximo o máximo height o con scroll
- *      en un gobj propio para gestionar los datos en "page"s
- *      que los hook no vengan rellenos si son muchos y que se puedan gestionar
- *      con un gobj
- ***************************************************************************/
-function show_dropdown_popup_menu(gobj, x, y, items, callback)
-{
-    let $element = createElement2([
-        'div', {class: 'dropdown popup' }, [
-            ['div', {
-                    class: 'dropdown-menu', role: 'menu', style: 'min-width:4rem; border: 2px solid var(--bulma-border); padding: 0px;'
-                }, [
-                ['div', { class: 'dropdown-content', style: 'padding: 0;' }, []]
-            ]]
-        ], {
-            'click': (evt) => {
-                evt.stopPropagation();
-                destroyModal();
-                if(callback) {
-                    callback(evt);
-                }
-            }
-        }
-    ]);
-
-    const destroyModal = () => {
-        $element.classList.remove('is-active');
-        $element.parentNode.removeChild($element);
-    };
-
-    let $dropdown_content = $element.querySelector('.dropdown-content');
-
-    let ids = kwid_get_ids(gobj, items);
-    for(let id of ids) {
-        let $item = createElement2(
-            ['a', {class: 'dropdown-item flex-horizontal-section', 'data-value':`${id}`, style:'margin:0px;'}, [
-                ['span', {i18n: `${id}`}, `${id}`]
-            ], {
-                'click': (evt) => {
-                    evt.stopPropagation();
-                    destroyModal();
-                    if(callback) {
-                        callback(evt, this.dataset.value);
-                    }
-                }
-            }]
-        );
-        $dropdown_content.appendChild($item);
-    }
-
-    refresh_language($element, t);
-
-    /*
-     *  Add to popup layer
-     */
-    popup_mount_layer(gobj).appendChild($element);
-
-    /*
-     *  Set position
-     */
-    $element.style.position = "absolute";
-    $element.style.top = y + "px";
-    $element.style.left = x + "px";
-
-    /*
-     *  Show
-     */
-    $element.classList.add('is-active');
-
-    /*
-     *  Set focus
-     */
-    let $with_focus = $element.querySelector('.with-focus');
-    if($with_focus) {
-        $with_focus.focus();
-    }
-}
 
 
 
@@ -4117,17 +4252,78 @@ function ac_change_locale(gobj, event, kw, src)
  ************************************************************/
 function ac_show_hook_data(gobj, event, kw, src)
 {
-    let webix = gobj_command(gobj_parent(gobj), "get_topic_data", kw, gobj);
-
-    let row = kwid_find_one_record(gobj, webix.data, kw.row_id, null);
-    if(row) {
-        let cell = row[kw.col_id];
-        /*
-         *  WARNING TODO hooks can have millions of kids
-         */
-        show_dropdown_popup_menu(gobj, kw.click_x, kw.click_y, cell);
+    /*  The hook's mapping says where its children live: {child_topic:
+     *  fkey_col}. Opening that topic, filtered, replaced a popup listing
+     *  every child id -- 5675 rows in a box with no height, no scroll and
+     *  no way out but a click inside it, whose ids did nothing.  */
+    let col = get_schema_col(gobj, kw.col_id);
+    let hook = (col && is_object(col.hook))? col.hook : null;
+    if(!hook || kw.row_id === undefined || kw.row_id === null) {
+        log_error(`${gobj_short_name(gobj)}: hook '${kw.col_id}' names no child topic to open`);
+        return -1;
     }
+    let targets = Object.keys(hook).map((topic) => {
+        return {topic_name: topic, fkey: hook[topic]};
+    });
+    if(targets.length === 1) {
+        publish_open_linked(gobj, targets[0].topic_name, targets[0].fkey,
+                            String(kw.row_id), kw.col_id);
+        return 0;
+    }
+    open_hook_choice_dialog(gobj, targets, String(kw.row_id), kw.col_id);
+    return 0;
+}
 
+/************************************************************
+ *  A hook with several child topics: pick one.
+ *  {topic_name, fkey, parent_id, hook}
+ ************************************************************/
+function ac_choose_linked(gobj, event, kw, src)
+{
+    close_hook_choice(gobj);
+    publish_open_linked(gobj, kw.topic_name, kw.fkey, kw.parent_id, kw.hook);
+    return 0;
+}
+
+/************************************************************
+ *  Show only the rows linked to one record of another topic.
+ *  Sent by the host when a hook of that record was clicked.
+ *  {fkey, parent_topic, parent_id, hook}
+ *
+ *  Over the rows the table HOLDS: with `with_remote_paging` that
+ *  is one page, which is one of the reasons that flag stays off.
+ ************************************************************/
+function ac_filter_by_parent(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(!kw || !kw.fkey || kw.parent_id === undefined || kw.parent_id === null) {
+        log_error(`${gobj_short_name(gobj)}: a parent filter with no fkey or no parent`);
+        return -1;
+    }
+    if(!get_schema_col(gobj, kw.fkey)) {
+        log_error(`${gobj_short_name(gobj)}: parent filter on '${kw.fkey}', ` +
+                  `which is not a column of '${gobj_read_str_attr(gobj, "topic_name")}'`);
+        return -1;
+    }
+    priv.parent_filter = {
+        fkey:           kw.fkey,
+        parent_topic:   kw.parent_topic || "",
+        parent_id:      String(kw.parent_id),
+        hook:           kw.hook || ""
+    };
+    render_parent_filter(gobj);
+    apply_row_filters(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  The ✕ of the parent filter: back to the whole topic.
+ ************************************************************/
+function ac_clear_parent_filter(gobj, event, kw, src)
+{
+    gobj.priv.parent_filter = null;
+    render_parent_filter(gobj);
+    apply_row_filters(gobj);
     return 0;
 }
 
@@ -4479,20 +4675,12 @@ function ac_search(gobj, event, kw, src)
         return -1;
     }
 
-    let term = ((kw && kw.text) || "").toLowerCase();
-    if(!term) {
-        tabulator.clearFilter();
-        return 0;
-    }
-
-    /*  A treedb row is not flat: an fkey arrives as a list of objects, and
-     *  `String()` of that is "[object Object]" -- so searching for the
-     *  workshop of a meter, which is where the value a person has in mind
-     *  lives, never found anything. `row_matches()` walks into them, and
-     *  reads only the `id` of an fkey. See yui_row_search.js.  */
-    tabulator.setFilter(function(data) {
-        return row_matches(data, term);
-    });
+    /*  Kept, and applied together with the parent filter: Tabulator's
+     *  setFilter() REPLACES every programmatic filter and clearFilter()
+     *  drops them all, so the search box used to wipe the parent filter
+     *  and the parent filter would have wiped the search.  */
+    gobj.priv.search_term = ((kw && kw.text) || "").toLowerCase();
+    apply_row_filters(gobj);
 
     return 0;
 }
@@ -4726,6 +4914,9 @@ function create_gclass(gclass_name)
             ["EV_COPY_ROWS",            ac_copy_rows,          null],
             ["EV_PASTE_ROWS",           ac_paste_rows,         null],
             ["EV_SHOW_HOOK_DATA",       ac_show_hook_data,     null],
+            ["EV_CHOOSE_LINKED",        ac_choose_linked,      null],
+            ["EV_FILTER_BY_PARENT",     ac_filter_by_parent,   null],
+            ["EV_CLEAR_PARENT_FILTER",  ac_clear_parent_filter, null],
             ["EV_SHOW_CELL_JSON",       ac_show_cell_json,     null],
             ["EV_SHOW_CELL_FILE",       ac_show_cell_file,     null],
             ["EV_ASSET_LOADED",         ac_asset_loaded,       null],
@@ -4770,7 +4961,11 @@ function create_gclass(gclass_name)
         ["EV_CLEAR_SELECTION",      0],
         ["EV_SELECT_ROWS",          event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UNSELECT_ROWS",        event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_SHOW_HOOK_DATA",       event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_SHOW_HOOK_DATA",       0],
+        ["EV_CHOOSE_LINKED",        0],
+        ["EV_FILTER_BY_PARENT",     0],
+        ["EV_CLEAR_PARENT_FILTER",  0],
+        ["EV_OPEN_LINKED",          event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_SHOW_CELL_JSON",       0],
         ["EV_SHOW_CELL_FILE",       0],
         ["EV_ASSET_LOADED",         0],

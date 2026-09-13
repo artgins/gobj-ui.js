@@ -208,3 +208,33 @@
     font-family: monospace;
     overflow-wrap: anywhere;
 }
+
+/*
+ *  The table is showing only the rows linked to one record, because a
+ *  hook was clicked (EV_FILTER_BY_PARENT). Said above the table, with
+ *  the way out beside it: a filter nobody can see is a table that looks
+ *  like it lost rows.
+ */
+.TREEDB_PARENT_FILTER {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid var(--bulma-border, #dbdbdb);
+    background: var(--bulma-scheme-main-bis, transparent);
+}
+.TREEDB_PARENT_FILTER .PARENT_FILTER_ID {
+    font-family: monospace;
+    overflow-wrap: anywhere;
+}
+
+/*
+ *  A hook whose children live in more than one topic: which one to open.
+ */
+.TREEDB_HOOK_CHOICE {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+}

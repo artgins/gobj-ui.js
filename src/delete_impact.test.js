@@ -21,6 +21,14 @@ describe("ref_count", () => {
         expect(ref_count(undefined)).toBe(0);
         expect(ref_count(7)).toBe(0);
     });
+
+    it("reads a hook read with hook_size as its count", () => {
+        expect(ref_count([{size: 5675}])).toBe(5675);
+        expect(ref_count([{size: 0}])).toBe(0);
+        expect(delete_impact(DESC, {id: "a", users: [{size: 12}]}).children).toBe(12);
+        /*  one real child that happens to be an object is still ONE  */
+        expect(ref_count([{id: "u1"}])).toBe(1);
+    });
 });
 
 describe("delete_impact", () => {
