@@ -171,9 +171,15 @@ export function yui_graph_camera_behaviors()
  *   element that must scroll by itself (a popover) stops the
  *   wheel before it gets here.
  *
+ *   `opts.selector` narrows it to the wheels whose target is
+ *   inside an element that matches, e.g. the root class of the
+ *   cards. A graph that puts other DOM in its container -- its
+ *   own toolbars, a legend -- passes one, so a wheel over those
+ *   is left to them instead of scrolling the graph.
+ *
  *   Returns the function that removes the listener.
  ************************************************************/
-export function yui_graph_forward_wheel(graph, $host)
+export function yui_graph_forward_wheel(graph, $host, opts = {})
 {
     if(!graph || !$host) {
         return () => {};
@@ -187,6 +193,9 @@ export function yui_graph_forward_wheel(graph, $host)
         }
         if(!dom || e.target === dom) {
             return;
+        }
+        if(opts.selector && !(e.target instanceof Element && e.target.closest(opts.selector))) {
+            return;     /*  not over a card: that DOM keeps its own wheel  */
         }
         e.preventDefault();
         e.stopPropagation();

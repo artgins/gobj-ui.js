@@ -1016,7 +1016,22 @@ priv.unforward_wheel();
 
 An element that must scroll by itself inside the graph (a popover) stops the
 wheel with `stopPropagation()` before it reaches `$host`.
-`C_YUI_TREEDB_SCHEMA` uses it; `C_G6_NODES_TREE` does not yet.
+
+A graph that puts other DOM in its container, such as its own toolbars or a
+legend, passes `opts.selector`. Then only a wheel whose target is inside a
+matching element is forwarded, and a wheel over the rest keeps its own
+behaviour:
+
+```js
+priv._unforward_wheel = yui_graph_forward_wheel(graph, priv.$container, {
+    selector: ".TREEDB_CARD, .TREEDB_PILLS"
+});
+```
+
+`C_YUI_TREEDB_SCHEMA` forwards every wheel (its container holds only the
+cards). `C_G6_NODES_TREE` forwards only the wheels over its cards and pill
+strips (since `7.23.164`), so Ctrl + wheel over its toolbar does not zoom the
+graph.
 
 ### The anchor: one element the camera holds
 

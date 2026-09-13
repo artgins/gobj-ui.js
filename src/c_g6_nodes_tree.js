@@ -112,6 +112,7 @@ import {
     yui_graph_center_on,
     yui_graph_viewport_of,
     yui_graph_camera_behaviors,
+    yui_graph_forward_wheel,
     yui_graph_place_at,
 } from "./yui_graph_camera.js";
 import {
@@ -531,6 +532,7 @@ let PRIVATE_DATA = {
     _on_pointerdown_focus: null,    // listener keeping the keyboard on the canvas
     _on_native_contextmenu: null,   // listener keeping the browser's menu out
     _uninstall_long_press: null,    // touch door to the context menu
+    _unforward_wheel:   null,       // removes the wheel forwarding of the cards
     toolbar_collapsed:  true,       // floating toolbars folded (narrow only)
     _toolbars_could_collapse: null, // last answer, to notice it changed
     _on_focusout_restore: null,     // ...and putting it back when it goes nowhere
@@ -741,6 +743,11 @@ function mt_destroy(gobj)
     if(priv._uninstall_long_press) {
         priv._uninstall_long_press();
         priv._uninstall_long_press = null;
+    }
+
+    if(priv._unforward_wheel) {
+        priv._unforward_wheel();
+        priv._unforward_wheel = null;
     }
 
     if(priv.graph) {
@@ -993,6 +1000,14 @@ function build_graph(gobj)
      *  Set theme
      */
     graph.setTheme(priv.theme);
+
+    /*  A card is an HTML node, and G6's HTML nodes do not pass the wheel
+     *  on: over a card the graph neither scrolled nor zoomed. Only a wheel
+     *  over a CARD is handed back to the canvas -- the toolbars and the
+     *  legend live in this container too, and keep their own wheel.  */
+    priv._unforward_wheel = yui_graph_forward_wheel(graph, priv.$container, {
+        selector: ".TREEDB_CARD, .TREEDB_PILLS"
+    });
 
     graph.setLayout(layout);
     //show_positions(gobj);

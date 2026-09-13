@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.164
+
+- **The treedb graph (`C_G6_NODES_TREE`) takes the wheel over its cards
+  too.** Its cards and pills are G6 HTML nodes, which do not pass the wheel
+  on, so over a card the graph neither scrolled nor zoomed. It now uses
+  `yui_graph_forward_wheel()`, the fix the schema graph got in 7.23.160.
+  - Only a wheel over a card or a pill strip is handed to the canvas. The
+    graph's own toolbars and its legend live in the same container and keep
+    their own wheel, and the popovers stop it themselves.
+- `yui_graph_forward_wheel(graph, $host, opts)` takes `opts.selector`: with
+  it, only the wheels whose target is inside a matching element are
+  forwarded. Without it, the behaviour is unchanged.
+
 ## 7.23.163
 
 - **A topic table loads a hook as its COUNT, not as its children.** The three
