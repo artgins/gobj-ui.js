@@ -81,6 +81,7 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote yuno for data fetching"),
 SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote TreeDB service name"),
+SDATA(data_type_t.DTP_STRING,   "assets_service",   0,  "assets", "Remote service that answers `get-asset` (a C_ASSETS) for the bytes of the treedb's `file` columns: the form's preview and the table's file popup ask it. Empty: nothing is asked, and a file cell opens a marker saying the asset is not available"),
 SDATA(data_type_t.DTP_JSON,     "descs",            0,  null,   "Description of topics"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_remote_paging",   0,  false,  "Each topic table pulls its rows a PAGE at a time (`nodes` from/limit) instead of loading the topic whole. ⚠️ DO NOT TURN THIS ON: a partial topic BREAKS LINKING -- the link picker of a record is built from the rows the PARENT topic's table holds, which with paging is one page, so the right parent is usually not offered and an existing link the form cannot match is dropped on save. Off in every consumer until linking asks the backend instead of the sibling table"),
 SDATA(data_type_t.DTP_INTEGER,  "page_size",            0,  0,      "Rows per page of each topic table (the DISPLAY; the fetch is whole). 0 leaves the table's own default"),
@@ -1883,6 +1884,33 @@ function ac_mt_command_answer(gobj, event, kw, src)
         return 0;
     }
 
+    /*
+     *  An asset, for a form's preview or a file popup. Before the generic
+     *  error path too: an asset that cannot be served is SHOWN where it
+     *  was asked for (the missing marker, with the reason), not raised as
+     *  an app-wide modal over the form that asked.
+     */
+    if(command === "get-asset") {
+        let asset_topic = kw_get_str(gobj, kw_command, "topic_name", "", 0);
+        let req_id = kw_get_str(gobj, kw_command, "req_id", "", 0);
+        let gobj_topic_form = gobj_find_child(gobj, {
+            __gobj_name__: `${gobj_name(gobj)}?${asset_topic}`
+        });
+        if(!gobj_topic_form || !req_id) {
+            log_error(`${gobj_short_name(gobj)}: get-asset answer for nobody: ` +
+                `topic '${asset_topic}', req_id '${req_id}'`);
+            return 0;
+        }
+        if(result < 0) {
+            gobj_send_event(gobj_topic_form, "EV_ASSET_FAILED",
+                {req_id: req_id, error: comment || "get-asset failed"}, gobj);
+        } else {
+            gobj_send_event(gobj_topic_form, "EV_ASSET_LOADED",
+                {req_id: req_id, answer: data}, gobj);
+        }
+        return 0;
+    }
+
     if(result < 0) {
         if(command === "descs") {
             /*  The schema couldn't load (not a treedb, no authz for it, backend
@@ -2357,6 +2385,56 @@ function ac_request_page(gobj, event, kw, src)
 }
 
 /********************************************
+ *  Event from formtable: the bytes of one asset a `file` column names,
+ *  for the form's preview or the table's file popup.
+ *
+ *  Asked to the ASSETS service and not to the treedb: storing is the
+ *  treedb's, the way out is C_ASSETS's (a signed url when a web server
+ *  sits in front of the store, the bytes inline when there is none). The
+ *  answer goes back down to the table that asked, by `req_id`.
+ *
+ *  A read: a read-only treedb still answers it.
+ ********************************************/
+function ac_request_asset(gobj, event, kw, src)
+{
+    if(!kw.req_id || !kw.asset_id) {
+        log_error(`${gobj_short_name(gobj)}: an asset request with no id`);
+        return -1;
+    }
+
+    let assets_service = gobj_read_str_attr(gobj, "assets_service");
+    let gobj_remote_yuno = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
+    if(!assets_service || !gobj_remote_yuno) {
+        gobj_send_event(src, "EV_ASSET_FAILED", {
+            req_id: kw.req_id,
+            error:  assets_service? "cannot reach the backend": "no assets service"
+        }, gobj);
+        return 0;
+    }
+
+    let ret = gobj_command(
+        gobj_remote_yuno,
+        "get-asset",
+        {
+            service:    assets_service,
+            asset_id:   kw.asset_id,
+            __md_command__: {   // Data to be returned
+                topic_name: kw.topic_name || gobj_read_attr(src, "topic_name"),
+                req_id:     kw.req_id
+            }
+        },
+        gobj
+    );
+    if(ret) {
+        log_error(ret);
+        /*  The command never went out, so no answer will ever come.  */
+        gobj_send_event(src, "EV_ASSET_FAILED",
+            {req_id: kw.req_id, error: "cannot reach the backend"}, gobj);
+    }
+    return 0;
+}
+
+/********************************************
  *  Event from formtable: ONE field of one record, edited in place.
  *
  *  Written as a PARTIAL update and, deliberately, with NO `autolink`.
@@ -2597,6 +2675,7 @@ function create_gclass(gclass_name)
             ["EV_UPDATE_RECORD",        ac_update_record,           null],
             ["EV_UPDATE_FIELD",         ac_update_field,            null],
             ["EV_REQUEST_PAGE",         ac_request_page,            null],
+            ["EV_REQUEST_ASSET",        ac_request_asset,           null],
             ["EV_DELETE_RECORD",        ac_delete_record,           null],
             ["EV_REFRESH_TOPIC",        ac_refresh_topic,           null],
             ["EV_OPEN_JSON",            ac_open_json,               null],
@@ -2626,6 +2705,7 @@ function create_gclass(gclass_name)
         ["EV_UPDATE_RECORD",        0],
         ["EV_UPDATE_FIELD",         0],
         ["EV_REQUEST_PAGE",         0],
+        ["EV_REQUEST_ASSET",        0],
         ["EV_DELETE_RECORD",        0],
         ["EV_RECORD_WRITTEN",       event_flag_t.EVF_OUTPUT_EVENT|
                                     event_flag_t.EVF_NO_WARN_SUBS],

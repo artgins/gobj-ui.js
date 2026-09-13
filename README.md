@@ -1952,7 +1952,12 @@ backend** — asking is an action and belongs in the view's own FSM:
 |---|---|
 | `yui_asset_id(ref)` / `yui_asset_ids(ref)` | the id(s) a column names. A link comes back in whichever shape the READER asked for — the stored `"assets^<id>^as_foto"`, the bare `"<id>"` that `fkey_only_id` collapses it to, or an expanded `{id}` — and either alone or in a list, because an unset single-valued fkey is still an empty list. All of them are read; an empty column answers nothing rather than throwing |
 | `yui_asset_src(answer)` | the two shapes into one `src`. `null` when the answer carries neither — never an empty string, because `<img src="">` reloads the page in some browsers |
-| `yui_asset_element(answer, opts)` | the element, picked from the **content type the backend stored**: `<img>`, `<video>` or `<audio>`. Video and audio are assets too, and an `<img>` whose src is a film shows the broken box this exists to remove |
+| `yui_asset_kind(content_type)` | `"image"`, `"video"`, `"audio"`, `"pdf"` or `"other"`, from the content type the backend stored (a `; charset=…` parameter is ignored) |
+| `yui_asset_element(answer, opts)` | the element, picked by that kind: `<img>`, `<video>`, `<audio>`, a PDF in an `<iframe>` (the browser's own viewer), or, for any other kind, a card with the content type and an open link. Video and audio are assets too, and an `<img>` whose src is a film shows the broken box this exists to remove |
+| `yui_asset_open_link(answer)` | an `<a target=_blank>` that opens the asset at full size, named through `open in a new tab`. `null` when there is nothing to open |
+| `yui_asset_href(answer)` | `{href, blob}`: the url as it comes, or a `blob:` url over inline bytes. Firefox will not NAVIGATE to a `data:` url (a new tab stays blank) and its PDF viewer does not run on one in a frame, so frames and links need a blob |
+| `yui_asset_file_answer(file)` | the answer a picked `File` would have had: a `url` answer over a `blob:` url of the File itself, so a file not saved yet goes through the same element as a stored one |
+| `yui_asset_release($root)` | revoke every `blob:` url this module made under `$root`, `$root` included. A blob url keeps its bytes alive until revoked and removing the DOM revokes nothing, so call it on whatever element you drop |
 | `yui_asset_missing(detail, opts)` | the marker, for when there is nothing to show |
 
 **A missing asset is now said out loud.** It used to leave a broken box and
@@ -1978,6 +1983,43 @@ if(id) {
 // ...and when the answer arrives, in the action:
 $box.appendChild(yui_asset_element(answer, {detail: device.foto_name}));
 ```
+
+#### In the treedb views
+
+The treedb form and table show the asset a `file` column names, and they ask
+for it in the same way as a page of rows: the table publishes the request UP
+and its host owns the transport.
+
+```
+C_YUI_TREEDB_TOPIC_WITH_FORM                 C_YUI_TREEDB_TOPICS
+  EV_REQUEST_ASSET {topic_name, req_id, asset_id}  ──►  get-asset asset_id=<id>
+                                                          (service = assets_service)
+  EV_ASSET_LOADED {req_id, answer}  ◄──  the answer, by req_id
+  EV_ASSET_FAILED {req_id, error}   ◄──  a refusal, no backend, or 30 s of silence
+```
+
+- **Form:** when the edit dialog opens, one request goes out per `file` column
+  that names an asset. The answer reaches the form as
+  `EV_SET_FILE_PREVIEW {name, id, answer, error}` and is drawn under the
+  control only while the column still names that id. A picked file needs no
+  request: it is previewed from the `File`.
+- **Table:** a click on a file cell opens a popup with one slot per asset the
+  cell names. Each slot starts as `loading` and is filled by its own answer.
+
+Set the service on the host. `"assets"` is the default, and it is what a yuno
+names its `C_ASSETS`; an empty string turns the requests off:
+
+```js
+gobj_create_service("#topics-mydb", "C_YUI_TREEDB_TOPICS", {
+    gobj_remote_yuno: remote,
+    treedb_name:      "treedb_mydb",
+    assets_service:   "assets"
+}, gobj);
+```
+
+The user needs the `read` permission of that service. The service is not the
+one the connection was opened for, so a user who is not root must also hold a
+role in it, or the ievent gate refuses to route the command there.
 
 ### JSON viewer — `setup_json_pad`
 

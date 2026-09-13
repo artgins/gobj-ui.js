@@ -96,8 +96,12 @@ import {t} from "i18next";
 import {yui_toolbar_icon} from "./yui_toolbar.js";
 
 import {plan_treedb_writes, READONLY_FORM_TOOLBAR} from "./treedb_write_plan.js";
-import {yui_file_read, yui_files_manifest, yui_file_id_label} from "./yui_file_field.js";
-import {yui_asset_id} from "./yui_asset.js";
+import {
+    yui_file_read, yui_files_manifest, yui_file_id_label, yui_file_size_label
+} from "./yui_file_field.js";
+import {
+    yui_asset_ids, yui_asset_element, yui_asset_open_link, yui_asset_release
+} from "./yui_asset.js";
 import {delete_impact} from "./delete_impact.js";
 
 import "./c_yui_treedb_topic_with_form.css";
@@ -249,6 +253,11 @@ let PRIVATE_DATA = {
     cell_json_gobj:     null,   // hosted C_YUI_JSON child (while a cell is open)
     cell_json_modal:    null,   // { close } handle of the cell dialog (phone)
     cell_json_win:      null,   // C_YUI_WINDOW presenting it (laptop)
+    cell_file_box:      null,   // $box of the file popup (while a file cell is open)
+    cell_file_modal:    null,   // { close } handle of the file dialog (phone)
+    cell_file_win:      null,   // C_YUI_WINDOW presenting it (laptop)
+    _pending_assets:    null,   // req_id -> {target, col, id, slot, timer}
+    _asset_seq:         0,      // correlation id of an asset request
 };
 
 let __gclass__ = null;
@@ -449,6 +458,8 @@ function mt_stop(gobj)
     close_form_dialog(gobj);
     close_schema_dialog(gobj);
     close_cell_json_dialog(gobj);
+    close_cell_file_dialog(gobj);
+    drop_pending_assets(gobj);
     table__destroy(gobj);
 }
 
@@ -464,6 +475,8 @@ function mt_destroy(gobj)
     close_form_dialog(gobj);
     close_schema_dialog(gobj);
     close_cell_json_dialog(gobj);
+    close_cell_file_dialog(gobj);
+    drop_pending_assets(gobj);
     destroy_ui(gobj);
 }
 
@@ -1309,9 +1322,31 @@ function create_tabulator(gobj)
              *  picture, because a picture is a `get-asset` per cell -- an
              *  action, with its own event and its own answer -- and a
              *  table of 50 rows would fire 50 of them at render time. The
-             *  id is what the cell can say honestly on its own.  */
+             *  id is what the cell can say honestly on its own; a CLICK
+             *  asks for the bytes and shows them (EV_SHOW_CELL_FILE).  */
             case "file":
                 colFormatter = file_cell_formatter;
+                cellClick = function(e, cell) {
+                    if(!e.target.closest('.FILE_CELL_LINK')) {
+                        return;     /*  an empty cell: nothing to show  */
+                    }
+                    e.stopPropagation();
+                    let pkey = desc.pkey || "id";
+                    let row_id = cell.getData()[pkey];
+                    if(row_id === undefined || row_id === null) {
+                        log_error(
+                            `${gobj_short_name(gobj)}: row without pkey '${pkey}',` +
+                            ` cannot open the file of '${cell.getField()}'`
+                        );
+                        return;
+                    }
+                    gobj_send_event(
+                        gobj,
+                        "EV_SHOW_CELL_FILE",
+                        {row_id: row_id, col_id: cell.getField()},
+                        gobj
+                    );
+                };
                 break;
             case "object":
             case "dict":
@@ -1835,21 +1870,51 @@ function table__destroy(gobj)
  *  What a `file` column shows in a table cell: the asset it names.
  *
  *  A sha256 in full is 64 characters of noise in a column, so it is
- *  shortened and the whole of it is the tooltip. Empty is SAID, not left
- *  blank -- a blank cell and a cell whose asset failed to load look the
- *  same, and only one of them is normal.
+ *  shortened and the whole of it goes to the popup the click opens. Empty
+ *  is SAID, not left blank -- a blank cell and a cell whose asset failed
+ *  to load look the same, and only one of them is normal.
+ *
+ *  The value arrives already turned into ids joined by ", "
+ *  (transform__treedb_value_2_table_value), and an array column names
+ *  several: the first is shown and the rest counted.
  ************************************************************/
+function file_cell_ids(value)
+{
+    if(is_array(value)) {
+        return yui_asset_ids(value);
+    }
+    return String(value || "").split(",")
+        .map((s) => s.trim())
+        .filter((s) => !!s)
+        .flatMap((s) => yui_asset_ids(s));
+}
+
 function file_cell_formatter(cell, formatterParams, onRendered)
 {
-    const id = yui_asset_id(cell.getValue());
-    if(!id) {
+    const ids = file_cell_ids(cell.getValue());
+    if(!ids.length) {
         const $empty = createElement2(
             ["span", {class: "FILE_CELL is-empty", "data-i18n": "no file"}, "no file"]
         );
         return $empty;
     }
+    const children = [
+        ['span', {class: 'FILE_CELL_ICON icon yi-eye'}],
+        ['span', {class: 'FILE_CELL_ID'}, yui_file_id_label(ids[0])]
+    ];
+    if(ids.length > 1) {
+        children.push(['span', {class: 'FILE_CELL_MORE'}, `+${ids.length - 1}`]);
+    }
+    /*  A link and not a button, like the JSON cell beside it; named for
+     *  the eye and for a reader, through its key.  */
     return createElement2(
-        ["span", {class: "FILE_CELL", title: id}, yui_file_id_label(id)]
+        ['a', {
+            class: 'FILE_CELL FILE_CELL_LINK',
+            title: t('show file'),
+            'data-i18n-title': 'show file',
+            'aria-label': t('show file'),
+            'data-i18n-aria-label': 'show file'
+        }, children]
     );
 }
 
@@ -2243,6 +2308,10 @@ function open_form_dialog(gobj, mode, record)
     gobj_start(form);           // mt_start loads `record` into the form
     refresh_language($body, t); // translate anything the form emitted on start
 
+    /*  The form shows the asset a `file` column names only once the host
+     *  has fetched it -- asking the backend is this gclass's action.  */
+    request_form_previews(gobj, record);
+
     /*  Focus the pkey unless the mode made it readonly (update) —
      *  then the first editable field. */
     let $with_focus = $body.querySelector('.with-focus:not([readonly])');
@@ -2571,6 +2640,256 @@ function close_cell_json_dialog(gobj)
         return;
     }
     teardown_cell_json_child(gobj);
+}
+
+/************************************************************
+ *  Ask the host for the bytes of ONE asset.
+ *
+ *  Same contract as the page requests: the transport belongs to the
+ *  HOST, so the request goes up as an event and the answer comes back
+ *  down as one, correlated by a `req_id` the host echoes. What is parked
+ *  here is WHERE the answer goes -- the form's preview of a column, or a
+ *  slot of the file popup -- and the watchdog, because a request whose
+ *  answer never lands would leave a "loading" on screen for ever.
+ *
+ *  `target` is kept here and never travels: it holds a gobj and a DOM
+ *  node, and a kw is plain json.
+ ************************************************************/
+const ASSET_TIMEOUT_MS = 30000;
+
+function request_asset(gobj, asset_id, target)
+{
+    let priv = gobj.priv;
+    if(!priv._pending_assets) {
+        priv._pending_assets = {};
+    }
+    let req_id = `a${++priv._asset_seq}`;
+
+    let timer = window.setTimeout(function() {
+        gobj_send_event(gobj, "EV_ASSET_FAILED",
+            {req_id: req_id, error: "asset request timed out"}, gobj);
+    }, ASSET_TIMEOUT_MS);
+
+    priv._pending_assets[req_id] = Object.assign({id: asset_id, timer: timer}, target);
+
+    gobj_publish_event(
+        gobj,
+        "EV_REQUEST_ASSET",
+        {
+            topic_name: gobj_read_str_attr(gobj, "topic_name"),
+            req_id:     req_id,
+            asset_id:   asset_id
+        }
+    );
+}
+
+/************************************************************
+ *  Take a parked asset request out, however it ended. Null when
+ *  it was already settled (a late answer after a timeout).
+ ************************************************************/
+function take_pending_asset(gobj, req_id)
+{
+    let priv = gobj.priv;
+    let pend = priv._pending_assets? priv._pending_assets[req_id] : null;
+    if(!pend) {
+        return null;
+    }
+    delete priv._pending_assets[req_id];
+    if(pend.timer) {
+        window.clearTimeout(pend.timer);
+    }
+    return pend;
+}
+
+/************************************************************
+ *  Forget every parked asset request: the view is going away,
+ *  and a watchdog firing into a stopped gobj is an error for
+ *  nothing.
+ ************************************************************/
+function drop_pending_assets(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._pending_assets) {
+        for(const pend of Object.values(priv._pending_assets)) {
+            if(pend.timer) {
+                window.clearTimeout(pend.timer);
+            }
+        }
+    }
+    priv._pending_assets = null;
+}
+
+/************************************************************
+ *  Ask for the asset of every `file` column the record names,
+ *  for the form's preview. One per column: the form shows the
+ *  asset the column keeps, which is the first it names.
+ ************************************************************/
+function request_form_previews(gobj, record)
+{
+    let priv = gobj.priv;
+    if(!record || !priv.form) {
+        return;
+    }
+    let desc = gobj_read_attr(gobj, "desc");
+    for(let col of desc.cols) {
+        if(!col.id || col.id.charAt(0) === '_') {
+            continue;
+        }
+        const field_desc = treedb_get_field_desc(col);
+        if(field_desc.type !== "file" || field_desc.is_hidden) {
+            continue;
+        }
+        let ids = file_cell_ids(record[col.id]);
+        if(!ids.length) {
+            continue;   /*  a column that names nothing: nothing to fetch  */
+        }
+        request_asset(gobj, ids[0], {target: "form", form: priv.form, col: col.id});
+    }
+}
+
+/************************************************************
+ *  Show what a `file` cell names -- every asset, when the
+ *  column is an array -- in the standardized adaptive dialog.
+ *
+ *  Unlike the JSON cell this is NOT offline: the row holds the
+ *  ids and the bytes are the backend's, so each slot opens as
+ *  "loading" and one `get-asset` per id fills it.
+ ************************************************************/
+function open_cell_file_dialog(gobj, row_id, col_id)
+{
+    close_cell_file_dialog(gobj);   // only one at a time
+
+    let priv = gobj.priv;
+
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: no table, no file cell to show`);
+        return;
+    }
+    let row = tabulator.getRow(row_id);
+    if(!row) {
+        log_error(`${gobj_short_name(gobj)}: row '${row_id}' not found in the table`);
+        return;
+    }
+    let ids = file_cell_ids(row.getData()[col_id]);
+    if(!ids.length) {
+        log_error(`${gobj_short_name(gobj)}: row '${row_id}' col '${col_id}' names no file`);
+        return;
+    }
+
+    /*  The id is DATA, shown whole: it is what a person pastes into a
+     *  command or compares, and the cell could only show it cut.  */
+    let $items = ids.map((id) => createElement2(
+        ['div', {class: 'CELL_FILE_ITEM'}, [
+            ['div', {class: 'CELL_FILE_SLOT'}, [
+                ['span', {class: 'CELL_FILE_LOADING', i18n: 'loading'}, 'loading']
+            ]],
+            ['div', {class: 'CELL_FILE_CAPTION'}, [
+                ['span', {class: 'CELL_FILE_ID'}, id]
+            ]]
+        ]]
+    ));
+    let $box = createElement2(['div', {class: 'TREEDB_CELL_FILE'}, $items]);
+
+    /*  Title in two halves, same contract as the JSON cell: the record id
+     *  is DATA and the column carries its own i18n key.  */
+    let presented = present_json_popup(gobj, $box, {
+        name:          "filewin_" + clean_name(gobj_name(gobj)),
+        logical_class: "TREEDB_CELL_FILE",
+        title_prefix:  String(row_id),
+        title:         col_id,
+        icon:          "yi-eye",
+        forget_window: function() {
+            priv.cell_file_win = null;
+        },
+        on_close:      function() {
+            teardown_cell_file(gobj);
+        }
+    });
+    if(!presented) {
+        return;     // Error already logged
+    }
+    priv.cell_file_box = $box;
+    priv.cell_file_modal = presented.modal;
+    priv.cell_file_win = presented.win;
+
+    ids.forEach((id, i) => {
+        request_asset(gobj, id, {target: "popup", box: $box, slot: i});
+    });
+}
+
+/************************************************************
+ *  Fill one slot of the file popup with what came back.
+ ************************************************************/
+function fill_cell_file_slot(gobj, pend, answer, error)
+{
+    let priv = gobj.priv;
+    if(!priv.cell_file_box || priv.cell_file_box !== pend.box) {
+        return;     /*  that popup was closed or replaced: nobody to show it to  */
+    }
+    let $item = pend.box.querySelectorAll('.CELL_FILE_ITEM')[pend.slot];
+    let $slot = $item? $item.querySelector('.CELL_FILE_SLOT') : null;
+    let $caption = $item? $item.querySelector('.CELL_FILE_CAPTION') : null;
+    if(!$slot || !$caption) {
+        log_error(`${gobj_short_name(gobj)}: file popup has no slot ${pend.slot}`);
+        return;
+    }
+
+    yui_asset_release($slot);
+    $slot.replaceChildren(yui_asset_element(error? null: answer, {
+        detail: error || pend.id,
+        alt:    pend.id,
+        class:  'CELL_FILE_MEDIA'
+    }));
+    refresh_language($slot, t);
+
+    if(!error && answer) {
+        let meta = [answer.content_type, yui_file_size_label(answer.size)]
+            .filter((s) => !!s).join(" · ");
+        if(meta) {
+            $caption.appendChild(
+                createElement2(['span', {class: 'CELL_FILE_META'}, meta])
+            );
+        }
+        /*  Full size, in the browser's own viewer: a photo is read at its
+         *  size, not at the popup's.  */
+        let $open = yui_asset_open_link(answer);
+        if($open) {
+            $caption.appendChild($open);
+        }
+    }
+}
+
+/************************************************************
+ *  Retire the file popup. Called from its on_close -- the
+ *  shell or the window has already removed the DOM. The blob
+ *  urls it made are revoked; answers still in flight for it
+ *  land on nobody (fill_cell_file_slot checks the box).
+ ************************************************************/
+function teardown_cell_file(gobj)
+{
+    let priv = gobj.priv;
+    yui_asset_release(priv.cell_file_box);
+    priv.cell_file_box = null;
+    let win = priv.cell_file_win;
+    priv.cell_file_win = null;
+    retire_popup_window(win);
+    priv.cell_file_modal = null;
+}
+
+/************************************************************
+ *  Close the file popup (teardown, or a second open).
+ ************************************************************/
+function close_cell_file_dialog(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.cell_file_modal) {
+        let modal = priv.cell_file_modal;
+        priv.cell_file_modal = null;
+        modal.close();          // -> on_close -> teardown_cell_file
+        return;
+    }
+    teardown_cell_file(gobj);
 }
 
 /************************************************************
@@ -3837,6 +4156,72 @@ function ac_show_cell_json(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Show the asset(s) one `file` cell names
+ *  {
+ *      row_id:
+ *      col_id:
+ *  }
+ ************************************************************/
+function ac_show_cell_file(gobj, event, kw, src)
+{
+    open_cell_file_dialog(gobj, kw.row_id, kw.col_id);
+
+    return 0;
+}
+
+/************************************************************
+ *  Hand an asset answer -- or why there is none -- to whoever
+ *  asked for it, if it is still there to take it.
+ ************************************************************/
+function deliver_asset(gobj, pend, answer, error)
+{
+    let priv = gobj.priv;
+    if(pend.target === "form") {
+        if(!priv.form || priv.form !== pend.form) {
+            return;     /*  that form was closed: nobody to show it to  */
+        }
+        gobj_send_event(priv.form, "EV_SET_FILE_PREVIEW", {
+            name:   pend.col,
+            id:     pend.id,
+            answer: answer,
+            error:  error
+        }, gobj);
+        return;
+    }
+    fill_cell_file_slot(gobj, pend, answer, error);
+}
+
+/************************************************************
+ *  The host answered an asset.
+ *  {req_id, answer}
+ ************************************************************/
+function ac_asset_loaded(gobj, event, kw, src)
+{
+    let pend = take_pending_asset(gobj, kw.req_id);
+    if(!pend) {
+        return 0;   /*  already settled: a late answer after a timeout  */
+    }
+    deliver_asset(gobj, pend, kw.answer || null, "");
+    return 0;
+}
+
+/************************************************************
+ *  The host could not answer it, or nobody did in time.
+ *  {req_id, error}
+ ************************************************************/
+function ac_asset_failed(gobj, event, kw, src)
+{
+    let why = (kw && kw.error) || "asset request failed";
+    let pend = take_pending_asset(gobj, kw.req_id);
+    log_error(`${gobj_short_name(gobj)}: asset '${pend? pend.id : kw.req_id}': ${why}`);
+    if(!pend) {
+        return 0;   /*  already settled  */
+    }
+    deliver_asset(gobj, pend, null, why);
+    return 0;
+}
+
+/************************************************************
  *  One cell of one record changed. Publish it UP as a field write;
  *  the host owns the treedb command and its options.
  ************************************************************/
@@ -4336,6 +4721,9 @@ function create_gclass(gclass_name)
             ["EV_PASTE_ROWS",           ac_paste_rows,         null],
             ["EV_SHOW_HOOK_DATA",       ac_show_hook_data,     null],
             ["EV_SHOW_CELL_JSON",       ac_show_cell_json,     null],
+            ["EV_SHOW_CELL_FILE",       ac_show_cell_file,     null],
+            ["EV_ASSET_LOADED",         ac_asset_loaded,       null],
+            ["EV_ASSET_FAILED",         ac_asset_failed,       null],
             ["EV_CHANGE_LOCALE",        ac_change_locale,      null],
             ["EV_REFRESH",              ac_refresh,            null],
             ["EV_SHOW_SCHEMA",          ac_show_schema,        null],
@@ -4378,6 +4766,10 @@ function create_gclass(gclass_name)
         ["EV_UNSELECT_ROWS",        event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_SHOW_HOOK_DATA",       event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_SHOW_CELL_JSON",       0],
+        ["EV_SHOW_CELL_FILE",       0],
+        ["EV_ASSET_LOADED",         0],
+        ["EV_ASSET_FAILED",         0],
+        ["EV_REQUEST_ASSET",        event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CHANGE_LOCALE",        0],
         ["EV_REFRESH",              0],
         ["EV_SHOW_SCHEMA",          0],

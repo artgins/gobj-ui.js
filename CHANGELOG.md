@@ -5,6 +5,42 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.159
+
+- **treedb `file` columns are SEEN, not only named.** Until now the form and
+  the table showed a shortened sha256 and nothing else, so a person could not
+  tell a photo from a QR label from a PDF without leaving the GUI.
+  - **Form**: under the file control there is a preview. A picked file shows
+    at once, from the `File` itself (a `blob:` url, nothing read before save).
+    The stored asset shows as soon as the host has fetched it. An answer that
+    lands after the person picked another file or cleared the column does not
+    bring the old picture back.
+  - **Table**: a cell that names an asset is a link (eye + short id, `+N` when
+    an array column names several). A click opens a popup (a floating window
+    on a laptop, the sheet on a phone) with every asset the cell names, its
+    content type and size, and an "open in a new tab" link at full size.
+    Before, an array column showed its joined ids as one id.
+  - **Kinds**: image, video and audio as before. A **PDF** now shows in a frame
+    with the browser's own viewer. **Any other type** gets a card with its
+    content type and the open link. TODO: draw more kinds in place (plain
+    text, office documents).
+- `C_YUI_TREEDB_TOPICS` takes **`assets_service`** (default `"assets"`), the
+  C_ASSETS service it asks with `get-asset`. Empty: nothing is asked, and a
+  file cell opens a marker saying the asset is not available.
+- Events: `C_YUI_TREEDB_TOPIC_WITH_FORM` publishes **`EV_REQUEST_ASSET`**
+  `{topic_name, req_id, asset_id}` and takes `EV_ASSET_LOADED` /
+  `EV_ASSET_FAILED` and `EV_SHOW_CELL_FILE`. `C_YUI_TREEDB_TOPICS`, its only
+  host, declares the new output event. `C_YUI_FORM` takes a new input event,
+  **`EV_SET_FILE_PREVIEW`** `{name, id, answer, error}`: input only, so no
+  host has to declare anything.
+- `yui_asset.js` exports `yui_asset_kind`, `yui_asset_href`,
+  `yui_asset_file_answer`, `yui_asset_open_link` and `yui_asset_release`. A
+  `blob:` url keeps its bytes until it is revoked, so every element that
+  holds one is marked, and the form and the popup revoke them when they go
+  away.
+- New consumer i18n keys: `show file`, `open in a new tab`, and
+  `asset not available` (used before only by yunovatios).
+
 ## 7.23.158
 
 - **treedb graph: the find box only LOOKS.** It searched the whole treedb and

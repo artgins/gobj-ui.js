@@ -39,6 +39,10 @@ import {
     createElement2, log_error
 } from "@yuneta/gobj-js";
 
+import {
+    yui_asset_element, yui_asset_file_answer, yui_asset_release
+} from "./yui_asset.js";
+
 import "./yui_file_field.css";
 
 
@@ -286,13 +290,21 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
     const $name = createElement2(["span", {class: "FILE_NAME"}]);
     const $size = createElement2(["span", {class: "FILE_SIZE"}]);
     const $state = createElement2(["span", {class: "FILE_STATE"}]);
+    const $preview = createElement2(["div", {class: "FILE_PREVIEW", hidden: ""}]);
 
     const $control = createElement2(["div", {class: "FILE_FIELD"}, [
-        $input, $pick, $name, $size, $state, $clear
+        $input, $pick, $name, $size, $state, $clear, $preview
     ]]);
 
     $control.yui_file = null;
     $control.yui_file_value = value || "";
+    /*
+     *  What the HOST fetched for the asset the column names:
+     *  {id, answer, error}. The form cannot fetch it -- asking the backend
+     *  is the host's action -- so it is handed in (EV_SET_FILE_PREVIEW)
+     *  and drawn only while the column still names THAT id.
+     */
+    $control.yui_file_stored = null;
 
     /*
      *  Three things it can be showing, and they are not the same thing:
@@ -325,6 +337,38 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
 
         $clear.hidden = readonly || (!picked && !kept);
         $pick.hidden = !!readonly;
+
+        /*
+         *  The preview follows the same three states. A picked file is
+         *  shown from the File itself (a blob url, nothing read); a kept
+         *  id only once the host has handed its answer in -- until then
+         *  nothing, because a form whose host never fetches must not show
+         *  a "loading" that never ends.
+         */
+        yui_asset_release($preview);
+        $preview.replaceChildren();
+        let $media = null;
+        if(picked) {
+            const answer = yui_asset_file_answer(picked);
+            if(answer) {
+                $media = yui_asset_element(answer, {
+                    detail: picked.name || "",
+                    class: "FILE_PREVIEW_MEDIA"
+                });
+            }
+        } else if(kept) {
+            const stored = $control.yui_file_stored;
+            if(stored && stored.id === kept) {
+                $media = yui_asset_element(stored.answer, {
+                    detail: stored.error || kept,
+                    class: "FILE_PREVIEW_MEDIA"
+                });
+            }
+        }
+        if($media) {
+            $preview.appendChild($media);
+        }
+        $preview.hidden = !$media;
     };
 
     if(!readonly) {

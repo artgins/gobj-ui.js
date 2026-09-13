@@ -61,7 +61,8 @@ import {
     yui_file_control
 } from "./yui_file_field.js";
 import {
-    yui_asset_id
+    yui_asset_id,
+    yui_asset_release
 } from "./yui_asset.js";
 
 import "./c_yui_form.css";
@@ -192,6 +193,9 @@ function mt_create(gobj)
  ************************************************************/
 function mt_destroy(gobj)
 {
+    /*  A file preview holds blob urls, which keep their bytes alive
+     *  until revoked -- and removing the DOM revokes nothing.  */
+    yui_asset_release(gobj_read_attr(gobj, "$container"));
     destroy_ui(gobj);
 }
 
@@ -3156,6 +3160,51 @@ function ac_clear_record(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  From the host: what it fetched for the asset a `file` column
+ *  names -- the `get-asset` answer, or why there is none.
+ *  {
+ *      name:   the column
+ *      id:     the asset id the answer is for
+ *      answer: the get-asset answer, or null
+ *      error:  why there is no answer, when there is none
+ *  }
+ *
+ *  Kept on the control and drawn only while the column still names
+ *  THAT id: an answer landing after the person picked another file
+ *  or cleared the column must not bring the old picture back.
+ ************************************************************/
+function ac_set_file_preview(gobj, event, kw, src)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    let $form = $container? $container.querySelector('form'): null;
+    if(!$form) {
+        log_error(`${gobj_short_name(gobj)}: no form to show the file preview in`);
+        return -1;
+    }
+
+    let $file = null;
+    $form.querySelectorAll('.FILE_FIELD').forEach(($el) => {
+        if($el.dataset.treedb_name === kw.name) {
+            $file = $el;
+        }
+    });
+    if(!$file) {
+        log_error(`${gobj_short_name(gobj)}: no file column '${kw.name}' in the form`);
+        return -1;
+    }
+
+    $file.yui_file_stored = {
+        id:     kw.id || "",
+        answer: kw.answer || null,
+        error:  kw.error || ""
+    };
+    if($file.yui_file_render) {
+        $file.yui_file_render();
+    }
+    return 0;
+}
+
+/************************************************************
  *  From internal form button for new rows
  *  or from load_tabulator_data() to load data from backend
  ************************************************************/
@@ -3390,6 +3439,7 @@ function create_gclass(gclass_name)
             ["EV_RECORD_CHANGED",       ac_record_changed,      null],
             ["EV_COPY_RECORD",          ac_copy_record,         null],
             ["EV_PASTE_RECORD",         ac_paste_record,        null],
+            ["EV_SET_FILE_PREVIEW",     ac_set_file_preview,    null],
 
             ["EV_WINDOW_MOVED",         null,                   null],
             ["EV_WINDOW_RESIZED",       null,                   null],
@@ -3413,6 +3463,7 @@ function create_gclass(gclass_name)
         ["EV_RECORD_CHANGED",       0],
         ["EV_COPY_RECORD",          0],
         ["EV_PASTE_RECORD",         0],
+        ["EV_SET_FILE_PREVIEW",     0],
 
         ["EV_WINDOW_MOVED",         0],
         ["EV_WINDOW_RESIZED",       0],

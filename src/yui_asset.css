@@ -41,3 +41,54 @@
     max-width: 12rem;
     overflow-wrap: anywhere;
 }
+
+/*
+ *  A PDF, in the browser's own viewer. It has no height of its own, so it
+ *  gets one; a host that wants it bigger sizes it through its own class.
+ */
+.ASSET_DOCUMENT {
+    display: block;
+    width: 100%;
+    min-height: 24rem;
+    border: 1px solid var(--bulma-border, #dbdbdb);
+    border-radius: var(--bulma-radius, 4px);
+    background: var(--bulma-scheme-main, #fff);
+}
+
+/*
+ *  A kind nothing here can draw: what it is, and the way to open it. The
+ *  same footprint as the missing marker, and solid where that one is
+ *  dashed -- this asset IS there.
+ */
+.ASSET_OTHER {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-width: 5rem;
+    min-height: 5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--bulma-border, #dbdbdb);
+    border-radius: var(--bulma-radius, 4px);
+    text-align: center;
+}
+
+.ASSET_OTHER_TYPE {
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+.ASSET_OTHER_DETAIL {
+    font-size: 0.75rem;
+    opacity: 0.75;
+    max-width: 16rem;
+    overflow-wrap: anywhere;
+}
+
+.ASSET_OPEN {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}

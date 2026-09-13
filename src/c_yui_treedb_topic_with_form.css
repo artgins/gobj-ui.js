@@ -141,3 +141,70 @@
     font-style: italic;
     opacity: 0.6;
 }
+
+/*
+ *  A file cell that names an asset is a LINK: the click opens it
+ *  (EV_SHOW_CELL_FILE). Same shape as the JSON cell beside it.
+ */
+.FILE_CELL_LINK {
+    white-space: nowrap;
+}
+.FILE_CELL_LINK .FILE_CELL_ICON {
+    margin-right: 0.25rem;
+    vertical-align: middle;
+}
+.FILE_CELL_LINK .FILE_CELL_ID {
+    text-decoration: underline;
+    vertical-align: middle;
+}
+.FILE_CELL_LINK .FILE_CELL_MORE {
+    margin-left: 0.35rem;
+    font-family: inherit;
+    opacity: 0.7;
+    vertical-align: middle;
+}
+
+/*
+ *  The file popup: one item per asset the cell names, each the thing
+ *  itself and a caption (what it is, and a way to open it full size).
+ */
+.TREEDB_CELL_FILE {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.75rem;
+    height: 100%;
+    overflow: auto;
+}
+.TREEDB_CELL_FILE .CELL_FILE_ITEM {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+}
+.TREEDB_CELL_FILE img.CELL_FILE_MEDIA,
+.TREEDB_CELL_FILE video.CELL_FILE_MEDIA {
+    display: block;
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+}
+.TREEDB_CELL_FILE audio.CELL_FILE_MEDIA {
+    width: 100%;
+}
+.TREEDB_CELL_FILE iframe.CELL_FILE_MEDIA {
+    min-height: 60vh;
+}
+.TREEDB_CELL_FILE .CELL_FILE_CAPTION {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+    opacity: 0.85;
+}
+.TREEDB_CELL_FILE .CELL_FILE_ID {
+    font-family: monospace;
+    overflow-wrap: anywhere;
+}

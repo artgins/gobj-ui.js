@@ -65,3 +65,31 @@
     opacity: 0.6;
     font-style: italic;
 }
+
+/*
+ *  What the column holds, SEEN: the picked file before it is saved, or the
+ *  stored asset once the host has fetched it. A row of its own under the
+ *  control, and bounded, so a tall photo does not push the rest of the
+ *  form off the screen.
+ */
+.FILE_FIELD .FILE_PREVIEW {
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
+.FILE_FIELD .FILE_PREVIEW img.FILE_PREVIEW_MEDIA,
+.FILE_FIELD .FILE_PREVIEW video.FILE_PREVIEW_MEDIA {
+    display: block;
+    max-width: 100%;
+    max-height: 14rem;
+    object-fit: contain;
+}
+
+.FILE_FIELD .FILE_PREVIEW audio.FILE_PREVIEW_MEDIA {
+    display: block;
+    width: 100%;
+}
+
+.FILE_FIELD .FILE_PREVIEW iframe.FILE_PREVIEW_MEDIA {
+    min-height: 18rem;
+}

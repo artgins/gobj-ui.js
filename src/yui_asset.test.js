@@ -9,7 +9,25 @@ import {
     yui_asset_id,
     yui_asset_ids,
     yui_asset_src,
+    yui_asset_kind,
 } from "./yui_asset.js";
+
+/*
+ *  The kind decides the element: an <img> over a PDF is the broken box
+ *  this module exists to remove, and a parameter on the content type must
+ *  not turn a PDF into "something nothing can draw".
+ */
+test("the kind comes from the stored content type", () => {
+    expect(yui_asset_kind("image/jpeg")).toBe("image");
+    expect(yui_asset_kind("IMAGE/PNG")).toBe("image");
+    expect(yui_asset_kind("video/mp4")).toBe("video");
+    expect(yui_asset_kind("audio/mpeg")).toBe("audio");
+    expect(yui_asset_kind("application/pdf")).toBe("pdf");
+    expect(yui_asset_kind("application/pdf; charset=binary")).toBe("pdf");
+    expect(yui_asset_kind("application/zip")).toBe("other");
+    expect(yui_asset_kind("")).toBe("other");
+    expect(yui_asset_kind(undefined)).toBe("other");
+});
 
 /*
  *  A treedb fkey is `topic^id^hook`.
