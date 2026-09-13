@@ -25,6 +25,12 @@
  *      via the host-supplied `node_route`). An alternate landing to the
  *      topic cards, in the spirit of "every treedb is a graph".
  *
+ *      The CAMERA is the family's (yui_graph_camera.js): the same
+ *      toolbar cluster -- zoom in/out, readout, fit, 1:1 -- and the
+ *      same wheel: it SCROLLS, and Ctrl + wheel zooms, over the cards
+ *      too (yui_graph_forward_wheel). This view zoomed on a bare wheel
+ *      and had no toolbar, beside graphs that did neither.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -49,9 +55,19 @@ import {
     gobj_read_str_attr,
     is_object,
     escapeHtml,
+    refresh_language,
 } from "@yuneta/gobj-js";
 
 import {Graph, NodeEvent} from "@antv/g6";
+
+import {yui_toolbar} from "./yui_toolbar.js";
+import {
+    yui_graph_camera_items,
+    yui_graph_camera_behaviors,
+    yui_graph_forward_wheel,
+    yui_graph_update_zoom,
+} from "./yui_graph_camera.js";
+import {ensure_pinch_zoom_patch} from "./g6_touch_gestures.js";
 
 import {getStrokeColor} from "./lib_graph.js";
 
@@ -98,14 +114,17 @@ SDATA(data_type_t.DTP_JSON,     "descs",        0,  null,   "Treedb schema: {top
 SDATA(data_type_t.DTP_STRING,   "node_route",   0,  "",     "Hash-route template with a {topic} placeholder: a node click opens that topic (e.g. '#/topics/db/<sel>/{topic}')"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_node_click", 0, false, "With no `node_route`, PUBLISH a node click as EV_NODE_CLICK instead of dropping it. Opt-in, because a subscriber has to DECLARE the event: the hosts that route by hash, and the ones that want nothing, must not have it appear underneath them"),
 SDATA(data_type_t.DTP_BOOLEAN,  "system",       0,  false,  "Include system topics (__*__) too"),
+SDATA(data_type_t.DTP_STRING,   "wide",         0,  "40px", "Height of the toolbar buttons: the family's (C_YUI_TREEDB_GRAPH, C_YUI_JSON_GRAPH, C_YUI_GOBJ_TREE_JS)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Root HTML element"),
 SDATA_END()
 ];
 
 let PRIVATE_DATA = {
     $container:     null,
+    $canvas:        null,   // the element G6 is mounted in, under the toolbar
     graph:          null,
     theme_observer: null,   // MutationObserver on <html data-theme>
+    unforward_wheel: null,  // removes the wheel forwarding of the cards
 };
 
 let __gclass__ = null;
@@ -122,6 +141,9 @@ let __gclass__ = null;
 
 function mt_create(gobj)
 {
+    /*  Pinch to zoom on a touch screen, as in the other graphs.  */
+    ensure_pinch_zoom_patch();
+
     build_ui(gobj);
 
     /*
@@ -179,9 +201,31 @@ function mt_destroy(gobj)
  ************************************************************/
 function build_ui(gobj)
 {
+    let priv = gobj.priv;
+    let wide = gobj_read_str_attr(gobj, "wide");
+
+    /*  The camera cluster and nothing else: this view has no folding,
+     *  no layouts and no find -- a schema is a handful of cards.  */
+    const $toolbar = yui_toolbar({}, [
+        ['div', {class: 'yui-horizontal-toolbar-section left'}, []],
+        ['div', {class: 'yui-horizontal-toolbar-section center'},
+            yui_graph_camera_items(gobj, null, wide)],
+        ['div', {class: 'yui-horizontal-toolbar-section right'}, []],
+    ]);
+    refresh_language($toolbar, t);
+
+    priv.$canvas = createElement2(
+        ['div', {class: 'TREEDB_SCHEMA_CANVAS',
+                 style: 'position:relative; flex:1 1 auto; min-height:0;'}, []]
+    );
+
     let $container = createElement2(
         ['div', {class: 'C_YUI_TREEDB_SCHEMA TREEDB_SCHEMA_VIEW',
-                 style: 'position:relative; height:100%; min-height:0;'}, []]
+                 style: 'position:relative; height:100%; min-height:0; ' +
+                        'display:flex; flex-direction:column;'}, [
+            ['div', {class: 'TREEDB_SCHEMA_TOOLBAR', style: 'flex:0 0 auto;'}, [$toolbar]],
+            priv.$canvas
+        ]]
     );
     gobj_write_attr(gobj, "$container", $container);
 }
@@ -550,7 +594,8 @@ function build_graph(gobj)
 {
     let priv = gobj.priv;
     let $container = gobj_read_attr(gobj, "$container");
-    if(!$container) {
+    if(!$container || !priv.$canvas) {
+        log_error(`${gobj_short_name(gobj)}: no UI to draw the schema in`);
         return;
     }
     destroy_graph(gobj);
@@ -561,7 +606,7 @@ function build_graph(gobj)
             ['div', {class: 'TREEDB_SCHEMA_EMPTY p-4 yui-text-quiet',
                      i18n: 'no topics'}, t('no topics', {defaultValue: 'No topics'})]
         );
-        $container.appendChild($empty);
+        priv.$canvas.appendChild($empty);
         return;
     }
 
@@ -569,8 +614,9 @@ function build_graph(gobj)
     let graph;
     try {
         graph = new Graph({
-            container:  $container,
+            container:  priv.$canvas,
             autoResize: true,
+            animation:  false,
             data:       data,
             edge: {
                 style: edge_style(dark),
@@ -581,7 +627,8 @@ function build_graph(gobj)
                 nodesep: 28,
                 ranksep: 90,
             },
-            behaviors: ["zoom-canvas", "drag-canvas", "drag-element"],
+            /*  The family's camera: the wheel scrolls, Ctrl + wheel zooms.  */
+            behaviors: ["drag-canvas", ...yui_graph_camera_behaviors(), "drag-element"],
         });
     } catch(e) {
         log_error(`${gobj_short_name(gobj)}: schema graph create failed: ${e}`);
@@ -590,6 +637,16 @@ function build_graph(gobj)
     priv.graph = graph;
 
     graph.setTheme(dark ? "dark" : "light");
+
+    /*  The readout follows ANY camera change, the wheel included -- a
+     *  wheel notch passes through no action of ours.  */
+    graph.on('aftertransform', () => {
+        yui_graph_update_zoom($container, priv.graph);
+    });
+
+    /*  The cards cover most of this drawing, and a card does not pass
+     *  the wheel on: without this it works only between them.  */
+    priv.unforward_wheel = yui_graph_forward_wheel(graph, priv.$canvas);
 
     /*  A node click opens that topic — a real hash navigation, so it is
      *  deep-linkable and Back-friendly like the cards. Crosses the FSM. */
@@ -601,7 +658,9 @@ function build_graph(gobj)
     /*  No fitView: the diagram is drawn at its own scale and stays there.
      *  Zooming it to the container the moment it appears rewrites the size
      *  the reader just saw, and does it differently for every treedb. */
-    graph.render().catch((e) => {
+    graph.render().then(() => {
+        yui_graph_update_zoom($container, priv.graph);
+    }).catch((e) => {
         log_error(`${gobj_short_name(gobj)}: schema graph render failed: ${e}`);
     });
 }
@@ -612,6 +671,10 @@ function build_graph(gobj)
 function destroy_graph(gobj)
 {
     let priv = gobj.priv;
+    if(priv.unforward_wheel) {
+        priv.unforward_wheel();
+        priv.unforward_wheel = null;
+    }
     if(priv.graph) {
         try {
             priv.graph.destroy();
@@ -620,10 +683,10 @@ function destroy_graph(gobj)
         }
         priv.graph = null;
     }
-    let $container = gobj_read_attr(gobj, "$container");
-    if($container) {
-        while($container.firstChild) {
-            $container.removeChild($container.firstChild);
+    /*  The CANVAS only: the toolbar is built once and stays.  */
+    if(priv.$canvas) {
+        while(priv.$canvas.firstChild) {
+            priv.$canvas.removeChild(priv.$canvas.firstChild);
         }
     }
 }
@@ -754,6 +817,59 @@ function ac_theme(gobj, event, kw, src)
 }
 
 /************************************************************
+ *   The camera, from the toolbar. Same moves as the family's
+ *   (C_YUI_GOBJ_TREE_JS): +/- 20%, fit, and actual size at the
+ *   layout's origin.
+ ************************************************************/
+function camera_move(gobj, what, promise)
+{
+    Promise.resolve(promise).then(() => {
+        yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), gobj.priv.graph);
+    }).catch((e) => {
+        log_error(`${gobj_short_name(gobj)}: schema graph ${what} failed: ${e}`);
+    });
+}
+
+function ac_zoom_in(gobj, event, kw, src)
+{
+    let graph = gobj.priv.graph;
+    if(graph) {
+        camera_move(gobj, "zoom in", graph.zoomTo(graph.getZoom() * 1.2));
+    }
+    return 0;
+}
+
+function ac_zoom_out(gobj, event, kw, src)
+{
+    let graph = gobj.priv.graph;
+    if(graph) {
+        camera_move(gobj, "zoom out", graph.zoomTo(graph.getZoom() * 0.8));
+    }
+    return 0;
+}
+
+function ac_zoom_reset(gobj, event, kw, src)
+{
+    let graph = gobj.priv.graph;
+    if(graph && graph.rendered) {
+        camera_move(gobj, "actual size",
+            Promise.resolve(graph.zoomTo(1)).then(() => graph.translateTo([0, 0])));
+    }
+    return 0;
+}
+
+/*  A fit ASKED for is fine: what this view refuses is fitting on its
+ *  own, the moment it appears (see build_graph).  */
+function ac_center(gobj, event, kw, src)
+{
+    let graph = gobj.priv.graph;
+    if(graph) {
+        camera_move(gobj, "fit", graph.fitView());
+    }
+    return 0;
+}
+
+/************************************************************
  *   Rebuild from a fresh schema (descs arrived / changed).
  ************************************************************/
 function ac_rebuild(gobj, event, kw, src)
@@ -795,6 +911,10 @@ function create_gclass(gclass_name)
             ["EV_SHOW",         ac_show,        null],
             ["EV_THEME",        ac_theme,       null],
             ["EV_REBUILD",      ac_rebuild,     null],
+            ["EV_ZOOM_IN",      ac_zoom_in,     null],
+            ["EV_ZOOM_OUT",     ac_zoom_out,    null],
+            ["EV_ZOOM_RESET",   ac_zoom_reset,  null],
+            ["EV_CENTER",       ac_center,      null],
         ]]
     ];
 
@@ -805,6 +925,10 @@ function create_gclass(gclass_name)
         ["EV_SHOW",         0],
         ["EV_THEME",        0],
         ["EV_REBUILD",      0],
+        ["EV_ZOOM_IN",      0],
+        ["EV_ZOOM_OUT",     0],
+        ["EV_ZOOM_RESET",   0],
+        ["EV_CENTER",       0],
     ];
 
     __gclass__ = gclass_create(

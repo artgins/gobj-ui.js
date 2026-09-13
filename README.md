@@ -925,6 +925,30 @@ so it survived that — two light islands over a dark canvas.
 (all tooltips, so a host that has not defined them shows the key on hover and
 nothing else breaks).
 
+### The wheel over HTML nodes: `yui_graph_forward_wheel`
+
+G6's HTML nodes are drawn in a DOM layer **beside** the canvas element, and
+they pass on six pointer events and not the wheel. `scroll-canvas` listens on
+the canvas element and `zoom-canvas` reads G's wheel, which comes from that
+same element. So a wheel over an HTML card reaches neither: the graph does not
+scroll and does not zoom.
+
+`yui_graph_forward_wheel(graph, $host)` catches the wheel on the element G6 was
+mounted in and dispatches it again on the canvas element, with its deltas, its
+position and its modifiers. Both behaviors then take it as a wheel over empty
+canvas. It returns the function that removes the listener; call it before the
+graph is destroyed.
+
+```js
+priv.unforward_wheel = yui_graph_forward_wheel(graph, priv.$canvas);
+// ... in the teardown, before graph.destroy():
+priv.unforward_wheel();
+```
+
+An element that must scroll by itself inside the graph (a popover) stops the
+wheel with `stopPropagation()` before it reaches `$host`.
+`C_YUI_TREEDB_SCHEMA` uses it; `C_G6_NODES_TREE` does not yet.
+
 ### The anchor: one element the camera holds
 
 The same crosshairs button is in all three graphs' toolbars, drawn once in
@@ -1796,6 +1820,17 @@ schema question; that one answers the data question.
 
 The demo `test-app/schema.html` mounts it alone against the real yuneta agent
 schema, so the drawing can be held against the ASCII one in its `.c`.
+
+**Its camera is the family's** (since `7.23.160`). It has a toolbar with the
+`yui_graph_camera.js` cluster (zoom in, zoom out, the readout, fit, `1:1`), and
+it takes the wheel the same way as the other graphs: the wheel **scrolls**,
+Ctrl + wheel zooms, and a pinch zooms on a touch screen. This is true over the
+cards too, through `yui_graph_forward_wheel()`: the cards cover most of this
+drawing, and without it the wheel worked only in the gaps. It still never fits
+itself when it appears; fit is a button. The toolbar buttons fire
+`EV_ZOOM_IN`, `EV_ZOOM_OUT`, `EV_ZOOM_RESET` and `EV_CENTER` to the view
+itself, so a host declares nothing. `wide` (default `40px`) sets the button
+height.
 
 **Contract:**
 

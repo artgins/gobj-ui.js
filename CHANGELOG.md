@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.160
+
+- **The treedb schema graph (`C_YUI_TREEDB_SCHEMA`) behaves like the other
+  graphs.** It zoomed on a bare wheel and had no toolbar, beside three graphs
+  that do neither.
+  - The family's toolbar cluster from `yui_graph_camera.js`: zoom in, zoom
+    out, the zoom readout, fit, and `1:1`. New input events `EV_ZOOM_IN`,
+    `EV_ZOOM_OUT`, `EV_ZOOM_RESET` and `EV_CENTER`: input only, so no host has
+    to declare anything.
+  - The family's wheel: it **scrolls**, and Ctrl + wheel zooms. Pinch zooms on
+    a touch screen.
+  - **Over the cards too.** G6's HTML nodes do not pass the wheel on, and
+    here the cards cover most of the drawing, so the wheel worked only in the
+    gaps between them. New `yui_graph_forward_wheel(graph, $host)` hands a
+    wheel over a card back to the canvas element, with its deltas, position
+    and modifiers.
+  - Still no automatic fit: the diagram appears at its own scale. Fit is now
+    a button.
+- New attr `wide` (default `40px`), the toolbar button height of the family.
+
 ## 7.23.159
 
 - **treedb `file` columns are SEEN, not only named.** Until now the form and

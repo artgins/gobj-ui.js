@@ -150,6 +150,70 @@ export function yui_graph_camera_behaviors()
 }
 
 /************************************************************
+ *   Make the wheel work over HTML nodes too.
+ *
+ *   G6's HTML nodes live in a DOM layer BESIDE the canvas
+ *   element, not in it, and they forward six pointer events and
+ *   not the wheel. `scroll-canvas` listens on the canvas element
+ *   and `zoom-canvas` reads G's own wheel event, which is fed
+ *   from that same element -- so a wheel over a card reaches
+ *   neither, and on a graph drawn with big cards the wheel only
+ *   works in the gaps between them.
+ *
+ *   The wheel is caught on `$host` (the element G6 was mounted
+ *   in) and dispatched again ON the canvas element, carrying the
+ *   deltas, the position and the modifiers: both behaviors then
+ *   take it exactly as a wheel over empty canvas. Control is
+ *   read by G6 from the real keydown, which is still held.
+ *
+ *   A wheel whose target is the canvas passes untouched, which
+ *   is also what keeps the re-dispatched one from looping. An
+ *   element that must scroll by itself (a popover) stops the
+ *   wheel before it gets here.
+ *
+ *   Returns the function that removes the listener.
+ ************************************************************/
+export function yui_graph_forward_wheel(graph, $host)
+{
+    if(!graph || !$host) {
+        return () => {};
+    }
+    const on_wheel = (e) => {
+        let dom = null;
+        try {
+            dom = graph.getCanvas().getContextService().getDomElement();
+        } catch(err) {
+            return;     /*  the graph is gone: nothing to hand it to  */
+        }
+        if(!dom || e.target === dom) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        dom.dispatchEvent(new WheelEvent("wheel", {
+            deltaX:     e.deltaX,
+            deltaY:     e.deltaY,
+            deltaZ:     e.deltaZ,
+            deltaMode:  e.deltaMode,
+            clientX:    e.clientX,
+            clientY:    e.clientY,
+            screenX:    e.screenX,
+            screenY:    e.screenY,
+            ctrlKey:    e.ctrlKey,
+            shiftKey:   e.shiftKey,
+            altKey:     e.altKey,
+            metaKey:    e.metaKey,
+            bubbles:    true,
+            cancelable: true,
+        }));
+    };
+    $host.addEventListener("wheel", on_wheel, {passive: false});
+    return () => {
+        $host.removeEventListener("wheel", on_wheel);
+    };
+}
+
+/************************************************************
  *   The camera cluster: zoom in, zoom out, readout, fit,
  *   actual size.  Returns createElement2 specs, in order.
  *
