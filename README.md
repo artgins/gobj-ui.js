@@ -721,8 +721,8 @@ Counted off the record the table already has (`list_dict` fills the hook and
 fkey columns), so asking costs no round trip. The counting is
 `delete_impact.js`, pure and tested, because the shapes are the fiddly part: a
 hook or fkey value arrives as a list of refs, a dict keyed by id, or a single
-ref string — and a column can be BOTH hook and fkey, which counts on both
-sides, because the delete does both things.
+ref string. A column that is BOTH hook and fkey still counts on both sides,
+for stores written before the SDK began refusing that pair at schema parse.
 
 In the graph the node-delete popover carries the same two lines, and the
 **unlink** popover carries the reassurance that is its whole point: *neither
