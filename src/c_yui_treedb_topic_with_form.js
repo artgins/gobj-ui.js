@@ -2182,8 +2182,9 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
  *  C_YUI_FORM renders a col that is not `writable` read-only on
  *  its own (`build_form_field_conf`), so this is the whole of
  *  it. What must NOT follow is sending them back:
- *  `transform__form_record_2_treedb_record()` drops them, and
- *  the reason is written there.
+ *  `strip_read_only_cols()` drops them from every write of the
+ *  form (`publish_treedb_write()`), and the reason is written at
+ *  `col_goes_back_to_treedb()`.
  *
  *  Still out: hooks (a hook is not a field of the record, it is
  *  the children hanging off it), hidden cols, and the `_`
@@ -3204,6 +3205,61 @@ function get_schema_col(gobj, id)
 }
 
 /************************************************************
+ *  Does column `col` travel back to treedb on a write?
+ *
+ *  The form SHOWS every field and sends back only what the topic
+ *  accepts: the writable cols, the fkeys (a link is edited by
+ *  linking) and the pkey, which is not written but is what
+ *  ADDRESSES the record.
+ *
+ *  It matters because `treedb_update_node()` does not check
+ *  `writable` -- it writes any col it is handed -- so a read-only
+ *  field travelling back is written with whatever the form made of
+ *  it, and the fields that describe a record are exactly the ones
+ *  that do not survive a round trip through a widget: a `time` is an
+ *  integer rendered as a `datetime-local`, with no seconds, so every
+ *  save moved it back up to 59 s. Nothing looked wrong until the
+ *  stored timestamp had moved.
+ *
+ *  `is_file` and not the type: a `file` column IS an fkey (it is
+ *  flagged ['fkey','file']) but answers `type: "file"`, and the write
+ *  goes out with `autolink`, which rebuilds the links from what the
+ *  record carries. Dropped, a read-only `file` column -- the one only
+ *  a load fills -- was UNLINKED by every save of any other field.
+ ************************************************************/
+function col_goes_back_to_treedb(gobj, col)
+{
+    let desc = gobj_read_attr(gobj, "desc");
+    let pkey = desc.pkey || "id";
+    const field_desc = treedb_get_field_desc(col);
+
+    if(field_desc.is_writable || field_desc.type === "fkey" ||
+            field_desc.is_file || col.id === pkey) {
+        return true;
+    }
+    return false;
+}
+
+/************************************************************
+ *  The record the FORM hands over, without the columns that do
+ *  not go back to treedb (see col_goes_back_to_treedb()). The
+ *  form has already encoded the values, so only the columns are
+ *  taken out; keys that are not columns are left as they are.
+ ************************************************************/
+function strip_read_only_cols(gobj, record)
+{
+    let row = {};
+    for(let field_name of Object.keys(record || {})) {
+        let col = get_schema_col(gobj, field_name);
+        if(col && !col_goes_back_to_treedb(gobj, col)) {
+            continue;
+        }
+        row[field_name] = record[field_name];
+    }
+    return row;
+}
+
+/************************************************************
  *  Convert from frontend to backend
  *  operation: "create" "update"
  ************************************************************/
@@ -3222,29 +3278,7 @@ function transform__form_record_2_treedb_record(gobj, kw, operation)
             continue;
         }
 
-        /*  The form SHOWS every field and sends back only what the topic
-         *  accepts: the writable cols, the fkeys (a link is edited by
-         *  linking) and the pkey, which is not written but is what
-         *  ADDRESSES the record.
-         *
-         *  It matters because `treedb_update_node()` does not check
-         *  `writable` -- it writes any col it is handed -- so a read-only
-         *  field travelling back is written with whatever the form made of
-         *  it, and the fields that describe a record are exactly the ones
-         *  that do not survive a round trip through a widget: `t` is an
-         *  integer rendered as a date. Nothing would look wrong until the
-         *  stored timestamp had moved.
-         */
-        const field_desc = treedb_get_field_desc(col);
-        if(!field_desc.is_writable &&
-                field_desc.type !== "fkey" && !field_desc.is_file &&
-                col.id !== pkey) {
-            /*  `is_file` and not the type: a `file` column IS an fkey (it
-             *  is flagged ['fkey','file']) but answers `type: "file"`, and
-             *  the write goes out with `autolink`, which rebuilds the links
-             *  from what the record carries. Dropped here, a read-only
-             *  `file` column -- the one only a load fills -- was UNLINKED
-             *  by every save of any other field of its record.  */
+        if(!col_goes_back_to_treedb(gobj, col)) {
             continue;
         }
 
@@ -3792,12 +3826,17 @@ function ac_edition_mode(gobj, event, kw, src)
         tabulator.showColumn('_check_box_state_');
 
         $button_new_record.removeAttribute("disabled");
-        $button_paste_record.removeAttribute("disabled");
+        /*  with_copy_button / with_paste_button = false build no button  */
+        if($button_paste_record) {
+            $button_paste_record.removeAttribute("disabled");
+        }
 
         let rows = yui_selected_rows(tabulator);
         if (rows.length) {
             $button_delete_record.removeAttribute("disabled");
-            $button_copy_record.removeAttribute("disabled");
+            if($button_copy_record) {
+                $button_copy_record.removeAttribute("disabled");
+            }
         }
 
     } else {
@@ -3813,8 +3852,12 @@ function ac_edition_mode(gobj, event, kw, src)
 
         $button_new_record.setAttribute("disabled", true);
         $button_delete_record.setAttribute("disabled", true);
-        $button_copy_record.setAttribute("disabled", true);
-        $button_paste_record.setAttribute("disabled", true);
+        if($button_copy_record) {
+            $button_copy_record.setAttribute("disabled", true);
+        }
+        if($button_paste_record) {
+            $button_paste_record.setAttribute("disabled", true);
+        }
     }
 
     render_selection_bar(gobj);
@@ -4136,9 +4179,11 @@ function read_is_current(gobj, kw)
  ************************************************************/
 function publish_treedb_write(gobj, mode, record, jn_files)
 {
+    /*  Both writes of the form pass here, with and without files: the
+     *  read-only columns it shows stay on screen and off the wire.  */
     const kw_write = {
         topic_name: gobj_read_str_attr(gobj, "topic_name"),
-        record: record
+        record: strip_read_only_cols(gobj, record)
     };
     if(jn_files && Object.keys(jn_files).length > 0) {
         /*  Not a column: an instruction to the treedb write path,

@@ -5,6 +5,35 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.168
+
+Three fixes from the 2026-09-15 treedb review (A8, A9, A10 of yunetas'
+`TODO.md`).
+
+- **The form's Save no longer writes the read-only fields back.** The form
+  shows every field of a record, and `ac_form_save_record` published the whole
+  kw, read-only fields included, as an `update-node` with `autolink`. The
+  backend writes any column it is handed. A field that does not survive a round
+  trip through a widget was rewritten on every save of any OTHER field: a
+  non-writable `time` column is drawn as a `datetime-local`, with no seconds,
+  so it moved back up to 59 s each time. The filter existed
+  (`transform__form_record_2_treedb_record()`), but only Copy called it. The
+  rule is now one function, `col_goes_back_to_treedb()` (writable, fkey, `file`,
+  or the pkey), and `publish_treedb_write()` applies it to both writes of the
+  form, with and without files. The values are not re-encoded, because the form
+  has already encoded them.
+- **A drill of the raw JSON viewer opens its branch instead of replacing the
+  document.** `print-tranger path=<path>` sent the path at the top of the kw,
+  and C_IEVENT_CLI hands back only the `__md_command__` frame, so the answer
+  came back without it. The subtree then arrived as a new document
+  (`EV_SET_JSON`), and a failed drill painted the error over the whole view.
+  `C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` now send
+  `__md_command__: {path}`, as `get-page` and `list-keys` do. gui_agent's Raw
+  JSON gets it too.
+- **`with_copy_button: false` / `with_paste_button: false` no longer break
+  edition mode.** `ac_edition_mode` used the two buttons without asking whether
+  they had been built. No consumer sets them to false today.
+
 ## 7.23.167
 
 - **A long file name no longer pushes the form wider than its dialog.** The

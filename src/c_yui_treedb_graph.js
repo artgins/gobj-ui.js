@@ -1335,7 +1335,10 @@ function request_print_tranger(gobj, path)
             expanded:    1,
             lists_limit: 100,
             dicts_limit: 100,
-            path:        path || ""
+            path:        path || "",
+            /*  What comes BACK: the answer carries only this frame, and
+             *  without the path a drill replaced the whole document.  */
+            __md_command__: {path: path || ""}
         }, gobj);
     if(ret) {
         log_error(ret);
