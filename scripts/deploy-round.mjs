@@ -1,7 +1,7 @@
 /***********************************************************************
  *          deploy-round.mjs
  *
- *          The deploy loop of a gobj-ui round, as ONE command.
+ *          The deploy loop of a release round, as ONE command.
  *
  *          A published version reaches an app only through this loop:
  *          wait for the registry, raise the range, install, build,
@@ -21,11 +21,21 @@
  *          (see `gobj-ui-consumers.example.json`) and nothing about them
  *          is committed here.
  *
+ *          WHICH PACKAGE the round is for is an argument, and defaults
+ *          to this one. The SPAs consume `@yuneta/gobj-js` as well, and
+ *          it reaches them through exactly the same loop -- the same
+ *          consumers, the same builds, the same hosts read back. A
+ *          second copy of this file for the runtime would have been a
+ *          second thing to keep in step with the manifest; the only
+ *          things that actually differ are the name to wait for, the
+ *          range to rewrite, and where its version is read from.
+ *
  *          Usage:
  *              node scripts/deploy-round.mjs            # the whole loop
  *              node scripts/deploy-round.mjs --check    # only read what is live
  *              node scripts/deploy-round.mjs --only gui_treedb
  *              node scripts/deploy-round.mjs --no-wait  # skip the registry wait
+ *              node scripts/deploy-round.mjs --pkg @yuneta/gobj-js
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -37,9 +47,33 @@ import {fileURLToPath} from "node:url";
 import {homedir} from "node:os";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const PKG = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
-const VERSION = PKG.version;
 const MANIFEST = join(homedir(), ".yuneta", "gobj-ui-consumers.json");
+
+/*
+ *  The package this round is for, and the source tree its version is
+ *  read from. The runtime is a SIBLING submodule of this one
+ *  (kernel/js/gobj-js next to kernel/js/gobj-ui), which is what makes
+ *  the version readable at all -- the registry would answer the version
+ *  it is already serving, which is precisely what the wait below exists
+ *  to stop trusting.
+ */
+const PKG_NAME = (() => {
+    const i = process.argv.indexOf("--pkg");
+    return i >= 0? process.argv[i + 1] : "@yuneta/gobj-ui";
+})();
+const PKG_DIR = (PKG_NAME === "@yuneta/gobj-ui")?
+    ROOT : resolve(ROOT, "..", PKG_NAME.replace(/^@[^/]+\//, ""));
+
+if(!existsSync(join(PKG_DIR, "package.json"))) {
+    console.error(`no source tree for ${PKG_NAME} at ${PKG_DIR}`);
+    process.exit(2);
+}
+const PKG = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf8"));
+const VERSION = PKG.version;
+if(PKG.name !== PKG_NAME) {
+    console.error(`${PKG_DIR} holds ${PKG.name}, not ${PKG_NAME}`);
+    process.exit(2);
+}
 
 /*
  *  The DEMO. In the repo, so it is described here and not in the
@@ -137,11 +171,11 @@ function read_consumers()
  ************************************************************/
 function wait_for_registry()
 {
-    process.stdout.write(`registry: waiting for @yuneta/gobj-ui@${VERSION} `);
+    process.stdout.write(`registry: waiting for ${PKG_NAME}@${VERSION} `);
     for(let i = 0; i < 30; i++) {
         let served = "";
         try {
-            served = run("npm", ["view", "@yuneta/gobj-ui", "version"]).trim();
+            served = run("npm", ["view", PKG_NAME, "version"]).trim();
         } catch(e) {
             served = "";
         }
@@ -174,7 +208,10 @@ function raise_range(dir)
         return false;
     }
     const before = readFileSync(f, "utf8");
-    const after = before.replace(/("@yuneta\/gobj-ui":\s*")\^[0-9][^"]*(")/, `$1^${VERSION}$2`);
+    /*  Every occurrence: gobj-ui declares the runtime TWICE, as a peer
+     *  and as a devDependency, and a consumer may too.  */
+    const re = new RegExp(`("${PKG_NAME.replace("/", "\\/")}":\\s*")\\^[0-9][^"]*(")`, "g");
+    const after = before.replace(re, `$1^${VERSION}$2`);
     if(after === before) {
         return false;
     }
@@ -232,7 +269,7 @@ function do_round(c)
  *
  *  So a consumer's `dist/` has to be newer than the dependency tree it
  *  was built from. `node_modules/.package-lock.json` is what npm
- *  rewrites when it changes that tree; the installed gobj-ui's own
+ *  rewrites when it changes that tree; the installed package's own
  *  files are no clock, npm packs them with a fixed 1985 date.
  *
  *  Returns what is wrong, or null. The demo builds from the working
@@ -244,7 +281,7 @@ function local_build_problem(entry)
         return null;
     }
     const nm = join(entry.path, "node_modules");
-    const pkg = join(nm, "@yuneta", "gobj-ui", "package.json");
+    const pkg = join(nm, ...PKG_NAME.split("/"), "package.json");
     const tree = join(nm, ".package-lock.json");
     const index = join(entry.path, "dist", "index.html");
     if(!existsSync(pkg)) {
@@ -252,13 +289,13 @@ function local_build_problem(entry)
     }
     const installed = JSON.parse(readFileSync(pkg, "utf8")).version;
     if(installed !== VERSION) {
-        return `BEHIND (installed gobj-ui ${installed})`;
+        return `BEHIND (installed ${PKG_NAME} ${installed})`;
     }
     if(!existsSync(index)) {
         return "NOT BUILT (no dist/index.html)";
     }
     if(existsSync(tree) && statSync(index).mtimeMs < statSync(tree).mtimeMs) {
-        return `NOT REBUILT (dist/ is older than the install of gobj-ui ${installed})`;
+        return `NOT REBUILT (dist/ is older than the install of ${PKG_NAME} ${installed})`;
     }
     return null;
 }
@@ -301,7 +338,7 @@ if(ONLY) {
     }
 }
 
-console.log(`\ngobj-ui ${VERSION} -- ${targets.length} target(s), ` +
+console.log(`\n${PKG_NAME} ${VERSION} -- ${targets.length} target(s), ` +
             `${targets.reduce((n, c) => n + (c.urls || []).length, 0)} vhost(s)\n`);
 
 const done = [];
