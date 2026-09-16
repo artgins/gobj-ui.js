@@ -209,8 +209,8 @@ SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"
 SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",        0,  true,   "Auxiliary first column to select rows"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_radio",           0,  false,  "Auxiliary first column to select one row"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_selection_bar",   0,  false,  "Show the shared selection bar (\"N selected\" + a way out) above the table while in edition mode. OFF by default: the bar takes its words from the HOST's i18n, and a host that has not defined \"{{n}} selected\" and \"clear selection\" would render the keys"),
-SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_select_rows_event",   0,  false, "Broadcast select rows event"),
-SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_unselect_rows_event", 0,  false, "Broadcast unselect rows event"),
+SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_select_rows_event",   0,  false, "Publish EV_SELECT_ROWS to the subscriber. OFF by default: the event is an OUTPUT event, so a host that turns it on must declare EV_SELECT_ROWS in its own FSM or it answers \"Event NOT DEFINED in state\" on every selected row"),
+SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_unselect_rows_event", 0,  false, "Publish EV_UNSELECT_ROWS to the subscriber. Same contract as broadcast_select_rows_event, and INDEPENDENT of it: a host that wants both sets both"),
 
 /*---------------- Tabulator Defaults ----------------*/
 SDATA(data_type_t.DTP_JSON,     "tabulator_settings",   0,  {
@@ -4260,7 +4260,7 @@ function ac_unselect_rows(gobj, event, kw, src)
 
     // WARNING with radio, there is no unselect event.
 
-    if(gobj_read_bool_attr(gobj, "broadcast_select_rows_event")) {
+    if(gobj_read_bool_attr(gobj, "broadcast_unselect_rows_event")) {
         gobj_publish_event(gobj, event, kw);
     }
 

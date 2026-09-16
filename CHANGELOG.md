@@ -5,6 +5,34 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.169
+
+Two of the nine gobj-ui findings of the 2026-09-15 treedb review (points 3 and
+9 of yunetas' `TODO.md`, "gobj-ui (treedb views)").
+
+- **The unselect of a row consulted the attr of the SELECT.**
+  `ac_unselect_rows()` read `broadcast_select_rows_event`, so
+  `broadcast_unselect_rows_event` was declared and never read by anything: a
+  host that asked only for the unselect got no event at all, and a host that
+  asked only for the select got both. Nothing in the ecosystem turns either on,
+  which is why it survived -- the whole path typechecks and the only thing
+  wrong was one word inside a string. A new test, `broadcast_attrs.test.js`,
+  states the rule for the pair and for any pair added later: every attr named
+  `broadcast_<x>_event` is read by its own name, and the publish it guards is
+  of `EV_<X>`.
+- **Both attrs now say what a host takes on by turning them on.** They read
+  "Broadcast select rows event", which does not mention that the event is an
+  OUTPUT event and that a subscriber has to DECLARE it, on pain of "Event NOT
+  DEFINED in state" on every selected row. Same wording the opt-in
+  `with_node_click` of `C_YUI_TREEDB_SCHEMA` already carries.
+- **The first `graph.render()` of `C_G6_NODES_TREE` guards against its own
+  view being gone, and says so when it fails.** The `.then()` wired the G6
+  handlers with no destruction check, and `mt_destroy()` destroys the graph and
+  nulls `priv.graph` -- a tab closed while the first render is in flight took
+  `configure_events()` into a null. There was no `.catch` either, so a render
+  that rejected left a blank canvas and an unhandled rejection that names
+  nobody; it is a `log_error` with the gobj's name now.
+
 ## 7.23.168
 
 Three fixes from the 2026-09-15 treedb review (A8, A9, A10 of yunetas'

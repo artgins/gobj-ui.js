@@ -1014,6 +1014,15 @@ function build_graph(gobj)
 
     priv.graph_rendered = false;
     graph_render(gobj).then(() => {
+        /*
+         *  render() settles on its own time, and the view can be gone
+         *  by then: mt_destroy() destroys the graph and nulls
+         *  priv.graph, so configure_events() would wire handlers onto
+         *  null.  A tab closed right after it was opened is enough.
+         */
+        if(gobj_is_destroying(gobj) || !priv.graph) {
+            return;
+        }
         configure_events(gobj);
         configure_behaviour(gobj);
         configure_plugins(gobj);
@@ -1023,6 +1032,13 @@ function build_graph(gobj)
          *  so deferred mode/layout/theme changes can reconfigure.
          */
         priv.graph_rendered = true;
+    }).catch((e) => {
+        /*
+         *  Without this the graph stays blank and the only trace is
+         *  an unhandled rejection in the browser console, which says
+         *  nothing about WHO failed to render.
+         */
+        log_error(`${gobj_short_name(gobj)}: graph render failed: ${e}`);
     });
 }
 
