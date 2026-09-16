@@ -8,7 +8,9 @@
  *      affordance back by accident.
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
-import { plan_treedb_writes, READONLY_FORM_TOOLBAR } from "./treedb_write_plan.js";
+import {
+    plan_treedb_writes, READONLY_FORM_TOOLBAR, col_goes_back_to_treedb
+} from "./treedb_write_plan.js";
 
 const WRITES = ["edition_mode", "new_button", "delete_button", "paste_button", "in_row_icons"];
 
@@ -79,5 +81,55 @@ describe("readonly beats every with_*", () => {
         expect(plan_treedb_writes({readonly: 0}).new_button).toBe(true);
         expect(plan_treedb_writes({readonly: undefined}).new_button).toBe(true);
         expect(plan_treedb_writes({readonly: "yes"}).new_button).toBe(false);
+    });
+});
+
+
+/***********************************************************************
+ *  Which columns of a form go back in the write. The shape is the
+ *  agent's `yunos`: a pkey, a secondary key that is required but not
+ *  writable, and the read-only columns that never survive a widget.
+ ***********************************************************************/
+const YUNOS_DESC = {
+    pkey: "id",
+    pkey2s: ["yuno_release"],
+};
+const COL = {
+    id:           {id: "id",           type: "string",  flag: ["persistent", "required", "rowid"]},
+    yuno_release: {id: "yuno_release", type: "string",  flag: ["persistent", "required"]},
+    yuno_name:    {id: "yuno_name",    type: "string",  flag: ["persistent", "writable"]},
+    date:         {id: "date",         type: "integer", flag: ["persistent", "time"]},
+    realm_id:     {id: "realm_id",     type: "string",  flag: ["persistent", "fkey"]},
+    photo:        {id: "photo",        type: "string",  flag: ["persistent", "fkey", "file"]},
+    yunos:        {id: "yunos",        type: "object",  flag: ["hook"], hook: {yunos: "realm_id"}},
+};
+
+describe("what goes back to treedb from a form", () => {
+    test("a writable column, an fkey and a file column go back", () => {
+        expect(col_goes_back_to_treedb(YUNOS_DESC, COL.yuno_name)).toBe(true);
+        expect(col_goes_back_to_treedb(YUNOS_DESC, COL.realm_id)).toBe(true);
+        expect(col_goes_back_to_treedb(YUNOS_DESC, COL.photo)).toBe(true);
+    });
+
+    test("a read-only time and a hook stay: they do not survive the widget", () => {
+        expect(col_goes_back_to_treedb(YUNOS_DESC, COL.date)).toBe(false);
+        expect(col_goes_back_to_treedb(YUNOS_DESC, COL.yunos)).toBe(false);
+    });
+
+    test("the pkey goes back although it is not writable: it addresses the record", () => {
+        expect(col_goes_back_to_treedb(YUNOS_DESC, COL.id)).toBe(true);
+    });
+
+    test("a pkey2 goes back although it is not writable: it names the INSTANCE", () => {
+        expect(col_goes_back_to_treedb(YUNOS_DESC, COL.yuno_release)).toBe(true);
+    });
+
+    test("a pkey2s declared as a bare string (the C literal) counts the same", () => {
+        expect(col_goes_back_to_treedb({pkey: "id", pkey2s: "yuno_release"}, COL.yuno_release)).toBe(true);
+    });
+
+    test("without pkey2s in the desc the same column stays read-only", () => {
+        expect(col_goes_back_to_treedb({pkey: "id"}, COL.yuno_release)).toBe(false);
+        expect(col_goes_back_to_treedb(null, COL.yuno_release)).toBe(false);
     });
 });

@@ -96,7 +96,9 @@ import {t} from "i18next";
 
 import {yui_toolbar_icon} from "./yui_toolbar.js";
 
-import {plan_treedb_writes, READONLY_FORM_TOOLBAR} from "./treedb_write_plan.js";
+import {
+    plan_treedb_writes, READONLY_FORM_TOOLBAR, col_goes_back_to_treedb
+} from "./treedb_write_plan.js";
 import {
     yui_file_read, yui_files_manifest, yui_file_id_label, yui_file_size_label
 } from "./yui_file_field.js";
@@ -3263,42 +3265,6 @@ function get_schema_col(gobj, id)
 }
 
 /************************************************************
- *  Does column `col` travel back to treedb on a write?
- *
- *  The form SHOWS every field and sends back only what the topic
- *  accepts: the writable cols, the fkeys (a link is edited by
- *  linking) and the pkey, which is not written but is what
- *  ADDRESSES the record.
- *
- *  It matters because `treedb_update_node()` does not check
- *  `writable` -- it writes any col it is handed -- so a read-only
- *  field travelling back is written with whatever the form made of
- *  it, and the fields that describe a record are exactly the ones
- *  that do not survive a round trip through a widget: a `time` is an
- *  integer rendered as a `datetime-local`, with no seconds, so every
- *  save moved it back up to 59 s. Nothing looked wrong until the
- *  stored timestamp had moved.
- *
- *  `is_file` and not the type: a `file` column IS an fkey (it is
- *  flagged ['fkey','file']) but answers `type: "file"`, and the write
- *  goes out with `autolink`, which rebuilds the links from what the
- *  record carries. Dropped, a read-only `file` column -- the one only
- *  a load fills -- was UNLINKED by every save of any other field.
- ************************************************************/
-function col_goes_back_to_treedb(gobj, col)
-{
-    let desc = gobj_read_attr(gobj, "desc");
-    let pkey = desc.pkey || "id";
-    const field_desc = treedb_get_field_desc(col);
-
-    if(field_desc.is_writable || field_desc.type === "fkey" ||
-            field_desc.is_file || col.id === pkey) {
-        return true;
-    }
-    return false;
-}
-
-/************************************************************
  *  The record the FORM hands over, without the columns that do
  *  not go back to treedb (see col_goes_back_to_treedb()). The
  *  form has already encoded the values, so only the columns are
@@ -3309,7 +3275,7 @@ function strip_read_only_cols(gobj, record)
     let row = {};
     for(let field_name of Object.keys(record || {})) {
         let col = get_schema_col(gobj, field_name);
-        if(col && !col_goes_back_to_treedb(gobj, col)) {
+        if(col && !col_goes_back_to_treedb(gobj_read_attr(gobj, "desc"), col)) {
             continue;
         }
         row[field_name] = record[field_name];
@@ -3336,7 +3302,7 @@ function transform__form_record_2_treedb_record(gobj, kw, operation)
             continue;
         }
 
-        if(!col_goes_back_to_treedb(gobj, col)) {
+        if(!col_goes_back_to_treedb(gobj_read_attr(gobj, "desc"), col)) {
             continue;
         }
 

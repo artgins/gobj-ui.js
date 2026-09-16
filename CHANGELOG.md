@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.170
+
+**The form's Save sends the pkey2 back.** 7.23.168 stopped the form from
+writing its read-only columns back (a non-writable `time` moved up to 59 s on
+every save), and the rule it wrote -- writable, fkey, file, or the pkey --
+left out the SECONDARY keys: `yunos.yuno_release` in the agent is
+`persistent, required` and not `writable`, so the `update-node` went out with
+no pkey2 and C_NODE resolved it to the PRIMARY instance. Right by chance while
+the topic table lists primaries; wrong from a form opened on a row of
+`instances`, or on any topic whose pkey2 column is not writable
+(`configurations.version`, `public_services`). A pkey2 names the instance the
+update is for, and it goes back for the same reason the pkey does.
+
+The rule now lives in `treedb_write_plan.js` as `col_goes_back_to_treedb(desc,
+col)`, pure and tested (`pkey2s` as a list or as the bare string of a C
+literal), and the form's two writes call it with their `desc`.
+
 ## 7.23.169
 
 The nine gobj-ui findings of the 2026-09-15 treedb review (yunetas'
