@@ -68,6 +68,7 @@ import {
     yui_graph_update_zoom,
 } from "./yui_graph_camera.js";
 import {ensure_pinch_zoom_patch} from "./g6_touch_gestures.js";
+import {col_key_roles} from "./treedb_topic_keys.js";
 
 import {getStrokeColor} from "./lib_graph.js";
 
@@ -260,12 +261,20 @@ function hook_mark(type)
  *      (↖)  1 fkey      (1 parent)
  *      [↖]  n fkeys     (n parents)
  *      {↖}  N fkeys     (N parents)
+ *      (2)  a secondary key (pkey2)
+ *      (t)  the time key (tkey)
  *      *    required
  *      #    the primary key
  *
- *   A column can be BOTH hook and fkey, so the flags are read
- *   here rather than through treedb_get_field_desc's single
- *   `type`, which keeps only the last flag it saw.
+ *   The key marks lead the mark column, and a pkey2 is drawn in
+ *   bold like the pkey: a topic with secondary keys keeps several
+ *   instances under one id, which is the first thing to know
+ *   about it. `(t)` is new to the notation: the literals' legend
+ *   carries it too.
+ *
+ *   The flags are read here rather than through
+ *   treedb_get_field_desc's single `type`, which keeps only the
+ *   last flag it saw.
  ************************************************************/
 function schema_rows(desc)
 {
@@ -280,6 +289,14 @@ function schema_rows(desc)
         let flags = Array.isArray(col.flag)? col.flag : [];
         let is_hook = flags.indexOf("hook") >= 0;
         let is_fkey = flags.indexOf("fkey") >= 0;
+        let roles = col_key_roles(desc, col.id);
+        let key_marks = [];
+        if(roles.includes("pkey2")) {
+            key_marks.push("(2)");
+        }
+        if(roles.includes("tkey")) {
+            key_marks.push("(t)");
+        }
         let mark = "";
         if(is_hook) {
             mark = hook_mark(col.type);
@@ -290,13 +307,17 @@ function schema_rows(desc)
                                            .replace(")", "↖)");
             mark = mark? (mark + " " + fmark) : fmark;
         }
+        if(key_marks.length) {
+            mark = mark? (key_marks.join(" ") + " " + mark) : key_marks.join(" ");
+        }
         rows.push({
             name:     col.id,
             type:     col.type || "",
             mark:     mark,
             is_hook:  is_hook,
             is_fkey:  is_fkey,
-            is_pkey:  (col.id === desc.pkey),
+            is_pkey:  roles.includes("pkey"),
+            is_pkey2: roles.includes("pkey2"),
             required: (flags.indexOf("required") >= 0 || flags.indexOf("notnull") >= 0),
         });
     }
@@ -367,7 +388,7 @@ function build_card_innerHTML(topic, rows, color, dark)
     let rows_html = "";
     for(let row of rows) {
         let lead = row.is_pkey? "#" : (row.required? "*" : "");
-        let name_weight = (row.is_pkey || row.required)? "600" : "400";
+        let name_weight = (row.is_pkey || row.is_pkey2)? "700" : (row.required? "600" : "400");
         let name_color = (row.is_hook || row.is_fkey)? title_color : text_color;
         rows_html +=
 `    <div class="TREEDB_SCHEMA_FIELD" style="

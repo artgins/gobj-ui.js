@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.171
+
+**The treedb views say the keys of a topic.** A topic with `pkey2s` keeps
+several instances under one id: an update has to carry the pkey2 (7.23.170),
+and `delete-instance` exists. `tkey` says where the time of each record comes
+from. The views did not say either one:
+
+- **`C_YUI_TREEDB_SCHEMA`** drew a pkey2 field with `*`, like any other
+  required field, although the `.c` literals mark it `(2)`. The card now draws
+  `(2)` on a pkey2 field, and its name is bold like the pkey's. It draws `(t)`
+  on the tkey field, a mark that is new to the notation. The legends of the
+  three literals that have one carry `(t)` too.
+- **The topic-info panel of `C_YUI_TREEDB_TOPICS`** had no `pkey2s` row, and
+  hid `tkey` when it was empty. It now has a `pkey2s` row (as tags) and always
+  a `tkey` row, which says *append time* when the topic has none. `system`
+  shows the flag names (`sf_string_key`), not `1`. In the column table, the
+  *key* cell of a key field says `pkey`, `pkey2` or `tkey`, and the field name
+  is bold.
+- **The topic cards** have a `pkey2s` line under the version and column count.
+
+The logic is in a new pure module, `treedb_topic_keys.js`
+(`desc_pkey2s`, `desc_tkey`, `col_key_roles`, `system_flag_names`), with tests.
+New consumer i18n keys: `pkey2s`, `tkey`, `append time`.
+
 ## 7.23.170
 
 **The form's Save sends the pkey2 back.** 7.23.168 stopped the form from

@@ -61,6 +61,9 @@
     text-overflow: ellipsis;
     color: var(--bulma-text, inherit);
 }
+.TREEDB_TOPIC_CARD_PKEY2S .TREEDB_TOPIC_CARD_REL_LIST {
+    font-weight: 600;
+}
 .TREEDB_TOPIC_CARD_ACTIONS {
     display: flex;
     justify-content: center;

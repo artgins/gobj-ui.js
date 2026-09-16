@@ -62,6 +62,9 @@ const es_translation = {
     "no topics": "Sin topics",
     "choose the columns to show": "Elegir las columnas que se ven",
     "columns": "Columnas",
+    "pkey2s": "Claves secundarias",
+    "tkey": "Clave temporal",
+    "append time": "hora de inserción",
     "download the rows loaded in this table as csv": "Descargar como CSV las filas cargadas en esta tabla",
     "export": "Exportar",
     "no data available": "No hay datos",
@@ -672,6 +675,9 @@ const es_translation = {
  *  as "Q3 2026" — so unlike the demo's own keys they need an `en` bundle.
  */
 const en_translation = {
+    "pkey2s": "Secondary keys",
+    "tkey": "Time key",
+    "append time": "append time",
     "graph": "Graph",
     "scroll left": "Scroll left",
     "scroll right": "Scroll right",

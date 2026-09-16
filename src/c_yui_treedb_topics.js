@@ -3,7 +3,7 @@
  *
  *          Management of TreeDB's topics with Bulma tabs
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
@@ -66,6 +66,9 @@ import {
 } from "./c_yui_shell.js";
 import {nodes_answer} from "./nodes_answer.js";
 import {yui_toolbar_icon} from "./yui_toolbar.js";
+import {
+    desc_pkey2s, desc_tkey, col_key_roles, system_flag_names
+} from "./treedb_topic_keys.js";
 
 import {t} from "i18next";
 
@@ -688,6 +691,17 @@ function topic_card_meta(desc)
     ]]);
     meta.push(['div', {class: 'TREEDB_TOPIC_CARD_META'}, head]);
 
+    /*  The secondary keys come before the relations: they change what
+     *  a record of this topic IS (several instances under one id).  */
+    let pkey2s = desc_pkey2s(desc);
+    if(pkey2s.length) {
+        let list = pkey2s.join(", ");
+        meta.push(['div', {class: 'TREEDB_TOPIC_CARD_REL TREEDB_TOPIC_CARD_PKEY2S', title: list}, [
+            ['span', {class: 'TREEDB_TOPIC_CARD_REL_LABEL', i18n: 'pkey2s'}, 'pkey2s'],
+            ['span', {class: 'TREEDB_TOPIC_CARD_REL_LIST'}, list]
+        ]]);
+    }
+
     let relation = (cls, key, arrow, names) => {
         let list = names.join(", ");
         return ['div', {class: `TREEDB_TOPIC_CARD_REL ${cls}`, title: list}, [
@@ -1021,9 +1035,15 @@ function show_topic_info(gobj, topic)
 
 /************************************************************
  *  Build the read-only topic-info panel from a topic desc: the
- *  topic name, its pkey, and a table of columns (name / type /
+ *  topic name, its KEYS, and a table of columns (name / type /
  *  key relationship). Everything is guarded — a malformed desc
  *  renders a shorter panel, never throws.
+ *
+ *  The keys are what an operator has to know before touching a
+ *  record, so they are all said, and the empty ones too: a
+ *  topic with `pkey2s` keeps several instances under one id,
+ *  and an empty `tkey` means the time of a record is the time
+ *  it was appended -- a row missing is not the same as "none".
  ************************************************************/
 function build_topic_info_panel(gobj, $info, topic, desc)
 {
@@ -1032,38 +1052,39 @@ function build_topic_info_panel(gobj, $info, topic, desc)
     }
 
     let pkey = desc.pkey || "";
+    let pkey2s = desc_pkey2s(desc);
+    let tkey = desc_tkey(desc);
 
-    /*  Topic metadata (version matters to the operator): version /
-     *  system / pkey / tkey. Each row is shown only when its value is
-     *  present; the version is emphasised as a tag. */
-    let fmt_flag = (v) => {
-        if(is_array(v)) {
-            return v.join(", ");
-        }
-        if(is_object(v)) {
-            return Object.keys(v).join(", ");
-        }
-        return (v === undefined || v === null) ? "" : String(v);
-    };
+    /*  Topic metadata: version / system / pkey / pkey2s / tkey. The
+     *  version and the secondary keys are emphasised as tags. */
     let $meta = [];
-    let push_meta = (key, value, highlight) => {
-        if(value === undefined || value === null || value === "") {
-            return;
-        }
-        let $val = highlight
-            ? ["span", {class: "tag is-info"}, `${value}`]
-            : ["code", {}, `${value}`];
+    let push_meta = (key, $val) => {
         $meta.push(
-            ["tr", {}, [
+            ["tr", {class: `TREEDB_TOPIC_INFO_${key.toUpperCase()}`}, [
                 ["th", {i18n: key, style: "width:11rem;"}, key],
                 ["td", {}, [$val]]
             ]]
         );
     };
-    push_meta("version", desc.topic_version, true);
-    push_meta("system", fmt_flag(desc.system_flag));
-    push_meta("pkey", pkey);
-    push_meta("tkey", desc.tkey);
+    if(desc.topic_version !== undefined && desc.topic_version !== null && desc.topic_version !== "") {
+        push_meta("version", ["span", {class: "tag is-info"}, `${desc.topic_version}`]);
+    }
+    let sf_names = system_flag_names(desc.system_flag);
+    if(sf_names.length > 0) {
+        push_meta("system", ["code", {title: `${desc.system_flag}`}, sf_names.join(" | ")]);
+    }
+    if(pkey) {
+        push_meta("pkey", ["code", {}, pkey]);
+    }
+    if(pkey2s.length > 0) {
+        push_meta("pkey2s", ["span", {class: "tags"},
+            pkey2s.map(name => ["span", {class: "tag is-warning"}, name])
+        ]);
+    }
+    push_meta("tkey", tkey
+        ? ["code", {}, tkey]
+        : ["span", {class: "has-text-grey", i18n: "append time"}, "append time"]
+    );
 
     let $rows = [];
     let cols = is_array(desc.cols) ? desc.cols : [];
@@ -1072,19 +1093,20 @@ function build_topic_info_panel(gobj, $info, topic, desc)
             continue;
         }
         let type = col.type || (is_array(col.flag) ? col.flag.join(", ") : (col.flag || ""));
-        let rel = "";
-        if(col.id === pkey) {
-            rel = "pkey";
-        } else if(is_object(col.fkey)) {
-            rel = "→ " + Object.keys(col.fkey).join(", ");
+        let roles = col_key_roles(desc, col.id);
+        let parts = roles.slice();
+        if(is_object(col.fkey)) {
+            parts.push("→ " + Object.keys(col.fkey).join(", "));
         } else if(is_object(col.hook)) {
-            rel = "hook → " + Object.keys(col.hook).join(", ");
+            parts.push("hook → " + Object.keys(col.hook).join(", "));
         }
+        let rel = parts.join(" · ");
+        let is_key = roles.length > 0;
         $rows.push(
-            ["tr", {}, [
-                ["td", {}, [["code", {}, `${col.id}`]]],
+            ["tr", is_key ? {class: "TREEDB_TOPIC_INFO_KEY_COL"} : {}, [
+                ["td", {}, [["code", is_key ? {class: "has-text-weight-bold"} : {}, `${col.id}`]]],
                 ["td", {}, `${type}`],
-                ["td", {}, `${rel}`]
+                ["td", is_key ? {class: "has-text-weight-semibold"} : {}, `${rel}`]
             ]]
         );
     }

@@ -1888,8 +1888,32 @@ source read the same:
 | `(↖)` | 1 fkey — 1 parent |
 | `[↖]` | n fkeys — n parents |
 | `{↖}` | N fkeys — N parents |
+| `(2)` | a secondary key (`pkey2s`) — the name is bold, like the pkey's |
+| `(t)` | the time key (`tkey`) |
 | `*` | required |
 | `#` | the primary key |
+
+The key marks come first in the mark column, because they change what a record
+of the topic is. A field that is a pkey2 and an fkey reads `(2) (↖)`. The
+`(t)` mark is new to the notation, and the legends of the `.c` literals carry
+it too. For example, `binaries.version` in `treedb_yuneta_agent` is declared
+like this:
+
+```C
+'topic_name': 'binaries',
+'pkey': 'id',
+'tkey': '',
+'pkey2s': 'version',
+```
+
+and its card draws the row `version (2)`. An empty `tkey` marks no field.
+
+The topic cards (`C_YUI_TREEDB_TOPICS`) and its topic-info panel say the same
+keys. A card of a topic with `pkey2s` has a `pkey2s` line under its version and
+column count. The info panel always has a `tkey` row, which says *append time*
+when the topic has none, a `pkey2s` row when the topic has secondary keys, and
+`system` by the flag names (`sf_string_key`), not by the number. In its column
+table, the *key* cell of a key field says `pkey`, `pkey2` or `tkey`.
 
 `dict` and `object` are one shape and `list` and `array` are another, exactly
 as tr_treedb's hook/fkey switches treat them. A self-referent hook (a tree)
