@@ -1043,6 +1043,31 @@ function build_graph(gobj)
 }
 
 /************************************************************
+ *  A G6 event, as PLAIN JSON.
+ *
+ *  A kw is dumped by the `machine` trace (`trace_json(kw)`), and a
+ *  G6 / @antv/g event is circular: serializing one THROWS, so the
+ *  first thing a kw carrying `evt` breaks is the trace the FSM
+ *  exists to feed. It also drags a live graph element into a
+ *  message that may be read after that element is gone.
+ *
+ *  What the actions read of it is an id and three scalars. The
+ *  event itself never leaves the callback that received it.
+ ************************************************************/
+function g6_event_kw(evt)
+{
+    let target = (evt && evt.target)? evt.target : null;
+    let client = (evt && evt.client)? evt.client : null;
+
+    return {
+        id:       (target && target.id)? String(target.id) : "",
+        shift:    !!(evt && evt.shiftKey),
+        client_x: (client && typeof client.x === "number")? client.x : 0,
+        client_y: (client && typeof client.y === "number")? client.y : 0
+    };
+}
+
+/************************************************************
  *  Configure G6 event handlers
  ************************************************************/
 function configure_events(gobj)
@@ -1058,7 +1083,7 @@ function configure_events(gobj)
         if(consume_long_press_click(graph)) {
             return;
         }
-        gobj_send_event(gobj, "EV_CANVAS_CLICK", {evt: evt}, gobj);
+        gobj_send_event(gobj, "EV_CANVAS_CLICK", g6_event_kw(evt), gobj);
     });
 
     graph.on(NodeEvent.DRAG, (evt) => {
@@ -1071,29 +1096,29 @@ function configure_events(gobj)
     });
 
     graph.on(NodeEvent.DRAG_END, (evt) => {
-        gobj_send_event(gobj, "EV_NODE_DRAG_END", {evt: evt}, gobj);
+        gobj_send_event(gobj, "EV_NODE_DRAG_END", g6_event_kw(evt), gobj);
     });
 
     graph.on(NodeEvent.CLICK, (evt) => {
         if(consume_long_press_click(graph)) {
             return;
         }
-        gobj_send_event(gobj, "EV_NODE_CLICK", {evt: evt}, gobj);
+        gobj_send_event(gobj, "EV_NODE_CLICK", g6_event_kw(evt), gobj);
     });
 
     graph.on(NodeEvent.CONTEXT_MENU, (evt) => {
-        gobj_send_event(gobj, "EV_NODE_CONTEXT_MENU", {evt: evt}, gobj);
+        gobj_send_event(gobj, "EV_NODE_CONTEXT_MENU", g6_event_kw(evt), gobj);
     });
 
     graph.on(NodeEvent.DBLCLICK, (evt) => {
-        gobj_send_event(gobj, "EV_NODE_DBLCLICK", {evt: evt}, gobj);
+        gobj_send_event(gobj, "EV_NODE_DBLCLICK", g6_event_kw(evt), gobj);
     });
 
     graph.on(EdgeEvent.CLICK, (evt) => {
         if(consume_long_press_click(graph)) {
             return;
         }
-        gobj_send_event(gobj, "EV_EDGE_CLICK", {evt: evt}, gobj);
+        gobj_send_event(gobj, "EV_EDGE_CLICK", g6_event_kw(evt), gobj);
     });
 
     graph.on('aftertransform', () => {
@@ -1297,8 +1322,13 @@ function configure_plugins(gobj)
         'contextmenu',
         {
             trigger: 'contextmenu',
+            /*  The plugin's callback only turns the pick into an
+             *  EVENT: what the items DO -- unlink an edge, open a
+             *  form, delete -- belongs in an action, where the
+             *  `machine` trace can see it.  */
             onClick: (value) => {
-                handle_context_menu_click(gobj, value);
+                gobj_send_event(gobj, "EV_CONTEXT_MENU_ITEM",
+                    {value: String(value)}, gobj);
             },
             getItems: (e) => {
                 return build_context_menu_items(gobj, e);
@@ -6767,7 +6797,8 @@ function show_edge_icon(gobj)
 
     let icons = show_dual_icons(gobj, mid.x + 4, mid.y + floating_icon_dy(),
         t('edge properties'), () => toggle_edge_popover(gobj),
-        t('unlink'), () => request_unlink_edge(gobj)
+        t('unlink'),
+        () => gobj_send_event(gobj, "EV_REQUEST_UNLINK_EDGE", {}, gobj)
     );
     priv._edge_icon_el = icons.icon_el;
     priv._edge_delete_el = icons.delete_el;
@@ -6992,7 +7023,8 @@ function show_node_icon(gobj)
 
     let icons = show_dual_icons(gobj, rect.right + 4, rect.top + floating_icon_dy(),
         t('node properties'), () => toggle_node_popover(gobj),
-        t('delete node'), () => request_delete_node(gobj)
+        t('delete node'),
+        () => gobj_send_event(gobj, "EV_REQUEST_DELETE_NODE", {}, gobj)
     );
     priv._node_icon_el = icons.icon_el;
     priv._node_delete_el = icons.delete_el;
@@ -8124,7 +8156,10 @@ function request_delete_selection(gobj)
     show_confirm_popover(gobj, null,
         delete_question(nodes),
         'delete', '#ff4d4f',
-        () => execute_delete_selection(gobj, nodes),
+        () => gobj_send_event(gobj, "EV_CONFIRMED", {
+            what: "delete_selection",
+            ids:  nodes.map((nd) => String(nd.id))
+        }, gobj),
         '_delete_confirm_el'
     );
 }
@@ -8161,7 +8196,10 @@ function show_delete_confirm(gobj, nodeData)
     show_confirm_popover(gobj, priv._node_delete_el,
         delete_question([nodeData]),
         'delete', '#ff4d4f',
-        () => execute_delete_node(gobj, nodeData),
+        () => gobj_send_event(gobj, "EV_CONFIRMED", {
+            what: "delete_node",
+            id:   String(nodeData.id)
+        }, gobj),
         '_delete_confirm_el'
     );
 }
@@ -8313,7 +8351,10 @@ function show_create_popover(gobj)
                     idInput.focus();
                     return;
                 }
-                execute_create_node(gobj, topicSelect.value, node_id);
+                gobj_send_event(gobj, "EV_SUBMIT_NEW_NODE", {
+                    topic_name: String(topicSelect.value),
+                    id:         node_id
+                }, gobj);
             },
         },
     ]);
@@ -8419,7 +8460,10 @@ function show_unlink_confirm(gobj, edgeData)
         t('unlink') + ' ' + d.child_id + ' → ' + d.parent_id + '?' +
         '\n' + t('neither record is deleted'),
         'unlink', '#ff4d4f',
-        () => execute_unlink_edge(gobj, edgeData),
+        () => gobj_send_event(gobj, "EV_CONFIRMED", {
+            what: "unlink_edge",
+            id:   String(edgeData.id)
+        }, gobj),
         '_unlink_confirm_el'
     );
 }
@@ -11171,7 +11215,7 @@ function ac_toggle_node_mode(gobj, event, kw, src)
 function ac_node_dblclick(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let node_id = kw && kw.evt && kw.evt.target? kw.evt.target.id : "";
+    let node_id = (kw && kw.id)? kw.id : "";
     let nd = null;
     try {
         nd = priv.graph.getNodeData(node_id);
@@ -11434,7 +11478,7 @@ function ac_node_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
-    let node_id = kw.evt.target.id;
+    let node_id = (kw && kw.id)? kw.id : "";
 
     /*
      *  A `+N` chip is one thing only: the next page of its group. It
@@ -11480,7 +11524,7 @@ function ac_node_click(gobj, event, kw, src)
                 record: nodedata.data.record
             });
 
-            if(priv.edit_mode && (kw.evt.shiftKey || priv.selection_mode)) {
+            if(priv.edit_mode && (kw.shift || priv.selection_mode)) {
                 /*  Shift+click extends the selection, the way it does
                  *  everywhere -- and so does a plain tap while the
                  *  toolbar's selection mode is on, which is that key
@@ -11493,8 +11537,8 @@ function ac_node_click(gobj, event, kw, src)
                 // Convert client coords to viewport (container-relative) then to canvas
                 let containerRect = priv.$container.getBoundingClientRect();
                 let canvasPoint = graph.getCanvasByViewport([
-                    kw.evt.client.x - containerRect.left,
-                    kw.evt.client.y - containerRect.top
+                    kw.client_x - containerRect.left,
+                    kw.client_y - containerRect.top
                 ]);
                 let port_key = detect_port_click(
                     gobj, node_id, canvasPoint[0], canvasPoint[1]
@@ -11536,7 +11580,7 @@ function ac_edge_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
-    let edge_id = kw.evt.target.id;
+    let edge_id = (kw && kw.id)? kw.id : "";
 
     try {
         let edgedata = graph.getEdgeData(edge_id);
@@ -11570,6 +11614,125 @@ function ac_edge_click(gobj, event, kw, src)
 function ac_node_context_menu(gobj, event, kw, src)
 {
     return 0;
+}
+
+/************************************************************
+ *  {value} -- an item of the context menu was picked.
+ ************************************************************/
+function ac_context_menu_item(gobj, event, kw, src)
+{
+    handle_context_menu_click(gobj, (kw && kw.value)? kw.value : "");
+    return 0;
+}
+
+/************************************************************
+ *  The delete icon floating beside the selected node.
+ ************************************************************/
+function ac_request_delete_node(gobj, event, kw, src)
+{
+    request_delete_node(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  The unlink icon floating beside the selected edge.
+ ************************************************************/
+function ac_request_unlink_edge(gobj, event, kw, src)
+{
+    request_unlink_edge(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {topic_name, id} -- the create popover was filled in.
+ ************************************************************/
+function ac_submit_new_node(gobj, event, kw, src)
+{
+    let topic_name = (kw && kw.topic_name)? kw.topic_name : "";
+    let node_id = (kw && kw.id)? kw.id : "";
+
+    if(!topic_name || !node_id) {
+        log_error(`${gobj_short_name(gobj)}: ${event} without topic or id`);
+        return -1;
+    }
+    execute_create_node(gobj, topic_name, node_id);
+    return 0;
+}
+
+/************************************************************
+ *  {what, id|ids} -- the person said yes in a confirm popover.
+ *
+ *  The kw carries IDS and not the graph elements they name: a kw
+ *  is plain json, and a node/edge datum of a live graph is not
+ *  something to park in a message. They are resolved here, where
+ *  the graph is -- and an id that no longer names anything is a
+ *  loud refusal instead of a silent nothing.
+ ************************************************************/
+function ac_confirmed(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let what = (kw && kw.what)? kw.what : "";
+
+    if(!graph) {
+        log_error(`${gobj_short_name(gobj)}: ${event} with no graph`);
+        return -1;
+    }
+
+    if(what === "delete_selection") {
+        let ids = (kw && Array.isArray(kw.ids))? kw.ids : [];
+        let nodes = [];
+        for(let id of ids) {
+            let nd = null;
+            try {
+                nd = graph.getNodeData(id);
+            } catch(e) {
+                nd = null;
+            }
+            if(nd && nd.data && nd.data.desc) {
+                nodes.push(nd);
+            }
+        }
+        if(!nodes.length) {
+            log_error(`${gobj_short_name(gobj)}: ${event} names no node any more`);
+            return -1;
+        }
+        execute_delete_selection(gobj, nodes);
+        return 0;
+    }
+
+    if(what === "delete_node") {
+        let nd = null;
+        try {
+            nd = graph.getNodeData(kw.id);
+        } catch(e) {
+            nd = null;
+        }
+        if(!nd || !nd.data || !nd.data.desc) {
+            log_error(`${gobj_short_name(gobj)}: ${event} names no node: ${kw.id}`);
+            return -1;
+        }
+        execute_delete_node(gobj, nd);
+        return 0;
+    }
+
+    if(what === "unlink_edge") {
+        let ed = null;
+        try {
+            ed = graph.getEdgeData(kw.id);
+        } catch(e) {
+            ed = null;
+        }
+        if(!ed || !ed.data) {
+            log_error(`${gobj_short_name(gobj)}: ${event} names no edge: ${kw.id}`);
+            return -1;
+        }
+        execute_unlink_edge(gobj, ed);
+        return 0;
+    }
+
+    log_error(`${gobj_short_name(gobj)}: ${event} of nothing this view asked about: ${what}`);
+    return -1;
 }
 
 /************************************************************
@@ -11773,6 +11936,11 @@ function create_gclass(gclass_name)
             ["EV_NODE_CLICK",               ac_node_click,          null],
             ["EV_EDGE_CLICK",               ac_edge_click,          null],
             ["EV_NODE_CONTEXT_MENU",        ac_node_context_menu,   null],
+            ["EV_CONTEXT_MENU_ITEM",        ac_context_menu_item,   null],
+            ["EV_REQUEST_DELETE_NODE",      ac_request_delete_node, null],
+            ["EV_REQUEST_UNLINK_EDGE",      ac_request_unlink_edge, null],
+            ["EV_SUBMIT_NEW_NODE",          ac_submit_new_node,     null],
+            ["EV_CONFIRMED",                ac_confirmed,           null],
             ["EV_CANVAS_CLICK",             ac_canvas_click,        null],
             ["EV_NODE_DRAG_END",            ac_node_drag_end,       null],
             ["EV_BRUSH_SELECT",             ac_brush_select,        null],
@@ -11837,6 +12005,11 @@ function create_gclass(gclass_name)
         ["EV_NODE_CLICK",               0],
         ["EV_EDGE_CLICK",               0],
         ["EV_NODE_CONTEXT_MENU",        0],
+        ["EV_CONTEXT_MENU_ITEM",        0],
+        ["EV_REQUEST_DELETE_NODE",      0],
+        ["EV_REQUEST_UNLINK_EDGE",      0],
+        ["EV_SUBMIT_NEW_NODE",          0],
+        ["EV_CONFIRMED",                0],
         ["EV_CANVAS_CLICK",             0],
         ["EV_NODE_DRAG_END",            0],
         ["EV_BRUSH_SELECT",             0],

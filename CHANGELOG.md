@@ -7,31 +7,98 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## 7.23.169
 
-Two of the nine gobj-ui findings of the 2026-09-15 treedb review (points 3 and
-9 of yunetas' `TODO.md`, "gobj-ui (treedb views)").
+The nine gobj-ui findings of the 2026-09-15 treedb review (yunetas'
+`TODO.md`, "gobj-ui (treedb views)"), all of them.
 
-- **The unselect of a row consulted the attr of the SELECT.**
-  `ac_unselect_rows()` read `broadcast_select_rows_event`, so
-  `broadcast_unselect_rows_event` was declared and never read by anything: a
-  host that asked only for the unselect got no event at all, and a host that
-  asked only for the select got both. Nothing in the ecosystem turns either on,
-  which is why it survived -- the whole path typechecks and the only thing
-  wrong was one word inside a string. A new test, `broadcast_attrs.test.js`,
-  states the rule for the pair and for any pair added later: every attr named
-  `broadcast_<x>_event` is read by its own name, and the publish it guards is
-  of `EV_<X>`.
-- **Both attrs now say what a host takes on by turning them on.** They read
-  "Broadcast select rows event", which does not mention that the event is an
-  OUTPUT event and that a subscriber has to DECLARE it, on pain of "Event NOT
-  DEFINED in state" on every selected row. Same wording the opt-in
-  `with_node_click` of `C_YUI_TREEDB_SCHEMA` already carries.
-- **The first `graph.render()` of `C_G6_NODES_TREE` guards against its own
-  view being gone, and says so when it fails.** The `.then()` wired the G6
-  handlers with no destruction check, and `mt_destroy()` destroys the graph and
-  nulls `priv.graph` -- a tab closed while the first render is in flight took
-  `configure_events()` into a null. There was no `.catch` either, so a render
-  that rejected left a blank canvas and an unhandled rejection that names
-  nobody; it is a `log_error` with the gobj's name now.
+**Every action crosses the automaton now.** Four places decided things outside
+the FSM, and the `machine` trace saw none of them:
+
+- **The pencil of the Op column opened the form by a direct call**, while the
+  bin beside it -- same cell, same click handler -- sent `EV_DELETE_ROWS`. It
+  is `EV_EDIT_RECORD` now, carrying `{index}` like `EV_SHOW_RECORD` does, and
+  the row is resolved in the action, where the table is.
+- **The confirm dialogs acted from the promise's `.then`**: the unsaved-changes
+  guard and both deletes (the selection and the single row). A new
+  `confirm_then()` -- the same one `C_YUI_SCHEMA_EDITOR` already has -- turns
+  the answer into `EV_CONFIRMED`, and `ac_confirmed()` does the work. The rows
+  are read again in the action rather than captured in a closure.
+- **`C_G6_NODES_TREE` put G6 event objects in its kws.** Six sends carried
+  `{evt}`, and a kw is dumped by the trace (`trace_json`) while an `@antv/g`
+  event is circular: serializing one throws, so the first thing to break was
+  the trace the FSM exists to feed. What the actions read of it was an id and
+  three scalars; `g6_event_kw()` flattens the event to plain json and the
+  event itself stays in the callback.
+- **That same gclass ran deletes, unlinks and creates from DOM callbacks.**
+  The two floating icons, the three confirm popovers, the create popover and
+  the context menu each did the work in the handler. They send events now
+  (`EV_REQUEST_DELETE_NODE`, `EV_REQUEST_UNLINK_EDGE`, `EV_CONFIRMED`,
+  `EV_SUBMIT_NEW_NODE`, `EV_CONTEXT_MENU_ITEM`); the confirmations carry the
+  node/edge ID and the action resolves it against the graph, so an id that no
+  longer names anything is a loud refusal instead of a silent nothing.
+
+**The search box matched the COUNT of a hook.** Since `hook_size` (7.23.163) a
+topic table loads a hook as `[{"size": N}]` instead of the id of every child,
+and `row_matches()` walked into that object and compared the number: "400"
+answered every row whose hook holds 400 children, mixed in with the rows that
+really say 400. A count nobody can read in the cell as text is not what a
+person typing in a search box is after, so it is skipped -- the third rule of
+that file, next to "of an fkey only the `id` is looked at", and with its own
+cases in `yui_row_search.test.js`. Its header is in English now, like the rest
+of the repo.
+
+**The unselect of a row consulted the attr of the SELECT.**
+`ac_unselect_rows()` read `broadcast_select_rows_event`, so
+`broadcast_unselect_rows_event` was declared and read by nothing: a host that
+asked only for the unselect got no event at all, and a host that asked only
+for the select got both. Nothing in the ecosystem turns either on, which is
+why it survived -- the whole path typechecks and the only thing wrong was one
+word inside a string. The new `broadcast_attrs.test.js` states the rule for
+the pair and for any pair added later: every attr named `broadcast_<x>_event`
+is read by its own name, and the publish it guards is of `EV_<X>`. Both
+descriptions now carry the contract a host takes on by turning them on, in the
+wording `with_node_click` already uses.
+
+**A deferral is not a time.** The save closed the form dialog with
+`setTimeout(…, 0)` because it runs inside the form child's own publish stack.
+It posts `EV_CLOSE_FORM` to itself now: same next turn of the loop, except it
+is dropped if the view is being destroyed meanwhile, and it says so in the
+trace. (The other two `setTimeout`s in that file are real watchdogs -- 30 s
+for an asset, 20 s for a page -- and stay.)
+
+**The five buttons of the table toolbar had no name at all.** Edit, new,
+delete, copy and paste carry their label in an `is-hidden-mobile` span, so on
+a phone they are bare icons; without `title`/`aria-label` they are unnamed
+controls, which is the floor this library does not go under. The search box
+had only a placeholder, and a placeholder is not a name -- it goes away the
+moment something is typed. Refresh had a `title` and no `aria-label`. All of
+them use keys the apps already define, so no consumer has to add one.
+
+**The form dialog's title was frozen in whatever language it opened in.** It
+was composed here -- `t("new") + " " + t(topic_name)` -- and handed to the
+dialog as its `title`, which the header renders as an i18n KEY: the composed
+sentence was looked up, found nothing and rendered as itself, correct once and
+never again. The header carries two halves and only one can hold a key, so the
+record id goes to `title_prefix` (data, never translated) and the kind --
+`new` / `edit` / `view`, three keys already in use -- takes the key. The topic
+name leaves the title: the tab behind the dialog says it, and the kind is what
+only this header can tell you. It also distinguishes a dialog that writes from
+one that does not, which it did not before.
+
+**The first `graph.render()` of `C_G6_NODES_TREE` guards against its own view
+being gone, and says so when it fails.** The `.then()` wired the G6 handlers
+with no destruction check, and `mt_destroy()` destroys the graph and nulls
+`priv.graph` -- a tab closed while the first render is in flight took
+`configure_events()` into a null. There was no `.catch` either, so a render
+that rejected left a blank canvas and an unhandled rejection that names
+nobody; it is a `log_error` with the gobj's name now.
+
+**Not a defect, and left alone:** the report also asked that
+`C_YUI_TREEDB_TOPICS` declare `EV_SELECT_ROWS`/`EV_UNSELECT_ROWS`. This
+library already settles that shape the other way round -- the event is opt-in
+and the host that TURNS IT ON declares it, as `with_node_click` says in so
+many words -- and nothing turns these on, so a declaration in a host that
+never receives them would be the no-op action the rules forbid. The contract
+went into the attr descriptions instead.
 
 ## 7.23.168
 

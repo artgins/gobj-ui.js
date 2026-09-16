@@ -1,33 +1,38 @@
 /***********************************************************************
  *          yui_row_search.js
  *
- *      ¿ESTÁ ESTE TÉRMINO EN ESTA FILA?
+ *      IS THIS TERM IN THIS ROW?
  *
- *      La caja de búsqueda de una tabla de treedb miraba los valores de
- *      la fila con `String(val)`, y una fila de treedb no es plana: un
- *      fkey llega como una LISTA DE OBJETOS
- *      `[{id, topic_name, hook_name}]`, y `String()` de eso es
- *      `"[object Object]"`.  O sea que buscar el taller de un equipo --
- *      que es donde vive el dato que un operador tiene en la cabeza --
- *      no encontraba nunca nada, y la caja no daba ninguna pista de que
- *      había mirado en otro sitio.
+ *      The search box of a treedb table looked at the row's values with
+ *      `String(val)`, and a treedb row is not flat: an fkey arrives as a
+ *      LIST OF OBJECTS `[{id, topic_name, hook_name}]`, and `String()`
+ *      of that is `"[object Object]"`.  So looking for the workshop of
+ *      a device -- which is where the datum an operator has in mind
+ *      lives -- never found anything, and the box gave no hint that it
+ *      had looked somewhere else.
  *
- *      DOS REGLAS, Y LA SEGUNDA ES LA QUE HACE QUE SIRVA:
+ *      THREE RULES, AND THE LAST TWO ARE WHAT MAKE IT USEFUL:
  *
- *      - Se baja por listas y objetos hasta una profundidad corta: un
- *        fkey está a dos niveles y nada de lo que se busca está más
- *        hondo.
- *      - **De un fkey se mira sólo el `id`.**  `topic_name` y
- *        `hook_name` son las MISMAS dos palabras en todas las filas, así
- *        que mirarlas convierte el término en un comodín: buscar
- *        "devices" traería el topic entero.  El `id` es lo único que
- *        nombra la cosa enlazada.
+ *      - It walks down lists and objects to a short depth: an fkey is
+ *        two levels down and nothing anybody searches for is deeper.
+ *      - **Of an fkey only the `id` is looked at.**  `topic_name` and
+ *        `hook_name` are the SAME two words on every row, so looking at
+ *        them turns the term into a wildcard: searching "devices" would
+ *        bring the whole topic.  The `id` is the only thing that names
+ *        the linked thing.
+ *      - **A hook read as its COUNT is not looked at at all.**  Since
+ *        `hook_size` (7.23.163) a topic table loads a hook as
+ *        `[{"size": N}]` instead of the id of every child, and that
+ *        number is not a value of the row: matching it made "5" answer
+ *        every row whose hook happens to hold 5 children, next to the
+ *        rows that really say 5.  A count nobody can see in the cell as
+ *        text is not what a person typing in a search box is after.
  *
- *      Las claves que empiezan por `_` no se miran en ningún nivel: son
- *      del armazón (`_check_box_state_`, `_operation`) o metadatos
- *      (`__md_treedb__`), y nadie busca por ellas.
+ *      Keys that start with `_` are not looked at on any level: they
+ *      belong to the scaffolding (`_check_box_state_`, `_operation`) or
+ *      are metadata (`__md_treedb__`), and nobody searches by them.
  *
- *          Copyright (c) 2026, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
@@ -35,7 +40,7 @@ const MAX_DEPTH = 4;
 
 
 /***************************************************************
- *  Un fkey, tal y como `nodes` lo contesta con `list_dict`.
+ *  An fkey, as `nodes` answers it with `list_dict`.
  ***************************************************************/
 function is_fkey_ref(value)
 {
@@ -47,9 +52,29 @@ function is_fkey_ref(value)
         && ("hook_name" in value);
 }
 
+
 /***************************************************************
- *  ¿Contiene `value` el término? El término viene YA en
- *  minúsculas: quien busca lo baja una vez y no una por celda.
+ *  A hook read with `hook_size`: the COUNT of its children,
+ *  `[{"size": N}]`, in the place of the children themselves.
+ *  The same shape `delete_impact`'s `ref_count()` reads.
+ ***************************************************************/
+function is_hook_size(value)
+{
+    if(!Array.isArray(value) || value.length !== 1) {
+        return false;
+    }
+    const first = value[0];
+    return !!first
+        && typeof first === "object"
+        && !Array.isArray(first)
+        && typeof first.size === "number"
+        && Object.keys(first).length === 1;
+}
+
+
+/***************************************************************
+ *  Does `value` hold the term? The term comes ALREADY in lower
+ *  case: whoever searches lowers it once, not once per cell.
  ***************************************************************/
 function value_matches(value, term, depth)
 {
@@ -57,6 +82,9 @@ function value_matches(value, term, depth)
         return false;
     }
     if(depth > MAX_DEPTH) {
+        return false;
+    }
+    if(is_hook_size(value)) {
         return false;
     }
     if(Array.isArray(value)) {
@@ -76,8 +104,9 @@ function value_matches(value, term, depth)
     return String(value).toLowerCase().includes(term);
 }
 
+
 /***************************************************************
- *  ¿Está el término en alguna parte de esta fila?
+ *  Is the term anywhere in this row?
  ***************************************************************/
 function row_matches(row, term)
 {
@@ -93,4 +122,4 @@ function row_matches(row, term)
 }
 
 
-export {row_matches, value_matches, is_fkey_ref};
+export {row_matches, value_matches, is_fkey_ref, is_hook_size};

@@ -1,6 +1,6 @@
 import {describe, it, expect} from "vitest";
 
-import {row_matches, is_fkey_ref} from "./yui_row_search.js";
+import {row_matches, is_fkey_ref, is_hook_size} from "./yui_row_search.js";
 
 describe("row_matches", () => {
     const row = {
@@ -52,11 +52,61 @@ describe("row_matches", () => {
     });
 });
 
+describe("row_matches, on a table loaded with hook_size", () => {
+    /*  What a topic table gets since 7.23.163: the hook is the COUNT
+     *  of its children, not their ids.  */
+    const row = {
+        id: "places-madrid",
+        name: "Madrid",
+        devices: [{size: 400}],
+        __md_treedb__: {topic_name: "places"}
+    };
+
+    it("does NOT match the count of a hook", () => {
+        /*  It did, and "400" then answered every place holding 400
+         *  devices together with the ones that really say 400.  */
+        expect(row_matches(row, "400")).toBe(false);
+        expect(row_matches(row, "40")).toBe(false);
+        expect(row_matches(row, "0")).toBe(false);
+    });
+
+    it("still matches the rest of the row", () => {
+        expect(row_matches(row, "madrid")).toBe(true);
+    });
+
+    it("still walks a hook that DID come with its children", () => {
+        /*  A node event carries whole hooks whatever the table asked
+         *  for, so both shapes reach this row.  */
+        const loaded = {
+            id: "places-madrid",
+            devices: [
+                {id: "E22003089", topic_name: "devices", hook_name: "places"}
+            ]
+        };
+        expect(row_matches(loaded, "e22003089")).toBe(true);
+    });
+});
+
 describe("is_fkey_ref", () => {
     it("wants the three keys", () => {
         expect(is_fkey_ref({id: "a", topic_name: "t", hook_name: "h"})).toBe(true);
         expect(is_fkey_ref({id: "a"})).toBe(false);
         expect(is_fkey_ref(["a"])).toBe(false);
         expect(is_fkey_ref(null)).toBe(false);
+    });
+});
+
+describe("is_hook_size", () => {
+    it("wants the one-element list holding only a numeric size", () => {
+        expect(is_hook_size([{size: 5}])).toBe(true);
+        expect(is_hook_size([{size: 0}])).toBe(true);
+        expect(is_hook_size([])).toBe(false);
+        expect(is_hook_size([{size: 5}, {size: 6}])).toBe(false);
+        expect(is_hook_size([{size: "5"}])).toBe(false);
+        expect(is_hook_size({size: 5})).toBe(false);
+        /*  A record that happens to carry a `size` column is data, and
+         *  is searched like any other.  */
+        expect(is_hook_size([{id: "a", size: 5}])).toBe(false);
+        expect(is_hook_size(null)).toBe(false);
     });
 });

@@ -23,6 +23,7 @@ import {
     json_deep_copy,
     createElement2,
     gobj_send_event,
+    gobj_post_event,
     clean_name,
     is_array,
     is_string,
@@ -605,7 +606,9 @@ function build_ui(gobj)
              *  instead of being pushed away from the harmless ones. Do not
              *  reorder this group as if they were peer actions.  */
             let $edit_button = createElement2(
-                ['button', {id: ``, class: 'button button-edit-record mr-1'}, [
+                ['button', {id: ``, class: 'button button-edit-record mr-1',
+                                title: t('edit'), 'data-i18n-title': 'edit',
+                                'aria-label': t('edit'), 'data-i18n-aria-label': 'edit'}, [
                     yui_toolbar_icon('yi-pen'),
                     ['span',
                         {
@@ -631,7 +634,9 @@ function build_ui(gobj)
 
             if(with_new_button) {
                 let $new_button = createElement2(
-                    ['button', {id: ``, class: 'button button-new-record mr-1', disabled: true}, [
+                    ['button', {id: ``, class: 'button button-new-record mr-1',
+                                title: t('new'), 'data-i18n-title': 'new',
+                                'aria-label': t('new'), 'data-i18n-aria-label': 'new', disabled: true}, [
                         yui_toolbar_icon('yi-plus'),
                         ['span',
                             {
@@ -651,7 +656,9 @@ function build_ui(gobj)
 
             if(with_delete_button) {
                 let $delete_button = createElement2(
-                    ['button', {id: ``, class: 'button button-delete-record mr-1', disabled: true}, [
+                    ['button', {id: ``, class: 'button button-delete-record mr-1',
+                                title: t('delete'), 'data-i18n-title': 'delete',
+                                'aria-label': t('delete'), 'data-i18n-aria-label': 'delete', disabled: true}, [
                         yui_toolbar_icon('yi-trash'),
                         ['span',
                             {
@@ -672,7 +679,9 @@ function build_ui(gobj)
 
             if(with_copy_button) {
                 let $copy_button = createElement2(
-                    ['button', {id: ``, class: 'button button-copy-record mr-1', disabled: true}, [
+                    ['button', {id: ``, class: 'button button-copy-record mr-1',
+                                title: t('copy'), 'data-i18n-title': 'copy',
+                                'aria-label': t('copy'), 'data-i18n-aria-label': 'copy', disabled: true}, [
                         yui_toolbar_icon('yi-copy'),
                         ['span',
                             {
@@ -693,7 +702,9 @@ function build_ui(gobj)
 
             if(with_paste_button) {
                 let $paste_button = createElement2(
-                    ['button', {id: ``, class: 'button button-paste-record mr-1', disabled: true}, [
+                    ['button', {id: ``, class: 'button button-paste-record mr-1',
+                                title: t('paste'), 'data-i18n-title': 'paste',
+                                'aria-label': t('paste'), 'data-i18n-aria-label': 'paste', disabled: true}, [
                         yui_toolbar_icon('yi-paste'),
                         ['span',
                             {
@@ -745,9 +756,17 @@ function build_ui(gobj)
                     type: 'text',
                     /*  The placeholder is not a text node, so the
                      *  data-i18n walk cannot reach it — it needs its own
-                     *  key or it stays English for good. */
+                     *  key or it stays English for good.
+                     *
+                     *  And a placeholder is not a NAME: it goes away the
+                     *  moment something is typed, and a reader is not
+                     *  obliged to announce it. The box carries no <label>
+                     *  either, so without the two below it is an unnamed
+                     *  text field. */
                     placeholder: t('search'),
-                    'data-i18n-placeholder': 'search'
+                    'data-i18n-placeholder': 'search',
+                    title: t('search'), 'data-i18n-title': 'search',
+                    'aria-label': t('search'), 'data-i18n-aria-label': 'search'
                 }],
                 ['span', {class: 'icon is-left'}, [
                     yui_toolbar_icon('yi-magnifying-glass')
@@ -776,7 +795,9 @@ function build_ui(gobj)
 
     if(with_refresh_button) {
         let $refresh = createElement2(
-            ['button', {class: 'button mr-1', title: t('refresh'), 'data-i18n-title': 'refresh'}, [
+            ['button', {class: 'button mr-1',
+                        title: t('refresh'), 'data-i18n-title': 'refresh',
+                        'aria-label': t('refresh'), 'data-i18n-aria-label': 'refresh'}, [
                 yui_toolbar_icon('yi-arrows-rotate'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
             ], {
@@ -1485,7 +1506,7 @@ function create_tabulator(gobj)
                 let index = cell.getRow().getPosition();
                 if(e.target.closest('.edit')) {
                     e.stopPropagation();
-                    show_edit_form(gobj, row, index);
+                    gobj_send_event(gobj, "EV_EDIT_RECORD", {index: index}, gobj);
                 } else if(e.target.closest('.remove')) {
                     e.stopPropagation();
                     gobj_send_event(gobj, "EV_DELETE_ROWS", {index: index, row: row}, gobj);
@@ -2263,15 +2284,31 @@ function open_form_dialog(gobj, mode, record)
         return;
     }
 
-    /*  Title says what you are doing: "new <topic>" on create,
-     *  "<topic> — <pkey>" on update. */
+    /*  The title says WHAT YOU ARE DOING, and it has to survive a
+     *  language change.
+     *
+     *  It used to be composed here -- `t("new") + " " + t(topic_name)`
+     *  -- and handed to the dialog as its `title`, which the header
+     *  renders as an i18n KEY. So the composed sentence was looked up
+     *  as a key, found nothing, and rendered as itself: right the first
+     *  time, because both halves had been translated already, and
+     *  FROZEN in that language for the life of the dialog. Switching
+     *  language left "Nuevo usuarios" on an English page.
+     *
+     *  The header carries two halves and only one of them can hold a
+     *  key: `title_prefix` is DATA and is never translated, `title` is
+     *  the KIND and re-translates. So the record id goes in the prefix
+     *  -- it is the one part no language touches -- and the kind takes
+     *  the key. The topic name leaves the title: it is what the TAB
+     *  behind the dialog says, and the form's own fields say it again,
+     *  while "new"/"edit"/"view" is what only this header can tell you.
+     *  All three are keys this library already uses.  */
     let pkey = desc.pkey || "id";
-    let title;
-    if(mode === "create") {
-        title = t("new") + " " + t(topic_name);
-    } else {
+    let title = (mode === "create")? "new" : ((mode === "view")? "view" : "edit");
+    let title_prefix = "";
+    if(mode !== "create") {
         let rid = record ? String(record[pkey] ?? "") : "";
-        title = t(topic_name) + (empty_string(rid) ? "" : " — " + rid);
+        title_prefix = empty_string(rid)? "" : rid;
     }
 
     /*  "view" is an "update" that writes nothing: same title, same pkey
@@ -2334,6 +2371,7 @@ function open_form_dialog(gobj, mode, record)
     priv.form_modal = yui_shell_show_modal(shell, $body, {
         dialog:        true,
         logical_class: "TREEDB_FORM_SHEET",
+        title_prefix:  title_prefix,
         title:         title,
         t:             t,
         before_close:  function() {
@@ -2382,15 +2420,8 @@ function form_may_close(gobj)
              *  a second key to define — and the one that was here had never
              *  been defined in any locale, which renders as the English
              *  sentence itself, in every language, for ever. */
-            yui_shell_confirm_yesnocancel(
-                yui_shell_of(gobj),
-                kw.warning || "all changes will be lost",
-                {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
-            ).then(function(answer) {
-                if(answer === "yes" && priv.form_modal) {
-                    priv.form_modal.close();
-                }
-            });
+            confirm_then(gobj, kw.warning || "all changes will be lost",
+                {what: "close_form"});
             return false;
         }
     }
@@ -2414,6 +2445,33 @@ function teardown_form_child(gobj)
         priv.form = null;
     }
     priv.form_modal = null;
+}
+
+/************************************************************
+ *  Ask, and turn the answer into an EVENT.
+ *
+ *  A dialog's promise settles outside the machine: acting from its
+ *  `.then` puts the decision -- delete these records, throw these
+ *  edits away -- in a callback the `machine` trace never sees, and
+ *  in a view that may be gone by the time the person answers.
+ *
+ *  `kw` carries an IDENTITY and never an object: the trace dumps
+ *  it, and a gobj, a Tabulator row or a DOM node in there is a
+ *  circular structure that breaks the very trace the FSM feeds.
+ *
+ *  Same shape as C_YUI_SCHEMA_EDITOR's confirm_then().
+ ************************************************************/
+function confirm_then(gobj, message, kw)
+{
+    yui_shell_confirm_yesnocancel(
+        yui_shell_of(gobj), message,
+        {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
+    ).then(function(answer) {
+        if(answer !== "yes" || gobj_is_destroying(gobj)) {
+            return;
+        }
+        gobj_send_event(gobj, "EV_CONFIRMED", kw, gobj);
+    });
 }
 
 /************************************************************
@@ -3130,7 +3188,7 @@ function pkey_is_rowid(gobj)
  *  Show the edit "update" form of a row (record)
  *  internally called from the icon edit at Op column
  ************************************************************/
-function show_edit_form(gobj, row, index)
+function show_edit_form(gobj, row)
 {
     /*  a rowid pkey has no "update": every save appends a new
      *  instance (timeranger semantics) — open in create mode  */
@@ -3940,48 +3998,79 @@ function ac_delete_rows(gobj, event, kw, src)
             return 0;
         }
 
-        yui_shell_confirm_yesnocancel(
-            yui_shell_of(gobj), build_delete_question(gobj, rows),
-            {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
-        ).then(function(answer) {
-            if(answer === "yes") {
-                for(let row of rows) {
-                    // TODO why don't send once EV_DELETE_RECORD(S)
-                    gobj_publish_event(
-                        gobj,
-                        "EV_DELETE_RECORD",
-                        {
-                            topic_name: gobj_read_str_attr(gobj, "topic_name"),
-                            record: row
-                        }
-                    );
-                }
-            }
-        });
+        confirm_then(gobj, build_delete_question(gobj, rows),
+            {what: "delete_selection"});
 
     } else {
         /*----------------------------*
          *  Delete one row
          *  {index: , row: }
          *----------------------------*/
-        yui_shell_confirm_yesnocancel(
-            yui_shell_of(gobj), build_delete_question(gobj, kw.row),
-            {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
-        ).then(function(answer) {
-            if(answer === "yes") {
-                gobj_publish_event(
-                    gobj,
-                    "EV_DELETE_RECORD",
-                    {
-                        topic_name: gobj_read_str_attr(gobj, "topic_name"),
-                        record: kw.row
-                    }
-                );
-            }
-        });
+        confirm_then(gobj, build_delete_question(gobj, kw.row),
+            {what: "delete_row", index: kw.index});
     }
 
     return 0;
+}
+
+/************************************************************
+ *  {what, ...} -- the person said yes to what confirm_then()
+ *  asked. The rows are read again HERE and not carried in the
+ *  kw: the kw is plain json, and a Tabulator row is not.
+ ************************************************************/
+function ac_confirmed(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let what = kw? kw.what : "";
+
+    if(what === "close_form") {
+        if(priv.form_modal) {
+            priv.form_modal.close();
+        }
+        return 0;
+    }
+
+    if(refuse_if_readonly(gobj, event)) {
+        return -1;      /*  Error already logged  */
+    }
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    let topic_name = gobj_read_str_attr(gobj, "topic_name");
+
+    if(what === "delete_selection") {
+        let rows = yui_selected_rows(tabulator);
+        if(!rows.length) {
+            log_error(`${gobj_short_name(gobj)}: ${event} with the selection gone`);
+            return -1;
+        }
+        for(let row of rows) {
+            // TODO why don't send once EV_DELETE_RECORD(S)
+            gobj_publish_event(
+                gobj,
+                "EV_DELETE_RECORD",
+                {topic_name: topic_name, record: row}
+            );
+        }
+        return 0;
+    }
+
+    if(what === "delete_row") {
+        let index = kw.index;
+        let row = (tabulator && typeof index === "number")?
+            tabulator.getRowFromPosition(index) : null;
+        if(!row) {
+            log_error(`${gobj_short_name(gobj)}: ${event} names no row: ${index}`);
+            return -1;
+        }
+        gobj_publish_event(
+            gobj,
+            "EV_DELETE_RECORD",
+            {topic_name: topic_name, record: row.getData()}
+        );
+        return 0;
+    }
+
+    log_error(`${gobj_short_name(gobj)}: ${event} of nothing this view asked about: ${what}`);
+    return -1;
 }
 
 /************************************************************
@@ -4085,12 +4174,15 @@ function ac_form_save_record(gobj, event, kw, src)
     if(cols.length === 0) {
         publish_treedb_write(gobj, mode, kw);
 
-        /*  we are INSIDE the form's gobj_publish_event stack — never
-         *  destroy the publisher synchronously from a subscriber
-         *  callback: defer the close  */
-        setTimeout(function() {
-            close_form_dialog(gobj);
-        }, 0);
+        /*  We are INSIDE the form child's gobj_publish_event stack, and
+         *  closing the dialog tears that child down -- never destroy the
+         *  publisher synchronously from a subscriber's callback. So the
+         *  close is DEFERRED, and a deferral is not a time:
+         *  gobj_post_event() delivers EV_CLOSE_FORM to us on the next
+         *  turn of the loop, it drops it if we are being destroyed
+         *  meanwhile, and it says so in the `machine` trace. A bare
+         *  setTimeout(…, 0) did none of the three.  */
+        gobj_post_event(gobj, "EV_CLOSE_FORM", {}, gobj);
         return 0;
     }
 
@@ -4195,6 +4287,16 @@ function publish_treedb_write(gobj, mode, record, jn_files)
         (mode === "create")? "EV_CREATE_RECORD" : "EV_UPDATE_RECORD",
         kw_write
     );
+}
+
+/************************************************************
+ *  The deferred close of the form dialog, posted by the save
+ *  from inside the form child's own publish stack.
+ ************************************************************/
+function ac_close_form(gobj, event, kw, src)
+{
+    close_form_dialog(gobj);
+    return 0;
 }
 
 /************************************************************
@@ -4810,6 +4912,31 @@ function ac_show_record(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  {index} -- the pencil of the Op column. Same shape as
+ *  EV_SHOW_RECORD: the kw carries WHICH row, and the row itself
+ *  is resolved here, where the table is.
+ ************************************************************/
+function ac_edit_record(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    let index = kw? kw.index : undefined;
+    if(!tabulator || typeof index !== "number") {
+        log_error(`${gobj_short_name(gobj)}: no row ${index} to edit`);
+        return -1;
+    }
+
+    let row = tabulator.getRowFromPosition(index);
+    if(!row) {
+        log_error(`${gobj_short_name(gobj)}: row ${index} is gone`);
+        return -1;
+    }
+
+    show_edit_form(gobj, row.getData());
+
+    return 0;
+}
+
+/************************************************************
  *  The reader picked another page size: remember it, so coming back to
  *  this topic opens where they left it instead of at 200.
  ************************************************************/
@@ -4948,11 +5075,13 @@ function create_gclass(gclass_name)
 
             ["EV_EDITION_MODE",         ac_edition_mode,       null],
             ["EV_SAVE_RECORD",          ac_form_save_record,   null],
+            ["EV_CLOSE_FORM",           ac_close_form,         null],
             ["EV_FILES_READ",           ac_files_read,         null],
             ["EV_FILES_FAILED",         ac_files_failed,       null],
 
             ["EV_NEW_ROW",              ac_new_row,            null],
             ["EV_DELETE_ROWS",          ac_delete_rows,        null],
+            ["EV_CONFIRMED",            ac_confirmed,          null],
             ["EV_SELECT_ROWS",          ac_select_rows,        null],
             ["EV_CLEAR_SELECTION",      ac_clear_selection,    null],
             ["EV_UNSELECT_ROWS",        ac_unselect_rows,      null],
@@ -4978,6 +5107,7 @@ function create_gclass(gclass_name)
             ["EV_OPEN_COLUMNS",         ac_open_columns,       null],
             ["EV_PAGE_SIZE_CHANGED",    ac_page_size_changed,  null],
             ["EV_SHOW_RECORD",          ac_show_record,        null],
+            ["EV_EDIT_RECORD",          ac_edit_record,        null],
             ["EV_TOGGLE_COLUMN",        ac_toggle_column,      null],
             ["EV_EXPORT_TABLE",         ac_export_table,       null],
             ["EV_SHOW",                 ac_show,               null],
@@ -4997,10 +5127,12 @@ function create_gclass(gclass_name)
 
         ["EV_EDITION_MODE",         0],
         ["EV_SAVE_RECORD",          0],
+        ["EV_CLOSE_FORM",           0],
         ["EV_FILES_READ",           0],
         ["EV_FILES_FAILED",         0],
         ["EV_NEW_ROW",              0],
         ["EV_DELETE_ROWS",          0],
+        ["EV_CONFIRMED",            0],
         ["EV_COPY_ROWS",            0],
         ["EV_PASTE_ROWS",           0],
         ["EV_CLEAR_SELECTION",      0],
@@ -5030,6 +5162,7 @@ function create_gclass(gclass_name)
         ["EV_OPEN_COLUMNS",         0],
         ["EV_PAGE_SIZE_CHANGED",    0],
         ["EV_SHOW_RECORD",          0],
+        ["EV_EDIT_RECORD",          0],
         ["EV_TOGGLE_COLUMN",        0],
         ["EV_EXPORT_TABLE",         0],
 
