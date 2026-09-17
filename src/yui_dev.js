@@ -82,7 +82,8 @@ const TRAFFIC_TS_FIELDS = {
  *      clear captured traffic, compact, console, copied, copy,
  *      copy visible traffic to clipboard, creation, data, detailed,
  *      dev window and browser console, dev window only, developer,
- *      errors, expand, expanded, filter events / payload, find, i18n,
+ *      clear the filter, errors, expand, expanded, filter events / payload,
+ *      find, i18n,
  *      i18next debug output, incoming, log, machine trace shape,
  *      metadata, name only, outgoing, output, periodic, schema, show,
  *      show this section in the expanded view, simple mach,
@@ -319,12 +320,19 @@ function build_filter_ctx()
         inc:            dev_num("dev_filter_in", 1),
         err:            dev_num("dev_filter_err", 1),
         search:         SEARCH_TEXT,
+        view:           dev_view(),
     };
 }
 
 function entry_hidden(e, ctx)
 {
     if(e.kind === "log") {
+        /*  A `json` line is a PAYLOAD (the kw the trace dumps with ev_kw or a
+         *  publication): the Compact and Name only views promise one line
+         *  per message, so they leave it out. Its level says what it is.  */
+        if(e.level === "json" && (ctx.view === "name" || ctx.view === "compact")) {
+            return true;
+        }
         /*  Mirrored console logs respect the search box only — not the
          *  in/out/err traffic filters, which are about DIRECTION and a
          *  log has none. What is traced at all is the runtime's trace
@@ -931,6 +939,21 @@ function append_and_follow(logger, node)
 }
 
 /************************************************************
+ *  Keep one entry in the bounded buffer, dropping the oldest
+ *  (and its row, if painted).
+ ************************************************************/
+function push_entry(entry)
+{
+    TRAFFIC_LOG.push(entry);
+    if(TRAFFIC_LOG.length > TRAFFIC_MAX) {
+        let old = TRAFFIC_LOG.shift();
+        if(old.$node && old.$node.parentNode) {
+            old.$node.parentNode.removeChild(old.$node);
+        }
+    }
+}
+
+/************************************************************
  *  Append one inter-event message. Kept in a bounded buffer so
  *  view/filter switches repaint from memory. Shared by the legacy
  *  C_YUI_WINDOW (setup_dev) and the modal (build_dev_panel).
@@ -958,16 +981,6 @@ function info_traffic(title, msg, direction, size)
         console_traffic(title, jn, direction, size);
     }
 
-    /*  Window side: skip when routed to the console only, or when the window
-     *  is not mounted (closed). No fallback console dump — console_traffic
-     *  above already covered every route that wants console output. */
-    let logger = document.getElementById('developer-traffic-logger');
-    if(!logger || route === "console") {
-        return;
-    }
-
-    ensure_dev_style();
-
     let event = (jn && jn.event) ? String(jn.event) : "(no event)";
     let kw = (jn && jn.kw && typeof jn.kw === "object") ? jn.kw : null;
     let command = (kw && typeof kw.command === "string") ? kw.command : "";
@@ -985,14 +998,16 @@ function info_traffic(title, msg, direction, size)
         kw: kw, jn: jn, hay: hay, $node: null,
     };
 
-    TRAFFIC_LOG.push(entry);
+    push_entry(entry);
 
-    if(TRAFFIC_LOG.length > TRAFFIC_MAX) {
-        let old = TRAFFIC_LOG.shift();
-        if(old.$node && old.$node.parentNode) {
-            old.$node.parentNode.removeChild(old.$node);
-        }
+    /*  Window side: the entry is buffered above whatever happens, so the
+     *  window shows what arrived before it was opened. Painted only when the
+     *  window is mounted and not routed to the console only. */
+    let logger = document.getElementById('developer-traffic-logger');
+    if(!logger || route === "console") {
+        return;
     }
+    ensure_dev_style();
 
     if(!entry_hidden(entry, build_filter_ctx())) {
         let node = render_entry(entry);
@@ -1033,20 +1048,8 @@ function info_log(level, msg, hora)
     } else if(level === "warning") {
         LOG_WARN_COUNT++;
     }
-    /*  Routed to the console only: the line already reached the browser
-     *  console (gobj-js gate left on), so don't mirror it into the window —
-     *  but keep the status-line tally live if the window is open. */
-    if(dev_route() === "console") {
-        update_stats();
-        return;
-    }
-    let logger = document.getElementById('developer-traffic-logger');
-    if(!logger) {
-        return;
-    }
     __in_info_log__ = true;
     try {
-        ensure_dev_style();
         let lvl = level || "debug";
         let text;
         if(lvl === "json") {
@@ -1066,13 +1069,16 @@ function info_log(level, msg, hora)
             dir: 0, size: 0, ts: traffic_now(),
             hay: (lvl + " " + text).toLowerCase(), $node: null,
         };
-        TRAFFIC_LOG.push(entry);
-        if(TRAFFIC_LOG.length > TRAFFIC_MAX) {
-            let old = TRAFFIC_LOG.shift();
-            if(old.$node && old.$node.parentNode) {
-                old.$node.parentNode.removeChild(old.$node);
-            }
+        /*  Buffered always: the window shows what the app logged before it
+         *  was opened. Painted only when mounted and not routed to the
+         *  console only (the line already reached the console).  */
+        push_entry(entry);
+        let logger = document.getElementById('developer-traffic-logger');
+        if(!logger || dev_route() === "console") {
+            update_stats();
+            return;
         }
+        ensure_dev_style();
         if(!entry_hidden(entry, build_filter_ctx())) {
             let node = render_entry(entry);
             entry.$node = node;
@@ -1428,9 +1434,31 @@ function build_control_bar()
         class: 'YDEV_SEARCH', type: 'search', 'data-role': 'search',
         placeholder: t('filter events / payload'),
         'data-i18n-placeholder': 'filter events / payload',
+        title: t('filter events / payload'), 'data-i18n-title': 'filter events / payload',
+        'aria-label': t('filter events / payload'), 'data-i18n-aria-label': 'filter events / payload',
     }, '', {
         input: (ev) => {
             SEARCH_TEXT = String(ev.target.value || '').toLowerCase().trim();
+            rerender_all();
+        }
+    }];
+
+    /*  Its own button: a `type=search` input shows a clear cross in some
+     *  browsers only (not in Firefox).  */
+    let search_clear = ['button', {
+        class: 'YDEV_CHIP YDEV_SEARCH_CLEAR', type: 'button',
+        title: t('clear the filter'), 'data-i18n-title': 'clear the filter',
+        'aria-label': t('clear the filter'), 'data-i18n-aria-label': 'clear the filter',
+    }, '✕', {
+        click: (ev) => {
+            ev.stopPropagation();
+            let $bar = ev.currentTarget.closest('.YDEV_BAR');
+            let $input = $bar ? $bar.querySelector('.YDEV_SEARCH') : null;
+            if($input) {
+                $input.value = '';
+                $input.focus();
+            }
+            SEARCH_TEXT = '';
             rerender_all();
         }
     }];
@@ -1469,7 +1497,7 @@ function build_control_bar()
         grp('output', [output_seg]), sep(),
         grp('view', [view_seg]), expand_grp, sep(),
         grp('show', dir_chips), sep(),
-        grp('find', [search]), sep(),
+        grp('find', [search, search_clear]), sep(),
         grp('log', [copy, clear]),
     ]]);
 }

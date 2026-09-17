@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.174
+
+Three fixes to the Developer window, found using it on the deployed agent
+console.
+
+- **The window showed nothing that happened before it was opened.** The log
+  mirror and the traffic sink dropped every line while the window was not
+  mounted, so a window reopened at start up began mid-way through the session
+  the browser console showed whole. Every entry is kept in the bounded buffer
+  (600) now, and painted when the window opens; the Output route still decides
+  what is painted.
+- **Name only and Compact painted the payloads.** A `json` log line is the kw
+  the trace dumps (with `ev_kw`, or under a publication); those two views
+  promise one line per message and leave it out now. Detailed and Expanded keep
+  it.
+- **The FIND box had no way to clear it** in Firefox (a `type=search` input
+  shows its clear cross in some browsers only). It has its own ✕ button now,
+  and the input carries a title and an aria-label. New consumer i18n key:
+  `clear the filter`.
+
 ## 7.23.173
 
 **fix(dev): an app with no websocket logged an error on every repaint of the
