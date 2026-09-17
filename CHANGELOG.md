@@ -5,6 +5,47 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.172
+
+**BREAKING (peer `@yuneta/gobj-js` `^7.22.0`): the Developer window turns the
+runtime's trace bits on and off, and never reads a message to decide what to
+show.**
+
+"Periodic" was a filter that ANALYSED messages: a regex over the machine trace
+(`PERIODIC|TIMEOUT|HEARTBEAT|PING`, `dev_machine_trace.js`), a count over the
+traffic (a signature seen five times was "recurring", and every earlier entry of
+it was hidden at once), and a console filter pushed into gobj-js for the same
+purpose. The count read `kw.command`, which the transport never sets (it is
+`__command__`), so every command was one signature and every answer another:
+opening a treedb schema -- eight `nodes` in 15 ms -- emptied the window after
+the fifth message, which read as a spontaneous clear.
+
+The design was wrong, not the threshold. Whether a message is traced is decided
+by the gobj that emits it, from its trace levels. So:
+
+- **Every trace chip is a trace command of the yuno** (gobj-js 7.22.0's
+  `C_YUNO`, the C one's commands): Automata → `machine` (+ `ev_kw` on the
+  second click), Creation → `create_delete`, Start/Stop → `start_stop`,
+  Subscriptions → `subscriptions`, Traffic → `C_IEVENT_CLI` level `ievents`,
+  **Periodic → `timer_periodic`**, i.e. `EV_TIMEOUT_PERIODIC` and nothing else
+  (it clears the global no-trace of the same level that `main.js` sets). The
+  yuno persists them; a chip's state is READ from the runtime.
+- **Removed:** the Periodic filter, `dev_machine_trace.js` (and its test), the
+  signature counting, the console filter, **mute** (the ⊘ on each row and the
+  muted row), and **No poll**, which set a yuno attr nothing read.
+- `apply_dev_traces()` no longer applies trace flags: the yuno restores its own
+  levels in `mt_create`. It installs the traffic sink
+  (`trace_ievent_callback`), i18next's debug switch, the machine-trace shape,
+  the log mirror and the Output route. The old localStorage keys
+  (`trace_automata`, `trace_traffic`, `dev_hide_periodic`,
+  `dev_muted_events`, `no_poll`, ...) are no longer read.
+- Every trace chip carries a title and an aria-label. New consumer i18n keys:
+  `trace every event of every automaton`, `trace the creation and destruction
+  of gobjs`, `trace the start and stop of gobjs`, `trace subscriptions and
+  publications`, `i18next debug output`, `trace the messages to and from the
+  backend`, `trace the periodic timer event`. Gone: `no poll`, `mute this
+  message`, `muted`, `unmute`, `hide the timers and the recurring traffic`.
+
 ## 7.23.171
 
 **The treedb views say the keys of a topic.** A topic with `pkey2s` keeps

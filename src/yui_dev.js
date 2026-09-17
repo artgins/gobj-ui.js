@@ -13,6 +13,12 @@ import {
     kw_get_local_storage_value,
     kw_set_local_storage_value,
     gobj_write_attr,
+    gobj_command,
+    gobj_global_trace_level,
+    gobj_global_trace_no_level,
+    gobj_get_gclass_trace_level2,
+    trace_level_t,
+    log_error,
     gobj_create_service,
     gobj_find_service,
     gobj_start,
@@ -20,16 +26,6 @@ import {
     set_console_log_enabled,
     gobj_set_trace_machine_format,
 } from "@yuneta/gobj-js";
-
-/*  A NAMESPACE import, deliberately, for one optional API.
- *
- *  `set_console_log_filter` arrived in gobj-js 7.13.6, and a NAMED import of
- *  an export the installed copy does not have is a hard module-load error --
- *  it would take the whole app down instead of degrading. Read off the
- *  namespace, a missing export is plain `undefined` and can be tested for. */
-import * as gobj_js from "@yuneta/gobj-js";
-
-import {log_signature, log_is_periodic} from "./dev_machine_trace.js";
 
 import i18next, {t} from 'i18next';
 
@@ -41,11 +37,8 @@ import i18next, {t} from 'i18next';
  *  losing history. Reopening the window repaints the buffer.
  ***********************************************************************/
 const TRAFFIC_MAX = 600;            // capped history
-const PERIODIC_THRESHOLD = 5;       // a signature seen >= N times reads as recurring
-const PERIODIC_RE = /PERIODIC|TIMEOUT|HEARTBEAT|PING/i;
 
-let TRAFFIC_LOG = [];               // [{title,event,command,sig,dir,size,ts,kw,jn,hay,$node}]
-let TRAFFIC_COUNTS = new Map();     // signature -> occurrences (for periodic detection)
+let TRAFFIC_LOG = [];               // [{title,event,command,dir,size,ts,kw,jn,hay,$node}]
 let SEARCH_TEXT = "";               // session-only free-text filter (not persisted)
 
 /*  Running totals of framework errors/warnings seen since page load (or the
@@ -61,8 +54,18 @@ const TRAFFIC_TS_FIELDS = {
     "from_t": 1, "to_t": 1, "from_tm": 1, "to_tm": 1, "time": 1,
 };
 
-/*  Trace toggles: [localStorage key, display label, handler]. */
-/*  `data-label` carries the i18n KEY and not the text: the chips are
+/*  Trace toggles.
+ *
+ *  A chip does ONE thing: it turns trace bits of the runtime on or off
+ *  through the yuno's trace commands -- the C kernel's, same names -- and
+ *  the yuno persists them (`trace_levels` / `no_trace_levels`). Whether a
+ *  message is traced is decided by the gobj that emits it, never by this
+ *  window reading messages. The chip's state is READ from the runtime, so
+ *  it cannot disagree with what is traced.
+ *
+ *  [key, label i18n key, title i18n key, state(), toggle()]
+ *
+ *  `data-label` carries the i18n KEY and not the text: the chips are
  *  repainted from it by `refresh_dev_chrome()` on every toggle, so a
  *  label translated once at build time would come back in English at
  *  the first click.  */
@@ -70,34 +73,46 @@ const TRAFFIC_TS_FIELDS = {
  *  `validate-locales`: the table below and the `grp` / `mk_view` /
  *  `mk_expand` / `mk_dir` / `mk_out` helpers pass their key as a
  *  VARIABLE, and `OUT_TITLES` holds three more in a lookup table --
- *  so they, so a scan of `t("…")`
- *  sees none of them and reports OK with the whole window in English --
- *  which is how it shipped in gui_agent and gui_treedb. The full set a
- *  consumer must define, kept here so it can be copied:
+ *  so a scan of `t("…")` sees none of them and reports OK with the
+ *  whole window in English. The full set a consumer must define,
+ *  kept here so it can be copied:
  *
  *      automata, both, browser console only, clear,
  *      clear captured traffic, compact, console, copied, copy,
  *      copy visible traffic to clipboard, creation, data, detailed,
  *      dev window and browser console, dev window only, developer,
- *      errors, expand, expanded, filter events / payload, find,
- *      hide the timers and the recurring traffic, i18n, incoming, log,
- *      machine trace shape, metadata, mute this message, muted,
- *      name only, no poll, outgoing, output, periodic, schema, show,
+ *      errors, expand, expanded, filter events / payload, find, i18n,
+ *      i18next debug output, incoming, log, machine trace shape,
+ *      metadata, name only, outgoing, output, periodic, schema, show,
  *      show this section in the expanded view, simple mach,
- *      start / stop, subscriptions, traces, traffic, unmute, view,
- *      window, yuno monitor
+ *      start / stop, subscriptions,
+ *      trace every event of every automaton,
+ *      trace subscriptions and publications,
+ *      trace the creation and destruction of gobjs,
+ *      trace the messages to and from the backend,
+ *      trace the periodic timer event,
+ *      trace the start and stop of gobjs,
+ *      traces, traffic, view, window, yuno monitor
  *
  *  wattyzer and the yunovatios GUIs carry them; check a new consumer
  *  against this list, and confirm it by DUMPING the window.  */
 const TRACE_DEFS = [
-    ["trace_automata",      "automata",      trace_automata],
-    ["trace_creation",      "creation",      trace_creation],
-    ["trace_start_stop",    "start / stop",  trace_start_stop],
-    ["trace_subscriptions", "subscriptions", trace_subscriptions],
-    ["trace_i18n",          "i18n",          trace_i18n],
-    ["trace_traffic",       "traffic",       trace_traffic],
-    ["no_poll",             "no poll",       set_no_poll],
+    ["automata",      "automata",      "trace every event of every automaton",
+        automata_state, toggle_automata],
+    ["creation",      "creation",      "trace the creation and destruction of gobjs",
+        () => global_bit(trace_level_t.TRACE_CREATE_DELETE), () => toggle_global("create_delete")],
+    ["start_stop",    "start / stop",  "trace the start and stop of gobjs",
+        () => global_bit(trace_level_t.TRACE_START_STOP),    () => toggle_global("start_stop")],
+    ["subscriptions", "subscriptions", "trace subscriptions and publications",
+        () => global_bit(trace_level_t.TRACE_SUBSCRIPTIONS), () => toggle_global("subscriptions")],
+    ["i18n",          "i18n",          "i18next debug output",
+        i18n_state, toggle_i18n],
+    ["traffic",       "traffic",       "trace the messages to and from the backend",
+        traffic_state, toggle_traffic],
+    ["periodic",      "periodic",      "trace the periodic timer event",
+        periodic_state, toggle_periodic],
 ];
+
 
 
                     /******************************
@@ -201,17 +216,6 @@ function dev_view()
     return (v === "compact" || v === "name" || v === "full") ? v : "detailed";
 }
 
-/*  ON by default. The machine trace is the reason this window
- *  exists, and a yuno with one timer emits two lines a second for
- *  ever: leaving the filter off meant the first thing anybody saw
- *  after enabling Automata was a wall of EV_TIMEOUT with their own
- *  transitions somewhere inside it. The chip turns it back off.
- *
- *  A CONSTANT, and not the literal in two places: the reader and the
- *  toggle must agree on what "unset" means, or the first click on the
- *  chip writes the value it already had and appears to do nothing. */
-const HIDE_PERIODIC_DEFAULT = 1;
-
 /*  Which SHAPE the machine trace is written in — the two the C kernel
  *  offers, and the chip that swaps them:
  *
@@ -220,7 +224,7 @@ const HIDE_PERIODIC_DEFAULT = 1;
  *                   change, and the `<- … ret: N` return
  *
  *  1 because that is what the C kernel defaults to, so a browser yuno and
- *  a node read alike. Like HIDE_PERIODIC_DEFAULT, a CONSTANT and not a
+ *  a node read alike. A CONSTANT and not a
  *  literal in each of the three places that read it (the chip, the chrome
  *  and start up): they have to agree on what "unset" means, or the chip
  *  is born showing the wrong state and its first click does nothing. */
@@ -241,11 +245,6 @@ function dev_simple_mach()
     return dev_num(SIMPLE_MACH_KEY, SIMPLE_MACH_DEFAULT) ? 1 : 0;
 }
 
-function dev_hide_periodic()
-{
-    return dev_num("dev_hide_periodic", HIDE_PERIODIC_DEFAULT) ? true : false;
-}
-
 /*  Where dev output (traffic + all logs + automata) is routed:
  *  "window"  → dev window only  (browser console silenced framework-wide)
  *  "console" → browser console only  (nothing appended to the window)
@@ -259,45 +258,11 @@ function dev_route()
 }
 
 /*  Push the current route's console decision down to gobj-js. Called from
- *  apply_dev_traces (startup), whenever the Output selector changes, and
- *  whenever a filter that the console also obeys is toggled. */
+ *  apply_dev_traces (startup) and whenever the Output selector changes. */
 function apply_console_route()
 {
     set_console_log_enabled(dev_route() !== "window");
-
-    /*  ONE rule, TWO sinks.
-     *
-     *  The window's Periodic filter used to end at the window, so with the
-     *  Output on "Both" the timers were gone from the panel and still
-     *  arriving in the browser console, two lines a second — the same flood,
-     *  one pane over. It cannot be fixed from this side alone: gobj-js writes
-     *  the console line BEFORE it calls the log sink, so nothing here can
-     *  un-print it. It hands out a say instead (`set_console_log_filter`,
-     *  gobj-js >= 7.13.6), and this is the same predicate `entry_hidden()`
-     *  uses, so the two panes cannot disagree about what is noise.
-     *
-     *  Feature-detected rather than required: against an older gobj-js the
-     *  window still filters and the console still floods, exactly as before,
-     *  and the reason is logged once instead of failing. */
-    if(typeof gobj_js.set_console_log_filter === "function") {
-        gobj_js.set_console_log_filter((level, msg) => {
-            if(!dev_hide_periodic()) {
-                return true;
-            }
-            return !log_is_periodic(level, is_string(msg) ? msg : String(msg));
-        });
-    } else if(!__console_filter_warned__) {
-        __console_filter_warned__ = true;
-        console.warn(
-            "yui_dev: gobj-js has no set_console_log_filter (needs >= 7.13.6): " +
-            "the Periodic filter applies to this window only, not to the console"
-        );
-    }
 }
-
-/*  The warning above is worth saying, and worth saying ONCE: this runs on
- *  every Output change and every filter toggle. */
-let __console_filter_warned__ = false;
 
 /*  Emit one inter-event traffic line to the browser console (routes
  *  "console" and "both"). gobj-js only knows about framework logs, not this
@@ -313,20 +278,6 @@ function console_traffic(title, jn, direction, size)
         "color:" + color,
         kw
     );
-}
-
-function dev_muted()
-{
-    let a = kw_get_local_storage_value("dev_muted_events", [], false);
-    if(!Array.isArray(a)) {
-        a = [];
-    }
-    return new Set(a);
-}
-
-function dev_set_muted(set)
-{
-    kw_set_local_storage_value("dev_muted_events", Array.from(set));
 }
 
 function set_view(v)
@@ -351,55 +302,14 @@ function toggle_pref(key, def)
 {
     let v = dev_num(key, def) ? 0 : 1;
     kw_set_local_storage_value(key, v);
-    /*  The console filter closes over dev_hide_periodic(), which reads the
-     *  stored value on each call, so it follows this on its own. Re-pushed
-     *  anyway: a filter installed before this module reached apply_dev_traces
-     *  is the difference between the console obeying the chip and ignoring
-     *  it, and one assignment is cheaper than that class of bug. */
-    apply_console_route();
     rerender_all();
     refresh_dev_chrome();
 }
-
-function mute_signature(sig)
-{
-    let set = dev_muted();
-    set.add(sig);
-    dev_set_muted(set);
-    rerender_all();
-    refresh_dev_chrome();
-}
-
-function unmute_signature(sig)
-{
-    let set = dev_muted();
-    set.delete(sig);
-    dev_set_muted(set);
-    rerender_all();
-    refresh_dev_chrome();
-}
-
 
                     /******************************
                      *      Filtering
                      ******************************/
 
-
-/*  Signature identifies a "kind" of message. Command answers share
- *  the generic EV_MT_COMMAND event, so fold the command in to tell
- *  a get-stats poll apart from a user action. */
-function traffic_signature(event, command)
-{
-    return command ? (event + " · " + command) : event;
-}
-
-function traffic_is_periodic(sig)
-{
-    if(PERIODIC_RE.test(sig)) {
-        return true;
-    }
-    return (TRAFFIC_COUNTS.get(sig) || 0) >= PERIODIC_THRESHOLD;
-}
 
 function build_filter_ctx()
 {
@@ -407,8 +317,6 @@ function build_filter_ctx()
         out:            dev_num("dev_filter_out", 1),
         inc:            dev_num("dev_filter_in", 1),
         err:            dev_num("dev_filter_err", 1),
-        muted:          dev_muted(),
-        hide_periodic:  dev_hide_periodic(),
         search:         SEARCH_TEXT,
     };
 }
@@ -418,20 +326,9 @@ function entry_hidden(e, ctx)
     if(e.kind === "log") {
         /*  Mirrored console logs respect the search box only — not the
          *  in/out/err traffic filters, which are about DIRECTION and a
-         *  log has none.
-         *
-         *  The PERIODIC filter does reach them, and it has to: once
-         *  Automata is on, the machine trace is what floods this
-         *  window, and every one of those lines arrives here as a log.
-         *  It applies to a machine TRANSITION only, and never above
-         *  debug level — see log_is_periodic(). By NAME and not by
-         *  count, unlike the traffic half below: a busy FSM crosses
-         *  the recurrence threshold on almost every event within
-         *  seconds, so counting here would empty the window of the
-         *  very transitions somebody turned Automata on to read. */
-        if(ctx.hide_periodic && e.periodic) {
-            return true;
-        }
+         *  log has none. What is traced at all is the runtime's trace
+         *  levels, set by the chips: this window never reads a message
+         *  to decide whether to show it. */
         return !!(ctx.search && e.hay.indexOf(ctx.search) < 0);
     }
     if(e.dir === 1 && !ctx.out) {
@@ -441,12 +338,6 @@ function entry_hidden(e, ctx)
         return true;
     }
     if(e.dir === 3 && !ctx.err) {
-        return true;
-    }
-    if(ctx.muted.has(e.sig)) {
-        return true;
-    }
-    if(ctx.hide_periodic && traffic_is_periodic(e.sig)) {
         return true;
     }
     if(ctx.search && e.hay.indexOf(ctx.search) < 0) {
@@ -481,11 +372,6 @@ function ensure_dev_style()
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 .YDEV_LOG { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 6px 10px; }
-.YDEV_MUTED {
-    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-    padding: 4px 10px; border-bottom: 1px solid rgba(0,0,0,0.08); font-size: 12px;
-}
-.YDEV_MUTED:empty { display: none; }
 .YDEV_STATS {
     flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 14px;
     padding: 6px 10px; border-top: 1px solid rgba(0,0,0,0.1);
@@ -517,7 +403,6 @@ function ensure_dev_style()
 .YDEV_CHIP.s-in.is-active  { background: rgba(5,150,105,0.16); border-color: #059669; color: #059669; }
 .YDEV_CHIP.s-err.is-active { background: rgba(220,38,38,0.16); border-color: #dc2626; color: #dc2626; }
 .YDEV_CHIP[data-dir]:not(.is-active) { opacity: 0.4; text-decoration: line-through; }
-.YDEV_CHIP[data-toggle="periodic"].is-active { background: rgba(217,119,6,0.16); border-color: #d97706; color: #b45309; font-weight: 600; }
 .YDEV_SEG { display: inline-flex; border: 1px solid rgba(0,0,0,0.18); border-radius: 7px; overflow: hidden; }
 .YDEV_SEG_BTN {
     font: inherit; font-size: 12px; padding: 4px 10px; border: 0;
@@ -530,12 +415,6 @@ function ensure_dev_style()
     font: inherit; font-size: 12px; padding: 4px 9px; min-width: 170px;
     border: 1px solid rgba(0,0,0,0.18); border-radius: 7px;
     background: transparent; color: inherit;
-}
-.YDEV_MUTED_CHIP {
-    font: inherit; font-family: "DejaVu Sans Mono", monospace; font-size: 12px;
-    display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px;
-    border: 1px solid rgba(217,119,6,0.5); border-radius: 999px;
-    background: rgba(217,119,6,0.12); color: #b45309; cursor: pointer;
 }
 .YDEV_STAT.s-out { color: #2563eb; } .YDEV_STAT.s-in { color: #059669; } .YDEV_STAT.s-err { color: #dc2626; }
 .YDEV_STAT.s-warn { color: #d97706; }
@@ -564,10 +443,7 @@ function ensure_dev_style()
 .dir-err .TRAFFIC_ARROW, .dir-err .TRAFFIC_EVENT { color: #dc2626; }
 .TRAFFIC_SUMMARY { opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
 .TRAFFIC_META { margin-left: auto; opacity: 0.6; font-size: 11px; white-space: nowrap; }
-.TRAFFIC_MUTE { border: 0; background: transparent; color: inherit; cursor: pointer; opacity: 0; font-size: 12px; padding: 0 2px; flex: 0 0 auto; }
-.TRAFFIC_ENTRY:hover .TRAFFIC_MUTE, .TRAFFIC_LINE:hover .TRAFFIC_MUTE, .TRAFFIC_NAME:hover .TRAFFIC_MUTE { opacity: 0.5; }
-.TRAFFIC_MUTE:hover { opacity: 1 !important; color: #d97706; }
-.TRAFFIC_KW { margin: 2px 0 0 16px; }
+.TRAFFIC_ENTRY:hover .TRAFFIC_KW { margin: 2px 0 0 16px; }
 .TRAFFIC_FULL { margin: 4px 0 0 16px; padding: 6px 8px; font-family: monospace; font-size: 11px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
 .TRAFFIC_ROW { display: flex; gap: 6px; align-items: baseline; }
 .TRAFFIC_BULLET { opacity: 0.45; flex: 0 0 auto; }
@@ -611,9 +487,7 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 :root[data-theme="dark"] .TRAFFIC_VAL.t-bool, :root[data-theme="dark"] .TRAFFIC_VAL.t-null { color: #c084fc; }
 :root[data-theme="dark"] .YDEV_CHIP.is-active { background: rgba(96,165,250,0.2); border-color: #60a5fa; color: #93c5fd; }
 :root[data-theme="dark"] .YDEV_SEG_BTN.is-active { background: #2563eb; color: #fff; }
-:root[data-theme="dark"] .YDEV_CHIP[data-toggle="periodic"].is-active { background: rgba(217,119,6,0.24); border-color: #f59e0b; color: #fbbf24; }
-:root[data-theme="dark"] .YDEV_MUTED_CHIP { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.16); color: #fbbf24; }
-`;
+:root[data-theme="dark"] `;
     let $style = document.createElement('style');
     $style.id = 'yui-dev-style';
     $style.textContent = css;
@@ -727,21 +601,6 @@ function traffic_bullets(obj)
                      ******************************/
 
 
-/*  A small mute affordance that silences this signature (persistent). */
-function mute_button(sig)
-{
-    /*  `t('mute this message')` and not `'Mute ' + sig`: a composed
-     *  title is no i18n key, and the row already says which message.  */
-    return ['button', {class: 'TRAFFIC_MUTE', type: 'button',
-        title: t('mute this message'), 'data-i18n-title': 'mute this message'}, '⊘', {
-        click: (ev) => {
-            ev.stopPropagation();
-            ev.preventDefault();
-            mute_signature(sig);
-        }
-    }];
-}
-
 function event_spans(e)
 {
     let spans = [['span', {class: 'TRAFFIC_ARROW'}, dir_arrow(e.dir)],
@@ -786,7 +645,6 @@ function compact_summary(kw)
 function render_detailed(e)
 {
     let head = event_spans(e);
-    head.push(mute_button(e.sig));
     head.push(['span', {class: 'TRAFFIC_META'}, `${traffic_size(e.size)} · ${e.ts}`]);
 
     let children = [['div', {class: 'TRAFFIC_HEADER'}, head]];
@@ -843,7 +701,6 @@ function full_sections(payload)
 function render_full(e)
 {
     let head = event_spans(e);
-    head.push(mute_button(e.sig));
     head.push(['span', {class: 'TRAFFIC_META'}, `${traffic_size(e.size)} · ${e.ts}`]);
 
     let payload = full_sections(e.kw ? e.kw : e.jn);
@@ -864,7 +721,6 @@ function render_compact(e)
 {
     let kids = event_spans(e);
     kids.push(['span', {class: 'TRAFFIC_SUMMARY'}, compact_summary(e.kw)]);
-    kids.push(mute_button(e.sig));
     kids.push(['span', {class: 'TRAFFIC_META'}, `${traffic_size(e.size)} · ${e.ts}`]);
     return createElement2(['div', {class: 'TRAFFIC_LINE ' + dir_class(e.dir), title: e.title}, kids]);
 }
@@ -872,7 +728,6 @@ function render_compact(e)
 function render_name(e)
 {
     let kids = event_spans(e);
-    kids.push(mute_button(e.sig));
     kids.push(['span', {class: 'TRAFFIC_META'}, e.ts]);
     return createElement2(['div', {class: 'TRAFFIC_NAME ' + dir_class(e.dir), title: e.title}, kids]);
 }
@@ -932,7 +787,6 @@ function render_entry(e)
 function clear_traffic()
 {
     TRAFFIC_LOG.length = 0;
-    TRAFFIC_COUNTS.clear();
     LOG_ERR_COUNT = 0;
     LOG_WARN_COUNT = 0;
     let logger = document.getElementById('developer-traffic-logger');
@@ -1116,7 +970,6 @@ function info_traffic(title, msg, direction, size)
     let event = (jn && jn.event) ? String(jn.event) : "(no event)";
     let kw = (jn && jn.kw && typeof jn.kw === "object") ? jn.kw : null;
     let command = (kw && typeof kw.command === "string") ? kw.command : "";
-    let sig = traffic_signature(event, command);
 
     let hay = "";
     try {
@@ -1126,35 +979,21 @@ function info_traffic(title, msg, direction, size)
     }
 
     let entry = {
-        title: title || "", event: event, command: command, sig: sig,
+        title: title || "", event: event, command: command,
         dir: direction, size: size, ts: traffic_now(),
         kw: kw, jn: jn, hay: hay, $node: null,
     };
 
     TRAFFIC_LOG.push(entry);
-    TRAFFIC_COUNTS.set(sig, (TRAFFIC_COUNTS.get(sig) || 0) + 1);
-
-    /*  When a signature just crosses the "recurring" threshold and
-     *  the periodic filter is on, its earlier entries must disappear
-     *  too — a full repaint is the correct, simple answer. */
-    let crossed = dev_hide_periodic() && (TRAFFIC_COUNTS.get(sig) === PERIODIC_THRESHOLD);
 
     if(TRAFFIC_LOG.length > TRAFFIC_MAX) {
         let old = TRAFFIC_LOG.shift();
-        let c = (TRAFFIC_COUNTS.get(old.sig) || 0) - 1;
-        if(c <= 0) {
-            TRAFFIC_COUNTS.delete(old.sig);
-        } else {
-            TRAFFIC_COUNTS.set(old.sig, c);
-        }
         if(old.$node && old.$node.parentNode) {
             old.$node.parentNode.removeChild(old.$node);
         }
     }
 
-    if(crossed) {
-        rerender_all();
-    } else if(!entry_hidden(entry, build_filter_ctx())) {
+    if(!entry_hidden(entry, build_filter_ctx())) {
         let node = render_entry(entry);
         entry.$node = node;
         /*  Drop the "no traffic yet" placeholder before the first row. */
@@ -1221,28 +1060,14 @@ function info_log(level, msg, hora)
         } else {
             text = is_string(msg) ? msg : String(msg);
         }
-        /*  A machine line is signed by its EVENT, not by "log:debug":
-         *  that is what makes a hundred EV_TIMEOUTs ONE recurring
-         *  thing the filter and the counter can see, instead of a
-         *  hundred anonymous debug lines they cannot tell apart. */
         let entry = {
             kind: "log", level: lvl, text: text,
             dir: 0, size: 0, ts: traffic_now(),
-            sig: log_signature(lvl, text),
-            periodic: log_is_periodic(lvl, text),
             hay: (lvl + " " + text).toLowerCase(), $node: null,
         };
         TRAFFIC_LOG.push(entry);
         if(TRAFFIC_LOG.length > TRAFFIC_MAX) {
             let old = TRAFFIC_LOG.shift();
-            if(old.kind !== "log") {
-                let c = (TRAFFIC_COUNTS.get(old.sig) || 0) - 1;
-                if(c <= 0) {
-                    TRAFFIC_COUNTS.delete(old.sig);
-                } else {
-                    TRAFFIC_COUNTS.set(old.sig, c);
-                }
-            }
             if(old.$node && old.$node.parentNode) {
                 old.$node.parentNode.removeChild(old.$node);
             }
@@ -1270,78 +1095,99 @@ function info_log(level, msg, hora)
                      ******************************/
 
 
-function trace_traffic()
+/*  Send one of the yuno's trace commands; a refusal is said.  */
+function yuno_trace_command(command, kw)
 {
-    let v = Number(kw_get_local_storage_value("trace_traffic"));
-    if(v) {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
-        v = 0;
-    } else {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", true);
-        gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
-        v = 1;
+    let r = gobj_command(gobj_yuno(), command, kw, gobj_yuno());
+    if(!r || r.result < 0) {
+        log_error(`yui_dev: ${command} ${JSON.stringify(kw)}: ${r ? r.comment : "no answer"}`);
     }
-    kw_set_local_storage_value("trace_traffic", v);
     refresh_dev_chrome();
 }
 
-function trace_automata()
+function global_bit(bit)
 {
-    let v = Number(kw_get_local_storage_value("trace_automata"));
+    return (gobj_global_trace_level() & bit) ? 1 : 0;
+}
+
+const GLOBAL_TRACE_BITS = {
+    "machine":       trace_level_t.TRACE_MACHINE,
+    "ev_kw":         trace_level_t.TRACE_EV_KW,
+    "create_delete": trace_level_t.TRACE_CREATE_DELETE,
+    "start_stop":    trace_level_t.TRACE_START_STOP,
+    "subscriptions": trace_level_t.TRACE_SUBSCRIPTIONS,
+};
+
+function toggle_global(level)
+{
+    yuno_trace_command("set-global-trace",
+        {level: level, set: global_bit(GLOBAL_TRACE_BITS[level]) ? 0 : 1});
+}
+
+/*  Automata cycles 0 → 1 (machine) → 2 (machine + the kw of each event) → 0. */
+function automata_state()
+{
+    if(!global_bit(trace_level_t.TRACE_MACHINE)) {
+        return 0;
+    }
+    return global_bit(trace_level_t.TRACE_EV_KW) ? 2 : 1;
+}
+
+function toggle_automata()
+{
+    let v = automata_state();
     if(v === 0) {
-        v = 1;
+        yuno_trace_command("set-global-trace", {level: "machine", set: 1});
     } else if(v === 1) {
-        v = 2;
+        yuno_trace_command("set-global-trace", {level: "ev_kw", set: 1});
     } else {
-        v = 0;
+        yuno_trace_command("set-global-trace", {level: "ev_kw", set: 0});
+        yuno_trace_command("set-global-trace", {level: "machine", set: 0});
     }
-    gobj_write_attr(gobj_yuno(), "tracing", v);
-    kw_set_local_storage_value("trace_automata", v);
-    refresh_dev_chrome();
 }
 
-function trace_creation()
+/*  Traffic is C_IEVENT_CLI's own level, as `set-gclass-trace
+ *  gclass=C_IEVENT_CLI level=ievents` on a node. */
+function traffic_state()
 {
-    let v = Number(kw_get_local_storage_value("trace_creation"));
-    v = v === 0 ? 1 : 0;
-    gobj_write_attr(gobj_yuno(), "trace_creation", v);
-    kw_set_local_storage_value("trace_creation", v);
-    refresh_dev_chrome();
+    return gobj_get_gclass_trace_level2("C_IEVENT_CLI").includes("ievents") ? 1 : 0;
 }
 
-function trace_start_stop()
+function toggle_traffic()
 {
-    let v = Number(kw_get_local_storage_value("trace_start_stop"));
-    v = v === 0 ? 1 : 0;
-    gobj_write_attr(gobj_yuno(), "trace_start_stop", v);
-    kw_set_local_storage_value("trace_start_stop", v);
-    refresh_dev_chrome();
+    yuno_trace_command("set-gclass-trace",
+        {gclass_name: "C_IEVENT_CLI", level: "ievents", set: traffic_state() ? 0 : 1});
 }
 
-function trace_subscriptions()
+/*  Periodic is EV_TIMEOUT_PERIODIC and nothing else: the global level
+ *  `timer_periodic`. main() silences it with the NO-trace of the same
+ *  level, which wins over the trace, so the chip moves both. */
+function periodic_state()
 {
-    let v = Number(kw_get_local_storage_value("trace_subscriptions"));
-    v = v === 0 ? 1 : 0;
-    gobj_write_attr(gobj_yuno(), "trace_subscriptions", v);
-    kw_set_local_storage_value("trace_subscriptions", v);
-    refresh_dev_chrome();
+    let on = gobj_global_trace_level() & trace_level_t.TRACE_TIMER_PERIODIC;
+    let off = gobj_global_trace_no_level() & trace_level_t.TRACE_TIMER_PERIODIC;
+    return (on && !off) ? 1 : 0;
 }
 
-function trace_i18n()
+function toggle_periodic()
 {
-    let v = Number(kw_get_local_storage_value("trace_i18n"));
-    v = v === 0 ? 1 : 0;
+    let v = periodic_state() ? 0 : 1;
+    yuno_trace_command("set-global-trace", {level: "timer_periodic", set: v});
+    yuno_trace_command("set-global-no-trace", {level: "timer_periodic", set: v ? 0 : 1});
+}
+
+/*  I18n is no trace of the runtime: i18next's own debug switch, kept in
+ *  the browser as it always was. */
+function i18n_state()
+{
+    return Number(kw_get_local_storage_value("trace_i18n", 0, false)) ? 1 : 0;
+}
+
+function toggle_i18n()
+{
+    let v = i18n_state() ? 0 : 1;
     i18next.options.debug = v ? true : false;
     kw_set_local_storage_value("trace_i18n", v);
-    refresh_dev_chrome();
-}
-
-function set_no_poll()
-{
-    let v = Number(kw_get_local_storage_value("no_poll"));
-    v = v ? 0 : 1;
-    gobj_write_attr(gobj_yuno(), "no_poll", v);
-    kw_set_local_storage_value("no_poll", v);
     refresh_dev_chrome();
 }
 
@@ -1351,16 +1197,17 @@ function set_no_poll()
                      ******************************/
 
 
-/*  Sync every control's visual state from persisted prefs, plus the
- *  muted-events row and the stats strip. Idempotent; null-guarded so
+/*  Sync every control's visual state -- the trace chips from the
+ *  runtime, the rest from persisted prefs -- plus the stats strip. Idempotent; null-guarded so
  *  it is safe to call whether or not the window is mounted. */
 function refresh_dev_chrome()
 {
     document.querySelectorAll('.YDEV_CHIP[data-trace]').forEach(($b) => {
         let key = $b.getAttribute('data-trace');
+        let def = TRACE_DEFS.find((d) => d[0] === key);
         let label = t($b.getAttribute('data-label') || '');
-        let v = dev_num(key, 0);
-        $b.textContent = (key === "trace_automata" && v > 0) ? (label + " " + v) : label;
+        let v = def ? def[3]() : 0;
+        $b.textContent = (key === "automata" && v > 0) ? (label + " " + v) : label;
         $b.classList.toggle('is-active', v > 0);
     });
 
@@ -1388,38 +1235,9 @@ function refresh_dev_chrome()
         $b.classList.toggle('is-active', !!dev_num($b.getAttribute('data-dir'), 1));
     });
 
-    document.querySelectorAll('.YDEV_CHIP[data-toggle="periodic"]').forEach(($b) => {
-        $b.classList.toggle('is-active', dev_hide_periodic());
-    });
-
     document.querySelectorAll('.YDEV_CHIP[data-toggle="automata-simple"]').forEach(($b) => {
         $b.classList.toggle('is-active', !!dev_simple_mach());
     });
-
-    let $m = document.getElementById('ydev-muted');
-    if($m) {
-        $m.replaceChildren();
-        let set = dev_muted();
-        if(set.size) {
-            let $lbl = document.createElement('span');
-            $lbl.className = 'YDEV_LABEL';
-            $lbl.textContent = t('muted');
-            $lbl.setAttribute('data-i18n', 'muted');
-            $m.appendChild($lbl);
-            set.forEach((sig) => {
-                $m.appendChild(createElement2(
-                    ['button', {class: 'YDEV_MUTED_CHIP', type: 'button',
-                        title: t('unmute'), 'data-i18n-title': 'unmute'},
-                        '⊘ ' + sig + '  ✕', {
-                        click: (ev) => {
-                            ev.stopPropagation();
-                            unmute_signature(sig);
-                        }
-                    }]
-                ));
-            });
-        }
-    }
 
     update_stats();
 }
@@ -1485,17 +1303,19 @@ function dev_fallback_copy(text)
     document.body.removeChild(ta);
 }
 
-/*  The control bar: trace toggles, view selector, direction /
- *  periodic filters, free-text search, copy, clear. Returns an element. */
+/*  The control bar: trace toggles, view selector, direction
+ *  filters, free-text search, copy, clear. Returns an element. */
 function build_control_bar()
 {
-    let trace_chips = TRACE_DEFS.map(([key, label_key, fn]) => ['button', {
+    let trace_chips = TRACE_DEFS.map(([key, label_key, title_key, state, toggle]) => ['button', {
         class: 'YDEV_CHIP', 'data-trace': key, 'data-label': label_key,
         'data-i18n': label_key, type: 'button',
+        title: t(title_key), 'data-i18n-title': title_key,
+        'aria-label': t(label_key), 'data-i18n-aria-label': label_key,
     }, t(label_key), {
         click: (ev) => {
             ev.stopPropagation();
-            fn();
+            toggle();
         }
     }]);
 
@@ -1594,24 +1414,6 @@ function build_control_bar()
         mk_dir('err', '⚠', 'dev_filter_err', 'errors'),
     ];
 
-    let periodic_chip = ['button', {
-        class: 'YDEV_CHIP', 'data-toggle': 'periodic', type: 'button',
-        title: t('hide the timers and the recurring traffic'),
-        'data-i18n-title': 'hide the timers and the recurring traffic',
-    }, [
-        /*  The glyph is its own element so the label beside it can carry
-         *  its key: `refresh_language()` replaces the FIRST text node of
-         *  the element that carries `data-i18n`, and that would have
-         *  eaten the glyph with the word.  */
-        ['span', {class: 'YDEV_GLYPH'}, '⊘'],
-        ['span', {'data-i18n': 'periodic'}, t('periodic')]
-    ], {
-        click: (ev) => {
-            ev.stopPropagation();
-            toggle_pref('dev_hide_periodic', HIDE_PERIODIC_DEFAULT);
-        }
-    }];
-
     let search = ['input', {
         class: 'YDEV_SEARCH', type: 'search', 'data-role': 'search',
         placeholder: t('filter events / payload'),
@@ -1656,7 +1458,7 @@ function build_control_bar()
         grp('traces', [...trace_chips, simple_mach]), sep(),
         grp('output', [output_seg]), sep(),
         grp('view', [view_seg]), expand_grp, sep(),
-        grp('show', [...dir_chips, periodic_chip]), sep(),
+        grp('show', dir_chips), sep(),
         grp('find', [search]), sep(),
         grp('log', [copy, clear]),
     ]]);
@@ -1672,12 +1474,11 @@ function build_title_header()
     ]]);
 }
 
-/*  The monitor body: control bar + muted row + log + stats strip. */
+/*  The monitor body: control bar + log + stats strip. */
 function build_dev_body()
 {
     return createElement2(['div', {class: 'YDEV_BODY'}, [
         build_control_bar(),
-        ['div', {class: 'YDEV_MUTED', id: 'ydev-muted'}, []],
         ['div', {class: 'YDEV_LOG', id: 'developer-traffic-logger'}, []],
         ['div', {class: 'YDEV_STATS', id: 'ydev-stats'}, []],
     ]]);
@@ -1702,32 +1503,19 @@ function dev_window_was_open()
 }
 
 /************************************************************
- *  Apply ALL persisted developer-trace flags to the running
- *  yuno.  Independent of the dev window — call it once at app
- *  startup so a refresh keeps logging whatever was enabled.
+ *  Wire the developer window's sinks and the browser-side prefs.
+ *  Call it once at app startup.
+ *
+ *  The TRACE LEVELS are not here: the yuno restores the ones the user
+ *  persisted in its own mt_create (`trace_levels` / `no_trace_levels`),
+ *  as a C yuno does. What is left is where the output goes.
  ************************************************************/
 function apply_dev_traces()
 {
-    let traffic       = Number(kw_get_local_storage_value("trace_traffic", 0, false));
-    let trace         = Number(kw_get_local_storage_value("trace_automata", 0, false));
-    let creation      = Number(kw_get_local_storage_value("trace_creation", 0, false));
-    let start_stop    = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
-    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
-    let i18n          = Number(kw_get_local_storage_value("trace_i18n", 0, false));
-    let no_poll       = Number(kw_get_local_storage_value("no_poll", 0, false));
+    /*  The traffic trace of C_IEVENT_CLI lands in this window.  */
+    gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
 
-    if(traffic) {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", true);
-        gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
-    } else {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
-    }
-    gobj_write_attr(gobj_yuno(), "tracing", trace);
-    gobj_write_attr(gobj_yuno(), "trace_creation", creation);
-    gobj_write_attr(gobj_yuno(), "trace_start_stop", start_stop);
-    gobj_write_attr(gobj_yuno(), "trace_subscriptions", subscriptions);
-    gobj_write_attr(gobj_yuno(), "no_poll", no_poll);
-    i18next.options.debug = i18n ? true : false;
+    i18next.options.debug = i18n_state() ? true : false;
 
     /*  Which shape the machine trace is written in (persisted). */
     gobj_set_trace_machine_format(dev_simple_mach());
@@ -1812,8 +1600,8 @@ function setup_dev(self, show)
  *
  *  Returns { $el, dispose }:
  *    - $el:     the panel element (control bar + log + stats).
- *    - dispose: stops the inter-event traffic trace; call it from
- *               the modal's on_close.
+ *    - dispose: call it from the modal's on_close (kept for the
+ *               contract; the traces outlive the panel).
  ************************************************************/
 function build_dev_panel()
 {
@@ -1844,8 +1632,9 @@ function build_dev_panel()
         rerender_all();
     }, 0);
 
+    /*  Nothing to undo: a trace level is the yuno's state, persisted,
+     *  and it is not tied to this panel being open.  */
     let dispose = function() {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
     };
 
     return {$el: $el, dispose: dispose};
