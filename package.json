@@ -1,6 +1,6 @@
 {
     "name": "@yuneta/gobj-ui",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "type": "module",
     "main": "dist/gobj-ui.cjs.js",
     "module": "dist/gobj-ui.es.js",
@@ -32,7 +32,7 @@
         "vite": "^8.0.10"
     },
     "peerDependencies": {
-        "@yuneta/gobj-js": "^7.3.4",
+        "@yuneta/gobj-js": "^7.22.0",
         "@antv/g6": "^5.1.0",
         "bulma": "^1.0.4",
         "i18next": "^26.0.7",

@@ -3,7 +3,7 @@
  *
  *          Development Tools
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
@@ -16,6 +16,10 @@ import {
     gobj_write_attr,
     gobj_create_service,
     trace_json,
+    gobj_command,
+    gobj_global_trace_level,
+    gobj_get_gclass_trace_level2,
+    trace_level_t,
 } from "@yuneta/gobj-js";
 
 import i18next from 'i18next';
@@ -132,41 +136,76 @@ function info_traffic(title, msg, direction, size)
 }
 
 /************************************************************
- *
+ *  A button turns trace bits of the runtime on or off through the
+ *  yuno's trace commands (the C kernel's, same names), and the yuno
+ *  persists them (`trace_levels`). What is on is READ from the runtime.
  ************************************************************/
-function trace_traffic()
+function yuno_trace_command(command, kw)
 {
-    let v = kw_get_local_storage_value("trace_traffic");
-    v = Number(v);
-    if(v) {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
-        v = 0;
-    } else {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", true);
-        gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
-        v = 1;
+    let r = gobj_command(gobj_yuno(), command, kw, gobj_yuno());
+    if(!r || r.result < 0) {
+        log_error(`yui_dev: ${command} ${JSON.stringify(kw)}: ${r ? r.comment : "no answer"}`);
     }
-    kw_set_local_storage_value("trace_traffic", v);
     info_user();
 }
 
+function global_bit(bit)
+{
+    return (gobj_global_trace_level() & bit) ? 1 : 0;
+}
+
+function trace_states()
+{
+    let automata = 0;
+    if(global_bit(trace_level_t.TRACE_MACHINE)) {
+        automata = global_bit(trace_level_t.TRACE_EV_KW) ? 2 : 1;
+    }
+    return {
+        automata: automata,
+        creation: global_bit(trace_level_t.TRACE_CREATE_DELETE),
+        start_stop: global_bit(trace_level_t.TRACE_START_STOP),
+        subscriptions: global_bit(trace_level_t.TRACE_SUBSCRIPTIONS),
+        i18n: Number(kw_get_local_storage_value("trace_i18n", 0, false)) ? 1 : 0,
+        traffic: gobj_get_gclass_trace_level2("C_IEVENT_CLI").includes("ievents") ? 1 : 0,
+    };
+}
+
+function trace_counters()
+{
+    let st = trace_states();
+    return [
+        `Automata: ${st.automata}`,
+        `Creation: ${st.creation}`,
+        `Start/Stop: ${st.start_stop}`,
+        `Subscriptions: ${st.subscriptions}`,
+        `I18n: ${st.i18n}`,
+        `Traffic: ${st.traffic}`,
+    ];
+}
+
 /************************************************************
- *
+ *  Traffic is C_IEVENT_CLI's own level `ievents`.
+ ************************************************************/
+function trace_traffic()
+{
+    yuno_trace_command("set-gclass-trace",
+        {gclass_name: "C_IEVENT_CLI", level: "ievents", set: trace_states().traffic ? 0 : 1});
+}
+
+/************************************************************
+ *  0 → 1 (machine) → 2 (machine + kw of each event) → 0
  ************************************************************/
 function trace_automata()
 {
-    let v = kw_get_local_storage_value("trace_automata");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else if(v===1) {
-        v = 2;
+    let v = trace_states().automata;
+    if(v === 0) {
+        yuno_trace_command("set-global-trace", {level: "machine", set: 1});
+    } else if(v === 1) {
+        yuno_trace_command("set-global-trace", {level: "ev_kw", set: 1});
     } else {
-        v = 0;
+        yuno_trace_command("set-global-trace", {level: "ev_kw", set: 0});
+        yuno_trace_command("set-global-trace", {level: "machine", set: 0});
     }
-    gobj_write_attr(gobj_yuno(), "tracing", v);
-    kw_set_local_storage_value("trace_automata", v);
-    info_user();
 }
 
 /************************************************************
@@ -174,16 +213,8 @@ function trace_automata()
  ************************************************************/
 function trace_creation()
 {
-    let v = kw_get_local_storage_value("trace_creation");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else {
-        v = 0;
-    }
-    gobj_write_attr(gobj_yuno(), "trace_creation", v);
-    kw_set_local_storage_value("trace_creation", v);
-    info_user();
+    yuno_trace_command("set-global-trace",
+        {level: "create_delete", set: trace_states().creation ? 0 : 1});
 }
 
 /************************************************************
@@ -191,16 +222,8 @@ function trace_creation()
  ************************************************************/
 function trace_start_stop()
 {
-    let v = kw_get_local_storage_value("trace_start_stop");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else {
-        v = 0;
-    }
-    gobj_write_attr(gobj_yuno(), "trace_start_stop", v);
-    kw_set_local_storage_value("trace_start_stop", v);
-    info_user();
+    yuno_trace_command("set-global-trace",
+        {level: "start_stop", set: trace_states().start_stop ? 0 : 1});
 }
 
 /************************************************************
@@ -208,49 +231,18 @@ function trace_start_stop()
  ************************************************************/
 function trace_subscriptions()
 {
-    let v = kw_get_local_storage_value("trace_subscriptions");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else {
-        v = 0;
-    }
-    gobj_write_attr(gobj_yuno(), "trace_subscriptions", v);
-    kw_set_local_storage_value("trace_subscriptions", v);
-    info_user();
+    yuno_trace_command("set-global-trace",
+        {level: "subscriptions", set: trace_states().subscriptions ? 0 : 1});
 }
 
 /************************************************************
- *
+ *  No trace of the runtime: i18next's own debug switch.
  ************************************************************/
 function trace_i18n()
 {
-    let v = kw_get_local_storage_value("trace_i18n");
-    v = Number(v);
-    if(v===0) {
-        v = 1;
-    } else {
-        v = 0;
-    }
+    let v = trace_states().i18n ? 0 : 1;
     i18next.options.debug = v?true:false;
     kw_set_local_storage_value("trace_i18n", v);
-    info_user();
-}
-
-/************************************************************
- *
- ************************************************************/
-function set_no_poll()
-{
-    let v = kw_get_local_storage_value("no_poll");
-    v = Number(v);
-    if(v) {
-        v = 0;
-    } else {
-        v = 1;
-    }
-    gobj_write_attr(gobj_yuno(), "no_poll", v);
-    kw_set_local_storage_value("no_poll", v);
     info_user();
 }
 
@@ -260,28 +252,13 @@ function set_no_poll()
 function info_user()
 {
     let $info = document.getElementById("developer-window-info");
+    if(!$info) {
+        return;
+    }
 
-    let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
-    let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
-    let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
-    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
-    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
-
-    let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
-    let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
-
-    // Code repeated
-    // Build with DOM instead of innerHTML to prevent any XSS via localStorage values
+    // Build with DOM instead of innerHTML
     $info.replaceChildren();
-    [
-        `Automata: ${trace}`,
-        `Creation: ${creation}`,
-        `Start/Stop: ${start_stop}`,
-        `Subscriptions: ${subscriptions}`,
-        `I18n: ${i18n}`,
-        `Traffic: ${traffic}`,
-        `No poll: ${no_poll}`,
-    ].forEach(text => {
+    trace_counters().forEach(text => {
         const div = document.createElement('div');
         div.textContent = text;
         $info.appendChild(div);
@@ -301,35 +278,16 @@ function dev_window_was_open()
 }
 
 /************************************************************
- *  Apply ALL persisted developer-trace flags to the running
- *  yuno.  Independent of the dev window — call it once at app
- *  startup so a refresh keeps logging whatever was enabled.
- *  Single source of truth for "localStorage flag → effect";
- *  setup_dev() and build_dev_panel() reuse it instead of each
- *  re-applying a partial subset.
+ *  Wire the traffic sink and i18n debug.  Call it once at app
+ *  startup.  The trace levels themselves are persisted and
+ *  restored by the yuno (see gobj-js C_YUNO).
  ************************************************************/
 function apply_dev_traces()
 {
-    let traffic       = Number(kw_get_local_storage_value("trace_traffic", 0, false));
-    let trace         = Number(kw_get_local_storage_value("trace_automata", 0, false));
-    let creation      = Number(kw_get_local_storage_value("trace_creation", 0, false));
-    let start_stop    = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
-    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
-    let i18n          = Number(kw_get_local_storage_value("trace_i18n", 0, false));
-    let no_poll       = Number(kw_get_local_storage_value("no_poll", 0, false));
-
-    if(traffic) {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", true);
-        gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
-    } else {
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
-    }
-    gobj_write_attr(gobj_yuno(), "tracing", trace);
-    gobj_write_attr(gobj_yuno(), "trace_creation", creation);
-    gobj_write_attr(gobj_yuno(), "trace_start_stop", start_stop);
-    gobj_write_attr(gobj_yuno(), "trace_subscriptions", subscriptions);
-    gobj_write_attr(gobj_yuno(), "no_poll", no_poll);
-    i18next.options.debug = i18n ? true : false;
+    /*  The trace LEVELS are the yuno's, restored by its mt_create from
+     *  what the user persisted. Here only where the traffic goes.  */
+    gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
+    i18next.options.debug = trace_states().i18n ? true : false;
 }
 
 /************************************************************
@@ -346,14 +304,6 @@ function apply_dev_traces()
  ************************************************************/
 function setup_dev(self, show)
 {
-    let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
-    let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
-    let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
-    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
-    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
-    let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
-    let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
-
     if(show) {
         const $dev_toolbar = createElement2(
             ['div', {class: 'buttons'}, [
@@ -407,14 +357,6 @@ function setup_dev(self, show)
                 }],
                 ['button', {
                     class: 'button',
-                }, 'No Poll', {
-                    click: (evt) => {
-                        evt.stopPropagation();
-                        set_no_poll();
-                    }
-                }],
-                ['button', {
-                    class: 'button',
                 }, 'Clear Traffic', {
                     click: (evt) => {
                         evt.stopPropagation();
@@ -436,15 +378,7 @@ function setup_dev(self, show)
         //     gobj_save_persistent_attrs();
         // }
 
-        // Code repeated
-        let estados = `
-        <div>Automata: ${trace}</div>
-        <div>Creation: ${creation}</div>
-        <div>Start/Stop: ${start_stop}</div>
-        <div>Subscriptions: ${subscriptions}</div>
-        <div>I18n: ${i18n}</div>
-        <div>Traffic: ${traffic}</div>
-        <div>No poll: ${no_poll}</div>`;
+        let estados = trace_counters().map(txt => `<div>${txt}</div>`).join("");
 
         gobj_create_service(
             "Developer-Window",
@@ -482,22 +416,14 @@ function setup_dev(self, show)
  *  Returns { $el, dispose }:
  *    - $el:     the panel element (header tabs + traffic logger
  *               body + footer counters).
- *    - dispose: stops the inter-event traffic trace; call it from
- *               the modal's on_close.
+ *    - dispose: call it from the modal's on_close (kept for the
+ *               contract; the traces outlive the panel).
  *
  *  Backwards compatible: setup_dev() (old shell, C_YUI_WINDOW) is
  *  untouched; the trace_* helpers and info_traffic are shared.
  ************************************************************/
 function build_dev_panel()
 {
-    let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
-    let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
-    let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
-    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
-    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
-    let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
-    let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
-
     let mk_btn = (label, fn) => ['button', {
         class: 'button is-small',
     }, label, {
@@ -507,11 +433,7 @@ function build_dev_panel()
         }
     }];
 
-    let counters = [
-        `Automata: ${trace}`, `Creation: ${creation}`,
-        `Start/Stop: ${start_stop}`, `Subscriptions: ${subscriptions}`,
-        `I18n: ${i18n}`, `Traffic: ${traffic}`, `No poll: ${no_poll}`,
-    ].map(txt => ['div', {style: 'padding:0 8px;'}, txt]);
+    let counters = trace_counters().map(txt => ['div', {style: 'padding:0 8px;'}, txt]);
 
     // The shell modal drops content into a transparent, unsized
     // Bulma .modal-content; the panel must be its own opaque,
@@ -546,7 +468,6 @@ function build_dev_panel()
                 mk_btn('Subscriptions', trace_subscriptions),
                 mk_btn('I18n', trace_i18n),
                 mk_btn('Traffic', trace_traffic),
-                mk_btn('No Poll', set_no_poll),
                 mk_btn('Clear Traffic', () => {
                     let l = document.getElementById("developer-traffic-logger");
                     if(l) {
@@ -572,9 +493,8 @@ function build_dev_panel()
 
     apply_dev_traces();
 
+    /*  Nothing to undo: the trace levels are the yuno's, persisted.  */
     let dispose = function() {
-        // Stop feeding traffic into a detached DOM.
-        gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
     };
 
     return {$el: $el, dispose: dispose};
