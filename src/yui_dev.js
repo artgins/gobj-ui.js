@@ -1064,9 +1064,13 @@ function info_log(level, msg, hora)
         } else {
             text = is_string(msg) ? msg : String(msg);
         }
+        /*  The time the line was WRITTEN, which the backlog replayed to a
+         *  late sink makes different from now: `hora` is gobj-js's local
+         *  timestamp (YYYY-MM-DDTHH:MM:SS.mmm±hhmm).  */
+        let ts = (is_string(hora) && hora.length >= 23) ? hora.slice(11, 23) : traffic_now();
         let entry = {
             kind: "log", level: lvl, text: text,
-            dir: 0, size: 0, ts: traffic_now(),
+            dir: 0, size: 0, ts: ts,
             hay: (lvl + " " + text).toLowerCase(), $node: null,
         };
         /*  Buffered always: the window shows what the app logged before it

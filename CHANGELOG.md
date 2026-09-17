@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.175
+
+**The Developer window stamps a log line with the time it was written.** With
+gobj-js 7.22.2 a sink is handed the lines written before it was installed, and
+the window stamped every row with the time it ARRIVED -- a whole start up at the
+same millisecond. It reads the line's own timestamp now. Peer gobj-js `^7.22.2`,
+whose two fixes are what make the window and the browser console show the same
+lines: the kw only with `ev_kw`, and the backlog replayed to a late sink.
+
 ## 7.23.174
 
 Three fixes to the Developer window, found using it on the deployed agent
