@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.173
+
+**fix(dev): an app with no websocket logged an error on every repaint of the
+Developer window.** The Traffic chip read `C_IEVENT_CLI`'s levels, and an app
+that registers no `C_IEVENT_CLI` (the demo) answered *"gclass NOT FOUND"* each
+time. The chip is off there now, and a click says there is no traffic to trace.
+Found driving the deployed window on demo.yuneta.io.
+
 ## 7.23.172
 
 **BREAKING (peer `@yuneta/gobj-js` `^7.22.0`): the Developer window turns the

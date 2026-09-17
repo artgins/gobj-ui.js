@@ -17,6 +17,7 @@ import {
     gobj_global_trace_level,
     gobj_global_trace_no_level,
     gobj_get_gclass_trace_level2,
+    gclass_find_by_name,
     trace_level_t,
     log_error,
     gobj_create_service,
@@ -1150,11 +1151,20 @@ function toggle_automata()
  *  gclass=C_IEVENT_CLI level=ievents` on a node. */
 function traffic_state()
 {
+    /*  An app with no websocket registers no C_IEVENT_CLI: nothing to trace,
+     *  and nothing wrong with that, so ask before reading its levels.  */
+    if(!gclass_find_by_name("C_IEVENT_CLI")) {
+        return 0;
+    }
     return gobj_get_gclass_trace_level2("C_IEVENT_CLI").includes("ievents") ? 1 : 0;
 }
 
 function toggle_traffic()
 {
+    if(!gclass_find_by_name("C_IEVENT_CLI")) {
+        log_error("yui_dev: no C_IEVENT_CLI in this app, there is no traffic to trace");
+        return;
+    }
     yuno_trace_command("set-gclass-trace",
         {gclass_name: "C_IEVENT_CLI", level: "ievents", set: traffic_state() ? 0 : 1});
 }
