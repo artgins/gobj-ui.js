@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.178
+
+**No more tooltips over the Developer window's log.** Four `title` attributes
+popped a box over what was being read, and three of them repeated what was
+already on the screen: the entry's (the gobj and the url it went through), each
+VALUE's (the full text -- on a value shorter than the 200-char clip, which is
+almost all of them, the same string again), the folded object's count, and the
+log row's level, which is the first span of that same row. The entry's source
+is still printed in the browser console's line, and the whole of a clipped
+value is one click away in the Expanded view.
+
+The toolbar keeps its titles: there a title is the control's NAME, and every
+control must carry one.
+
 ## 7.23.177
 
 Two things about reading a payload in the Developer window, both found reading

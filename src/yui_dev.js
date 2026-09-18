@@ -532,8 +532,8 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 
 /************************************************************
  *  One scalar field as a bullet row: `• key: value`.
- *  Type-coloured; long strings clipped (full text on hover);
- *  timestamp fields get an ISO annotation.
+ *  Type-coloured; long strings clipped (the whole value is in the Expanded
+ *  view); timestamp fields get an ISO annotation.
  ************************************************************/
 function traffic_scalar_row(key, value)
 {
@@ -553,13 +553,16 @@ function traffic_scalar_row(key, value)
         text = String(value);
     }
 
-    let full = text;
     if(text.length > 200) {
         text = text.slice(0, 200) + "…";
     }
 
+    /*  No `title` with the full text: a tooltip that pops over the log while
+        it is being read is what this window had too much of, and the whole
+        value is one click away in the Expanded view. On a value SHORTER than
+        the clip -- almost all of them -- it repeated the visible text anyway.  */
     let val_children = [
-        ['span', {class: 'TRAFFIC_VAL ' + cls, title: full}, text],
+        ['span', {class: 'TRAFFIC_VAL ' + cls}, text],
     ];
     if((key in TRAFFIC_TS_FIELDS) && typeof value === "number") {
         let iso = traffic_iso(value);
@@ -662,7 +665,7 @@ function traffic_value_node(key, value)
         ['summary', {}, [
             ['span', {class: 'TRAFFIC_BULLET'}, '▸'],
             ['span', {class: 'TRAFFIC_NEST_KEY'}, key],
-            ['span', {class: 'TRAFFIC_NEST_HINT', title: `${count}`}, hint],
+            ['span', {class: 'TRAFFIC_NEST_HINT'}, hint],
         ]],
         ['div', {class: 'TRAFFIC_KW'}, traffic_bullets(value)],
     ]];
@@ -715,7 +718,7 @@ function render_detailed(e)
     } else if(!kw) {
         children.push(['div', {class: 'TRAFFIC_KW'}, traffic_bullets(e.jn)]);
     }
-    return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir), title: e.title}, children]);
+    return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir)}, children]);
 }
 
 /*  Whether an Expanded-view section is shown (persisted toggles). schema
@@ -775,14 +778,14 @@ function render_full(e)
         ['div', {class: 'TRAFFIC_HEADER'}, head],
         ['pre', {class: 'TRAFFIC_FULL'}, text],
     ];
-    return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir), title: e.title}, children]);
+    return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir)}, children]);
 }
 
 /*  A mirrored framework log line (error/warning/info/debug/msg). */
 function render_log(e)
 {
     let $row = createElement2(
-        ['div', {class: 'YDEV_LOGROW YDEV_LOG_' + e.level, title: e.level}, [
+        ['div', {class: 'YDEV_LOGROW YDEV_LOG_' + e.level}, [
             ['span', {class: 'YDEV_LOG_LVL'}, e.level],
             ['span', {class: 'YDEV_LOG_TXT'}, ''],
             ['span', {class: 'TRAFFIC_META'}, e.ts],
