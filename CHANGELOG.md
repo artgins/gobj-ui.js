@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.177
+
+Two things about reading a payload in the Developer window, both found reading
+one on the deployed treedb GUI.
+
+- **A payload no longer MOVES when the pointer passes over it.** The indent of
+  a nested block was given only under `.TRAFFIC_ENTRY:hover`, so every nested
+  payload in the entry the cursor crossed jumped 16px sideways and reflowed --
+  while it was being read. The indent is the block's, always.
+- **A folded object says its first FIELDS, not how many it has.** `{5}` is
+  true and says nothing: a schema of twelve column descriptors was twelve
+  identical `{5}`, and finding the one for `tags` meant opening them one at a
+  time. It reads `{header: "id", fillspace: 18, type: "string", flag: […], …}`
+  now -- the browser console's idea, copied. Up to four fields and about 90
+  characters; strings are quoted (in one line of several fields the quotes are
+  what separate a value from the next key) and a nested container is not
+  entered (`{…}` / `[…]`), because a preview that recursed would be as long as
+  what it previews. The count moves to the tooltip. An ARRAY keeps `[N]`: for
+  a list the number IS the useful thing.
+
 ## 7.23.176
 
 **The Developer window: TRAFFIC and TRACES are two feeds, and each gets its own

@@ -468,7 +468,12 @@ function ensure_dev_style()
 .dir-in  .TRAFFIC_ARROW, .dir-in  .TRAFFIC_EVENT { color: #059669; }
 .dir-err .TRAFFIC_ARROW, .dir-err .TRAFFIC_EVENT { color: #dc2626; }
 .TRAFFIC_META { margin-left: auto; opacity: 0.6; font-size: 11px; white-space: nowrap; }
-.TRAFFIC_ENTRY:hover .TRAFFIC_KW { margin: 2px 0 0 16px; }
+/*  The indent of a nested block is NOT a hover effect: it used to be given
+    only on .TRAFFIC_ENTRY:hover, so moving the cursor across the log made
+    every payload under it jump 16px sideways and reflow. A payload being
+    read must not move because the pointer passed over it.
+    (No backticks in here: this stylesheet is a template literal.)  */
+.TRAFFIC_KW { margin: 2px 0 0 16px; }
 .TRAFFIC_FULL { margin: 4px 0 0 16px; padding: 6px 8px; font-family: monospace; font-size: 11px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
 .TRAFFIC_ROW { display: flex; gap: 6px; align-items: baseline; }
 .TRAFFIC_BULLET { opacity: 0.45; flex: 0 0 auto; }
@@ -570,6 +575,67 @@ function traffic_scalar_row(key, value)
     ]];
 }
 
+/*  What a FOLDED object says about itself, the way a browser console says it:
+ *  its first fields rather than a count. `{5}` is true and tells the reader
+ *  nothing -- a list of twelve column descriptors was twelve identical `{5}`,
+ *  and finding the one for `tags` meant opening them one at a time. The
+ *  console prints `Object { header: "id", fillspace: 18, … }` and that is the
+ *  idea copied here.
+ *
+ *  Strings are QUOTED, unlike the expanded rows: in one line of several
+ *  fields the quotes are what separate a value from the next key.
+ *  A nested container is not entered -- it says `{…}` / `[…]` -- because a
+ *  preview that recursed would be as long as the thing it previews.
+ *
+ *  The count is not lost: it stays in the tooltip, for an object whose first
+ *  fields do not fit.  */
+const PREVIEW_MAX_KEYS = 4;
+const PREVIEW_MAX_CHARS = 90;
+const PREVIEW_MAX_VALUE = 28;
+
+function preview_scalar(v)
+{
+    if(v === null) {
+        return "null";
+    }
+    if(typeof v === "string") {
+        let text = (v.length > PREVIEW_MAX_VALUE) ?
+            v.slice(0, PREVIEW_MAX_VALUE) + "…" : v;
+        return '"' + text + '"';
+    }
+    if(typeof v === "object") {
+        return Array.isArray(v) ? "[…]" : "{…}";
+    }
+    return String(v);
+}
+
+function object_preview(obj, count)
+{
+    let keys = Object.keys(obj);
+    let parts = [];
+    let used = 0;
+
+    for(let k of keys) {
+        if(parts.length >= PREVIEW_MAX_KEYS) {
+            break;
+        }
+        let part = k + ": " + preview_scalar(obj[k]);
+        /*  Stop at the width, but never with an empty preview: one field
+            too wide still says more than a number.  */
+        if(parts.length > 0 && used + part.length > PREVIEW_MAX_CHARS) {
+            break;
+        }
+        parts.push(part);
+        used += part.length + 2;
+    }
+
+    if(parts.length < count) {
+        parts.push("…");
+    }
+
+    return "{" + parts.join(", ") + "}";
+}
+
 /************************************************************
  *  One field of any type. Scalars → a bullet row; objects and
  *  arrays → a collapsed <details> so metadata / nested payloads
@@ -591,12 +657,12 @@ function traffic_value_node(key, value)
         ]];
     }
 
-    let hint = is_arr ? `[${count}]` : `{${count}}`;
+    let hint = is_arr ? `[${count}]` : object_preview(value, count);
     return ['details', {class: 'TRAFFIC_NEST'}, [
         ['summary', {}, [
             ['span', {class: 'TRAFFIC_BULLET'}, '▸'],
             ['span', {class: 'TRAFFIC_NEST_KEY'}, key],
-            ['span', {class: 'TRAFFIC_NEST_HINT'}, hint],
+            ['span', {class: 'TRAFFIC_NEST_HINT', title: `${count}`}, hint],
         ]],
         ['div', {class: 'TRAFFIC_KW'}, traffic_bullets(value)],
     ]];
