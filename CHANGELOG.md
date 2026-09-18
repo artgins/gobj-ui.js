@@ -5,6 +5,53 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.176
+
+**The Developer window: TRAFFIC and TRACES are two feeds, and each gets its own
+controls.** They shared one selector, and it steered the wrong feed. The four
+view modes (Detailed / Expanded / Compact / Name only) rewrote the **traffic**
+-- `Name only` reduced a message to its event name and nothing else -- while
+the **trace** lines (automata, creation, start/stop) ignored the selector
+altogether and were painted the one way, always.
+
+So the one feed whose shape you might want to change could not be changed, and
+the one you tick when you want to READ what is going to the backend was the one
+being reduced to a list of names. Reported from the agent console, with Traffic
+ticked alone and the window showing four event names beside a browser console
+showing the four payloads.
+
+- **VIEW is now the TRAFFIC feed's, and says only how much room its payload
+  takes**: `Collapsed` (the folding bullets) or `Expanded` (the JSON laid out,
+  with the schema / data / metadata chips). The payload is ALWAYS there.
+  `render_compact()` and `render_name()` are gone, with `compact_summary()`
+  and the two helpers only it reached.
+- **The TRACES row carries what shapes a trace**: the existing `Simple mach`
+  chip (the machine-trace format, the C kernel's two shapes) and a new
+  **`Payload`** chip for the `json` lines a trace dumps (an `ev_kw`, a
+  publication). That last one used to hang off the traffic view being set to
+  `Compact`/`Name only` -- another feed's control -- so the trace payloads
+  disappeared with no control saying it had done it.
+- Both feeds can be on at once, which is why neither control may borrow the
+  other's, and why both groups are always visible.
+
+**And the console mirror of the traffic now obeys the same two things the
+window does.** `console_traffic()` was called BEFORE the filter and never read
+the view: a line the window had just hidden (a direction chip, the FIND box)
+went on printing in the pane beside it, and it always printed the detailed
+form. The filter is computed once and both sinks obey it; the view picks the
+console's shape too. This is the promise 7.23.33 made for the framework LOGS
+-- one rule, two sinks -- which the traffic half had never kept.
+
+**Consumer i18n.** New keys `collapsed`, `payload`, `traffic payload folded`,
+`traffic payload laid out`, `show the payload of the traces`; `detailed` and
+`name only` are no longer used by this window. The full list to copy is above
+`TRACE_DEFS` in `yui_dev.js` -- these keys arrive as VARIABLES, so no
+`validate-locales` scan sees them.
+
+**Storage.** New keys `dev_traffic_view` (default `collapsed`) and
+`dev_traces_payload` (default on). The old `dev_view_mode` is left where it is
+and simply stops being read.
+
 ## 7.23.175
 
 **The Developer window stamps a log line with the time it was written.** With

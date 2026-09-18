@@ -79,13 +79,14 @@ const TRAFFIC_TS_FIELDS = {
  *  kept here so it can be copied:
  *
  *      automata, both, browser console only, clear,
- *      clear captured traffic, compact, console, copied, copy,
- *      copy visible traffic to clipboard, creation, data, detailed,
+ *      clear captured traffic, collapsed, console, copied, copy,
+ *      copy visible traffic to clipboard, creation, data,
  *      dev window and browser console, dev window only, developer,
  *      clear the filter, errors, expand, expanded, filter events / payload,
  *      find, i18n,
  *      i18next debug output, incoming, log, machine trace shape,
- *      metadata, name only, outgoing, output, periodic, schema, show,
+ *      metadata, outgoing, output, payload, periodic, schema, show,
+ *      show the payload of the traces,
  *      show this section in the expanded view, simple mach,
  *      start / stop, subscriptions,
  *      trace every event of every automaton,
@@ -94,7 +95,8 @@ const TRAFFIC_TS_FIELDS = {
  *      trace the messages to and from the backend,
  *      trace the periodic timer event,
  *      trace the start and stop of gobjs,
- *      traces, traffic, view, window, yuno monitor
+ *      traces, traffic, traffic payload folded,
+ *      traffic payload laid out, view, window, yuno monitor
  *
  *  wattyzer and the yunovatios GUIs carry them; check a new consumer
  *  against this list, and confirm it by DUMPING the window.  */
@@ -168,29 +170,6 @@ function traffic_iso(value)
     }
 }
 
-/************************************************************
- *  Clip a string for inline display (full text kept elsewhere).
- ************************************************************/
-function traffic_clip(s, n)
-{
-    s = String(s);
-    return s.length > n ? s.slice(0, n) + "…" : s;
-}
-
-/************************************************************
- *  A scalar rendered as a short inline token (for summaries).
- ************************************************************/
-function traffic_scalar_text(v)
-{
-    if(v === null) {
-        return "null";
-    }
-    if(typeof v === "string") {
-        return traffic_clip(v, 40);
-    }
-    return String(v);
-}
-
 function dir_class(dir)
 {
     return (dir === 2) ? "dir-in" : (dir === 3) ? "dir-err" : "dir-out";
@@ -212,10 +191,33 @@ function dev_num(key, def)
     return Number(kw_get_local_storage_value(key, (def === undefined ? 0 : def), false));
 }
 
-function dev_view()
+/*  TRAFFIC and TRACES are two FEEDS, and each carries its own controls.
+ *
+ *  They used to share one selector, and it steered the wrong one: the four
+ *  view modes rewrote the traffic -- down to a bare event name -- while the
+ *  trace lines ignored them altogether. Someone who ticks Traffic alone to
+ *  read what is going to the backend got a list of event names, and the one
+ *  feed whose shape they might want to change did not change.
+ *
+ *  Both feeds can be on at once, so neither control may borrow the other's:
+ *  the traffic's lives in the VIEW group, the traces' in the TRACES row,
+ *  beside the chip that picks the machine-trace shape.
+ *
+ *  The traffic payload is ALWAYS there; the view says whether it is folded.
+ *  The old `dev_view_mode` key is left where it is and simply stops being
+ *  read (same as SIMPLE_MACH_KEY below).  */
+function dev_traffic_view()
 {
-    let v = kw_get_local_storage_value("dev_view_mode", "detailed", false);
-    return (v === "compact" || v === "name" || v === "full") ? v : "detailed";
+    let v = kw_get_local_storage_value("dev_traffic_view", "collapsed", false);
+    return (v === "expanded") ? "expanded" : "collapsed";
+}
+
+/*  Whether the trace's PAYLOAD lines (level `json`: the kw a trace dumps
+ *  with ev_kw, or a publication) are shown. Default ON, which is what the
+ *  old default view showed.  */
+function dev_traces_payload()
+{
+    return dev_num("dev_traces_payload", 1) ? 1 : 0;
 }
 
 /*  Which SHAPE the machine trace is written in — the two the C kernel
@@ -268,23 +270,38 @@ function apply_console_route()
 
 /*  Emit one inter-event traffic line to the browser console (routes
  *  "console" and "both"). gobj-js only knows about framework logs, not this
- *  traffic feed, so the console mirror is produced here. */
+ *  traffic feed, so the console mirror is produced here.
+ *
+ *  It follows the VIEW, because the window and the console are two sinks of
+ *  ONE feed and may not disagree about what they are showing: `expanded`
+ *  prints the payload laid out, `collapsed` hands the object to the console
+ *  and lets it fold it. The same promise the log filter made in 7.23.33 --
+ *  one rule, two sinks -- which the traffic half had never kept. */
 function console_traffic(title, jn, direction, size)
 {
     let event = (jn && jn.event) ? String(jn.event) : "(no event)";
     let kw = (jn && jn.kw && typeof jn.kw === "object") ? jn.kw : jn;
     let color = (direction === 2) ? "#16a34a" : (direction === 3) ? "#dc2626" : "#2563eb";
-    window.console.log(
-        "%c" + dir_arrow(direction) + " " + (title ? "[" + title + "] " : "") + event +
-            (size ? "  (" + size + "b)" : ""),
-        "color:" + color,
-        kw
-    );
+    let head = "%c" + dir_arrow(direction) + " " + (title ? "[" + title + "] " : "") + event +
+            (size ? "  (" + size + "b)" : "");
+
+    if(dev_traffic_view() === "expanded") {
+        let text;
+        try {
+            text = JSON.stringify(full_sections(kw), null, 4);
+        } catch(err) {
+            text = String(kw);
+        }
+        window.console.log(head, "color:" + color, "\n" + text);
+        return;
+    }
+
+    window.console.log(head, "color:" + color, kw);
 }
 
-function set_view(v)
+function set_traffic_view(v)
 {
-    kw_set_local_storage_value("dev_view_mode", v);
+    kw_set_local_storage_value("dev_traffic_view", (v === "expanded") ? "expanded" : "collapsed");
     rerender_all();
     refresh_dev_chrome();
 }
@@ -320,7 +337,7 @@ function build_filter_ctx()
         inc:            dev_num("dev_filter_in", 1),
         err:            dev_num("dev_filter_err", 1),
         search:         SEARCH_TEXT,
-        view:           dev_view(),
+        payload:        dev_traces_payload(),
     };
 }
 
@@ -328,9 +345,11 @@ function entry_hidden(e, ctx)
 {
     if(e.kind === "log") {
         /*  A `json` line is a PAYLOAD (the kw the trace dumps with ev_kw or a
-         *  publication): the Compact and Name only views promise one line
-         *  per message, so they leave it out. Its level says what it is.  */
-        if(e.level === "json" && (ctx.view === "name" || ctx.view === "compact")) {
+         *  publication), and the TRACES row says whether those are wanted.
+         *  It used to hang off the traffic view, which is another feed's
+         *  control: turning the traffic into names silently took the
+         *  traces' payloads away with it.  */
+        if(e.level === "json" && !ctx.payload) {
             return true;
         }
         /*  Mirrored console logs respect the search box only — not the
@@ -432,17 +451,15 @@ function ensure_dev_style()
 .YDEV_TITLE_MAIN { font-weight: 700; }
 .YDEV_TITLE_SUB { opacity: 0.7; font-size: 12px; }
 /* -------- entries (shared) -------- */
-.TRAFFIC_ENTRY, .TRAFFIC_LINE, .TRAFFIC_NAME {
+.TRAFFIC_ENTRY {
     border-left: 3px solid #94a3b8; border-radius: 3px;
     font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 13px;
     background: rgba(0,0,0,0.02);
 }
 .TRAFFIC_ENTRY { margin: 6px 0; padding: 4px 8px; line-height: 1.55; }
-.TRAFFIC_LINE  { margin: 2px 0; padding: 2px 8px; display: flex; align-items: baseline; gap: 8px; }
-.TRAFFIC_NAME  { margin: 1px 0; padding: 1px 8px; display: flex; align-items: baseline; gap: 8px; background: transparent; }
-.TRAFFIC_ENTRY.dir-out, .TRAFFIC_LINE.dir-out, .TRAFFIC_NAME.dir-out { border-left-color: #2563eb; }
-.TRAFFIC_ENTRY.dir-in,  .TRAFFIC_LINE.dir-in,  .TRAFFIC_NAME.dir-in  { border-left-color: #059669; }
-.TRAFFIC_ENTRY.dir-err, .TRAFFIC_LINE.dir-err, .TRAFFIC_NAME.dir-err { border-left-color: #dc2626; }
+.TRAFFIC_ENTRY.dir-out { border-left-color: #2563eb; }
+.TRAFFIC_ENTRY.dir-in { border-left-color: #059669; }
+.TRAFFIC_ENTRY.dir-err { border-left-color: #dc2626; }
 .TRAFFIC_HEADER { display: flex; align-items: baseline; gap: 8px; }
 .TRAFFIC_ARROW { font-weight: 700; }
 .TRAFFIC_EVENT { font-weight: 700; }
@@ -450,7 +467,6 @@ function ensure_dev_style()
 .dir-out .TRAFFIC_ARROW, .dir-out .TRAFFIC_EVENT { color: #2563eb; }
 .dir-in  .TRAFFIC_ARROW, .dir-in  .TRAFFIC_EVENT { color: #059669; }
 .dir-err .TRAFFIC_ARROW, .dir-err .TRAFFIC_EVENT { color: #dc2626; }
-.TRAFFIC_SUMMARY { opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
 .TRAFFIC_META { margin-left: auto; opacity: 0.6; font-size: 11px; white-space: nowrap; }
 .TRAFFIC_ENTRY:hover .TRAFFIC_KW { margin: 2px 0 0 16px; }
 .TRAFFIC_FULL { margin: 4px 0 0 16px; padding: 6px 8px; font-family: monospace; font-size: 11px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
@@ -483,10 +499,10 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 :root[data-theme="dark"] .YDEV_BAR, :root[data-theme="dark"] .YDEV_STATS { background: rgba(255,255,255,0.04); }
 :root[data-theme="dark"] .YDEV_SEP { background: rgba(255,255,255,0.14); }
 :root[data-theme="dark"] .YDEV_CHIP, :root[data-theme="dark"] .YDEV_SEG, :root[data-theme="dark"] .YDEV_SEARCH { border-color: rgba(255,255,255,0.2); }
-:root[data-theme="dark"] .TRAFFIC_ENTRY, :root[data-theme="dark"] .TRAFFIC_LINE { background: rgba(255,255,255,0.03); }
-:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-out, :root[data-theme="dark"] .TRAFFIC_LINE.dir-out, :root[data-theme="dark"] .TRAFFIC_NAME.dir-out { border-left-color: #60a5fa; }
-:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-in,  :root[data-theme="dark"] .TRAFFIC_LINE.dir-in,  :root[data-theme="dark"] .TRAFFIC_NAME.dir-in  { border-left-color: #34d399; }
-:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-err, :root[data-theme="dark"] .TRAFFIC_LINE.dir-err, :root[data-theme="dark"] .TRAFFIC_NAME.dir-err { border-left-color: #f87171; }
+:root[data-theme="dark"] .TRAFFIC_ENTRY { background: rgba(255,255,255,0.03); }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-out { border-left-color: #60a5fa; }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-in { border-left-color: #34d399; }
+:root[data-theme="dark"] .TRAFFIC_ENTRY.dir-err { border-left-color: #f87171; }
 :root[data-theme="dark"] .dir-out .TRAFFIC_ARROW, :root[data-theme="dark"] .dir-out .TRAFFIC_EVENT { color: #60a5fa; }
 :root[data-theme="dark"] .dir-in .TRAFFIC_ARROW,  :root[data-theme="dark"] .dir-in .TRAFFIC_EVENT { color: #34d399; }
 :root[data-theme="dark"] .dir-err .TRAFFIC_ARROW, :root[data-theme="dark"] .dir-err .TRAFFIC_EVENT { color: #f87171; }
@@ -620,36 +636,6 @@ function event_spans(e)
     return spans;
 }
 
-/*  One-line summary of the kw for the compact view. */
-function compact_summary(kw)
-{
-    if(!kw) {
-        return "";
-    }
-    let parts = [];
-    if("result" in kw) {
-        parts.push("result=" + traffic_scalar_text(kw.result));
-    }
-    if(typeof kw.comment === "string" && kw.comment) {
-        parts.push(traffic_clip(kw.comment, 80));
-    }
-    if(!parts.length) {
-        let n = 0;
-        for(let k of Object.keys(kw)) {
-            if(k === "command") {
-                continue;
-            }
-            let v = kw[k];
-            if(v === null || typeof v !== "object") {
-                parts.push(k + "=" + traffic_scalar_text(v));
-                if(++n >= 3) {
-                    break;
-                }
-            }
-        }
-    }
-    return traffic_clip(parts.join("  ·  "), 140);
-}
 
 function render_detailed(e)
 {
@@ -726,21 +712,6 @@ function render_full(e)
     return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir), title: e.title}, children]);
 }
 
-function render_compact(e)
-{
-    let kids = event_spans(e);
-    kids.push(['span', {class: 'TRAFFIC_SUMMARY'}, compact_summary(e.kw)]);
-    kids.push(['span', {class: 'TRAFFIC_META'}, `${traffic_size(e.size)} · ${e.ts}`]);
-    return createElement2(['div', {class: 'TRAFFIC_LINE ' + dir_class(e.dir), title: e.title}, kids]);
-}
-
-function render_name(e)
-{
-    let kids = event_spans(e);
-    kids.push(['span', {class: 'TRAFFIC_META'}, e.ts]);
-    return createElement2(['div', {class: 'TRAFFIC_NAME ' + dir_class(e.dir), title: e.title}, kids]);
-}
-
 /*  A mirrored framework log line (error/warning/info/debug/msg). */
 function render_log(e)
 {
@@ -769,20 +740,17 @@ function render_log(e)
     return $row;
 }
 
+/*  A TRAFFIC entry always shows its payload -- folded (`collapsed`, the
+ *  bullets) or laid out (`expanded`, the JSON). A trace line is written by
+ *  the runtime and is painted as it comes; what shapes it is the TRACES row
+ *  (the machine-trace format chip and the payload chip), not this.  */
 function render_entry(e)
 {
     if(e.kind === "log") {
         return render_log(e);
     }
-    let view = dev_view();
-    if(view === "full") {
+    if(dev_traffic_view() === "expanded") {
         return render_full(e);
-    }
-    if(view === "compact") {
-        return render_compact(e);
-    }
-    if(view === "name") {
-        return render_name(e);
     }
     return render_detailed(e);
 }
@@ -976,11 +944,6 @@ function info_traffic(title, msg, direction, size)
 
     let route = dev_route();
 
-    /*  Console side (routes "console" / "both"). */
-    if(route !== "window") {
-        console_traffic(title, jn, direction, size);
-    }
-
     let event = (jn && jn.event) ? String(jn.event) : "(no event)";
     let kw = (jn && jn.kw && typeof jn.kw === "object") ? jn.kw : null;
     let command = (kw && typeof kw.command === "string") ? kw.command : "";
@@ -1000,6 +963,19 @@ function info_traffic(title, msg, direction, size)
 
     push_entry(entry);
 
+    /*  ONE rule, two sinks. The filter used to be asked by the window only,
+     *  and the console printed the very line the window had just hidden:
+     *  hide the outgoing half, or type something in FIND, and the traffic
+     *  went on arriving in the pane beside it. The answer is computed once,
+     *  here, and both sinks obey it.  */
+    let hidden = entry_hidden(entry, build_filter_ctx());
+
+    /*  Console side (routes "console" / "both"), which has no window to
+     *  depend on: it prints whether or not the monitor is mounted.  */
+    if(route !== "window" && !hidden) {
+        console_traffic(title, jn, direction, size);
+    }
+
     /*  Window side: the entry is buffered above whatever happens, so the
      *  window shows what arrived before it was opened. Painted only when the
      *  window is mounted and not routed to the console only. */
@@ -1009,7 +985,7 @@ function info_traffic(title, msg, direction, size)
     }
     ensure_dev_style();
 
-    if(!entry_hidden(entry, build_filter_ctx())) {
+    if(!hidden) {
         let node = render_entry(entry);
         entry.$node = node;
         /*  Drop the "no traffic yet" placeholder before the first row. */
@@ -1231,7 +1207,7 @@ function refresh_dev_chrome()
         $b.classList.toggle('is-active', v > 0);
     });
 
-    let view = dev_view();
+    let view = dev_traffic_view();
     document.querySelectorAll('.YDEV_SEG_BTN[data-view]').forEach(($b) => {
         $b.classList.toggle('is-active', $b.getAttribute('data-view') === view);
     });
@@ -1245,7 +1221,7 @@ function refresh_dev_chrome()
      *  the group only there, and reflect each toggle's persisted state. */
     let $eg = document.getElementById('ydev-expand-grp');
     if($eg) {
-        $eg.style.display = (view === 'full') ? '' : 'none';
+        $eg.style.display = (view === 'expanded') ? '' : 'none';
     }
     document.querySelectorAll('.YDEV_CHIP[data-expand]').forEach(($b) => {
         $b.classList.toggle('is-active', full_show($b.getAttribute('data-expand')));
@@ -1257,6 +1233,10 @@ function refresh_dev_chrome()
 
     document.querySelectorAll('.YDEV_CHIP[data-toggle="automata-simple"]').forEach(($b) => {
         $b.classList.toggle('is-active', !!dev_simple_mach());
+    });
+
+    document.querySelectorAll('.YDEV_CHIP[data-toggle="traces-payload"]').forEach(($b) => {
+        $b.classList.toggle('is-active', !!dev_traces_payload());
     });
 
     update_stats();
@@ -1356,19 +1336,48 @@ function build_control_bar()
         }
     }];
 
-    let mk_view = (v, label) => ['button', {class: 'YDEV_SEG_BTN', 'data-view': v,
-                                            'data-i18n': label, type: 'button'}, t(label), {
+    /*  The TRACES feed's payload: the `json` lines a trace dumps (an ev_kw,
+     *  a publication). It used to be taken away by the TRAFFIC view being
+     *  set to names -- another feed's control -- so nothing said where the
+     *  payloads had gone. Here it says it.  */
+    let traces_payload = ['button', {
+        class: 'YDEV_CHIP', 'data-toggle': 'traces-payload', type: 'button',
+        title: t('show the payload of the traces'),
+        'data-i18n-title': 'show the payload of the traces',
+        'data-i18n': 'payload',
+        'aria-label': t('payload'), 'data-i18n-aria-label': 'payload',
+    }, t('payload'), {
         click: (ev) => {
             ev.stopPropagation();
-            set_view(v);
+            kw_set_local_storage_value("dev_traces_payload", dev_traces_payload() ? 0 : 1);
+            rerender_all();
+            refresh_dev_chrome();
+        }
+    }];
+
+    /*  The TRAFFIC feed's own control, and it only says how much room its
+     *  payload takes: the payload is always there. What shapes a TRACE is
+     *  in the TRACES row (the machine-trace chip and `payload`), because
+     *  both feeds can be on at once and neither may steer the other.  */
+    let VIEW_TITLES = {
+        collapsed: 'traffic payload folded',
+        expanded:  'traffic payload laid out',
+    };
+    let mk_view = (v, label) => ['button', {
+        class: 'YDEV_SEG_BTN', 'data-view': v, type: 'button',
+        title: t(VIEW_TITLES[v]), 'data-i18n-title': VIEW_TITLES[v],
+        'data-i18n': label,
+        'aria-label': t(label), 'data-i18n-aria-label': label,
+    }, t(label), {
+        click: (ev) => {
+            ev.stopPropagation();
+            set_traffic_view(v);
         }
     }];
 
     let view_seg = ['div', {class: 'YDEV_SEG', id: 'ydev-seg'}, [
-        mk_view('detailed', 'detailed'),
-        mk_view('full', 'expanded'),
-        mk_view('compact', 'compact'),
-        mk_view('name', 'name only'),
+        mk_view('collapsed', 'collapsed'),
+        mk_view('expanded', 'expanded'),
     ]];
 
     /*  Output routing: send traffic + all logs + automata to the dev window,
@@ -1394,8 +1403,8 @@ function build_control_bar()
         mk_out('both', 'both'),
     ]];
 
-    /*  Expanded-view section toggles (only meaningful in the 'full' view;
-     *  the group is shown/hidden by refresh_dev_chrome). */
+    /*  Expanded-view section toggles (only meaningful in the 'expanded'
+     *  traffic view; the group is shown/hidden by refresh_dev_chrome). */
     /*  The title says WHAT it does and not which section: composing
      *  `'Show ' + label + '...'` gives a string that is no i18n key, so
      *  it could never re-translate -- and the button's own label is the
@@ -1497,7 +1506,7 @@ function build_control_bar()
     let sep = () => ['span', {class: 'YDEV_SEP'}, ''];
 
     return createElement2(['div', {class: 'YDEV_BAR'}, [
-        grp('traces', [...trace_chips, simple_mach]), sep(),
+        grp('traces', [...trace_chips, simple_mach, traces_payload]), sep(),
         grp('output', [output_seg]), sep(),
         grp('view', [view_seg]), expand_grp, sep(),
         grp('show', dir_chips), sep(),
