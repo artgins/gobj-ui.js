@@ -5,6 +5,27 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.179
+
+**Where a message went through is written in the entry's header now**, dim and
+next to the event name -- the gobj and the url that 7.23.178 took away with
+the tooltip. It was the one thing in that tooltip written nowhere else in the
+window: an app browsing several backends cannot tell its messages apart
+without it. As text it does not pop over what is being read, and it is the
+part of the row that gives way when the width runs out (the event name and the
+size/time are not).
+
+The string keeps the `==>` / `<==` that gobj-js composes, which says the
+direction the arrow already says: taking it out means parsing a string built
+in another package, and it would go wrong the day that one writes it
+differently.
+
+**And `object_preview()` has a test** -- the first this file has had. Half of
+what it does is import the module: the monitor's stylesheet is a template
+literal, so ONE backtick in a CSS comment stops `yui_dev.js` from parsing, and
+nothing else in the suite imports it (it happened twice while this round was
+being written).
+
 ## 7.23.178
 
 **No more tooltips over the Developer window's log.** Four `title` attributes

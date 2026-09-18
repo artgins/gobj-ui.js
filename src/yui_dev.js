@@ -464,6 +464,10 @@ function ensure_dev_style()
 .TRAFFIC_ARROW { font-weight: 700; }
 .TRAFFIC_EVENT { font-weight: 700; }
 .TRAFFIC_CMD { opacity: 0.75; font-weight: 600; }
+/*  Where the message went through. min-width 0 and flex 0 1 auto so it is the
+    part that gives way when the row runs out of width -- the event name and
+    the size/time must not be the ones to go.  */
+.TRAFFIC_SRC { opacity: 0.45; font-size: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dir-out .TRAFFIC_ARROW, .dir-out .TRAFFIC_EVENT { color: #2563eb; }
 .dir-in  .TRAFFIC_ARROW, .dir-in  .TRAFFIC_EVENT { color: #059669; }
 .dir-err .TRAFFIC_ARROW, .dir-err .TRAFFIC_EVENT { color: #dc2626; }
@@ -695,12 +699,29 @@ function traffic_bullets(obj)
                      ******************************/
 
 
+/*  The head of a traffic entry: direction, event, command, and WHERE the
+ *  message went through -- the gobj and the url, which gobj-js composes
+ *  (`c_ievent_cli`) and the browser console prints in its prefix.
+ *
+ *  It is written as TEXT, dim, and not as a `title`: as a tooltip it popped a
+ *  box over the log while it was being read, and it is the one thing in that
+ *  tooltip that was written nowhere else -- an app browsing several backends
+ *  cannot tell its messages apart without it. It shrinks before anything
+ *  else in the row.
+ *
+ *  The string carries its own `==>` / `<==`, which says the direction the
+ *  arrow already says. It is left as it comes: taking it out means parsing a
+ *  string built in another package, and it would go wrong the day that one
+ *  writes it differently.  */
 function event_spans(e)
 {
     let spans = [['span', {class: 'TRAFFIC_ARROW'}, dir_arrow(e.dir)],
                  ['span', {class: 'TRAFFIC_EVENT'}, e.event]];
     if(e.command) {
         spans.push(['span', {class: 'TRAFFIC_CMD'}, e.command]);
+    }
+    if(e.title) {
+        spans.push(['span', {class: 'TRAFFIC_SRC'}, e.title]);
     }
     return spans;
 }
@@ -1760,4 +1781,11 @@ function build_dev_panel()
     return {$el: $el, dispose: dispose};
 }
 
-export {info_traffic, setup_dev, build_dev_panel, apply_dev_traces, dev_window_was_open};
+export {
+    info_traffic, setup_dev, build_dev_panel, apply_dev_traces, dev_window_was_open,
+    /*  Exported for its test: a pure formatter, and the import is also what
+        guards this file from a syntax error nothing else would catch --
+        the stylesheet below is a template literal, so one backtick in a CSS
+        comment stops the whole module from parsing.  */
+    object_preview,
+};
