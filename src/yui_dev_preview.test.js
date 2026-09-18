@@ -13,7 +13,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {describe, it, expect} from "vitest";
-import {object_preview} from "./yui_dev.js";
+import {object_preview, object_preview_parts} from "./yui_dev.js";
 
 describe("object_preview", () => {
     it("names the first fields instead of counting them", () => {
@@ -54,5 +54,25 @@ describe("object_preview", () => {
 
     it("renders null and booleans as themselves", () => {
         expect(object_preview({a: null, b: true}, 2)).toBe("{a: null, b: true}");
+    });
+});
+
+describe("object_preview_parts", () => {
+    it("gives every token the class its ink is chosen by", () => {
+        const parts = object_preview_parts({a: "s", b: 1, c: true, d: null}, 4);
+        const seen = parts.filter((t) => t.cls !== "p-punct")
+                          .map((t) => [t.text, t.cls]);
+        expect(seen).toEqual([
+            ["a", "p-key"], ['"s"', "t-str"],
+            ["b", "p-key"], ["1", "t-num"],
+            ["c", "p-key"], ["true", "t-bool"],
+            ["d", "p-key"], ["null", "t-null"],
+        ]);
+    });
+
+    it("joins back into exactly what object_preview says", () => {
+        const o = {header: "id", fillspace: 18, flag: ["x"], hidden: false, more: 1};
+        const joined = object_preview_parts(o, 5).map((t) => t.text).join("");
+        expect(joined).toBe(object_preview(o, 5));
     });
 });

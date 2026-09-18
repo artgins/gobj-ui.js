@@ -450,6 +450,41 @@ function ensure_dev_style()
 .YDEV_TITLE { display: flex; align-items: baseline; gap: 8px; }
 .YDEV_TITLE_MAIN { font-weight: 700; }
 .YDEV_TITLE_SUB { opacity: 0.7; font-size: 12px; }
+/*  The ink of the log.
+ *
+ *  It used to be one grey dimmed with opacity per role -- 0.85 for a key,
+ *  0.5 for a preview, 0.45 for the source -- which is what washed the window
+ *  out: opacity blends text TOWARDS the background, so the more a line
+ *  mattered the less of it was left. Measured on the dark scheme the preview
+ *  came out at 4.39:1 and the source at 3.78:1, both under the 4.5 floor,
+ *  and everything that was legible was the same grey as everything else.
+ *
+ *  Explicit colours now, one per ROLE and measured against the entry's own
+ *  background (#1b1e24 dark, #fafafa light): a key, a string, a number and a
+ *  boolean read apart from each other the way they do in a browser console,
+ *  which is the point of colouring a payload at all.
+ *  Ratios: dark 11.20 / 6.32 / 9.83 / 6.00 / 6.77 / 6.49 / 4.82,
+ *          light 7.38 / 7.52 / 5.16 / 8.35 / 5.59 / 7.21 / 4.35.  */
+:root {
+    --ydev-ink:    #1f2937;
+    --ydev-key:    #0451a5;
+    --ydev-str:    #a31515;
+    --ydev-num:    #067a4e;
+    --ydev-bool:   #6b21a8;
+    --ydev-dim:    #5b6675;
+    --ydev-src:    #4a5568;
+    --ydev-bullet: #6b7789;
+}
+:root[data-theme="dark"] {
+    --ydev-ink:    #e5e7eb;
+    --ydev-key:    #9cdcfe;
+    --ydev-str:    #ce9178;
+    --ydev-num:    #b5cea8;
+    --ydev-bool:   #c586c0;
+    --ydev-dim:    #9aa6b8;
+    --ydev-src:    #8fa3bf;
+    --ydev-bullet: #7b8ba3;
+}
 /* -------- entries (shared) -------- */
 .TRAFFIC_ENTRY {
     border-left: 3px solid #94a3b8; border-radius: 3px;
@@ -463,15 +498,15 @@ function ensure_dev_style()
 .TRAFFIC_HEADER { display: flex; align-items: baseline; gap: 8px; }
 .TRAFFIC_ARROW { font-weight: 700; }
 .TRAFFIC_EVENT { font-weight: 700; }
-.TRAFFIC_CMD { opacity: 0.75; font-weight: 600; }
+.TRAFFIC_CMD { color: var(--ydev-dim); font-weight: 600; }
 /*  Where the message went through. min-width 0 and flex 0 1 auto so it is the
     part that gives way when the row runs out of width -- the event name and
     the size/time must not be the ones to go.  */
-.TRAFFIC_SRC { opacity: 0.45; font-size: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.TRAFFIC_SRC { color: var(--ydev-src); font-size: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dir-out .TRAFFIC_ARROW, .dir-out .TRAFFIC_EVENT { color: #2563eb; }
 .dir-in  .TRAFFIC_ARROW, .dir-in  .TRAFFIC_EVENT { color: #059669; }
 .dir-err .TRAFFIC_ARROW, .dir-err .TRAFFIC_EVENT { color: #dc2626; }
-.TRAFFIC_META { margin-left: auto; opacity: 0.6; font-size: 11px; white-space: nowrap; }
+.TRAFFIC_META { margin-left: auto; color: var(--ydev-dim); font-size: 11px; white-space: nowrap; }
 /*  The indent of a nested block is NOT a hover effect: it used to be given
     only on .TRAFFIC_ENTRY:hover, so moving the cursor across the log made
     every payload under it jump 16px sideways and reflow. A payload being
@@ -480,29 +515,40 @@ function ensure_dev_style()
 .TRAFFIC_KW { margin: 2px 0 0 16px; }
 .TRAFFIC_FULL { margin: 4px 0 0 16px; padding: 6px 8px; font-family: monospace; font-size: 11px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
 .TRAFFIC_ROW { display: flex; gap: 6px; align-items: baseline; }
-.TRAFFIC_BULLET { opacity: 0.45; flex: 0 0 auto; }
-.TRAFFIC_KEY { opacity: 0.85; flex: 0 0 auto; }
-.TRAFFIC_VAL { word-break: break-word; }
-.TRAFFIC_VAL.t-num  { color: #0891b2; }
-.TRAFFIC_VAL.t-bool { color: #9333ea; }
-.TRAFFIC_VAL.t-null { color: #9333ea; font-style: italic; }
-.TRAFFIC_VAL.t-empty { opacity: 0.5; }
-.TRAFFIC_TS { opacity: 0.6; margin-left: 8px; }
+.TRAFFIC_BULLET { color: var(--ydev-bullet); flex: 0 0 auto; }
+.TRAFFIC_KEY { color: var(--ydev-key); flex: 0 0 auto; }
+.TRAFFIC_VAL { color: var(--ydev-ink); word-break: break-word; }
+.TRAFFIC_VAL.t-str  { color: var(--ydev-str); }
+.TRAFFIC_VAL.t-num  { color: var(--ydev-num); }
+.TRAFFIC_VAL.t-bool { color: var(--ydev-bool); }
+.TRAFFIC_VAL.t-null { color: var(--ydev-bool); font-style: italic; }
+.TRAFFIC_VAL.t-empty { color: var(--ydev-dim); }
+.TRAFFIC_TS { color: var(--ydev-dim); margin-left: 8px; }
 details.TRAFFIC_NEST > summary { cursor: pointer; list-style: none; display: flex; gap: 6px; align-items: baseline; }
 details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
-.TRAFFIC_NEST_KEY { opacity: 0.85; }
-.TRAFFIC_NEST_HINT { opacity: 0.5; margin-left: 4px; }
-.YDEV_EMPTY { opacity: 0.5; font-size: 12px; padding: 18px 10px; text-align: center; }
+.TRAFFIC_NEST_KEY { color: var(--ydev-key); }
+.TRAFFIC_NEST_HINT { color: var(--ydev-dim); margin-left: 4px; }
+/*  The folded preview, painted with the same ink as the expanded rows: a key
+    is a key and a string is a string wherever it is read.  */
+.TRAFFIC_NEST_HINT_WRAP { margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.TRAFFIC_PREV.p-punct { color: var(--ydev-dim); }
+.TRAFFIC_PREV.p-key   { color: var(--ydev-key); }
+.TRAFFIC_PREV.t-str   { color: var(--ydev-str); }
+.TRAFFIC_PREV.t-num   { color: var(--ydev-num); }
+.TRAFFIC_PREV.t-bool  { color: var(--ydev-bool); }
+.TRAFFIC_PREV.t-null  { color: var(--ydev-bool); font-style: italic; }
+.TRAFFIC_PREV.t-empty { color: var(--ydev-dim); }
+.YDEV_EMPTY { color: var(--ydev-dim); font-size: 12px; padding: 18px 10px; text-align: center; }
 /* -------- mirrored console logs (error/warning/info/debug/msg; the automata trace shows as debug) -------- */
 .YDEV_LOGROW { display: flex; align-items: baseline; gap: 8px; margin: 1px 0; padding: 2px 8px; border-left: 3px solid #94a3b8; border-radius: 3px; font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 12px; background: rgba(0,0,0,0.015); }
-.YDEV_LOG_LVL { flex: 0 0 auto; text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.8; min-width: 48px; }
-.YDEV_LOG_TXT { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; word-break: break-word; opacity: 0.9; }
+.YDEV_LOG_LVL { flex: 0 0 auto; text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; color: var(--ydev-dim); min-width: 48px; }
+.YDEV_LOG_TXT { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; word-break: break-word; color: var(--ydev-ink); }
 .YDEV_LOG_error   { border-left-color: #dc2626; } .YDEV_LOG_error   .YDEV_LOG_LVL { color: #dc2626; }
 .YDEV_LOG_warning { border-left-color: #d97706; } .YDEV_LOG_warning .YDEV_LOG_LVL { color: #d97706; }
 .YDEV_LOG_info    { border-left-color: #2563eb; } .YDEV_LOG_info    .YDEV_LOG_LVL { color: #2563eb; }
 .YDEV_LOG_msg     { border-left-color: #0891b2; } .YDEV_LOG_msg     .YDEV_LOG_LVL { color: #0891b2; }
-.YDEV_LOG_debug   { border-left-color: #94a3b8; } .YDEV_LOG_debug   .YDEV_LOG_LVL { color: #94a3b8; } .YDEV_LOG_debug .YDEV_LOG_TXT { opacity: 0.72; }
-.YDEV_LOG_json    { border-left-color: #9333ea; align-items: flex-start; } .YDEV_LOG_json .YDEV_LOG_LVL { color: #9333ea; } .YDEV_LOG_json .YDEV_LOG_TXT { font-size: 11px; line-height: 1.35; opacity: 0.8; }
+.YDEV_LOG_debug   { border-left-color: #94a3b8; } .YDEV_LOG_debug   .YDEV_LOG_LVL { color: #94a3b8; } .YDEV_LOG_debug .YDEV_LOG_TXT { color: var(--ydev-dim); }
+.YDEV_LOG_json    { border-left-color: #9333ea; align-items: flex-start; } .YDEV_LOG_json .YDEV_LOG_LVL { color: #9333ea; } .YDEV_LOG_json .YDEV_LOG_TXT { font-size: 11px; line-height: 1.35; color: var(--ydev-dim); }
 /* -------- dark theme -------- */
 :root[data-theme="dark"] .TRAFFIC_FULL { background: rgba(255,255,255,0.05); }
 :root[data-theme="dark"] .YDEV_BAR, :root[data-theme="dark"] .YDEV_STATS { background: rgba(255,255,255,0.04); }
@@ -517,7 +563,7 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 :root[data-theme="dark"] .dir-err .TRAFFIC_ARROW, :root[data-theme="dark"] .dir-err .TRAFFIC_EVENT { color: #f87171; }
 :root[data-theme="dark"] .YDEV_STAT.s-out { color: #60a5fa; } :root[data-theme="dark"] .YDEV_STAT.s-in { color: #34d399; } :root[data-theme="dark"] .YDEV_STAT.s-err { color: #f87171; }
 :root[data-theme="dark"] .YDEV_STAT.s-warn { color: #fbbf24; }
-:root[data-theme="dark"] .TRAFFIC_VAL.t-num { color: #22d3ee; }
+
 :root[data-theme="dark"] .TRAFFIC_VAL.t-bool, :root[data-theme="dark"] .TRAFFIC_VAL.t-null { color: #c084fc; }
 :root[data-theme="dark"] .YDEV_CHIP.is-active { background: rgba(96,165,250,0.2); border-color: #60a5fa; color: #93c5fd; }
 :root[data-theme="dark"] .YDEV_SEG_BTN.is-active { background: #2563eb; color: #fff; }
@@ -603,44 +649,66 @@ const PREVIEW_MAX_VALUE = 28;
 function preview_scalar(v)
 {
     if(v === null) {
-        return "null";
+        return {text: "null", cls: "t-null"};
     }
     if(typeof v === "string") {
         let text = (v.length > PREVIEW_MAX_VALUE) ?
             v.slice(0, PREVIEW_MAX_VALUE) + "…" : v;
-        return '"' + text + '"';
+        return {text: '"' + text + '"', cls: "t-str"};
     }
     if(typeof v === "object") {
-        return Array.isArray(v) ? "[…]" : "{…}";
+        return {text: Array.isArray(v) ? "[…]" : "{…}", cls: "t-empty"};
     }
-    return String(v);
+    if(typeof v === "boolean") {
+        return {text: String(v), cls: "t-bool"};
+    }
+    return {text: String(v), cls: "t-num"};
 }
 
-function object_preview(obj, count)
+/*  The preview as TOKENS, so the renderer can paint a key, a string and a
+    number the way the expanded rows paint them. A preview in one flat grey
+    is the thing this window was asked to stop doing.  */
+function object_preview_parts(obj, count)
 {
     let keys = Object.keys(obj);
-    let parts = [];
+    let out = [{text: "{", cls: "p-punct"}];
+    let fields = 0;
     let used = 0;
 
     for(let k of keys) {
-        if(parts.length >= PREVIEW_MAX_KEYS) {
+        if(fields >= PREVIEW_MAX_KEYS) {
             break;
         }
-        let part = k + ": " + preview_scalar(obj[k]);
+        let val = preview_scalar(obj[k]);
+        let width = k.length + 2 + val.text.length;
         /*  Stop at the width, but never with an empty preview: one field
             too wide still says more than a number.  */
-        if(parts.length > 0 && used + part.length > PREVIEW_MAX_CHARS) {
+        if(fields > 0 && used + width > PREVIEW_MAX_CHARS) {
             break;
         }
-        parts.push(part);
-        used += part.length + 2;
+        if(fields > 0) {
+            out.push({text: ", ", cls: "p-punct"});
+        }
+        out.push({text: k, cls: "p-key"});
+        out.push({text: ": ", cls: "p-punct"});
+        out.push(val);
+        fields++;
+        used += width + 2;
     }
 
-    if(parts.length < count) {
-        parts.push("…");
+    if(fields < count) {
+        out.push({text: fields > 0 ? ", …" : "…", cls: "p-punct"});
     }
+    out.push({text: "}", cls: "p-punct"});
 
-    return "{" + parts.join(", ") + "}";
+    return out;
+}
+
+/*  The same preview as one string. What the tests assert on, and what any
+    caller wanting a plain line would use.  */
+function object_preview(obj, count)
+{
+    return object_preview_parts(obj, count).map((t) => t.text).join("");
 }
 
 /************************************************************
@@ -664,12 +732,16 @@ function traffic_value_node(key, value)
         ]];
     }
 
-    let hint = is_arr ? `[${count}]` : object_preview(value, count);
+    let hint = is_arr ?
+        [['span', {class: 'TRAFFIC_NEST_HINT'}, `[${count}]`]] :
+        object_preview_parts(value, count).map(
+            (t) => ['span', {class: 'TRAFFIC_PREV ' + t.cls}, t.text]
+        );
     return ['details', {class: 'TRAFFIC_NEST'}, [
         ['summary', {}, [
             ['span', {class: 'TRAFFIC_BULLET'}, '▸'],
             ['span', {class: 'TRAFFIC_NEST_KEY'}, key],
-            ['span', {class: 'TRAFFIC_NEST_HINT'}, hint],
+            ['span', {class: 'TRAFFIC_NEST_HINT_WRAP'}, hint],
         ]],
         ['div', {class: 'TRAFFIC_KW'}, traffic_bullets(value)],
     ]];
@@ -1787,5 +1859,5 @@ export {
         guards this file from a syntax error nothing else would catch --
         the stylesheet below is a template literal, so one backtick in a CSS
         comment stops the whole module from parsing.  */
-    object_preview,
+    object_preview, object_preview_parts,
 };

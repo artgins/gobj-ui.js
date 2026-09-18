@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.180
+
+**The Developer window's log is painted with ink now, not with opacity.**
+Every role was one grey dimmed by a different amount -- 0.85 for a key, 0.6
+for the size and time, 0.5 for a folded object's preview, 0.45 for the source
+and the bullets -- and opacity blends text TOWARDS the background, so the more
+a line mattered the less of it was left. Measured on the dark scheme the
+preview came out at **4.39:1** and the source at **3.78:1**, both under the
+4.5 floor, and everything that stayed legible was the same grey as everything
+else.
+
+Eight tokens now, one per ROLE, measured against the entry's own background
+and defined for both schemes: ink, key, string, number, boolean, dim, source,
+bullet. Dark 11.20 / 6.32 / 9.83 / 6.00 / 6.77 / 6.49 / 4.82; light 7.38 /
+7.52 / 5.16 / 8.35 / 5.59 / 7.21 / 4.35. A string has a colour of its own for
+the first time -- it used to be the default ink, so a key and its value were
+the same thing to the eye.
+
+**And a folded object's preview is painted the same way**: it was one flat
+grey string, and it is tokens now (`object_preview_parts()`), so
+`{header: "id", fillspace: 18, …}` reads with its key blue, its string warm
+and its number green, exactly as the row below it reads when you open it. That
+is what makes it worth looking at without opening anything.
+
 ## 7.23.179
 
 **Where a message went through is written in the entry's header now**, dim and
