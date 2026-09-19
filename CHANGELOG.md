@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.182
+
+- **The treedb topic toolbar keeps the common order.** The view buttons now
+  come as Search, Schema (particular to this view), then **Refresh,
+  Columns, Export**: the block that every table toolbar of the ecosystem
+  shows in that order, with Close at the right when there is one. Schema
+  used to sit between Refresh and Columns, and the treedb GUI's tranger
+  cards put the same three buttons in another order again.
+
 ## 7.23.181
 
 **A `C_YUI_JSON` given `json_data` at create expands again.** The attr

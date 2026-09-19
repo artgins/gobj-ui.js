@@ -795,23 +795,6 @@ function build_ui(gobj)
         $view_toolbar.appendChild($search_box);
     }
 
-    if(with_refresh_button) {
-        let $refresh = createElement2(
-            ['button', {class: 'button mr-1',
-                        title: t('refresh'), 'data-i18n-title': 'refresh',
-                        'aria-label': t('refresh'), 'data-i18n-aria-label': 'refresh'}, [
-                yui_toolbar_icon('yi-arrows-rotate'),
-                ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
-            ], {
-                'click': (event) => {
-                    event.stopPropagation();
-                    gobj_send_event(gobj, "EV_REFRESH", {}, gobj);
-                }
-            }]
-        );
-        $view_toolbar.appendChild($refresh);
-    }
-
     if(with_schema_button) {
         /*  What the columns of this topic ARE: types, flags, fkeys. The
          *  table shows the data; this shows the contract the data answers
@@ -831,6 +814,28 @@ function build_ui(gobj)
             }]
         );
         $view_toolbar.appendChild($schema);
+    }
+
+    /*  The ORDER is a contract shared with every table toolbar of the
+     *  ecosystem: what is particular to this view first (search, schema),
+     *  then the common block ALWAYS as Refresh, Columns, Export, then Close
+     *  when there is one. A button that moves from view to view has to be
+     *  looked for every time. */
+    if(with_refresh_button) {
+        let $refresh = createElement2(
+            ['button', {class: 'button mr-1',
+                        title: t('refresh'), 'data-i18n-title': 'refresh',
+                        'aria-label': t('refresh'), 'data-i18n-aria-label': 'refresh'}, [
+                yui_toolbar_icon('yi-arrows-rotate'),
+                ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    gobj_send_event(gobj, "EV_REFRESH", {}, gobj);
+                }
+            }]
+        );
+        $view_toolbar.appendChild($refresh);
     }
 
     if(with_columns_button) {
