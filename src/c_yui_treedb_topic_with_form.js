@@ -199,6 +199,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_refresh_button",       0,  true,   "Button
 SDATA(data_type_t.DTP_BOOLEAN,  "with_search_button",        0,  true,   "Button toolbar SEARCH"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_schema_button",        0,  true,   "Button toolbar SCHEMA (show the topic's desc)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_columns_button",       0,  true,   "Button toolbar COLUMNS (choose which columns the table shows)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_json_button",          0,  true,   "Button toolbar RAW JSON (the table's records as json, with the metadata of each record)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_export_button",        0,  true,   "Button toolbar EXPORT (download as CSV what the table holds)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_header_filters",       0,  true,   "Per-column filter box in the table header, on the columns a text/number match means something (not hooks, fkeys or json)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_inline_edit",          0,  true,   "Edit a writable scalar cell in place while in edition mode (the record form keeps the rest)"),
@@ -255,6 +256,9 @@ let PRIVATE_DATA = {
     schema_win:         null,   // C_YUI_WINDOW presenting it (laptop)
     cell_json_gobj:     null,   // hosted C_YUI_JSON child (while a cell is open)
     cell_json_modal:    null,   // { close } handle of the cell dialog (phone)
+    table_json_gobj:    null,   // hosted C_YUI_JSON child (while the table json is open)
+    table_json_win:     null,   // C_YUI_WINDOW presenting it (laptop)
+    table_json_modal:   null,   // { close } handle of the table json dialog (phone)
     cell_json_win:      null,   // C_YUI_WINDOW presenting it (laptop)
     cell_file_box:      null,   // $box of the file popup (while a file cell is open)
     cell_file_modal:    null,   // { close } handle of the file dialog (phone)
@@ -465,6 +469,7 @@ function mt_stop(gobj)
     close_form_dialog(gobj);
     close_schema_dialog(gobj);
     close_cell_json_dialog(gobj);
+    close_table_json_dialog(gobj);
     close_cell_file_dialog(gobj);
     close_hook_choice(gobj);
     drop_pending_assets(gobj);
@@ -483,6 +488,7 @@ function mt_destroy(gobj)
     close_form_dialog(gobj);
     close_schema_dialog(gobj);
     close_cell_json_dialog(gobj);
+    close_table_json_dialog(gobj);
     close_cell_file_dialog(gobj);
     close_hook_choice(gobj);
     drop_pending_assets(gobj);
@@ -746,6 +752,7 @@ function build_ui(gobj)
     let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
     let with_schema_button      = gobj_read_bool_attr(gobj, "with_schema_button");
     let with_columns_button     = gobj_read_bool_attr(gobj, "with_columns_button");
+    let with_json_button        = gobj_read_bool_attr(gobj, "with_json_button");
     let with_export_button      = gobj_read_bool_attr(gobj, "with_export_button");
 
     if(with_search_button) {
@@ -818,7 +825,7 @@ function build_ui(gobj)
 
     /*  The ORDER is a contract shared with every table toolbar of the
      *  ecosystem: what is particular to this view first (search, schema),
-     *  then the common block ALWAYS as Refresh, Columns, Export, then Close
+     *  then the common block ALWAYS as Refresh, Columns, (Raw JSON,) Export, then Close
      *  when there is one. A button that moves from view to view has to be
      *  looked for every time. */
     if(with_refresh_button) {
@@ -857,6 +864,27 @@ function build_ui(gobj)
             }]
         );
         $view_toolbar.appendChild($columns);
+    }
+
+    if(with_json_button) {
+        /*  The records of the table as json, WITH the metadata of each one
+         *  (__md_treedb__: rowids, t/tm, tag, pure_node...). The rows the
+         *  table holds carry no metadata -- it is filtered out of the read
+         *  that fills it -- so the host asks the backend again, with it. */
+        let $json = createElement2(
+            ['button', {class: 'TREEDB_TABLE_JSON button mr-1',
+                        title: t('raw json'), 'data-i18n-title': 'raw json',
+                        'aria-label': t('raw json'), 'data-i18n-aria-label': 'raw json'}, [
+                yui_toolbar_icon('yi-eye'),
+                ['span', {class: 'is-hidden-mobile', i18n: 'raw json', style: 'padding-left:5px;'}, 'raw json']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    gobj_send_event(gobj, "EV_SHOW_TABLE_JSON", {}, gobj);
+                }
+            }]
+        );
+        $view_toolbar.appendChild($json);
     }
 
     if(with_export_button) {
@@ -4977,6 +5005,142 @@ function ac_export_table(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The records of the table as json, with their metadata: ask
+ *  the host for them (it owns the link to the backend). The rows
+ *  the table holds were read WITHOUT metadata, so they cannot
+ *  answer this themselves.
+ ************************************************************/
+function ac_show_table_json(gobj, event, kw, src)
+{
+    gobj_publish_event(
+        gobj,
+        "EV_REQUEST_JSON",
+        {
+            topic_name: gobj_read_str_attr(gobj, "topic_name")
+        }
+    );
+    return 0;
+}
+
+/************************************************************
+ *  The host's answer: the topic's records with metadata. What is
+ *  shown is what the TABLE shows: when a filter or the search
+ *  leaves some rows out, only the records of the rows left in
+ *  (matched by id) are kept.
+ ************************************************************/
+function ac_json_loaded(gobj, event, kw, src)
+{
+    let records = (kw && Array.isArray(kw.rows)) ? kw.rows : [];
+
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(tabulator) {
+        try {
+            let active = tabulator.getData("active");
+            if(active.length < tabulator.getDataCount()) {
+                let ids = new Set(active.map((r) => String(r.id)));
+                records = records.filter((r) => ids.has(String(r && r.id)));
+            }
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: cannot read the active rows: ${e}`);
+        }
+    }
+
+    open_table_json_dialog(gobj, records);
+    return 0;
+}
+
+/************************************************************
+ *  Show the table's records in the adaptive json popup (a
+ *  window on a laptop, a sheet on a phone). One at a time: a
+ *  second open replaces the first.
+ ************************************************************/
+function open_table_json_dialog(gobj, records)
+{
+    close_table_json_dialog(gobj);
+
+    let priv = gobj.priv;
+
+    let json_view = gobj_create_pure_child(
+        "tablejson_" + clean_name(gobj_name(gobj)),
+        "C_YUI_JSON",
+        {
+            /*  No `title`: the popup header already titles it. */
+        },
+        gobj
+    );
+    if(!json_view) {
+        log_error(`${gobj_short_name(gobj)}: cannot create the table json viewer`);
+        return;
+    }
+    priv.table_json_gobj = json_view;
+    gobj_start(json_view);
+
+    let $box = gobj_read_attr(json_view, "$container");
+    if(!$box) {
+        log_error(`${gobj_short_name(gobj)}: the table json viewer built no $container`);
+        teardown_table_json_child(gobj);
+        return;
+    }
+
+    /*  The topic is DATA (the prefix), the title carries its key.  */
+    let presented = present_json_popup(gobj, $box, {
+        name:          "tablejsonwin_" + clean_name(gobj_name(gobj)),
+        logical_class: "TREEDB_TABLE_JSON",
+        title_prefix:  gobj_read_str_attr(gobj, "topic_name"),
+        title:         "raw json",
+        icon:          "yi-eye",
+        forget_window: function() {
+            priv.table_json_win = null;
+        },
+        on_close:      function() {
+            teardown_table_json_child(gobj);
+        }
+    });
+    if(!presented) {
+        teardown_table_json_child(gobj);    // Error already logged
+        return;
+    }
+    priv.table_json_modal = presented.modal;
+    priv.table_json_win = presented.win;
+
+    gobj_send_event(json_view, "EV_SET_JSON", {json: records}, gobj);
+}
+
+/************************************************************
+ *  Destroy the hosted C_YUI_JSON child of the table json.
+ ************************************************************/
+function teardown_table_json_child(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.table_json_gobj) {
+        if(gobj_is_running(priv.table_json_gobj)) {
+            gobj_stop(priv.table_json_gobj);
+        }
+        gobj_destroy(priv.table_json_gobj);
+        priv.table_json_gobj = null;
+    }
+    let win = priv.table_json_win;
+    priv.table_json_win = null;
+    retire_popup_window(win);
+    priv.table_json_modal = null;
+}
+
+/************************************************************
+ *  Close the table json dialog (teardown, or a second open).
+ ************************************************************/
+function close_table_json_dialog(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.table_json_modal) {
+        let modal = priv.table_json_modal;
+        priv.table_json_modal = null;
+        modal.close();          // -> on_close -> teardown_table_json_child
+        return;
+    }
+    teardown_table_json_child(gobj);
+}
+
+/************************************************************
  *  {
  *      href: href
  *  }
@@ -5075,6 +5239,8 @@ function create_gclass(gclass_name)
             ["EV_EDIT_RECORD",          ac_edit_record,        null],
             ["EV_TOGGLE_COLUMN",        ac_toggle_column,      null],
             ["EV_EXPORT_TABLE",         ac_export_table,       null],
+            ["EV_SHOW_TABLE_JSON",      ac_show_table_json,    null],
+            ["EV_JSON_LOADED",          ac_json_loaded,        null],
             ["EV_SHOW",                 ac_show,               null],
             ["EV_HIDE",                 ac_hide,               null]
         ]]
@@ -5130,6 +5296,9 @@ function create_gclass(gclass_name)
         ["EV_EDIT_RECORD",          0],
         ["EV_TOGGLE_COLUMN",        0],
         ["EV_EXPORT_TABLE",         0],
+        ["EV_SHOW_TABLE_JSON",      0],
+        ["EV_JSON_LOADED",          0],
+        ["EV_REQUEST_JSON",         event_flag_t.EVF_OUTPUT_EVENT],
 
         ["EV_CREATE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UPDATE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],

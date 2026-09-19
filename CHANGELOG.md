@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.183
+
+- **A treedb topic table has its own Raw JSON.** A new button between
+  Columns and Export (`with_json_button`, on by default) shows the table's
+  records as JSON, each with its metadata (`__md_treedb__`: rowids, t/tm,
+  tag…). The rows the table holds are read without metadata, so the table
+  asks its host for them (new output event `EV_REQUEST_JSON`). The host
+  (`C_YUI_TREEDB_TOPICS`) reads `nodes` with `with_metadata` and answers
+  with `EV_JSON_LOADED`. When a filter or the search hides rows, only the
+  records of the rows that are shown are kept. It opens in the same adaptive
+  popup as a cell's JSON: a window on a laptop, a sheet on a phone. It uses
+  the `raw json` key that every consumer already has.
+- ⚠️ `EV_REQUEST_JSON` is a new output event of a gclass that is hosted as a
+  child. Its only host in the ecosystem, `C_YUI_TREEDB_TOPICS`, declares it
+  in the same release. A host of your own must declare it, or set
+  `with_json_button: false`.
+
 ## 7.23.182
 
 - **The treedb topic toolbar keeps the common order.** The view buttons now

@@ -1502,7 +1502,7 @@ function get_gobj_formtable(gobj, topic_name)
 /************************************************************
  *  Command to remote service
  ************************************************************/
-function treedb_nodes(gobj, treedb_name, topic_name, options, page)
+function treedb_nodes(gobj, treedb_name, topic_name, options, page, purpose)
 {
     let command = "nodes";
 
@@ -1517,6 +1517,9 @@ function treedb_nodes(gobj, treedb_name, topic_name, options, page)
     kw.__md_command__ = { // Data to be returned
         topic_name: topic_name,
     };
+    if(purpose) {
+        kw.__md_command__.purpose = purpose;
+    }
 
     /*  A PAGE, when the table asked for one. `from` is 1-based and a
      *  backend that does not know these two answers the whole list, which
@@ -2006,7 +2009,19 @@ function ac_mt_command_answer(gobj, event, kw, src)
                  *  never travels to the backend as a parameter it does not
                  *  know. */
                 let req_id = kw_get_str(gobj, kw_command, "req_id", "", 0);
-                if(req_id) {
+                let purpose = kw_get_str(gobj, kw_command, "purpose", "", 0);
+                if(purpose === "json") {
+                    /*  The table's Raw JSON: the same records WITH their
+                     *  metadata, for the viewer -- never for the table,
+                     *  whose rows must stay metadata-free (they go back to
+                     *  the backend on a save). */
+                    gobj_send_event(
+                        gobj_topic_form,
+                        "EV_JSON_LOADED",
+                        {rows: answer.rows},
+                        gobj
+                    );
+                } else if(req_id) {
                     gobj_send_event(
                         gobj_topic_form,
                         "EV_PAGE_LOADED",
@@ -2416,6 +2431,29 @@ function ac_create_record(gobj, event, kw, src)
 }
 
 /********************************************
+ *  A topic table wants its records as json, WITH the metadata of
+ *  each one (its Raw JSON button). The table's own rows are read
+ *  without it, so this is a read of its own: the whole topic, and
+ *  the table keeps to the rows it shows.
+ ********************************************/
+function ac_request_json(gobj, event, kw, src)
+{
+    let topic_name = kw.topic_name || gobj_read_attr(src, "topic_name");
+    if(!topic_name) {
+        log_error(`${gobj_short_name(gobj)}: a json request with no topic`);
+        return -1;
+    }
+    return treedb_nodes(
+        gobj,
+        gobj_read_str_attr(gobj, "treedb_name"),
+        topic_name,
+        Object.assign({}, TABLE_READ_OPTIONS, {with_metadata: true}),
+        null,
+        "json"
+    );    // Error already logged
+}
+
+/********************************************
  *  A topic table wants a page.
  *
  *  The transport is ours, so the table asks and we fetch; the answer
@@ -2779,6 +2817,7 @@ function create_gclass(gclass_name)
             ["EV_UPDATE_RECORD",        ac_update_record,           null],
             ["EV_UPDATE_FIELD",         ac_update_field,            null],
             ["EV_REQUEST_PAGE",         ac_request_page,            null],
+            ["EV_REQUEST_JSON",         ac_request_json,            null],
             ["EV_REQUEST_ASSET",        ac_request_asset,           null],
             ["EV_OPEN_LINKED",          ac_open_linked,             null],
             ["EV_DELETE_RECORD",        ac_delete_record,           null],
@@ -2810,6 +2849,7 @@ function create_gclass(gclass_name)
         ["EV_UPDATE_RECORD",        0],
         ["EV_UPDATE_FIELD",         0],
         ["EV_REQUEST_PAGE",         0],
+        ["EV_REQUEST_JSON",         0],
         ["EV_REQUEST_ASSET",        0],
         ["EV_OPEN_LINKED",          0],
         ["EV_DELETE_RECORD",        0],
