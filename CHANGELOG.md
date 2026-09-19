@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.184
+
+- **The Developer window stops being all small print.** Its stylesheet was
+  written in fixed pixels between 9 and 13, controls included: chips,
+  segments and the search box were 12px with 3-4px of padding. Sizes are now
+  in rem, so they follow the reader's zoom. The controls are 1rem with a
+  finger's padding (≥0.4rem). The traffic and log text is 0.9375rem, the
+  expanded payload 0.875rem, and only the secondary text (source,
+  size/time, the uppercase labels) goes down to 0.75-0.8125rem.
+
 ## 7.23.183
 
 - **A treedb topic table has its own Raw JSON.** A new button between

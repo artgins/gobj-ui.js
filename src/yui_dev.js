@@ -404,9 +404,14 @@ function ensure_dev_style()
     flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 14px;
     padding: 6px 10px; border-top: 1px solid rgba(0,0,0,0.1);
     background: rgba(0,0,0,0.03);
-    font-family: "DejaVu Sans Mono", monospace; font-size: 11px;
+    font-family: "DejaVu Sans Mono", monospace; font-size: 0.875rem;
     opacity: 0.9; font-variant-numeric: tabular-nums;
 }
+/*  Sizes in rem, not px: they follow the reader's zoom and root size. The
+    controls (chips, segments, search) are at 1rem with a finger's padding --
+    this window used to be all 9-13px, controls included, which is what
+    is-small is not for. Only secondary ink (source, size/time, the
+    uppercase labels) goes under 0.9rem. (No backticks: template literal.)  */
 /* -------- control bar -------- */
 .YDEV_BAR {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
@@ -415,12 +420,12 @@ function ensure_dev_style()
 }
 .YDEV_GROUP { display: inline-flex; align-items: center; gap: 5px; }
 .YDEV_LABEL {
-    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
-    opacity: 0.5; align-self: center;
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em;
+    opacity: 0.6; align-self: center;
 }
 .YDEV_SEP { width: 1px; align-self: stretch; background: rgba(0,0,0,0.12); }
 .YDEV_CHIP {
-    font: inherit; font-size: 12px; line-height: 1.4; padding: 3px 9px;
+    font: inherit; font-size: 1rem; line-height: 1.4; padding: 0.4rem 0.8rem;
     border: 1px solid rgba(0,0,0,0.18); border-radius: 999px;
     background: transparent; color: inherit; cursor: pointer;
     display: inline-flex; align-items: center; gap: 5px;
@@ -433,14 +438,14 @@ function ensure_dev_style()
 .YDEV_CHIP[data-dir]:not(.is-active) { opacity: 0.4; text-decoration: line-through; }
 .YDEV_SEG { display: inline-flex; border: 1px solid rgba(0,0,0,0.18); border-radius: 7px; overflow: hidden; }
 .YDEV_SEG_BTN {
-    font: inherit; font-size: 12px; padding: 4px 10px; border: 0;
+    font: inherit; font-size: 1rem; padding: 0.4rem 0.85rem; border: 0;
     border-right: 1px solid rgba(0,0,0,0.12);
     background: transparent; color: inherit; cursor: pointer;
 }
 .YDEV_SEG_BTN:last-child { border-right: 0; }
 .YDEV_SEG_BTN.is-active { background: #2563eb; color: #fff; font-weight: 600; }
 .YDEV_SEARCH {
-    font: inherit; font-size: 12px; padding: 4px 9px; min-width: 170px;
+    font: inherit; font-size: 1rem; padding: 0.4rem 0.7rem; min-width: 13rem;
     border: 1px solid rgba(0,0,0,0.18); border-radius: 7px;
     background: transparent; color: inherit;
 }
@@ -449,7 +454,7 @@ function ensure_dev_style()
 .YDEV_STAT.is-strong { font-weight: 700; }
 .YDEV_TITLE { display: flex; align-items: baseline; gap: 8px; }
 .YDEV_TITLE_MAIN { font-weight: 700; }
-.YDEV_TITLE_SUB { opacity: 0.7; font-size: 12px; }
+.YDEV_TITLE_SUB { opacity: 0.7; font-size: 0.875rem; }
 /*  The ink of the log.
  *
  *  It used to be one grey dimmed with opacity per role -- 0.85 for a key,
@@ -488,7 +493,7 @@ function ensure_dev_style()
 /* -------- entries (shared) -------- */
 .TRAFFIC_ENTRY {
     border-left: 3px solid #94a3b8; border-radius: 3px;
-    font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 13px;
+    font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 0.9375rem;
     background: rgba(0,0,0,0.02);
 }
 .TRAFFIC_ENTRY { margin: 6px 0; padding: 4px 8px; line-height: 1.55; }
@@ -502,18 +507,18 @@ function ensure_dev_style()
 /*  Where the message went through. min-width 0 and flex 0 1 auto so it is the
     part that gives way when the row runs out of width -- the event name and
     the size/time must not be the ones to go.  */
-.TRAFFIC_SRC { color: var(--ydev-src); font-size: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.TRAFFIC_SRC { color: var(--ydev-src); font-size: 0.8125rem; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dir-out .TRAFFIC_ARROW, .dir-out .TRAFFIC_EVENT { color: #2563eb; }
 .dir-in  .TRAFFIC_ARROW, .dir-in  .TRAFFIC_EVENT { color: #059669; }
 .dir-err .TRAFFIC_ARROW, .dir-err .TRAFFIC_EVENT { color: #dc2626; }
-.TRAFFIC_META { margin-left: auto; color: var(--ydev-dim); font-size: 11px; white-space: nowrap; }
+.TRAFFIC_META { margin-left: auto; color: var(--ydev-dim); font-size: 0.8125rem; white-space: nowrap; }
 /*  The indent of a nested block is NOT a hover effect: it used to be given
     only on .TRAFFIC_ENTRY:hover, so moving the cursor across the log made
     every payload under it jump 16px sideways and reflow. A payload being
     read must not move because the pointer passed over it.
     (No backticks in here: this stylesheet is a template literal.)  */
 .TRAFFIC_KW { margin: 2px 0 0 16px; }
-.TRAFFIC_FULL { margin: 4px 0 0 16px; padding: 6px 8px; font-family: monospace; font-size: 11px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
+.TRAFFIC_FULL { margin: 4px 0 0 16px; padding: 6px 8px; font-family: monospace; font-size: 0.875rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
 .TRAFFIC_ROW { display: flex; gap: 6px; align-items: baseline; }
 .TRAFFIC_BULLET { color: var(--ydev-bullet); flex: 0 0 auto; }
 .TRAFFIC_KEY { color: var(--ydev-key); flex: 0 0 auto; }
@@ -538,17 +543,17 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 .TRAFFIC_PREV.t-bool  { color: var(--ydev-bool); }
 .TRAFFIC_PREV.t-null  { color: var(--ydev-bool); font-style: italic; }
 .TRAFFIC_PREV.t-empty { color: var(--ydev-dim); }
-.YDEV_EMPTY { color: var(--ydev-dim); font-size: 12px; padding: 18px 10px; text-align: center; }
+.YDEV_EMPTY { color: var(--ydev-dim); font-size: 0.875rem; padding: 18px 10px; text-align: center; }
 /* -------- mirrored console logs (error/warning/info/debug/msg; the automata trace shows as debug) -------- */
-.YDEV_LOGROW { display: flex; align-items: baseline; gap: 8px; margin: 1px 0; padding: 2px 8px; border-left: 3px solid #94a3b8; border-radius: 3px; font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 12px; background: rgba(0,0,0,0.015); }
-.YDEV_LOG_LVL { flex: 0 0 auto; text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; color: var(--ydev-dim); min-width: 48px; }
+.YDEV_LOGROW { display: flex; align-items: baseline; gap: 8px; margin: 1px 0; padding: 2px 8px; border-left: 3px solid #94a3b8; border-radius: 3px; font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 0.9375rem; background: rgba(0,0,0,0.015); }
+.YDEV_LOG_LVL { flex: 0 0 auto; text-transform: uppercase; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; color: var(--ydev-dim); min-width: 4.5rem; }
 .YDEV_LOG_TXT { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; word-break: break-word; color: var(--ydev-ink); }
 .YDEV_LOG_error   { border-left-color: #dc2626; } .YDEV_LOG_error   .YDEV_LOG_LVL { color: #dc2626; }
 .YDEV_LOG_warning { border-left-color: #d97706; } .YDEV_LOG_warning .YDEV_LOG_LVL { color: #d97706; }
 .YDEV_LOG_info    { border-left-color: #2563eb; } .YDEV_LOG_info    .YDEV_LOG_LVL { color: #2563eb; }
 .YDEV_LOG_msg     { border-left-color: #0891b2; } .YDEV_LOG_msg     .YDEV_LOG_LVL { color: #0891b2; }
 .YDEV_LOG_debug   { border-left-color: #94a3b8; } .YDEV_LOG_debug   .YDEV_LOG_LVL { color: #94a3b8; } .YDEV_LOG_debug .YDEV_LOG_TXT { color: var(--ydev-dim); }
-.YDEV_LOG_json    { border-left-color: #9333ea; align-items: flex-start; } .YDEV_LOG_json .YDEV_LOG_LVL { color: #9333ea; } .YDEV_LOG_json .YDEV_LOG_TXT { font-size: 11px; line-height: 1.35; color: var(--ydev-dim); }
+.YDEV_LOG_json    { border-left-color: #9333ea; align-items: flex-start; } .YDEV_LOG_json .YDEV_LOG_LVL { color: #9333ea; } .YDEV_LOG_json .YDEV_LOG_TXT { font-size: 0.875rem; line-height: 1.4; color: var(--ydev-dim); }
 /* -------- dark theme -------- */
 :root[data-theme="dark"] .TRAFFIC_FULL { background: rgba(255,255,255,0.05); }
 :root[data-theme="dark"] .YDEV_BAR, :root[data-theme="dark"] .YDEV_STATS { background: rgba(255,255,255,0.04); }
