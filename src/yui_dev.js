@@ -515,10 +515,12 @@ function ensure_dev_style()
 /*  The indent of a nested block is NOT a hover effect: it used to be given
     only on .TRAFFIC_ENTRY:hover, so moving the cursor across the log made
     every payload under it jump 16px sideways and reflow. A payload being
-    read must not move because the pointer passed over it.
+    read must not move because the pointer passed over it. One level is
+    FOUR characters (4ch of the row's own monospace), the rule of every
+    rendered json of the ecosystem; it was 16px, about two.
     (No backticks in here: this stylesheet is a template literal.)  */
-.TRAFFIC_KW { margin: 2px 0 0 16px; }
-.TRAFFIC_FULL { margin: 4px 0 0 16px; padding: 6px 8px; font-family: monospace; font-size: 0.875rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
+.TRAFFIC_KW { margin: 2px 0 0 4ch; }
+.TRAFFIC_FULL { margin: 4px 0 0 4ch; padding: 6px 8px; font-family: monospace; font-size: 0.875rem; line-height: 1.45; tab-size: 4; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.04); border-radius: 4px; overflow-x: auto; }
 .TRAFFIC_ROW { display: flex; gap: 6px; align-items: baseline; }
 .TRAFFIC_BULLET { color: var(--ydev-bullet); flex: 0 0 auto; }
 .TRAFFIC_KEY { color: var(--ydev-key); flex: 0 0 auto; }
@@ -547,7 +549,7 @@ details.TRAFFIC_NEST > summary::-webkit-details-marker { display: none; }
 /* -------- mirrored console logs (error/warning/info/debug/msg; the automata trace shows as debug) -------- */
 .YDEV_LOGROW { display: flex; align-items: baseline; gap: 8px; margin: 1px 0; padding: 2px 8px; border-left: 3px solid #94a3b8; border-radius: 3px; font-family: "DejaVu Sans Mono", monospace, consolas, monaco; font-size: 0.9375rem; background: rgba(0,0,0,0.015); }
 .YDEV_LOG_LVL { flex: 0 0 auto; text-transform: uppercase; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; color: var(--ydev-dim); min-width: 4.5rem; }
-.YDEV_LOG_TXT { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; word-break: break-word; color: var(--ydev-ink); }
+.YDEV_LOG_TXT { flex: 1 1 auto; min-width: 0; tab-size: 4; white-space: pre-wrap; word-break: break-word; color: var(--ydev-ink); }
 .YDEV_LOG_error   { border-left-color: #dc2626; } .YDEV_LOG_error   .YDEV_LOG_LVL { color: #dc2626; }
 .YDEV_LOG_warning { border-left-color: #d97706; } .YDEV_LOG_warning .YDEV_LOG_LVL { color: #d97706; }
 .YDEV_LOG_info    { border-left-color: #2563eb; } .YDEV_LOG_info    .YDEV_LOG_LVL { color: #2563eb; }

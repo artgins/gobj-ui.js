@@ -5,6 +5,13 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.185
+
+- **The Developer window indents JSON four characters per level.** The
+  expanded payload of the traffic nested each level by 16px, about two
+  characters of its monospace. It now uses `4ch`, the rule of every rendered
+  JSON of the ecosystem. The JSON text blocks also get `tab-size: 4`.
+
 ## 7.23.184
 
 - **The Developer window stops being all small print.** Its stylesheet was
