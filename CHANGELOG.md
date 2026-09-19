@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.181
+
+**A `C_YUI_JSON` given `json_data` at create expands again.** The attr
+filled the tree and rendered it, but the FSM stayed in `ST_EMPTY`, where
+`EV_TOGGLE_NODE`, search, expand/collapse all and copy are not declared --
+so the first click on a `>` answered *"Event NOT DEFINED in state"* and
+nothing opened. `mt_start` now enters `ST_READY` when the viewer holds a
+document. The two hosts in this library that worked around it with
+`EV_SET_JSON` keep working; their comment about the trap is gone.
+
 ## 7.23.180
 
 **The Developer window's log is painted with ink now, not with opacity.**

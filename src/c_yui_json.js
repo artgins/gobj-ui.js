@@ -86,6 +86,7 @@ import {
     refresh_language,
     kw_get_local_storage_value,
     kw_set_local_storage_value,
+    gobj_change_state,
 } from "@yuneta/gobj-js";
 
 import {
@@ -244,6 +245,14 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    let priv = gobj.priv;
+
+    /*  The FSM starts in ST_EMPTY, and a viewer handed `json_data` at
+     *  create is not empty: left there it rendered the tree and then
+     *  answered every expand/collapse with "Event NOT DEFINED in state". */
+    if(priv.root !== null) {
+        gobj_change_state(gobj, "ST_READY");
+    }
     render_view(gobj);
 }
 

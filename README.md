@@ -572,7 +572,7 @@ Two layout facts the browser taught this component, both worth keeping:
 
 - Attributes: `subscriber`, `title` (i18n key, optional — hidden on mobile,
   where the toolbar cannot hold it as well as the buttons), `json_data`
-  (initial JSON, optional), `view_mode` (`"tree"` default | `"text"` |
+  (initial JSON, optional — given, the viewer starts in `ST_READY`), `view_mode` (`"tree"` default | `"text"` |
   `"graph"`), `$container` (mounted by the parent).
 - Input events: `EV_SET_JSON {json}` (replace the whole document; `ST_EMPTY` →
   `ST_READY`), `EV_SUBTREE_LOADED {path, json}` (splice a fetched subtree),

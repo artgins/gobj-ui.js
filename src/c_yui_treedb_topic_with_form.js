@@ -2567,9 +2567,6 @@ function open_schema_dialog(gobj)
     priv.schema_modal = presented.modal;
     priv.schema_win = presented.win;
 
-    /*  EV_SET_JSON and not the `json_data` attr: the attr renders the
-     *  tree but leaves the viewer in ST_IDLE, where a click to expand a
-     *  node is an event nobody handles. */
     gobj_send_event(json_view, "EV_SET_JSON", {json: desc}, gobj);
 }
 
@@ -2697,9 +2694,6 @@ function open_cell_json_dialog(gobj, row_id, col_id)
     priv.cell_json_modal = presented.modal;
     priv.cell_json_win = presented.win;
 
-    /*  EV_SET_JSON and not the `json_data` attr: the attr renders the
-     *  tree but leaves the viewer in ST_IDLE, where a click to expand a
-     *  node is an event nobody handles. */
     gobj_send_event(json_view, "EV_SET_JSON", {json: value}, gobj);
 }
 
