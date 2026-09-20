@@ -810,7 +810,9 @@ function render_toolbar(gobj)
      *----------------------------------------------*/
     let $right = [];
     if(priv.treedb_id && has_model) {
-        $right.push(toolbar_button("SCHEMA_DIAGRAM_BTN", "yi-hexagon-nodes",
+        /*  The compass, like every other door to a SCHEMA: the
+         *  `hexagon-nodes` it wore is the graph of the DATA.  */
+        $right.push(toolbar_button("SCHEMA_DIAGRAM_BTN", "yi-compass-drafting",
             priv.diagram ? "topics" : "diagram", "EV_TOGGLE_DIAGRAM", false));
         $right.push(toolbar_button("SCHEMA_VALIDATE_BTN", "yi-square-check",
             "check", "EV_VALIDATE", false));

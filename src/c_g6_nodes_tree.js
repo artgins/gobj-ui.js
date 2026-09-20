@@ -967,7 +967,12 @@ function build_graph(gobj)
         container: priv.$container,
         animation: false,
         autoResize: false,
-        zoomRange: [0.2, 4],
+        /*  The floor was 0.2, and a treedb of a few hundred records does
+         *  not fit in a screen at 20%: the reader could see the shape of
+         *  the whole thing in the minimap and never on the canvas. Fit
+         *  still stops at a legible zoom on purpose (graph_fit_readable);
+         *  zooming out by hand is the reader's business.  */
+        zoomRange: [0.02, 4],
         node: {  // WARNING this affect to all nodes with prevalence over individual defines!
             palette: {
                 type: 'group',
@@ -2938,6 +2943,7 @@ function draw_link(
         parent_topic: parent_topic,
         parent_id:    parent_id,
         hook_name:    hook_name,
+        child_topic:  child_topic,
         child_id:     child_id,
         is_tree:      is_tree,
     });
@@ -3718,7 +3724,7 @@ async function graph_fit_selection(gobj, ids)
     let bh = Math.max(1, maxy - miny);
 
     let zoom = Math.min(vw / bw, vh / bh);
-    let range = graph.getZoomRange() || [0.2, 4];
+    let range = graph.getZoomRange() || [0.02, 4];
     zoom = Math.max(range[0], Math.min(range[1], zoom));
 
     await graph.zoomTo(zoom);
@@ -7795,7 +7801,6 @@ function refresh_default_edges_theme(gobj, theme)
     if(!graph) {
         return;
     }
-    let dark = (theme === "dark");
     let edges = graph.getData().edges || [];
     let updates = [];
     for(let i = 0; i < edges.length; i++) {
@@ -7803,10 +7808,7 @@ function refresh_default_edges_theme(gobj, theme)
         if(!d.themed_default) {
             continue;
         }
-        let stroke = d.is_tree
-            ? (dark ? '#22a7c2' : '#0e7490')
-            : (dark ? '#8b94a3' : '#6b7280');
-        updates.push({ id: edges[i].id, style: { stroke: stroke } });
+        updates.push({id: edges[i].id, style: {stroke: default_edge_stroke(gobj, d, theme)}});
     }
     if(updates.length > 0) {
         graph.updateEdgeData(updates);
@@ -8689,25 +8691,59 @@ function apply_edge_properties(gobj, edge_id, lineWidth, stroke, scope)
 }
 
 /************************************************************
+ *  The colour a link is DRAWN in: the colour of the two knobs it
+ *  joins.
+ *
+ *  Both ends of a link wear the CHILD topic's colour -- the
+ *  parent's hook port is painted with the colour of whatever may
+ *  hang there, and the child's fkey port with its own (see
+ *  build_ports) -- so the line between them has one obvious
+ *  colour, and a reader follows a link by its hue instead of
+ *  tracing a grey thread across the canvas.
+ *
+ *  It goes through port_rim(): the FILL of a port says which
+ *  topic, and a line on the canvas is a graphical object that
+ *  needs 3:1 against it, which that mix clears in both themes
+ *  (9.11 dark, 3.80 light) while keeping the hue. So a link is
+ *  drawn in exactly the colour of the rim of the two knobs it
+ *  ends on.
+ *
+ *  The containment/tree relation (parent and child of the same
+ *  topic) is no longer marked by a teal of its own -- it is that
+ *  topic's colour like any other link, and what still tells it
+ *  apart is its WIDTH.
+ *
+ *  A topic with no colour, or an edge of a graph with no schema
+ *  yet, keeps the neutral grey this used to give everything.
+ ************************************************************/
+function default_edge_stroke(gobj, d, theme)
+{
+    let priv = gobj.priv;
+    let desc = is_object(priv.descs)? priv.descs[d.child_topic] : null;
+    if(desc && desc.color) {
+        return port_rim(desc.color, theme);
+    }
+    let dark = (theme === "dark");
+    return d.is_tree? (dark? '#22a7c2' : '#0e7490') : (dark? '#8b94a3' : '#6b7280');
+}
+
+/************************************************************
  *  The style an edge INHERITS, before anything saved for the
  *  edge itself: its hook's default in the parent topic, else the
  *  parent topic's default for every edge, else the library's.
  *
- *  The library's: neutral grey, teal for the containment/tree
- *  relation (parent and child of the same topic, a
- *  self-hierarchy). `themed_default` says the colour is still the
- *  library's, so a theme toggle re-themes it and leaves a chosen
- *  one alone.
+ *  The library's: the colour of the ports it joins (see
+ *  default_edge_stroke), and a wider line for the
+ *  containment/tree relation. `themed_default` says the colour is
+ *  still the library's, so a theme toggle re-themes it and leaves
+ *  a chosen one alone.
  ************************************************************/
 function edge_inherited_style_of(gobj, d)
 {
     let priv = gobj.priv;
-    let dark = (priv.theme === "dark");
     let style = {
         lineWidth: d.is_tree ? 2 : 1.6,
-        stroke: d.is_tree
-            ? (dark ? '#22a7c2' : '#0e7490')
-            : (dark ? '#8b94a3' : '#6b7280'),
+        stroke: default_edge_stroke(gobj, d, priv.theme),
         themed_default: true,
     };
 

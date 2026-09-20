@@ -335,17 +335,42 @@ function build_ui(gobj)
                         }
                     }],
                     /*  Landing view toggle: cards grid <-> schema graph
-                     *  (topics as nodes). Shown only on the landing. */
+                     *  (topics as nodes). Shown only on the landing.
+                     *
+                     *  The glyph is the draughtsman's compass, not the
+                     *  `hexagon-nodes` of the graph: the button one place
+                     *  to its left opens the graph of the DATA, and the
+                     *  two wore the same shape with only their labels
+                     *  telling them apart -- which on a narrow toolbar is
+                     *  nothing. A schema is the PLAN of the treedb. */
                     ['button', {class: 'button TREEDB_LANDING_TOGGLE is-hidden',
                                 title: t('schema graph'), 'aria-label': t('schema graph'),
                                 'data-i18n-title': 'schema graph',
                                 'data-i18n-aria-label': 'schema graph'}, [
-                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-hexagon-nodes')]],
+                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-compass-drafting')]],
                         ['span', {i18n: 'schema'}, 'schema']
                     ], {
                         click: (evt) => {
                             evt.stopPropagation();
                             gobj_send_event(gobj, "EV_TOGGLE_LANDING_VIEW", {}, gobj);
+                        }
+                    }],
+                    /*  The schema as JSON -- the `descs` the view is drawing,
+                     *  which is what a person writing a schema literal, or
+                     *  chasing a flag that did not take, actually needs to
+                     *  read. Landing-only, like the toggle it stands next
+                     *  to; the `raw json` button further right is another
+                     *  thing entirely (the tranger's content). */
+                    ['button', {class: 'button TREEDB_SCHEMA_JSON_BTN is-hidden',
+                                title: t('schema json'), 'aria-label': t('schema json'),
+                                'data-i18n-title': 'schema json',
+                                'data-i18n-aria-label': 'schema json'}, [
+                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-code')]],
+                        ['span', {i18n: 'schema json'}, 'schema json']
+                    ], {
+                        click: (evt) => {
+                            evt.stopPropagation();
+                            gobj_send_event(gobj, "EV_OPEN_SCHEMA_JSON", {}, gobj);
                         }
                     }],
                     /*  The backend this view browses. The tab that hosts this
@@ -817,6 +842,7 @@ function show_topics_landing(gobj)
     let $info = $container.querySelector(".TREEDB_TOPIC_INFO");
     let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
     let $toggle = $container.querySelector(".TREEDB_LANDING_TOGGLE");
+    let $schema_json = $container.querySelector(".TREEDB_SCHEMA_JSON_BTN");
     if($tabs) {
         $tabs.classList.add("is-hidden");
     }
@@ -834,6 +860,11 @@ function show_topics_landing(gobj)
     if($toggle) {
         $toggle.classList.remove("is-hidden");   /*  the toggle lives on the landing  */
         $toggle.classList.toggle("is-primary", schema_mode);
+    }
+    if($schema_json) {
+        /*  The schema's json is worth reading when the schema is what is
+         *  on screen; on the cards grid it is one more button in the way.  */
+        $schema_json.classList.toggle("is-hidden", !schema_mode);
     }
     if(schema_mode) {
         if($landing) {
@@ -946,6 +977,7 @@ function show_topic_detail(gobj)
     let $info = $container.querySelector(".TREEDB_TOPIC_INFO");
     let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
     let $toggle = $container.querySelector(".TREEDB_LANDING_TOGGLE");
+    let $schema_json = $container.querySelector(".TREEDB_SCHEMA_JSON_BTN");
     if($landing) {
         $landing.classList.add("is-hidden");
     }
@@ -954,6 +986,9 @@ function show_topic_detail(gobj)
     }
     if($info) {
         $info.classList.add("is-hidden");
+    }
+    if($schema_json) {
+        $schema_json.classList.add("is-hidden");
     }
     if($toggle) {
         $toggle.classList.add("is-hidden");   /*  landing-only  */
@@ -1010,11 +1045,15 @@ function show_topic_info(gobj, topic)
     let $schema = $container.querySelector(".TREEDB_TOPICS_SCHEMA");
     let $back = $container.querySelector(".TREEDB_TOPICS_BACK");
     let $toggle = $container.querySelector(".TREEDB_LANDING_TOGGLE");
+    let $schema_json = $container.querySelector(".TREEDB_SCHEMA_JSON_BTN");
     if($landing) {
         $landing.classList.add("is-hidden");
     }
     if($schema) {
         $schema.classList.add("is-hidden");
+    }
+    if($schema_json) {
+        $schema_json.classList.add("is-hidden");
     }
     if($toggle) {
         $toggle.classList.add("is-hidden");
@@ -1307,7 +1346,7 @@ function register_sub_routes(gobj)
     let nodes = [];
     if(is_object(gobj_read_attr(gobj, "landing_routes"))) {
         nodes.push({route: base + "/schema", label: "schema",
-                    icon: "yi-hexagon-nodes", gclass: "C_YUI_TREEDB_SCHEMA"});
+                    icon: "yi-compass-drafting", gclass: "C_YUI_TREEDB_SCHEMA"});
     }
     if(is_object(descs)) {
         for(let topic of Object.keys(descs)) {
@@ -1655,13 +1694,18 @@ function is_mobile()
  *  whole service (lazy drill). CHILD model: the viewer publishes
  *  EV_EXPAND_PATH to us.
  ************************************************************/
-function open_json_viewer(gobj)
+function open_json_viewer(gobj, opts)
 {
     let priv = gobj.priv;
+    let schema = !!(opts && opts.schema);
 
-    /*  Already open: just re-fetch.  */
+    /*  Already open: just re-fetch. The schema needs no fetch -- it is
+     *  the `descs` this view already holds -- so a second click on a
+     *  viewer that is already showing it does nothing.  */
     if(priv.json_win || priv.json_modal) {
-        request_print_tranger(gobj, "");
+        if(!schema) {
+            request_print_tranger(gobj, "");
+        }
         return;
     }
 
@@ -1681,7 +1725,11 @@ function open_json_viewer(gobj)
             /*  No `title`: the host titles it — the window's title bar on
              *  desktop, the dialog's header on mobile. The viewer's own
              *  title would land INSIDE that host, doubling it.  */
-            subscriber: gobj        /*  publishes EV_EXPAND_PATH to us  */
+            subscriber: gobj,       /*  publishes EV_EXPAND_PATH to us  */
+            /*  The schema is here already and it is small: it goes in
+             *  whole, and no drill-down happens because nothing is
+             *  collapsed.  */
+            json_data: schema? gobj_read_attr(gobj, "descs") : null
         },
         gobj
     );
@@ -1703,7 +1751,7 @@ function open_json_viewer(gobj)
             dialog:        true,
             logical_class: "TREEDB_JSON_SHEET",
             title_prefix: priv.treedb_name,
-            title:         "raw json",
+            title:         schema? "schema json" : "raw json",
             t:             t,
             on_close: () => {
                 if(gobj_is_destroying(gobj)) {
@@ -1733,8 +1781,8 @@ function open_json_viewer(gobj)
                 height:     620,
                 logical_class: "TREEDB_JSON_WINDOW",
                 title_prefix: priv.treedb_name,
-                title:      "raw json",
-                icon:       "yi-eye",
+                title:      schema? "schema json" : "raw json",
+                icon:       schema? "yi-code" : "yi-eye",
                 body:       $box,
                 manager:    null,
                 on_close: () => {
@@ -1754,7 +1802,9 @@ function open_json_viewer(gobj)
         gobj_start(priv.json_win);
     }
 
-    request_print_tranger(gobj, "");
+    if(!schema) {
+        request_print_tranger(gobj, "");
+    }
 }
 
 /************************************************************
@@ -2719,6 +2769,24 @@ function ac_open_json(gobj, event, kw, src)
 }
 
 /********************************************
+ *  The schema, as the json it is: the `descs` the schema graph is
+ *  drawing. Same viewer and same host as the tranger's raw json --
+ *  one at a time, so it closes whatever was open first.
+ ********************************************/
+function ac_open_schema_json(gobj, event, kw, src)
+{
+    if(!is_object(gobj_read_attr(gobj, "descs"))) {
+        /*  Not reachable by hand -- the button only exists while the
+         *  schema is on screen, which needs the descs -- so this is a
+         *  broken caller, not something to tell the reader about.  */
+        log_error(`${gobj_short_name(gobj)}: schema json with no descs`);
+        return -1;
+    }
+    open_json_viewer(gobj, {schema: true});
+    return 0;
+}
+
+/********************************************
  *  Open the graph where the reader left it: its last visited
  *  route under the graph's base -- `<graph>/<topic>` when a topic
  *  was focused there -- or the bare base when the graph was never
@@ -2823,6 +2891,7 @@ function create_gclass(gclass_name)
             ["EV_DELETE_RECORD",        ac_delete_record,           null],
             ["EV_REFRESH_TOPIC",        ac_refresh_topic,           null],
             ["EV_OPEN_JSON",            ac_open_json,               null],
+            ["EV_OPEN_SCHEMA_JSON",     ac_open_schema_json,        null],
             ["EV_OPEN_GRAPH",           ac_open_graph,              null],
             ["EV_EXPAND_PATH",          ac_json_expand_path,        null],
             ["EV_JSON_CLOSED",          ac_json_closed,             null],
@@ -2857,6 +2926,7 @@ function create_gclass(gclass_name)
                                     event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_REFRESH_TOPIC",        0],
         ["EV_OPEN_JSON",            0],
+        ["EV_OPEN_SCHEMA_JSON",     0],
         ["EV_OPEN_GRAPH",           0],
         ["EV_EXPAND_PATH",          0],
         ["EV_JSON_CLOSED",          0],

@@ -5,6 +5,41 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.187
+
+- **The schema no longer wears the glyph of the data graph.** The treedb
+  landing had two buttons one place apart on the same toolbar, both
+  `yi-hexagon-nodes`: the one that opens the graph of the DATA and the one
+  that draws the SCHEMA. Only their labels told them apart, and a narrow
+  toolbar drops labels. The schema is a PLAN, so it takes a new mask,
+  `yi-compass-drafting` (FontAwesome Free solid), here and everywhere else a
+  schema is the thing behind the button: the `/schema` route's tab icon and
+  the schema editor's diagram toggle.
+- **The schema can be read as JSON.** A new `TREEDB_SCHEMA_JSON_BTN` next to
+  that toggle, shown while the schema is on screen, opens the `descs` the
+  view is drawing in the same C_YUI_JSON host the raw tranger json uses —
+  which is what a person writing a schema literal, or chasing a flag that did
+  not take, actually needs to read. New consumer i18n key `schema json`
+  (added to the en/es locales of gui_treedb, gui_agent, wattyzer and the
+  yunovatios GUIs). The viewer needs no fetch and no drill-down: the schema
+  is in memory and it is small.
+- **A link is drawn in the colour of the two ports it joins.** Both ends of a
+  link wear the CHILD topic's colour — the parent's hook port is painted with
+  the colour of whatever may hang there, the child's fkey port with its own —
+  and the line between them was a neutral grey for every link of the graph,
+  so following one meant tracing a thread across the canvas. The colour goes
+  through `port_rim()`, the mix that clears 3:1 against the canvas in both
+  themes (9.11 dark, 3.80 light) while keeping the hue, so a link is drawn in
+  exactly the colour of the rim of its knobs. The containment/tree relation
+  is no longer marked by a teal of its own; what tells it apart is its WIDTH.
+  A chosen edge colour still wins, and a theme toggle re-themes only what is
+  still on the default.
+- **The graph can be zoomed out past 20%.** `zoomRange` was `[0.2, 4]`, and a
+  treedb of a few hundred records does not fit in a screen at 20%: the shape
+  of the whole thing was visible in the minimap and nowhere else. The floor
+  is `0.02`. Fit still stops at a legible zoom on purpose
+  (`graph_fit_readable`); zooming out by hand is the reader's business.
+
 ## 7.23.186
 
 - **A Save of the graph writes the topics that CHANGED, and only those.**
