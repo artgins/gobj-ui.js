@@ -5,6 +5,35 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.186
+
+- **A Save of the graph writes the topics that CHANGED, and only those.**
+  The arrangement lives in `__graphs__`, one record per topic, and
+  `save_geometry()` published an `EV_UPDATE_NODE` for every topic the view
+  had loaded, whatever had moved. Measured on a live agent treedb: one card
+  of `public_services` dragged, Save pressed, **five records written, four
+  of them identical byte for byte** to the records under them — and the
+  store is append-only, so they stay. The topics are now chosen by comparing
+  what the view holds against what the backend has (`graph_save_plan.js`,
+  `priv._saved_graph_properties`, a copy taken at load and after each
+  write).
+- **Why a comparison and not the history.** The Save button says that
+  something happened, never what: it lights from `history.canUndo()` for the
+  moves G6 records, and from `mark_graph_dirty()` for everything G6 does not
+  record (a colour, a pill, a per-topic default). So the undo stack is not
+  the list of what changed, and reading it as one would drop half the
+  changes; a value comparison sees both kinds, and survives an undo, a redo
+  and the `history.clear()` that `ac_save_graph()` does. **Undo and Redo are
+  untouched.**
+- `__origin__` — the `node_uuid` of whoever wrote the record — is left out
+  of the comparison: it is bookkeeping about the write, not about the
+  arrangement, and a second browser would otherwise force a rewrite of every
+  topic that says nothing new.
+- The delete of a node goes through the same door, so removing a node that
+  carried no geometry of its own no longer appends a record either.
+- New: `src/graph_save_plan.js` (pure decision, no G6/DOM/gobj) and its
+  `graph_save_plan.test.js`, 16 cases. Suite: 822 passing.
+
 ## 7.23.185
 
 - **The Developer window indents JSON four characters per level.** The

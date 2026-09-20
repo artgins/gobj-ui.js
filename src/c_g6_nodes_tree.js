@@ -77,6 +77,7 @@ import {
     kw_get_dict_value,
     kw_set_dict_value,
     kw_clone_by_keys,
+    json_deep_copy,
     json_object_update,
     json_object_update_missing,
     json_object_size,
@@ -90,6 +91,11 @@ import {
     escapeHtml,
     safeSrc,
 } from "@yuneta/gobj-js";
+
+import {
+    plan_graph_saves,
+    topic_arrangement_changed,
+} from "./graph_save_plan.js";
 
 import {
     addClasses,
@@ -483,6 +489,7 @@ let PRIVATE_DATA = {
     graph:              null,       // Instance of G6
     __graphs__:         [],         // Rows of __graphs__
     _graph_properties:  {},         // topic_name → {nodes: {node_id: {x,y,size,...}}}
+    _saved_graph_properties: {},    // the same, as the BACKEND has it: what a Save compares against
     yet_showed:         false,
     edit_mode:          false,
     operation_mode:     null,
@@ -3051,6 +3058,7 @@ function build_graph_properties(gobj)
 {
     let priv = gobj.priv;
     priv._graph_properties = {};
+    priv._saved_graph_properties = {};
 
     for(let i = 0; i < priv.__graphs__.length; i++) {
         let rec = priv.__graphs__[i];
@@ -3060,6 +3068,11 @@ function build_graph_properties(gobj)
         let props = rec.properties;
         if(is_object(props)) {
             priv._graph_properties[rec.topic] = props;
+            /*  A COPY: the line above hands the record's own object to
+             *  the view, which then arranges it in place, so anything
+             *  kept by reference would change with it and a Save would
+             *  never find a difference.  */
+            priv._saved_graph_properties[rec.topic] = json_deep_copy(props);
         }
     }
 }
@@ -3205,34 +3218,30 @@ function save_geometry(gobj)
         update_edge_geometry(gobj, edges[i].id);
     }
 
-    // Save one __graphs__ record per topic
-    let origin = gobj_read_str_attr(gobj_yuno(), "node_uuid");
-
-    for(const [topic_name, properties] of Object.entries(priv._graph_properties)) {
-        // Add origin metadata
-        properties.__origin__ = origin;
-
-        let kw_update = {
-            treedb_name: priv.treedb_name,
-            topic_name: "__graphs__",
-            record: {
-                id: topic_name,
-                topic: topic_name,
-                active: true,
-                properties: properties
-            },
-            options: {
-                list_dict: true,
-                autolink: false,
-                create: true    // Create if doesn't exist, update if it does
-            }
-        };
-        gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
+    /*  One __graphs__ record per topic that CHANGED, and nothing for
+     *  the rest. The Save button says that something happened, never
+     *  what: it lights from `history.canUndo()` for the moves G6
+     *  records and from mark_graph_dirty() for everything it does not
+     *  (a colour, a pill, a per-topic default). So the topics are
+     *  chosen by comparing what the view holds against what the
+     *  backend has -- which sees both kinds of change, and goes on
+     *  working after an undo, a redo, or the history.clear() that
+     *  ac_save_graph() does one line before calling this.
+     *
+     *  The store is append-only: a topic written with the content it
+     *  already had is a record that says nothing, for ever. Moving one
+     *  card of a five-topic treedb used to append five.  */
+    let plan = plan_graph_saves(priv._graph_properties, priv._saved_graph_properties);
+    for(let i = 0; i < plan.length; i++) {
+        save_topic_graph_properties(gobj, plan[i]);
     }
 }
 
 /************************************************************
  *  Save __graphs__ properties for a single topic to backend.
+ *
+ *  The ONE door to `__graphs__`: a caller that knows a topic moved
+ *  says so, and this decides whether the backend needs telling.
  ************************************************************/
 function save_topic_graph_properties(gobj, topic_name)
 {
@@ -3242,8 +3251,29 @@ function save_topic_graph_properties(gobj, topic_name)
         return;
     }
 
+    /*  A record that says what the record under it says is a record
+     *  that will be read for ever and mean nothing -- the store is
+     *  append-only. It reached here by two doors: the Save, which
+     *  wrote every topic the view had loaded, and the delete of a
+     *  node that carried no geometry of its own.  */
+    if(!topic_arrangement_changed(properties, priv._saved_graph_properties[topic_name])) {
+        return;
+    }
+
     let origin = gobj_read_str_attr(gobj_yuno(), "node_uuid");
     properties.__origin__ = origin;
+
+    /*  What the backend will hold once this is written. Taken BEFORE
+     *  the publish and as a copy, because the object below travels by
+     *  reference and goes on being arranged after the write.
+     *
+     *  Nothing answers an `EV_UPDATE_NODE` of `__graphs__` -- the view
+     *  writes that topic itself and is deliberately not told about it
+     *  (see the EV_RECORD_WRITTEN of C_YUI_TREEDB_GRAPH) -- so this is
+     *  the write taken for granted. A refused one leaves the view
+     *  believing the backend holds an arrangement it does not, until
+     *  the next load reads the records again.  */
+    priv._saved_graph_properties[topic_name] = json_deep_copy(properties);
 
     let kw_update = {
         treedb_name: priv.treedb_name,

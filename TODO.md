@@ -97,9 +97,17 @@ npm line still serves estadodelaire/hidraulia.
 
 ---
 
-## 2. The graph's Save writes a `__graphs__` record per topic
+## 2. The graph's Save writes a `__graphs__` record per topic — CLOSED in `7.23.186`
 
-**Open.** `save_geometry()` (`src/c_g6_nodes_tree.js`) walks
+> **Status: CLOSED.** `save_geometry()` compares what the view holds
+> against what the backend has (`graph_save_plan.js`, and
+> `priv._saved_graph_properties` as the baseline) and publishes only for
+> the topics that differ; `save_topic_graph_properties()` carries the same
+> guard, so the delete path is covered too. The history plugin was not
+> touched: Undo and Redo go on reading their own stacks. The account below
+> is the original finding, kept as history.
+
+**Was open.** `save_geometry()` (`src/c_g6_nodes_tree.js`) walks
 `priv._graph_properties` and publishes an `EV_UPDATE_NODE` for EVERY
 topic the view has loaded, whatever moved.  So moving one node and
 pressing Save appends one record per topic to `__graphs__`, and all
