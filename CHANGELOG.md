@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.189
+
+- **The raw-json button logged two errors on every open** (regression of
+  7.23.187). The JSON viewer was created with
+  `json_data: schema? descs : null`, and a `DTP_JSON` attr takes a dict or a
+  list: gobj-js refuses a null with *"attr must be a json dict/list:
+  json_data"* and `json2data()` then fails, so every open of the tranger's
+  raw json wrote two ERROR lines before working anyway. An attr there is
+  nothing to say about is one not to mention: the kw is built without it.
+
 ## 7.23.188
 
 - **A card says its id AND the instance it is, not one instead of the

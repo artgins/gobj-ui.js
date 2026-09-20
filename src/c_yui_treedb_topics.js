@@ -1718,19 +1718,29 @@ function open_json_viewer(gobj, opts)
     let mobile = is_mobile();
     let shell = yui_shell_of(gobj);
 
+    /*  No `title`: the host titles it — the window's title bar on
+     *  desktop, the dialog's header on mobile. The viewer's own title
+     *  would land INSIDE that host, doubling it.  */
+    let jv_kw = {
+        subscriber: gobj        /*  publishes EV_EXPAND_PATH to us  */
+    };
+    if(schema) {
+        /*  The schema is here already and it is small: it goes in whole,
+         *  and no drill-down happens because nothing is collapsed.
+         *
+         *  Written as `json_data: schema? descs : null` it cost two
+         *  errors on EVERY raw-json open: a `DTP_JSON` attr takes a dict
+         *  or a list, and gobj-js REFUSES a null with "attr must be a
+         *  json dict/list" -- and then json2data() fails and the create
+         *  carries on with the attr unset. An attr you have nothing to
+         *  say about is one you do not mention.  */
+        jv_kw.json_data = gobj_read_attr(gobj, "descs");
+    }
+
     let jv = gobj_create_service(
         `treedb-topics-json-${clean_name(gobj_name(gobj))}`,
         "C_YUI_JSON",
-        {
-            /*  No `title`: the host titles it — the window's title bar on
-             *  desktop, the dialog's header on mobile. The viewer's own
-             *  title would land INSIDE that host, doubling it.  */
-            subscriber: gobj,       /*  publishes EV_EXPAND_PATH to us  */
-            /*  The schema is here already and it is small: it goes in
-             *  whole, and no drill-down happens because nothing is
-             *  collapsed.  */
-            json_data: schema? gobj_read_attr(gobj, "descs") : null
-        },
+        jv_kw,
         gobj
     );
     if(!jv) {
