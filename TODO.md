@@ -97,6 +97,38 @@ npm line still serves estadodelaire/hidraulia.
 
 ---
 
+## 2. The graph's Save writes a `__graphs__` record per topic
+
+**Open.** `save_geometry()` (`src/c_g6_nodes_tree.js`) walks
+`priv._graph_properties` and publishes an `EV_UPDATE_NODE` for EVERY
+topic the view has loaded, whatever moved.  So moving one node and
+pressing Save appends one record per topic to `__graphs__`, and all
+but one of them say exactly what the record under them said.
+
+Measured on wattyzer (2026-09-20, `gui_treedb` against the agent's
+treedb): one node of `public_services` moved, **five records written,
+four of them identical** to the ones below (`yunos`, `binaries`,
+`configurations`, `realms`).
+
+The Save button is `disabled` while nothing has moved, so the
+zero-move case cannot happen; this is the one-topic case.
+
+**The fix belongs here, not in treedb.**  `treedb_update_node()` saves
+whatever it is handed, on purpose: deciding whether a write is worth
+making is the caller's judgement, and the caller is the one that knows
+what the person moved.  So compare each `_graph_properties[topic]`
+with what the view already holds and publish only for the topics that
+changed; `save_topic_graph_properties()` already writes one topic
+alone, so only the comparison is missing.
+
+The comparison is on the view's own properties, which carry no `time`
+column, so the treedb `now` stamp (yunetas `038208f16`, a writable
+`now` column is stamped on every update) does not interfere: after it,
+the four no-op records differ in `time` and are no longer identical on
+disk, but they are still four writes that change nothing.
+
+---
+
 ## Acknowledged debt (not blocking anything)
 
 - **Focus-trap unit tests use hand-rolled DOM stubs.**  Stubs cover
