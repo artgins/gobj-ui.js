@@ -210,6 +210,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
 
 /*---------------- Selection Mode ----------------*/
+SDATA(data_type_t.DTP_INTEGER,  "max_col_width",        0,  420,    "Ceiling, in px, for a data column. The table lays out `fitDataFill`, which sizes a column to its DATA: one `description` holding a paragraph took the whole viewport and left every other column off screen. 0 removes the ceiling; a reader still widens any column by hand (columns are resizable)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",        0,  true,   "Auxiliary first column to select rows"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_radio",           0,  false,  "Auxiliary first column to select one row"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_selection_bar",   0,  false,  "Show the shared selection bar (\"N selected\" + a way out) above the table while in edition mode. OFF by default: the bar takes its words from the HOST's i18n, and a host that has not defined \"{{n}} selected\" and \"clear selection\" would render the keys"),
@@ -1341,6 +1342,8 @@ function create_tabulator(gobj)
         }
     }
 
+    let max_col_width = gobj_read_integer_attr(gobj, "max_col_width");
+
     for (let i = 0; i < desc.cols.length; i++) {
         let col = desc.cols[i];
         if(!col.id || col.id[0]==='_') {
@@ -1472,6 +1475,16 @@ function create_tabulator(gobj)
             hozAlign: hozAlign,
             formatter: colFormatter,
         };
+        /*  A ceiling, because `fitDataFill` sizes a column to its DATA and
+         *  a text column has no natural width: one `description` holding a
+         *  paragraph -- the agent's `configurations` is full of them --
+         *  came out wider than the viewport and pushed every other column,
+         *  the id included, off the screen. The cell keeps its whole text;
+         *  what the ceiling costs is having to widen the column, or open
+         *  the record, to read the end of it.  */
+        if(max_col_width > 0) {
+            colDef.maxWidth = max_col_width;
+        }
         if(with_header_filters) {
             apply_header_filter(colDef, field_desc);
         }

@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.190
+
+- **A column of a topic table has a ceiling now.** The table lays out
+  `fitDataFill`, which sizes a column to its DATA, and a text column has no
+  natural width: the `description` of the agent's `configurations` holds a
+  paragraph per row, so that one column came out wider than the viewport and
+  pushed every other column — the id included — off the screen. Every data
+  column is capped at `max_col_width`, a new attr, **420px** by default; `0`
+  removes the ceiling and a reader still widens any column by hand, since
+  they are resizable. The cell keeps its whole text: what the ceiling costs
+  is having to widen the column, or open the record, to read the end of it.
+
 ## 7.23.189
 
 - **The raw-json button logged two errors on every open** (regression of
