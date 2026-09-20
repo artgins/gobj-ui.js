@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.191
+
+- **`schema json` shows the schema as it is STORED**, not the runtime one.
+  The button answered with the `descs` the view holds — one desc per topic,
+  cols as a LIST, hooks resolved — and what a person reading a schema wants
+  is the `<treedb>.treedb_schema.json` on the node: cols keyed by name,
+  `schema_version`, a `topic_version` per topic. It now asks the backend for
+  that file (`schema-file`, new in C_NODE) and shows it whole. A backend
+  without the command answers *"command not found"* and the viewer shows
+  that, so the button needs an SDK with it.
+- The viewer is created empty again and fed by the answer in both cases,
+  which retires the `json_data` of 7.23.187 and its null of 7.23.189.
+
 ## 7.23.190
 
 - **A column of a topic table has a ceiling now.** The table lays out

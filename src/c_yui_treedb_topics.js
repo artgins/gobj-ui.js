@@ -1699,11 +1699,11 @@ function open_json_viewer(gobj, opts)
     let priv = gobj.priv;
     let schema = !!(opts && opts.schema);
 
-    /*  Already open: just re-fetch. The schema needs no fetch -- it is
-     *  the `descs` this view already holds -- so a second click on a
-     *  viewer that is already showing it does nothing.  */
+    /*  Already open: just re-fetch, whichever document it is showing.  */
     if(priv.json_win || priv.json_modal) {
-        if(!schema) {
+        if(schema) {
+            request_schema_file(gobj);
+        } else {
             request_print_tranger(gobj, "");
         }
         return;
@@ -1718,29 +1718,15 @@ function open_json_viewer(gobj, opts)
     let mobile = is_mobile();
     let shell = yui_shell_of(gobj);
 
-    /*  No `title`: the host titles it — the window's title bar on
-     *  desktop, the dialog's header on mobile. The viewer's own title
-     *  would land INSIDE that host, doubling it.  */
-    let jv_kw = {
-        subscriber: gobj        /*  publishes EV_EXPAND_PATH to us  */
-    };
-    if(schema) {
-        /*  The schema is here already and it is small: it goes in whole,
-         *  and no drill-down happens because nothing is collapsed.
-         *
-         *  Written as `json_data: schema? descs : null` it cost two
-         *  errors on EVERY raw-json open: a `DTP_JSON` attr takes a dict
-         *  or a list, and gobj-js REFUSES a null with "attr must be a
-         *  json dict/list" -- and then json2data() fails and the create
-         *  carries on with the attr unset. An attr you have nothing to
-         *  say about is one you do not mention.  */
-        jv_kw.json_data = gobj_read_attr(gobj, "descs");
-    }
-
     let jv = gobj_create_service(
         `treedb-topics-json-${clean_name(gobj_name(gobj))}`,
         "C_YUI_JSON",
-        jv_kw,
+        {
+            /*  No `title`: the host titles it — the window's title bar on
+             *  desktop, the dialog's header on mobile. The viewer's own
+             *  title would land INSIDE that host, doubling it.  */
+            subscriber: gobj        /*  publishes EV_EXPAND_PATH to us  */
+        },
         gobj
     );
     if(!jv) {
@@ -1812,7 +1798,9 @@ function open_json_viewer(gobj, opts)
         gobj_start(priv.json_win);
     }
 
-    if(!schema) {
+    if(schema) {
+        request_schema_file(gobj);
+    } else {
         request_print_tranger(gobj, "");
     }
 }
@@ -1871,6 +1859,23 @@ function close_json_viewer(gobj)
  *  Fetch the treedb's raw tranger (or one subtree when `path` is set),
  *  collapsed at 100 so a huge tranger stays a small payload of
  *  `__collapsed__` stubs the viewer expands on demand.
+ ************************************************************/
+function request_schema_file(gobj)
+{
+    let priv = gobj.priv;
+    let remote = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
+    if(!remote) {
+        log_error(`${gobj_short_name(gobj)}: No gobj_remote_yuno defined`);
+        return;
+    }
+    let ret = gobj_command(remote, "schema-file", {service: priv.treedb_name}, gobj);
+    if(ret) {
+        log_error(ret);
+    }
+}
+
+/************************************************************
+ *  The whole tranger, for the raw-json viewer.
  ************************************************************/
 function request_print_tranger(gobj, path)
 {
@@ -1982,6 +1987,26 @@ function ac_mt_command_answer(gobj, event, kw, src)
         } else {
             gobj_send_event(jv, "EV_SET_JSON", {json: data}, gobj);
         }
+        return 0;
+    }
+
+    /*
+     *  The schema as it is STORED -- the `<treedb>.treedb_schema.json` of
+     *  the node -- which is NOT what `descs` answers: the file keys its
+     *  cols by name and carries the schema and topic versions. An older
+     *  backend has no such command and says so; the viewer shows that.
+     */
+    if(command === "schema-file") {
+        let jv = gobj.priv.json_gobj;
+        if(!jv || !is_gobj(jv) || gobj_is_destroying(jv)) {
+            return 0;   /*  viewer closed before its answer landed: benign  */
+        }
+        if(result < 0) {
+            yui_shell_show_error(yui_shell_of(gobj),
+                comment || "schema-file failed", {t: t});
+            return 0;
+        }
+        gobj_send_event(jv, "EV_SET_JSON", {json: data}, gobj);
         return 0;
     }
 
@@ -2785,13 +2810,6 @@ function ac_open_json(gobj, event, kw, src)
  ********************************************/
 function ac_open_schema_json(gobj, event, kw, src)
 {
-    if(!is_object(gobj_read_attr(gobj, "descs"))) {
-        /*  Not reachable by hand -- the button only exists while the
-         *  schema is on screen, which needs the descs -- so this is a
-         *  broken caller, not something to tell the reader about.  */
-        log_error(`${gobj_short_name(gobj)}: schema json with no descs`);
-        return -1;
-    }
     open_json_viewer(gobj, {schema: true});
     return 0;
 }
