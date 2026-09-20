@@ -1,8 +1,10 @@
 /***********************************************************************
  *          treedb_node_label.test.js
  *
- *      The label of a treedb graph node: the pkey when it names the
- *      record, the secondary key when the pkey is synthetic.
+ *      The label of a treedb graph node: its id, and the secondary
+ *      keys it carries. A record is one thing and an INSTANCE of it
+ *      another, and a card that shows one without the other cannot be
+ *      identified.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -35,44 +37,67 @@ const REALMS_DESC = {
 };
 
 describe("node_label", () => {
-    it("uses the secondary key when the pkey is a rowid", () => {
+    const DOT = " \u00b7 ";
+
+    it("says the id AND the secondary key that names the record", () => {
         expect(node_label(COLS_DESC, {id: "181", value: "yuno_role"}))
-            .toBe("yuno_role");
+            .toBe("181" + DOT + "yuno_role");
     });
 
-    it("uses the pkey when it names the record", () => {
+    it("says the id AND the instance: the case that brought it", () => {
+        /*  Three yunos of one agent, all of release 7.23.0-1: the cards
+         *  read `7.23.0-1` three times and never said which yuno.  */
+        let yunos = {
+            topic_name: "yunos",
+            pkey:       "id",
+            pkey2s:     ["yuno_release"],
+            cols: [
+                {id: "id",           type: "string", flag: ["persistent", "rowid"]},
+                {id: "yuno_release", type: "string", flag: ["persistent"]},
+            ],
+        };
+        expect(node_label(yunos, {id: "1", yuno_release: "7.23.0-1"}))
+            .toBe("1" + DOT + "7.23.0-1");
+        expect(node_label(yunos, {id: "1600", yuno_release: "1.8.1.0-2"}))
+            .toBe("1600" + DOT + "1.8.1.0-2");
+    });
+
+    it("gives the bare id when the topic declares no secondary key", () => {
         expect(node_label(REALMS_DESC, {id: "artgins.utilities.all", realm_name: "all"}))
             .toBe("artgins.utilities.all");
     });
 
     it("accepts a pkey2s declared as a bare string", () => {
         let desc = {...COLS_DESC, pkey2s: "value"};
-        expect(node_label(desc, {id: "181", value: "yuno_role"})).toBe("yuno_role");
+        expect(node_label(desc, {id: "181", value: "yuno_role"}))
+            .toBe("181" + DOT + "yuno_role");
     });
 
-    it("treats a qualified pkey like a rowid one", () => {
-        let desc = {
-            ...COLS_DESC,
-            cols: [
-                {id: "id",    type: "string", flag: ["persistent", "qualified"]},
-                {id: "value", type: "string", flag: ["persistent", "required"]},
-            ],
-        };
-        expect(node_label(desc, {
-            id:    "treedb_yunovatioscodb.yunos.yuno_role",
-            value: "yuno_role",
-        })).toBe("yuno_role");
+    it("does not care what the id column is flagged", () => {
+        /*  rowid, uuid, qualified or nothing at all: the id is shown
+         *  either way, and the flags decide nothing here any more.  */
+        for(let flag of [["persistent", "uuid"], ["persistent", "qualified"], ["persistent"]]) {
+            let desc = {
+                ...COLS_DESC,
+                cols: [
+                    {id: "id",    type: "string", flag: flag},
+                    {id: "value", type: "string", flag: ["persistent", "required"]},
+                ],
+            };
+            expect(node_label(desc, {id: "k", value: "named"})).toBe("k" + DOT + "named");
+        }
     });
 
-    it("treats a uuid pkey like a rowid one", () => {
-        let desc = {
-            ...COLS_DESC,
-            cols: [
-                {id: "id",    type: "string", flag: ["persistent", "uuid"]},
-                {id: "value", type: "string", flag: ["persistent", "required"]},
-            ],
-        };
-        expect(node_label(desc, {id: "3f2a…", value: "named"})).toBe("named");
+    it("says every secondary key the topic declares, in its order", () => {
+        let desc = {topic_name: "x", pkey: "id", pkey2s: ["a", "b"], cols: []};
+        expect(node_label(desc, {id: "7", a: "one", b: "two"}))
+            .toBe("7" + DOT + "one" + DOT + "two");
+    });
+
+    it("skips a secondary key that is empty, absent or the id again", () => {
+        expect(node_label(COLS_DESC, {id: "181", value: ""})).toBe("181");
+        expect(node_label(COLS_DESC, {id: "181"})).toBe("181");
+        expect(node_label(COLS_DESC, {id: "181", value: "181"})).toBe("181");
     });
 
     it("falls back to the id when the desc carries no pkey2s (older node)", () => {
@@ -80,27 +105,13 @@ describe("node_label", () => {
         expect(node_label(desc, {id: "181", value: "yuno_role"})).toBe("181");
     });
 
-    it("falls back to the id when the secondary key is empty in the record", () => {
-        expect(node_label(COLS_DESC, {id: "181", value: ""})).toBe("181");
-        expect(node_label(COLS_DESC, {id: "181"})).toBe("181");
+    it("takes a numeric secondary key as the text it is", () => {
+        expect(node_label(COLS_DESC, {id: "emailsender.artgins", value: 1}))
+            .toBe("emailsender.artgins" + DOT + "1");
     });
 
-    it("honours a pkey that is not called 'id'", () => {
-        let desc = {
-            topic_name: "x",
-            pkey:       "key",
-            pkey2s:     ["name"],
-            cols: [
-                {id: "key",  type: "string", flag: ["persistent", "rowid"]},
-                {id: "name", type: "string", flag: ["persistent", "required"]},
-                /*  A col called `id` that is NOT the pkey must not decide.  */
-                {id: "id",   type: "string", flag: ["persistent"]},
-            ],
-        };
-        expect(node_label(desc, {id: "7", key: "7", name: "seven"})).toBe("seven");
-    });
-
-    it("survives a desc with no cols", () => {
+    it("survives a desc with no cols, and no desc at all", () => {
         expect(node_label({topic_name: "x", pkey: "id"}, {id: "42"})).toBe("42");
+        expect(node_label(null, {id: "42"})).toBe("42");
     });
 });

@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.188
+
+- **A card says its id AND the instance it is, not one instead of the
+  other.** `node_label()` replaced the id with the first secondary key
+  whenever the id column was flagged `rowid`, `uuid` or `qualified` — so the
+  three utility yunos of an agent read `7.23.0-1`, `7.23.0-1`, `7.23.0-1`
+  (the release, which they share) and never said which yuno each one was,
+  and a `configurations` card read `1`. A record is one thing and an
+  INSTANCE of it is another: the label now opens with the id and appends
+  every `pkey2s` value the record carries, separated by `·`. The case that
+  brought the old rule still reads well — the `cols` of
+  treedb_system_schema say `181 · yuno_role` instead of `181` — and the
+  flags of the id column decide nothing here any more. A topic with no
+  `pkey2s`, or a record carrying none, gives the bare id as before.
+
 ## 7.23.187
 
 - **The schema no longer wears the glyph of the data graph.** The treedb
