@@ -5,6 +5,29 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.192
+
+- **Peer floors raised: `maplibre-gl` `^6.10.0` and `tabulator-tables`
+  `^6.5.3`.** No API moved, and neither release line asks anything of this
+  code:
+  - maplibre 6.5.0 → 6.10.0 documents **no breaking change, removal or
+    rename**. What it carries is globe/terrain work (sky in globe view, a
+    `Marker` tested against terrain by a CPU ray walk instead of a
+    depth-buffer readback, hillshade artifacts, pooled drape textures), a
+    `setStyle`/`setTerrain` `this` fix, faster fill triangulation and a
+    blank-map fix for older Safari. `c_yui_map.js` sets no terrain and no
+    globe projection and never calls `setStyle`, so the only touched thing
+    it uses is `Marker` — on a map with no terrain, where that path does
+    not run. The one addition is experimental (`ImageSource.setWarp`).
+  - tabulator 6.5.3 is bug fixes only. Three of them land near this code
+    and all three are in its favour: the editor focus/validation fixes (the
+    treedb table edits in place), *"identical IDs in every table
+    instance"* (each table here already carries its own `table_id`), and
+    the `selectableRows` limit enforcement **in `selectRows`** — which this
+    code never calls, and whose tables are `"highlight"` or a radio's `1`.
+    The frozen-column and popup-positioning fixes reach nothing: no column
+    is frozen and the popups are the shell's, not Tabulator's.
+
 ## 7.23.191
 
 - **`schema json` shows the schema as it is STORED**, not the runtime one.
