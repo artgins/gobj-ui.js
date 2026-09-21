@@ -221,34 +221,14 @@ describe("the column itself", () => {
     });
 });
 
-describe("the version that did not move", () => {
-    test("a written topic whose topic_version is unchanged is reported", () => {
+describe("a version is not the validator's", () => {
+    test("a written topic whose topic_version did not move is NOT reported", () => {
+        /*  An edit is a draft; save-schema raises the version.  */
         const f = validate_schema(schema(), {
             written_topics: ["db.departments"],
             baseline: {"db.departments": 1}
         });
-        const v = f.filter(x => x.code === "topic version not bumped");
-        expect(v.length).toBe(1);
-        expect(v[0].topic).toBe("departments");
-        expect(v[0].severity).toBe("warning");
-    });
-
-    test("a bumped version says nothing", () => {
-        expect(validate_schema(schema({dep_version: 2}), {
-            written_topics: ["db.departments"],
-            baseline: {"db.departments": 1}
-        })).toEqual([]);
-    });
-
-    test("a topic nobody wrote is not asked about its version", () => {
-        expect(validate_schema(schema(), {baseline: {"db.departments": 1}})).toEqual([]);
-    });
-
-    test("a version compared across types still matches (2 vs '2')", () => {
-        expect(validate_schema(schema({dep_version: "1"}), {
-            written_topics: ["db.departments"],
-            baseline: {"db.departments": 1}
-        }).length).toBe(1);
+        expect(f.filter(x => x.code === "topic version not bumped")).toEqual([]);
     });
 });
 

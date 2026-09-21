@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.196
+
+- **M36 of the 2026-09-21 treedb review — an edit of a schema is a draft.**
+  `C_YUI_SCHEMA_EDITOR` no longer raises `topic_version` and `schema_version`
+  on every write (`version_writes()` is gone): the SDK's `save-schema`
+  publishes a draft, once, and `apply-schema` puts it in use. The "version
+  not raised" banner and its Raise button (`EV_BUMP_VERSION`) are gone too; a
+  topic this session wrote is a DRAFT (`topic_is_draft()`, which replaces
+  `needs_version_bump()`), marked in the topic list and in a banner of the
+  column screen. The export warns while there are drafts. `schema_validate`
+  no longer reports "topic version not bumped". New i18n keys:
+  `unsaved schema changes: save to publish them`,
+  `unsaved changes: save first, so the literal carries the versions that publish it`,
+  `schema`. Needs a yunetas SDK with `save-schema` for the host to publish.
+
 ## 7.23.195
 
 - **M26 of the 2026-09-21 treedb review — a writable time column lost its

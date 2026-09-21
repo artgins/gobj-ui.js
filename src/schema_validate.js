@@ -16,10 +16,11 @@
  *                  operator drew does nothing at all. Restarting on
  *                  this is an outage with no gain.
  *        `warning` the schema opens and something is not what it looks
- *                  like — an unbumped `topic_version` masking the whole
- *                  edit is the one that costs the most time, because
- *                  the restart SUCCEEDS and the change is simply not
- *                  there.
+ *                  like.
+ *
+ *      A version is not checked here: an edit is a DRAFT and moves no
+ *      version, and C_TREEDB's save-schema raises the versions of what
+ *      changed when it publishes it.
  *
  *      Every `code` is an i18n key: the caller renders, this decides.
  *
@@ -69,8 +70,6 @@ function validate_schema(treedb, options)
 {
     let findings = [];
     let opts = options || {};
-    let written = Array.isArray(opts.written_topics) ? opts.written_topics : [];
-    let baseline = opts.baseline || {};
 
     if(!treedb || !Array.isArray(treedb.topics)) {
         return findings;
@@ -114,17 +113,6 @@ function validate_schema(treedb, options)
         for(let pkey2 of topic_pkey2s(topic.record)) {
             if(col_names.indexOf(pkey2) < 0) {
                 add("error", "pkey2 names no column", topic.name, "", pkey2);
-            }
-        }
-
-        /*  A version that did not move republishes nothing: the stored
-         *  topic_cols.json masks the whole edit and the restart looks
-         *  like it worked.  */
-        if(written.indexOf(topic.id) >= 0) {
-            let before = baseline[topic.id];
-            if(before !== undefined && String(before) === String(topic.topic_version)) {
-                add("warning", "topic version not bumped", topic.name, "",
-                    String(topic.topic_version));
             }
         }
 

@@ -2003,16 +2003,17 @@ columns**, each in its declared `order`, with the storage composed underneath â€
 the qualified id, the fkey to the parent, the place among the siblings, and the
 versions that publish the change.
 
-**The versions are the point, not a detail.** `topic_version` is what publishes
-a change of a topic's columns: leave it and the persisted `topic_cols.json`
-masks the whole edit â€” the restart succeeds and nothing moved. `schema_version`
-is what publishes the schema as a whole ("the stored one wins on ties, and the
-incoming one has to be strictly newer to take over", `c_treedb.c`), and raising
-it is safe: re-projection from C compares `c_schema_version`, the version of
-the **literal**, precisely so that an edit made here survives every start until
-a newer literal arrives. So **every write carries both** and the operator is
-never asked to remember either. The banner in the column screen is for the case
-where something *else* wrote the topic and left its version alone.
+**An edit here is a draft** (7.23.196, with the SDK's M36 design). A write moves
+no version and reaches no treedb. The HOST publishes it with `C_TREEDB`'s
+`save-schema`, which raises the `topic_version` of each topic that changed
+(the one that regenerates `topic_cols.json`) and the `schema_version` (the one
+that makes the schema file win over the literal), once, and puts it in use with
+`apply-schema` and a restart of the owning yuno. Until 7.23.195 every write
+here raised both numbers, so an edit half made was already the schema of the
+next start. The topic list marks what this session wrote and has not saved,
+and the column screen says so in a banner; the host sends `EV_REFRESH` after a
+save, and the reload forgets the drafts. The export (C literal and JSON) warns
+while there are drafts: the literal carries the versions a save publishes.
 
 What the screens offer:
 

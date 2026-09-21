@@ -19,13 +19,15 @@
  *      fkey, the order of a new sibling, the version that publishes
  *      the change.
  *
- *      THE VERSION IS THE POINT, not a detail. A topic whose columns
- *      changed and whose `topic_version` did not is a topic whose
- *      persisted `topic_cols.json` masks the whole edit: the restart
- *      succeeds and nothing moved. Nothing in the store says so, and
- *      the log that would is on the node. So every write here raises
- *      the version of the topic it touched, and the toolbar says which
- *      topics are waiting for a restart.
+ *      AN EDIT IS A DRAFT. A write here moves no version and reaches no
+ *      treedb: the host SAVES it (C_TREEDB's save-schema raises the
+ *      topic_version of what changed and the schema_version, once) and
+ *      APPLIES it (apply-schema + a restart of the owning yuno). Until
+ *      the owner's design of M36 (2026-09-21 review) every write here
+ *      raised both versions, so an edit half made was already the
+ *      schema of the next start. The topic list marks what this session
+ *      wrote and has not saved; the host's EV_REFRESH after a save is
+ *      what forgets it.
  *
  *      WHAT ELSE IS HERE, and why each is here and not somewhere else:
  *
@@ -572,21 +574,23 @@ function start_measuring(gobj)
 }
 
 /***************************************************************
- *  "This topic was written and its version did not move."
+ *  "This topic was written in this session and is not saved."
  *
- *  ONE predicate, because it is asked in two places -- the topic
- *  list draws a chip with it and the column view draws a banner --
- *  and two copies of a rule is how they drift.
+ *  An edit is a DRAFT: it moves no version and reaches no treedb
+ *  until the host saves it (C_TREEDB's save-schema, which raises the
+ *  versions of what changed) -- and the save makes the host send
+ *  EV_REFRESH, whose reload is what forgets the drafts.
+ *
+ *  ONE predicate, because it is asked in three places -- the topic
+ *  list draws a chip with it, the column view a banner, the export
+ *  a warning -- and copies of a rule are how they drift.
  ***************************************************************/
-function needs_version_bump(written, baseline, topic)
+function topic_is_draft(written, topic)
 {
-    if(!topic || !written || !baseline) {
+    if(!topic || !written) {
         return false;
     }
-    if(!written[topic.id]) {
-        return false;
-    }
-    return String(baseline[topic.id]) === String(topic.topic_version);
+    return written[topic.id]? true: false;
 }
 
 /***************************************************************
@@ -1041,7 +1045,7 @@ function render_topics(gobj, $body)
     let twice = repeated_names(treedb.topics);
     let $rows = [];
     for(let topic of treedb.topics) {
-        let pending = needs_version_bump(priv.written, priv.baseline, topic);
+        let pending = topic_is_draft(priv.written, topic);
         /*  Two topics of one name: the id is what tells them apart, and
          *  it is what the url has to carry — addressing by name would
          *  open the first one whichever row was clicked.  */
@@ -1192,7 +1196,7 @@ function render_columns(gobj, $body)
      *  The version banner: the one thing that makes
      *  an edit succeed and change nothing.
      *----------------------------------------------*/
-    let $banner = version_banner(gobj, topic);
+    let $banner = draft_banner(gobj, topic);
     if($banner) {
         $wrap.appendChild($banner);
     }
@@ -1235,48 +1239,34 @@ function render_columns(gobj, $body)
 }
 
 /***************************************************************
- *  "This topic changed and its version did not."
+ *  "This topic has changes that are not saved."
  *
- *  Only shown when it is TRUE — the topic was written in this
- *  session and its `topic_version` still reads what it read when
- *  the model loaded. Every write this view makes raises it, so
- *  the banner is for the case where something else did not: an
- *  edit made from the raw tables, or a bump undone by hand.
+ *  A draft, not an error: the edit is in __system__ and moves no
+ *  version, so the treedb does not see it until the host saves it
+ *  (and applies it). The banner says so and offers nothing -- the
+ *  save is the host's, one level up, because it publishes the whole
+ *  treedb and not one topic.
  ***************************************************************/
-function version_banner(gobj, topic)
+function draft_banner(gobj, topic)
 {
     let priv = gobj.priv;
 
-    if(!needs_version_bump(priv.written, priv.baseline, topic)) {
+    if(!topic_is_draft(priv.written, topic)) {
         return null;
     }
     if(is_readonly(gobj)) {
         return null;
     }
 
-    let $banner = createElement2(
-        ["div", {class: "SCHEMA_VERSION_BANNER notification is-warning is-light p-3 mb-3 " +
+    return createElement2(
+        ["div", {class: "SCHEMA_DRAFT_BANNER notification is-warning is-light p-3 mb-3 " +
                         "is-flex is-align-items-center", style: "gap:.5rem;"}, [
             ["span", {class: "icon"}, [["i", {class: "yi-triangle-exclamation"}]]],
-            ["span", {class: "SCHEMA_VERSION_TEXT is-size-7", i18n: "version not raised"},
-                t("version not raised")],
-            ["button", {class: "SCHEMA_VERSION_BUMP button is-warning",
-                        type: "button",
-                        style: "margin-left:auto;",
-                        title: t("raise the version"), "aria-label": t("raise the version"),
-                        "data-i18n-title": "raise the version",
-                        "data-i18n-aria-label": "raise the version"}, [
-                ["span", {class: "icon"}, [["i", {class: "yi-circle-up"}]]],
-                ["span", {i18n: "raise"}, t("raise")]
-            ]]
+            ["span", {class: "SCHEMA_DRAFT_TEXT is-size-7",
+                      i18n: "unsaved schema changes: save to publish them"},
+                t("unsaved schema changes: save to publish them")]
         ]]
     );
-    let $bump = $banner.querySelector(".SCHEMA_VERSION_BUMP");
-    $bump.addEventListener("click", (evt) => {
-        evt.stopPropagation();
-        gobj_send_event(gobj, "EV_BUMP_VERSION", {topic: topic.name}, gobj);
-    });
-    return $banner;
 }
 
 /***************************************************************
@@ -2001,6 +1991,8 @@ function open_report(gobj, findings, treedb_id)
  ***************************************************************/
 function open_export(gobj, treedb)
 {
+    let priv = gobj.priv;
+    let drafts = treedb.topics.some((topic) => topic_is_draft(priv.written, topic));
     let c_text = schema_to_c(treedb);
     let json_text = JSON.stringify(schema_to_json(treedb), null, 4);
 
@@ -2017,11 +2009,20 @@ function open_export(gobj, treedb)
             ["p", {class: "SCHEMA_EXPORT_HELP help mb-2",
                    i18n: "an edit made here works and lives in no source: this is what to paste back"},
                 t("an edit made here works and lives in no source: this is what to paste back")],
+            drafts
+                ? ["p", {class: "SCHEMA_EXPORT_DRAFTS notification is-warning is-light p-2 mb-2 is-size-7",
+                         i18n: "unsaved changes: save first, so the literal carries the versions that publish it"},
+                    t("unsaved changes: save first, so the literal carries the versions that publish it")]
+                : ["span", {}, ""],
             ["textarea", {class: "SCHEMA_EXPORT_TEXT textarea is-small is-family-monospace",
-                          rows: "18", readonly: "readonly", spellcheck: "false"}, c_text],
+                          rows: "18", readonly: "readonly", spellcheck: "false",
+                          title: t("schema"), "data-i18n-title": "schema",
+                          "aria-label": t("schema"), "data-i18n-aria-label": "schema"}, c_text],
             ["div", {class: "SCHEMA_EXPORT_ACTIONS is-flex mt-3",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
-                ["button", {class: "SCHEMA_EXPORT_COPY button", type: "button"}, [
+                ["button", {class: "SCHEMA_EXPORT_COPY button", type: "button",
+                            title: t("copy"), "data-i18n-title": "copy",
+                            "aria-label": t("copy"), "data-i18n-aria-label": "copy"}, [
                     ["span", {class: "icon"}, [["i", {class: "yi-copy"}]]],
                     ["span", {i18n: "copy"}, t("copy")]
                 ]]
@@ -2239,51 +2240,6 @@ function open_orphans(gobj)
 
 
 
-
-/***************************************************************
- *  THE TWO VERSIONS A SCHEMA EDIT HAS TO RAISE, and why both.
- *
- *  `topic_version` is what publishes a change of a topic's
- *  columns: leave it and the persisted `topic_cols.json` masks
- *  the edit, the restart succeeds and nothing moved.
- *
- *  `schema_version` is what publishes the schema as a whole —
- *  "the stored one wins on ties, and the incoming one has to be
- *  strictly newer to take over" (c_treedb.c). It is safe to
- *  raise: re-projection from C compares `c_schema_version`, the
- *  version of the LITERAL, precisely so that an edit made here
- *  survives every start until a newer literal arrives.
- *
- *  So every write that changes a schema carries both, and the
- *  operator is never asked to remember either.
- ***************************************************************/
-function version_writes(gobj, topic)
-{
-    let treedb = current_treedb(gobj);
-    let writes = [];
-
-    if(topic) {
-        let version = Number(topic.topic_version);
-        if(!isFinite(version)) {
-            version = 0;
-        }
-        writes.push({
-            op: "update", topic_name: T_TOPICS,
-            record: {id: topic.id, topic_version: version + 1}
-        });
-    }
-    if(treedb) {
-        let version = Number(treedb.schema_version);
-        if(!isFinite(version)) {
-            version = 0;
-        }
-        writes.push({
-            op: "update", topic_name: T_TREEDBS,
-            record: {id: treedb.id, schema_version: version + 1}
-        });
-    }
-    return writes;
-}
 
 /***************************************************************
  *  WHERE THE COLUMNS WERE before this session started moving them.
@@ -2968,7 +2924,7 @@ function ac_save_column(gobj, event, kw, src)
         op:         kw.creating ? "create" : "update",
         topic_name: T_COLS,
         record:     column_record(gobj, topic, col, values)
-    }].concat(version_writes(gobj, topic)));
+    }]);
 }
 
 function ac_delete_column(gobj, event, kw, src)
@@ -3026,7 +2982,7 @@ function ac_move_column(gobj, event, kw, src)
     if(writes.length === 0) {
         return 0;       /*  dropped where it already was  */
     }
-    return queue_writes(gobj, writes.concat(version_writes(gobj, topic)));
+    return queue_writes(gobj, writes);
 }
 
 /***************************************************************
@@ -3055,7 +3011,7 @@ function ac_undo_order(gobj, event, kw, src)
     }
     /*  Spent: what it named is where the columns are about to be. */
     delete priv.order_undo[topic.id];
-    return queue_writes(gobj, writes.concat(version_writes(gobj, topic)));
+    return queue_writes(gobj, writes);
 }
 
 /***************************************************************
@@ -3127,7 +3083,7 @@ function ac_save_topic(gobj, event, kw, src)
         op:         kw.creating ? "create" : "update",
         topic_name: T_TOPICS,
         record:     topic_record(gobj, treedb, topic, values)
-    }].concat(version_writes(gobj, null)));
+    }]);
 }
 
 function ac_delete_topic(gobj, event, kw, src)
@@ -3146,25 +3102,6 @@ function ac_delete_topic(gobj, event, kw, src)
     confirm_then(gobj, "delete this topic and its columns?",
         `${topic.name} (${topic.cols.length})`, {what: "topic", topic: topic.name});
     return 0;
-}
-
-/***************************************************************
- *  Raising a version by hand: what the banner offers when
- *  something else wrote the topic and left its version alone.
- ***************************************************************/
-function ac_bump_version(gobj, event, kw, src)
-{
-    let priv = gobj.priv;
-    let topic = find_topic(priv.model, priv.treedb_id, kw.topic);
-
-    if(refuse_if_readonly(gobj, event)) {
-        return -1;
-    }
-    if(!topic) {
-        log_error(`${gobj_short_name(gobj)}: ${event} names no topic: ${kw.topic}`);
-        return -1;
-    }
-    return queue_writes(gobj, version_writes(gobj, topic));
 }
 
 /***************************************************************
@@ -3339,7 +3276,7 @@ function ac_confirmed(gobj, event, kw, src)
             return {op: "delete", topic_name: T_COLS, record: {id: col.id}};
         });
         writes.push({op: "delete", topic_name: T_TOPICS, record: {id: topic.id}});
-        return queue_writes(gobj, writes.concat(version_writes(gobj, null)));
+        return queue_writes(gobj, writes);
     }
     if(kw.what === "column") {
         let topic = find_topic(priv.model, priv.treedb_id, kw.topic);
@@ -3350,7 +3287,7 @@ function ac_confirmed(gobj, event, kw, src)
         }
         return queue_writes(gobj, [{
             op: "delete", topic_name: T_COLS, record: {id: col.id}
-        }].concat(version_writes(gobj, topic)));
+        }]);
     }
 
     log_error(`${gobj_short_name(gobj)}: ${event} of nothing this view asked about: ${kw.what}`);
@@ -3450,8 +3387,7 @@ function create_gclass(gclass_name)
             ["EV_DELETE_COLUMN",    ac_delete_column,       null],
             ["EV_SAVE_COLUMN",      ac_save_column,         null],
             ["EV_MOVE_COLUMN",      ac_move_column,         null],
-            ["EV_UNDO_ORDER",       ac_undo_order,          null],
-            ["EV_BUMP_VERSION",     ac_bump_version,        null]
+            ["EV_UNDO_ORDER",       ac_undo_order,          null]
         ])],
 
         /*  A write, or a plan of them, in flight. Only the answers and
@@ -3494,7 +3430,6 @@ function create_gclass(gclass_name)
         ["EV_SAVE_COLUMN",          0],
         ["EV_MOVE_COLUMN",          0],
         ["EV_UNDO_ORDER",           0],
-        ["EV_BUMP_VERSION",         0],
         ["EV_VALIDATE",             0],
         ["EV_EXPORT",               0],
         ["EV_IMPORT",               0],
@@ -3549,5 +3484,5 @@ export {
     register_c_yui_schema_editor,
     /*  Exported for its test: the rule that decides whether a topic still
      *  owes a version bump, which is asked in two places.  */
-    needs_version_bump
+    topic_is_draft
 };
