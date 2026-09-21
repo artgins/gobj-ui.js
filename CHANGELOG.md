@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.194
+
+- **M28 of the 2026-09-21 treedb review — +New with an id that exists was a
+  silent upsert.** `C_YUI_TREEDB_TOPICS` created through `update-node` with
+  `create: true`, which updates a record that exists: the one there was
+  overwritten and, through `autolink` with the selects empty, UNLINKED, and
+  the answer was "Node update!". It sends `create_only: true` too, and a
+  backend with the option (yunetas after 7.24.1) answers *"Node already
+  exists"*: the form stays open (`form_waits_for_answer`) on what was typed.
+  An older backend ignores the option and keeps the upsert.
+
 ## 7.23.193
 
 Block 3 of the 2026-09-21 treedb review (ids of yunetas' `TODO.md`).

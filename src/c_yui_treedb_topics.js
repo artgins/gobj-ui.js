@@ -2523,9 +2523,15 @@ function ac_create_record(gobj, event, kw, src)
     let topic_name = gobj_read_attr(src, "topic_name");
     let record = kw.record;
 
+    /*  `create_only`: +New makes a NEW record. With `create` alone a taken
+     *  id was an update -- the record overwritten and, through autolink
+     *  with the selects empty, unlinked, answered "Node update!" (M28 of
+     *  the 2026-09-21 review). A backend older than the option ignores it
+     *  and keeps the old upsert.  */
     let options = {
         list_dict: true,
         create: true,
+        create_only: true,
         autolink: true
     };
 
