@@ -111,6 +111,7 @@ import {delete_impact} from "./delete_impact.js";
 
 import "./c_yui_treedb_topic_with_form.css";
 import "./tabulator.css";
+import {cell_text, hook_cell_spec} from "./table_cell_text.js";
 
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 
@@ -2147,20 +2148,12 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             let items = treedb_hook_data_size(value);
 
             if(items > 0) {
-                /*  An HTML STRING, so the name is escaped by hand; a language
-                 *  change re-runs setColumns(), which re-runs this.  */
-                let hook_title = String(t("show linked records"))
-                    .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
-                    .replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                value = [
-                    '<a class="hook_cell" ',
-                    `title="${hook_title}" aria-label="${hook_title}" `,
-                    `data-row_id="${row.id}" `,
-                    `data-col_id="${col.id}" > `,
-                    '<span style="" class="icon yi-eye"></span>',
-                    `<span>[&nbsp;<u>${items}</u>&nbsp;]</span>`,
-                    '</a>'
-                ].join('');
+                /*  DOM, not an HTML string: the row id is record data (M31
+                 *  of the 2026-09-21 review). A language change re-runs
+                 *  setColumns(), which re-runs this.  */
+                value = createElement2(hook_cell_spec(
+                    row.id, col.id, items, t("show linked records"), "show linked records"
+                ));
             } else {
                 value = "";
             }
@@ -2217,7 +2210,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
                     };
 
                     const formatter = new Intl.DateTimeFormat(userLocale, opts);
-                    value = '<span class="is-size-7">' + formatter.format(value) + '</span>';
+                    value = createElement2(['span', {class: 'is-size-7'}, formatter.format(value)]);
                     break;
             }
             break;
@@ -2247,6 +2240,15 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
     if(value !== null && value !== undefined && typeof value === "object" && !(value instanceof Node)) {
         log_error(`transform__treedb_value_2_table_value() unexpected object value for field '${field}' (type='${field_desc.type}', real_type='${field_desc.real_type}'): ${JSON.stringify(value)}, topic ${priv.topic_name}`);
         value = JSON.stringify(value);
+    }
+
+    /*
+     *  A string is record data, and Tabulator would parse it as markup
+     *  (innerHTML): `a<b` lost its text, a field holding an `<img onerror>`
+     *  ran it (M31 of the 2026-09-21 review). Shown as a text node.
+     */
+    if(typeof value === "string" && value !== "") {
+        value = cell_text(value);
     }
 
     return value;

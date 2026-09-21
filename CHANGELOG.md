@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.195
+
+- **M26 of the 2026-09-21 treedb review — a writable time column lost its
+  seconds on every Save of ANY field.** The form shows a `time` / `now` column
+  in a `datetime-local` input written as `YYYY-MM-DDTHH:mm`, and reads it back
+  on every save: the stored epoch moved to the start of its minute. The input
+  is built with `step: 1` and carries the seconds now; the conversion lives in
+  `form_time_value.js` (`date_to_datetime_local()` /
+  `datetime_local_to_epoch()`), whose round trip is tested. An empty input
+  reads as `null`, not `NaN`.
+- **M31 — the text of a record was parsed as HTML in the treedb table.**
+  Tabulator puts a formatter's STRING result through `innerHTML`: a
+  description `a<b and c>d` showed as `ad`, and a field holding
+  `<img src=x onerror=...>` ran it in the operator's browser. Every string the
+  cell transformer hands back is a text node now (`table_cell_text.js`), and
+  the hook cell and the time cell are built as DOM: the row id is an attribute
+  value, never spliced into markup (an id holding `"` cut the attribute). The
+  hook cell's title carries its i18n keys.
+
 ## 7.23.194
 
 - **M28 of the 2026-09-21 treedb review — +New with an id that exists was a

@@ -83,6 +83,7 @@ import "tabulator-tables/dist/css/tabulator_bulma.css";
 
 import "./tabulator.css";
 import {is_time_field} from "./json_view_helpers.js";
+import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
 // import { Tabulator } from "tabulator-tables";  // Import light Tabulator JS
 
@@ -1247,6 +1248,12 @@ function create_form_field(
                 type: inputType,
                 placeholder: placeholder
             };
+            if(inputType === 'datetime-local') {
+                /*  A time column is an epoch in SECONDS: without `step: 1`
+                 *  the input holds minutes, and a save wrote the seconds
+                 *  away (see form_time_value.js). */
+                attrs.step = 1;
+            }
             Object.assign(attrs, extras);
 
             if(readonly) {
@@ -2321,10 +2328,7 @@ function get_form_values(gobj, $form)
             case "input":
                 switch(input_type) {
                     case "datetime-local":
-                        // Create a new Date object from the datetime-local $input value
-                        const date = new Date($input.value);
-                        // Convert the Date object to epoch time (in seconds)
-                        value = Math.floor(date.getTime() / 1000);
+                        value = datetime_local_to_epoch($input.value);
                         break;
                     default:
                         value = getInputValue($input);
@@ -2588,18 +2592,8 @@ function set_form_values(gobj, template, $form, record)
             case "input":
                 switch(input_type) {
                     case "datetime-local":
-                        /*  value is a Date (see treedb_value_2_form_value);
-                         *  a datetime-local input wants local
-                         *  "YYYY-MM-DDTHH:mm" (no seconds). */
-                        if(value instanceof Date && !isNaN(value.getTime())) {
-                            let pad = (n) => String(n).padStart(2, "0");
-                            $input.value =
-                                `${value.getFullYear()}-${pad(value.getMonth() + 1)}` +
-                                `-${pad(value.getDate())}T` +
-                                `${pad(value.getHours())}:${pad(value.getMinutes())}`;
-                        } else {
-                            $input.value = "";
-                        }
+                        /*  value is a Date (see treedb_value_2_form_value)  */
+                        $input.value = date_to_datetime_local(value);
                         break;
                     case "color":
                         $input.value = convertColor(value);
