@@ -26,6 +26,7 @@ import {
     createElement2,
     kw_get_dict_value,
     kw_get_str,
+    kw_get_int,
     gobj_send_event,
     gobj_publish_event,
     gobj_write_attr,
@@ -1245,7 +1246,10 @@ function process_treedb_descs(gobj)
             desc: desc,
             with_remote_paging: gobj_read_bool_attr(gobj, "with_remote_paging"),
             page_size: gobj_read_integer_attr(gobj, "page_size"),
-            with_selection_bar: gobj_read_bool_attr(gobj, "with_selection_bar")
+            with_selection_bar: gobj_read_bool_attr(gobj, "with_selection_bar"),
+            /*  This host answers every write of the form (see
+             *  answer_form_write): the form closes on success only.  */
+            form_waits_for_answer: true
         };
 
         let id = `${gobj_name(gobj)}?${desc.topic_name}`;
@@ -1620,7 +1624,7 @@ function treedb_create_node(gobj, treedb_name, topic_name, record, options)
 /************************************************************
  *  Command to remote service
  ************************************************************/
-function treedb_update_node(gobj, treedb_name, topic_name, record, options)
+function treedb_update_node(gobj, treedb_name, topic_name, record, options, form_write)
 {
     let command = "update-node";
 
@@ -1636,6 +1640,9 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options)
     kw.__md_command__ = { // Data to be returned
         topic_name: topic_name,
     };
+    if(form_write) {
+        kw.__md_command__.form_write = form_write;
+    }
     // TODO review msg_iev_write_key(kw, "__topic_name__", topic_name);
 
     let ret = gobj_command(
@@ -1646,7 +1653,9 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options)
     );
     if(ret) {
         log_error(ret);
+        return -1;
     }
+    return 0;
 }
 
 /************************************************************
@@ -2056,6 +2065,12 @@ function ac_mt_command_answer(gobj, event, kw, src)
                     gobj_send_event(gobj, "EV_REFRESH_TOPIC",
                         {topic_name: failed_topic}, gobj);
                 }
+                answer_form_write(
+                    gobj,
+                    get_gobj_formtable(gobj, failed_topic),
+                    kw_get_int(gobj, kw_command, "form_write", 0, 0),
+                    false
+                );
             }
         }
         return 0;
@@ -2148,6 +2163,12 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 created:     (command === "create-node"),
                 command:     command
             });
+            answer_form_write(
+                gobj,
+                get_gobj_formtable(gobj, kw_get_str(gobj, kw_command, "topic_name", "", 0)),
+                kw_get_int(gobj, kw_command, "form_write", 0, 0),
+                true
+            );
             break;
 
         case "delete-node":
@@ -2493,7 +2514,9 @@ function ac_treedb_node_deleted(gobj, event, kw, src)
  ********************************************/
 function ac_create_record(gobj, event, kw, src)
 {
+    let form_write = (kw && kw.form_write) || 0;
     if(refuse_if_readonly(gobj, event)) {
+        answer_form_write(gobj, src, form_write, false);
         return -1;      /*  Error already logged  */
     }
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
@@ -2506,13 +2529,12 @@ function ac_create_record(gobj, event, kw, src)
         autolink: true
     };
 
-    return treedb_update_node( // HACK use the powerful update_node
-        gobj,
-        treedb_name,
-        topic_name,
-        record,
-        options
-    );
+    if(treedb_update_node( // HACK use the powerful update_node
+            gobj, treedb_name, topic_name, record, options, form_write) < 0) {
+        answer_form_write(gobj, src, form_write, false);
+        return -1;      /*  Error already logged  */
+    }
+    return 0;
 }
 
 /********************************************
@@ -2715,7 +2737,9 @@ function ac_update_field(gobj, event, kw, src)
  ********************************************/
 function ac_update_record(gobj, event, kw, src)
 {
+    let form_write = (kw && kw.form_write) || 0;
     if(refuse_if_readonly(gobj, event)) {
+        answer_form_write(gobj, src, form_write, false);
         return -1;      /*  Error already logged  */
     }
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
@@ -2727,12 +2751,35 @@ function ac_update_record(gobj, event, kw, src)
         autolink: true
     };
 
-    return treedb_update_node(
-        gobj,
-        treedb_name,
-        topic_name,
-        record,
-        options
+    if(treedb_update_node(
+            gobj, treedb_name, topic_name, record, options, form_write) < 0) {
+        answer_form_write(gobj, src, form_write, false);
+        return -1;      /*  Error already logged  */
+    }
+    return 0;
+}
+
+/************************************************************
+ *  Tell a topic form how its write ended: EV_WRITE_DONE closes
+ *  it, EV_WRITE_REFUSED leaves it open on what was typed. Every
+ *  way a form's write can end passes here -- refused before it
+ *  left (read-only, no session) or answered by the backend -- so
+ *  a form never waits for an answer that will not come.
+ ************************************************************/
+function answer_form_write(gobj, gobj_topic_form, form_write, ok)
+{
+    if(!form_write) {
+        return;     /*  Not a form's write (a cell edited in place)  */
+    }
+    if(!gobj_topic_form) {
+        log_error(`${gobj_short_name(gobj)}: no topic form to answer write ${form_write}`);
+        return;
+    }
+    gobj_send_event(
+        gobj_topic_form,
+        ok ? "EV_WRITE_DONE" : "EV_WRITE_REFUSED",
+        {form_write: form_write},
+        gobj
     );
 }
 

@@ -40,8 +40,13 @@ const MAX_DEPTH = 4;
 
 
 /***************************************************************
- *  An fkey, as `nodes` answers it with `list_dict`.
+ *  A REFERENCE to a node: an fkey as `nodes` answers it with
+ *  `list_dict` -- `{id, topic_name, hook_name}` -- or a hook's child
+ *  as the node events deliver it, `{id, topic_name}`. It carries
+ *  nothing but those keys; an object with more is data.
  ***************************************************************/
+const REF_KEYS = new Set(["id", "topic_name", "hook_name"]);
+
 function is_fkey_ref(value)
 {
     return !!value
@@ -49,7 +54,7 @@ function is_fkey_ref(value)
         && !Array.isArray(value)
         && ("id" in value)
         && ("topic_name" in value)
-        && ("hook_name" in value);
+        && Object.keys(value).every((k) => REF_KEYS.has(k));
 }
 
 

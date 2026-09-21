@@ -18,7 +18,7 @@
  ***********************************************************************/
 import {describe, test, expect} from "vitest";
 import {
-    plan_graph_saves, topic_arrangement_changed, arrangement_of
+    plan_graph_saves, topic_arrangement_changed, arrangement_of, apply_graphs_echo
 } from "./graph_save_plan.js";
 
 const ORIGIN = "f3163a9f-1f37-412a-b8c9-87a4341f14de";
@@ -142,5 +142,61 @@ describe("arrangement_of", () => {
     test("anything that is not an object holds no arrangement", () => {
         expect(arrangement_of(null)).toEqual({});
         expect(arrangement_of("nodes")).toEqual({});
+    });
+});
+
+/*
+ *  An ECHO of one __graphs__ record -- the node event a save of it, or a
+ *  save by another browser, sends back. It used to rebuild the saved
+ *  snapshot of EVERY topic, taking the copies from the live objects the
+ *  view had already rearranged: what was unsaved in OTHER topics counted
+ *  as saved, and the next Save skipped it (M32 of the 2026-09-21 review).
+ */
+describe("an echo of one __graphs__ record", () => {
+    function state()
+    {
+        let live = {
+            realms: layout({a: {x: 1, y: 1}}),
+            yunos:  layout({b: {x: 2, y: 2}}),
+        };
+        let saved = {
+            realms: layout({a: {x: 1, y: 1}}),
+            yunos:  layout({b: {x: 2, y: 2}}),
+        };
+        return {live, saved};
+    }
+
+    test("touches only the topic of its record", () => {
+        let {live, saved} = state();
+        live.yunos.nodes.b.x = 99;      /*  moved, not saved yet  */
+        let echo = {id: "1", topic: "realms", active: true,
+                    properties: layout({a: {x: 5, y: 5}})};
+        apply_graphs_echo(live, saved, [echo], echo);
+        expect(plan_graph_saves(live, saved)).toEqual(["yunos"]);
+    });
+
+    test("its topic becomes the echoed record, saved and live", () => {
+        let {live, saved} = state();
+        let echo = {id: "1", topic: "realms", active: true,
+                    properties: layout({a: {x: 5, y: 5}})};
+        apply_graphs_echo(live, saved, [echo], echo);
+        expect(live.realms.nodes.a).toEqual({x: 5, y: 5});
+        expect(saved.realms.nodes.a).toEqual({x: 5, y: 5});
+        live.realms.nodes.a.x = 6;      /*  the view arranges it in place  */
+        expect(saved.realms.nodes.a.x).toBe(5);
+    });
+
+    test("an inactive record drops its topic only when no active one is left", () => {
+        let {live, saved} = state();
+        let old = {id: "2", topic: "realms", active: false, properties: layout({})};
+        let current = {id: "3", topic: "realms", active: true,
+                       properties: layout({a: {x: 1, y: 1}})};
+        apply_graphs_echo(live, saved, [old, current], old);
+        expect(live.realms).toBeDefined();
+
+        apply_graphs_echo(live, saved, [old], old);
+        expect(live.realms).toBeUndefined();
+        expect(saved.realms).toBeUndefined();
+        expect(live.yunos).toBeDefined();
     });
 });

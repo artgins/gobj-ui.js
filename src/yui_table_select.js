@@ -95,6 +95,54 @@ function yui_selected_rows(tabulator)
 }
 
 /***************************************************************
+ *      The IDENTITY of some rows: the value of the table's `index`
+ *      field (Tabulator's default is `id`). This is what crosses a
+ *      confirmation dialog -- never the rows' POSITIONS, which the
+ *      table regenerates with every addData / deleteRow while the
+ *      dialog is open, so a position names whatever row sits there
+ *      when the person answers.
+ ***************************************************************/
+function yui_row_ids(tabulator, rows)
+{
+    let field = (tabulator && tabulator.options && tabulator.options.index) || "id";
+    let ids = [];
+    for(let row of (rows || [])) {
+        let id = row ? row[field] : undefined;
+        if(id !== undefined && id !== null && id !== "") {
+            ids.push(id);
+        }
+    }
+    return ids;
+}
+
+/***************************************************************
+ *      The rows that carry these ids NOW -> {rows, missing}.
+ *      `rows` are the rows' data; `missing` the ids no row carries
+ *      any more. A missing id is never replaced by another row.
+ ***************************************************************/
+function yui_rows_by_ids(tabulator, ids)
+{
+    let rows = [];
+    let missing = [];
+    for(let id of (ids || [])) {
+        let row = null;
+        if(tabulator && typeof tabulator.getRow === "function") {
+            try {
+                row = tabulator.getRow(id) || null;
+            } catch(e) {
+                row = null;     /*  the table is gone  */
+            }
+        }
+        if(row) {
+            rows.push(row.getData());
+        } else {
+            missing.push(id);
+        }
+    }
+    return {rows: rows, missing: missing};
+}
+
+/***************************************************************
  *      Drop the selection (after acting on it, or after a
  *      reload that leaves the ticked rows behind).
  ***************************************************************/
@@ -240,6 +288,8 @@ export {
     yui_selection_column,
     yui_selection_settings,
     yui_selected_rows,
+    yui_row_ids,
+    yui_rows_by_ids,
     yui_clear_selection,
     yui_wire_selection,
     yui_selection_bar,

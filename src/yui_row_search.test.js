@@ -110,3 +110,25 @@ describe("is_hook_size", () => {
         expect(is_hook_size(null)).toBe(false);
     });
 });
+
+/*
+ *  The children of a hook as the NODE EVENTS deliver them: `{id,
+ *  topic_name}`, with no hook_name. Not taken for a reference, their
+ *  topic_name -- the same word on every row -- was a wildcard for every
+ *  row that had received an UPDATED (M30 of the 2026-09-21 review).
+ */
+describe("a hook's children as the node events deliver them", () => {
+    const row = {id: "w1", devices: [{id: "d7", topic_name: "devices"}]};
+
+    it("are references: only their id is looked at", () => {
+        expect(is_fkey_ref({id: "d7", topic_name: "devices"})).toBe(true);
+        expect(row_matches(row, "d7")).toBe(true);
+        expect(row_matches(row, "devices")).toBe(false);
+    });
+
+    it("an object that carries more than a reference is data, searched whole", () => {
+        const data = {id: "x", topic_name: "devices", note: "blue"};
+        expect(is_fkey_ref(data)).toBe(false);
+        expect(row_matches({id: "r", payload: data}, "blue")).toBe(true);
+    });
+});

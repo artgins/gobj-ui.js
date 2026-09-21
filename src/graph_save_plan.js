@@ -38,6 +38,7 @@
 import {
     is_object,
     json_is_identical,
+    json_deep_copy,
 } from "@yuneta/gobj-js";
 
 /***************************************************************
@@ -101,7 +102,46 @@ function plan_graph_saves(live, saved)
     return plan;
 }
 
+/***************************************************************
+ *  An ECHO of one __graphs__ record arrived: the node event a save
+ *  of it sends back, from this browser or from another one.
+ *
+ *      live     {topic_name: properties}  what the view shows
+ *      saved    {topic_name: properties}  what the backend has
+ *      records  every __graphs__ record the view holds, `rec`
+ *               already in its place among them
+ *      rec      the echoed record
+ *
+ *  Only rec's TOPIC moves: it becomes the record, as shown and as
+ *  saved. The other topics are left alone -- rebuilding their saved
+ *  copies here took them from the live objects the view had already
+ *  rearranged in place, so their unsaved changes counted as saved.
+ *
+ *  `live[topic]` IS the record's own object, as when the view loads:
+ *  the view arranges it in place. `saved[topic]` is a copy.
+ ***************************************************************/
+function apply_graphs_echo(live, saved, records, rec)
+{
+    if(!is_object(rec) || !rec.topic) {
+        return;
+    }
+    if(rec.active && is_object(rec.properties)) {
+        live[rec.topic] = rec.properties;
+        saved[rec.topic] = json_deep_copy(rec.properties);
+        return;
+    }
+    let other_active = (records || []).some((r) => {
+        return r && r !== rec && r.topic === rec.topic && r.active &&
+            is_object(r.properties);
+    });
+    if(!other_active) {
+        delete live[rec.topic];
+        delete saved[rec.topic];
+    }
+}
+
 export {
+    apply_graphs_echo,
     plan_graph_saves,
     topic_arrangement_changed,
     arrangement_of,

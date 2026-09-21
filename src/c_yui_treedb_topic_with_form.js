@@ -85,6 +85,8 @@ import {
     yui_selection_settings,
     yui_selection_bar,
     yui_selected_rows,
+    yui_row_ids,
+    yui_rows_by_ids,
     yui_clear_selection,
 } from "./yui_table_select.js";
 
@@ -195,6 +197,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_new_button",      0,  true,   "Button tool
 SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_button",   0,  true,   "Button toolbar DELETE"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_copy_button",     0,  true,   "Button toolbar COPY"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_paste_button",         0,  true,   "Button toolbar PASTE"),
+SDATA(data_type_t.DTP_BOOLEAN,  "form_waits_for_answer",     0,  false,  "The form stays open (busy) after a Save until the host answers EV_WRITE_DONE (close) or EV_WRITE_REFUSED (stay open on what was typed). Off: the form closes when the write is published, whatever the backend says. The host must echo the `form_write` serial of EV_CREATE_RECORD / EV_UPDATE_RECORD; C_YUI_TREEDB_TOPICS does"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_refresh_button",       0,  true,   "Button toolbar REFRESH"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_search_button",        0,  true,   "Button toolbar SEARCH"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_schema_button",        0,  true,   "Button toolbar SCHEMA (show the topic's desc)"),
@@ -424,6 +427,10 @@ function mt_create(gobj)
      *  reopened cannot land on the new form.  */
     gobj.priv.reading_files = 0;
     gobj.priv.read_serial = 0;
+    /*  0 = no write of the form waiting for its answer; otherwise the
+     *  serial the host echoes in EV_WRITE_DONE / EV_WRITE_REFUSED.  */
+    gobj.priv.awaiting_write = 0;
+    gobj.priv.write_serial = 0;
 
     let name = clean_name(gobj_name(gobj));
     gobj_write_attr(gobj, "table_id", "table" + name);
@@ -1013,14 +1020,18 @@ function render_selection_state(gobj)
     let $delete = $container ? $container.querySelector(`.button-delete-record`) : null;
     let $copy = $container ? $container.querySelector(`.button-copy-record`) : null;
 
-    if($delete && $copy) {
-        let some = yui_selected_rows(gobj_read_attr(gobj, "tabulator")).length > 0;
-        if(some && gobj_read_bool_attr(gobj, "editable")) {
-            $delete.removeAttribute("disabled");
-            $copy.removeAttribute("disabled");
+    /*  Each on its own: with_delete_button / with_copy_button = false build
+     *  no button, and asking for BOTH left the other one never enabled.  */
+    let some = yui_selected_rows(gobj_read_attr(gobj, "tabulator")).length > 0;
+    let enable = some && gobj_read_bool_attr(gobj, "editable");
+    for(let $button of [$delete, $copy]) {
+        if(!$button) {
+            continue;
+        }
+        if(enable) {
+            $button.removeAttribute("disabled");
         } else {
-            $delete.setAttribute("disabled", true);
-            $copy.setAttribute("disabled", true);
+            $button.setAttribute("disabled", true);
         }
     }
 
@@ -1481,9 +1492,13 @@ function create_tabulator(gobj)
          *  came out wider than the viewport and pushed every other column,
          *  the id included, off the screen. The cell keeps its whole text;
          *  what the ceiling costs is having to widen the column, or open
-         *  the record, to read the end of it.  */
+         *  the record, to read the end of it.
+         *  `maxInitialWidth`, not `maxWidth`: the latter is a HARD ceiling
+         *  that neither the drag handle nor the double click could pass
+         *  (M29 of the 2026-09-21 review); this one caps only the width the
+         *  layout gives, and leaves the column to the reader.  */
         if(max_col_width > 0) {
-            colDef.maxWidth = max_col_width;
+            colDef.maxInitialWidth = max_col_width;
         }
         if(with_header_filters) {
             apply_header_filter(colDef, field_desc);
@@ -1557,7 +1572,7 @@ function create_tabulator(gobj)
                     gobj_send_event(gobj, "EV_EDIT_RECORD", {index: index}, gobj);
                 } else if(e.target.closest('.remove')) {
                     e.stopPropagation();
-                    gobj_send_event(gobj, "EV_DELETE_ROWS", {index: index, row: row}, gobj);
+                    gobj_send_event(gobj, "EV_DELETE_ROWS", {row: row}, gobj);
                 }
             }
         });
@@ -2485,6 +2500,7 @@ function teardown_form_child(gobj)
 {
     let priv = gobj.priv;
     priv.reading_files = 0;     // a read in flight lands on nobody
+    priv.awaiting_write = 0;    // and so does the answer of a write
     if(priv.form) {
         if(gobj_is_running(priv.form)) {
             gobj_stop(priv.form);
@@ -3882,14 +3898,21 @@ function ac_edition_mode(gobj, event, kw, src)
         /*
          *  Set edition mode
          */
-        $button_edit_record.classList.add('is-primary');
-        $button_new_record.classList.add('is-info');
-        $button_delete_record.classList.add('is-danger');
+        /*  with_new_button / with_delete_button = false build no button  */
+        if($button_edit_record) {
+            $button_edit_record.classList.add('is-primary');
+        }
+        if($button_new_record) {
+            $button_new_record.classList.add('is-info');
+            $button_new_record.removeAttribute("disabled");
+        }
+        if($button_delete_record) {
+            $button_delete_record.classList.add('is-danger');
+        }
 
         tabulator.showColumn('_operation');
         tabulator.showColumn('_check_box_state_');
 
-        $button_new_record.removeAttribute("disabled");
         /*  with_copy_button / with_paste_button = false build no button  */
         if($button_paste_record) {
             $button_paste_record.removeAttribute("disabled");
@@ -3897,7 +3920,9 @@ function ac_edition_mode(gobj, event, kw, src)
 
         let rows = yui_selected_rows(tabulator);
         if (rows.length) {
-            $button_delete_record.removeAttribute("disabled");
+            if($button_delete_record) {
+                $button_delete_record.removeAttribute("disabled");
+            }
             if($button_copy_record) {
                 $button_copy_record.removeAttribute("disabled");
             }
@@ -3907,15 +3932,21 @@ function ac_edition_mode(gobj, event, kw, src)
         /*
          *  Remove edition mode
          */
-        $button_edit_record.classList.remove('is-primary');
-        $button_new_record.classList.remove('is-info');
-        $button_delete_record.classList.remove('is-danger');
+        if($button_edit_record) {
+            $button_edit_record.classList.remove('is-primary');
+        }
+        if($button_new_record) {
+            $button_new_record.classList.remove('is-info');
+            $button_new_record.setAttribute("disabled", true);
+        }
+        if($button_delete_record) {
+            $button_delete_record.classList.remove('is-danger');
+            $button_delete_record.setAttribute("disabled", true);
+        }
 
         tabulator.hideColumn('_operation');
         tabulator.hideColumn('_check_box_state_');
 
-        $button_new_record.setAttribute("disabled", true);
-        $button_delete_record.setAttribute("disabled", true);
         if($button_copy_record) {
             $button_copy_record.setAttribute("disabled", true);
         }
@@ -3982,7 +4013,12 @@ function ac_new_row(gobj, event, kw, src)
  *          kw {} empty
  *  - From the column _operation delete icon inside a row
  *      It will delete this one row
- *          kw {index:, row:}
+ *          kw {row:}
+ *
+ *  What crosses the confirmation is the rows' IDENTITY, never their
+ *  position: the view applies EV_TREEDB_NODE_* of every writer while the
+ *  dialog is open, and a position names whatever row sits there when the
+ *  person answers -- with force:true (A6 of the 2026-09-21 review).
  ************************************************************/
 function ac_delete_rows(gobj, event, kw, src)
 {
@@ -4005,15 +4041,15 @@ function ac_delete_rows(gobj, event, kw, src)
         }
 
         confirm_then(gobj, build_delete_question(gobj, rows),
-            {what: "delete_selection"});
+            {what: "delete_selection", ids: yui_row_ids(tabulator, rows)});
 
     } else {
         /*----------------------------*
          *  Delete one row
-         *  {index: , row: }
+         *  {row: }
          *----------------------------*/
         confirm_then(gobj, build_delete_question(gobj, kw.row),
-            {what: "delete_row", index: kw.index});
+            {what: "delete_row", ids: yui_row_ids(tabulator, [kw.row])});
     }
 
     return 0;
@@ -4021,8 +4057,8 @@ function ac_delete_rows(gobj, event, kw, src)
 
 /************************************************************
  *  {what, ...} -- the person said yes to what confirm_then()
- *  asked. The rows are read again HERE and not carried in the
- *  kw: the kw is plain json, and a Tabulator row is not.
+ *  asked. The rows are found again HERE by the ids the question
+ *  named: the kw is plain json, and a Tabulator row is not.
  ************************************************************/
 function ac_confirmed(gobj, event, kw, src)
 {
@@ -4042,13 +4078,19 @@ function ac_confirmed(gobj, event, kw, src)
     let tabulator = gobj_read_attr(gobj, "tabulator");
     let topic_name = gobj_read_str_attr(gobj, "topic_name");
 
-    if(what === "delete_selection") {
-        let rows = yui_selected_rows(tabulator);
-        if(!rows.length) {
-            log_error(`${gobj_short_name(gobj)}: ${event} with the selection gone`);
-            return -1;
+    if(what === "delete_selection" || what === "delete_row") {
+        let ids = Array.isArray(kw.ids) ? kw.ids : [];
+        let found = yui_rows_by_ids(tabulator, ids);
+        if(found.missing.length) {
+            /*  Gone while the question was open (another writer deleted
+             *  them): never replaced by the row that took their place.  */
+            log_error(`${gobj_short_name(gobj)}: ${event}: rows gone while ` +
+                `confirming the delete, not deleted: ${found.missing.join(", ")}`);
         }
-        for(let row of rows) {
+        if(!found.rows.length) {
+            return -1;      /*  Error already logged, or nothing was named  */
+        }
+        for(let row of found.rows) {
             // TODO why don't send once EV_DELETE_RECORD(S)
             gobj_publish_event(
                 gobj,
@@ -4056,22 +4098,6 @@ function ac_confirmed(gobj, event, kw, src)
                 {topic_name: topic_name, record: row}
             );
         }
-        return 0;
-    }
-
-    if(what === "delete_row") {
-        let index = kw.index;
-        let row = (tabulator && typeof index === "number")?
-            tabulator.getRowFromPosition(index) : null;
-        if(!row) {
-            log_error(`${gobj_short_name(gobj)}: ${event} names no row: ${index}`);
-            return -1;
-        }
-        gobj_publish_event(
-            gobj,
-            "EV_DELETE_RECORD",
-            {topic_name: topic_name, record: row.getData()}
-        );
         return 0;
     }
 
@@ -4178,6 +4204,10 @@ function ac_form_save_record(gobj, event, kw, src)
     const cols = Object.keys(picked);
 
     if(cols.length === 0) {
+        if(wait_for_write_answer(gobj)) {
+            publish_treedb_write(gobj, mode, kw, null, priv.awaiting_write);
+            return 0;
+        }
         publish_treedb_write(gobj, mode, kw);
 
         /*  We are INSIDE the form child's gobj_publish_event stack, and
@@ -4275,7 +4305,7 @@ function read_is_current(gobj, kw)
 /************************************************************
  *  The one place a write of this view leaves for the app.
  ************************************************************/
-function publish_treedb_write(gobj, mode, record, jn_files)
+function publish_treedb_write(gobj, mode, record, jn_files, form_write)
 {
     /*  Both writes of the form pass here, with and without files: the
      *  read-only columns it shows stay on screen and off the wire.  */
@@ -4283,6 +4313,10 @@ function publish_treedb_write(gobj, mode, record, jn_files)
         topic_name: gobj_read_str_attr(gobj, "topic_name"),
         record: strip_read_only_cols(gobj, record)
     };
+    if(form_write) {
+        /*  The serial the host echoes back with the answer  */
+        kw_write.form_write = form_write;
+    }
     if(jn_files && Object.keys(jn_files).length > 0) {
         /*  Not a column: an instruction to the treedb write path,
          *  consumed and dropped at the door.  */
@@ -4315,8 +4349,64 @@ function ac_files_read(gobj, event, kw, src)
     }
     gobj.priv.reading_files = 0;
     const {record, __files__} = yui_files_manifest(kw.picks, kw.record);
+    if(wait_for_write_answer(gobj)) {
+        publish_treedb_write(gobj, kw.mode, record, __files__, gobj.priv.awaiting_write);
+        return 0;
+    }
     publish_treedb_write(gobj, kw.mode, record, __files__);
     close_form_dialog(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  Does the form wait for the answer of its write? Then it stays
+ *  open and BUSY, and the serial it waits for is taken here.
+ *
+ *  A refused write used to close the form all the same and throw
+ *  away what was typed, although the README said it stayed open
+ *  (M25 of the 2026-09-21 review): the close was posted with the
+ *  publish, before the backend had answered anything.
+ ************************************************************/
+function wait_for_write_answer(gobj)
+{
+    let priv = gobj.priv;
+    if(!gobj_read_bool_attr(gobj, "form_waits_for_answer") || !priv.form) {
+        return false;
+    }
+    priv.awaiting_write = ++priv.write_serial;
+    set_form_busy(gobj, true);
+    return true;
+}
+
+/************************************************************
+ *  {form_write} -- the host says the form's write was done
+ ************************************************************/
+function ac_write_done(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(!priv.awaiting_write || !kw || kw.form_write !== priv.awaiting_write) {
+        /*  Not the write this form waits for: its form was closed, or
+         *  replaced by another one, meanwhile. Nothing to act on.  */
+        return 0;
+    }
+    priv.awaiting_write = 0;
+    set_form_busy(gobj, false);
+    close_form_dialog(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {form_write} -- the host says the form's write was refused.
+ *  The form stays OPEN on what was typed; the host has shown why.
+ ************************************************************/
+function ac_write_refused(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(!priv.awaiting_write || !kw || kw.form_write !== priv.awaiting_write) {
+        return 0;   /*  Not the write this form waits for (see ac_write_done)  */
+    }
+    priv.awaiting_write = 0;
+    set_form_busy(gobj, false);
     return 0;
 }
 
@@ -5218,6 +5308,8 @@ function create_gclass(gclass_name)
             ["EV_EDITION_MODE",         ac_edition_mode,       null],
             ["EV_SAVE_RECORD",          ac_form_save_record,   null],
             ["EV_CLOSE_FORM",           ac_close_form,         null],
+            ["EV_WRITE_DONE",           ac_write_done,         null],
+            ["EV_WRITE_REFUSED",        ac_write_refused,      null],
             ["EV_FILES_READ",           ac_files_read,         null],
             ["EV_FILES_FAILED",         ac_files_failed,       null],
 
@@ -5272,6 +5364,8 @@ function create_gclass(gclass_name)
         ["EV_EDITION_MODE",         0],
         ["EV_SAVE_RECORD",          0],
         ["EV_CLOSE_FORM",           0],
+        ["EV_WRITE_DONE",           0],
+        ["EV_WRITE_REFUSED",        0],
         ["EV_FILES_READ",           0],
         ["EV_FILES_FAILED",         0],
         ["EV_NEW_ROW",              0],

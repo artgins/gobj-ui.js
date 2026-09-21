@@ -93,6 +93,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {
+    apply_graphs_echo,
     plan_graph_saves,
     topic_arrangement_changed,
 } from "./graph_save_plan.js";
@@ -10579,7 +10580,12 @@ function ac_node_updated(gobj, event, kw, src)
         if(!found) {
             priv.__graphs__.push(node);
         }
-        build_graph_properties(gobj);
+        /*  Only THIS record's topic: a rebuild of every topic took their
+         *  saved copies from the live objects (M32 of the 2026-09-21
+         *  review). build_graph_properties() is for the load.  */
+        apply_graphs_echo(
+            priv._graph_properties, priv._saved_graph_properties, priv.__graphs__, node
+        );
         return 0;
     }
 
@@ -10628,10 +10634,17 @@ function ac_node_updated(gobj, event, kw, src)
      *  repaints the count on whatever pill reaches it.
      */
     update_local_node(gobj, topic_name, node);
+    /*  `priv.graph`: this read an undeclared `graph`, the ReferenceError
+     *  fell into the catch, and a card on screen kept its old record after
+     *  every UPDATED (M33 of the 2026-09-21 review). The catch is for G6,
+     *  which throws on an id it does not hold -- a folded card.  */
     let on_screen = false;
     try {
-        on_screen = !!graph.getNodeData(node_name);
+        on_screen = !!priv.graph.getNodeData(node_name);
     } catch(e) {
+        if(e instanceof ReferenceError) {
+            throw e;
+        }
         on_screen = false;
     }
     if(on_screen) {

@@ -393,6 +393,40 @@ function ac_delete_record(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  EV_UPDATE_FIELD {topic_name, id, field, value}: one cell edited
+ *  in place. A PARTIAL write, like C_YUI_TREEDB_TOPICS sends it:
+ *  only that field changes.
+ ***************************************************************/
+function ac_update_field(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let row = priv.data.users.find(u => u.id === kw.id);
+    if(!row || !kw.field) {
+        log_error(`${GCLASS_NAME}: field write with no such id or no field: ${kw.id}`);
+        return -1;
+    }
+    row[kw.field] = json_deep_copy(kw.value);
+
+    echo_event(gobj, event, kw);
+    gobj_send_event(priv.topic, "EV_LOAD_NODE_UPDATED", [json_deep_copy(row)], gobj);
+    return 0;
+}
+
+/***************************************************************
+ *  EV_REQUEST_JSON {topic_name}: the table's Raw JSON button. The
+ *  real host answers with the records AND their metadata; the demo
+ *  has no metadata, so it answers the records.
+ ***************************************************************/
+function ac_request_json(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    gobj_send_event(
+        priv.topic, "EV_JSON_LOADED", {rows: json_deep_copy(priv.data.users)}, gobj
+    );
+    return 0;
+}
+
+/***************************************************************
  *  EV_REFRESH_TOPIC {topic_name}: resend the full list.
  ***************************************************************/
 function ac_refresh_topic(gobj, event, kw, src)
@@ -439,6 +473,8 @@ function create_gclass(gclass_name)
             ["EV_UPDATE_RECORD",    ac_update_record,   null],
             ["EV_DELETE_RECORD",    ac_delete_record,   null],
             ["EV_REFRESH_TOPIC",    ac_refresh_topic,   null],
+            ["EV_UPDATE_FIELD",     ac_update_field,    null],
+            ["EV_REQUEST_JSON",     ac_request_json,    null],
             ["EV_SELECT_ROWS",      null,               null],
             ["EV_UNSELECT_ROWS",    null,               null],
             ["EV_SHOW_HOOK_DATA",   null,               null]
@@ -450,6 +486,8 @@ function create_gclass(gclass_name)
         ["EV_UPDATE_RECORD",    0],
         ["EV_DELETE_RECORD",    0],
         ["EV_REFRESH_TOPIC",    0],
+        ["EV_UPDATE_FIELD",     0],
+        ["EV_REQUEST_JSON",     0],
         ["EV_SELECT_ROWS",      0],
         ["EV_UNSELECT_ROWS",    0],
         ["EV_SHOW_HOOK_DATA",   0]
