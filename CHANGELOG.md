@@ -5,6 +5,13 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.0
+
+- **The version is back in line with the SDK: 7.25.0, as yunetas 7.25.0.**
+  No code change since 7.23.197. The first two numbers say which SDK the
+  package belongs to; the third is the package's own life between SDK
+  releases.
+
 ## 7.23.197
 
 - **The schema export is the whole `treedb_schema_<db>.c`: the graph as a
