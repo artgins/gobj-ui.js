@@ -12,7 +12,8 @@
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
 import { build_schema_model } from "./schema_model.js";
-import { schema_to_json, schema_to_c } from "./schema_to_c.js";
+import { schema_to_json, schema_to_c, json_to_c } from "./schema_to_c.js";
+import { schema_to_diagram } from "./schema_to_diagram.js";
 
 
 /***************************************************************
@@ -134,7 +135,24 @@ describe("schema_to_json", () => {
 });
 
 describe("schema_to_c — the round trip", () => {
-    const source = schema_to_c(TREEDB);
+    const file = schema_to_c(TREEDB);
+    const source = file.slice(file.indexOf("static char"));
+
+    test("the file is the diagram as a comment, then the literal, nothing else", () => {
+        expect(file.startsWith("/*\n")).toBe(true);
+        const close = file.indexOf("\n*/\n");
+        expect(close).toBeGreaterThan(0);
+        expect(file.slice(close + 4)).toBe("\n" + source);
+        expect(file).toContain(schema_to_diagram(schema_to_json(TREEDB)).split("\n")[0]);
+    });
+
+    test("without the diagram it is the literal alone", () => {
+        expect(schema_to_c(TREEDB, {with_diagram: false})).toBe(source);
+    });
+
+    test("json_to_c() writes the same file from the literal's JSON", () => {
+        expect(json_to_c(schema_to_json(TREEDB))).toBe(file);
+    });
 
     test("it is a C array declaration with the conventional name", () => {
         expect(source.startsWith("static char treedb_schema_sample[]= \"\\\n")).toBe(true);
@@ -153,7 +171,7 @@ describe("schema_to_c — the round trip", () => {
     });
 
     test("the caller can name the array and set the continuation column", () => {
-        const custom = schema_to_c(TREEDB, {var_name: "my_schema", pad: 40});
+        const custom = schema_to_c(TREEDB, {var_name: "my_schema", pad: 40, with_diagram: false});
         expect(custom.startsWith("static char my_schema[]=")).toBe(true);
         expect(load_like_the_yuno(custom)).toEqual(schema_to_json(TREEDB));
     });

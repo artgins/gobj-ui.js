@@ -19,13 +19,19 @@
  *      Two outputs, because they answer different questions:
  *        schema_to_json() — the schema as a value: to diff, to keep, to
  *                           feed back in.
- *        schema_to_c()    — the same value as the literal: single
- *                           quotes, `\n\` continuations, padded, ready
- *                           to paste.
+ *        schema_to_c()    — the same value as the WHOLE file
+ *                           `treedb_schema_<db>.c`: the graph of the
+ *                           schema as a comment (schema_to_diagram()),
+ *                           then the literal — single quotes, `\n\`
+ *                           continuations, padded. The file holds that
+ *                           and nothing else, so an export replaces it
+ *                           whole. json_to_c() does the same from the
+ *                           literal's own JSON.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+import { schema_to_diagram } from "./schema_to_diagram.js";
 import {
     col_flags,
     col_hook,
@@ -326,15 +332,25 @@ function c_pair(lines, key, value, indent, trailing)
 /***************************************************************
  *  schema_to_c(treedb, options) -> the C source text
  *
- *      options {var_name, pad}
- *          var_name  the array's name; defaults to
- *                    `treedb_schema_<treedb id without its prefix>`
- *          pad       column of the `\n\` continuation
+ *      options {var_name, pad, with_diagram}
+ *          var_name      the array's name; defaults to
+ *                        `treedb_schema_<treedb id without its prefix>`
+ *          pad           column of the `\n\` continuation
+ *          with_diagram  the graph as a comment above the array
+ *                        (default true)
  ***************************************************************/
 function schema_to_c(treedb, options)
 {
+    return json_to_c(schema_to_json(treedb), options);
+}
+
+/***************************************************************
+ *  json_to_c(json, options) -> the C source text, from the schema
+ *  as its literal holds it. Same options as schema_to_c().
+ ***************************************************************/
+function json_to_c(json, options)
+{
     let opts = options || {};
-    let json = schema_to_json(treedb);
 
     if(!json) {
         return "";
@@ -368,7 +384,30 @@ function schema_to_c(treedb, options)
         return `${line}${padding}\\n\\`;
     });
 
-    return `static char ${name}[]= "\\\n${body.join("\n")}\n";\n`;
+    let literal = `static char ${name}[]= "\\\n${body.join("\n")}\n";\n`;
+    if(opts.with_diagram === false) {
+        return literal;
+    }
+    return c_diagram_comment(schema_to_diagram(json)) + "\n" + literal;
+}
+
+/***************************************************************
+ *  The diagram as the comment that heads the file.
+ ***************************************************************/
+function c_diagram_comment(diagram)
+{
+    let lines = [
+        "/*",
+        "    Generated from the literal below by schema_to_diagram() (gobj-ui).",
+        "    This file holds this comment and the literal, nothing else: replace",
+        "    it whole with an export of the schema editor.",
+        "",
+    ];
+    for(let line of diagram.split("\n")) {
+        lines.push(line ? "    " + line : "");
+    }
+    lines.push("*/");
+    return lines.join("\n") + "\n";
 }
 
 
@@ -378,4 +417,5 @@ export {
     COL_KEY_ORDER,
     schema_to_json,
     schema_to_c,
+    json_to_c,
 };

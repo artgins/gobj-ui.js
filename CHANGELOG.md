@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.23.197
+
+- **The schema export is the whole `treedb_schema_<db>.c`: the graph as a
+  comment, then the literal.** New `schema_to_diagram()`
+  (`schema_to_diagram.js`): the graph of a schema drawn as text, one box per
+  topic in declared order, `*` required / `=` inherited / `(2)` pkey2 /
+  `(t)` tkey, hook markers `{}` `[]` `()` and fkey markers `(↖)` `[↖]` `{↖}`,
+  and each hook -> fkey link as a line down its own lane, shorter links
+  nearer the boxes. `schema_to_c()` writes it above the literal
+  (`with_diagram: false` for the literal alone), and the new `json_to_c()`
+  does the same from the literal's JSON. The drawing is derived, so a file
+  replaced with an export is never behind its picture. Tests:
+  `schema_to_diagram.test.js`, and `schema_to_c.test.js` pins the file shape.
+
 ## 7.23.196
 
 - **M36 of the 2026-09-21 treedb review — an edit of a schema is a draft.**

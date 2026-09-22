@@ -2084,7 +2084,37 @@ The logic is pure and tested apart from the view: `schema_model.js` (the three
 lists regrouped — grouping follows the **fkey**, not a split of the qualified
 id on `.`, which works right up to the first name that carries one),
 `schema_validate.js`, `schema_descs.js`, `schema_to_c.js`, `schema_import.js`,
-`schema_flags.js`, `schema_write_options.js`. Since 6.1.0.
+`schema_flags.js`, `schema_write_options.js`, `schema_to_diagram.js`. Since 6.1.0.
+
+**The export is the whole `treedb_schema_<db>.c`.** `schema_to_c()` writes the
+graph of the schema as a comment — one box per topic, `*` required, `=`
+inherited, `(2)` pkey2, `(t)` tkey, the hook markers `{}` `[]` `()` and the
+fkey markers `(↖)` `[↖]` `{↖}`, and a line from each hook's row to the row of
+the fkey it fills — and then the literal, and that is all such a file holds:
+an edit made in the editor goes back into the source by replacing the file
+whole. The graph is `schema_to_diagram()`, derived and never drawn by hand;
+`json_to_c()` writes the same file from the literal's own JSON (the yunetas
+script `scripts/schema_diagram.mjs` uses it to keep the files in the repo
+equal to what an export would give). `with_diagram: false` gives the literal
+alone. Since 7.23.197.
+
+```c
+/*
+    Generated from the literal below by schema_to_diagram() (gobj-ui).
+    ...
+                    users
+            ┌───────────────────────────┐
+            │* id                       │
+            │  name (2)                 │
+            │           departments [↖] │ ──────┘
+            └───────────────────────────┘
+*/
+
+static char treedb_schema_sample[]= "\
+{                                                                   \n\
+    'id': 'treedb_sample',                                          \n\
+    ...
+```
 
 **A drag can be undone.** Reordering a column is a WRITE — `order` is a field —
 so the drop lands in the store the moment you let go. The toolbar grows an
