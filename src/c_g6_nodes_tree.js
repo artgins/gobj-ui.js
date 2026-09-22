@@ -174,6 +174,7 @@ import {
 } from "./g6_touch_gestures.js";
 import {yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 import {yui_shell_of} from "./c_yui_shell.js";
+import {yui_shell_show_error} from "./shell_modals.js";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -11761,6 +11762,7 @@ function ac_confirmed(gobj, event, kw, src)
     if(what === "delete_selection") {
         let ids = (kw && Array.isArray(kw.ids))? kw.ids : [];
         let nodes = [];
+        let missing = [];
         for(let id of ids) {
             let nd = null;
             try {
@@ -11770,7 +11772,17 @@ function ac_confirmed(gobj, event, kw, src)
             }
             if(nd && nd.data && nd.data.desc) {
                 nodes.push(nd);
+            } else {
+                missing.push(id);
             }
+        }
+        if(missing.length) {
+            /*  Gone while the question was open (another writer deleted
+             *  them): said, to the log and to the person (a low of the
+             *  2026-09-22 review); the rest go on.  */
+            log_error(`${gobj_short_name(gobj)}: ${event}: cards gone while ` +
+                `confirming the delete, not deleted: ${missing.join(", ")}`);
+            yui_shell_show_error(yui_shell_of(gobj), "some records were gone before the delete", {t: t});
         }
         if(!nodes.length) {
             log_error(`${gobj_short_name(gobj)}: ${event} names no node any more`);

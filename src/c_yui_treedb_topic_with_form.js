@@ -110,6 +110,7 @@ import {
 import {delete_impact} from "./delete_impact.js";
 
 import "./c_yui_treedb_topic_with_form.css";
+import {yui_shell_show_error} from "./shell_modals.js";
 import {set_toolbar_busy} from "./form_busy.js";
 import "./tabulator.css";
 import {cell_text, hook_cell_spec} from "./table_cell_text.js";
@@ -3506,6 +3507,10 @@ function transform__form_value_2_treedb_value(gobj, col, value, operation)
                 case "string":
                     if(value && is_date(value)) {
                         value = value.toISOString();
+                    } else if(typeof value === "number" && value > 0) {
+                        /*  The form hands an epoch in seconds (form_time_value);
+                         *  a string column stores the instant as ISO text.  */
+                        value = new Date(value * 1000).toISOString();
                     }
                     break;
                 case "integer":
@@ -4092,6 +4097,9 @@ function ac_confirmed(gobj, event, kw, src)
              *  them): never replaced by the row that took their place.  */
             log_error(`${gobj_short_name(gobj)}: ${event}: rows gone while ` +
                 `confirming the delete, not deleted: ${found.missing.join(", ")}`);
+            /*  The person who answered "yes" is told, not only the log
+             *  (a low of the 2026-09-22 review).  */
+            yui_shell_show_error(yui_shell_of(gobj), "some records were gone before the delete", {t: t});
         }
         if(!found.rows.length) {
             return -1;      /*  Error already logged, or nothing was named  */

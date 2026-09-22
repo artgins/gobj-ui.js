@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.4
+
+- **The lows of the 2026-09-22 review.** A delete whose rows (table) or
+  cards (graph) went while the question was open tells the PERSON, not only
+  the log: new consumer i18n key *"some records were gone before the
+  delete"*, added in every consumer's locales. A `time` column whose
+  `real_type` is `string` is written back as ISO text (the form hands an
+  epoch in seconds, and the number went into the string column as it was).
+  `form_time_value.js` documents its known limit: the repeated hour of the
+  autumn change names two instants with one wall time.
+
 ## 7.25.3
 
 - **`C_YUI_SCHEMA_EDITOR` rebuilds its drafts from the host (N13 of the

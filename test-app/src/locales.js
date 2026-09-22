@@ -105,6 +105,7 @@ const es_translation = {
     "next": "Siguiente",
     "topics": "Topics",
     "no session": "Sin sesión",
+    "some records were gone before the delete": "Algunos registros ya no existían al confirmar el borrado y no se han borrado; la tabla se ha refrescado",
     "show toolbar": "Mostrar la barra",
     "hide toolbar": "Ocultar la barra",
     "zoom to selection": "Ajustar a la selección",
