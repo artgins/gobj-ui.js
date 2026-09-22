@@ -113,6 +113,7 @@ import {
     empty_string,
 } from "@yuneta/gobj-js";
 import {yui_tint} from "./bulma_tint.js";
+import {mark_host_drafts} from "./host_drafts.js";
 
 import "./c_yui_schema_editor.css";
 
@@ -248,6 +249,7 @@ function mt_create(gobj)
 
     priv.baseline = {};
     priv.written = {};
+    priv.host_drafts = {};  /*  what the host says is a draft, {treedb: [topics]} (EV_DRAFTS)  */
     priv.save_queue = [];
 
     build_ui(gobj);
@@ -571,6 +573,9 @@ function start_measuring(gobj)
             priv.baseline[topic.id] = topic.topic_version;
         }
     }
+    /*  A draft is a draft after a reload too: what the host said stays
+     *  marked (host_drafts.js) until the host says otherwise.  */
+    mark_host_drafts(priv.written, priv.model, priv.host_drafts);
 }
 
 /***************************************************************
@@ -2756,6 +2761,28 @@ function ac_refresh(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  {drafts: {treedb_name: [topic names]}} -- the host says which
+ *  topics hold a draft in __system__ that the file in use does not
+ *  have (C_TREEDB's saved-schema, `draft_changed`). The mark of a
+ *  write lived in this session's memory only, so a reload of the
+ *  page, a reconnect or a refresh showed no draft while __system__
+ *  still differed from the file (N13 of the 2026-09-22 review).
+ *  Replaces what the host said before; what this session wrote
+ *  stays marked.
+ ***************************************************************/
+function ac_drafts(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    priv.host_drafts = (kw && kw.drafts && typeof kw.drafts === "object")? kw.drafts: {};
+    mark_host_drafts(priv.written, priv.model, priv.host_drafts);
+    if(priv.model) {
+        render(gobj);
+    }
+    return 0;
+}
+
+/***************************************************************
  *  Moving about.
  ***************************************************************/
 function ac_select_treedb(gobj, event, kw, src)
@@ -3328,7 +3355,8 @@ function create_gclass(gclass_name)
         ["EV_HIDE",                 ac_hide,                null],
         ["EV_TRANSPORT_STATE",      ac_transport_state,     null],
         ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null],
-        ["EV_REFRESH",              ac_refresh,             null]
+        ["EV_REFRESH",              ac_refresh,             null],
+        ["EV_DRAFTS",               ac_drafts,              null]
     ];
 
     /*  What a treedb is open for: reading it whole, and writing it
@@ -3411,6 +3439,7 @@ function create_gclass(gclass_name)
         ["EV_TRANSPORT_STATE",      0],
         ["EV_LANGUAGE_CHANGED",     0],
         ["EV_REFRESH",              0],
+        ["EV_DRAFTS",               0],
 
         /*  From this view's own screens.  */
         ["EV_SELECT_TREEDB",        0],

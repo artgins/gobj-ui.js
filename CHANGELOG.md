@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.3
+
+- **`C_YUI_SCHEMA_EDITOR` rebuilds its drafts from the host (N13 of the
+  2026-09-22 review).** The mark of a topic written in this session lived
+  in the session's memory only: a reload of the page, a reconnect or a
+  refresh of the model showed no chip, no banner and no export warning
+  while `__system__` still differed from the file in use. New input event
+  `EV_DRAFTS` `{drafts: {treedb_name: [topic names]}}`, what C_TREEDB's
+  `saved-schema` answers as `draft_changed` (yunetas 7.25.3+), applied to
+  the model (`host_drafts.js`) and again after every reload of it; what the
+  session wrote stays marked. `drafts_of_saved_answer()` reads it off the
+  unnamed `saved-schema` answer for the host. gui_agent 0.22.76 sends it.
+
 ## 7.25.2
 
 - **A topic form's write is answered every way it can end, the transport

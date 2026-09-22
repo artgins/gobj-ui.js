@@ -2021,6 +2021,22 @@ and the column screen says so in a banner; the host sends `EV_REFRESH` after a
 save, and the reload forgets the drafts. The export (C literal and JSON) warns
 while there are drafts: the literal carries the versions a save publishes.
 
+**A draft survives a reload** (7.25.3). The mark of a write lived in the
+session's memory only, so a reload of the page, a reconnect or a refresh of
+the model showed no draft while `__system__` still differed from the file in
+use. The host tells the editor what IS a draft, from data: `C_TREEDB`'s
+`saved-schema` answers `draft_changed` per treedb (yunetas 7.25.3+), and the
+host sends it as `EV_DRAFTS`; `drafts_of_saved_answer()` reads the unnamed
+answer into the shape the event takes. What the session wrote stays marked;
+what the host said is applied again after every reload of the model.
+
+```js
+// The host, when its saved-schema answers land (rows = the unnamed answer's data)
+import {drafts_of_saved_answer} from "@yuneta/gobj-ui/src/host_drafts.js";
+gobj_send_event(editor, "EV_DRAFTS", {drafts: drafts_of_saved_answer(rows)}, gobj);
+// -> {drafts: {treedb_authzs: ["users"]}}
+```
+
 What the screens offer:
 
 | Screen | What it is for |
