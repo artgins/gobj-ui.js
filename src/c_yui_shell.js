@@ -43,6 +43,8 @@ import {
     createElement2, empty_string, is_object, is_array, is_string,
     refresh_language,
     is_gobj,
+    gobj_has_event,
+    gobj_is_destroying,
 } from "@yuneta/gobj-js";
 
 import {
@@ -174,6 +176,10 @@ let PRIVATE_DATA = {
      *  backend-connected state.  State is host/event-driven (unlike
      *  the avatar provider it is a setter, not a pull callback). */
     conn_nodes:      [],
+    /*  The last state yui_shell_set_connection_state() was told, null
+     *  while nobody told it anything: EV_CONNECTION_STATE goes out on an
+     *  EDGE, not on every call.  */
+    connected:       null,
     /*  Currently open toolbar dropdown panel, if any.  Tracked here
      *  so a second click on any trigger (or programmatic close) can
      *  tear down the previous one through the same code path. */
@@ -3033,11 +3039,34 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
 /*---------------------------------------------*
  *          Global methods table
  *---------------------------------------------*/
+/***************************************************************
+ *  EV_CONNECTION_STATE is an OPTIONAL fact: a view that waits for a
+ *  backend answer subscribes to it by name. An app that subscribed
+ *  to EVERY event of its shell with one attr (`subscriber`) did not
+ *  ask for it and does not declare it -- published to it anyway, the
+ *  event would be an FSM error in the app on every connection edge,
+ *  and adding it to the shell a breaking change for every such app.
+ *  So it reaches only the subscribers that declare it. Every other
+ *  event of the shell goes out as before.
+ ***************************************************************/
+function mt_publication_pre_filter(gobj, subs, event, kw)
+{
+    if(event !== "EV_CONNECTION_STATE") {
+        return 1;
+    }
+    let subscriber = subs && subs.subscriber;
+    if(!subscriber || !gobj_has_event(subscriber, event, 0)) {
+        return 0;
+    }
+    return 1;
+}
+
 const gmt = {
-    mt_create:  mt_create,
-    mt_start:   mt_start,
-    mt_stop:    mt_stop,
-    mt_destroy: mt_destroy
+    mt_create:                  mt_create,
+    mt_start:                   mt_start,
+    mt_stop:                    mt_stop,
+    mt_destroy:                 mt_destroy,
+    mt_publication_pre_filter:  mt_publication_pre_filter
 };
 
 function create_gclass(gclass_name)
@@ -3088,6 +3117,13 @@ function create_gclass(gclass_name)
          *  re-renders its own translated parts.  */
         ["EV_LANGUAGE_CHANGED",       event_flag_t.EVF_OUTPUT_EVENT
                                      |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS],
+
+        /*  The app's backend connection went up or down
+         *  (yui_shell_set_connection_state), {connected}. Delivered only
+         *  to the subscribers that declare it: see
+         *  mt_publication_pre_filter().  */
+        ["EV_CONNECTION_STATE",       event_flag_t.EVF_OUTPUT_EVENT
                                      |event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
@@ -3552,14 +3588,31 @@ function yui_shell_language_changed(shell_gobj)
  ************************************************************/
 function yui_shell_set_connection_state(shell_gobj, connected)
 {
+    if(!shell_gobj || !is_gobj(shell_gobj) || gobj_is_destroying(shell_gobj)) {
+        return;
+    }
     let priv = shell_gobj.priv;
-    if(!priv || !is_array(priv.conn_nodes)) {
+    if(!priv) {
         return;
     }
     let on = !!connected;
-    for(let $n of priv.conn_nodes) {
-        $n.classList.toggle("is-connected", on);
-        $n.classList.toggle("is-disconnected", !on);
+    let changed = (priv.connected !== on);
+    priv.connected = on;
+    if(is_array(priv.conn_nodes)) {
+        for(let $n of priv.conn_nodes) {
+            $n.classList.toggle("is-connected", on);
+            $n.classList.toggle("is-disconnected", !on);
+        }
+    }
+    /*  The fact goes out as well, for the views: a write a view sent
+     *  before the backend dropped is never answered, and the view that
+     *  waits for it (a topic form's Save) learns the drop from HERE --
+     *  it holds no subscription of its own to the transport, because
+     *  subscribing to a C_IEVENT_CLI forwards the subscription to the
+     *  backend. Only an EDGE is published: the app calls this on every
+     *  reconnect attempt too.  */
+    if(changed) {
+        gobj_publish_event(shell_gobj, "EV_CONNECTION_STATE", {connected: on});
     }
 }
 

@@ -1,5 +1,5 @@
 import {describe, it, expect} from "vitest";
-import {mark_host_drafts, drafts_of_saved_answer} from "./host_drafts.js";
+import {host_draft_ids, mark_host_drafts, drafts_of_saved_answer} from "./host_drafts.js";
 
 const model = {
     treedbs: [
@@ -58,5 +58,28 @@ describe("drafts_of_saved_answer", () => {
     it("a node older than draft_changed says nothing", () => {
         expect(drafts_of_saved_answer([{treedb_name: "t", data: {can_apply: false}}])).toEqual({});
         expect(drafts_of_saved_answer(null)).toEqual({});
+    });
+});
+
+describe("host_draft_ids", () => {
+
+    it("resolves the host's names on the model, as topic ids", () => {
+        expect(host_draft_ids(model, {treedb_a: ["users"], treedb_b: ["users"]}))
+            .toEqual({"treedb_a^users": true, "treedb_b^users": true});
+    });
+
+    it("is a fresh map every time: what the host stopped naming is gone (M1)", () => {
+        /*  mark_host_drafts() only ADDS, and the editor fed it the same map
+         *  every time: a topic the host named before the Save stayed a
+         *  draft after it.  */
+        const before = host_draft_ids(model, {treedb_a: ["users", "roles"]});
+        const after = host_draft_ids(model, {treedb_a: []});
+        expect(before).toEqual({"treedb_a^users": true, "treedb_a^roles": true});
+        expect(after).toEqual({});
+    });
+
+    it("no model, no drafts: empty", () => {
+        expect(host_draft_ids(null, {treedb_a: ["users"]})).toEqual({});
+        expect(host_draft_ids(model, null)).toEqual({});
     });
 });

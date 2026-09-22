@@ -116,4 +116,35 @@ function col_goes_back_to_treedb(desc, col)
     return topic_pkey2s(d).includes(col.id);
 }
 
-export {plan_treedb_writes, READONLY_FORM_TOOLBAR, col_goes_back_to_treedb};
+/************************************************************
+ *  The INSTANCE an update of `record` is for: its pkey2 values, as the
+ *  record held them when the form was opened, {pkey2: value}.
+ *
+ *  They go back as they WERE, never as the form's widget hands them: a
+ *  `time` pkey2 is an epoch rendered in a `datetime-local`, and a value
+ *  that crossed the widget (seconds dropped, a local wall time read
+ *  back, an hour the autumn change names twice) names ANOTHER instance
+ *  -- or none, and C_NODE falls back to the primary. The pkey2 is an
+ *  address, not a field of the edit.
+ ************************************************************/
+function instance_keys_of(record, desc)
+{
+    const keys = {};
+    if(!record || typeof record !== "object") {
+        return keys;
+    }
+    for(const k of topic_pkey2s(desc || {})) {
+        if(Object.prototype.hasOwnProperty.call(record, k) &&
+                record[k] !== undefined && record[k] !== null) {
+            keys[k] = record[k];
+        }
+    }
+    return keys;
+}
+
+export {
+    plan_treedb_writes,
+    READONLY_FORM_TOOLBAR,
+    col_goes_back_to_treedb,
+    instance_keys_of,
+};

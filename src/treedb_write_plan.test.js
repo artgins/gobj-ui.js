@@ -9,7 +9,8 @@
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
 import {
-    plan_treedb_writes, READONLY_FORM_TOOLBAR, col_goes_back_to_treedb
+    plan_treedb_writes, READONLY_FORM_TOOLBAR, col_goes_back_to_treedb,
+    instance_keys_of
 } from "./treedb_write_plan.js";
 
 const WRITES = ["edition_mode", "new_button", "delete_button", "paste_button", "in_row_icons"];
@@ -131,5 +132,25 @@ describe("what goes back to treedb from a form", () => {
     test("without pkey2s in the desc the same column stays read-only", () => {
         expect(col_goes_back_to_treedb({pkey: "id"}, COL.yuno_release)).toBe(false);
         expect(col_goes_back_to_treedb(null, COL.yuno_release)).toBe(false);
+    });
+});
+
+describe("the instance an update is for", () => {
+    test("the pkey2 values as the record held them", () => {
+        expect(instance_keys_of({id: "a", yuno_release: "1.2.3", yuno_name: "x"}, YUNOS_DESC))
+            .toEqual({yuno_release: "1.2.3"});
+    });
+
+    test("a time pkey2 keeps its seconds: the ORIGINAL epoch, not the widget's", () => {
+        /*  A datetime-local that dropped the seconds, or read a local wall
+         *  time back, named another instance of the node.  */
+        const desc = {pkey: "id", pkey2s: ["tm"]};
+        expect(instance_keys_of({id: "a", tm: 1790000059}, desc)).toEqual({tm: 1790000059});
+    });
+
+    test("a record without the pkey2, or no pkey2s at all: nothing", () => {
+        expect(instance_keys_of({id: "a"}, YUNOS_DESC)).toEqual({});
+        expect(instance_keys_of({id: "a", yuno_release: "1"}, {pkey: "id"})).toEqual({});
+        expect(instance_keys_of(null, YUNOS_DESC)).toEqual({});
     });
 });

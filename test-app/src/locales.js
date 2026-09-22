@@ -105,7 +105,7 @@ const es_translation = {
     "next": "Siguiente",
     "topics": "Topics",
     "no session": "Sin sesión",
-    "some records were gone before the delete": "Algunos registros ya no existían al confirmar el borrado y no se han borrado; la tabla se ha refrescado",
+    "some records were gone before the delete": "Algunos registros ya no existían al confirmar el borrado; no se han borrado",
     "show toolbar": "Mostrar la barra",
     "hide toolbar": "Ocultar la barra",
     "zoom to selection": "Ajustar a la selección",
@@ -821,6 +821,8 @@ const en_translation = {
     "oldest period": "Jump to the oldest",
     "no time limits": "No time limits",
     "the range typed below": "The range typed below",
+    "no session": "No session",
+    "some records were gone before the delete": "Some records no longer existed when the delete was confirmed; they were not deleted",
 };
 
 export const resources = {

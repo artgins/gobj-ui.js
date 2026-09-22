@@ -6,6 +6,29 @@
  *          them, and they must be each other's inverse: a writable time
  *          column travels back on EVERY save of the record.
  *
+ *          KNOWN LIMIT -- the change of hour. A `datetime-local` holds a
+ *          LOCAL WALL time and no offset, and a wall time is not always
+ *          one instant:
+ *
+ *            - the night the clocks go back (autumn), one hour happens
+ *              twice. "02:30" names two instants an hour apart, and
+ *              `new Date("YYYY-MM-DDT02:30:00")` answers the EARLIER one
+ *              (ECMAScript's "compatible" disambiguation). An epoch in the
+ *              SECOND pass of that hour is shown as 02:30 and comes back
+ *              one hour earlier: saving the record -- any field of it --
+ *              moves a writable time column that holds it by -3600 s.
+ *            - the night the clocks go forward (spring), one hour does not
+ *              exist. No epoch is shown in it, so nothing read comes back
+ *              wrong; a wall time TYPED in it is moved forward by the
+ *              browser.
+ *
+ *          Not fixable here without the offset, which the input cannot
+ *          carry. What is safe: a read-only time column never goes back
+ *          (treedb_write_plan.js, col_goes_back_to_treedb), and a time
+ *          pkey2 goes back as the record had it, never through this
+ *          widget (instance_keys_of). A writable time column edited or
+ *          merely saved inside the repeated hour is the exposed case.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/

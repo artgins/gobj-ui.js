@@ -5,6 +5,47 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.5
+
+Fixes from the 2026-09-23 review of the 2026-09-22 round.
+
+- **`C_YUI_SCHEMA_EDITOR`: `EV_DRAFTS` REPLACES what the host said before
+  (M1).** It only added the host's marks to the session's, so a topic the
+  host named before a Save stayed a draft after it ("unsaved schema changes"
+  again). The host's marks are kept apart (`host_draft_ids()`, new in
+  `host_drafts.js`) and swapped whole on each `EV_DRAFTS`; what the session
+  wrote stays marked. A host sends the COMPLETE set every time, `{}` included.
+- **A form's Save in flight when the backend drops is answered in every host
+  (M8).** `C_YUI_TREEDB_TOPICS` only learnt the drop from a host-forwarded
+  `EV_TRANSPORT_STATE`, which wattyzer and yunovatios never sent: Save and
+  Cancel stayed busy for ever. `yui_shell_set_connection_state()` -- which
+  those apps already call for the toolbar dot -- now publishes
+  `EV_CONNECTION_STATE {connected}` on each EDGE, and the view subscribes to
+  it on its shell. It reaches only subscribers that DECLARE it (the shell's
+  `mt_publication_pre_filter`): an app subscribed to every shell event with
+  the `subscriber` attr is not sent it, so no app breaks. Hosts that forward
+  `EV_TRANSPORT_STATE` keep doing it; one edge seen twice answers each write
+  once.
+- **A form write is known by topic AND serial** (`form_writes_in_flight.js`,
+  `<topic>^<form_write>`). Each topic's form counts from 1, so two forms
+  saving at once shared one entry: the first answer settled both, and a drop
+  then answered only one. `settle_form_write()` takes the topic (third arg).
+- **The pkey2 of an update goes back as the record had it**
+  (`instance_keys_of()`, `treedb_write_plan.js`). A `time` pkey2 crossed the
+  form's `datetime-local` and could come back without its seconds, naming
+  another instance.
+- **The change-of-hour limit is written down** -- 7.25.4 said it was and it
+  was not: `form_time_value.js` and the README ("Known limit").
+- **The text of "some records were gone before the delete" promised a
+  refresh** that does not happen, and in `C_G6_NODES_TREE` there is no table.
+  Key unchanged; the test-app's values rewritten (en added). The README now
+  lists the consumer keys `no session` and this one.
+- **Wiring tests on a document double** (`test/dom_double.js`): the real
+  `C_YUI_SHELL` + `C_YUI_TREEDB_TOPICS` answering forms on a drop
+  (`treedb_topics_transport.wiring.test.js`), and a real
+  `C_YUI_SCHEMA_EDITOR` taking `EV_DRAFTS` (`schema_editor_drafts.wiring
+  .test.js`). Both fail on 7.25.4.
+
 ## 7.25.4
 
 - **The lows of the 2026-09-22 review.** A delete whose rows (table) or

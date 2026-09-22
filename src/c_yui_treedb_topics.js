@@ -156,10 +156,11 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
-    /*  The writes of topic forms sent and not yet answered, by serial
-     *  (form_writes_in_flight): answered refused when the transport
-     *  closes under them.  */
+    /*  The writes of topic forms sent and not yet answered, by topic
+     *  and serial (form_writes_in_flight): answered refused when the
+     *  transport closes under them.  */
     gobj.priv.form_writes = {};
+    gobj.priv.conn_shell = null;    /*  the shell whose EV_CONNECTION_STATE we hear  */
 
     build_ui(gobj);
 
@@ -178,6 +179,17 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    /*  The app's backend connection, as the app tells its shell
+     *  (yui_shell_set_connection_state). A write in flight when it drops
+     *  is never answered, and its form waited for ever in every host
+     *  that did not forward EV_TRANSPORT_STATE -- wattyzer and yunovatios
+     *  among them (M8 of the 2026-09-23 review). The transport itself is
+     *  not subscribed to: see ac_transport_state().  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_CONNECTION_STATE", {}, gobj);
+        gobj.priv.conn_shell = shell;
+    }
     request_treedb_descs(gobj);
 }
 
@@ -186,6 +198,14 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+    if(priv.conn_shell) {
+        if(!gobj_is_destroying(priv.conn_shell)) {
+            gobj_unsubscribe_event(priv.conn_shell, "EV_CONNECTION_STATE", {}, gobj);
+        }
+        priv.conn_shell = null;
+    }
+
     /*  Retire our site-map sub-routes so a torn-down view leaves no
      *  stale children in the map (ROUTING.md contributor). */
     let shell = yui_shell_of(gobj);
@@ -2077,7 +2097,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                         {topic_name: failed_topic}, gobj);
                 }
                 settle_form_write(gobj.priv.form_writes,
-                    kw_get_int(gobj, kw_command, "form_write", 0, 0));
+                    kw_get_int(gobj, kw_command, "form_write", 0, 0), failed_topic);
                 answer_form_write(
                     gobj,
                     get_gobj_formtable(gobj, failed_topic),
@@ -2177,7 +2197,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 command:     command
             });
             settle_form_write(gobj.priv.form_writes,
-                kw_get_int(gobj, kw_command, "form_write", 0, 0));
+                kw_get_int(gobj, kw_command, "form_write", 0, 0),
+                kw_get_str(gobj, kw_command, "topic_name", "", 0));
             answer_form_write(
                 gobj,
                 get_gobj_formtable(gobj, kw_get_str(gobj, kw_command, "topic_name", "", 0)),
@@ -2413,11 +2434,19 @@ function ac_back_to_topics(gobj, event, kw, src)
 }
 
 /************************************************************
- *  The host (C_TREEDB_VIEW) forwards the backend transport edges here so the
- *  toolbar can disable the JSON viewers the moment the session drops (and
- *  re-enable them on reconnect) — the library view must not subscribe to the
- *  C_IEVENT_CLI itself (that forwards the subscription upstream and breaks
- *  the session).
+ *  A backend transport edge, from either of two places:
+ *    - EV_TRANSPORT_STATE, forwarded by a host that keeps one
+ *      transport per view (gui_treedb's C_TREEDB_VIEW, gui_agent's
+ *      C_AGENT_TREEDB_VIEW);
+ *    - EV_CONNECTION_STATE, published by the SHELL when the app tells
+ *      it its backend went up or down (yui_shell_set_connection_state),
+ *      which is what every single-backend app already does for the
+ *      toolbar dot. No host has to remember anything for this one.
+ *  Both can arrive for one edge; what is done here is idempotent.
+ *  The toolbar disables the JSON viewers the moment the session drops
+ *  (and re-enables them on reconnect). The library view must not
+ *  subscribe to the C_IEVENT_CLI itself: that forwards the subscription
+ *  upstream and breaks the session.
  ************************************************************/
 function ac_transport_state(gobj, event, kw, src)
 {
@@ -3042,6 +3071,7 @@ function create_gclass(gclass_name)
             ["EV_HIDE",                 ac_hide,                    null],
             ["EV_BACK_TO_TOPICS",       ac_back_to_topics,          null],
             ["EV_TRANSPORT_STATE",      ac_transport_state,         null],
+            ["EV_CONNECTION_STATE",     ac_transport_state,         null],
         ]]
     ];
 
@@ -3077,6 +3107,7 @@ function create_gclass(gclass_name)
         ["EV_HIDE",                 0],
         ["EV_BACK_TO_TOPICS",       0],
         ["EV_TRANSPORT_STATE",      0],
+        ["EV_CONNECTION_STATE",     0],
         ["EV_TOPIC_SELECTED",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS]
     ];

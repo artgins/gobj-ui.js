@@ -11,8 +11,23 @@ describe("form writes in flight", () => {
         const in_flight = {};
         track_form_write(in_flight, 1, "users");
         track_form_write(in_flight, 2, "roles");
-        settle_form_write(in_flight, 1);
-        expect(Object.keys(in_flight)).toEqual(["2"]);
+        settle_form_write(in_flight, 1, "users");
+        expect(abandon_form_writes(in_flight)).toEqual([
+            {form_write: 2, topic_name: "roles"},
+        ]);
+    });
+
+    it("two forms, each at its serial 1: two writes, not one", () => {
+        /*  Each topic's form counts its serials from 1. Keyed by the serial
+         *  alone, the answer of one form settled the other's write, and a
+         *  transport closing then left that one busy for ever.  */
+        const in_flight = {};
+        track_form_write(in_flight, 1, "users");
+        track_form_write(in_flight, 1, "roles");
+        settle_form_write(in_flight, 1, "users");
+        expect(abandon_form_writes(in_flight)).toEqual([
+            {form_write: 1, topic_name: "roles"},
+        ]);
     });
 
     it("the transport closes: every write in flight is abandoned, once (N8)", () => {
@@ -39,7 +54,7 @@ describe("form writes in flight", () => {
 
     it("no map: nothing to do", () => {
         expect(() => track_form_write(null, 1, "x")).not.toThrow();
-        expect(() => settle_form_write(null, 1)).not.toThrow();
+        expect(() => settle_form_write(null, 1, "x")).not.toThrow();
         expect(abandon_form_writes(null)).toEqual([]);
     });
 });

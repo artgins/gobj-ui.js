@@ -26,8 +26,9 @@
  *      the owner's design of M36 (2026-09-21 review) every write here
  *      raised both versions, so an edit half made was already the
  *      schema of the next start. The topic list marks what this session
- *      wrote and has not saved; the host's EV_REFRESH after a save is
- *      what forgets it.
+ *      wrote and has not saved (the host's EV_REFRESH after a save is
+ *      what forgets it) and what the host says is not saved (EV_DRAFTS,
+ *      replaced whole each time it is sent).
  *
  *      WHAT ELSE IS HERE, and why each is here and not somewhere else:
  *
@@ -113,7 +114,7 @@ import {
     empty_string,
 } from "@yuneta/gobj-js";
 import {yui_tint} from "./bulma_tint.js";
-import {mark_host_drafts} from "./host_drafts.js";
+import {host_draft_ids} from "./host_drafts.js";
 
 import "./c_yui_schema_editor.css";
 
@@ -207,6 +208,8 @@ let PRIVATE_DATA = {
      *  version still has to move.  */
     baseline:       null,   /*  {topic id: topic_version} at load time  */
     written:        null,   /*  {topic id: true}  */
+    host_drafts:    null,   /*  {treedb: [topic names]}, the host's last EV_DRAFTS  */
+    host_ids:       null,   /*  host_drafts resolved on the model, {topic id: true}  */
     order_undo:     null,   /*  {topic id: [{id, order}]} before the first drag  */
 
     /*  Children and overlays  */
@@ -250,6 +253,7 @@ function mt_create(gobj)
     priv.baseline = {};
     priv.written = {};
     priv.host_drafts = {};  /*  what the host says is a draft, {treedb: [topics]} (EV_DRAFTS)  */
+    priv.host_ids = {};     /*  the same, as {topic id: true} of the model  */
     priv.save_queue = [];
 
     build_ui(gobj);
@@ -564,6 +568,7 @@ function start_measuring(gobj)
 
     priv.baseline = {};
     priv.written = {};
+    priv.host_ids = {};
 
     if(!priv.model) {
         return;
@@ -573,29 +578,39 @@ function start_measuring(gobj)
             priv.baseline[topic.id] = topic.topic_version;
         }
     }
-    /*  A draft is a draft after a reload too: what the host said stays
-     *  marked (host_drafts.js) until the host says otherwise.  */
-    mark_host_drafts(priv.written, priv.model, priv.host_drafts);
+    /*  A draft is a draft after a reload too: what the host said last
+     *  is resolved against the new model (host_drafts.js), apart from
+     *  what this session writes, until the host says otherwise.  */
+    priv.host_ids = host_draft_ids(priv.model, priv.host_drafts);
 }
 
 /***************************************************************
- *  "This topic was written in this session and is not saved."
+ *  "This topic holds an edit that is not saved."
  *
  *  An edit is a DRAFT: it moves no version and reaches no treedb
  *  until the host saves it (C_TREEDB's save-schema, which raises the
- *  versions of what changed) -- and the save makes the host send
- *  EV_REFRESH, whose reload is what forgets the drafts.
+ *  versions of what changed). Two sources say a topic is one, and
+ *  they are kept APART because they are forgotten differently:
+ *    - `written`: what THIS session wrote since the model was loaded
+ *      (a reload, the host's EV_REFRESH, forgets it -- the store says
+ *      what is left);
+ *    - `host_ids`: what the host said last (EV_DRAFTS), replaced WHOLE
+ *      by the next EV_DRAFTS. Folded into `written`, a topic the host
+ *      named once stayed a draft after the Save that published it.
  *
  *  ONE predicate, because it is asked in three places -- the topic
  *  list draws a chip with it, the column view a banner, the export
  *  a warning -- and copies of a rule are how they drift.
  ***************************************************************/
-function topic_is_draft(written, topic)
+function topic_is_draft(priv, topic)
 {
-    if(!topic || !written) {
+    if(!topic || !priv) {
         return false;
     }
-    return written[topic.id]? true: false;
+    if(priv.written && priv.written[topic.id]) {
+        return true;
+    }
+    return (priv.host_ids && priv.host_ids[topic.id])? true: false;
 }
 
 /***************************************************************
@@ -1050,7 +1065,7 @@ function render_topics(gobj, $body)
     let twice = repeated_names(treedb.topics);
     let $rows = [];
     for(let topic of treedb.topics) {
-        let pending = topic_is_draft(priv.written, topic);
+        let pending = topic_is_draft(priv, topic);
         /*  Two topics of one name: the id is what tells them apart, and
          *  it is what the url has to carry — addressing by name would
          *  open the first one whichever row was clicked.  */
@@ -1256,7 +1271,7 @@ function draft_banner(gobj, topic)
 {
     let priv = gobj.priv;
 
-    if(!topic_is_draft(priv.written, topic)) {
+    if(!topic_is_draft(priv, topic)) {
         return null;
     }
     if(is_readonly(gobj)) {
@@ -1997,7 +2012,7 @@ function open_report(gobj, findings, treedb_id)
 function open_export(gobj, treedb)
 {
     let priv = gobj.priv;
-    let drafts = treedb.topics.some((topic) => topic_is_draft(priv.written, topic));
+    let drafts = treedb.topics.some((topic) => topic_is_draft(priv, topic));
     let c_text = schema_to_c(treedb);
     let json_text = JSON.stringify(schema_to_json(treedb), null, 4);
 
@@ -2762,20 +2777,24 @@ function ac_refresh(gobj, event, kw, src)
 
 /***************************************************************
  *  {drafts: {treedb_name: [topic names]}} -- the host says which
- *  topics hold a draft in __system__ that the file in use does not
- *  have (C_TREEDB's saved-schema, `draft_changed`). The mark of a
- *  write lived in this session's memory only, so a reload of the
- *  page, a reconnect or a refresh showed no draft while __system__
- *  still differed from the file (N13 of the 2026-09-22 review).
- *  Replaces what the host said before; what this session wrote
- *  stays marked.
+ *  topics hold a draft in __system__ that is not saved (C_TREEDB's
+ *  saved-schema, `draft_changed`). The mark of a write lived in this
+ *  session's memory only, so a reload of the page, a reconnect or a
+ *  refresh showed no draft while __system__ still differed (N13 of
+ *  the 2026-09-22 review).
+ *
+ *  REPLACES what the host said before -- the host is the truth after
+ *  a reload, and a Save is exactly the host saying "none any more".
+ *  It only ever added, and a topic stayed a draft after the Save that
+ *  published it (M1 of the 2026-09-23 review). What this session wrote
+ *  stays marked: it is kept apart (see topic_is_draft()).
  ***************************************************************/
 function ac_drafts(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
     priv.host_drafts = (kw && kw.drafts && typeof kw.drafts === "object")? kw.drafts: {};
-    mark_host_drafts(priv.written, priv.model, priv.host_drafts);
+    priv.host_ids = host_draft_ids(priv.model, priv.host_drafts);
     if(priv.model) {
         render(gobj);
     }

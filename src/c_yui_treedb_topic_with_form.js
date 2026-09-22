@@ -99,7 +99,8 @@ import {t} from "i18next";
 import {yui_toolbar_icon} from "./yui_toolbar.js";
 
 import {
-    plan_treedb_writes, READONLY_FORM_TOOLBAR, col_goes_back_to_treedb
+    plan_treedb_writes, READONLY_FORM_TOOLBAR, col_goes_back_to_treedb,
+    instance_keys_of
 } from "./treedb_write_plan.js";
 import {
     yui_file_read, yui_files_manifest, yui_file_id_label, yui_file_size_label
@@ -2395,6 +2396,10 @@ function open_form_dialog(gobj, mode, record)
                  style: 'display:flex; flex-direction:column; height:100%;'}, []]
     );
 
+    /*  The instance this form writes to, kept as the record HAD it: the
+     *  widget is not trusted with an address (instance_keys_of()).  */
+    priv.form_instance = (form_mode === "update")? instance_keys_of(record, desc) : null;
+
     let form_plan = write_plan(gobj);
     let form = gobj_create_pure_child(
         "form_" + clean_name(gobj_name(gobj)),
@@ -2508,6 +2513,7 @@ function teardown_form_child(gobj)
     priv.reading_files = 0;     // a read in flight lands on nobody
     priv.awaiting_write = 0;    // and so does the answer of a write
     priv.form_busy = {busy: false};     // its toolbar goes with it
+    priv.form_instance = null;
     if(priv.form) {
         if(gobj_is_running(priv.form)) {
             gobj_stop(priv.form);
@@ -4313,6 +4319,11 @@ function publish_treedb_write(gobj, mode, record, jn_files, form_write)
         topic_name: gobj_read_str_attr(gobj, "topic_name"),
         record: strip_read_only_cols(gobj, record)
     };
+    if(mode !== "create" && gobj.priv.form_instance) {
+        /*  The pkey2 names the instance: the value the record had, not
+         *  the one that came back through a datetime-local.  */
+        Object.assign(kw_write.record, gobj.priv.form_instance);
+    }
     if(form_write) {
         /*  The serial the host echoes back with the answer  */
         kw_write.form_write = form_write;

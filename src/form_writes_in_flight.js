@@ -2,17 +2,32 @@
  *          form_writes_in_flight.js
  *
  *          The writes of topic forms a C_YUI_TREEDB_TOPICS view has sent
- *          and not yet answered, by their `form_write` serial. A form that
- *          waits for its answer (form_waits_for_answer) stays open and
- *          busy until the host answers, so the host has to answer EVERY
- *          way a write ends -- and the transport closing under a write in
- *          flight, or a command that never left because there was no
- *          session, are two of them that nobody answered: the form stayed
- *          busy for ever (N8 of the 2026-09-22 review).
+ *          and not yet answered. A form that waits for its answer
+ *          (form_waits_for_answer) stays open and busy until the host
+ *          answers, so the host has to answer EVERY way a write ends --
+ *          and the transport closing under a write in flight, or a
+ *          command that never left because there was no session, are two
+ *          of them that nobody answered: the form stayed busy for ever
+ *          (N8 of the 2026-09-22 review).
+ *
+ *          A write is known by its TOPIC and its `form_write` serial,
+ *          never by the serial alone: each topic has its own form, and
+ *          each form counts its serials from 1. Keyed by the serial, two
+ *          forms with a write in flight at once shared the key "1", the
+ *          first answer settled both, and the transport closing then
+ *          answered only one of them.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+
+/************************************************************
+ *  The key of one write: `<topic>^<serial>`.
+ ************************************************************/
+function form_write_key(topic_name, form_write)
+{
+    return `${topic_name || ""}^${form_write}`;
+}
 
 /************************************************************
  *  A write left: remember whose it is
@@ -22,18 +37,21 @@ function track_form_write(in_flight, form_write, topic_name)
     if(!in_flight || !form_write) {
         return;
     }
-    in_flight[form_write] = topic_name || "";
+    in_flight[form_write_key(topic_name, form_write)] = {
+        form_write: form_write,
+        topic_name: topic_name || ""
+    };
 }
 
 /************************************************************
  *  A write was answered, one way or the other
  ************************************************************/
-function settle_form_write(in_flight, form_write)
+function settle_form_write(in_flight, form_write, topic_name)
 {
     if(!in_flight || !form_write) {
         return;
     }
-    delete in_flight[form_write];
+    delete in_flight[form_write_key(topic_name, form_write)];
 }
 
 /************************************************************
@@ -46,9 +64,10 @@ function abandon_form_writes(in_flight)
     if(!in_flight) {
         return abandoned;
     }
-    Object.keys(in_flight).forEach((serial) => {
-        abandoned.push({form_write: Number(serial), topic_name: in_flight[serial]});
-        delete in_flight[serial];
+    Object.keys(in_flight).forEach((key) => {
+        const w = in_flight[key];
+        abandoned.push({form_write: Number(w.form_write), topic_name: w.topic_name});
+        delete in_flight[key];
     });
     return abandoned;
 }

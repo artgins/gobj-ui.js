@@ -10,17 +10,42 @@
  *          __system__ still differed from the file in use (N13 of the
  *          2026-09-22 review). The host reads that difference from
  *          C_TREEDB's `saved-schema` (`draft_changed`, by treedb) and
- *          hands it here; the editor applies it to its model.
+ *          hands it here; the editor applies it to its model, in place
+ *          of what the host said before.
+ *
+ *          What `draft_changed` measures depends on the node: the draft
+ *          against the SAVED schema on a node newer than yunetas 7.25.3,
+ *          and against the file IN USE on a 7.25.3 node -- where a topic saved and
+ *          not yet applied is still named, and the editor, which cannot
+ *          tell the two apart, shows it as a draft until the Apply.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
 /************************************************************
+ *  The topics of `model` the host names as drafts, as
+ *  {topic id: true}: `drafts` is {treedb_name: [topic names]}. A
+ *  treedb or a topic the model does not hold is ignored.
+ *
+ *  What the editor keeps is THIS, apart from what its own session
+ *  wrote, and replaced whole on every EV_DRAFTS: the host is the
+ *  truth after a reload. Folded into the session's marks, a topic the
+ *  host once named stayed a draft after the save that published it.
+ ************************************************************/
+function host_draft_ids(model, drafts)
+{
+    const ids = {};
+    mark_host_drafts(ids, model, drafts);
+    return ids;
+}
+
+/************************************************************
  *  Mark in `written` the topics of `model` the host names as
  *  drafts: `drafts` is {treedb_name: [topic names]}. A treedb or a
  *  topic the model does not hold is ignored. Returns how many were
- *  marked.
+ *  marked. It only ADDS: a caller that must forget what the host
+ *  no longer names starts from an empty map (host_draft_ids()).
  ************************************************************/
 function mark_host_drafts(written, model, drafts)
 {
@@ -63,6 +88,7 @@ function drafts_of_saved_answer(rows, into)
 }
 
 export {
+    host_draft_ids,
     mark_host_drafts,
     drafts_of_saved_answer,
 };
