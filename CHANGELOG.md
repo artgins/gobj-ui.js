@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.1
+
+- **`schema_to_diagram()`: a line that crosses the lane of ANOTHER link is a
+  bridge (`─`), not a junction (`┼`).** A junction said that the two links
+  met, and they do not: only the lines of ONE hook (a hook filling two
+  topics, two hooks filling one fkey) join, and those still draw `┬` / `┴`.
+  Found on the yunovatios schema, where `users {}` looked joined to the
+  `devices {}` link it only crosses.
+
 ## 7.25.0
 
 - **The version is back in line with the SDK: 7.25.0, as yunetas 7.25.0.**

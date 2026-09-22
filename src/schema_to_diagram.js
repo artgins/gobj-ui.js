@@ -13,8 +13,9 @@
  *
  *      Each link runs down its own LANE to the right of the boxes, the
  *      shorter links nearer to them, so no search is needed to lay it
- *      out: the only ambiguity left is where a line crosses a lane that
- *      is in use, and that is drawn as a junction.
+ *      out. Where the line of one link crosses the lane of ANOTHER, the
+ *      horizontal passes over it (`─`): a junction (`┬`, `┴`) is only
+ *      ever drawn where the lines of one hook meet.
  *
  *      The input is the schema as its literal holds it (what
  *      schema_to_json() answers, or the parsed literal itself):
@@ -251,27 +252,38 @@ function schema_to_diagram(schema)
     /*
      *  Draw them on a grid of direction bits, then as glyphs
      */
-    let bits = {};
+    /*  Bits are kept per link: two links meeting in a cell is a
+     *  CROSSING unless they share a hook row or an fkey row.  */
+    let cells = {};
     let fixed = {};
-    let join = (y, x, b) => {
+    let join = (id, y, x, b) => {
         let key = `${y},${x}`;
-        bits[key] = (bits[key] || 0) | b;
+        let cell = cells[key] = cells[key] || {};
+        cell[id] = (cell[id] || 0) | b;
     };
-    let hline = (y, x1, x2) => {
+    let hline = (id, y, x1, x2) => {
         for(let x = x1; x <= x2; x++) {
-            join(y, x, (x > x1 ? L : 0) | (x < x2 ? R : 0));
+            join(id, y, x, (x > x1 ? L : 0) | (x < x2 ? R : 0));
         }
     };
-    let vline = (x, y1, y2) => {
+    let vline = (id, x, y1, y2) => {
         for(let y = y1; y <= y2; y++) {
-            join(y, x, (y > y1 ? U : 0) | (y < y2 ? D : 0));
+            join(id, y, x, (y > y1 ? U : 0) | (y < y2 ? D : 0));
         }
     };
-    for(let link of links) {
-        hline(link.from, edge + 2, link.x);
-        hline(link.to, edge + 2, link.x);
-        vline(link.x, link.top, link.bottom);
+    links.forEach((link, id) => {
+        hline(id, link.from, edge + 2, link.x);
+        hline(id, link.to, edge + 2, link.x);
+        vline(id, link.x, link.top, link.bottom);
         fixed[`${link.from},${edge + 2}`] = "◀";
+    });
+    let bits = {};
+    for(let [key, cell] of Object.entries(cells)) {
+        let parts = Object.values(cell);
+        let passing = parts.filter((b) => b === (L|R)).length;
+        let lane = parts.filter((b) => b === (U|D)).length;
+        let across = passing && lane && passing + lane === parts.length;
+        bits[key] = across ? (L|R) : parts.reduce((a, b) => a | b, 0);
     }
 
     let out = lines.map((line, y) => {

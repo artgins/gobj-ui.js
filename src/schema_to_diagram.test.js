@@ -66,7 +66,7 @@ const EXPECTED = `treedb_sample  (schema_version 4)
         │            departments {} │ ◀─┐
         │         department_id (↖) │ ──┘
         │                  users {} │ ◀─────┐
-        │               managers [] │ ◀─┬───┼───┐
+        │               managers [] │ ◀─┬───────┐
         │               manager [↖] │ ──┘   │   │
         └───────────────────────────┘       │   │
                                             │   │
@@ -86,6 +86,12 @@ describe("schema_to_diagram", () => {
 
     test("the whole picture", () => {
         expect(diagram).toBe(EXPECTED);
+    });
+
+    test("crossing another link's lane is a bridge, not a junction", () => {
+        const managers = diagram.split("\n").find((l) => l.includes("managers []"));
+        expect(managers).toContain("◀─┬───────┐");
+        expect(managers).not.toContain("┼");
     });
 
     test("no line ends in a space", () => {
