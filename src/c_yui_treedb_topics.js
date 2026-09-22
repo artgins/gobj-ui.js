@@ -57,6 +57,11 @@ import {
 } from "@yuneta/gobj-js";
 
 import "./c_yui_treedb_topics.css";
+import {
+    track_form_write,
+    settle_form_write,
+    abandon_form_writes,
+} from "./form_writes_in_flight.js";
 
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {
@@ -151,6 +156,11 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
+    /*  The writes of topic forms sent and not yet answered, by serial
+     *  (form_writes_in_flight): answered refused when the transport
+     *  closes under them.  */
+    gobj.priv.form_writes = {};
+
     build_ui(gobj);
 
     /*
@@ -1655,6 +1665,7 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options, form
         log_error(ret);
         return -1;
     }
+    track_form_write(gobj.priv.form_writes, form_write, topic_name);
     return 0;
 }
 
@@ -2065,6 +2076,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
                     gobj_send_event(gobj, "EV_REFRESH_TOPIC",
                         {topic_name: failed_topic}, gobj);
                 }
+                settle_form_write(gobj.priv.form_writes,
+                    kw_get_int(gobj, kw_command, "form_write", 0, 0));
                 answer_form_write(
                     gobj,
                     get_gobj_formtable(gobj, failed_topic),
@@ -2163,6 +2176,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 created:     (command === "create-node"),
                 command:     command
             });
+            settle_form_write(gobj.priv.form_writes,
+                kw_get_int(gobj, kw_command, "form_write", 0, 0));
             answer_form_write(
                 gobj,
                 get_gobj_formtable(gobj, kw_get_str(gobj, kw_command, "topic_name", "", 0)),
@@ -2406,7 +2421,26 @@ function ac_back_to_topics(gobj, event, kw, src)
  ************************************************************/
 function ac_transport_state(gobj, event, kw, src)
 {
-    refresh_toolbar_buttons(gobj, !!(kw && kw.connected));
+    let connected = !!(kw && kw.connected);
+    refresh_toolbar_buttons(gobj, connected);
+
+    /*
+     *  A write in flight when the transport closes is never answered by
+     *  the backend: its form stayed open and busy for ever (N8 of the
+     *  2026-09-22 review). Answered refused: the form stays open on what
+     *  was typed, and the person saves again when the session is back.
+     */
+    if(!connected) {
+        abandon_form_writes(gobj.priv.form_writes).forEach((w) => {
+            log_warning(`${gobj_short_name(gobj)}: transport closed, the write ${w.form_write} of '${w.topic_name}' is lost`);
+            answer_form_write(
+                gobj,
+                get_gobj_formtable(gobj, w.topic_name),
+                w.form_write,
+                false
+            );
+        });
+    }
     return 0;
 }
 
@@ -2522,6 +2556,10 @@ function ac_create_record(gobj, event, kw, src)
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     let topic_name = gobj_read_attr(src, "topic_name");
     let record = kw.record;
+    if(refuse_without_session(gobj, topic_name)) {
+        answer_form_write(gobj, src, form_write, false);
+        return -1;      /*  Error already logged  */
+    }
 
     /*  `create_only`: +New makes a NEW record. With `create` alone a taken
      *  id was an update -- the record overwritten and, through autolink
@@ -2751,6 +2789,10 @@ function ac_update_record(gobj, event, kw, src)
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     let topic_name = gobj_read_attr(src, "topic_name");
     let record = kw.record;
+    if(refuse_without_session(gobj, topic_name)) {
+        answer_form_write(gobj, src, form_write, false);
+        return -1;      /*  Error already logged  */
+    }
 
     let options = {
         list_dict: true,
@@ -2763,6 +2805,22 @@ function ac_update_record(gobj, event, kw, src)
         return -1;      /*  Error already logged  */
     }
     return 0;
+}
+
+/************************************************************
+ *  A write sent with no session never leaves: C_IEVENT_CLI logs
+ *  "Not in session" and answers null, as it does when the command
+ *  went -- so a form waiting for the answer waited for ever (N8 of
+ *  the 2026-09-22 review). Refused before it is sent, aloud.
+ ************************************************************/
+function refuse_without_session(gobj, topic_name)
+{
+    if(is_connected(gobj)) {
+        return false;
+    }
+    log_error(`${gobj_short_name(gobj)}: no session, the write of '${topic_name}' was not sent`);
+    yui_shell_show_error(yui_shell_of(gobj), "no session", {t: t});
+    return true;
 }
 
 /************************************************************

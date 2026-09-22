@@ -783,6 +783,12 @@ answer EVERY way the write can end: refused before it left (read-only, no
 session) as well as answered by the backend, or the form waits forever. A host
 that does not answer leaves the attribute off, and the form closes when the
 write is published, as before 7.23.193 — whatever the backend says.
+`C_YUI_TREEDB_TOPICS` answers them all since 7.25.2: a write sent with no
+session is refused before it is sent (the command would never leave, and
+`C_IEVENT_CLI` answers `null` for that as for a command that went), and the
+writes in flight when the transport closes are answered refused on the
+transport edge (`form_writes_in_flight.js`), so the form comes back on what
+was typed instead of staying busy for ever.
 
 ```js
 // A host of C_YUI_TREEDB_TOPIC_WITH_FORM that answers the form's writes

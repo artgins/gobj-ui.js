@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.2
+
+- **A topic form's write is answered every way it can end, the transport
+  included (N8 of the 2026-09-22 review).** `C_YUI_TREEDB_TOPICS` keeps the
+  serials of the form writes it sent (`form_writes_in_flight.js`) and answers
+  them `EV_WRITE_REFUSED` on the transport edge that closes the session; and
+  a write asked with no session is refused before it is sent, with the
+  *"no session"* error shown. `C_IEVENT_CLI.mt_command()` answers `null`
+  both when the command went and when it was not in session, so the send
+  could not tell -- and a form waiting for an answer that would never come
+  stayed open and busy for ever, Save disabled and spinning. The README said
+  the host answered "no session included"; now it does.
+- **A form busy twice comes back whole (N9).** `set_form_busy()` is a
+  transition (`form_busy.js`): a second `busy(true)` while busy touches
+  nothing. A record with a picked file went busy for the read and busy again
+  for the write, and the second pass recorded the buttons the first had
+  disabled as disabled on their own -- so the `busy(false)` of a refused
+  write left Save AND Cancel dead.
+
 ## 7.25.1
 
 - **`schema_to_diagram()`: a line that crosses the lane of ANOTHER link is a

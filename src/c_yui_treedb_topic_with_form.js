@@ -110,6 +110,7 @@ import {
 import {delete_impact} from "./delete_impact.js";
 
 import "./c_yui_treedb_topic_with_form.css";
+import {set_toolbar_busy} from "./form_busy.js";
 import "./tabulator.css";
 import {cell_text, hook_cell_spec} from "./table_cell_text.js";
 
@@ -432,6 +433,8 @@ function mt_create(gobj)
      *  serial the host echoes in EV_WRITE_DONE / EV_WRITE_REFUSED.  */
     gobj.priv.awaiting_write = 0;
     gobj.priv.write_serial = 0;
+    /*  The busy transition of the form's toolbar (set_toolbar_busy)  */
+    gobj.priv.form_busy = {busy: false};
 
     let name = clean_name(gobj_name(gobj));
     gobj_write_attr(gobj, "table_id", "table" + name);
@@ -2503,6 +2506,7 @@ function teardown_form_child(gobj)
     let priv = gobj.priv;
     priv.reading_files = 0;     // a read in flight lands on nobody
     priv.awaiting_write = 0;    // and so does the answer of a write
+    priv.form_busy = {busy: false};     // its toolbar goes with it
     if(priv.form) {
         if(gobj_is_running(priv.form)) {
             gobj_stop(priv.form);
@@ -4261,9 +4265,11 @@ function ac_form_save_record(gobj, event, kw, src)
 }
 
 /************************************************************
- *  The form's toolbar while a read is in flight: every button
- *  disabled, the save button spinning. Bulma's `is-loading` is the
- *  spinner; `disabled` is what stops the second click.
+ *  The form's toolbar while a read or a write is in flight: every
+ *  button disabled, the save button spinning (set_toolbar_busy). A
+ *  transition: busy(true) while busy touches nothing, or a record
+ *  with a picked file -- busy for the read, busy again for the
+ *  write -- came back from a refusal with Save and Cancel dead.
  ************************************************************/
 function set_form_busy(gobj, busy)
 {
@@ -4271,23 +4277,7 @@ function set_form_busy(gobj, busy)
     if(!priv.form) {
         return;
     }
-    const $container = gobj_read_attr(priv.form, "$container");
-    if(!$container) {
-        return;
-    }
-    $container.querySelectorAll('.yui-toolbar-form button').forEach(($b) => {
-        if(busy) {
-            $b.dataset.was_disabled = $b.disabled? "1": "0";
-            $b.disabled = true;
-        } else if($b.dataset.was_disabled !== undefined) {
-            $b.disabled = ($b.dataset.was_disabled === "1");
-            delete $b.dataset.was_disabled;
-        }
-    });
-    const $save = $container.querySelector('.yui-toolbar-form .button-save');
-    if($save) {
-        $save.classList.toggle('is-loading', !!busy);
-    }
+    set_toolbar_busy(gobj_read_attr(priv.form, "$container"), priv.form_busy, busy);
 }
 
 /************************************************************
