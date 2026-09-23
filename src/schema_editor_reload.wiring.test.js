@@ -264,6 +264,36 @@ function errors()
     return logged.filter((l) => l.level === "error").map((l) => l.msg);
 }
 
+function not_defined()
+{
+    return logged.filter((l) => /NOT DEFINED/i.test(l.msg)).map((l) => l.msg);
+}
+
+/*  The load, answered with records other than the ones it started on:
+ *  somebody else wrote the store meanwhile.  */
+function answer_the_load_with(editor, remote, records)
+{
+    const asked = take("nodes");
+    for(const c of asked) {
+        answer(editor, remote, c, 0, JSON.parse(JSON.stringify(records[c.kw.topic_name])));
+    }
+    return asked.length;
+}
+
+function records_with(change)
+{
+    const records = JSON.parse(JSON.stringify(RECORDS));
+    change(records);
+    return records;
+}
+
+/*  What the editor says while a load is in the air, and when one lands
+ *  under an open dialog.  */
+const WAIT = "the schemas are loading: wait for them";
+const STALE = "the schemas were read again: open the dialog again";
+const KEPT = "cannot read the schemas again: the previous ones stay";
+const NOT_SENT = "the treedb did not describe a write back: the writes after it were not sent";
+
 describe("the screen of a reload", () => {
 
     test("Refresh on the columns: the old screen goes, the toolbar stops answering", () => {
@@ -318,7 +348,7 @@ describe("the screen of a reload", () => {
 
 describe("a form open when a reload starts", () => {
 
-    test("its Save is refused, said, the form stays, and it saves once the load is in", () => {
+    test("its Save is refused and said, and the load that lands closes it: nothing written", () => {
         const {editor, remote, host} = build("f1", "db/users");
         gobj_send_event(editor, "EV_ADD_COLUMN", {}, editor);
         expect(modals.length).toBe(1);
@@ -329,15 +359,17 @@ describe("a form open when a reload starts", () => {
         form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
 
         expect(errors()).toEqual([]);
-        expect(shown).toEqual(["the schemas are loading: try again when they are in"]);
+        /*  Not "try again": the same Save, once the load is in, wrote a
+         *  form built on the model the load replaced.  */
+        expect(shown).toEqual([WAIT]);
         expect(form.closed).toBe(false);
         expect(take("update-node")).toEqual([]);
 
         answer_the_load(editor, remote);
-        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
         expect(form.closed).toBe(true);
-        const [write] = take("update-node");
-        expect(write.kw.record.value).toBe("email");
+        expect(shown).toEqual([WAIT, STALE]);
+        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        expect(take("update-node")).toEqual([]);
         expect(errors()).toEqual([]);
     });
 
@@ -346,7 +378,7 @@ describe("a form open when a reload starts", () => {
         gobj_send_event(editor, "EV_REFRESH", {}, host);
         gobj_send_event(editor, "EV_CONFIRMED", {what: "column", topic: "users", col: "id"}, editor);
         expect(errors()).toEqual([]);
-        expect(shown).toEqual(["the schemas are loading: try again when they are in"]);
+        expect(shown).toEqual([WAIT]);
         expect(take("update-node")).toEqual([]);
         answer_the_load(editor, remote);
     });
@@ -469,5 +501,86 @@ describe("a write given up that was DONE", () => {
         gobj_send_event(editor, "EV_REFRESH", {}, host);
         answer_the_load(editor, remote);
         expect(editor.priv.written).toEqual({});
+    });
+});
+
+describe("a dialog built on the model a reload replaced (fourth review)", () => {
+
+    test("an edit form: the load that lands closes it, and its Save writes nothing", () => {
+        const {editor, remote, host} = build("s1", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        const form = modals[modals.length - 1];
+        form.$content.querySelector('[data-name="description"]').value = "mine";
+
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.cols[0].description = "NEWER";
+            r.cols[0].header = "Newer header";
+        }));
+        expect(form.closed).toBe(true);
+        expect(shown).toEqual([STALE]);
+        expect(editor.priv.dialog).toBe(null);
+
+        /*  The form's button, pressed anyway (a stale screen, a keyboard):
+         *  the record it would write is the OLD one with one field changed,
+         *  over the newer one.  */
+        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        expect(take("update-node")).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("the column of the open form is gone after the reload: closed, no ERROR", () => {
+        const {editor, remote, host} = build("s2", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        const form = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.cols = [];
+        }));
+        expect(form.closed).toBe(true);
+        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        expect(take("update-node")).toEqual([]);
+        expect(errors()).toEqual([]);
+        expect(not_defined()).toEqual([]);
+    });
+
+    test("an import plan is not run on the model that replaced the one it was planned on", () => {
+        const {editor, remote, host} = build("s3", "db");
+        gobj_send_event(editor, "EV_IMPORT", {}, host);
+        const dialog = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_PREVIEW_IMPORT", {
+            prune: false,
+            text: JSON.stringify({id: "db", topics: [{id: "users", pkey: "id", cols: [
+                {id: "id", type: "string", flag: ["persistent", "required"]},
+                {id: "email", type: "string"}
+            ]}]})
+        }, editor);
+        expect(editor.priv.import_plan.writes.length).toBeGreaterThan(0);
+
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        expect(editor.priv.import_plan).toBe(null);
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.cols.push({id: "db.users.email", value: "email", order: 2, type: "integer",
+                         topics: ["topics^db.users^cols"]});
+        }));
+        expect(dialog.closed).toBe(true);
+
+        dialog.$content.querySelector(".SCHEMA_IMPORT_RUN").disabled = false;
+        dialog.$content.querySelector(".SCHEMA_IMPORT_RUN").click();
+        expect(take("update-node")).toEqual([]);
+        expect(take("delete-node")).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a confirmation decided on the model a reload replaced is not applied", () => {
+        const {editor, remote, host} = build("s4", "db/users");
+        const kw = {what: "column", topic: "users", col: "id",
+                    model_gen: editor.priv.model_gen};
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        answer_the_load(editor, remote);
+        gobj_send_event(editor, "EV_CONFIRMED", kw, editor);
+        expect(take("update-node")).toEqual([]);
+        expect(shown).toEqual([STALE]);
+        expect(errors()).toEqual([]);
     });
 });

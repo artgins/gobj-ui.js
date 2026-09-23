@@ -202,7 +202,9 @@ SDATA_END()
 let PRIVATE_DATA = {
     /*  What the store answered, and what it means  */
     records:        null,   /*  {treedbs, topics, cols} as they arrived  */
+    records_before: null,   /*  the records of the model shown, while a load replaces them  */
     model:          null,   /*  build_schema_model() of the above  */
+    model_gen:      0,      /*  which LOAD the model is: a dialog is stamped with it  */
     pending:        0,      /*  `nodes` requests still in flight  */
     load_error:     "",
     load_round:     0,      /*  which load an answer belongs to: echoed as `round`  */
@@ -224,6 +226,7 @@ let PRIVATE_DATA = {
     /*  Children and overlays  */
     diagram_gobj:   null,
     dialog:         null,
+    dialog_gen:     0,      /*  the model_gen the open dialog was built on  */
 
     /*  A write, or a plan of them, in flight  */
     save_queue:     null,
@@ -444,6 +447,36 @@ function refuse_if_readonly(gobj, event)
     return true;
 }
 
+/***************************************************************
+ *  A decision taken on a model a load has since REPLACED: the Save
+ *  of a form, a confirmation, an import. Each carries the
+ *  `model_gen` it was built on (a number, not the model: a kw is
+ *  dumped by the machine trace).
+ *
+ *  Refused, and said. A column form sends every field it shows, so
+ *  its Save after a reload wrote the OLD record over the newer one
+ *  (fourth independent review, probe A3); a form whose column the
+ *  reload removed answered "names no column" for ever. end_load()
+ *  closes such a dialog when the load lands; this is the same rule
+ *  for whatever arrives anyway -- a stale screen, a confirmation
+ *  that was up, a keyboard.
+ *
+ *  A kw with no stamp is not a dialog's and is not asked.
+ ***************************************************************/
+function built_on_a_replaced_model(gobj, event, kw)
+{
+    let priv = gobj.priv;
+
+    if(!kw || kw.model_gen === undefined || kw.model_gen === priv.model_gen) {
+        return false;
+    }
+    log_warning(`${gobj_short_name(gobj)}: ${event} refused, it was decided on ` +
+        `the schemas a reload replaced`);
+    yui_shell_show_error(yui_shell_of(gobj),
+        "the schemas were read again: open the dialog again", {t: t});
+    return true;
+}
+
 
 
 
@@ -465,7 +498,11 @@ function refuse_if_readonly(gobj, event)
  *  and the toolbar stops answering: left up, a click on a card, on
  *  Back or on the drawing answered "Event NOT DEFINED in state
  *  ST_LOADING" and was lost (third independent review). A dialog
- *  left open is answered in ST_LOADING instead (ac_wait_for_the_load).
+ *  left open is answered in ST_LOADING instead (ac_wait_for_the_load),
+ *  and a load that LANDS closes it (end_load()): it was built on the
+ *  model the load replaced, and its Save sends every field it shows.
+ *  An import plan is forgotten here for the same reason: it is a list
+ *  of writes computed against the model going away.
  *
  *  `keep_written`: a load the host did not ask for -- the reconnect,
  *  a write that turned out done -- keeps what this session wrote.
@@ -475,7 +512,9 @@ function refuse_if_readonly(gobj, event)
  *  is not even asked): the records the model was built on are put
  *  back (emptied, the next write patched them into a model with no
  *  treedb), the round is spent so a request that did leave is
- *  stale, and the session back asks again.
+ *  stale, and the session back asks again. A load that left and
+ *  FAILED keeps them the same way (`records_before`,
+ *  ac_mt_command_answer()).
  ***************************************************************/
 function request_model(gobj, keep_written)
 {
@@ -486,7 +525,10 @@ function request_model(gobj, keep_written)
         return -1;      /*  not mounted on a transport yet: mt_start retries via EV_TRANSPORT_STATE  */
     }
 
+    forget_import_plan(gobj);
+
     let previous = priv.records;
+    priv.records_before = previous;
     priv.records = {treedbs: [], topics: [], cols: []};
     priv.load_error = "";
     priv.pending = 0;
@@ -511,6 +553,7 @@ function request_model(gobj, keep_written)
     }
     if(left < 3) {
         priv.records = previous;
+        priv.records_before = null;
         priv.load_round++;
         priv.reload_on_open = true;
         priv.load_error = t("cannot reach the treedb");
@@ -1631,6 +1674,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
     let priv = gobj.priv;
 
     close_dialog(gobj);
+    priv.dialog_gen = priv.model_gen;
     priv.dialog = yui_shell_show_modal(yui_shell_of(gobj), $content, {
         dialog:        true,
         title:         title,
@@ -1842,6 +1886,7 @@ function open_column_form(gobj, topic, col, prefill)
     let hook_col = hook_topic ? hook[hook_topic] : "";
     let treedb = current_treedb(gobj);
     let sibling_topics = treedb ? treedb.topics.map(x => x.name) : [];
+    let model_gen = priv.model_gen;
 
     let $form = createElement2(
         ["div", {class: "SCHEMA_COL_FORM box"}, [
@@ -1926,10 +1971,11 @@ function open_column_form(gobj, topic, col, prefill)
         let values = read_form($form);
         values.flag = read_flags($form);
         gobj_send_event(gobj, "EV_SAVE_COLUMN", {
-            topic:    topic.name,
-            col:      creating ? "" : col.name,
-            creating: creating,
-            values:   values
+            topic:     topic.name,
+            col:       creating ? "" : col.name,
+            creating:  creating,
+            values:    values,
+            model_gen: model_gen
         }, gobj);
     });
 
@@ -1962,6 +2008,7 @@ function open_topic_form(gobj, treedb, topic)
     let record = (topic && topic.record) || {};
     let creating = !topic;
     let col_names = topic ? topic.cols.map(c => c.name) : [];
+    let model_gen = gobj.priv.model_gen;
 
     let $form = createElement2(
         ["div", {class: "SCHEMA_TOPIC_FORM box"}, [
@@ -2018,9 +2065,10 @@ function open_topic_form(gobj, treedb, topic)
     $form.querySelector(".SCHEMA_TOPIC_FORM_SAVE").addEventListener("click", (evt) => {
         evt.stopPropagation();
         gobj_send_event(gobj, "EV_SAVE_TOPIC", {
-            topic:    creating ? "" : topic.name,
-            creating: creating,
-            values:   read_form($form)
+            topic:     creating ? "" : topic.name,
+            creating:  creating,
+            values:    read_form($form),
+            model_gen: model_gen
         }, gobj);
     });
 
@@ -2173,6 +2221,7 @@ function copy_text(gobj, $text)
  ***************************************************************/
 function open_import(gobj, treedb)
 {
+    let model_gen = gobj.priv.model_gen;
     let $content = createElement2(
         ["div", {class: "SCHEMA_IMPORT box"}, [
             ["p", {class: "SCHEMA_IMPORT_HELP help mb-2",
@@ -2214,18 +2263,36 @@ function open_import(gobj, treedb)
     $content.querySelector(".SCHEMA_IMPORT_PREVIEW").addEventListener("click", (evt) => {
         evt.stopPropagation();
         gobj_send_event(gobj, "EV_PREVIEW_IMPORT", {
-            text:  $text.value,
-            prune: $prune.checked
+            text:      $text.value,
+            prune:     $prune.checked,
+            model_gen: model_gen
         }, gobj);
     });
     $run.addEventListener("click", (evt) => {
         evt.stopPropagation();
-        gobj_send_event(gobj, "EV_APPLY_IMPORT", {}, gobj);
+        gobj_send_event(gobj, "EV_APPLY_IMPORT", {model_gen: model_gen}, gobj);
     });
 
     gobj.priv.import_pane = $plan_pane;
     gobj.priv.import_run = $run;
     open_dialog(gobj, $content, "import", "SCHEMA_IMPORT_DIALOG", treedb.id);
+}
+
+/***************************************************************
+ *  The plan is a list of writes computed against the model shown:
+ *  a load replaces the model, so the plan goes with it and the
+ *  dialog, if it stays up (a load that failed keeps the model),
+ *  asks for a Preview again.
+ ***************************************************************/
+function forget_import_plan(gobj)
+{
+    let priv = gobj.priv;
+
+    priv.import_plan = null;
+    clear(priv.import_pane);
+    if(priv.import_run) {
+        priv.import_run.disabled = true;
+    }
 }
 
 /***************************************************************
@@ -2304,7 +2371,7 @@ function open_orphans(gobj)
             ["td", {class: "SCHEMA_ORPHAN_ID"}, [["code", {}, `${entry.id}`]]],
             ["td", {class: "SCHEMA_ORPHAN_ACTIONS has-text-right"},
                 readonly ? [] : [row_icon(gobj, "SCHEMA_ORPHAN_DELETE", "yi-trash", "delete",
-                    "EV_DELETE_ORPHAN", {kind: kind, id: entry.id})]]
+                    "EV_DELETE_ORPHAN", {kind: kind, id: entry.id, model_gen: priv.model_gen})]]
         ]];
     };
 
@@ -2530,6 +2597,12 @@ function transport_dropped(gobj)
  *  in flight (ac_show() kept it), or the one it had. Without a
  *  model there is no screen to go to: the position is kept for the
  *  next load, and the editor says why it is empty.
+ *
+ *  A dialog built on the model this load REPLACED is closed, and the
+ *  operator told to open it again: it shows the old record, and its
+ *  Save would write every field of it over the newer one. A load
+ *  that failed or never left replaced nothing (`model_gen` did not
+ *  move), and the dialog stays with what was typed.
  ***************************************************************/
 function end_load(gobj)
 {
@@ -2537,6 +2610,13 @@ function end_load(gobj)
     let seg = priv.pending_seg;
 
     priv.pending_seg = null;
+    if(priv.dialog && priv.dialog_gen !== priv.model_gen) {
+        log_warning(`${gobj_short_name(gobj)}: a dialog was open on the schemas ` +
+            `the load replaced: closed`);
+        close_dialog(gobj);
+        yui_shell_show_error(yui_shell_of(gobj),
+            "the schemas were read again: open the dialog again", {t: t});
+    }
     if(priv.model) {
         if(seg !== null) {
             return apply_seg(gobj, seg);
@@ -2893,6 +2973,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
          *  (NOT in build_model(): that also runs on the patch after every
          *  write, which is exactly when the undo has to survive.)  */
         priv.order_undo = {};
+        priv.records_before = null;
+        priv.model_gen++;
         build_model(gobj);
         /*  Same reason as order_undo above: this is the LOAD, and the
          *  baseline is what a later "the version did not move" is measured
@@ -3142,16 +3224,21 @@ function ac_refresh(gobj, event, kw, src)
  *  operator can still reach, and what it asks is computed against
  *  a model the answers in the air are about to replace.
  *
- *  Refused, and SAID -- and the dialog stays open with what was
- *  typed, so the same Save works once the load is in. Undeclared,
- *  it answered "Event NOT DEFINED in state ST_LOADING" and the
- *  edit was gone with no word (third independent review).
+ *  Refused, and SAID. Undeclared, it answered "Event NOT DEFINED
+ *  in state ST_LOADING" and the edit was gone with no word (third
+ *  independent review).
+ *
+ *  And NOT "try again": the same Save, once the load was in, sent
+ *  the form built on the old model -- every field of the old record
+ *  over the newer one (fourth independent review). The load that
+ *  lands closes such a dialog (end_load()); one that fails leaves it
+ *  up, on the model it was built on.
  ***************************************************************/
 function ac_wait_for_the_load(gobj, event, kw, src)
 {
     log_warning(`${gobj_short_name(gobj)}: ${event} refused, the schemas are loading`);
     yui_shell_show_error(yui_shell_of(gobj),
-        "the schemas are loading: try again when they are in", {t: t});
+        "the schemas are loading: wait for them", {t: t});
     return -1;
 }
 
@@ -3245,6 +3332,7 @@ function ac_show_orphans(gobj, event, kw, src)
  ***************************************************************/
 function confirm_then(gobj, message, detail, kw)
 {
+    kw = Object.assign({model_gen: gobj.priv.model_gen}, kw);
     yui_shell_confirm_danger(yui_shell_of(gobj), message, {
         t:      t,
         detail: detail
@@ -3328,6 +3416,9 @@ function ac_save_column(gobj, event, kw, src)
     let col = kw.creating ? null : find_col(priv.model, priv.treedb_id, kw.topic, kw.col);
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(built_on_a_replaced_model(gobj, event, kw)) {
         return -1;
     }
     if(!topic || (!kw.creating && !col)) {
@@ -3484,6 +3575,9 @@ function ac_save_topic(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
+    if(built_on_a_replaced_model(gobj, event, kw)) {
+        return -1;
+    }
     if(!treedb || (!kw.creating && !topic)) {
         log_error(`${gobj_short_name(gobj)}: ${event} names no topic: ${kw.topic}`);
         return -1;
@@ -3536,6 +3630,9 @@ function ac_delete_topic(gobj, event, kw, src)
 function ac_delete_orphan(gobj, event, kw, src)
 {
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(built_on_a_replaced_model(gobj, event, kw)) {
         return -1;
     }
     if(empty_string(kw.id)) {
@@ -3610,6 +3707,9 @@ function ac_preview_import(gobj, event, kw, src)
     let treedb = current_treedb(gobj);
     let incoming = null;
 
+    if(built_on_a_replaced_model(gobj, event, kw)) {
+        return -1;
+    }
     if(!treedb) {
         log_error(`${gobj_short_name(gobj)}: ${event} with no treedb open`);
         return -1;
@@ -3635,6 +3735,9 @@ function ac_apply_import(gobj, event, kw, src)
     let plan = priv.import_plan;
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(built_on_a_replaced_model(gobj, event, kw)) {
         return -1;
     }
     if(!plan || plan.writes.length === 0) {
@@ -3685,6 +3788,9 @@ function ac_confirmed(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(built_on_a_replaced_model(gobj, event, kw)) {
         return -1;
     }
     if(kw.what === "import") {
