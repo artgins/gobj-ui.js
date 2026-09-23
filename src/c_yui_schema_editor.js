@@ -231,6 +231,8 @@ let PRIVATE_DATA = {
     write_tag:      0,      /*  which write an answer belongs to: echoed as `write`  */
     connected:      false,
     reload_on_open: false,  /*  a drop cut a load or a write: ask the model again  */
+    dropped_round:  0,      /*  the load a drop ended: its failures are the drop, said once  */
+    dropped_write:  0,      /*  the same for the write a drop ended  */
 
     /*  A position that arrived while a load or a write was in flight  */
     pending_seg:    null,
@@ -2440,10 +2442,19 @@ function transport_dropped(gobj)
 
     priv.reload_on_open = true;
     if(state === "ST_SAVING") {
+        log_warning(`${gobj_short_name(gobj)}: the transport dropped during a write: ` +
+            `the model is read again on the reconnect`);
+        priv.dropped_write = priv.write_tag;
         priv.write_tag++;
         return end_writes(gobj, "the connection dropped during the write");
     }
     if(state === "ST_LOADING") {
+        /*  Said HERE, once: the transport settles every request the drop
+         *  cut, and those failures are this one event (see
+         *  ac_mt_command_answer()).  */
+        log_warning(`${gobj_short_name(gobj)}: the transport dropped during the load: ` +
+            `the model is read again on the reconnect`);
+        priv.dropped_round = priv.load_round;
         priv.load_round++;
         priv.pending = 0;
         priv.load_error = "";
@@ -2777,6 +2788,9 @@ function ac_mt_command_answer(gobj, event, kw, src)
     if(command === "nodes") {
         let topic_name = kw_get_str(gobj, md, "topic_name", "", 0);
         if(!is_current_load(gobj, md)) {
+            if(result < 0 && kw_get_int(gobj, md, "round", 0, 0) === priv.dropped_round) {
+                return 0;   /*  the drop that ended this load failed it: said once, in transport_dropped()  */
+            }
             log_warning(`${gobj_short_name(gobj)}: 'nodes' of '${topic_name}' answered ` +
                 `for a load that is over: ignored`);
             return 0;
@@ -2814,6 +2828,9 @@ function ac_mt_command_answer(gobj, event, kw, src)
     if(command === "update-node" || command === "delete-node") {
         let topic_name = kw_get_str(gobj, md, "topic_name", "", 0);
         if(!is_current_write(gobj, md)) {
+            if(result < 0 && kw_get_int(gobj, md, "write", 0, 0) === priv.dropped_write) {
+                return 0;   /*  the drop that ended this write failed it: said once, in transport_dropped()  */
+            }
             log_warning(`${gobj_short_name(gobj)}: '${command}' of '${topic_name}' answered ` +
                 `for a write that is over (result ${result}): ignored`);
             return 0;

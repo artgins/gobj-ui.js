@@ -397,3 +397,38 @@ describe("a position with no model and no load", () => {
         expect(errors()).toEqual([]);
     });
 });
+
+describe("the drop is settled ONCE", () => {
+
+    test("a load cut by the drop: the transport's three failures are one event", () => {
+        const {editor, remote, host} = build("o1", true);
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const cut = take("nodes");
+        expect(cut.length).toBe(3);
+
+        /*  A routing adapter settles all three when its session closes,
+         *  before (or after) the host's edge.  */
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        for(const c of cut) {
+            answer(editor, remote, c, -1, null, "the connection dropped");
+        }
+        gobj_send_event(editor, "EV_TRANSPORT_STATE", {connected: false}, host);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(warnings().length).toBe(1);
+        expect(warnings()[0]).toMatch(/dropped during the load/);
+        expect(errors()).toEqual([]);
+    });
+
+    test("the host's edge first: the failures that follow are not said again", () => {
+        const {editor, remote, host} = build("o2", true);
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const cut = take("nodes");
+
+        drop(editor, remote, host);
+        for(const c of cut) {
+            answer(editor, remote, c, -1, null, "the connection dropped");
+        }
+        expect(warnings().length).toBe(1);
+        expect(errors()).toEqual([]);
+    });
+});
