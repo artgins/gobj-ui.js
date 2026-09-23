@@ -3381,6 +3381,28 @@ function ac_wait_for_the_load(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  A confirmation answered where no treedb is open: ST_EMPTY (a
+ *  reload landed on zero treedbs while it was up) or ST_IDLE (no
+ *  model). A confirmation is a shell modal, not this view's dialog,
+ *  so the load that lands does not close it, and its Yes arrives
+ *  anyway. Undeclared, it answered "Event NOT DEFINED" (fifth
+ *  independent review).
+ *
+ *  Refused with the stamp's own words: whatever it was decided on
+ *  is not on screen any more.
+ ***************************************************************/
+function ac_confirmed_on_nothing(gobj, event, kw, src)
+{
+    if(built_on_a_replaced_model(gobj, event, kw)) {
+        return -1;
+    }
+    log_warning(`${gobj_short_name(gobj)}: ${event} refused, no treedb is open`);
+    yui_shell_show_error(yui_shell_of(gobj),
+        "the schemas were read again: open the dialog again", {t: t});
+    return -1;
+}
+
+/***************************************************************
  *  {drafts: {treedb_name: [topic names]}} -- the host says which
  *  topics hold a draft in __system__ that is not saved (C_TREEDB's
  *  saved-schema, `draft_changed`). The mark of a write lived in this
@@ -4093,7 +4115,9 @@ function create_gclass(gclass_name)
      *  a click is worth routing through a machine.
      *---------------------------------------------*/
     const states = [
-        ["ST_IDLE", COMMON.slice()],
+        ["ST_IDLE", COMMON.concat([
+            ["EV_CONFIRMED",        ac_confirmed_on_nothing, null]
+        ])],
 
         ["ST_LOADING", COMMON.concat([
             ["EV_SAVE_COLUMN",      ac_wait_for_the_load,   null],
@@ -4104,7 +4128,9 @@ function create_gclass(gclass_name)
             ["EV_CONFIRMED",        ac_wait_for_the_load,   null]
         ])],
 
-        ["ST_EMPTY", COMMON.slice()],
+        ["ST_EMPTY", COMMON.concat([
+            ["EV_CONFIRMED",        ac_confirmed_on_nothing, null]
+        ])],
 
         ["ST_TREEDBS", COMMON.concat([
             ["EV_SELECT_TREEDB",    ac_select_treedb,       null],

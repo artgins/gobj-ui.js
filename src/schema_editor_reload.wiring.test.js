@@ -974,3 +974,44 @@ describe("the import plan (fifth review)", () => {
         expect(take("update-node")).toEqual([]);
     });
 });
+
+describe("a confirmation answered where no treedb is open (fifth review)", () => {
+
+    test("after a reload that landed on zero treedbs: refused as stale, not NOT DEFINED", () => {
+        const {editor, remote, host} = build("e1", "db/users");
+        const kw = {what: "column", topic: "users", col: "id", model_gen: editor.priv.model_gen};
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.treedbs = [];
+            r.topics = [];
+            r.cols = [];
+        }));
+        expect(gobj_current_state(editor)).toBe("ST_EMPTY");
+        gobj_send_event(editor, "EV_CONFIRMED", kw, editor);
+        expect(not_defined()).toEqual([]);
+        expect(errors()).toEqual([]);
+        expect(shown).toEqual([STALE]);
+        expect(take("delete-node")).toEqual([]);
+    });
+
+    test("with no model at all (ST_IDLE): refused and said", () => {
+        const remote = gobj_create_service("e2_remote", "C_TEST_REMOTE", {}, yuno);
+        gobj_change_state(remote, "ST_SESSION");
+        const host = gobj_create("e2_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("e2_editor", "C_YUI_SCHEMA_EDITOR", {
+            gobj_remote_yuno: remote, treedb_name: "treedb_system_schema"
+        }, host);
+        gobj_start(editor);
+        for(const c of take("nodes")) {
+            answer(editor, remote, c, -1, null, "deadline");
+        }
+        expect(gobj_current_state(editor)).toBe("ST_IDLE");
+        gobj_send_event(editor, "EV_CONFIRMED", {what: "column", topic: "users", col: "id",
+            model_gen: editor.priv.model_gen - 1}, editor);
+        gobj_send_event(editor, "EV_CONFIRMED", {what: "column", topic: "users", col: "id",
+            model_gen: editor.priv.model_gen}, editor);
+        expect(not_defined()).toEqual([]);
+        expect(errors()).toEqual([]);
+        expect(shown).toEqual([STALE, STALE]);
+    });
+});
