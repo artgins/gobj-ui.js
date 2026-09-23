@@ -891,6 +891,14 @@ function render_toolbar(gobj)
      *  url's; ST_EMPTY has a treedb in the url and none in the model),
      *  and a button there sends what only a treedb screen declares.  */
     let on_a_treedb = state !== "ST_IDLE" && state !== "ST_EMPTY";
+    /*  ...and the screen can outlive the treedb or the topic it is ON: a
+     *  reload that no longer has them keeps the position (it says so,
+     *  and Back is the way out). Asked of the MODEL, not of the state:
+     *  gated on the state, Diagram, Check, Export, Import and New topic
+     *  stayed up there and each logged "with no treedb open" (fourth
+     *  independent review, probe D2).  */
+    let treedb_here = on_a_treedb && !!current_treedb(gobj);
+    let topic_here = treedb_here && !!current_topic(gobj);
     /*  Nothing is legal while the model is in the air: every action is
      *  computed against it.  */
     let in_flight = state === "ST_SAVING" || state === "ST_LOADING";
@@ -936,7 +944,7 @@ function render_toolbar(gobj)
      *  refused says why when it is pressed.
      *----------------------------------------------*/
     let $right = [];
-    if(priv.treedb_id && has_model && on_a_treedb) {
+    if(priv.treedb_id && has_model && treedb_here) {
         /*  The compass, like every other door to a SCHEMA: the
          *  `hexagon-nodes` it wore is the graph of the DATA.  */
         $right.push(toolbar_button("SCHEMA_DIAGRAM_BTN", "yi-compass-drafting",
@@ -950,7 +958,7 @@ function render_toolbar(gobj)
                 "import", "EV_IMPORT", false));
         }
     }
-    if(priv.topic_name && !readonly && !priv.diagram && on_a_treedb) {
+    if(priv.topic_name && !readonly && !priv.diagram && topic_here) {
         /*  Only while there IS somewhere to go back to: a drag is a write,
          *  and this is the way back from one. */
         if(undo_order_writes(gobj, current_topic(gobj)).length > 0) {
@@ -960,7 +968,7 @@ function render_toolbar(gobj)
         $right.push(toolbar_button("SCHEMA_ADD_COL_BTN", "yi-plus",
             "new column", "EV_ADD_COLUMN", false));
     }
-    if(priv.treedb_id && !priv.topic_name && !readonly && !priv.diagram && on_a_treedb) {
+    if(priv.treedb_id && !priv.topic_name && !readonly && !priv.diagram && treedb_here) {
         $right.push(toolbar_button("SCHEMA_ADD_TOPIC_BTN", "yi-plus",
             "new topic", "EV_ADD_TOPIC", false));
     }

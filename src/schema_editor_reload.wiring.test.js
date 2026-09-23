@@ -16,6 +16,15 @@
  *      the reload of a late write that forgot this session's marks and
  *      never told the host a write had landed.
  *
+ *      The fourth independent review (same day) found what a reload
+ *      still left behind: a dialog opened on the model it replaced
+ *      (its Save wrote the old record over the newer one), a load
+ *      refused IN session that blanked the model, a late write whose
+ *      list_dict fkey marked nothing, a write answered with no record
+ *      that owed a second reload and dropped the rest of its queue in
+ *      silence, and a toolbar gated on the state instead of on the
+ *      treedb being there.
+ *
  *      Driven through the FSM on a document double, with a fake
  *      transport whose state is the one the library reads.
  *
@@ -700,5 +709,42 @@ describe("a write answered with no record (fourth review)", () => {
         expect(logged.some((l) => l.level === "warning" && /not sent/.test(l.msg))).toBe(true);
         answer_the_load(editor, remote);
         expect(errors()).toEqual([]);
+    });
+});
+
+describe("the toolbar of a treedb that is not there (fourth review)", () => {
+
+    test("offers Back and Refresh, and nothing that needs the treedb", () => {
+        const {editor, remote, host} = build("t1", "db");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.treedbs = [{id: "other", schema_version: 1}];
+            r.topics = [];
+            r.cols = [];
+        }));
+        expect($in(editor, ".SCHEMA_BACK")).toBeTruthy();
+        expect($in(editor, ".SCHEMA_REFRESH_BTN")).toBeTruthy();
+        for(const cls of ["SCHEMA_DIAGRAM_BTN", "SCHEMA_VALIDATE_BTN", "SCHEMA_EXPORT_BTN",
+                          "SCHEMA_IMPORT_BTN", "SCHEMA_ADD_TOPIC_BTN"]) {
+            expect([cls, !!$in(editor, `.${cls}`)]).toEqual([cls, false]);
+        }
+        for(const $b of $all(editor, ".SCHEMA_TOOLBAR button")) {
+            if($b.classList.contains("SCHEMA_REFRESH_BTN") || $b.classList.contains("SCHEMA_BACK")) {
+                continue;
+            }
+            $b.click();
+        }
+        expect(errors()).toEqual([]);
+    });
+
+    test("a topic that is not there offers no New column", () => {
+        const {editor, remote, host} = build("t2", "db/users");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.topics = [];
+            r.cols = [];
+        }));
+        expect(!!$in(editor, ".SCHEMA_ADD_COL_BTN")).toBe(false);
+        expect($in(editor, ".SCHEMA_BACK")).toBeTruthy();
     });
 });
