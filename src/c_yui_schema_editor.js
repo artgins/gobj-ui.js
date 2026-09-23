@@ -558,7 +558,8 @@ function reload_after_move(gobj)
  *  and a load that LANDS closes it (end_load()): it was built on the
  *  model the load replaced, and its Save sends every field it shows.
  *  An import plan is forgotten here for the same reason: it is a list
- *  of writes computed against the model going away.
+ *  of writes computed against the model going away -- once the load
+ *  has LEFT (one that could not be sent replaces nothing).
  *
  *  `keep_written`: a load the host did not ask for -- the reconnect,
  *  a write that turned out done -- keeps what this session wrote.
@@ -580,8 +581,6 @@ function request_model(gobj, keep_written)
     if(!remote) {
         return -1;      /*  not mounted on a transport yet: mt_start retries via EV_TRANSPORT_STATE  */
     }
-
-    forget_import_plan(gobj);
 
     /*  A load asked while one is in flight (the host's EV_REFRESH is
      *  heard in ST_LOADING) keeps the records the model SHOWN was built
@@ -624,6 +623,9 @@ function request_model(gobj, keep_written)
         end_load(gobj);
         return -1;
     }
+    /*  Only a load that LEFT replaces the model the plan was computed
+     *  on; one that could not be sent keeps it, and the plan with it.  */
+    forget_import_plan(gobj);
     priv.pending = left;
     return 0;
 }
@@ -3959,8 +3961,12 @@ function run_import(gobj)
     let priv = gobj.priv;
     let plan = priv.import_plan;
 
+    /*  Not an ERROR: a load that left forgets the plan (request_model()),
+     *  and the confirmation of it may still be up. The operator's Yes
+     *  is answered, not lost in the log.  */
     if(!plan) {
-        log_error(`${gobj_short_name(gobj)}: the import plan is gone`);
+        log_warning(`${gobj_short_name(gobj)}: the import plan is gone`);
+        yui_shell_show_error(yui_shell_of(gobj), "the import plan is gone: preview it again", {t: t});
         return -1;
     }
     close_dialog(gobj);

@@ -940,3 +940,37 @@ describe("the reload a load refused in session owes (fifth review)", () => {
         expect(editor.priv.written).toEqual({"db.users": true});
     });
 });
+
+describe("the import plan (fifth review)", () => {
+
+    const IMPORT = JSON.stringify({id: "db", topics: [{id: "users", pkey: "id", cols: [
+        {id: "id", type: "string", flag: ["persistent", "required"]},
+        {id: "email", type: "string"}
+    ]}]});
+
+    test("a load that could not be sent keeps it: the model it was planned on stays", () => {
+        const {editor, remote, host} = build("i1", "db");
+        gobj_send_event(editor, "EV_IMPORT", {}, host);
+        const dialog = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_PREVIEW_IMPORT", {prune: false, text: IMPORT,
+            model_gen: editor.priv.model_gen}, editor);
+        const plan = editor.priv.import_plan;
+        expect(plan.writes.length).toBeGreaterThan(0);
+
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        expect(editor.priv.import_plan).toBe(plan);
+        expect(dialog.$content.querySelector(".SCHEMA_IMPORT_RUN").disabled).toBe(false);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a Yes that finds it gone is a warning, and said -- not an ERROR", () => {
+        const {editor, remote, host} = build("i2", "db");
+        gobj_send_event(editor, "EV_CONFIRMED", {what: "import",
+            model_gen: editor.priv.model_gen}, editor);
+        expect(errors()).toEqual([]);
+        expect(logged.some((l) => l.level === "warning" && /import plan is gone/.test(l.msg))).toBe(true);
+        expect(shown).toEqual(["the import plan is gone: preview it again"]);
+        expect(take("update-node")).toEqual([]);
+    });
+});
