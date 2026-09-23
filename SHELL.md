@@ -710,10 +710,15 @@ import {
     yui_shell_confirm_ok, yui_shell_confirm_yesno, yui_shell_confirm_yesnocancel,
 } from "@yuneta/gobj-ui";
 
-/*  Toasts (Bulma .notification, auto-dismiss after 5 s). */
+/*  Toasts (Bulma .notification, auto-dismiss after 5 s).  ONE per
+ *  message on screen: the same string of the same kind again, while
+ *  the first still shows, restarts its time and returns ITS handle
+ *  instead of stacking a copy (7.25.7) -- one close of a transport
+ *  settles every request in flight, and each view says its failure. */
 yui_shell_show_info(shell,    "Hello");
 yui_shell_show_warning(shell, "Watch out");
 yui_shell_show_error(shell,   "Boom");
+yui_shell_show_error(shell,   "Boom");    // still one "Boom" on screen
 
 /*  Non-blocking modal (Bulma .modal-content + .box).  Click on
  *  background, the close button or Escape close it.  `content` may

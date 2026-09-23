@@ -2161,7 +2161,28 @@ else.
   `the connection dropped during the write` (an i18n key the consumer's
   locales carry). Each request carries its round in `__md_command__`
   (`round` / `write`), so an answer of what the drop cut is ignored with a
-  warning.
+  warning. The drop itself is logged ONCE; the failures a routing adapter
+  settles for the same drop are that one event and are not logged again.
+- **Nothing moves the editor out of `ST_LOADING` or `ST_SAVING` but the end of
+  what is in flight** (7.25.7). An `EV_SHOW` that arrives meanwhile waits, the
+  last one wins, and it is applied when the load lands, fails or is cut, or
+  when the write ends. 7.25.6 let it move a RELOAD out of `ST_LOADING`: every
+  answer of that load was then "for a load that is over", and the next write
+  patched the records the reload had emptied into a model with no treedb.
+  With no model and no load, `EV_SHOW` keeps the position and stays in
+  `ST_IDLE`; the next load goes there.
+
+  ```js
+  gobj_send_event(editor, "EV_REFRESH", {}, host);             // ST_LOADING
+  gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);   // waits
+  // ... the three `nodes` answers land -> ST_TOPICS of `db`
+  ```
+- A write this view gave up on (a drop, a deadline) whose answer still says it
+  was DONE makes the editor read the model again (at once, after the write in
+  flight, or on the reconnect). Through a routing adapter that settled the
+  write on its OWN deadline the late answer does not reach the view -- the
+  adapter echoes a node event instead, which this view does not hear -- and
+  Refresh is what reads the store.
 
   ```js
   // the host forwards its session edges; nothing else is needed

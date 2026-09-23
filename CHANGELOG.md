@@ -5,6 +5,33 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.7
+
+Fixes from the independent review of the 2nd round (after 7.25.4).
+
+- **`C_YUI_SCHEMA_EDITOR`: a navigation during a load no longer empties the
+  model (HIGH, regression of 7.25.6).** `is_current_load()` matched an answer
+  by its round AND by the state being `ST_LOADING`, and the host's `EV_SHOW`
+  moved a reload (Refresh, or the reconnect's) out of `ST_LOADING`: every
+  answer was then "for a load that is over", and the next successful write
+  patched the records the reload had emptied -- the model lost every treedb.
+  Nothing moves the editor out of `ST_LOADING` now but the end of the load:
+  the position waits in `pending_seg` (the last one wins) and is applied when
+  the load lands, fails or is cut by a drop. `EV_SHOW` with no model and no
+  load stays in `ST_IDLE` instead of claiming a load nobody asked for (which
+  made the reconnect skip the load it owed).
+- **The drop is said once.** A load cut by a drop logged two or three extra
+  *"answered for a load that is over"* warnings -- one per failure the
+  routing adapter settled. `transport_dropped()` logs one warning and the
+  failures of that round (or write) are not logged again.
+- **A write given up that turns out DONE reads the model again**, instead of
+  being ignored while the store holds a change the model does not show. A
+  routing adapter's own-deadline case is documented (Refresh reads the store).
+- **One toast per message on screen** (`yui_shell_show_info/warning/error`).
+  The same string of the same kind while one still shows restarts its time
+  and returns its handle instead of stacking a copy: one close of a transport
+  showed a column of identical *"the connection dropped"*.
+
 ## 7.25.6
 
 Fixes from the independent review of 7.25.4.
