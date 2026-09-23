@@ -410,3 +410,52 @@ describe("the drawing of a treedb that is not there", () => {
         expect(errors()).toEqual([]);
     });
 });
+
+describe("a write given up that was DONE", () => {
+
+    test("the host is told, and the reload keeps what this session wrote", () => {
+        const {editor, remote, host} = build("l1", "db/users");
+        const w1 = start_a_write(editor, host, "name");
+        answer(editor, remote, w1, 0, {id: "db.users.name", value: "name", order: 2,
+            type: "string", topics: ["topics^db.users^cols"]});
+        expect(editor.priv.written).toEqual({"db.users": true});
+
+        const w2 = start_a_write(editor, host, "email");
+        drop(editor, remote, host);
+        reconnect(editor, remote, host);
+        answer_the_load(editor, remote);
+        expect(editor.priv.written).toEqual({"db.users": true});
+        published.length = 0;
+
+        answer(editor, remote, w2, 0, {id: "db.users.email", value: "email",
+            type: "string", topics: ["topics^db.users^cols"]});
+        expect(published).toContain("EV_RECORD_WRITTEN");
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        answer_the_load(editor, remote);
+        expect(editor.priv.written).toEqual({"db.users": true});
+        expect(errors()).toEqual([]);
+    });
+
+    test("a write answered with no record: told, marked, and the body answers again", () => {
+        const {editor, remote, host} = build("l3", "db/users");
+        const w = start_a_write(editor, host, "name");
+        answer(editor, remote, w, 0, null);
+        expect(published).toContain("EV_RECORD_WRITTEN");
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        answer_the_load(editor, remote);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect($in(editor, ".SCHEMA_BODY").classList.contains("SCHEMA_BUSY")).toBe(false);
+        expect(editor.priv.written).toEqual({"db.users": true});
+        expect(errors()).toEqual([]);
+    });
+
+    test("the host's Refresh still forgets them (a Save is what sends it)", () => {
+        const {editor, remote, host} = build("l2", "db/users");
+        const w1 = start_a_write(editor, host, "name");
+        answer(editor, remote, w1, 0, {id: "db.users.name", value: "name", order: 2,
+            type: "string", topics: ["topics^db.users^cols"]});
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        answer_the_load(editor, remote);
+        expect(editor.priv.written).toEqual({});
+    });
+});

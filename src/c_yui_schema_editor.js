@@ -598,17 +598,23 @@ function build_model(gobj)
  *  From here on, "did this session change it?" has an answer.
  *
  *  Called ONLY when records arrive from the store: that is what a
- *  measurement of "changed since" can be measured against. Both
- *  halves reset together -- a baseline without its `written` is
- *  the same false positive from the other side, since every
- *  version equals a baseline just taken.
+ *  measurement of "changed since" can be measured against.
+ *
+ *  `written` is forgotten only by a load the HOST asked for (its
+ *  EV_REFRESH, which a Save sends). Since M36 a write moves no
+ *  version, so `written` is the draft chip of what this session
+ *  wrote and no longer half of a version measurement: a reload of
+ *  the reconnect, or of a write that turned out done, forgot the
+ *  chips of writes the host had not been told about.
  ***************************************************************/
 function start_measuring(gobj)
 {
     let priv = gobj.priv;
 
     priv.baseline = {};
-    priv.written = {};
+    if(!priv.load_keeps_written) {
+        priv.written = {};
+    }
     priv.host_ids = {};
 
     if(!priv.model) {
@@ -2601,7 +2607,7 @@ function reload_if_owed(gobj)
         priv.reload_on_open = true;
         return 0;
     }
-    return request_model(gobj);
+    return request_model(gobj, true);
 }
 
 /***************************************************************
@@ -2905,7 +2911,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                     `for a write that is over (result ${result}): ignored`);
                 return 0;
             }
-            return late_write_done(gobj, command, topic_name);
+            return late_write_done(gobj, command, topic_name, data);
         }
         if(result < 0) {
             return end_writes(gobj, comment || t("the treedb refused the write"));
@@ -2922,8 +2928,17 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 /*  The treedb wrote it and did not describe it back: ask
                  *  again rather than draw a model that has drifted.  */
                 log_warning(`${gobj_short_name(gobj)}: '${command}' answered no record`);
+                if(topic_name === T_TOPICS || topic_name === T_COLS) {
+                    let write = priv.save_queue[0];
+                    mark_written(gobj, topic_name, write ? write.record : null);
+                }
                 priv.save_queue = [];
-                request_model(gobj);
+                priv.save_return = "";
+                priv.save_wrote = false;
+                gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
+                    treedb_name: gobj_read_str_attr(gobj, "treedb_name")
+                });
+                request_model(gobj, true);
                 return 0;
             }
         }
@@ -2955,14 +2970,24 @@ function ac_mt_command_answer(gobj, event, kw, src)
  *  the view was answered once, as failed -- and echoes the node
  *  event instead, which this view does not hear: there, Refresh is
  *  what reads the store.
+ *
+ *  It is a WRITE like any other for the host (EV_RECORD_WRITTEN):
+ *  the host was told nothing when it was given up, and it owns the
+ *  Save that publishes it. The reload keeps what this session wrote
+ *  (request_model()), and the record it answered marks its topic.
  ***************************************************************/
-function late_write_done(gobj, command, topic_name)
+function late_write_done(gobj, command, topic_name, data)
 {
     let priv = gobj.priv;
     let state = gobj_current_state(gobj);
 
     log_warning(`${gobj_short_name(gobj)}: '${command}' of '${topic_name}' was given up, ` +
         `and it was DONE: the model is read again`);
+    mark_written_record(gobj, topic_name, is_object(data) ? data
+        : (Array.isArray(data) && is_object(data[0]) ? data[0] : null));
+    gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
+        treedb_name: gobj_read_str_attr(gobj, "treedb_name")
+    });
     if(state === "ST_LOADING") {
         return 0;
     }
@@ -2974,7 +2999,37 @@ function late_write_done(gobj, command, topic_name)
         priv.reload_on_open = true;
         return 0;
     }
-    return request_model(gobj);
+    return request_model(gobj, true);
+}
+
+/***************************************************************
+ *  The topic a record written belongs to, read off the RECORD and
+ *  not off the screen: a write answered late may be about a topic
+ *  the operator has left. A column names its topic in its fkey
+ *  (`topics^<topic id>^cols`); a topic is its own id.
+ ***************************************************************/
+function mark_written_record(gobj, topic_name, record)
+{
+    let priv = gobj.priv;
+
+    if(!record) {
+        return;
+    }
+    if(topic_name === T_TOPICS && typeof record.id === "string" && record.id) {
+        priv.written[record.id] = true;
+        return;
+    }
+    if(topic_name !== T_COLS) {
+        return;
+    }
+    let refs = Array.isArray(record.topics) ? record.topics
+        : (typeof record.topics === "string" ? [record.topics] : []);
+    for(let ref of refs) {
+        let parts = String(ref).split("^");
+        if(parts.length >= 2 && parts[1]) {
+            priv.written[parts[1]] = true;
+        }
+    }
 }
 
 /***************************************************************
@@ -3052,7 +3107,7 @@ function ac_transport_state(gobj, event, kw, src)
     if((!priv.model || priv.reload_on_open) &&
             state !== "ST_LOADING" && state !== "ST_SAVING") {
         priv.reload_on_open = false;
-        return request_model(gobj);
+        return request_model(gobj, true);
     }
     render_toolbar(gobj);
     return 0;
