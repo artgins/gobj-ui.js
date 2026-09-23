@@ -5,6 +5,32 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.12
+
+Fixes from the sixth independent review (after 7.25.11), all in
+`C_YUI_SCHEMA_EDITOR`.
+
+- **Any load that lands pays the reload a refused load owes (MEDIUM).** The
+  owed reload was cleared only by the reload the editor asked for itself (and
+  by the reconnect). After a refused load, the operator's own Refresh landed,
+  and the flag stayed set: the next edit was refused and read the store again.
+  The same happened after the reload of a late write. The flag is cleared
+  where a load lands now, whoever asked for it.
+- **A load that fails keeps the import plan (LOW).** The plan was forgotten
+  when the requests LEFT. A load that then failed in session kept the model,
+  so the dialog stayed up with no plan and Import disabled. The plan is
+  forgotten when a load LANDS and replaces the model, as the 7.25.9 contract
+  said. A load that fails or never leaves keeps the plan and Import enabled.
+- **A move sent by the host runs the owed reload (LOW).** `EV_SHOW` from the
+  host (a url, the browser's Back) moved without asking for the reload a
+  refused load owed. It runs it now, as the editor's own moves do.
+- **The export's C / JSON switch goes through the FSM (LOW).** The click
+  handler changed the pressed button and the text itself. It sends
+  `EV_EXPORT_VIEW` (`{pane: "c" | "json"}`) now, and the action does the work.
+  The event is answered in every state, because the dialog outlives the screen
+  and the loads under it. A view that does not exist, or no export open, is
+  logged as an error.
+
 ## 7.25.11
 
 - **`C_YUI_SCHEMA_EDITOR`: its confirmations answer with i18n keys.** The
