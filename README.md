@@ -2182,12 +2182,40 @@ else.
   `ST_LOADING` declares none of a screen's actions. A **dialog** left open is
   the one thing still reachable: its Save (`EV_SAVE_COLUMN`, `EV_SAVE_TOPIC`),
   a confirmation (`EV_CONFIRMED`), an orphan delete or an import is refused
-  with `the schemas are loading: try again when they are in` (an i18n key the
-  consumer's locales carry) and the dialog stays open with what was typed, so
-  the same Save works once the load is in. A write that ends with an error --
-  a drop included -- still applies a position that waited, as a load does.
-  Out of session a load is not asked at all (no *"not in session"* errors);
-  the reconnect loads.
+  with `the schemas are loading: wait for them` (7.25.9; an i18n key the
+  consumer's locales carry). A write that ends with an error -- a drop
+  included -- still applies a position that waited, as a load does. Out of
+  session a load is not asked at all (no *"not in session"* errors); the
+  reconnect loads.
+- **A dialog is built on ONE model, and a load that replaces it closes it**
+  (7.25.9). Every load that lands bumps `model_gen`; a dialog records the one
+  it was opened on, and its Save, its import Preview/Run, an orphan delete and
+  a confirmation carry it in their kw. When a load lands under a dialog of an
+  older model, the dialog is closed and the operator told
+  `the schemas were read again: open the dialog again`; anything stamped with
+  a replaced model that arrives anyway is refused with the same words. A
+  column form sends every field it shows, so its Save after a reload wrote
+  the OLD record over the newer one -- 7.25.8 told the operator to "try
+  again", which did exactly that. The import plan is forgotten when a load
+  starts. A load that failed or never left replaced nothing, and the dialog
+  stays with what was typed.
+
+  ```js
+  gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);   // form, model_gen N
+  gobj_send_event(editor, "EV_REFRESH", {}, host);                 // Save -> "wait for them"
+  // ... the load lands (model_gen N+1): the form closes, the operator reopens it
+  ```
+- **A load refused IN session keeps the model it was replacing** (7.25.9): a
+  routing adapter's deadline on a slow `nodes` answers -1 while the session
+  is up. The records are put back, the screen and any open dialog stay, the
+  operator is told `cannot read the schemas again: the previous ones stay`,
+  and the reload is owed. Only a first load, with no model before it, ends
+  on the empty screen. A write answered with no record reloads the model and
+  says what it did not send after it
+  (`the treedb did not describe a write back: the writes after it were not sent`).
+- The toolbar offers Diagram, Check, Export, Import, New topic and New column
+  only when the treedb (or topic) the position names is IN the model; after a
+  reload that no longer has it, Back and Refresh remain.
 - A write this view gave up on (a drop, a deadline) whose answer still says it
   was DONE makes the editor read the model again (at once, after the write in
   flight, or on the reconnect), and it is a write for the host too: it

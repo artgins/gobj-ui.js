@@ -5,6 +5,43 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.9
+
+Fixes from the fourth independent review (after 7.25.8).
+
+- **`C_YUI_SCHEMA_EDITOR`: a dialog built on a model a reload replaced writes
+  nothing (MEDIUM-HIGH).** 7.25.8 refused a dialog's Save during a load with
+  *"try again when they are in"*, and trying again sent the form built on the
+  OLD model -- a column form sends every field, so the old record was written
+  over the newer one; a form whose column the reload removed logged *"names
+  no column"* for ever; and the import plan survived the load. Every load
+  that lands now bumps `model_gen`; a load that lands under a dialog of an
+  older model closes it (*"the schemas were read again: open the dialog
+  again"*), and a Save, import, orphan delete or confirmation stamped with a
+  replaced model is refused and said. The import plan is forgotten when a
+  load starts. The refusal during a load says *"the schemas are loading: wait
+  for them"*. New i18n keys for the consumer's locales (the 7.25.8 "try
+  again" key is no longer used).
+- **A load refused IN session keeps the model** (MEDIUM): a routing
+  adapter's deadline blanked the editor into `ST_IDLE`, and an open form's
+  Save logged *"Event NOT DEFINED in state ST_IDLE"*. The records are put
+  back, the screen and the dialog stay, the operator is told (*"cannot read
+  the schemas again: the previous ones stay"*) and the reload is owed. A drop
+  that cuts a reload also puts the records back.
+- **A late column write marks its topic with the fkey the store really
+  answers** (`list_dict`, read with `parse_fkey_ref()`); only the string
+  shape was parsed, so production answers marked nothing.
+- **A write answered with no record** clears the reload a late write owed
+  (the next write loaded the model once more) and says the writes queued
+  after it that were not sent.
+- **The toolbar** offers what needs a treedb or a topic only when the model
+  has it: after a reload that dropped it, Diagram, Check, Export, Import and
+  New topic each logged *"with no treedb open"*.
+- **Every close control is named**: the ✕ of a toast, of a modal and of a
+  confirmation (`shell_modals.js`) carry a `title` as well as an
+  `aria-label`; the editor's form and import buttons, its paste box and the
+  `title` of every form field too.
+
 ## 7.25.8
 
 Fixes from the third independent review (after 7.25.7).
