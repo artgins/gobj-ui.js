@@ -40,6 +40,7 @@ install_dom_double();
  *  clicked like the operator would).  */
 const shown = [];
 const modals = [];
+const confirms = [];
 vi.mock("./shell_modals.js", () => ({
     yui_shell_show_error: (shell, message) => {
         shown.push(message);
@@ -53,7 +54,10 @@ vi.mock("./shell_modals.js", () => ({
             modal.closed = true;
         }};
     },
-    yui_shell_confirm_danger: () => new Promise(() => {}),
+    yui_shell_confirm_danger: (shell, message, opts) => {
+        confirms.push({message, opts});
+        return new Promise(() => {});
+    },
 }));
 
 const {
@@ -167,6 +171,7 @@ beforeEach(() => {
     commands.length = 0;
     shown.length = 0;
     modals.length = 0;
+    confirms.length = 0;
     published.length = 0;
 });
 
@@ -1013,5 +1018,20 @@ describe("a confirmation answered where no treedb is open (fifth review)", () =>
         expect(not_defined()).toEqual([]);
         expect(errors()).toEqual([]);
         expect(shown).toEqual([STALE, STALE]);
+    });
+});
+
+describe("the answers of the editor's confirmations are i18n keys (fifth review, live)", () => {
+
+    /*  shell_modals names each answer by its label; its defaults ("Delete",
+     *  "Cancel") are not lower-case, so no validated locale holds them and
+     *  the buttons -- and now their title and aria-label -- read English in
+     *  every language (seen on the deployed agent console, in Spanish).  */
+    test("a column delete asks with `delete` / `cancel`", () => {
+        const {editor, remote, host} = build("k1", "db/users");
+        gobj_send_event(editor, "EV_DELETE_COLUMN", {col: "id"}, host);
+        expect(confirms.length).toBe(1);
+        expect([confirms[0].opts.confirm_label, confirms[0].opts.cancel_label])
+            .toEqual(["delete", "cancel"]);
     });
 });

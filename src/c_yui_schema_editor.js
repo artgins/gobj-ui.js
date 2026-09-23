@@ -3504,9 +3504,15 @@ function ac_show_orphans(gobj, event, kw, src)
 function confirm_then(gobj, message, detail, kw)
 {
     kw = Object.assign({model_gen: gobj.priv.model_gen}, kw);
+    /*  The answers are i18n KEYS: shell_modals names each button by its
+     *  label, and its defaults ("Delete", "Cancel") are not lower-case, so
+     *  no validated locale holds them -- they read English in every
+     *  language, text, title and aria-label alike.  */
     yui_shell_confirm_danger(yui_shell_of(gobj), message, {
-        t:      t,
-        detail: detail
+        t:              t,
+        detail:         detail,
+        confirm_label:  "delete",
+        cancel_label:   "cancel"
     }).then((yes) => {
         if(!yes || gobj_is_destroying(gobj)) {
             return;
