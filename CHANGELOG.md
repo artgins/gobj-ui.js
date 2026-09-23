@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.6
+
+Fixes from the independent review of 7.25.4.
+
+- **`C_YUI_SCHEMA_EDITOR` gets out of a transport drop (M-1).** A drop left
+  it where it was: in `ST_SAVING` with its body busy, or in `ST_LOADING` --
+  and the reconnect skipped the reload *because* the state was
+  `ST_LOADING`. Only a reload of the page got it out. Now a drop (the host's
+  `EV_TRANSPORT_STATE {connected: false}`, or a failed answer that arrives
+  while the transport is out of `ST_SESSION`, which is how a routing adapter
+  settles what it had in flight) ends the write with *"the connection
+  dropped during the write"* (a new i18n key for the consumer's locales), or
+  puts the load back on the screen it replaced (`ST_IDLE` when there was
+  none), and the model is asked again on the reconnect. Every request
+  carries its round in `__md_command__` (`round` for a load, `write` for a
+  write), so the answer of a request the drop cut is logged as a warning and
+  ignored -- it used to be counted in the next load, or to end the next
+  write.
+- **`package-lock.json` is in sync with `package.json` again** (L-4): it
+  still named gobj-js `^7.21.0`, maplibre-gl `6.4.1` and tabulator-tables
+  `6.5.2`, and `npm ci` refused it.
+
 ## 7.25.5
 
 Fixes from the 2026-09-23 review of the 2026-09-22 round.

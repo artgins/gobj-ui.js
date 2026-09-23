@@ -2154,6 +2154,20 @@ else.
 - In: `EV_SHOW` (`{subpath}` — the tail it owns is `<treedb>[/<topic>]` or
   `<treedb>/diagram`), `EV_HIDE`, `EV_TRANSPORT_STATE`, `EV_REFRESH`,
   `EV_LANGUAGE_CHANGED`, `EV_MT_COMMAND_ANSWER`.
+- A **drop** of the transport — `EV_TRANSPORT_STATE {connected: false}`, or a
+  failed answer that arrives while the transport is out of `ST_SESSION` — ends
+  the load or the write it cut, and the model is asked again on the next
+  `{connected: true}`. A write cut this way is shown as
+  `the connection dropped during the write` (an i18n key the consumer's
+  locales carry). Each request carries its round in `__md_command__`
+  (`round` / `write`), so an answer of what the drop cut is ignored with a
+  warning.
+
+  ```js
+  // the host forwards its session edges; nothing else is needed
+  gobj_send_event(editor, "EV_TRANSPORT_STATE", {connected: false}, host);
+  gobj_send_event(editor, "EV_TRANSPORT_STATE", {connected: true}, host);
+  ```
 - Out: `EV_POSITION_CHANGED` (`{subpath}` — the host writes the url; this view
   navigates nothing itself), `EV_RECORD_WRITTEN` (whoever owns the Apply needs
   to know the yuno has not re-read its schema yet), `EV_SCHEMA_CHECKED`

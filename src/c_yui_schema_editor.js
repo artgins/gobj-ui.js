@@ -70,6 +70,12 @@
  *      `update-node` / `delete-node` on the treedb service, and it may
  *      be a routing adapter two hops away (the agent console's
  *      C_AGENT_TREEDB_LINK) — this view cannot tell, and must not.
+ *      A DROP of it (the host's EV_TRANSPORT_STATE, or a failure that
+ *      arrives while the transport is out of session) ends the load or
+ *      the write it cut, and the model is asked again when the session
+ *      is back. Every request carries its round (`round` for a load,
+ *      `write` for a write) in `__md_command__`, so an answer of what
+ *      was cut is ignored instead of counted in the next one.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -108,6 +114,7 @@ import {
     clean_name,
     msg_iev_get_stack,
     kw_get_str,
+    kw_get_int,
     kw_get_dict,
     is_object,
     is_array,
@@ -198,6 +205,7 @@ let PRIVATE_DATA = {
     model:          null,   /*  build_schema_model() of the above  */
     pending:        0,      /*  `nodes` requests still in flight  */
     load_error:     "",
+    load_round:     0,      /*  which load an answer belongs to: echoed as `round`  */
 
     /*  Where the operator is. The url carries it; these mirror it.  */
     treedb_id:      "",
@@ -220,7 +228,9 @@ let PRIVATE_DATA = {
     save_queue:     null,
     save_return:    "",
     save_wrote:     false,
+    write_tag:      0,      /*  which write an answer belongs to: echoed as `write`  */
     connected:      false,
+    reload_on_open: false,  /*  a drop cut a load or a write: ask the model again  */
 
     /*  A position that arrived while a write was in flight  */
     pending_seg:    null,
@@ -458,6 +468,7 @@ function request_model(gobj)
     priv.records = {treedbs: [], topics: [], cols: []};
     priv.load_error = "";
     priv.pending = 0;
+    priv.load_round++;
     gobj_change_state(gobj, "ST_LOADING");
     show_notice(gobj, "loading the schemas");
 
@@ -465,7 +476,7 @@ function request_model(gobj)
         if(remote_command(gobj, "nodes", {
             topic_name: topic_name,
             options:    {list_dict: true}
-        }) === 0) {
+        }, {round: priv.load_round}) === 0) {
             priv.pending++;
         }
     }
@@ -487,7 +498,7 @@ function request_model(gobj)
  *  answer says which topic it is about, since the command is
  *  `nodes` for all three.
  ***************************************************************/
-function remote_command(gobj, command, kw)
+function remote_command(gobj, command, kw, tag)
 {
     let remote = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
@@ -512,11 +523,11 @@ function remote_command(gobj, command, kw)
      *  whichever one is under this view — and `record_id` is here and
      *  NOT at the top level because a delete answers with nothing, and a
      *  parameter the treedb does not know has no business travelling.  */
-    full_kw.__md_command__ = {
+    full_kw.__md_command__ = Object.assign({
         purpose:    PURPOSE,
         topic_name: (kw && kw.topic_name) || "",
         record_id:  (kw && kw.record_id) || ""
-    };
+    }, tag || {});
     delete full_kw.record_id;
 
     let ret = gobj_command(remote, command, full_kw, gobj);
@@ -2362,13 +2373,76 @@ function run_next_write(gobj)
     let command = write_command(write.op);
     let options = write_options(write.op);
 
+    priv.write_tag++;
     if(remote_command(gobj, command, {
         topic_name: write.topic_name,
         record:     write.record,
         options:    options,
         record_id:  write.record.id || ""
-    }) < 0) {
+    }, {write: priv.write_tag}) < 0) {
         return end_writes(gobj, t("cannot reach the treedb"));
+    }
+    return 0;
+}
+
+/***************************************************************
+ *  Does the transport say it is in session? The state the library
+ *  reads off every transport (C_IEVENT_CLI and the routing adapters
+ *  name it the same).
+ ***************************************************************/
+function transport_in_session(gobj)
+{
+    let remote = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
+
+    return !!remote && gobj_current_state(remote) === "ST_SESSION";
+}
+
+/***************************************************************
+ *  Is this answer of the load in flight, or of the write in
+ *  flight? Each request carries its round in `__md_command__`, and
+ *  one the drop abandoned (or a deadline settled) can still come
+ *  back: counted, it ended the next load with the old data or
+ *  moved the next write's queue.
+ ***************************************************************/
+function is_current_load(gobj, md)
+{
+    return gobj_current_state(gobj) === "ST_LOADING" &&
+        kw_get_int(gobj, md, "round", 0, 0) === gobj.priv.load_round;
+}
+
+function is_current_write(gobj, md)
+{
+    return gobj_current_state(gobj) === "ST_SAVING" &&
+        kw_get_int(gobj, md, "write", 0, 0) === gobj.priv.write_tag;
+}
+
+/***************************************************************
+ *  The transport dropped under a load or a write: its answers
+ *  will never come. The load goes back to the screen it replaced
+ *  (or to "not connected" when there was none), the write ends
+ *  with the drop said -- whether it landed is unknown -- and both
+ *  mark the model to be asked again when the session is back.
+ *  Bumping the round makes an answer of what was cut stale.
+ ***************************************************************/
+function transport_dropped(gobj)
+{
+    let priv = gobj.priv;
+    let state = gobj_current_state(gobj);
+
+    priv.reload_on_open = true;
+    if(state === "ST_SAVING") {
+        priv.write_tag++;
+        return end_writes(gobj, "the connection dropped during the write");
+    }
+    if(state === "ST_LOADING") {
+        priv.load_round++;
+        priv.pending = 0;
+        priv.load_error = "";
+        if(priv.model) {
+            return go(gobj, priv.treedb_id, priv.topic_name, priv.diagram, false);
+        }
+        gobj_change_state(gobj, "ST_IDLE");
+        render(gobj);
     }
     return 0;
 }
@@ -2627,8 +2701,28 @@ function ac_mt_command_answer(gobj, event, kw, src)
         return 0;       /*  another panel's answer on a shared transport  */
     }
 
+    /*  A failure while the transport is not in session is the DROP, not a
+     *  refusal: a routing adapter settles what it had in flight when its
+     *  session closes, and that can arrive before the host's
+     *  EV_TRANSPORT_STATE. Read as a refusal, the write it ended looked
+     *  refused, and the reconnect did not reload a model it may have
+     *  changed.  */
+    if(result < 0 && !transport_in_session(gobj) &&
+            (gobj_current_state(gobj) === "ST_LOADING" ||
+             gobj_current_state(gobj) === "ST_SAVING")) {
+        if((command === "nodes" && is_current_load(gobj, md)) ||
+                (command !== "nodes" && is_current_write(gobj, md))) {
+            return transport_dropped(gobj);
+        }
+    }
+
     if(command === "nodes") {
         let topic_name = kw_get_str(gobj, md, "topic_name", "", 0);
+        if(!is_current_load(gobj, md)) {
+            log_warning(`${gobj_short_name(gobj)}: 'nodes' of '${topic_name}' answered ` +
+                `for a load that is over: ignored`);
+            return 0;
+        }
         priv.pending--;
         if(result < 0) {
             priv.load_error = comment || t("cannot load the schemas");
@@ -2662,6 +2756,11 @@ function ac_mt_command_answer(gobj, event, kw, src)
 
     if(command === "update-node" || command === "delete-node") {
         let topic_name = kw_get_str(gobj, md, "topic_name", "", 0);
+        if(!is_current_write(gobj, md)) {
+            log_warning(`${gobj_short_name(gobj)}: '${command}' of '${topic_name}' answered ` +
+                `for a write that is over (result ${result}): ignored`);
+            return 0;
+        }
         if(result < 0) {
             return end_writes(gobj, comment || t("the treedb refused the write"));
         }
@@ -2743,16 +2842,31 @@ function ac_hide(gobj, event, kw, src)
 }
 
 /***************************************************************
- *  The session came up or went down. The model stays either way
- *  — a schema does not change under you — but a first load may
- *  have had no transport to run on.
+ *  The session came up or went down. The model stays -- a schema
+ *  does not change under you -- unless the drop cut a load or a
+ *  write (transport_dropped()): then it is asked again on the way
+ *  back, as it is when a first load had no transport to run on.
+ *
+ *  Nothing else ends a load or a write the drop cut: their answers
+ *  will never come, and waiting in ST_LOADING skipped the reload
+ *  itself (M-1 of the independent review of 7.25.4).
  ***************************************************************/
 function ac_transport_state(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    let state = gobj_current_state(gobj);
 
     priv.connected = !!(kw && kw.connected);
-    if(priv.connected && !priv.model && gobj_current_state(gobj) !== "ST_LOADING") {
+    if(!priv.connected) {
+        if(state === "ST_LOADING" || state === "ST_SAVING") {
+            return transport_dropped(gobj);
+        }
+        render_toolbar(gobj);
+        return 0;
+    }
+    if((!priv.model || priv.reload_on_open) &&
+            state !== "ST_LOADING" && state !== "ST_SAVING") {
+        priv.reload_on_open = false;
         return request_model(gobj);
     }
     render_toolbar(gobj);
