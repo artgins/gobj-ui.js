@@ -11,6 +11,10 @@
  *      review): its handle and its time are its own, and the toast
  *      stays while any caller still holds it.
  *
+ *      And every ✕ this module draws is a control with a NAME: a
+ *      `title` and an `aria-label`, both translatable (fourth
+ *      independent review: TOAST_CLOSE had the label only).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -22,6 +26,8 @@ install_dom_double();
 const {
     yui_shell_show_error,
     yui_shell_show_info,
+    yui_shell_show_modal,
+    yui_shell_confirm_danger,
 } = await import("./shell_modals.js");
 
 let shell = null;
@@ -121,5 +127,41 @@ describe("a repeat is its own caller", () => {
         again.close();
         yui_shell_show_error(shell, "the connection dropped", {timeout: 0});
         expect(toasts().length).toBe(1);
+    });
+});
+
+describe("every close control is named", () => {
+
+    function named($b)
+    {
+        /*  The text itself is whatever the app's i18next answers (none
+         *  here); what is checked is that both are THERE and carry the
+         *  key a language change re-translates them by.  */
+        return {
+            title:      $b.getAttribute("title") !== null,
+            title_key:  $b.getAttribute("data-i18n-title"),
+            label:      $b.getAttribute("aria-label") !== null,
+            label_key:  $b.getAttribute("data-i18n-aria-label"),
+        };
+    }
+
+    const NAMED = {title: true, title_key: "close", label: true, label_key: "close"};
+
+    test("the toast's", () => {
+        yui_shell_show_error(shell, "the connection dropped");
+        expect(named(toasts()[0].querySelector(".TOAST_CLOSE"))).toEqual(NAMED);
+    });
+
+    test("a modal's, dialog or plain, and a confirmation's", () => {
+        shell.priv.layers.modal = document.createElement("div");
+        yui_shell_show_modal(shell, document.createElement("div"), {dialog: true, title: "x"});
+        yui_shell_show_modal(shell, document.createElement("div"), {});
+        yui_shell_confirm_danger(shell, "delete this column?");
+        const $closes = shell.priv.layers.modal.querySelectorAll(
+            ".MODAL_CLOSE, .CONFIRM_CLOSE");
+        expect($closes.length).toBe(3);
+        for(const $b of $closes) {
+            expect(named($b)).toEqual(NAMED);
+        }
     });
 });

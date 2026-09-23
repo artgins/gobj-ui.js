@@ -748,3 +748,40 @@ describe("the toolbar of a treedb that is not there (fourth review)", () => {
         expect($in(editor, ".SCHEMA_BACK")).toBeTruthy();
     });
 });
+
+describe("every control of the editor's dialogs is named (fourth review)", () => {
+
+    /*  A control a wrapping <label> names is the one shape that needs no
+     *  attribute (CLAUDE.md, "title + aria-label").  */
+    function unnamed($root)
+    {
+        const out = [];
+        for(const $c of $root.querySelectorAll("button, input, select, textarea")) {
+            if($c.getAttribute("type") === "checkbox" && $c.closest("label")) {
+                continue;
+            }
+            const ok = $c.getAttribute("title") !== null &&
+                $c.getAttribute("aria-label") !== null &&
+                !!$c.getAttribute("data-i18n-title") &&
+                !!$c.getAttribute("data-i18n-aria-label");
+            if(!ok) {
+                out.push(`${$c.tagName} ${$c.className || $c.getAttribute("data-name") || ""}`);
+            }
+        }
+        return out;
+    }
+
+    test("the column form, the topic form and the import", () => {
+        const {editor, remote, host} = build("a1", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        expect(unnamed(modals[modals.length - 1].$content)).toEqual([]);
+
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        gobj_send_event(editor, "EV_EDIT_TOPIC", {topic: "users"}, host);
+        expect(unnamed(modals[modals.length - 1].$content)).toEqual([]);
+
+        gobj_send_event(editor, "EV_IMPORT", {}, host);
+        expect(unnamed(modals[modals.length - 1].$content)).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+});

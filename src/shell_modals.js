@@ -153,7 +153,8 @@ function show_notification(shell, kind, message, opts)
         ["div", {class: `TOAST notification yui-notification ${yui_tint(kind)}`,
                  role: kind === "danger" ? "alert" : "status"},
             [
-                ["button", {class: "TOAST_CLOSE delete", "aria-label": t("close"), "data-i18n-aria-label": "close"}],
+                ["button", {class: "TOAST_CLOSE delete", title: t("close"), "data-i18n-title": "close",
+                    "aria-label": t("close"), "data-i18n-aria-label": "close"}],
                 ["p", {...p_attrs, class: "TOAST_MSG"}, message]
             ]
         ]
@@ -284,7 +285,8 @@ export function yui_shell_show_modal(shell, content, opts)
                     .concat(title
                         ? [["span", {class: "MODAL_TITLE_KIND", i18n: title}, title]]
                         : [])],
-            ["button", {class: "MODAL_CLOSE yui-dialog-x", type: "button", "aria-label": t("close"), "data-i18n-aria-label": "close"},
+            ["button", {class: "MODAL_CLOSE yui-dialog-x", type: "button", title: t("close"), "data-i18n-title": "close",
+                    "aria-label": t("close"), "data-i18n-aria-label": "close"},
                 [["i", {class: "yi-xmark"}]]],
         ]];
         let body = ["div", {class: "MODAL_BODY yui-dialog-body"}, inner ? [inner] : []];
@@ -304,7 +306,8 @@ export function yui_shell_show_modal(shell, content, opts)
         if(with_close) {
             modal_children.push(
                 ["button", {class: "MODAL_CLOSE modal-close is-large",
-                            "aria-label": t("close"), "data-i18n-aria-label": "close"}]
+                            title: t("close"), "data-i18n-title": "close",
+                    "aria-label": t("close"), "data-i18n-aria-label": "close"}]
             );
         }
     }
@@ -519,7 +522,8 @@ function build_dialog(shell, message, buttons, opts)
         );
     }
     $card_children.push(
-        ["button", {class: "CONFIRM_CLOSE delete yui-confirm-x", "aria-label": t("close"), "data-i18n-aria-label": "close"}],
+        ["button", {class: "CONFIRM_CLOSE delete yui-confirm-x", title: t("close"), "data-i18n-title": "close",
+                    "aria-label": t("close"), "data-i18n-aria-label": "close"}],
         ["section", {class: "CONFIRM_BODY modal-card-body has-text-centered"},
             $body_children],
         ["footer", {class: "CONFIRM_FOOT modal-card-foot"}, $footer_children]

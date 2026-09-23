@@ -687,9 +687,10 @@ function start_measuring(gobj)
  *  until the host saves it (C_TREEDB's save-schema, which raises the
  *  versions of what changed). Two sources say a topic is one, and
  *  they are kept APART because they are forgotten differently:
- *    - `written`: what THIS session wrote since the model was loaded
- *      (a reload, the host's EV_REFRESH, forgets it -- the store says
- *      what is left);
+ *    - `written`: what THIS session wrote. Only a load the HOST asked
+ *      for forgets it (its EV_REFRESH, which a Save sends); the
+ *      reconnect's reload, the one owed after a write and a late
+ *      write's keep it (start_measuring(), request_model());
  *    - `host_ids`: what the host said last (EV_DRAFTS), replaced WHOLE
  *      by the next EV_DRAFTS. Folded into `written`, a topic the host
  *      named once stayed a draft after the Save that published it.
@@ -1732,6 +1733,10 @@ function name_control($spec, label)
             $spec[1]["aria-label"] = t(label);
             $spec[1]["data-i18n-aria-label"] = label;
         }
+        if(!$spec[1].title) {
+            $spec[1].title = t(label);
+            $spec[1]["data-i18n-title"] = label;
+        }
         return true;
     }
     for(let child of ($spec[2] || [])) {
@@ -1740,6 +1745,19 @@ function name_control($spec, label)
         }
     }
     return false;
+}
+
+/***************************************************************
+ *  The four attributes that NAME a control -- a title and an
+ *  aria-label, each with the key a language change re-translates
+ *  it by. A visible label is not a name (CLAUDE.md).
+ ***************************************************************/
+function name_attrs(key, attrs)
+{
+    return Object.assign({
+        title: t(key), "data-i18n-title": key,
+        "aria-label": t(key), "data-i18n-aria-label": key
+    }, attrs);
 }
 
 function field(logical, name, label, $control, help)
@@ -1937,9 +1955,10 @@ function open_column_form(gobj, topic, col, prefill)
                 text_input("description", record.description, "")),
             ["div", {class: "SCHEMA_COL_FORM_ACTIONS is-flex mt-4",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
-                ["button", {class: "SCHEMA_COL_FORM_CANCEL button", type: "button"},
+                ["button", name_attrs("cancel", {class: "SCHEMA_COL_FORM_CANCEL button", type: "button"}),
                     [["span", {i18n: "cancel"}, t("cancel")]]],
-                ["button", {class: "SCHEMA_COL_FORM_SAVE button is-primary", type: "button"},
+                ["button", name_attrs("save", {class: "SCHEMA_COL_FORM_SAVE button is-primary",
+                                               type: "button"}),
                     [["span", {class: "icon"}, [["i", {class: "yi-floppy-disk"}]]],
                      ["span", {i18n: "save"}, t("save")]]]
             ]]
@@ -2057,10 +2076,10 @@ function open_topic_form(gobj, treedb, topic)
             ]],
             ["div", {class: "SCHEMA_TOPIC_FORM_ACTIONS is-flex mt-4",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
-                ["button", {class: "SCHEMA_TOPIC_FORM_CANCEL button", type: "button"},
+                ["button", name_attrs("cancel", {class: "SCHEMA_TOPIC_FORM_CANCEL button", type: "button"}),
                     [["span", {i18n: "cancel"}, t("cancel")]]],
-                ["button", {class: "SCHEMA_TOPIC_FORM_SAVE button is-primary",
-                            type: "button"},
+                ["button", name_attrs("save", {class: "SCHEMA_TOPIC_FORM_SAVE button is-primary",
+                                               type: "button"}),
                     [["span", {class: "icon"}, [["i", {class: "yi-floppy-disk"}]]],
                      ["span", {i18n: "save"}, t("save")]]]
             ]]
@@ -2236,9 +2255,9 @@ function open_import(gobj, treedb)
             ["p", {class: "SCHEMA_IMPORT_HELP help mb-2",
                    i18n: "paste a schema as json: the plan is shown before anything is written"},
                 t("paste a schema as json: the plan is shown before anything is written")],
-            ["textarea", {class: "SCHEMA_IMPORT_TEXT textarea is-small is-family-monospace",
+            ["textarea", name_attrs("schema", {class: "SCHEMA_IMPORT_TEXT textarea is-small is-family-monospace",
                           rows: "12", spellcheck: "false",
-                          placeholder: '{"id": "...", "schema_version": "1", "topics": []}'}, ""],
+                          placeholder: '{"id": "...", "schema_version": "1", "topics": []}'}), ""],
             ["label", {class: "SCHEMA_IMPORT_PRUNE checkbox mt-2"}, [
                 ["input", {type: "checkbox", class: "SCHEMA_IMPORT_PRUNE_BOX", checked: "checked"}],
                 ["span", {class: "ml-1", i18n: "delete what the pasted schema does not declare"},
@@ -2247,13 +2266,13 @@ function open_import(gobj, treedb)
             ["div", {class: "SCHEMA_IMPORT_PLAN mt-3"}, []],
             ["div", {class: "SCHEMA_IMPORT_ACTIONS is-flex mt-3",
                      style: "gap:.5rem; justify-content:flex-end;"}, [
-                ["button", {class: "SCHEMA_IMPORT_CANCEL button", type: "button"},
+                ["button", name_attrs("cancel", {class: "SCHEMA_IMPORT_CANCEL button", type: "button"}),
                     [["span", {i18n: "cancel"}, t("cancel")]]],
-                ["button", {class: "SCHEMA_IMPORT_PREVIEW button", type: "button"},
+                ["button", name_attrs("preview", {class: "SCHEMA_IMPORT_PREVIEW button", type: "button"}),
                     [["span", {class: "icon"}, [["i", {class: "yi-eye"}]]],
                      ["span", {i18n: "preview"}, t("preview")]]],
-                ["button", {class: "SCHEMA_IMPORT_RUN button is-warning",
-                            type: "button", disabled: "disabled"},
+                ["button", name_attrs("import", {class: "SCHEMA_IMPORT_RUN button is-warning",
+                                                 type: "button", disabled: "disabled"}),
                     [["span", {class: "icon"}, [["i", {class: "yi-upload"}]]],
                      ["span", {i18n: "import"}, t("import")]]]
             ]]
