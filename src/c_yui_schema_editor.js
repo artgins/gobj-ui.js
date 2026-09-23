@@ -2586,6 +2586,11 @@ function transport_dropped(gobj)
         priv.load_round++;
         priv.pending = 0;
         priv.load_error = "";
+        if(priv.records_before) {
+            /*  The records of the model kept, not the half the load got.  */
+            priv.records = priv.records_before;
+            priv.records_before = null;
+        }
         return end_load(gobj);
     }
     return 0;
@@ -2965,6 +2970,23 @@ function ac_mt_command_answer(gobj, event, kw, src)
             return 0;
         }
         if(priv.load_error) {
+            /*  Refused IN session (a deadline of a routing adapter on a
+             *  slow `nodes`): the model shown is what the store held a
+             *  moment ago, and blanking it took the screen and every open
+             *  form with it -- a form's Save then answered "Event NOT
+             *  DEFINED in state ST_IDLE" (fourth independent review). It
+             *  stays, as it does when the load cannot leave, and the
+             *  reload is owed.  */
+            if(priv.model) {
+                log_warning(`${gobj_short_name(gobj)}: the schemas could not be read ` +
+                    `again (${priv.load_error}): the previous ones stay`);
+                priv.records = priv.records_before;
+                priv.records_before = null;
+                priv.reload_on_open = true;
+                yui_shell_show_error(yui_shell_of(gobj),
+                    "cannot read the schemas again: the previous ones stay", {t: t});
+                return end_load(gobj);
+            }
             priv.model = null;
             return end_load(gobj);
         }

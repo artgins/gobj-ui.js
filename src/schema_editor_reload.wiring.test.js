@@ -584,3 +584,58 @@ describe("a dialog built on the model a reload replaced (fourth review)", () => 
         expect(errors()).toEqual([]);
     });
 });
+
+describe("a load that fails IN session (fourth review)", () => {
+
+    test("keeps the model, the screen and the open form, says so, and owes the reload", () => {
+        const {editor, remote, host} = build("b1", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        const form = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const asked = take("nodes");
+        answer(editor, remote, asked[0], -1, null, "deadline");
+        answer(editor, remote, asked[1], 0, RECORDS[asked[1].kw.topic_name]);
+        answer(editor, remote, asked[2], 0, RECORDS[asked[2].kw.topic_name]);
+
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(editor.priv.model.treedbs.length).toBe(1);
+        expect(editor.priv.records.treedbs.length).toBe(1);
+        expect(editor.priv.reload_on_open).toBe(true);
+        expect(shown).toEqual([KEPT]);
+        expect(form.closed).toBe(false);
+        expect($in(editor, ".SCHEMA_BODY .SCHEMA_COLUMNS")).toBeTruthy();
+
+        /*  The form was built on the model still shown: it works.  */
+        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        expect(not_defined()).toEqual([]);
+        expect(take("update-node").length).toBe(1);
+        expect(errors()).toEqual([]);
+    });
+
+    test("with no model before it, it is the empty screen it always was", () => {
+        const remote = gobj_create_service("b2_remote", "C_TEST_REMOTE", {}, yuno);
+        gobj_change_state(remote, "ST_SESSION");
+        const host = gobj_create("b2_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("b2_editor", "C_YUI_SCHEMA_EDITOR", {
+            gobj_remote_yuno: remote, treedb_name: "treedb_system_schema"
+        }, host);
+        gobj_start(editor);
+        for(const c of take("nodes")) {
+            answer(editor, remote, c, -1, null, "deadline");
+        }
+        expect(gobj_current_state(editor)).toBe("ST_IDLE");
+        expect(editor.priv.model).toBe(null);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a drop that cuts a reload keeps the records the model was built on", () => {
+        const {editor, remote, host} = build("b3", "db/users");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const asked = take("nodes");
+        answer(editor, remote, asked[0], 0, []);   /*  half a load  */
+        drop(editor, remote, host);
+        expect(editor.priv.records.treedbs.length).toBe(1);
+        expect(editor.priv.records.cols.length).toBe(1);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+    });
+});
