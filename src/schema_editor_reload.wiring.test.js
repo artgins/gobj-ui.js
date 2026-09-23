@@ -25,6 +25,14 @@
  *      silence, and a toolbar gated on the state instead of on the
  *      treedb being there.
  *
+ *      The sixth independent review (same day) found where the owed
+ *      reload still lingered: a load that LANDED by another road (the
+ *      operator's Refresh, a late write) left it owed, so the next
+ *      edit was refused and read the store again; a move sent by the
+ *      host did not run it; a load that failed forgot the import plan
+ *      of a dialog it left up; and the export's two views switched in
+ *      a DOM handler, out of the machine.
+ *
  *      Driven through the FSM on a document double, with a fake
  *      transport whose state is the one the library reads.
  *
@@ -68,6 +76,7 @@ const {
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
     gobj_start, gobj_send_event, gobj_read_attr,
     gobj_change_state, gobj_current_state,
+    gobj_set_gobj_trace,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_schema_editor} = await import("./c_yui_schema_editor.js");
@@ -575,11 +584,12 @@ describe("a dialog built on the model a reload replaced (fourth review)", () => 
         expect(editor.priv.import_plan.writes.length).toBeGreaterThan(0);
 
         gobj_send_event(editor, "EV_REFRESH", {}, host);
-        expect(editor.priv.import_plan).toBe(null);
         answer_the_load_with(editor, remote, records_with((r) => {
             r.cols.push({id: "db.users.email", value: "email", order: 2, type: "integer",
                          topics: ["topics^db.users^cols"]});
         }));
+        /*  Forgotten when the load LANDS, not when it leaves (sixth review).  */
+        expect(editor.priv.import_plan).toBe(null);
         expect(dialog.closed).toBe(true);
 
         dialog.$content.querySelector(".SCHEMA_IMPORT_RUN").disabled = false;
@@ -1033,5 +1043,181 @@ describe("the answers of the editor's confirmations are i18n keys (fifth review,
         expect(confirms.length).toBe(1);
         expect([confirms[0].opts.confirm_label, confirms[0].opts.cancel_label])
             .toEqual(["delete", "cancel"]);
+    });
+});
+
+describe("the owed reload, settled wherever a load lands (sixth review)", () => {
+
+    function refused_load(name, subpath)
+    {
+        const built = build(name, subpath);
+        gobj_send_event(built.editor, "EV_REFRESH", {}, built.host);
+        const asked = take("nodes");
+        answer(built.editor, built.remote, asked[0], -1, null, "deadline");
+        answer(built.editor, built.remote, asked[1], 0, RECORDS[asked[1].kw.topic_name]);
+        answer(built.editor, built.remote, asked[2], 0, RECORDS[asked[2].kw.topic_name]);
+        expect(built.editor.priv.reload_on_open).toBe(true);
+        expect(shown).toEqual([KEPT]);
+        return built;
+    }
+
+    test("the operator's Refresh that lands pays it: the next edit opens its form", () => {
+        const {editor, remote, host} = refused_load("q1", "db/users");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(editor.priv.reload_on_open).toBe(false);
+
+        const before = modals.length;
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        expect(modals.length).toBe(before + 1);
+        expect(take("nodes")).toEqual([]);
+        expect(shown).toEqual([KEPT]);
+        expect(errors()).toEqual([]);
+        expect(not_defined()).toEqual([]);
+    });
+
+    test("the reload of a late write that lands pays it too", () => {
+        const {editor, remote, host} = build("q2", "db/users");
+        const w = start_a_write(editor, host, "name");
+        drop(editor, remote, host);
+        reconnect(editor, remote, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
+
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const asked = take("nodes");
+        answer(editor, remote, asked[0], -1, null, "deadline");
+        answer(editor, remote, asked[1], 0, RECORDS[asked[1].kw.topic_name]);
+        answer(editor, remote, asked[2], 0, RECORDS[asked[2].kw.topic_name]);
+        expect(editor.priv.reload_on_open).toBe(true);
+
+        /*  The write given up answers DONE: the model is read again.  */
+        answer(editor, remote, w, 0, {id: "db.users.name", value: "name", type: "string",
+            order: 2, topics: [{id: "db.users", topic_name: "topics", hook_name: "cols"}]});
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(editor.priv.reload_on_open).toBe(false);
+
+        const before = modals.length;
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        expect(modals.length).toBe(before + 1);
+        expect(take("nodes")).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a move sent by the HOST (a url, the browser's Back) runs it, as the editor's own moves do", () => {
+        const {editor, remote, host} = refused_load("q3", "db/users");
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        expect(editor.priv.reload_on_open).toBe(false);
+        expect(shown).toEqual([KEPT]);      /*  a move is not refused  */
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(errors()).toEqual([]);
+        expect(not_defined()).toEqual([]);
+    });
+
+    test("a host EV_SHOW with nothing owed asks for nothing", () => {
+        const {editor, remote, host} = build("q4", "db/users");
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(take("nodes")).toEqual([]);
+    });
+});
+
+describe("the import plan outlives a load that fails (sixth review)", () => {
+
+    const IMPORT = JSON.stringify({id: "db", topics: [{id: "users", pkey: "id", cols: [
+        {id: "id", type: "string", flag: ["persistent", "required"]},
+        {id: "email", type: "string"}
+    ]}]});
+
+    test("a load that LEFT and failed replaced nothing: the plan and its Import stay", () => {
+        const {editor, remote, host} = build("m1", "db");
+        gobj_send_event(editor, "EV_IMPORT", {}, host);
+        const dialog = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_PREVIEW_IMPORT", {prune: false, text: IMPORT,
+            model_gen: editor.priv.model_gen}, editor);
+        const plan = editor.priv.import_plan;
+        expect(plan.writes.length).toBeGreaterThan(0);
+
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const asked = take("nodes");
+        answer(editor, remote, asked[0], -1, null, "deadline");
+        answer(editor, remote, asked[1], 0, RECORDS[asked[1].kw.topic_name]);
+        answer(editor, remote, asked[2], 0, RECORDS[asked[2].kw.topic_name]);
+
+        expect(dialog.closed).toBe(false);
+        expect(editor.priv.import_plan).toBe(plan);
+        expect(dialog.$content.querySelector(".SCHEMA_IMPORT_RUN").disabled).toBe(false);
+        expect(dialog.$content.querySelector(".SCHEMA_IMPORT_PLAN").childNodes.length)
+            .toBeGreaterThan(0);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a load that LANDS forgets it, and closes the dialog it was shown in", () => {
+        const {editor, remote, host} = build("m2", "db");
+        gobj_send_event(editor, "EV_IMPORT", {}, host);
+        const dialog = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_PREVIEW_IMPORT", {prune: false, text: IMPORT,
+            model_gen: editor.priv.model_gen}, editor);
+        expect(editor.priv.import_plan).toBeTruthy();
+
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        expect(editor.priv.import_plan).toBeTruthy();   /*  in the air: nothing replaced yet  */
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(editor.priv.import_plan).toBe(null);
+        expect(dialog.closed).toBe(true);
+        expect(shown).toEqual([STALE]);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("the export's two views go through the machine (sixth review)", () => {
+
+    test("a click on a view is an event, and the action switches the text", () => {
+        const {editor, remote, host} = build("y1", "db");
+        gobj_send_event(editor, "EV_EXPORT", {}, host);
+        const $content = modals[modals.length - 1].$content;
+        const $tabs = [...$content.querySelectorAll(".SCHEMA_EXPORT_TAB")];
+        const $text = $content.querySelector(".SCHEMA_EXPORT_TEXT");
+
+        gobj_set_gobj_trace(editor, "machine", true);
+        try {
+            $tabs[1].click();
+        } finally {
+            gobj_set_gobj_trace(editor, "machine", false);
+        }
+        expect(logged.some((l) => /EV_EXPORT_VIEW/.test(l.msg))).toBe(true);
+        expect($text.value.trim().startsWith("{")).toBe(true);
+        expect($tabs.map(($b) => $b.getAttribute("aria-pressed"))).toEqual(["false", "true"]);
+        expect($tabs.map(($b) => $b.classList.contains("selected_state"))).toEqual([false, true]);
+
+        gobj_send_event(editor, "EV_EXPORT_VIEW", {pane: "c"}, editor);
+        expect($text.value.trim().startsWith("{")).toBe(false);
+        expect($tabs.map(($b) => $b.getAttribute("aria-pressed"))).toEqual(["true", "false"]);
+        expect(errors()).toEqual([]);
+        expect(not_defined()).toEqual([]);
+    });
+
+    test("answered while a load is in the air, where the dialog is still up", () => {
+        const {editor, remote, host} = build("y2", "db");
+        gobj_send_event(editor, "EV_EXPORT", {}, host);
+        const $content = modals[modals.length - 1].$content;
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        $content.querySelectorAll(".SCHEMA_EXPORT_TAB")[1].click();
+        expect($content.querySelector(".SCHEMA_EXPORT_TEXT").value.trim().startsWith("{")).toBe(true);
+        expect(not_defined()).toEqual([]);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a view that is not one, or no export open, is an ERROR, not a guess", () => {
+        const {editor, remote, host} = build("y3", "db");
+        gobj_send_event(editor, "EV_EXPORT_VIEW", {pane: "c"}, editor);
+        gobj_send_event(editor, "EV_EXPORT", {}, host);
+        gobj_send_event(editor, "EV_EXPORT_VIEW", {pane: "yaml"}, editor);
+        expect(errors().length).toBe(2);
     });
 });

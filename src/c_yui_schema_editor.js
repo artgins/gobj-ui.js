@@ -249,6 +249,9 @@ let PRIVATE_DATA = {
     import_plan:    null,
     import_pane:    null,
     import_run:     null,
+
+    /*  The export dialog while it is up: its content and its two texts  */
+    export_view:    null,
 };
 
 let __gclass__ = null;
@@ -494,7 +497,12 @@ function built_on_a_replaced_model(gobj, event, kw)
  *  export) -- is refused and said: it would be computed on what
  *  the store may no longer hold, and the load that lands closes a
  *  dialog built on the old model anyway (end_load()). A move is
- *  not refused (reload_after_move()): it goes, and reads there.
+ *  not refused (reload_after_move()): it goes, and reads there --
+ *  the editor's own moves and the host's alike (ac_show(): a url,
+ *  the browser's Back).
+ *
+ *  Paid by ANY load that lands, whoever asked it
+ *  (ac_mt_command_answer()): the store has just been read whole.
  *
  *  Not on a timer, and not at once: a load refused on a deadline
  *  asked again at once is refused the same way, and one asked on a
@@ -558,9 +566,10 @@ function reload_after_move(gobj)
  *  left open is answered in ST_LOADING instead (ac_wait_for_the_load),
  *  and a load that LANDS closes it (end_load()): it was built on the
  *  model the load replaced, and its Save sends every field it shows.
- *  An import plan is forgotten here for the same reason: it is a list
- *  of writes computed against the model going away -- once the load
- *  has LEFT (one that could not be sent replaces nothing).
+ *  An import plan is forgotten for the same reason, and at the same
+ *  moment: when the load LANDS and the model it was computed on goes
+ *  (ac_mt_command_answer()). A load that cannot leave, or that fails,
+ *  replaces nothing, and the plan stays with the dialog showing it.
  *
  *  `keep_written`: a load nobody ASKED for -- the reconnect, a write
  *  that turned out done, the reload a refused load owed -- keeps what
@@ -626,9 +635,6 @@ function request_model(gobj, keep_written)
         end_load(gobj);
         return -1;
     }
-    /*  Only a load that LEFT replaces the model the plan was computed
-     *  on; one that could not be sent keeps it, and the plan with it.  */
-    forget_import_plan(gobj);
     priv.pending = left;
     return 0;
 }
@@ -1739,6 +1745,7 @@ function close_dialog(gobj)
     }
     let dialog = priv.dialog;
     priv.dialog = null;
+    priv.export_view = null;
     try {
         dialog.close();
     } catch(e) {
@@ -1760,6 +1767,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
         t:             t,
         on_close:      () => {
             priv.dialog = null;
+            priv.export_view = null;
         }
     });
     refresh_language($content, t);
@@ -2279,11 +2287,7 @@ function open_export(gobj, treedb)
     for(let $tab of $content.querySelectorAll(".SCHEMA_EXPORT_TAB")) {
         $tab.addEventListener("click", (evt) => {
             evt.stopPropagation();
-            for(let $other of $content.querySelectorAll(".SCHEMA_EXPORT_TAB")) {
-                $other.classList.toggle("selected_state", $other === $tab);
-                $other.setAttribute("aria-pressed", ($other === $tab)? "true": "false");
-            }
-            $text.value = ($tab.dataset.pane === "c") ? c_text : json_text;
+            gobj_send_event(gobj, "EV_EXPORT_VIEW", {pane: $tab.dataset.pane}, gobj);
         });
     }
     $content.querySelector(".SCHEMA_EXPORT_COPY").addEventListener("click", (evt) => {
@@ -2292,6 +2296,35 @@ function open_export(gobj, treedb)
     });
 
     open_dialog(gobj, $content, "export", "SCHEMA_EXPORT_DIALOG", treedb.id);
+    /*  After open_dialog(): it closes the dialog before, and that forgets
+     *  the view of the one it closes.  */
+    priv.export_view = {$content: $content, texts: {c: c_text, json: json_text}};
+}
+
+/***************************************************************
+ *  Show one of the export's two texts, and say which one is shown
+ *  (`selected_state` + aria-pressed). Reached only through
+ *  EV_EXPORT_VIEW: a click is an action like any other.
+ ***************************************************************/
+function show_export_view(gobj, pane)
+{
+    let view = gobj.priv.export_view;
+
+    if(!view) {
+        log_error(`${gobj_short_name(gobj)}: export view '${pane}' asked with no export open`);
+        return -1;
+    }
+    if(!Object.prototype.hasOwnProperty.call(view.texts, pane)) {
+        log_error(`${gobj_short_name(gobj)}: the export has no view '${pane}'`);
+        return -1;
+    }
+    for(let $tab of view.$content.querySelectorAll(".SCHEMA_EXPORT_TAB")) {
+        let shown = ($tab.dataset.pane === pane);
+        $tab.classList.toggle("selected_state", shown);
+        $tab.setAttribute("aria-pressed", shown ? "true" : "false");
+    }
+    view.$content.querySelector(".SCHEMA_EXPORT_TEXT").value = view.texts[pane];
+    return 0;
 }
 
 /***************************************************************
@@ -2384,9 +2417,9 @@ function open_import(gobj, treedb)
 
 /***************************************************************
  *  The plan is a list of writes computed against the model shown:
- *  a load replaces the model, so the plan goes with it and the
- *  dialog, if it stays up (a load that failed keeps the model),
- *  asks for a Preview again.
+ *  a load that LANDS replaces the model, so the plan goes with it
+ *  (and end_load() closes the dialog built on that model). A load
+ *  that fails or never leaves keeps the model, and the plan.
  ***************************************************************/
 function forget_import_plan(gobj)
 {
@@ -3103,6 +3136,17 @@ function ac_mt_command_answer(gobj, event, kw, src)
         priv.order_undo = {};
         priv.records_before = null;
         priv.model_gen++;
+        /*  The store was read whole: whatever reload was owed is paid,
+         *  whoever asked for this one -- the operator's Refresh, a late
+         *  write, the reconnect. Left owed, the next edit was refused
+         *  and read the store AGAIN (sixth independent review).  */
+        priv.reload_on_open = false;
+        /*  The plan was a list of writes computed on the model this load
+         *  replaces. Forgotten HERE, where the model goes, and not when
+         *  the requests leave: a load that fails replaces nothing, and
+         *  forgetting early left its dialog up with no plan and Import
+         *  disabled (sixth independent review).  */
+        forget_import_plan(gobj);
         build_model(gobj);
         /*  Same reason as order_undo above: this is the LOAD, and the
          *  baseline is what a later "the version did not move" is measured
@@ -3297,7 +3341,12 @@ function ac_show(gobj, event, kw, src)
         priv.pending_seg = seg;
         return 0;       /*  applied when the write lands (end_writes) or the load (end_load)  */
     }
-    return apply_seg(gobj, seg);
+    /*  A move like the editor's own (ac_back() and the rest): it goes,
+     *  and pays the reload a refused load owes there. Without it a url
+     *  or the browser's Back left it owed on a screen that asked for
+     *  nothing (sixth independent review).  */
+    apply_seg(gobj, seg);
+    return reload_after_move(gobj);
 }
 
 /***************************************************************
@@ -3903,6 +3952,17 @@ function ac_export(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *  The export dialog's C / JSON switch. Its texts were composed
+ *  when it opened, so it reads nothing of the model and is
+ *  answered in every state: the dialog stays up through a load
+ *  that fails and through a move sent by the host.
+ ***************************************************************/
+function ac_export_view(gobj, event, kw, src)
+{
+    return show_export_view(gobj, kw && kw.pane);
+}
+
 function ac_import(gobj, event, kw, src)
 {
     let treedb = current_treedb(gobj);
@@ -3994,8 +4054,9 @@ function run_import(gobj)
     let priv = gobj.priv;
     let plan = priv.import_plan;
 
-    /*  Not an ERROR: a load that left forgets the plan (request_model()),
-     *  and the confirmation of it may still be up. The operator's Yes
+    /*  Not an ERROR: a load that lands forgets the plan
+     *  (ac_mt_command_answer()), and the confirmation of it may still be
+     *  up. The operator's Yes
      *  is answered, not lost in the log.  */
     if(!plan) {
         log_warning(`${gobj_short_name(gobj)}: the import plan is gone`);
@@ -4099,7 +4160,9 @@ function create_gclass(gclass_name)
         ["EV_TRANSPORT_STATE",      ac_transport_state,     null],
         ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null],
         ["EV_REFRESH",              ac_refresh,             null],
-        ["EV_DRAFTS",               ac_drafts,              null]
+        ["EV_DRAFTS",               ac_drafts,              null],
+        /*  The export dialog outlives the screen it was opened from.  */
+        ["EV_EXPORT_VIEW",          ac_export_view,         null]
     ];
 
     /*  What a treedb is open for: reading it whole, and writing it
@@ -4215,6 +4278,7 @@ function create_gclass(gclass_name)
         ["EV_UNDO_ORDER",           0],
         ["EV_VALIDATE",             0],
         ["EV_EXPORT",               0],
+        ["EV_EXPORT_VIEW",          0],
         ["EV_IMPORT",               0],
         ["EV_PREVIEW_IMPORT",       0],
         ["EV_APPLY_IMPORT",         0],

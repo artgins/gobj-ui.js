@@ -2134,6 +2134,11 @@ And what the toolbar offers, each answering a question the storage could not:
   answer. Escaping crosses two layers and the second is not JSON's:
   `helper_quote2doublequote()` rewrites *every* single quote before the parse,
   so a quote inside a value can only survive as `\u0027`.
+  Its C / JSON switch is two named buttons, and a click on one is an event,
+  `EV_EXPORT_VIEW` (`{pane: "c" | "json"}`), answered in every state: the
+  texts were composed when the dialog opened, and the dialog outlives the
+  screen and the loads under it (7.25.12; before, the switch ran in the DOM
+  handler and the `machine` trace did not show it).
 - **import** — the writes that make the stored schema equal a pasted one, shown
   as a **plan** before it runs. Import is the one operation here that can delete
   a column, so what is confirmed is what runs.
@@ -2201,8 +2206,10 @@ else.
   column form sends every field it shows, so its Save after a reload wrote
   the OLD record over the newer one -- 7.25.8 told the operator to "try
   again", which did exactly that. The import plan is forgotten when a load
-  LEAVES (7.25.10: one that could not be sent keeps it), and a Yes that finds
-  it gone is said (`the import plan is gone: preview it again`). A load that
+  LANDS, with the model it was computed on (7.25.12; from 7.25.9 to 7.25.11
+  it went when the load LEFT, so a load that then failed left the dialog up
+  with no plan and Import disabled). A load that fails or never leaves keeps
+  it, and Import stays enabled. A Yes that finds it gone is said (`the import plan is gone: preview it again`). A load that
   failed or never left replaced nothing, and the dialog stays with what was
   typed. A confirmation is a shell modal and outlives a load: its Yes in
   `ST_EMPTY` or `ST_IDLE` is refused with the same words, not *"NOT
@@ -2225,7 +2232,12 @@ else.
   orphans -- is refused with
   `the schemas shown may be out of date: they are read again, try again when they are in`
   and the model is read again (keeping the draft chips); a move goes where it
-  was going and reads there. Not at once and not on a timer: a load refused
+  was going and reads there -- the editor's own moves, and since 7.25.12 the
+  host's too (`EV_SHOW` from a url or the browser's Back). **Any load that
+  lands pays it** (7.25.12): the operator's Refresh, a late write's reload,
+  the reconnect. Before, only the reload the editor asked for itself cleared
+  it, so after a Refresh that landed the next edit was refused and read the
+  store again. Not at once and not on a timer: a load refused
   on a deadline asked again at once is refused the same way, and one asked
   on a clock is polling. A Refresh asked while a load is in flight keeps the
   records of the model shown (7.25.10), not the half the first load got.
@@ -2235,7 +2247,9 @@ else.
   // the load failed in session: model kept, reload owed
   gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);   // refused, said; ST_LOADING
   // ... the load lands: the same click now opens the form
-  ``` A write answered with no record reloads the model and
+  ```
+
+  A write answered with no record reloads the model and
   says what it did not send after it
   (`the treedb did not describe a write back: the writes after it were not sent`).
 - The toolbar offers Diagram, Check, Export, Import, New topic and New column
