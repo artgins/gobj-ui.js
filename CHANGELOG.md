@@ -5,6 +5,49 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.10
+
+Fixes from the fifth independent review (after 7.25.9).
+
+- **`C_YUI_SCHEMA_EDITOR`: the reload a refused load owes RUNS (LOW-MEDIUM).**
+  A load refused in session (a routing adapter's deadline) kept the model and
+  owed a reload that only a reconnect would ask: while the session stayed up
+  it never ran, and a form opened on the model it kept could write the old
+  record over a newer one. The operator's next action asks it now: an edit
+  (a form, a Save, a delete, a drag, a confirmation, Check, Export, Import,
+  the orphans) is refused with *"the schemas shown may be out of date: they
+  are read again, try again when they are in"* and the model is read again,
+  keeping the draft chips; a move goes and reads there. No timer, no
+  immediate retry. The refused load's toast says what happens next:
+  *"cannot read the schemas again: the ones shown may be out of date, your
+  next change reads them first"* (replaces *"... the previous ones stay"*).
+- **Every control of a dialog is named** (LOW): the back arrow of an adaptive
+  dialog (`MODAL_BACK`) carries a `title` as well as its `aria-label`, and the
+  answers of every confirmation (`CONFIRM_BTN`) carry both, from their own
+  label key (`shell_modals.js`). The export's C / JSON switch was two tabs
+  whose `<a>` had no href -- no keyboard reached them, nothing named them --
+  and is two named buttons (`schema as c source`, `schema as json`), the one
+  shown pressed.
+- **A Refresh during a load keeps the records shown** (LOW): the second
+  `request_model()` kept the half the first load had got as the records to
+  put back, so a drop or a failure of it restored a model with no treedb.
+- **The import plan**: a Yes that finds it gone is a warning and a toast
+  (*"the import plan is gone: preview it again"*) instead of an ERROR the
+  operator never saw; a load that could not be sent no longer forgets it.
+- **`EV_CONFIRMED` is declared in `ST_EMPTY` and `ST_IDLE`**: a confirmation
+  outlives a load, and its Yes after a reload that landed on zero treedbs
+  answered *"Event NOT DEFINED"*. It is refused as a decision on a replaced
+  model.
+- Comments and README: `written` is forgotten by `EV_REFRESH`, which in the
+  agent console is the editor's own Refresh button -- not "the host's, after a
+  Save".
+
+New i18n keys for the consumer's locales: `schema as c source`,
+`schema as json`, `the import plan is gone: preview it again`,
+`the schemas shown may be out of date: they are read again, try again when they are in`,
+`cannot read the schemas again: the ones shown may be out of date, your next change reads them first`
+(`cannot read the schemas again: the previous ones stay` is no longer used).
+
 ## 7.25.9
 
 Fixes from the fourth independent review (after 7.25.8).
@@ -67,7 +110,9 @@ Fixes from the third independent review (after 7.25.7).
   so over the old screen.
 - **A write that turned out DONE is a write for the host**: it publishes
   `EV_RECORD_WRITTEN`, marks its topic, and the reload keeps this session's
-  draft chips (only the host's `EV_REFRESH` forgets them). A write answered
+  draft chips (only `EV_REFRESH` forgets them -- the view's own Refresh
+  button sends it, and a host may after a Save; the agent console's does
+  not). A write answered
   with no record no longer leaves the body busy.
 - **A repeated toast is a caller of its own** (`yui_shell_show_*`): it gets
   its own handle and time, and the one toast on screen goes when every
