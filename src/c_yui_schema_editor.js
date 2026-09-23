@@ -26,9 +26,10 @@
  *      the owner's design of M36 (2026-09-21 review) every write here
  *      raised both versions, so an edit half made was already the
  *      schema of the next start. The topic list marks what this session
- *      wrote and has not saved (the host's EV_REFRESH after a save is
- *      what forgets it) and what the host says is not saved (EV_DRAFTS,
- *      replaced whole each time it is sent).
+ *      wrote and has not saved (EV_REFRESH forgets it: the view's own
+ *      Refresh button sends it, and a host may after a save -- the
+ *      agent console's does not) and what the host says is not saved
+ *      (EV_DRAFTS, replaced whole each time it is sent).
  *
  *      WHAT ELSE IS HERE, and why each is here and not somewhere else:
  *
@@ -561,9 +562,11 @@ function reload_after_move(gobj)
  *  of writes computed against the model going away -- once the load
  *  has LEFT (one that could not be sent replaces nothing).
  *
- *  `keep_written`: a load the host did not ask for -- the reconnect,
- *  a write that turned out done -- keeps what this session wrote.
- *  Only the host's EV_REFRESH (a Save sends it) forgets it.
+ *  `keep_written`: a load nobody ASKED for -- the reconnect, a write
+ *  that turned out done, the reload a refused load owed -- keeps what
+ *  this session wrote. Only EV_REFRESH forgets it: the view's own
+ *  Refresh button, or a host that sends it (after a Save, say; the
+ *  agent console does not).
  *
  *  A load that cannot leave WHOLE did not happen (out of session it
  *  is not even asked): the records the model was built on are put
@@ -711,8 +714,8 @@ function build_model(gobj)
  *  Called ONLY when records arrive from the store: that is what a
  *  measurement of "changed since" can be measured against.
  *
- *  `written` is forgotten only by a load the HOST asked for (its
- *  EV_REFRESH, which a Save sends). Since M36 a write moves no
+ *  `written` is forgotten only by an EV_REFRESH (the view's own
+ *  Refresh button, or a host that sends one). Since M36 a write moves no
  *  version, so `written` is the draft chip of what this session
  *  wrote and no longer half of a version measurement: a reload of
  *  the reconnect, or of a write that turned out done, forgot the
@@ -749,10 +752,12 @@ function start_measuring(gobj)
  *  until the host saves it (C_TREEDB's save-schema, which raises the
  *  versions of what changed). Two sources say a topic is one, and
  *  they are kept APART because they are forgotten differently:
- *    - `written`: what THIS session wrote. Only a load the HOST asked
- *      for forgets it (its EV_REFRESH, which a Save sends); the
- *      reconnect's reload, the one owed after a write and a late
- *      write's keep it (start_measuring(), request_model());
+ *    - `written`: what THIS session wrote. Only EV_REFRESH forgets
+ *      it -- the view's own Refresh button sends it (in the agent
+ *      console that is the only sender), and a host may after a
+ *      Save; the reconnect's reload, the one owed after a write, a
+ *      refused load's and a late write's keep it (start_measuring(),
+ *      request_model());
  *    - `host_ids`: what the host said last (EV_DRAFTS), replaced WHOLE
  *      by the next EV_DRAFTS. Folded into `written`, a topic the host
  *      named once stayed a draft after the Save that published it.

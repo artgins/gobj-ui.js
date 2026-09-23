@@ -2077,9 +2077,13 @@ that makes the schema file win over the literal), once, and puts it in use with
 `apply-schema` and a restart of the owning yuno. Until 7.23.195 every write
 here raised both numbers, so an edit half made was already the schema of the
 next start. The topic list marks what this session wrote and has not saved,
-and the column screen says so in a banner; the host sends `EV_REFRESH` after a
-save, and the reload forgets the drafts. The export (C literal and JSON) warns
-while there are drafts: the literal carries the versions a save publishes.
+and the column screen says so in a banner; an `EV_REFRESH` -- the view's own
+Refresh button, or a host that sends one after a save -- forgets the drafts this
+session wrote, and the host's `EV_DRAFTS` replaces what it said before. The
+export (C literal and JSON) warns while there are drafts: the literal carries
+the versions a save publishes. Its two views are two named buttons (`schema as
+c source`, `schema as json`, i18n keys the consumer's locales carry), the one
+shown pressed.
 
 **A draft survives a reload** (7.25.3). The mark of a write lived in the
 session's memory only, so a reload of the page, a reconnect or a refresh of
@@ -2197,8 +2201,12 @@ else.
   column form sends every field it shows, so its Save after a reload wrote
   the OLD record over the newer one -- 7.25.8 told the operator to "try
   again", which did exactly that. The import plan is forgotten when a load
-  starts. A load that failed or never left replaced nothing, and the dialog
-  stays with what was typed.
+  LEAVES (7.25.10: one that could not be sent keeps it), and a Yes that finds
+  it gone is said (`the import plan is gone: preview it again`). A load that
+  failed or never left replaced nothing, and the dialog stays with what was
+  typed. A confirmation is a shell modal and outlives a load: its Yes in
+  `ST_EMPTY` or `ST_IDLE` is refused with the same words, not *"NOT
+  DEFINED"* (7.25.10).
 
   ```js
   gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);   // form, model_gen N
@@ -2207,10 +2215,27 @@ else.
   ```
 - **A load refused IN session keeps the model it was replacing** (7.25.9): a
   routing adapter's deadline on a slow `nodes` answers -1 while the session
-  is up. The records are put back, the screen and any open dialog stay, the
-  operator is told `cannot read the schemas again: the previous ones stay`,
-  and the reload is owed. Only a first load, with no model before it, ends
-  on the empty screen. A write answered with no record reloads the model and
+  is up. The records are put back, the screen and any open dialog stay, and
+  the operator is told
+  `cannot read the schemas again: the ones shown may be out of date, your next change reads them first`.
+  **The owed reload runs on the operator's next action** (7.25.10; before, it
+  waited for a reconnect that never came while the session stayed up, and a
+  form opened on the old model wrote over the newer record): an edit -- a
+  form, a Save, a delete, a drag, a confirmation, Check, Export, Import, the
+  orphans -- is refused with
+  `the schemas shown may be out of date: they are read again, try again when they are in`
+  and the model is read again (keeping the draft chips); a move goes where it
+  was going and reads there. Not at once and not on a timer: a load refused
+  on a deadline asked again at once is refused the same way, and one asked
+  on a clock is polling. A Refresh asked while a load is in flight keeps the
+  records of the model shown (7.25.10), not the half the first load got.
+  Only a first load, with no model before it, ends on the empty screen.
+
+  ```js
+  // the load failed in session: model kept, reload owed
+  gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);   // refused, said; ST_LOADING
+  // ... the load lands: the same click now opens the form
+  ``` A write answered with no record reloads the model and
   says what it did not send after it
   (`the treedb did not describe a write back: the writes after it were not sent`).
 - The toolbar offers Diagram, Check, Export, Import, New topic and New column
@@ -2220,8 +2245,10 @@ else.
   was DONE makes the editor read the model again (at once, after the write in
   flight, or on the reconnect), and it is a write for the host too: it
   publishes `EV_RECORD_WRITTEN` and marks the topic of the record answered.
-  Only the host's `EV_REFRESH` (a Save sends it) forgets what this session
-  wrote; the reloads the editor asks itself (the reconnect's, a late write's)
+  Only `EV_REFRESH` forgets what this session wrote -- the view's own Refresh
+  button sends it, and a host may after a Save (the agent console does not:
+  there the chips of this session stay until Refresh); the reloads the editor
+  asks itself (the reconnect's, a late write's, the one a refused load owed)
   keep the draft chips. Through a routing adapter that settled the
   write on its OWN deadline the late answer does not reach the view -- the
   adapter echoes a node event instead, which this view does not hear -- and
@@ -3170,7 +3197,12 @@ a modal
 `MODAL` / `MODAL_BACKDROP` / `MODAL_CONTENT` / `MODAL_HEADER` / `MODAL_BACK` /
 `MODAL_TITLE` (+ `MODAL_TITLE_PREFIX` / `MODAL_TITLE_KIND`) / `MODAL_CLOSE` /
 `MODAL_BODY`, a confirm `CONFIRM*` and a toast
-`TOAST*`.
+`TOAST*`. Every button of that chrome -- each ✕, a dialog's back arrow, a
+confirmation's answers (`CONFIRM_BTN`) -- carries a translatable `title` and
+`aria-label` (7.25.10). An answer is named by its own label, so pass i18n
+KEYS as `yes_label` / `confirm_label` / … (`{yes_label: "install"}`): the
+defaults (`"Yes"`, `"Delete"`) are not lower-case and no validated locale
+can hold them.
 
 Those names identify the *kind* of block, not the *instance*: every window in
 the app is a `C_YUI_WINDOW`, every popup is a `MODAL`. To target **one**
