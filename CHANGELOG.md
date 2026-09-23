@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.11
+
+- **`C_YUI_SCHEMA_EDITOR`: its confirmations answer with i18n keys.** The
+  console check of 7.25.10 on the deployed agent console (in Spanish) showed
+  the column-delete confirmation reading *"Delete"* / *"Cancel"* -- text,
+  and since 7.25.10 title and aria-label too. The editor passed no labels,
+  and `shell_modals`' defaults are not lower-case, so no validated locale
+  can hold them. It passes `delete` / `cancel`, keys the consumer's locales
+  already carry.
+
 ## 7.25.10
 
 Fixes from the fifth independent review (after 7.25.9).
