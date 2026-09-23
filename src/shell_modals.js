@@ -113,12 +113,20 @@ function maybe_apply_translator($node, opts)
  *      Returns `{ close() }` so callers can dismiss programmatically.
  *
  *      ONE toast per message on screen: a string message of the same
- *      kind as a toast still showing is not stacked under it -- that
- *      toast is kept, its time starts again, and its handle is
- *      returned. One close of a transport settles every request it
- *      cut, each view shows its failure, and the operator got a
- *      column of identical "the connection dropped". A message built
- *      of nodes is never merged: its text is not a key.
+ *      kind as a toast still showing is not stacked under it. One
+ *      close of a transport settles every request it cut, each view
+ *      shows its failure, and the operator got a column of identical
+ *      "the connection dropped". A message built of nodes is never
+ *      merged: its text is not a key.
+ *
+ *      A repeat is still a CALLER of its own: it gets its own handle
+ *      and its own time, and the toast stays while any caller holds
+ *      it -- until every handle is closed or has timed out. Handed the
+ *      first caller's handle and timer, a repeat asking `timeout: 0`
+ *      was dismissed on the first one's timer, and closing one
+ *      caller's handle closed a toast another was still showing
+ *      (third independent review). The operator's ✕ closes it for
+ *      everybody.
  ***************************************************************/
 function show_notification(shell, kind, message, opts)
 {
@@ -128,12 +136,12 @@ function show_notification(shell, kind, message, opts)
         return { close: () => {} };
     }
 
+    let timeout = (opts && opts.timeout != null) ? opts.timeout : 5000;
     let key = (typeof message === "string") ? `${kind}\u0000${message}` : null;
     if(key !== null) {
         for(let $shown of Array.from($layer.children)) {
             if($shown.__toast_key__ === key && $shown.__toast__) {
-                $shown.__toast__.restart();
-                return $shown.__toast__.handle;
+                return $shown.__toast__.hold(timeout);
             }
         }
     }
@@ -153,44 +161,57 @@ function show_notification(shell, kind, message, opts)
     $layer.appendChild($note);
     maybe_apply_translator($note, opts);
 
-    let timeout_id = null;
+    let holders = new Set();
     let closed = false;
 
-    let close = function() {
+    let close_toast = function() {
         if(closed) {
             return;
         }
         closed = true;
-        if(timeout_id) {
-            clearTimeout(timeout_id);
-            timeout_id = null;
+        for(let holder of holders) {
+            if(holder.timeout_id) {
+                clearTimeout(holder.timeout_id);
+                holder.timeout_id = null;
+            }
         }
+        holders.clear();
         if($note.parentNode) {
             $note.parentNode.removeChild($note);
         }
     };
 
+    /*  One caller of this toast: its handle, and its time.  */
+    let hold = function(ms) {
+        let holder = {timeout_id: null};
+        let release = function() {
+            if(!holders.has(holder)) {
+                return;
+            }
+            if(holder.timeout_id) {
+                clearTimeout(holder.timeout_id);
+                holder.timeout_id = null;
+            }
+            holders.delete(holder);
+            if(holders.size === 0) {
+                close_toast();
+            }
+        };
+        holders.add(holder);
+        if(ms > 0) {
+            holder.timeout_id = setTimeout(release, ms);
+        }
+        return { close: release };
+    };
+
     let $del = $note.querySelector(".delete");
     if($del) {
-        $del.addEventListener("click", close);
+        $del.addEventListener("click", close_toast);
     }
 
-    let timeout = (opts && opts.timeout != null) ? opts.timeout : 5000;
-    let restart = function() {
-        if(timeout_id) {
-            clearTimeout(timeout_id);
-            timeout_id = null;
-        }
-        if(timeout > 0) {
-            timeout_id = setTimeout(close, timeout);
-        }
-    };
-    restart();
-
-    let handle = { close };
     $note.__toast_key__ = key;
-    $note.__toast__ = {handle: handle, restart: restart};
-    return handle;
+    $note.__toast__ = {hold: hold};
+    return hold(timeout);
 }
 
 
