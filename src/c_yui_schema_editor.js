@@ -124,6 +124,7 @@ import {yui_tint} from "./bulma_tint.js";
 import {host_draft_ids} from "./host_drafts.js";
 
 import "./c_yui_schema_editor.css";
+import "./yui_toolbar.css";     /*  `selected_state`, the export's chosen view  */
 
 import {
     build_schema_model,
@@ -2168,13 +2169,21 @@ function open_export(gobj, treedb)
 
     let $content = createElement2(
         ["div", {class: "SCHEMA_EXPORT box"}, [
-            ["div", {class: "SCHEMA_EXPORT_TABS tabs is-toggle mb-2"}, [
-                ["ul", {}, [
-                    ["li", {class: "SCHEMA_EXPORT_TAB is-active", "data-pane": "c"},
-                        [["a", {}, [["span", {}, "C"]]]]],
-                    ["li", {class: "SCHEMA_EXPORT_TAB", "data-pane": "json"},
-                        [["a", {}, [["span", {}, "JSON"]]]]]
-                ]]
+            /*  Two BUTTONS, not Bulma tabs: a tab's <a> with no href is
+             *  reached by no keyboard and named by nothing but its "C".
+             *  The one shown is the selected segment (`selected_state`,
+             *  yui_toolbar.css) and says so with aria-pressed.  */
+            ["div", {class: "SCHEMA_EXPORT_TABS buttons has-addons mb-2"}, [
+                ["button", {class: "SCHEMA_EXPORT_TAB button selected_state", type: "button",
+                            "data-pane": "c", "aria-pressed": "true",
+                            title: t("schema as c source"), "data-i18n-title": "schema as c source",
+                            "aria-label": t("schema as c source"), "data-i18n-aria-label": "schema as c source"},
+                    [["span", {}, "C"]]],
+                ["button", {class: "SCHEMA_EXPORT_TAB button", type: "button",
+                            "data-pane": "json", "aria-pressed": "false",
+                            title: t("schema as json"), "data-i18n-title": "schema as json",
+                            "aria-label": t("schema as json"), "data-i18n-aria-label": "schema as json"},
+                    [["span", {}, "JSON"]]]
             ]],
             ["p", {class: "SCHEMA_EXPORT_HELP help mb-2",
                    i18n: "an edit made here works and lives in no source: this is what to paste back"},
@@ -2205,7 +2214,8 @@ function open_export(gobj, treedb)
         $tab.addEventListener("click", (evt) => {
             evt.stopPropagation();
             for(let $other of $content.querySelectorAll(".SCHEMA_EXPORT_TAB")) {
-                $other.classList.toggle("is-active", $other === $tab);
+                $other.classList.toggle("selected_state", $other === $tab);
+                $other.setAttribute("aria-pressed", ($other === $tab)? "true": "false");
             }
             $text.value = ($tab.dataset.pane === "c") ? c_text : json_text;
         });

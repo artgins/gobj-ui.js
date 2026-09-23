@@ -785,3 +785,33 @@ describe("every control of the editor's dialogs is named (fourth review)", () =>
         expect(errors()).toEqual([]);
     });
 });
+
+describe("the export's two views are controls (fifth review)", () => {
+
+    test("each is a named button that says which one is shown, and switches the text", () => {
+        const {editor, remote, host} = build("x1", "db");
+        gobj_send_event(editor, "EV_EXPORT", {}, host);
+        const $content = modals[modals.length - 1].$content;
+        const $tabs = [...$content.querySelectorAll(".SCHEMA_EXPORT_TAB")];
+        expect($tabs.map(($b) => [
+            $b.tagName.toLowerCase(),
+            $b.getAttribute("type"),
+            $b.getAttribute("title") !== null,
+            $b.getAttribute("data-i18n-title"),
+            $b.getAttribute("aria-label") !== null,
+            $b.getAttribute("data-i18n-aria-label"),
+            $b.getAttribute("aria-pressed"),
+        ])).toEqual([
+            ["button", "button", true, "schema as c source", true, "schema as c source", "true"],
+            ["button", "button", true, "schema as json", true, "schema as json", "false"],
+        ]);
+
+        const $text = $content.querySelector(".SCHEMA_EXPORT_TEXT");
+        $tabs[1].click();
+        expect($text.value.trim().startsWith("{")).toBe(true);
+        expect($tabs.map(($b) => $b.getAttribute("aria-pressed"))).toEqual(["false", "true"]);
+        $tabs[0].click();
+        expect($text.value.trim().startsWith("{")).toBe(false);
+        expect(errors()).toEqual([]);
+    });
+});
