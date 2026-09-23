@@ -387,6 +387,18 @@ describe("a position that waited", () => {
         expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
     });
 
+    test("a Refresh out of session asks nothing and logs no error: the session back loads", () => {
+        const {editor, remote, host} = build("p4", "db/users");
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        expect(errors()).toEqual([]);
+        expect(shown).toEqual(["cannot reach the treedb"]);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        reconnect(editor, remote, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(errors()).toEqual([]);
+    });
+
     test("a drop during a WRITE applies it, as a drop during a load does", () => {
         const {editor, remote, host} = build("p3", "db/users");
         start_a_write(editor, host);

@@ -471,7 +471,8 @@ function refuse_if_readonly(gobj, event)
  *  a write that turned out done -- keeps what this session wrote.
  *  Only the host's EV_REFRESH (a Save sends it) forgets it.
  *
- *  A load that cannot leave WHOLE did not happen: the records the
+ *  A load that cannot leave WHOLE did not happen (out of session it
+ *  is not even asked): the records the
  *  model was built on are put back (emptied, the next write patched
  *  them into a model with no treedb), the round is spent so a
  *  request that did leave is stale, and the session back asks again.
@@ -495,13 +496,17 @@ function request_model(gobj, keep_written)
     set_busy(gobj, false);
     render(gobj);
 
+    /*  Out of session nothing is asked: each request would come back
+     *  refused and logged as an ERROR, for a drop that is not one.  */
     let left = 0;
-    for(let topic_name of [T_TREEDBS, T_TOPICS, T_COLS]) {
-        if(remote_command(gobj, "nodes", {
-            topic_name: topic_name,
-            options:    {list_dict: true}
-        }, {round: priv.load_round}) === 0) {
-            left++;
+    if(transport_in_session(gobj)) {
+        for(let topic_name of [T_TREEDBS, T_TOPICS, T_COLS]) {
+            if(remote_command(gobj, "nodes", {
+                topic_name: topic_name,
+                options:    {list_dict: true}
+            }, {round: priv.load_round}) === 0) {
+                left++;
+            }
         }
     }
     if(left < 3) {
