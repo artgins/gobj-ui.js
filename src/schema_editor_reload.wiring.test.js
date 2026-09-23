@@ -300,7 +300,8 @@ function records_with(change)
  *  under an open dialog.  */
 const WAIT = "the schemas are loading: wait for them";
 const STALE = "the schemas were read again: open the dialog again";
-const KEPT = "cannot read the schemas again: the previous ones stay";
+const KEPT = "cannot read the schemas again: the ones shown may be out of date, your next change reads them first";
+const OWED = "the schemas shown may be out of date: they are read again, try again when they are in";
 const NOT_SENT = "the treedb did not describe a write back: the writes after it were not sent";
 
 describe("the screen of a reload", () => {
@@ -616,10 +617,18 @@ describe("a load that fails IN session (fourth review)", () => {
         expect(form.closed).toBe(false);
         expect($in(editor, ".SCHEMA_BODY .SCHEMA_COLUMNS")).toBeTruthy();
 
-        /*  The form was built on the model still shown: it works.  */
+        /*  The form was built on a model that may be older than the
+         *  store: its Save would write every field of it. It runs the
+         *  reload owed instead (fifth review), and the load that lands
+         *  closes the form.  */
         form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
         expect(not_defined()).toEqual([]);
-        expect(take("update-node").length).toBe(1);
+        expect(take("update-node")).toEqual([]);
+        expect(shown).toEqual([KEPT, OWED]);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(form.closed).toBe(true);
+        expect(shown).toEqual([KEPT, OWED, STALE]);
+        expect(editor.priv.reload_on_open).toBe(false);
         expect(errors()).toEqual([]);
     });
 
@@ -849,5 +858,85 @@ describe("a Refresh asked while a load is in flight (fifth review)", () => {
         expect(editor.priv.records.cols.length).toBe(1);
         expect(editor.priv.model.treedbs.length).toBe(1);
         expect(errors()).toEqual([]);
+    });
+});
+
+describe("the reload a load refused in session owes (fifth review)", () => {
+
+    function refused_load(name, subpath)
+    {
+        const built = build(name, subpath);
+        gobj_send_event(built.editor, "EV_REFRESH", {}, built.host);
+        const asked = take("nodes");
+        answer(built.editor, built.remote, asked[0], -1, null, "deadline");
+        answer(built.editor, built.remote, asked[1], 0, RECORDS[asked[1].kw.topic_name]);
+        answer(built.editor, built.remote, asked[2], 0, RECORDS[asked[2].kw.topic_name]);
+        expect(built.editor.priv.reload_on_open).toBe(true);
+        expect(shown).toEqual([KEPT]);
+        return built;
+    }
+
+    test("RUNS on the next edit, which is refused and said: nothing is opened on the old model", () => {
+        const {editor, remote, host} = refused_load("o1", "db/users");
+        const before = modals.length;
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        expect(modals.length).toBe(before);
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        expect(shown).toEqual([KEPT, OWED]);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(editor.priv.reload_on_open).toBe(false);
+
+        /*  Once: the next edit opens its form.  */
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        expect(modals.length).toBe(before + 1);
+        expect(take("nodes")).toEqual([]);
+        expect(errors()).toEqual([]);
+        expect(not_defined()).toEqual([]);
+    });
+
+    test.each([
+        ["EV_ADD_COLUMN", {}],
+        ["EV_DUPLICATE_COLUMN", {col: "id"}],
+        ["EV_DELETE_COLUMN", {col: "id"}],
+        ["EV_MOVE_COLUMN", {from: 0, to: 1}],
+        ["EV_EXPORT", {}],
+        ["EV_IMPORT", {}],
+        ["EV_VALIDATE", {}],
+        ["EV_CONFIRMED", {what: "column", topic: "users", col: "id"}],
+    ])("%s runs it too, and writes nothing", (event, kw) => {
+        const {editor, remote, host} = refused_load(`o2_${event}`, "db/users");
+        kw = Object.assign({model_gen: editor.priv.model_gen}, kw);
+        const before = modals.length;
+        gobj_send_event(editor, event, kw, host);
+        expect(modals.length).toBe(before);
+        expect(take("update-node")).toEqual([]);
+        expect(take("delete-node")).toEqual([]);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(errors()).toEqual([]);
+        expect(not_defined()).toEqual([]);
+    });
+
+    test("a move goes where it was going, and reads the schemas there", () => {
+        const {editor, remote, host} = refused_load("o3", "db/users");
+        gobj_send_event(editor, "EV_BACK", {}, host);
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        expect(shown).toEqual([KEPT]);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(editor.priv.reload_on_open).toBe(false);
+        expect(errors()).toEqual([]);
+    });
+
+    test("keeps what this session wrote", () => {
+        const {editor, remote, host} = build("o4", "db/users");
+        const w = start_a_write(editor, host, "name");
+        answer(editor, remote, w, 0, {id: "db.users.name", value: "name", order: 2,
+            type: "string", topics: ["topics^db.users^cols"]});
+        expect(editor.priv.written).toEqual({"db.users": true});
+        editor.priv.reload_on_open = true;      /*  as a refused load leaves it  */
+        gobj_send_event(editor, "EV_ADD_COLUMN", {}, host);
+        answer_the_load(editor, remote);
+        expect(editor.priv.written).toEqual({"db.users": true});
     });
 });

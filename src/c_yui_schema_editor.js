@@ -479,6 +479,60 @@ function built_on_a_replaced_model(gobj, event, kw)
     return true;
 }
 
+/***************************************************************
+ *  The reload a load refused IN session left owed (a routing
+ *  adapter's deadline on a slow `nodes`, ac_mt_command_answer()):
+ *  the model shown is kept, and it may be older than the store.
+ *  The session is up, so no reconnect will ask for it again -- it
+ *  was owed for as long as the session lasted, and a form opened
+ *  on that model wrote every field of it over the newer record
+ *  (fifth independent review; A3 of the fourth, by another path).
+ *
+ *  So the operator's NEXT action asks it. An edit -- a form, a
+ *  write, a confirmation, what reads the model whole (check,
+ *  export) -- is refused and said: it would be computed on what
+ *  the store may no longer hold, and the load that lands closes a
+ *  dialog built on the old model anyway (end_load()). A move is
+ *  not refused (reload_after_move()): it goes, and reads there.
+ *
+ *  Not on a timer, and not at once: a load refused on a deadline
+ *  asked again at once is refused the same way, and one asked on a
+ *  clock is polling. Out of session nothing is asked; the reconnect
+ *  does it (ac_transport_state()). The reload keeps this session's
+ *  draft chips: the host did not ask for it.
+ ***************************************************************/
+function owes_reload(gobj)
+{
+    let state = gobj_current_state(gobj);
+
+    return gobj.priv.reload_on_open && transport_in_session(gobj) &&
+        state !== "ST_LOADING" && state !== "ST_SAVING";
+}
+
+function reload_first(gobj, event)
+{
+    if(!owes_reload(gobj)) {
+        return false;
+    }
+    gobj.priv.reload_on_open = false;
+    log_warning(`${gobj_short_name(gobj)}: ${event} refused, the schemas shown ` +
+        `may be out of date: they are read again first`);
+    yui_shell_show_error(yui_shell_of(gobj),
+        "the schemas shown may be out of date: they are read again, try again when they are in",
+        {t: t});
+    request_model(gobj, true);
+    return true;
+}
+
+function reload_after_move(gobj)
+{
+    if(!owes_reload(gobj)) {
+        return 0;
+    }
+    gobj.priv.reload_on_open = false;
+    return request_model(gobj, true);
+}
+
 
 
 
@@ -3019,7 +3073,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  form with it -- a form's Save then answered "Event NOT
              *  DEFINED in state ST_IDLE" (fourth independent review). It
              *  stays, as it does when the load cannot leave, and the
-             *  reload is owed.  */
+             *  reload is owed: the operator's next action asks it
+             *  (reload_first(), fifth independent review).  */
             if(priv.model) {
                 log_warning(`${gobj_short_name(gobj)}: the schemas could not be read ` +
                     `again (${priv.load_error}): the previous ones stay`);
@@ -3027,7 +3082,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 priv.records_before = null;
                 priv.reload_on_open = true;
                 yui_shell_show_error(yui_shell_of(gobj),
-                    "cannot read the schemas again: the previous ones stay", {t: t});
+                    "cannot read the schemas again: the ones shown may be out of date, your next change reads them first",
+                    {t: t});
                 return end_load(gobj);
             }
             priv.model = null;
@@ -3353,32 +3409,34 @@ function ac_drafts(gobj, event, kw, src)
  ***************************************************************/
 function ac_select_treedb(gobj, event, kw, src)
 {
-    return go(gobj, kw.treedb, "", false, true);
+    go(gobj, kw.treedb, "", false, true);
+    return reload_after_move(gobj);
 }
 
 function ac_select_topic(gobj, event, kw, src)
 {
-    return go(gobj, gobj.priv.treedb_id, kw.topic, false, true);
+    go(gobj, gobj.priv.treedb_id, kw.topic, false, true);
+    return reload_after_move(gobj);
 }
 
 function ac_back(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    if(priv.diagram) {
-        return go(gobj, priv.treedb_id, "", false, true);
+    if(priv.diagram || priv.topic_name) {
+        go(gobj, priv.treedb_id, "", false, true);
+    } else {
+        go(gobj, "", "", false, true);
     }
-    if(priv.topic_name) {
-        return go(gobj, priv.treedb_id, "", false, true);
-    }
-    return go(gobj, "", "", false, true);
+    return reload_after_move(gobj);
 }
 
 function ac_toggle_diagram(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    return go(gobj, priv.treedb_id, priv.topic_name, !priv.diagram, true);
+    go(gobj, priv.treedb_id, priv.topic_name, !priv.diagram, true);
+    return reload_after_move(gobj);
 }
 
 /***************************************************************
@@ -3393,11 +3451,15 @@ function ac_node_click(gobj, event, kw, src)
     if(!topic) {
         return 0;
     }
-    return go(gobj, gobj.priv.treedb_id, topic, false, true);
+    go(gobj, gobj.priv.treedb_id, topic, false, true);
+    return reload_after_move(gobj);
 }
 
 function ac_show_orphans(gobj, event, kw, src)
 {
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
     open_orphans(gobj);
     return 0;
 }
@@ -3434,6 +3496,9 @@ function ac_add_column(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
     if(!topic) {
         log_error(`${gobj_short_name(gobj)}: ${event} with no topic open`);
         return -1;
@@ -3449,6 +3514,9 @@ function ac_edit_column(gobj, event, kw, src)
     let col = topic ? find_col(priv.model, priv.treedb_id, topic.name, kw.col) : null;
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(!col) {
@@ -3471,6 +3539,9 @@ function ac_duplicate_column(gobj, event, kw, src)
     let col = topic ? find_col(priv.model, priv.treedb_id, topic.name, kw.col) : null;
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(!col) {
@@ -3496,6 +3567,9 @@ function ac_save_column(gobj, event, kw, src)
     let col = kw.creating ? null : find_col(priv.model, priv.treedb_id, kw.topic, kw.col);
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(built_on_a_replaced_model(gobj, event, kw)) {
@@ -3533,6 +3607,9 @@ function ac_delete_column(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
     if(!col) {
         log_error(`${gobj_short_name(gobj)}: ${event} names no column: ${kw.col}`);
         return -1;
@@ -3553,6 +3630,9 @@ function ac_move_column(gobj, event, kw, src)
     let topic = current_topic(gobj);
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(!topic) {
@@ -3594,6 +3674,9 @@ function ac_undo_order(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
     if(!topic) {
         log_error(`${gobj_short_name(gobj)}: ${event} with no topic open`);
         return -1;
@@ -3621,6 +3704,9 @@ function ac_add_topic(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
     if(!treedb) {
         log_error(`${gobj_short_name(gobj)}: ${event} with no treedb open`);
         return -1;
@@ -3638,6 +3724,9 @@ function ac_edit_topic(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
     if(!topic) {
         log_error(`${gobj_short_name(gobj)}: ${event} names no topic: ${kw.topic}`);
         return -1;
@@ -3653,6 +3742,9 @@ function ac_save_topic(gobj, event, kw, src)
     let topic = kw.creating ? null : find_topic(priv.model, priv.treedb_id, kw.topic);
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(built_on_a_replaced_model(gobj, event, kw)) {
@@ -3694,6 +3786,9 @@ function ac_delete_topic(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
     if(!topic) {
         log_error(`${gobj_short_name(gobj)}: ${event} names no topic: ${kw.topic}`);
         return -1;
@@ -3710,6 +3805,9 @@ function ac_delete_topic(gobj, event, kw, src)
 function ac_delete_orphan(gobj, event, kw, src)
 {
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(built_on_a_replaced_model(gobj, event, kw)) {
@@ -3735,6 +3833,10 @@ function ac_validate(gobj, event, kw, src)
     let priv = gobj.priv;
     let treedb = current_treedb(gobj);
 
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
+
     if(!treedb) {
         log_error(`${gobj_short_name(gobj)}: ${event} with no treedb open`);
         return -1;
@@ -3754,6 +3856,10 @@ function ac_export(gobj, event, kw, src)
 {
     let treedb = current_treedb(gobj);
 
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
+
     if(!treedb) {
         log_error(`${gobj_short_name(gobj)}: ${event} with no treedb open`);
         return -1;
@@ -3767,6 +3873,9 @@ function ac_import(gobj, event, kw, src)
     let treedb = current_treedb(gobj);
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(!treedb) {
@@ -3786,6 +3895,10 @@ function ac_preview_import(gobj, event, kw, src)
     let priv = gobj.priv;
     let treedb = current_treedb(gobj);
     let incoming = null;
+
+    if(reload_first(gobj, event)) {
+        return -1;
+    }
 
     if(built_on_a_replaced_model(gobj, event, kw)) {
         return -1;
@@ -3815,6 +3928,9 @@ function ac_apply_import(gobj, event, kw, src)
     let plan = priv.import_plan;
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(built_on_a_replaced_model(gobj, event, kw)) {
@@ -3868,6 +3984,9 @@ function ac_confirmed(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(refuse_if_readonly(gobj, event)) {
+        return -1;
+    }
+    if(reload_first(gobj, event)) {
         return -1;
     }
     if(built_on_a_replaced_model(gobj, event, kw)) {
