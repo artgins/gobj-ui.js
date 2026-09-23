@@ -5,6 +5,39 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.8
+
+Fixes from the third independent review (after 7.25.7).
+
+- **`C_YUI_SCHEMA_EDITOR`: a reload draws its loading screen (MEDIUM,
+  confirmed live).** `request_model()` entered `ST_LOADING` and drew nothing:
+  the old screen stayed up and clickable, with Refresh still enabled, and a
+  click on a card, on Back or on the drawing -- or the Save of a column form
+  left open -- logged *"Event NOT DEFINED in state ST_LOADING"* and was lost.
+  The body is cleared, the drawing destroyed and the toolbar disabled while
+  the model loads; what a dialog sends meanwhile is refused with *"the
+  schemas are loading: try again when they are in"* (a new i18n key for the
+  consumer's locales) and the dialog keeps what was typed. Back and the
+  treedb buttons are drawn only on a treedb screen.
+- **A load that cannot leave did not happen**: the records the model was
+  built on are put back (they were emptied, and the next write patched them
+  into a model with no treedb), the reconnect owes the reload, and a position
+  that waited is consumed instead of sending a later load back to it. Out of
+  session a load is not asked at all -- each refused request was an ERROR.
+- **A drop during a WRITE applies the position the host sent meanwhile**, as
+  a drop during a load does; `go()` clears a position that waited.
+- **The drawing of a treedb that is gone** clears the body instead of saying
+  so over the old screen.
+- **A write that turned out DONE is a write for the host**: it publishes
+  `EV_RECORD_WRITTEN`, marks its topic, and the reload keeps this session's
+  draft chips (only the host's `EV_REFRESH` forgets them). A write answered
+  with no record no longer leaves the body busy.
+- **A repeated toast is a caller of its own** (`yui_shell_show_*`): it gets
+  its own handle and time, and the one toast on screen goes when every
+  caller has closed or timed out. A repeat asking `timeout: 0` was dismissed
+  on the first one's timer, and closing one handle closed another caller's
+  toast. The ✕ still closes it for everybody.
+
 ## 7.25.7
 
 Fixes from the independent review of the 2nd round (after 7.25.4).

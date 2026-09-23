@@ -472,10 +472,10 @@ function refuse_if_readonly(gobj, event)
  *  Only the host's EV_REFRESH (a Save sends it) forgets it.
  *
  *  A load that cannot leave WHOLE did not happen (out of session it
- *  is not even asked): the records the
- *  model was built on are put back (emptied, the next write patched
- *  them into a model with no treedb), the round is spent so a
- *  request that did leave is stale, and the session back asks again.
+ *  is not even asked): the records the model was built on are put
+ *  back (emptied, the next write patched them into a model with no
+ *  treedb), the round is spent so a request that did leave is
+ *  stale, and the session back asks again.
  ***************************************************************/
 function request_model(gobj, keep_written)
 {

@@ -2177,9 +2177,24 @@ else.
   gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);   // waits
   // ... the three `nodes` answers land -> ST_TOPICS of `db`
   ```
+- **The loading screen is drawn** (7.25.8): the body is cleared, the drawing
+  destroyed and every toolbar button disabled, as in `ST_SAVING`, because
+  `ST_LOADING` declares none of a screen's actions. A **dialog** left open is
+  the one thing still reachable: its Save (`EV_SAVE_COLUMN`, `EV_SAVE_TOPIC`),
+  a confirmation (`EV_CONFIRMED`), an orphan delete or an import is refused
+  with `the schemas are loading: try again when they are in` (an i18n key the
+  consumer's locales carry) and the dialog stays open with what was typed, so
+  the same Save works once the load is in. A write that ends with an error --
+  a drop included -- still applies a position that waited, as a load does.
+  Out of session a load is not asked at all (no *"not in session"* errors);
+  the reconnect loads.
 - A write this view gave up on (a drop, a deadline) whose answer still says it
   was DONE makes the editor read the model again (at once, after the write in
-  flight, or on the reconnect). Through a routing adapter that settled the
+  flight, or on the reconnect), and it is a write for the host too: it
+  publishes `EV_RECORD_WRITTEN` and marks the topic of the record answered.
+  Only the host's `EV_REFRESH` (a Save sends it) forgets what this session
+  wrote; the reloads the editor asks itself (the reconnect's, a late write's)
+  keep the draft chips. Through a routing adapter that settled the
   write on its OWN deadline the late answer does not reach the view -- the
   adapter echoes a node event instead, which this view does not hear -- and
   Refresh is what reads the store.
@@ -2613,6 +2628,22 @@ live region it is both read and announced when it changes.
 > `C_YUI_NAV` items do **not** have this. Its item contract listed `badge` for a
 > long time and nothing ever rendered it; the claim is gone. Implement it there
 > the day a menu entry needs one.
+
+### Toasts — `yui_shell_show_info` / `_warning` / `_error`
+
+`yui_shell_show_error(shell, "key", {t, timeout})` shows a non-blocking toast
+(5000 ms by default, `timeout: 0` = until closed) and returns `{close()}`. A
+string message of the same kind as a toast still on screen is not stacked
+under it -- there is ONE toast per message -- but each call is a caller of its
+own: it gets its own handle and its own time, and the toast goes when every
+caller has closed its handle or timed out (7.25.8). The ✕ closes it for all.
+
+```js
+const a = yui_shell_show_error(shell, "the connection dropped", {t});             // 5 s
+const b = yui_shell_show_error(shell, "the connection dropped", {t, timeout: 0}); // same toast
+a.close();          // still shown: b holds it
+b.close();          // gone
+```
 
 ### Modals — `yui_shell_show_modal` and the `before_close` veto
 
