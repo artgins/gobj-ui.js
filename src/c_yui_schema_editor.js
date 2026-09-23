@@ -232,7 +232,7 @@ let PRIVATE_DATA = {
     connected:      false,
     reload_on_open: false,  /*  a drop cut a load or a write: ask the model again  */
 
-    /*  A position that arrived while a write was in flight  */
+    /*  A position that arrived while a load or a write was in flight  */
     pending_seg:    null,
 
     /*  The import dialog's plan and the two nodes it draws into  */
@@ -2403,6 +2403,15 @@ function transport_in_session(gobj)
  *  one the drop abandoned (or a deadline settled) can still come
  *  back: counted, it ended the next load with the old data or
  *  moved the next write's queue.
+ *
+ *  The state is part of the question, and that is only true
+ *  because NOTHING moves the editor out of ST_LOADING or ST_SAVING
+ *  but the end of what is in flight: a position the host sends
+ *  meanwhile waits in `pending_seg` (ac_show()). 7.25.6 let EV_SHOW
+ *  move a RELOAD out of ST_LOADING, and every answer of it was then
+ *  "for a load that is over": the records it had emptied stayed
+ *  empty, and the next write patched them into a model with no
+ *  treedb at all.
  ***************************************************************/
 function is_current_load(gobj, md)
 {
@@ -2438,12 +2447,35 @@ function transport_dropped(gobj)
         priv.load_round++;
         priv.pending = 0;
         priv.load_error = "";
-        if(priv.model) {
-            return go(gobj, priv.treedb_id, priv.topic_name, priv.diagram, false);
-        }
-        gobj_change_state(gobj, "ST_IDLE");
-        render(gobj);
+        return end_load(gobj);
     }
+    return 0;
+}
+
+/***************************************************************
+ *  A load is over -- landed, failed or cut -- and the editor goes
+ *  where the operator is: the position the host sent while it was
+ *  in flight (ac_show() kept it), or the one it had. Without a
+ *  model there is no screen to go to: the position is kept for the
+ *  next load, and the editor says why it is empty.
+ ***************************************************************/
+function end_load(gobj)
+{
+    let priv = gobj.priv;
+    let seg = priv.pending_seg;
+
+    priv.pending_seg = null;
+    if(priv.model) {
+        if(seg !== null) {
+            return apply_seg(gobj, seg);
+        }
+        return go(gobj, priv.treedb_id, priv.topic_name, priv.diagram, false);
+    }
+    if(seg !== null) {
+        adopt_seg(gobj, seg);
+    }
+    gobj_change_state(gobj, "ST_IDLE");
+    render(gobj);
     return 0;
 }
 
@@ -2493,6 +2525,7 @@ function end_writes(gobj, error)
     publish_check(gobj);
     return error ? -1 : 0;
 }
+
 
 /***************************************************************
  *  The record a column form produces.
@@ -2599,9 +2632,13 @@ function go(gobj, treedb_id, topic_name, diagram, mirror)
     priv.topic_name = topic_name || "";
     priv.diagram = !!diagram;
 
+    /*  No model and no load (a load in flight never gets here: ac_show()
+     *  keeps the position for it): nothing to draw, and ST_LOADING would
+     *  claim a load that nobody asked for -- the reconnect skipped the one
+     *  it owed BECAUSE the state said a load was running.  */
     let state = "ST_TREEDBS";
     if(!priv.model) {
-        state = "ST_LOADING";
+        state = "ST_IDLE";
     } else if(priv.model.treedbs.length === 0) {
         state = "ST_EMPTY";
     } else if(priv.treedb_id && priv.diagram) {
@@ -2648,17 +2685,38 @@ function position_seg(gobj)
  ***************************************************************/
 function apply_seg(gobj, seg)
 {
+    let pos = seg_position(seg);
+
+    return go(gobj, pos.treedb_id, pos.topic_name, pos.diagram, false);
+}
+
+function seg_position(seg)
+{
     let parts = String(seg || "").split("/").filter(x => x.length > 0);
     let treedb_id = parts[0] || "";
     let tail = parts[1] || "";
 
     if(!treedb_id) {
-        return go(gobj, "", "", false, false);
+        return {treedb_id: "", topic_name: "", diagram: false};
     }
     if(tail === DIAGRAM_SEG) {
-        return go(gobj, treedb_id, "", true, false);
+        return {treedb_id: treedb_id, topic_name: "", diagram: true};
     }
-    return go(gobj, treedb_id, tail, false, false);
+    return {treedb_id: treedb_id, topic_name: tail, diagram: false};
+}
+
+/***************************************************************
+ *  Where the operator is, taken WITHOUT a screen: there is no model
+ *  to draw it on yet, and the load that brings one goes there.
+ ***************************************************************/
+function adopt_seg(gobj, seg)
+{
+    let priv = gobj.priv;
+    let pos = seg_position(seg);
+
+    priv.treedb_id = pos.treedb_id;
+    priv.topic_name = pos.topic_name;
+    priv.diagram = pos.diagram;
 }
 
 
@@ -2734,9 +2792,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
         }
         if(priv.load_error) {
             priv.model = null;
-            gobj_change_state(gobj, "ST_IDLE");
-            render(gobj);
-            return 0;
+            return end_load(gobj);
         }
         /*  Records straight from the store: what an undo would name is the
          *  order that was ON SCREEN, and this is the stored one arriving.
@@ -2749,9 +2805,10 @@ function ac_mt_command_answer(gobj, event, kw, src)
          *  against. Taken on the write patches instead, it measured every
          *  version against itself.  */
         start_measuring(gobj);
-        /*  Back to where the operator was: the load may be a refresh, or
-         *  the answer to a deep link that arrived before the model.  */
-        return go(gobj, priv.treedb_id, priv.topic_name, priv.diagram, false);
+        /*  Back to where the operator was, or went while it loaded: the
+         *  load may be a refresh, or the answer to a deep link that
+         *  arrived before the model.  */
+        return end_load(gobj);
     }
 
     if(command === "update-node" || command === "delete-node") {
@@ -2822,10 +2879,14 @@ function ac_show(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let seg = (kw && kw.subpath) || "";
+    let state = gobj_current_state(gobj);
 
-    if(gobj_current_state(gobj) === "ST_SAVING") {
+    /*  Nothing but the end of what is in flight moves the editor out of
+     *  these two (see is_current_load()): the position waits, and the
+     *  last one sent wins.  */
+    if(state === "ST_SAVING" || state === "ST_LOADING") {
         priv.pending_seg = seg;
-        return 0;       /*  applied when the write lands (end_writes)  */
+        return 0;       /*  applied when the write lands (end_writes) or the load (end_load)  */
     }
     return apply_seg(gobj, seg);
 }

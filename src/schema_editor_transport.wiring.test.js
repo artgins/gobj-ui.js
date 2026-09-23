@@ -56,8 +56,13 @@ const RECORDS = {
     ],
 };
 
+/*  A transport out of session refuses in the RETURN, as C_IEVENT_CLI and
+ *  the routing adapters do: a request that did not leave is not waited for.  */
 function remote_command_parser(gobj, command, kw, src)
 {
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        return `${command}: not in session`;
+    }
     commands.push({command, kw, src});
     return null;
 }
@@ -123,7 +128,10 @@ function answer_the_load(editor, remote)
 {
     const asked = take("nodes");
     for(const c of asked) {
-        answer(editor, remote, c, 0, RECORDS[c.kw.topic_name]);
+        /*  A copy, as a transport hands it: the editor patches what it is
+         *  given, and a shared fixture would carry one test's write into
+         *  the next.  */
+        answer(editor, remote, c, 0, JSON.parse(JSON.stringify(RECORDS[c.kw.topic_name])));
     }
     return asked.length;
 }
@@ -181,6 +189,11 @@ function is_busy(editor)
 function errors()
 {
     return logged.filter((l) => l.level === "error").map((l) => l.msg);
+}
+
+function warnings()
+{
+    return logged.filter((l) => l.level === "warning").map((l) => l.msg);
 }
 
 describe("a drop while LOADING", () => {
@@ -278,6 +291,108 @@ describe("a drop while SAVING", () => {
 
         answer(editor, remote, second, 0, {id: "db.users.name", value: "name", order: 2,
             type: "string", topics: ["topics^db.users^cols"]});
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(errors()).toEqual([]);
+    });
+});
+
+/*
+ *  The regression of 7.25.6: a navigation DURING a reload. The load was
+ *  matched by its round AND by the state being ST_LOADING, and EV_SHOW
+ *  moved the editor out of ST_LOADING while its three `nodes` were in
+ *  flight. Every answer was then "for a load that is over", the reload
+ *  never landed, and request_model() had already emptied the records: the
+ *  next write patched an empty store and the model lost every treedb.
+ */
+describe("a navigation DURING a reload", () => {
+
+    test("refresh, move, write: the model keeps every treedb", () => {
+        const {editor, remote, host} = build("n1", true);
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db/users"}, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
+
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(editor.priv.pending).toBe(0);
+
+        const write = start_a_write(editor, host);
+        answer(editor, remote, write, 0, {id: "db.users.name", value: "name", order: 2,
+            type: "string", topics: ["topics^db.users^cols"]});
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(editor.priv.model.treedbs.length).toBe(1);
+        expect(editor.priv.model.treedbs[0].topics[0].cols.length).toBe(2);
+        expect(warnings()).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("the editor stays in ST_LOADING, and lands where the host said last", () => {
+        const {editor, remote, host} = build("n2", true);
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(editor.priv.treedb_id).toBe("db");
+        expect(editor.priv.topic_name).toBe("");
+        expect(warnings()).toEqual([]);
+    });
+
+    test("the reload of a reconnect, with a move in the middle", () => {
+        const {editor, remote, host} = build("n3", true);
+        start_a_write(editor, host);
+        drop(editor, remote, host);             /*  the reconnect will reload  */
+        shown.length = 0;
+        reconnect(editor, remote, host);
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(editor.priv.pending).toBe(0);
+        expect(editor.priv.records.cols.length).toBe(1);
+        expect(editor.priv.model.treedbs.length).toBe(1);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a drop after the move: the move is applied on the model kept, and the reconnect reloads", () => {
+        const {editor, remote, host} = build("n4", true);
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        take("nodes");                          /*  never answered  */
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+
+        drop(editor, remote, host);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+
+        reconnect(editor, remote, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(editor.priv.model.treedbs.length).toBe(1);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("a position with no model and no load", () => {
+
+    test("does not claim a load, and the session loads it", () => {
+        const remote = gobj_create_service("p1_remote", "C_TEST_REMOTE", {}, yuno);
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        const host = gobj_create("p1_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("p1_editor", "C_YUI_SCHEMA_EDITOR", {
+            gobj_remote_yuno: remote,
+            treedb_name: "treedb_system_schema",
+            base_route: "/schemas"
+        }, host);
+        gobj_start(editor);                     /*  its load cannot leave  */
+        logged.length = 0;
+        expect(gobj_current_state(editor)).toBe("ST_IDLE");
+
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db/users"}, host);
+        expect(gobj_current_state(editor)).toBe("ST_IDLE");
+
+        reconnect(editor, remote, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
         expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
         expect(errors()).toEqual([]);
     });
