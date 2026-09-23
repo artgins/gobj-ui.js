@@ -111,6 +111,14 @@ function maybe_apply_translator($node, opts)
  *      Non-blocking, auto-dismiss after `opts.timeout` ms (default
  *      5000).  `opts.timeout = 0` disables auto-dismiss.
  *      Returns `{ close() }` so callers can dismiss programmatically.
+ *
+ *      ONE toast per message on screen: a string message of the same
+ *      kind as a toast still showing is not stacked under it -- that
+ *      toast is kept, its time starts again, and its handle is
+ *      returned. One close of a transport settles every request it
+ *      cut, each view shows its failure, and the operator got a
+ *      column of identical "the connection dropped". A message built
+ *      of nodes is never merged: its text is not a key.
  ***************************************************************/
 function show_notification(shell, kind, message, opts)
 {
@@ -118,6 +126,16 @@ function show_notification(shell, kind, message, opts)
     if(!$layer) {
         log_warning("yui_shell_show_*: shell has no notification layer");
         return { close: () => {} };
+    }
+
+    let key = (typeof message === "string") ? `${kind}\u0000${message}` : null;
+    if(key !== null) {
+        for(let $shown of Array.from($layer.children)) {
+            if($shown.__toast_key__ === key && $shown.__toast__) {
+                $shown.__toast__.restart();
+                return $shown.__toast__.handle;
+            }
+        }
     }
 
     let p_attrs = (typeof message === "string")
@@ -158,11 +176,21 @@ function show_notification(shell, kind, message, opts)
     }
 
     let timeout = (opts && opts.timeout != null) ? opts.timeout : 5000;
-    if(timeout > 0) {
-        timeout_id = setTimeout(close, timeout);
-    }
+    let restart = function() {
+        if(timeout_id) {
+            clearTimeout(timeout_id);
+            timeout_id = null;
+        }
+        if(timeout > 0) {
+            timeout_id = setTimeout(close, timeout);
+        }
+    };
+    restart();
 
-    return { close };
+    let handle = { close };
+    $note.__toast_key__ = key;
+    $note.__toast__ = {handle: handle, restart: restart};
+    return handle;
 }
 
 
