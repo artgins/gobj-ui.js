@@ -160,10 +160,11 @@ function mt_create(gobj)
      *  and serial (form_writes_in_flight): answered refused when the
      *  transport closes under them.  */
     gobj.priv.form_writes = {};
-    /*  The topics a write cut by a DROP left unknown: the table may show
-     *  what was typed and the store what it had. Read again when the
-     *  session is back (reload_owed_topics), never out of session.  */
-    gobj.priv.reload_on_session = {};
+    /*  The session dropped since the tables were read: every open table
+     *  may be stale (a write the drop cut, node events published while
+     *  nobody heard them). Read again when the session is back
+     *  (reread_open_topics), never out of session.  */
+    gobj.priv.reread_on_session = false;
     gobj.priv.conn_shell = null;    /*  the shell whose EV_CONNECTION_STATE we hear  */
 
     build_ui(gobj);
@@ -2111,7 +2112,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                         log_warning(`${gobj_short_name(gobj)}: the write of ` +
                             `'${failed_topic}' was cut by the drop: the topic is ` +
                             `read again when the session is back`);
-                        gobj.priv.reload_on_session[failed_topic] = true;
+                        gobj.priv.reread_on_session = true;
                     }
                 }
                 /*  Answered once: the transport closing may have answered
@@ -2480,13 +2481,12 @@ function ac_transport_state(gobj, event, kw, src)
      *  was typed, and the person saves again when the session is back.
      */
     if(!connected) {
+        /*  What happens in the store while the session is down reaches
+         *  no table: its node events are published to nobody. Every open
+         *  table is read again when the session is back.  */
+        gobj.priv.reread_on_session = true;
         abandon_form_writes(gobj.priv.form_writes).forEach((w) => {
             log_warning(`${gobj_short_name(gobj)}: transport closed, the write ${w.form_write} of '${w.topic_name}' is lost`);
-            /*  Whether it reached the store is unknown: read it again
-             *  when the session is back.  */
-            if(w.topic_name) {
-                gobj.priv.reload_on_session[w.topic_name] = true;
-            }
             answer_form_write(
                 gobj,
                 get_gobj_formtable(gobj, w.topic_name),
@@ -2495,32 +2495,37 @@ function ac_transport_state(gobj, event, kw, src)
             );
         });
     } else {
-        reload_owed_topics(gobj);
+        reread_open_topics(gobj);
     }
     return 0;
 }
 
 /************************************************************
- *  The session is back: read again the topics a drop left
- *  unknown. Only when the TRANSPORT says so too -- the app's
- *  connection (EV_CONNECTION_STATE) can report "up" before the
- *  transport of this view is in session, and a read asked then is
- *  refused. What is owed stays owed until an edge finds the
- *  transport in session; each topic is read once.
+ *  The session is back after a drop: read every open table again,
+ *  as the schema editor reloads its model. A drop cuts the writes
+ *  in flight AND the node events published meanwhile, so any
+ *  table may be stale, not only the one a cut write left.
+ *
+ *  Only when the TRANSPORT says so too -- the app's connection
+ *  (EV_CONNECTION_STATE) can report "up" before the transport of
+ *  this view is in session, and a read asked then is refused. The
+ *  read waits for an edge that finds the transport in session, and
+ *  is done once, though both edges report the same "up".
  ************************************************************/
-function reload_owed_topics(gobj)
+function reread_open_topics(gobj)
 {
     let priv = gobj.priv;
-    if(!is_connected(gobj)) {
+    if(!priv.reread_on_session || !is_connected(gobj)) {
         return;
     }
-    let topics = Object.keys(priv.reload_on_session);
-    priv.reload_on_session = {};
-    topics.forEach((topic_name) => {
-        if(!get_gobj_formtable(gobj, topic_name)) {
-            return;     /*  its table is closed: opening it reads it  */
+    priv.reread_on_session = false;
+    gobj_match_children(gobj, {
+        __gclass_name__: "C_YUI_TREEDB_TOPIC_WITH_FORM"
+    }).forEach((form) => {
+        let topic_name = gobj_read_attr(form, "topic_name");
+        if(topic_name) {
+            gobj_send_event(gobj, "EV_REFRESH_TOPIC", {topic_name: topic_name}, gobj);
         }
-        gobj_send_event(gobj, "EV_REFRESH_TOPIC", {topic_name: topic_name}, gobj);
     });
 }
 

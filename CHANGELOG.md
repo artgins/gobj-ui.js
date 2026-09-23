@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.14
+
+- **`C_YUI_TREEDB_TOPICS`: the reconnect reads every open table again.**
+  7.25.13 read again only the topics that a cut write left. A drop also hides
+  the node events published while it lasts (another writer's create, update or
+  delete), so any open table could stay stale after the reconnect. Now the
+  disconnect edge marks the view, and the first edge that finds the transport
+  in session reads every open table once, as the schema editor reloads its
+  model. The list of topics to read again (7.25.13) is gone: the mark replaces
+  it. An "up" before the transport is in session, or an "up" with no drop
+  before it, reads nothing.
+
 ## 7.25.13
 
 - **`C_YUI_TREEDB_TOPICS`: a write cut by the drop does not read its topic

@@ -30,6 +30,7 @@ const {register_c_yui_treedb_topics} = await import("./c_yui_treedb_topics.js");
 
 const logged = [];
 const answers = [];         /*  what the fake forms were told  */
+const loaded = [];          /*  the rows each fake form was loaded with  */
 const commands = [];        /*  what the fake transport was asked  */
 
 /*
@@ -57,6 +58,12 @@ function ac_form_answer(gobj, event, kw, src)
     return 0;
 }
 
+function ac_form_load(gobj, event, kw, src)
+{
+    loaded.push({topic: gobj.priv_topic, rows: kw});
+    return 0;
+}
+
 let yuno = null;
 let remote = null;
 
@@ -76,10 +83,11 @@ beforeAll(() => {
     );
     gclass_create(
         "C_YUI_TREEDB_TOPIC_WITH_FORM",
-        [["EV_WRITE_DONE", 0], ["EV_WRITE_REFUSED", 0]],
+        [["EV_WRITE_DONE", 0], ["EV_WRITE_REFUSED", 0], ["EV_LOAD_NODES", 0]],
         [["ST_IDLE", [
             ["EV_WRITE_DONE",    ac_form_answer, null],
-            ["EV_WRITE_REFUSED", ac_form_answer, null]
+            ["EV_WRITE_REFUSED", ac_form_answer, null],
+            ["EV_LOAD_NODES",    ac_form_load,   null]
         ]]],
         {},
         0,
@@ -115,6 +123,7 @@ beforeEach(() => {
     logged.length = 0;
     answers.length = 0;
     commands.length = 0;
+    loaded.length = 0;
 });
 
 function build(name)
@@ -136,7 +145,9 @@ function build(name)
 
     const forms = {};
     for(const topic of ["users", "roles"]) {
-        forms[topic] = gobj_create(`${name}_form_${topic}`, "C_YUI_TREEDB_TOPIC_WITH_FORM",
+        /*  Named as the view names its forms: the answer of a `nodes`
+         *  finds its table by that name.  */
+        forms[topic] = gobj_create(`${name}_topics?${topic}`, "C_YUI_TREEDB_TOPIC_WITH_FORM",
             {topic_name: topic}, topics);
         forms[topic].priv_topic = topic;
     }
@@ -277,13 +288,12 @@ describe("a write cut by the drop does not reload out of session", () => {
         gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: false}, topics);
         expect(nodes_asked()).toEqual([]);
 
-        /*  The reconnect reloads what the drop left unknown -- once, though
-         *  two edges report it.  */
+        /*  The reconnect reads every open table -- once, though two edges
+         *  report it.  */
         gobj_change_state(remote, "ST_SESSION");
         gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
-        yui_shell_set_connection_state(shell, false);
         yui_shell_set_connection_state(shell, true);
-        expect(nodes_asked()).toEqual(["users"]);
+        expect(nodes_asked().sort()).toEqual(["roles", "users"]);
         expect(errors()).toEqual([]);
     });
 
@@ -303,7 +313,7 @@ describe("a write cut by the drop does not reload out of session", () => {
 
         gobj_change_state(remote, "ST_SESSION");
         yui_shell_set_connection_state(shell, true);
-        expect(nodes_asked()).toEqual(["users"]);
+        expect(nodes_asked().sort()).toEqual(["roles", "users"]);
         expect(errors()).toEqual([]);
     });
 
@@ -322,20 +332,78 @@ describe("a write cut by the drop does not reload out of session", () => {
 
         gobj_change_state(remote, "ST_SESSION");
         gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
-        expect(nodes_asked()).toEqual(["roles"]);
+        expect(nodes_asked().sort()).toEqual(["roles", "users"]);
         expect(errors().filter((m) => m.includes("not in session"))).toEqual([]);
     });
 
-    test("a write refused IN session reloads its topic at once, and only then", () => {
+    test("a write refused IN session reloads its topic at once", () => {
         const {shell, topics} = build("t9");
         yui_shell_set_connection_state(shell, true);
         gobj_send_event(topics, "EV_UPDATE_FIELD",
             {topic_name: "users", id: "x", field: "name", value: "typed"}, topics);
         gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", failed_write("users", 0), remote);
         expect(nodes_asked()).toEqual(["users"]);
+    });
+});
 
+/*
+ *  The answer of a `nodes`, the way C_IEVENT_CLI delivers it.
+ */
+function nodes_answer_of(topic_name, rows)
+{
+    return {result: 0, comment: "", data: rows, __md_iev__: {
+        command_stack: [{command: "nodes", kw: {topic_name: topic_name}}]
+    }};
+}
+
+describe("what the drop hid is read again on the reconnect", () => {
+
+    test("a node created during the drop is in its table after the reconnect", () => {
+        const {shell, topics} = build("t10");
+        yui_shell_set_connection_state(shell, true);
+
+        /*  No write in flight: the session just drops. While it is down,
+         *  another writer creates a user; its EV_TREEDB_NODE_CREATED is
+         *  published to nobody.  */
+        gobj_change_state(remote, "ST_DISCONNECTED");
         gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: false}, topics);
+        yui_shell_set_connection_state(shell, false);
+        expect(nodes_asked()).toEqual([]);
+
+        gobj_change_state(remote, "ST_SESSION");
         gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
-        expect(nodes_asked()).toEqual(["users"]);
+        yui_shell_set_connection_state(shell, true);
+
+        /*  Every open table is read once, though two edges said "up".  */
+        expect(nodes_asked().sort()).toEqual(["roles", "users"]);
+
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            nodes_answer_of("users", [{id: "x"}, {id: "created_during_the_drop"}]), remote);
+        expect(loaded).toEqual([
+            {topic: "users", rows: [{id: "x"}, {id: "created_during_the_drop"}]}
+        ]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("an 'up' with no drop before it reads nothing", () => {
+        const {shell, topics} = build("t11");
+        yui_shell_set_connection_state(shell, true);
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
+        expect(nodes_asked()).toEqual([]);
+    });
+
+    test("an edge that says 'up' before the transport is in session waits", () => {
+        const {shell, topics} = build("t12");
+        yui_shell_set_connection_state(shell, true);
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        yui_shell_set_connection_state(shell, false);
+
+        yui_shell_set_connection_state(shell, true);
+        expect(nodes_asked()).toEqual([]);
+        expect(errors().filter((m) => m.includes("not in session"))).toEqual([]);
+
+        gobj_change_state(remote, "ST_SESSION");
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
+        expect(nodes_asked().sort()).toEqual(["roles", "users"]);
     });
 });

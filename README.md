@@ -819,24 +819,29 @@ A write is known by its topic AND its serial (`<topic>^<form_write>`): each
 topic's form counts its serials from 1, and keyed by the serial alone two
 forms saving at once shared one entry.
 
-**A write cut by the drop is not a refusal** (7.25.13). A refused write
-reads its topic again at once, so a cell edited in place goes back to what the
-store has. A write that fails while the transport is NOT in session is the
-drop: a routing adapter (gui_agent's `C_AGENT_TREEDB_LINK`) settles what it
-had in flight when its session closes. The topic cannot be read then — the
-transport refuses the read (*"cannot route 'nodes' -- not in session"*) — so
-the view logs a warning and owes the read. Writes in flight on the
-disconnect edge are owed the same way. The first edge that finds the
-transport in session again pays it: each owed topic whose table is open is
-read once. An `EV_CONNECTION_STATE` "up" that comes before the view's own
-transport is in session leaves the read owed. A form is answered once, also
-when the edge answered it before the failure arrived.
+**A drop is followed by a read of every open table** (7.25.13, 7.25.14). A
+refused write reads its topic again at once, so a cell edited in place goes
+back to what the store has. A write that fails while the transport is NOT in
+session is the drop, not a refusal: a routing adapter (gui_agent's
+`C_AGENT_TREEDB_LINK`) settles what it had in flight when its session closes.
+The topic cannot be read then — the transport refuses the read (*"cannot route
+'nodes' -- not in session"*) — so the view logs a warning and waits.
+
+A drop also hides the node events published while it lasts: another writer's
+create, update or delete reaches no table. So the disconnect edge marks the
+view, and the first edge that finds the transport in session again reads
+EVERY open table once — as the schema editor reloads its model on the
+reconnect. An `EV_CONNECTION_STATE` "up" that comes before the view's own
+transport is in session does not read; the read waits for an edge that finds
+the transport in session. An "up" with no drop before it reads nothing. A form
+is answered once, also when the edge answered it before the failure arrived.
 
 ```js
-// Session up: a cell edit goes out as update-node.
-// Session drops; the adapter answers it {result: -1}   -> no read, a warning
+// Session up, tables `users` and `roles` open.
+// Session drops                       -> writes in flight answered refused
+// (another writer creates a user; its EV_TREEDB_NODE_CREATED is lost)
 // EV_TRANSPORT_STATE {connected: true}, transport in session
-//                                                      -> `nodes` of that topic, once
+//                                     -> `nodes` of users and of roles, once each
 ```
 
 **The pkey2 of an update goes back as the record had it** (7.25.5). It names
