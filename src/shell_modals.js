@@ -278,7 +278,8 @@ export function yui_shell_show_modal(shell, content, opts)
     let modal_children;
     if(dialog) {
         let header = ["div", {class: "MODAL_HEADER yui-dialog-header"}, [
-            ["button", {class: "MODAL_BACK yui-dialog-back", type: "button", "aria-label": t("back"), "data-i18n-aria-label": "back"},
+            ["button", {class: "MODAL_BACK yui-dialog-back", type: "button", title: t("back"), "data-i18n-title": "back",
+                    "aria-label": t("back"), "data-i18n-aria-label": "back"},
                 [["i", {class: "yi-arrow-left"}]]],
             ["span", {class: "MODAL_TITLE yui-dialog-title"},
                 (title_prefix ? [["span", {class: "MODAL_TITLE_PREFIX"}, title_prefix]] : [])
@@ -504,8 +505,15 @@ function build_dialog(shell, message, buttons, opts)
         }
         let btn_attrs = {class: cls, type: "button",
                          "data-modal-button-value": b.value};
+        /*  Named by its own label key: its text is its name for the eye,
+         *  and the title and aria-label say the same to the pointer and
+         *  to a reader, re-translated with it.  */
         if(typeof b.label === "string") {
             btn_attrs.i18n = b.label;
+            btn_attrs.title = t(b.label);
+            btn_attrs["data-i18n-title"] = b.label;
+            btn_attrs["aria-label"] = t(b.label);
+            btn_attrs["data-i18n-aria-label"] = b.label;
         }
         return ["button", btn_attrs, b.label];
     });

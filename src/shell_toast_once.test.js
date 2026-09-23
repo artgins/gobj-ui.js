@@ -13,7 +13,9 @@
  *
  *      And every ✕ this module draws is a control with a NAME: a
  *      `title` and an `aria-label`, both translatable (fourth
- *      independent review: TOAST_CLOSE had the label only).
+ *      independent review: TOAST_CLOSE had the label only). So is
+ *      every other button of a dialog (fifth: the dialog's back arrow
+ *      had no title, and the Yes/No of every confirmation had neither).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -163,5 +165,38 @@ describe("every close control is named", () => {
         for(const $b of $closes) {
             expect(named($b)).toEqual(NAMED);
         }
+    });
+});
+
+describe("every other button of a dialog is named (fifth review)", () => {
+
+    function named($b)
+    {
+        return {
+            title:      $b.getAttribute("title") !== null,
+            title_key:  $b.getAttribute("data-i18n-title"),
+            label:      $b.getAttribute("aria-label") !== null,
+            label_key:  $b.getAttribute("data-i18n-aria-label"),
+        };
+    }
+
+    test("the back arrow of an adaptive dialog", () => {
+        shell.priv.layers.modal = document.createElement("div");
+        yui_shell_show_modal(shell, document.createElement("div"), {dialog: true, title: "x"});
+        const $back = shell.priv.layers.modal.querySelector(".MODAL_BACK");
+        expect(named($back)).toEqual(
+            {title: true, title_key: "back", label: true, label_key: "back"});
+    });
+
+    test("the answers of a confirmation, named by their own label key", () => {
+        shell.priv.layers.modal = document.createElement("div");
+        yui_shell_confirm_danger(shell, "delete this column?",
+            {confirm_label: "delete", cancel_label: "cancel"});
+        const $answers = shell.priv.layers.modal.querySelectorAll(".CONFIRM_BTN");
+        expect($answers.length).toBe(2);
+        expect([...$answers].map(named)).toEqual([
+            {title: true, title_key: "delete", label: true, label_key: "delete"},
+            {title: true, title_key: "cancel", label: true, label_key: "cancel"},
+        ]);
     });
 });
