@@ -1511,12 +1511,21 @@ function render_diagram(gobj)
     let $body = $of(gobj, ".SCHEMA_BODY");
     let treedb = current_treedb(gobj);
 
-    if(!$body || !treedb) {
+    if(!$body) {
+        return;
+    }
+    /*  Said on an EMPTY body, as the topics and the columns say it:
+     *  render() clears the body for every screen but this one, and the
+     *  screen before stayed up under the notice, clickable.  */
+    if(!treedb) {
+        destroy_diagram(gobj);
+        clear($body);
         show_notice(gobj, "that treedb is not here any more", priv.treedb_id);
         return;
     }
     if(!gclass_find_by_name("C_YUI_TREEDB_SCHEMA")) {
         log_error(`${gobj_short_name(gobj)}: C_YUI_TREEDB_SCHEMA not registered by the app`);
+        clear($body);
         show_notice(gobj, "the schema drawing is not available");
         return;
     }
@@ -2541,28 +2550,14 @@ function end_writes(gobj, error)
 {
     let priv = gobj.priv;
 
+    let seg = priv.pending_seg;
+
     priv.save_queue = [];
+    priv.pending_seg = null;
     gobj_change_state(gobj, priv.save_return || "ST_TREEDBS");
     priv.save_return = "";
     show_notice(gobj, "");
     set_busy(gobj, false);
-
-    /*  A position that arrived while the write was in flight: applied
-     *  now, so a Back pressed mid-save is not simply lost.  */
-    if(priv.pending_seg !== null) {
-        let seg = priv.pending_seg;
-        priv.pending_seg = null;
-        if(!error) {
-            apply_seg(gobj, seg);
-            if(priv.save_wrote) {
-                gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
-                    treedb_name: gobj_read_str_attr(gobj, "treedb_name")
-                });
-            }
-            priv.save_wrote = false;
-            return reload_if_owed(gobj);
-        }
-    }
 
     if(error) {
         yui_shell_show_error(yui_shell_of(gobj), error, {t: t});
@@ -2573,8 +2568,18 @@ function end_writes(gobj, error)
         });
     }
     priv.save_wrote = false;
-    render(gobj);
-    publish_check(gobj);
+
+    /*  A position that arrived while the write was in flight: applied
+     *  now, so a Back pressed mid-save is not simply lost -- with an
+     *  error too. The host's url already says it, and a load cut by a
+     *  drop applies it (end_load()): the write kept the old screen, and
+     *  the url and the view disagreed.  */
+    if(seg !== null) {
+        apply_seg(gobj, seg);
+    } else {
+        render(gobj);
+        publish_check(gobj);
+    }
     reload_if_owed(gobj);
     return error ? -1 : 0;
 }
@@ -2700,6 +2705,9 @@ function go(gobj, treedb_id, topic_name, diagram, mirror)
 {
     let priv = gobj.priv;
 
+    /*  Moving IS the answer to a position that waited: one left behind
+     *  sent a later load back to it.  */
+    priv.pending_seg = null;
     priv.treedb_id = treedb_id || "";
     priv.topic_name = topic_name || "";
     priv.diagram = !!diagram;

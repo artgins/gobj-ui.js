@@ -386,4 +386,27 @@ describe("a position that waited", () => {
         answer_the_load(editor, remote);
         expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
     });
+
+    test("a drop during a WRITE applies it, as a drop during a load does", () => {
+        const {editor, remote, host} = build("p3", "db/users");
+        start_a_write(editor, host);
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        drop(editor, remote, host);
+        expect(shown).toEqual(["the connection dropped during the write"]);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(editor.priv.topic_name).toBe("");
+        expect(editor.priv.pending_seg).toBe(null);
+    });
+});
+
+describe("the drawing of a treedb that is not there", () => {
+
+    test("does not leave the old screen up", () => {
+        const {editor, remote, host} = build("d1", "db/users");
+        gobj_send_event(editor, "EV_SHOW", {subpath: "gone/diagram"}, host);
+        expect(gobj_current_state(editor)).toBe("ST_DIAGRAM");
+        expect($in(editor, ".SCHEMA_BODY .SCHEMA_COLUMNS")).toBe(null);
+        expect($in(editor, ".SCHEMA_NOTICE_TEXT").getAttribute("data-i18n")).toBe("that treedb is not here any more");
+        expect(errors()).toEqual([]);
+    });
 });
