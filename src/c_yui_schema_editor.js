@@ -135,6 +135,7 @@ import {
     col_enum,
     is_empty_value,
     fkey_ref,
+    parse_fkey_ref,
     next_order,
     moved_orders,
 } from "./schema_model.js";
@@ -3114,8 +3115,14 @@ function late_write_done(gobj, command, topic_name, data)
 /***************************************************************
  *  The topic a record written belongs to, read off the RECORD and
  *  not off the screen: a write answered late may be about a topic
- *  the operator has left. A column names its topic in its fkey
- *  (`topics^<topic id>^cols`); a topic is its own id.
+ *  the operator has left. A column names its topic in its fkey; a
+ *  topic is its own id.
+ *
+ *  The fkey is read with parse_fkey_ref(), because the store answers
+ *  in list_dict -- `[{topic_name, id, hook_name}]` -- and not in the
+ *  `topics^<topic id>^cols` strings this view writes. Split as a
+ *  string, every production answer marked nothing (fourth independent
+ *  review, probe C).
  ***************************************************************/
 function mark_written_record(gobj, topic_name, record)
 {
@@ -3131,13 +3138,8 @@ function mark_written_record(gobj, topic_name, record)
     if(topic_name !== T_COLS) {
         return;
     }
-    let refs = Array.isArray(record.topics) ? record.topics
-        : (typeof record.topics === "string" ? [record.topics] : []);
-    for(let ref of refs) {
-        let parts = String(ref).split("^");
-        if(parts.length >= 2 && parts[1]) {
-            priv.written[parts[1]] = true;
-        }
+    for(let ref of parse_fkey_ref(record.topics)) {
+        priv.written[ref.id] = true;
     }
 }
 

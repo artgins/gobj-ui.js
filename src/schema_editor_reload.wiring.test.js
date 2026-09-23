@@ -471,8 +471,10 @@ describe("a write given up that was DONE", () => {
         expect(editor.priv.written).toEqual({"db.users": true});
         published.length = 0;
 
+        /*  The shape the store answers with: `nodes`/`update-node` ask
+         *  for list_dict, so a fkey comes back as a list of refs.  */
         answer(editor, remote, w2, 0, {id: "db.users.email", value: "email",
-            type: "string", topics: ["topics^db.users^cols"]});
+            type: "string", topics: [{id: "db.users", topic_name: "topics", hook_name: "cols"}]});
         expect(published).toContain("EV_RECORD_WRITTEN");
         expect(gobj_current_state(editor)).toBe("ST_LOADING");
         answer_the_load(editor, remote);
@@ -637,5 +639,22 @@ describe("a load that fails IN session (fourth review)", () => {
         expect(editor.priv.records.treedbs.length).toBe(1);
         expect(editor.priv.records.cols.length).toBe(1);
         expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+    });
+});
+
+describe("a late write, in the shape the store answers (fourth review)", () => {
+
+    test("a list_dict fkey marks the topic the column belongs to", () => {
+        const {editor, remote, host} = build("c1", "db/users");
+        const w = start_a_write(editor, host, "name");
+        drop(editor, remote, host);
+        reconnect(editor, remote, host);
+        answer_the_load(editor, remote);
+        expect(editor.priv.written).toEqual({});
+        answer(editor, remote, w, 0, {id: "db.users.name", value: "name", type: "string",
+            topics: [{id: "db.users", topic_name: "topics", hook_name: "cols"}]});
+        expect(editor.priv.written).toEqual({"db.users": true});
+        answer_the_load(editor, remote);
+        expect(errors()).toEqual([]);
     });
 });
