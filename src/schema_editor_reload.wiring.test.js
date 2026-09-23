@@ -815,3 +815,39 @@ describe("the export's two views are controls (fifth review)", () => {
         expect(errors()).toEqual([]);
     });
 });
+
+describe("a Refresh asked while a load is in flight (fifth review)", () => {
+
+    test("keeps the records of the model shown, not the half the first load got", () => {
+        const {editor, remote, host} = build("h1", "db/users");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const first = take("nodes");
+        answer(editor, remote, first[0], 0, []);    /*  half a load  */
+
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const second = take("nodes");
+        expect(second.length).toBe(3);
+        drop(editor, remote, host);
+        expect(editor.priv.records.treedbs.length).toBe(1);
+        expect(editor.priv.records.topics.length).toBe(1);
+        expect(editor.priv.records.cols.length).toBe(1);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(errors()).toEqual([]);
+    });
+
+    test("...and so does one that fails in session", () => {
+        const {editor, remote, host} = build("h2", "db/users");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const first = take("nodes");
+        answer(editor, remote, first[0], 0, []);
+
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        const second = take("nodes");
+        answer(editor, remote, second[0], -1, null, "deadline");
+        answer(editor, remote, second[1], 0, []);
+        answer(editor, remote, second[2], 0, []);
+        expect(editor.priv.records.cols.length).toBe(1);
+        expect(editor.priv.model.treedbs.length).toBe(1);
+        expect(errors()).toEqual([]);
+    });
+});

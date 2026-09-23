@@ -529,7 +529,12 @@ function request_model(gobj, keep_written)
 
     forget_import_plan(gobj);
 
-    let previous = priv.records;
+    /*  A load asked while one is in flight (the host's EV_REFRESH is
+     *  heard in ST_LOADING) keeps the records the model SHOWN was built
+     *  on: `priv.records` is the half the first load got by then, and
+     *  put back after a failure it was a model with no treedb.  */
+    let previous = (gobj_current_state(gobj) === "ST_LOADING")?
+        priv.records_before : priv.records;
     priv.records_before = previous;
     priv.records = {treedbs: [], topics: [], cols: []};
     priv.load_error = "";
