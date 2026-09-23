@@ -44,14 +44,22 @@ function track_form_write(in_flight, form_write, topic_name)
 }
 
 /************************************************************
- *  A write was answered, one way or the other
+ *  A write was answered, one way or the other. True when it was
+ *  still in flight: false when something else answered it already
+ *  (the transport closing, abandon_form_writes), so its form must
+ *  not be answered twice.
  ************************************************************/
 function settle_form_write(in_flight, form_write, topic_name)
 {
     if(!in_flight || !form_write) {
-        return;
+        return false;
     }
-    delete in_flight[form_write_key(topic_name, form_write)];
+    const key = form_write_key(topic_name, form_write);
+    if(!Object.prototype.hasOwnProperty.call(in_flight, key)) {
+        return false;
+    }
+    delete in_flight[key];
+    return true;
 }
 
 /************************************************************

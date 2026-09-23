@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.13
+
+- **`C_YUI_TREEDB_TOPICS`: a write cut by the drop does not read its topic
+  out of session.** A write that failed while the transport was not in
+  session was read as a refusal: the view asked for its topic at once, and
+  the routing adapter refused the read (*"cannot route 'nodes' -- not in
+  session"*, gui_agent, rare). Now the view logs a warning and owes the read.
+  The writes in flight on the disconnect edge are owed the same way. The
+  first transport edge that finds the transport in session reads each owed
+  topic once. An app's `EV_CONNECTION_STATE` that says "up" before the view's
+  transport is in session leaves the read owed. A form whose write the edge
+  already answered is not answered a second time by the failure.
+  `settle_form_write()` returns whether the write was still in flight.
+
 ## 7.25.12
 
 Fixes from the sixth independent review (after 7.25.11), all in

@@ -22,7 +22,7 @@ const {
     gclass_create,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
     gobj_start, gobj_send_event,
-    gobj_change_state,
+    gobj_change_state, gobj_current_state,
     set_log_callback,
 } = gobj_js;
 const {register_c_yui_shell, yui_shell_set_connection_state} = await import("./c_yui_shell.js");
@@ -34,11 +34,16 @@ const commands = [];        /*  what the fake transport was asked  */
 
 /*
  *  The transport: answers nothing, like a C_IEVENT_CLI whose socket is
- *  about to drop. Its state is what `is_connected()` reads.
+ *  about to drop. Its state is what `is_connected()` reads. Out of
+ *  session it refuses what it is asked, as gui_agent's routing adapter
+ *  (C_AGENT_TREEDB_LINK) does.
  */
 function remote_command_parser(gobj, command, kw, src)
 {
     commands.push({command, kw});
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        return `cannot route '${command}' -- not in session`;
+    }
     return null;
 }
 
@@ -78,7 +83,11 @@ beforeAll(() => {
         ]]],
         {},
         0,
-        [SDATA(data_type_t.DTP_STRING, "topic_name", 0, "", "topic"), SDATA_END()],
+        [
+            SDATA(data_type_t.DTP_STRING, "topic_name", 0, "", "topic"),
+            SDATA(data_type_t.DTP_BOOLEAN, "with_remote_paging", 0, false, "pulls its pages"),
+            SDATA_END()
+        ],
         {}, 0, 0, 0, 0
     );
     /*  The host of the view: it hears what a CHILD view publishes.  */
@@ -224,5 +233,109 @@ describe("a Save in flight when the backend drops (M8)", () => {
             {topic: "users", event: "EV_WRITE_DONE", form_write: 1},
             {topic: "roles", event: "EV_WRITE_REFUSED", form_write: 1},
         ]);
+    });
+});
+
+/*
+ *  The answer the routing adapter gives a write it had in flight when
+ *  its session closed: a failure, settled by the adapter itself.
+ */
+function failed_write(topic_name, form_write)
+{
+    const md = {topic_name: topic_name, treedb_name: "treedb_test", record: {id: "x"}};
+    if(form_write) {
+        md.form_write = form_write;
+    }
+    return {result: -1, comment: "the session closed", data: null, __md_iev__: {
+        command_stack: [{command: "update-node", kw: md}]
+    }};
+}
+
+function nodes_asked()
+{
+    return commands.filter((c) => c.command === "nodes").map((c) => c.kw.topic_name);
+}
+
+describe("a write cut by the drop does not reload out of session", () => {
+
+    test("the failure lands before the edge: no reload now, one on the reconnect", () => {
+        const {shell, topics} = build("t6");
+        yui_shell_set_connection_state(shell, true);
+
+        /*  A cell edited in place: it looks saved until the topic is read again.  */
+        gobj_send_event(topics, "EV_UPDATE_FIELD",
+            {topic_name: "users", id: "x", field: "name", value: "typed"}, topics);
+        expect(commands.filter((c) => c.command === "update-node").length).toBe(1);
+
+        /*  The adapter leaves ST_SESSION and settles what it had in flight.  */
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", failed_write("users", 0), remote);
+
+        expect(nodes_asked()).toEqual([]);
+        expect(errors().filter((m) => m.includes("not in session"))).toEqual([]);
+
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: false}, topics);
+        expect(nodes_asked()).toEqual([]);
+
+        /*  The reconnect reloads what the drop left unknown -- once, though
+         *  two edges report it.  */
+        gobj_change_state(remote, "ST_SESSION");
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
+        yui_shell_set_connection_state(shell, false);
+        yui_shell_set_connection_state(shell, true);
+        expect(nodes_asked()).toEqual(["users"]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("the edge lands first: the form is answered once, the reload waits", () => {
+        const {shell, topics, forms} = build("t7");
+        yui_shell_set_connection_state(shell, true);
+        save(topics, forms.users, 1);
+
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        yui_shell_set_connection_state(shell, false);
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", failed_write("users", 1), remote);
+
+        expect(answers).toEqual([
+            {topic: "users", event: "EV_WRITE_REFUSED", form_write: 1},
+        ]);
+        expect(nodes_asked()).toEqual([]);
+
+        gobj_change_state(remote, "ST_SESSION");
+        yui_shell_set_connection_state(shell, true);
+        expect(nodes_asked()).toEqual(["users"]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("an edge that says 'up' before the transport is: the reload still waits", () => {
+        const {shell, topics} = build("t8");
+        yui_shell_set_connection_state(shell, true);
+        gobj_send_event(topics, "EV_UPDATE_FIELD",
+            {topic_name: "roles", id: "x", field: "name", value: "typed"}, topics);
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", failed_write("roles", 0), remote);
+        yui_shell_set_connection_state(shell, false);
+
+        /*  The app's connection is back, the view's transport is not yet.  */
+        yui_shell_set_connection_state(shell, true);
+        expect(nodes_asked()).toEqual([]);
+
+        gobj_change_state(remote, "ST_SESSION");
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
+        expect(nodes_asked()).toEqual(["roles"]);
+        expect(errors().filter((m) => m.includes("not in session"))).toEqual([]);
+    });
+
+    test("a write refused IN session reloads its topic at once, and only then", () => {
+        const {shell, topics} = build("t9");
+        yui_shell_set_connection_state(shell, true);
+        gobj_send_event(topics, "EV_UPDATE_FIELD",
+            {topic_name: "users", id: "x", field: "name", value: "typed"}, topics);
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", failed_write("users", 0), remote);
+        expect(nodes_asked()).toEqual(["users"]);
+
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: false}, topics);
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
+        expect(nodes_asked()).toEqual(["users"]);
     });
 });

@@ -819,6 +819,26 @@ A write is known by its topic AND its serial (`<topic>^<form_write>`): each
 topic's form counts its serials from 1, and keyed by the serial alone two
 forms saving at once shared one entry.
 
+**A write cut by the drop is not a refusal** (7.25.13). A refused write
+reads its topic again at once, so a cell edited in place goes back to what the
+store has. A write that fails while the transport is NOT in session is the
+drop: a routing adapter (gui_agent's `C_AGENT_TREEDB_LINK`) settles what it
+had in flight when its session closes. The topic cannot be read then — the
+transport refuses the read (*"cannot route 'nodes' -- not in session"*) — so
+the view logs a warning and owes the read. Writes in flight on the
+disconnect edge are owed the same way. The first edge that finds the
+transport in session again pays it: each owed topic whose table is open is
+read once. An `EV_CONNECTION_STATE` "up" that comes before the view's own
+transport is in session leaves the read owed. A form is answered once, also
+when the edge answered it before the failure arrived.
+
+```js
+// Session up: a cell edit goes out as update-node.
+// Session drops; the adapter answers it {result: -1}   -> no read, a warning
+// EV_TRANSPORT_STATE {connected: true}, transport in session
+//                                                      -> `nodes` of that topic, once
+```
+
 **The pkey2 of an update goes back as the record had it** (7.25.5). It names
 the instance the write is for, and a `time` pkey2 that crossed the form's
 `datetime-local` came back without its seconds — another instance, or none.

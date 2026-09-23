@@ -160,6 +160,10 @@ function mt_create(gobj)
      *  and serial (form_writes_in_flight): answered refused when the
      *  transport closes under them.  */
     gobj.priv.form_writes = {};
+    /*  The topics a write cut by a DROP left unknown: the table may show
+     *  what was typed and the store what it had. Read again when the
+     *  session is back (reload_owed_topics), never out of session.  */
+    gobj.priv.reload_on_session = {};
     gobj.priv.conn_shell = null;    /*  the shell whose EV_CONNECTION_STATE we hear  */
 
     build_ui(gobj);
@@ -2092,18 +2096,34 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  topic back to what the treedb actually has. */
             if(command === "update-node" || command === "create-node") {
                 let failed_topic = kw_get_str(gobj, kw_command, "topic_name", "", 0);
+                let form_write = kw_get_int(gobj, kw_command, "form_write", 0, 0);
                 if(failed_topic) {
-                    gobj_send_event(gobj, "EV_REFRESH_TOPIC",
-                        {topic_name: failed_topic}, gobj);
+                    if(is_connected(gobj)) {
+                        gobj_send_event(gobj, "EV_REFRESH_TOPIC",
+                            {topic_name: failed_topic}, gobj);
+                    } else {
+                        /*  A failure out of session is the DROP, not a
+                         *  refusal: a routing adapter settles what it had
+                         *  in flight when its session closes. The topic
+                         *  cannot be read now -- asked, the transport
+                         *  refuses it ("cannot route 'nodes' -- not in
+                         *  session"). The reconnect reads it.  */
+                        log_warning(`${gobj_short_name(gobj)}: the write of ` +
+                            `'${failed_topic}' was cut by the drop: the topic is ` +
+                            `read again when the session is back`);
+                        gobj.priv.reload_on_session[failed_topic] = true;
+                    }
                 }
-                settle_form_write(gobj.priv.form_writes,
-                    kw_get_int(gobj, kw_command, "form_write", 0, 0), failed_topic);
-                answer_form_write(
-                    gobj,
-                    get_gobj_formtable(gobj, failed_topic),
-                    kw_get_int(gobj, kw_command, "form_write", 0, 0),
-                    false
-                );
+                /*  Answered once: the transport closing may have answered
+                 *  this form already (ac_transport_state).  */
+                if(settle_form_write(gobj.priv.form_writes, form_write, failed_topic)) {
+                    answer_form_write(
+                        gobj,
+                        get_gobj_formtable(gobj, failed_topic),
+                        form_write,
+                        false
+                    );
+                }
             }
         }
         return 0;
@@ -2462,6 +2482,11 @@ function ac_transport_state(gobj, event, kw, src)
     if(!connected) {
         abandon_form_writes(gobj.priv.form_writes).forEach((w) => {
             log_warning(`${gobj_short_name(gobj)}: transport closed, the write ${w.form_write} of '${w.topic_name}' is lost`);
+            /*  Whether it reached the store is unknown: read it again
+             *  when the session is back.  */
+            if(w.topic_name) {
+                gobj.priv.reload_on_session[w.topic_name] = true;
+            }
             answer_form_write(
                 gobj,
                 get_gobj_formtable(gobj, w.topic_name),
@@ -2469,8 +2494,34 @@ function ac_transport_state(gobj, event, kw, src)
                 false
             );
         });
+    } else {
+        reload_owed_topics(gobj);
     }
     return 0;
+}
+
+/************************************************************
+ *  The session is back: read again the topics a drop left
+ *  unknown. Only when the TRANSPORT says so too -- the app's
+ *  connection (EV_CONNECTION_STATE) can report "up" before the
+ *  transport of this view is in session, and a read asked then is
+ *  refused. What is owed stays owed until an edge finds the
+ *  transport in session; each topic is read once.
+ ************************************************************/
+function reload_owed_topics(gobj)
+{
+    let priv = gobj.priv;
+    if(!is_connected(gobj)) {
+        return;
+    }
+    let topics = Object.keys(priv.reload_on_session);
+    priv.reload_on_session = {};
+    topics.forEach((topic_name) => {
+        if(!get_gobj_formtable(gobj, topic_name)) {
+            return;     /*  its table is closed: opening it reads it  */
+        }
+        gobj_send_event(gobj, "EV_REFRESH_TOPIC", {topic_name: topic_name}, gobj);
+    });
 }
 
 /************************************************************
