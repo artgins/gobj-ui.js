@@ -3036,12 +3036,26 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 patch_record(gobj, topic_name, record);
             } else {
                 /*  The treedb wrote it and did not describe it back: ask
-                 *  again rather than draw a model that has drifted.  */
-                log_warning(`${gobj_short_name(gobj)}: '${command}' answered no record`);
+                 *  again rather than draw a model that has drifted. What
+                 *  was queued after it is not sent -- it was computed on
+                 *  the model that drifted -- and that is SAID: dropped in
+                 *  silence, a drag of five columns stopped at the first.
+                 *  The reload is also the one a late write may have owed
+                 *  (reload_after_write): left set, the next write loaded
+                 *  the whole model once more (fourth independent review).  */
+                let not_sent = priv.save_queue.length - 1;
+                log_warning(`${gobj_short_name(gobj)}: '${command}' answered no record` +
+                    (not_sent > 0 ? `: ${not_sent} write(s) after it were not sent` : ""));
+                if(not_sent > 0) {
+                    yui_shell_show_error(yui_shell_of(gobj),
+                        "the treedb did not describe a write back: the writes after it were not sent",
+                        {t: t});
+                }
                 if(topic_name === T_TOPICS || topic_name === T_COLS) {
                     let write = priv.save_queue[0];
                     mark_written(gobj, topic_name, write ? write.record : null);
                 }
+                priv.reload_after_write = false;
                 priv.save_queue = [];
                 priv.save_return = "";
                 priv.save_wrote = false;

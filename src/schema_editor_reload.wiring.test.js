@@ -658,3 +658,47 @@ describe("a late write, in the shape the store answers (fourth review)", () => {
         expect(errors()).toEqual([]);
     });
 });
+
+describe("a write answered with no record (fourth review)", () => {
+
+    test("the reload it asks is the one owed: the next write does not load again", () => {
+        const {editor, remote, host} = build("n1", "db/users");
+        const w1 = start_a_write(editor, host, "a1");
+        drop(editor, remote, host);
+        reconnect(editor, remote, host);
+        answer_the_load(editor, remote);
+        const w2 = start_a_write(editor, host, "a2");
+        answer(editor, remote, w1, 0, {id: "db.users.a1", value: "a1",
+            topics: [{id: "db.users", topic_name: "topics", hook_name: "cols"}]});
+        expect(editor.priv.reload_after_write).toBe(true);
+        answer(editor, remote, w2, 0, null);
+        expect(editor.priv.reload_after_write).toBe(false);
+        answer_the_load(editor, remote);
+
+        const w3 = start_a_write(editor, host, "a3");
+        answer(editor, remote, w3, 0, {id: "db.users.a3", value: "a3",
+            topics: [{id: "db.users", topic_name: "topics", hook_name: "cols"}]});
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(take("nodes")).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("the writes queued after it are said, not dropped in silence", () => {
+        const {editor, remote, host} = build("n2", "db/users");
+        for(const name of ["a", "b"]) {
+            const w = start_a_write(editor, host, name);
+            answer(editor, remote, w, 0, {id: `db.users.${name}`, value: name, type: "string",
+                order: name === "a" ? 2 : 3, topics: ["topics^db.users^cols"]});
+        }
+        gobj_send_event(editor, "EV_MOVE_COLUMN", {from: 0, to: 3}, host);
+        expect(gobj_current_state(editor)).toBe("ST_SAVING");
+        expect(editor.priv.save_queue.length).toBeGreaterThan(1);
+        const [first] = take("update-node");
+        answer(editor, remote, first, 0, null);
+        expect(take("update-node")).toEqual([]);
+        expect(shown).toEqual([NOT_SENT]);
+        expect(logged.some((l) => l.level === "warning" && /not sent/.test(l.msg))).toBe(true);
+        answer_the_load(editor, remote);
+        expect(errors()).toEqual([]);
+    });
+});
