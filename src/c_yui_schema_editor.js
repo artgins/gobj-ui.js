@@ -233,6 +233,7 @@ let PRIVATE_DATA = {
     reload_on_open: false,  /*  a drop cut a load or a write: ask the model again  */
     dropped_round:  0,      /*  the load a drop ended: its failures are the drop, said once  */
     dropped_write:  0,      /*  the same for the write a drop ended  */
+    reload_after_write: false,  /*  a write given up turned out DONE while another was in flight  */
 
     /*  A position that arrived while a load or a write was in flight  */
     pending_seg:    null,
@@ -2519,7 +2520,7 @@ function end_writes(gobj, error)
                 });
             }
             priv.save_wrote = false;
-            return 0;
+            return reload_if_owed(gobj);
         }
     }
 
@@ -2534,9 +2535,29 @@ function end_writes(gobj, error)
     priv.save_wrote = false;
     render(gobj);
     publish_check(gobj);
+    reload_if_owed(gobj);
     return error ? -1 : 0;
 }
 
+/***************************************************************
+ *  A write given up earlier turned out DONE while another one was
+ *  in flight (see ac_mt_command_answer()): the model is read again
+ *  now that nothing is.
+ ***************************************************************/
+function reload_if_owed(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv.reload_after_write) {
+        return 0;
+    }
+    priv.reload_after_write = false;
+    if(!transport_in_session(gobj)) {
+        priv.reload_on_open = true;
+        return 0;
+    }
+    return request_model(gobj);
+}
 
 /***************************************************************
  *  The record a column form produces.
@@ -2831,9 +2852,12 @@ function ac_mt_command_answer(gobj, event, kw, src)
             if(result < 0 && kw_get_int(gobj, md, "write", 0, 0) === priv.dropped_write) {
                 return 0;   /*  the drop that ended this write failed it: said once, in transport_dropped()  */
             }
-            log_warning(`${gobj_short_name(gobj)}: '${command}' of '${topic_name}' answered ` +
-                `for a write that is over (result ${result}): ignored`);
-            return 0;
+            if(result < 0) {
+                log_warning(`${gobj_short_name(gobj)}: '${command}' of '${topic_name}' answered ` +
+                    `for a write that is over (result ${result}): ignored`);
+                return 0;
+            }
+            return late_write_done(gobj, command, topic_name);
         }
         if(result < 0) {
             return end_writes(gobj, comment || t("the treedb refused the write"));
@@ -2868,6 +2892,41 @@ function ac_mt_command_answer(gobj, event, kw, src)
 
     log_error(`${gobj_short_name(gobj)}: unknown command answered: ${command}`);
     return 0;
+}
+
+/***************************************************************
+ *  A write this view gave up on (a drop, a deadline) answers that
+ *  it was DONE: the store holds a change the model does not show.
+ *  The model is read again -- now, or when what is in flight ends,
+ *  or on the reconnect. A load in flight needs nothing: it was
+ *  asked after the write, on the same transport, and reads it.
+ *
+ *  Only when the answer reaches this view. A routing adapter that
+ *  settled the write on its own deadline (gui_agent's
+ *  C_AGENT_TREEDB_LINK) does not deliver its late answer again --
+ *  the view was answered once, as failed -- and echoes the node
+ *  event instead, which this view does not hear: there, Refresh is
+ *  what reads the store.
+ ***************************************************************/
+function late_write_done(gobj, command, topic_name)
+{
+    let priv = gobj.priv;
+    let state = gobj_current_state(gobj);
+
+    log_warning(`${gobj_short_name(gobj)}: '${command}' of '${topic_name}' was given up, ` +
+        `and it was DONE: the model is read again`);
+    if(state === "ST_LOADING") {
+        return 0;
+    }
+    if(state === "ST_SAVING") {
+        priv.reload_after_write = true;
+        return 0;
+    }
+    if(!transport_in_session(gobj)) {
+        priv.reload_on_open = true;
+        return 0;
+    }
+    return request_model(gobj);
 }
 
 /***************************************************************

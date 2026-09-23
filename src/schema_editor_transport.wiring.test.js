@@ -289,8 +289,12 @@ describe("a drop while SAVING", () => {
             topics: ["topics^db.users^cols"]});
         expect(gobj_current_state(editor)).toBe("ST_SAVING");
 
+        /*  ...and it says the first one was DONE, so once the second ends
+         *  the model is read again (late_write_done()).  */
         answer(editor, remote, second, 0, {id: "db.users.name", value: "name", order: 2,
             type: "string", topics: ["topics^db.users^cols"]});
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        expect(answer_the_load(editor, remote)).toBe(3);
         expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
         expect(errors()).toEqual([]);
     });
@@ -429,6 +433,25 @@ describe("the drop is settled ONCE", () => {
             answer(editor, remote, c, -1, null, "the connection dropped");
         }
         expect(warnings().length).toBe(1);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("a write answered after it was given up", () => {
+
+    test("it was DONE: the model is read again", () => {
+        const {editor, remote, host} = build("w1", true);
+        const write = start_a_write(editor, host);
+        drop(editor, remote, host);
+        reconnect(editor, remote, host);
+        answer_the_load(editor, remote);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+
+        /*  The treedb says it wrote it, after all.  */
+        answer(editor, remote, write, 0, {id: "db.users.name", value: "name",
+            topics: ["topics^db.users^cols"]});
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        expect(take("nodes").length).toBe(3);
         expect(errors()).toEqual([]);
     });
 });
