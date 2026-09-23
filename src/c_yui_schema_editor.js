@@ -206,6 +206,7 @@ let PRIVATE_DATA = {
     pending:        0,      /*  `nodes` requests still in flight  */
     load_error:     "",
     load_round:     0,      /*  which load an answer belongs to: echoed as `round`  */
+    load_keeps_written: false,  /*  the load in flight is not the host's: `written` survives it  */
 
     /*  Where the operator is. The url carries it; these mirror it.  */
     treedb_id:      "",
@@ -458,8 +459,24 @@ function refuse_if_readonly(gobj, event)
  *  schema set of the yuno is here: everything below — the
  *  drawing, the validation, the export — is computed from these
  *  and asks the backend nothing more.
+ *
+ *  THE LOADING SCREEN IS DRAWN, not assumed. ST_LOADING declares
+ *  none of the actions of a screen, so the screen it replaces goes
+ *  and the toolbar stops answering: left up, a click on a card, on
+ *  Back or on the drawing answered "Event NOT DEFINED in state
+ *  ST_LOADING" and was lost (third independent review). A dialog
+ *  left open is answered in ST_LOADING instead (ac_wait_for_the_load).
+ *
+ *  `keep_written`: a load the host did not ask for -- the reconnect,
+ *  a write that turned out done -- keeps what this session wrote.
+ *  Only the host's EV_REFRESH (a Save sends it) forgets it.
+ *
+ *  A load that cannot leave WHOLE did not happen: the records the
+ *  model was built on are put back (emptied, the next write patched
+ *  them into a model with no treedb), the round is spent so a
+ *  request that did leave is stale, and the session back asks again.
  ***************************************************************/
-function request_model(gobj)
+function request_model(gobj, keep_written)
 {
     let priv = gobj.priv;
     let remote = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
@@ -468,27 +485,37 @@ function request_model(gobj)
         return -1;      /*  not mounted on a transport yet: mt_start retries via EV_TRANSPORT_STATE  */
     }
 
+    let previous = priv.records;
     priv.records = {treedbs: [], topics: [], cols: []};
     priv.load_error = "";
     priv.pending = 0;
     priv.load_round++;
+    priv.load_keeps_written = !!keep_written;
     gobj_change_state(gobj, "ST_LOADING");
-    show_notice(gobj, "loading the schemas");
+    set_busy(gobj, false);
+    render(gobj);
 
+    let left = 0;
     for(let topic_name of [T_TREEDBS, T_TOPICS, T_COLS]) {
         if(remote_command(gobj, "nodes", {
             topic_name: topic_name,
             options:    {list_dict: true}
         }, {round: priv.load_round}) === 0) {
-            priv.pending++;
+            left++;
         }
     }
-    if(priv.pending === 0) {
+    if(left < 3) {
+        priv.records = previous;
+        priv.load_round++;
+        priv.reload_on_open = true;
         priv.load_error = t("cannot reach the treedb");
-        gobj_change_state(gobj, "ST_IDLE");
-        show_notice(gobj, "cannot reach the treedb");
+        if(priv.model) {
+            yui_shell_show_error(yui_shell_of(gobj), "cannot reach the treedb", {t: t});
+        }
+        end_load(gobj);
         return -1;
     }
+    priv.pending = left;
     return 0;
 }
 
@@ -805,12 +832,19 @@ function render_toolbar(gobj)
     let state = gobj_current_state(gobj);
     let readonly = is_readonly(gobj);
     let has_model = !!priv.model;
+    /*  The position can outlive its screen (a load that failed keeps the
+     *  url's; ST_EMPTY has a treedb in the url and none in the model),
+     *  and a button there sends what only a treedb screen declares.  */
+    let on_a_treedb = state !== "ST_IDLE" && state !== "ST_EMPTY";
+    /*  Nothing is legal while the model is in the air: every action is
+     *  computed against it.  */
+    let in_flight = state === "ST_SAVING" || state === "ST_LOADING";
 
     /*----------------------------------------------*
      *  Left: back, then the position as a trail.
      *----------------------------------------------*/
     let $left = [];
-    if(priv.treedb_id) {
+    if(priv.treedb_id && on_a_treedb) {
         $left.push(["button", {class: "SCHEMA_BACK button",
                                type: "button",
                                title: t("back"), "aria-label": t("back"),
@@ -847,7 +881,7 @@ function render_toolbar(gobj)
      *  refused says why when it is pressed.
      *----------------------------------------------*/
     let $right = [];
-    if(priv.treedb_id && has_model) {
+    if(priv.treedb_id && has_model && on_a_treedb) {
         /*  The compass, like every other door to a SCHEMA: the
          *  `hexagon-nodes` it wore is the graph of the DATA.  */
         $right.push(toolbar_button("SCHEMA_DIAGRAM_BTN", "yi-compass-drafting",
@@ -861,7 +895,7 @@ function render_toolbar(gobj)
                 "import", "EV_IMPORT", false));
         }
     }
-    if(priv.topic_name && !readonly && !priv.diagram) {
+    if(priv.topic_name && !readonly && !priv.diagram && on_a_treedb) {
         /*  Only while there IS somewhere to go back to: a drag is a write,
          *  and this is the way back from one. */
         if(undo_order_writes(gobj, current_topic(gobj)).length > 0) {
@@ -871,7 +905,7 @@ function render_toolbar(gobj)
         $right.push(toolbar_button("SCHEMA_ADD_COL_BTN", "yi-plus",
             "new column", "EV_ADD_COLUMN", false));
     }
-    if(priv.treedb_id && !priv.topic_name && !readonly && !priv.diagram) {
+    if(priv.treedb_id && !priv.topic_name && !readonly && !priv.diagram && on_a_treedb) {
         $right.push(toolbar_button("SCHEMA_ADD_TOPIC_BTN", "yi-plus",
             "new topic", "EV_ADD_TOPIC", false));
     }
@@ -894,7 +928,7 @@ function render_toolbar(gobj)
      *  destroyed.  */
     for(let $button of $bar.querySelectorAll("button")) {
         $button.__gobj__ = gobj;
-        if(state === "ST_SAVING") {
+        if(in_flight) {
             $button.disabled = true;
         }
     }
@@ -918,19 +952,25 @@ function render(gobj)
     }
     render_toolbar(gobj);
 
+    /*  A screen with nothing to draw takes the drawing down too: left
+     *  alive, it was only re-shown on the way back -- into a body that
+     *  no longer held it.  */
     if(state === "ST_LOADING") {
         show_notice(gobj, "loading the schemas");
+        destroy_diagram(gobj);
         clear($body);
         return;
     }
     if(state === "ST_IDLE") {
         show_notice(gobj, priv.load_error ? "cannot load the schemas" : "not connected",
             priv.load_error);
+        destroy_diagram(gobj);
         clear($body);
         return;
     }
     if(state === "ST_EMPTY") {
         show_notice(gobj, "this yuno stores no schema");
+        destroy_diagram(gobj);
         clear($body);
         return;
     }
@@ -3023,7 +3063,28 @@ function ac_language_changed(gobj, event, kw, src)
 
 function ac_refresh(gobj, event, kw, src)
 {
-    return request_model(gobj);
+    return request_model(gobj, false);
+}
+
+/***************************************************************
+ *  What a DIALOG sends while the model is being read again: the
+ *  Save of a form left open when the reload started, a
+ *  confirmation, an import. The loading screen took the rest of
+ *  the view away (request_model()); a dialog is the one thing the
+ *  operator can still reach, and what it asks is computed against
+ *  a model the answers in the air are about to replace.
+ *
+ *  Refused, and SAID -- and the dialog stays open with what was
+ *  typed, so the same Save works once the load is in. Undeclared,
+ *  it answered "Event NOT DEFINED in state ST_LOADING" and the
+ *  edit was gone with no word (third independent review).
+ ***************************************************************/
+function ac_wait_for_the_load(gobj, event, kw, src)
+{
+    log_warning(`${gobj_short_name(gobj)}: ${event} refused, the schemas are loading`);
+    yui_shell_show_error(yui_shell_of(gobj),
+        "the schemas are loading: try again when they are in", {t: t});
+    return -1;
 }
 
 /***************************************************************
@@ -3655,7 +3716,14 @@ function create_gclass(gclass_name)
     const states = [
         ["ST_IDLE", COMMON.slice()],
 
-        ["ST_LOADING", COMMON.slice()],
+        ["ST_LOADING", COMMON.concat([
+            ["EV_SAVE_COLUMN",      ac_wait_for_the_load,   null],
+            ["EV_SAVE_TOPIC",       ac_wait_for_the_load,   null],
+            ["EV_DELETE_ORPHAN",    ac_wait_for_the_load,   null],
+            ["EV_PREVIEW_IMPORT",   ac_wait_for_the_load,   null],
+            ["EV_APPLY_IMPORT",     ac_wait_for_the_load,   null],
+            ["EV_CONFIRMED",        ac_wait_for_the_load,   null]
+        ])],
 
         ["ST_EMPTY", COMMON.slice()],
 
