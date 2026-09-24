@@ -263,6 +263,95 @@ describe("a Save in flight when the backend drops", () => {
 });
 
 /*
+ *  The success answer of a request, the way C_IEVENT_CLI delivers it: the
+ *  request's `__md_command__` as the frame, and nothing else of it.
+ */
+function answer_ok(request, data)
+{
+    return {result: 0, comment: "", data: data, __md_iev__: {
+        command_stack: [{command: request.command, kw: request.kw.__md_command__}]
+    }};
+}
+
+/*
+ *  Before gobj-ui 7.25.19 a delete answered published nothing (the case
+ *  was an empty `break`), and `created` compared the command with
+ *  "create-node" -- which the view never sends: its +New goes out as an
+ *  update-node with `create_only`, so `created` was always false.
+ */
+describe("EV_RECORD_WRITTEN of a create and of a delete", () => {
+
+    test("a +New answered says created: true", () => {
+        const {shell, topics, forms} = build("tc1");
+        yui_shell_set_connection_state(shell, true);
+        gobj_send_event(topics, "EV_CREATE_RECORD",
+            {record: {id: "n1"}, form_write: 1}, forms.users);
+
+        const request = commands.find((c) => c.command === "update-node");
+        expect(request.kw.options.create_only).toBe(true);
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            answer_ok(request, [{id: "n1", name: "new"}]), remote);
+
+        expect(written).toEqual([{
+            treedb_name: "treedb_test",
+            topic_name: "users",
+            record: {id: "n1", name: "new"},
+            created: true,
+            command: "update-node"
+        }]);
+        expect(answers).toEqual([
+            {topic: "users", event: "EV_WRITE_DONE", form_write: 1},
+        ]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("an edit answered says created: false", () => {
+        const {shell, topics, forms} = build("tc2");
+        yui_shell_set_connection_state(shell, true);
+        save(topics, forms.users, 1);
+        const request = commands.find((c) => c.command === "update-node");
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            answer_ok(request, [{id: "x"}]), remote);
+        expect(written.map((w) => w.created)).toEqual([false]);
+    });
+
+    test("a delete answered is published with the node deleted", () => {
+        const {shell, topics, forms} = build("tc3");
+        yui_shell_set_connection_state(shell, true);
+        gobj_send_event(topics, "EV_DELETE_RECORD", {record: {id: "x"}}, forms.roles);
+
+        const request = commands.find((c) => c.command === "delete-node");
+        expect(request).toBeTruthy();
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            answer_ok(request, [{id: "x", name: "gone"}]), remote);
+
+        expect(written).toEqual([{
+            treedb_name: "treedb_test",
+            topic_name: "roles",
+            record: {id: "x", name: "gone"},
+            created: false,
+            command: "delete-node"
+        }]);
+        /*  A delete has no form waiting for its answer.  */
+        expect(answers).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a delete refused publishes nothing", () => {
+        const {shell, topics, forms} = build("tc4");
+        yui_shell_set_connection_state(shell, true);
+        gobj_send_event(topics, "EV_DELETE_RECORD", {record: {id: "x"}}, forms.roles);
+        const request = commands.find((c) => c.command === "delete-node");
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", {
+            result: -1, comment: "linked", data: null, __md_iev__: {
+                command_stack: [{command: "delete-node", kw: request.kw.__md_command__}]
+            }
+        }, remote);
+        expect(written).toEqual([]);
+    });
+});
+
+/*
  *  The answer the routing adapter gives a write it had in flight when
  *  its session closed: a failure, settled by the adapter itself.
  */

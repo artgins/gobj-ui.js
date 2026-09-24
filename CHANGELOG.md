@@ -5,6 +5,62 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.19
+
+- **`C_YUI_TREEDB_TOPICS`: `EV_RECORD_WRITTEN` for a delete, and `created`
+  that can be true.** A successful `delete-node` published nothing (its answer
+  went to an empty `break`), so a host that keeps a pending mark on the
+  view's writes -- gui_agent's Schemas tab -- never heard a delete made in the
+  table, while the same delete made in the graph did reach it. And `created`
+  compared the command with `"create-node"`, which the view never sends: its
+  +New goes out as an `update-node` with `create_only`, so `created` was
+  `false` for every record the table created. The delete is now published
+  with the node the store answered, and the +New echoes `created: true` in
+  its `__md_command__`. The README and the 7.25.18 entry promised both. (Code
+  inherited; the documentation that promised it was new in 7.25.18.)
+- **`C_YUI_SCHEMA_EDITOR`: a NAME in a notice is shown as it is.** Since
+  7.25.17 the notice translated its detail, and three callers pass a name
+  there (a treedb or a topic that is gone): a topic called `nodes` showed as
+  *"Nodos"* in an app whose locale has that key, and changed with the
+  language. The detail is a key only for the load error, which says so.
+- **`C_G6_NODES_TREE`: an echo of a `__graphs__` record pays a write owed on
+  its topic.** The owed mark (7.25.16) was cleared only by a Save that planned
+  the topic; an echo that made the topic saved (a refused Save #1 answered
+  after Save #2 landed, or another browser saving the topic) left it owed,
+  and Save stayed lit with nothing to write until a reload. (New in 7.25.15.)
+- **`C_YUI_NODE` declares every event of the navs it hosts.**
+  `EV_NAV_ITEM_CLOSE` is handed to the shell (which re-publishes it to the
+  app), `EV_DRAWER_CLOSE_REQUESTED` closes the node's own drawer projection
+  (the shell's close knows only its own navs), and both plus `EV_NAV_CLICKED`
+  are declared in `ST_OFF` too, where a zone projection is still alive. Before,
+  they answered *"Event NOT DEFINED in state"* (latent: no node item is
+  closable today, and a node drawer is opened by nobody but the app).
+- **`C_YUI_TREEDB_TOPIC_WITH_FORM` answers `EV_EXPAND_PATH`** of the three
+  `C_YUI_JSON` viewers it hosts (schema, cell, table records): the form cannot
+  read a subtree, so it answers `EV_SUBTREE_ERROR` with the key
+  `this part cannot be loaded here`, and the stub stops loading. It declared
+  nothing (latent: a sentinel reaches the form only if the backend collapsed
+  a record). A scan of every gobj-ui host of a pure child found no other
+  undeclared output event (`C_YUI_TREEDB_TOPICS` hosting
+  `C_YUI_TREEDB_SCHEMA` is the documented opt-in; `C_YUI_JSON` hosting its
+  graph in `ST_EMPTY` holds no item to click).
+- **`C_YUI_UPLOT`: a series `stroke` or `fill` given as a function is kept,
+  and not logged.** The palette defaults went through `kw_get_str(KW_CREATE)`,
+  which since gobj-js 7.25.5 logs a value that is not a string, as C does.
+- **Comment:** `c_yui_schema_editor.js` no longer says a delete answers with
+  nothing (C's delete-node answers the node deleted).
+- **New i18n key** a consumer must add (validate-locales finds it):
+  `this part cannot be loaded here`. Hosts of the treedb views also need
+  `raw json viewer unavailable`, passed as a variable since 7.23.x and so
+  invisible to validate-locales.
+- **gobj-js `^7.25.5`** (dev).
+- **Tests:** `treedb_topics_transport.wiring.test.js` (+4),
+  `schema_editor_reload.wiring.test.js` (+2), `g6_graphs_write_owed.wiring.test.js`
+  (+2), new `node_nav_events.wiring.test.js` (4, the real C_YUI_NAV publishing
+  to the real C_YUI_NODE), `form_json_expand.wiring.test.js` (1, the real
+  C_YUI_JSON publishing to the real form) and `uplot_add_serie.test.js` (2);
+  red on 14 of 15 against 7.25.18 (the uplot one only with gobj-js 7.25.5).
+
 ## 7.25.18
 
 - **`C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH`: `EV_RECORD_WRITTEN`

@@ -10566,6 +10566,27 @@ function ac_graphs_write_refused(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  An echo of a `__graphs__` record is what the backend holds for
+ *  its topic now, and the view has just taken it as shown and as
+ *  saved: a write of that topic owed from an earlier refusal is
+ *  owed no more. Left owed, the Save stayed lit with nothing to
+ *  write -- the plan compares the two, and they are equal -- until
+ *  a reload: a refused Save #1 answered after Save #2 landed, or
+ *  another browser saving the topic, did exactly that.
+ ************************************************************/
+function settle_owed_graphs_write(gobj, rec)
+{
+    let priv = gobj.priv;
+    let topic_name = rec && rec.topic;
+
+    if(!topic_name || !priv._graphs_writes_owed[topic_name]) {
+        return;
+    }
+    delete priv._graphs_writes_owed[topic_name];
+    update_history_buttons(gobj);
+}
+
+/************************************************************
  *  Node created, from subscription
  ************************************************************/
 function ac_node_created(gobj, event, kw, src)
@@ -10583,6 +10604,7 @@ function ac_node_created(gobj, event, kw, src)
     if(topic_name === '__graphs__') {
         priv.__graphs__.push(node);
         build_graph_properties(gobj);
+        settle_owed_graphs_write(gobj, node);
         return 0;
     }
 
@@ -10649,6 +10671,7 @@ function ac_node_updated(gobj, event, kw, src)
         apply_graphs_echo(
             priv._graph_properties, priv._saved_graph_properties, priv.__graphs__, node
         );
+        settle_owed_graphs_write(gobj, node);
         return 0;
     }
 

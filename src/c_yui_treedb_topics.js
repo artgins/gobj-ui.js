@@ -1676,7 +1676,7 @@ function treedb_create_node(gobj, treedb_name, topic_name, record, options)
 /************************************************************
  *  Command to remote service
  ************************************************************/
-function treedb_update_node(gobj, treedb_name, topic_name, record, options, form_write)
+function treedb_update_node(gobj, treedb_name, topic_name, record, options, form_write, created)
 {
     let command = "update-node";
 
@@ -1694,6 +1694,11 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options, form
     };
     if(form_write) {
         kw.__md_command__.form_write = form_write;
+    }
+    if(created) {
+        /*  A create goes out as an update-node (create_only); the answer
+         *  says `created` only if the request says it back.  */
+        kw.__md_command__.created = true;
     }
     // TODO review msg_iev_write_key(kw, "__topic_name__", topic_name);
 
@@ -1740,7 +1745,9 @@ function treedb_delete_node(gobj, treedb_name, topic_name, record, options)
     );
     if(ret) {
         log_error(ret);
+        return -1;
     }
+    return 0;
 }
 
 /************************************************************
@@ -2217,6 +2224,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
 
         case "create-node":
         case "update-node":
+        case "delete-node":
             /*
              *  The view refreshes itself from the treedb's own
              *  EV_TREEDB_NODE_* events, which arrive for EVERY writer. This
@@ -2230,14 +2238,23 @@ function ac_mt_command_answer(gobj, event, kw, src)
             /*  From what THIS view knows and from the answer, never from
              *  the request: the frame carries back only `__md_command__`,
              *  so `treedb_name` and `record` read there arrived empty.
-             *  `record` is the node the store answered, as it was written.  */
+             *  `record` is the node the store answered, as it was written
+             *  (for a delete, the node deleted). The table's own +New goes
+             *  out as an update-node, so `created` is also what the request
+             *  echoes back in `__md_command__`.  */
             gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
                 treedb_name: gobj_read_str_attr(gobj, "treedb_name"),
                 topic_name:  kw_get_str(gobj, kw_command, "topic_name", "", 0),
                 record:      answered_record(data),
-                created:     (command === "create-node"),
+                created:     (command === "create-node") ||
+                             kw_command.created === true,
                 command:     command
             });
+            if(command === "delete-node") {
+                /*  The rows go away on the treedb's own EV_TREEDB_NODE_DELETED;
+                 *  a delete has no form waiting for its answer.  */
+                break;
+            }
             settle_form_write(gobj.priv.form_writes,
                 kw_get_int(gobj, kw_command, "form_write", 0, 0),
                 kw_get_str(gobj, kw_command, "topic_name", "", 0));
@@ -2247,10 +2264,6 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 kw_get_int(gobj, kw_command, "form_write", 0, 0),
                 true
             );
-            break;
-
-        case "delete-node":
-            // Don't process by here, process on subscribed events.
             break;
 
         default:
@@ -2680,7 +2693,7 @@ function ac_create_record(gobj, event, kw, src)
     };
 
     if(treedb_update_node( // HACK use the powerful update_node
-            gobj, treedb_name, topic_name, record, options, form_write) < 0) {
+            gobj, treedb_name, topic_name, record, options, form_write, true) < 0) {
         answer_form_write(gobj, src, form_write, false);
         return -1;      /*  Error already logged  */
     }

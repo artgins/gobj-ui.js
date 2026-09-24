@@ -227,6 +227,16 @@ seen*:
   for its treedb nodes, so the graph tab returns to `<graph>/<topic>` with its
   focus and the data tab to the topic that was open.
 
+- **A node hears every event of the navs it projects** (they are its pure
+  children). Since `7.25.19` it declares all three, in every state -- a ZONE
+  projection outlives the path, so a root that is off it still hears its
+  rail: `EV_NAV_CLICKED` (a navigation), `EV_NAV_ITEM_CLOSE` (handed to the
+  shell, which re-publishes it to the app, as for the shell's own closable
+  items) and `EV_DRAWER_CLOSE_REQUESTED` (the node closes its own drawer
+  projection: the shell's `yui_shell_close_drawer()` knows only the shell's
+  navs). Before, the last two answered *"Event NOT DEFINED in state"*, and so
+  did a click on a zone nav of a root in `ST_OFF`.
+
 - **`nav_mode` — the three shapes as one runtime knob.** The two bullets above
   describe what a tree *declares*; `nav_mode` is how a user *chooses* between
   the shapes without the app rewriting anything:
@@ -581,7 +591,15 @@ Two layout facts the browser taught this component, both worth keeping:
   the two-view toggle did when the list was two long), plus `EV_REFRESH` /
   `EV_SHOW` / `EV_HIDE` / `EV_LANGUAGE_CHANGED`.
 - Output event: `EV_EXPAND_PATH {path, size}` (`EVF_OUTPUT_EVENT`) — the parent
-  must declare it in its own FSM (CHILD subscription model). That is the ONLY
+  must declare it in its own FSM (CHILD subscription model), and ANSWER it: the
+  stub shows "loading" until `EV_SUBTREE_LOADED` or `EV_SUBTREE_ERROR` arrives.
+  A host that cannot read a subtree says so with the error, as
+  `C_YUI_TREEDB_TOPIC_WITH_FORM` does for its schema, cell and table viewers
+  since `7.25.19` (before, it declared nothing: *"Event NOT DEFINED"*):
+  ```js
+  gobj_send_event(src, "EV_SUBTREE_ERROR",
+      {path: kw.path, error: t("this part cannot be loaded here")}, gobj);
+  ``` That is the ONLY
   one, on purpose: this viewer is a child of its host and subscribes it to
   everything it publishes, so every output event is a mandatory declaration in
   every host's FSM. The graph child's `EV_JSON_ITEM_CLICKED` stops here
@@ -1003,7 +1021,7 @@ graph does not report `__graphs__`, its own bookkeeping.
     treedb_name: "treedb_test",           // the view's own treedb
     topic_name:  "yunos",                 // the topic written (the CHILD's, for a link)
     record:      {id: "1", x: 1, y: 2},   // the node the store answered, as written
-    created:     false,                   // true for create-node
+    created:     false,                   // true for a NEW record (see below)
     command:     "update-node",           // create/update/delete-node, link/unlink-nodes
     parent_ref:  "realms^r1^yunos",       // graph, link/unlink only
     child_ref:   "yunos^1"                // graph, link/unlink only
@@ -1017,6 +1035,21 @@ do -- so `treedb_name` and `record` arrived empty, and a link named no topic.
 `treedb_name` is now the view's, `record` is the node the answer carries (a
 delete answers the node deleted, a link the child), and a link echoes its topic
 and refs in `__md_command__`.
+
+Since `7.25.19` the topics view publishes a successful **delete** too (it
+published nothing: the answer went to an empty `break`), and `created` is
+TRUE for its **+New**: that goes out as an `update-node` with `create_only`,
+so comparing the command with `"create-node"` answered `false` for every
+record the table created. The request now echoes `created: true` in its
+`__md_command__`. The graph creates with `create-node`, and says so the same
+way.
+
+```js
+// the table's +New, answered
+{treedb_name: "treedb_test", topic_name: "users", record: {id: "n1"}, created: true,  command: "update-node"}
+// a row deleted, answered with the node deleted
+{treedb_name: "treedb_test", topic_name: "roles", record: {id: "x"},  created: false, command: "delete-node"}
+```
 
 ### Read-only treedbs: `readonly`
 
@@ -1844,8 +1877,12 @@ the history buttons -- they decide the Save from `history.canUndo()`, and they
 run on every history change, every change of mode and every redraw of the
 theme -- and a refusal heard in reading was never shown. The engine now keeps
 the topic as owed: the Save stays lit while one is, in edition and on entering
-it; the Save that writes the topic again pays it, and a reload of the data
-forgets it (the view holds what the backend holds).
+it; the Save that writes the topic again pays it, a reload of the data
+forgets it (the view holds what the backend holds), and so does an ECHO of the
+topic's `__graphs__` record (since `7.25.19`): the echo is what the backend
+holds, taken as shown and as saved, so nothing is owed any more. Before, a
+refused Save #1 answered after Save #2's echo -- or another browser saving the
+topic -- left the Save lit with nothing to write until a reload.
 
 ```js
 gobj_send_event(engine, "EV_GRAPHS_WRITE_REFUSED", {topic: "users"}, host);  // Save lit

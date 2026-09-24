@@ -3697,6 +3697,27 @@ function refuse_if_readonly(gobj, event)
  *  From external, at the beginning, load all topic data
  ************************************************************/
 /***************************************************************
+ *  One of MY json viewers (the schema, a cell, the table's records)
+ *  met a `__collapsed__` sentinel and the reader opened it. The
+ *  viewer never fetches: it asks its host, and waits on "loading"
+ *  until it is answered. This view holds records, not a store it can
+ *  read a subtree of -- the lazy drill is `print-tranger`, which the
+ *  TOPICS view runs for its own viewer, over a whole tranger -- so the
+ *  answer is that it cannot, and the viewer shows that on the stub
+ *  instead of loading for ever.
+ ***************************************************************/
+function ac_expand_path(gobj, event, kw, src)
+{
+    let path = (kw && kw.path) || "";
+
+    gobj_send_event(src, "EV_SUBTREE_ERROR", {
+        path:  path,
+        error: t("this part cannot be loaded here")
+    }, gobj);
+    return 0;
+}
+
+/***************************************************************
  *  The language changed (the shell publishes it after the app switched).
  *
  *  The column headers carry their key (col_label's title formatter emits a
@@ -5343,6 +5364,7 @@ function create_gclass(gclass_name)
             ["EV_CHANGE_LOCALE",        ac_change_locale,      null],
             ["EV_REFRESH",              ac_refresh,            null],
             ["EV_SHOW_SCHEMA",          ac_show_schema,        null],
+            ["EV_EXPAND_PATH",          ac_expand_path,        null],
             ["EV_CELL_EDITED",          ac_cell_edited,        null],
             ["EV_REPULL_PAGE",          ac_repull_page,        null],
             ["EV_PAGE_LOADED",          ac_page_loaded,        null],
@@ -5400,6 +5422,7 @@ function create_gclass(gclass_name)
         ["EV_CHANGE_LOCALE",        0],
         ["EV_REFRESH",              0],
         ["EV_SHOW_SCHEMA",          0],
+        ["EV_EXPAND_PATH",          0],
         ["EV_CELL_EDITED",          0],
         ["EV_REPULL_PAGE",          0],
         ["EV_PAGE_LOADED",          0],

@@ -481,6 +481,43 @@ describe("the drawing of a treedb that is not there", () => {
     });
 });
 
+/*
+ *  Since gobj-ui 7.25.17 the notice translated its detail, and three
+ *  callers pass a NAME there: a topic called `nodes` that is gone was
+ *  shown as "Nodos" in an app whose locale has that key, and followed
+ *  every change of language.
+ */
+describe("the name in a notice is a name", () => {
+
+    test("a topic that is gone is named as it is, with no i18n key", async () => {
+        const i18next = (await import("i18next")).default;
+        await i18next.init({lng: "es", resources: {es: {translation: {nodes: "Nodos", db: "BD"}}}});
+        try {
+            const {editor} = build("nn1", "db/nodes");
+            expect($in(editor, ".SCHEMA_NOTICE_TEXT").getAttribute("data-i18n"))
+                .toBe("that topic is not here any more");
+            const $detail = $in(editor, ".SCHEMA_NOTICE_DETAIL");
+            expect($detail.textContent).toBe("nodes");
+            expect($detail.getAttribute("data-i18n")).toBe(null);
+        } finally {
+            await i18next.init({lng: "en", resources: {}});
+        }
+    });
+
+    test("a treedb that is gone is named as it is, with no i18n key", async () => {
+        const i18next = (await import("i18next")).default;
+        await i18next.init({lng: "es", resources: {es: {translation: {nodes: "Nodos"}}}});
+        try {
+            const {editor} = build("nn2", "nodes");
+            const $detail = $in(editor, ".SCHEMA_NOTICE_DETAIL");
+            expect($detail.textContent).toBe("nodes");
+            expect($detail.getAttribute("data-i18n")).toBe(null);
+        } finally {
+            await i18next.init({lng: "en", resources: {}});
+        }
+    });
+});
+
 describe("a write given up that was DONE", () => {
 
     test("the host is told, and the reload keeps what this session wrote", () => {

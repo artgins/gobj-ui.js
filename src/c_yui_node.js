@@ -1279,6 +1279,65 @@ function ac_nav_clicked(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The ✕ of a closable item, from a projection nav.  A node's own
+ *  items never carry `closable` (child_nav_items() builds them), so
+ *  this is an item the node does not own the fate of: whether it
+ *  goes away is the app's call, as for the shell's own closable
+ *  tabs.  Handed to the shell, which re-publishes it to the app
+ *  (ac_nav_item_close there).
+ ************************************************************/
+function ac_nav_item_close(gobj, event, kw, src)
+{
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        log_error(`${GCLASS_NAME} '${node_path_str(gobj)}': no shell to hand ` +
+            `the close of '${(kw && kw.item_id) || ""}' to`);
+        return -1;
+    }
+    gobj_send_event(shell, "EV_NAV_ITEM_CLOSE", {
+        item_id: (kw && kw.item_id) || "",
+        route:   (kw && kw.route) || "",
+        menu_id: (kw && kw.menu_id) || "",
+        zone:    (kw && kw.zone) || ""
+    }, gobj);
+    return 0;
+}
+
+/************************************************************
+ *  The backdrop of a drawer projection was clicked.  The drawer is
+ *  one of MY navs (a projection with `layout: "drawer"`), not one of
+ *  the shell's, so the shell's close_drawer() cannot find it: the
+ *  node closes it.  A drawer opened through the shell carries the
+ *  shell's own close handler (escape stack, focus trap) on its
+ *  element, and that is what runs then; otherwise it is only hidden.
+ ************************************************************/
+function ac_drawer_close_requested(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let menu_id = (kw && kw.menu_id) || "";
+    let navs = priv.navs.concat(Object.values(priv.zone_navs));
+
+    for(let nav of navs) {
+        if(gobj_read_attr(nav, "layout") !== "drawer") {
+            continue;
+        }
+        if(menu_id && gobj_read_attr(nav, "menu_id") !== menu_id) {
+            continue;
+        }
+        let $c = gobj_read_attr(nav, "$container");
+        if(!$c || !$c.classList.contains("is-active")) {
+            continue;
+        }
+        if(typeof $c.__yui_close_handler__ === "function") {
+            $c.__yui_close_handler__();
+        } else {
+            $c.classList.remove("is-active");
+        }
+    }
+    return 0;
+}
+
+/************************************************************
  *  Runtime API: add a child.  Same path the declared tree takes.
  ************************************************************/
 function ac_add_node(gobj, event, kw, src)
@@ -1666,6 +1725,12 @@ function create_gclass(gclass_name)
         ["ST_OFF", [
             ["EV_ROUTE_CHANGED",        ac_route_changed,       null],
             ["EV_ACTIVATE",             ac_activate,            null],
+            /*  A ZONE projection outlives the path (it is the app's
+             *  standing chrome, stopped only in mt_stop), so its clicks
+             *  reach a root that is off the path too.  */
+            ["EV_NAV_CLICKED",            ac_nav_clicked,             null],
+            ["EV_NAV_ITEM_CLOSE",         ac_nav_item_close,          null],
+            ["EV_DRAWER_CLOSE_REQUESTED", ac_drawer_close_requested,  null],
             ["EV_ADD_NODE",             ac_add_node,            null],
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
@@ -1679,6 +1744,8 @@ function create_gclass(gclass_name)
             ["EV_ACTIVATE",             ac_activate,            null],
             ["EV_DEACTIVATE",           ac_deactivate,          null],
             ["EV_NAV_CLICKED",          ac_nav_clicked,         null],
+            ["EV_NAV_ITEM_CLOSE",         ac_nav_item_close,          null],
+            ["EV_DRAWER_CLOSE_REQUESTED", ac_drawer_close_requested,  null],
             ["EV_ADD_NODE",             ac_add_node,            null],
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
@@ -1692,6 +1759,8 @@ function create_gclass(gclass_name)
             ["EV_ACTIVATE",             ac_activate,            null],
             ["EV_DEACTIVATE",           ac_deactivate,          null],
             ["EV_NAV_CLICKED",          ac_nav_clicked,         null],
+            ["EV_NAV_ITEM_CLOSE",         ac_nav_item_close,          null],
+            ["EV_DRAWER_CLOSE_REQUESTED", ac_drawer_close_requested,  null],
             ["EV_ADD_NODE",             ac_add_node,            null],
             ["EV_REMOVE_NODE",          ac_remove_node,         null],
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
@@ -1710,6 +1779,8 @@ function create_gclass(gclass_name)
         ["EV_ACTIVATE",             0],
         ["EV_DEACTIVATE",           0],
         ["EV_NAV_CLICKED",          0],
+        ["EV_NAV_ITEM_CLOSE",         0],
+        ["EV_DRAWER_CLOSE_REQUESTED", 0],
         ["EV_ADD_NODE",             0],
         ["EV_REMOVE_NODE",          0],
         ["EV_SET_PROJECTION",       0],

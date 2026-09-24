@@ -3,7 +3,7 @@
  *
  *          Graphics, Charts with uPlot
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
@@ -12,14 +12,12 @@ import {
     SDATA_END,
     data_type_t,
     event_flag_t,
-    kw_flag_t,
     gclass_create,
     createElement2,
     log_error,
     gobj_read_pointer_attr,
     gobj_parent,
     gobj_subscribe_event,
-    kw_get_str,
     gobj_read_attr,
     gobj_read_str_attr,
     gobj_write_attr,
@@ -457,8 +455,15 @@ function ac_add_serie(gobj, event, kw, src)
      *  colour: the old fallback was `Orange`, 1.97:1 on a white page,
      *  and it was what every series past the fourth got.  */
     let color = colors[Math.max(0, idx - 1) % colors.length];
-    kw_get_str(gobj, kw, "stroke", color.stroke, kw_flag_t.KW_CREATE);
-    kw_get_str(gobj, kw, "fill", color.fill, kw_flag_t.KW_CREATE);
+    /*  Only when the host gave none: uPlot takes a stroke or a fill
+     *  that is a FUNCTION (or a gradient) too, and kw_get_str() logs
+     *  a value that is not a string (gobj-js 7.25.5, as C does).  */
+    if(kw.stroke === undefined) {
+        kw.stroke = color.stroke;
+    }
+    if(kw.fill === undefined) {
+        kw.fill = color.fill;
+    }
     //kw["paths"] = beziercurve_path; //rectangle_path;
     uplot.addSeries(kw);
     return 0;

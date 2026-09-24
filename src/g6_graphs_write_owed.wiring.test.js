@@ -188,6 +188,43 @@ describe("a refused __graphs__ write keeps the Save lit", () => {
         expect(errors()).toEqual([]);
     });
 
+    /*  Before gobj-ui 7.25.19 only a Save that planned the topic paid
+     *  what was owed. Save #1 and Save #2 both write `users`, #1 is
+     *  refused and its answer lands after #2's echo: the echo made the
+     *  topic saved, so no Save planned it again, and the button stayed
+     *  lit over nothing to write until a reload.  */
+    test("an echo of the topic pays what was owed: the Save goes dark", () => {
+        const g = build("edition");
+        g.tree.priv.descs = {};
+        g.tree.priv.__graphs__ = [];
+        gobj_send_event(g.tree, "EV_GRAPHS_WRITE_REFUSED", {topic: "users"}, g.tree);
+        expect(g.lit()).toBe(true);
+
+        gobj_send_event(g.tree, "EV_NODE_UPDATED", {
+            topic_name: "__graphs__",
+            node: {id: "users", topic: "users", active: true,
+                properties: {nodes: {u1: {x: 30, y: 40}}}}
+        }, g.tree);
+        expect(g.lit()).toBe(false);
+
+        gobj_send_event(g.tree, "EV_SAVE_GRAPH", {}, g.tree);
+        expect(published.filter((p) => p.event === "EV_UPDATE_NODE")).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("an echo of ANOTHER topic leaves it owed", () => {
+        const g = build("edition");
+        g.tree.priv.descs = {};
+        g.tree.priv.__graphs__ = [];
+        gobj_send_event(g.tree, "EV_GRAPHS_WRITE_REFUSED", {topic: "users"}, g.tree);
+        gobj_send_event(g.tree, "EV_NODE_UPDATED", {
+            topic_name: "__graphs__",
+            node: {id: "roles", topic: "roles", active: true, properties: {nodes: {}}}
+        }, g.tree);
+        expect(g.lit()).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+
     test("a reload forgets it: the view holds what the backend holds", () => {
         const g = build("edition");
         gobj_send_event(g.tree, "EV_GRAPHS_WRITE_REFUSED", {topic: "users"}, g.tree);

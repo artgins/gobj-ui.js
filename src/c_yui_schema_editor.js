@@ -755,8 +755,11 @@ function remote_command(gobj, command, kw, tag)
      *  echoes `__md_command__` AS that frame (c_agent_treedb_link.js).
      *  Same names in both places is what makes the answer readable
      *  whichever one is under this view — and `record_id` is here and
-     *  NOT at the top level because a delete answers with nothing, and a
-     *  parameter the treedb does not know has no business travelling.  */
+     *  NOT at the top level because a parameter the treedb does not know
+     *  has no business travelling. It is echoed at all because an answer
+     *  does not always name its record: a delete answers the node deleted,
+     *  but a REFUSED write answers none, and the view still has to know
+     *  which record it was.  */
     full_kw.__md_command__ = Object.assign({
         purpose:    PURPOSE,
         topic_name: (kw && kw.topic_name) || "",
@@ -981,8 +984,12 @@ function current_topic(gobj)
  *  One line for what the whole view has to say: loading, empty,
  *  or the reason nothing loaded. Carries its i18n key, so it
  *  follows a language change like any other text.
+ *
+ *  `detail` is a NAME (a treedb, a topic) shown as it is, unless
+ *  `detail_is_key` says it is a key: a name is not text to
+ *  translate, and a topic called `nodes` is not "Nodos".
  ***************************************************************/
-function show_notice(gobj, key, detail)
+function show_notice(gobj, key, detail, detail_is_key)
 {
     let $notice = $of(gobj, ".SCHEMA_NOTICE");
 
@@ -998,14 +1005,17 @@ function show_notice(gobj, key, detail)
     $notice.appendChild(createElement2(
         ["span", {class: "SCHEMA_NOTICE_TEXT", i18n: key}, t(key)]
     ));
-    /*  The detail is a KEY too (ours, or the backend's words, which
-     *  translate to themselves when no locale has them), so a change
-     *  of language changes it with the rest. One that repeats the
-     *  title says nothing.  */
+    /*  A detail that is a KEY (the load error: ours, or the backend's
+     *  words, which translate to themselves when no locale has them)
+     *  changes language with the rest. One that repeats the title
+     *  says nothing.  */
     if(detail && detail !== key) {
+        let attrs = {class: "SCHEMA_NOTICE_DETAIL yui-text-quiet ml-2"};
+        if(detail_is_key) {
+            attrs.i18n = `${detail}`;
+        }
         $notice.appendChild(createElement2(
-            ["span", {class: "SCHEMA_NOTICE_DETAIL yui-text-quiet ml-2", i18n: `${detail}`},
-                t(`${detail}`)]
+            ["span", attrs, detail_is_key ? t(`${detail}`) : `${detail}`]
         ));
     }
 }
@@ -1188,7 +1198,7 @@ function render(gobj)
     }
     if(state === "ST_IDLE") {
         show_notice(gobj, priv.load_error ? "cannot load the schemas" : "not connected",
-            priv.load_error);
+            priv.load_error, true);
         destroy_diagram(gobj);
         clear($body);
         return;
