@@ -5,6 +5,49 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.15
+
+- **`C_YUI_SCHEMA_EDITOR`: a move sent by the host closes the dialog of the
+  screen it left.** `C_YUI_SHELL` keeps a dialog open when only the subpath of
+  the url changes. The Save of a column or topic form, the import Preview and
+  an orphan delete then sent an event that only the old screen declares. The
+  editor answered *"Event NOT DEFINED"*, and the edit was lost with no word.
+  Now an `EV_SHOW` that moves the view to another position closes the form,
+  the import (and forgets its plan) or the orphans, and says
+  `the view moved: open the dialog again`. This also applies to a move that
+  waited for a load or a write. The export and the check stay open. The same
+  position sent again closes nothing. New consumer i18n key:
+  `the view moved: open the dialog again`.
+- **`C_YUI_SCHEMA_EDITOR`: a confirmation answered on another position does
+  nothing.** A confirmation is a shell modal, and a move does not close it.
+  Its Yes looked up the topic or column in the treedb open NOW, so a
+  "delete this column?" asked on `db/users` and answered after a move to
+  `db2/users` deleted the column of `db2`. A confirmation now carries the
+  position it was asked on (`seg`), and a Yes on another position is refused
+  with the same text.
+- **`C_G6_NODES_TREE` / `C_YUI_TREEDB_GRAPH`: a `__graphs__` write that did not
+  land is written again at the next Save.** Nothing answers such a write when
+  it lands, so the graph recorded it as saved before it left. A refused write
+  stayed recorded as saved, and the next Save had nothing to write. Now the
+  host sends the new input event `EV_GRAPHS_WRITE_REFUSED {topic}` to the
+  graph when the backend answers an error, when the transport refuses the
+  command, and when there is no session (the write is then not sent). The
+  graph forgets what it believed the backend holds for that topic
+  (`forget_refused_graphs_write()` in `graph_save_plan.js`), logs a warning,
+  and lights Save again.
+- **`SHELL.md`: the toast text says what the code does.** A repeated message
+  gets its own handle and its own time, and the toast stays until every
+  caller has closed or timed out. `SHELL.md` still described the 7.25.7
+  behaviour (one shared handle).
+- Comments and test titles no longer cite review rounds or states that were
+  never released. They say why the code is as it is.
+
+Tests: `schema_editor_reload.wiring.test.js` (a move sent by the host while a
+dialog is up, 7 cases), `graph_save_plan.test.js` (a refused `__graphs__`
+write), `treedb_graph_writes.wiring.test.js` (new: the host tells the graph),
+`g6_nodes_tree_fsm.test.js` (new: the graph declares the event). All failed
+before the fix.
+
 ## 7.25.14
 
 - **`C_YUI_TREEDB_TOPICS`: the reconnect reads every open table again.**

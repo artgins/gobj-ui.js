@@ -1,8 +1,8 @@
 /***********************************************************************
  *          schema_editor_transport.wiring.test.js
  *
- *      C_YUI_SCHEMA_EDITOR when the transport drops (M-1 of the
- *      independent review of 7.25.4). A drop used to leave the editor
+ *      C_YUI_SCHEMA_EDITOR when the transport drops. A drop used to
+ *      leave the editor
  *      where it was: in ST_SAVING with its body busy, or in ST_LOADING
  *      -- and the reconnect skipped the reload BECAUSE the state was
  *      ST_LOADING. Only a reload of the page got it out.

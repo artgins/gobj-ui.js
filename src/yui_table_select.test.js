@@ -59,7 +59,7 @@ describe("reading and dropping the selection", () => {
  *  A table as the delete of the treedb topic table meets it AFTER a
  *  confirmation: rows came and went while the dialog was open. A position
  *  names whatever row sits there now; an id names the row the question named
- *  (the regression of d60ec78, A6 of the 2026-09-21 review).
+ *  (the regression of d60ec78).
  */
 function fake_table(rows, index)
 {

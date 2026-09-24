@@ -4,7 +4,7 @@
  *      EV_DRAFTS driven through a real C_YUI_SCHEMA_EDITOR on a document
  *      double. The helper was right and tested; the ACTION folded the
  *      host's marks into the session's, so a topic the host named before
- *      a Save stayed a draft after it (M1 of the 2026-09-23 review).
+ *      a Save stayed a draft after it.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

@@ -22,11 +22,10 @@
  *      AN EDIT IS A DRAFT. A write here moves no version and reaches no
  *      treedb: the host SAVES it (C_TREEDB's save-schema raises the
  *      topic_version of what changed and the schema_version, once) and
- *      APPLIES it (apply-schema + a restart of the owning yuno). Until
- *      the owner's design of M36 (2026-09-21 review) every write here
- *      raised both versions, so an edit half made was already the
- *      schema of the next start. The topic list marks what this session
- *      wrote and has not saved (EV_REFRESH forgets it: the view's own
+ *      APPLIES it (apply-schema + a restart of the owning yuno). If a
+ *      write here raised both versions, an edit half made would already
+ *      be the schema of the next start. The topic list marks what this
+ *      session wrote and has not saved (EV_REFRESH forgets it: the view's own
  *      Refresh button sends it, and a host may after a save -- the
  *      agent console's does not) and what the host says is not saved
  *      (EV_DRAFTS, replaced whole each time it is sent).
@@ -188,6 +187,11 @@ const DIAGRAM_SEG = "diagram";
  *  them), and each filters on its own purpose.  */
 const PURPOSE = "schema_editor";
 
+/*  The dialogs that show what they were opened with and send nothing a
+ *  screen declares: a move sent by the host leaves them up (see
+ *  close_dialog_left_behind()).  */
+const DIALOGS_THAT_READ_NOTHING = ["SCHEMA_EXPORT_DIALOG", "SCHEMA_REPORT_DIALOG"];
+
 
 /***************************************************************
  *              Attrs
@@ -230,6 +234,7 @@ let PRIVATE_DATA = {
     diagram_gobj:   null,
     dialog:         null,
     dialog_gen:     0,      /*  the model_gen the open dialog was built on  */
+    dialog_kind:    "",     /*  the logical class of the open dialog  */
 
     /*  A write, or a plan of them, in flight  */
     save_queue:     null,
@@ -460,9 +465,9 @@ function refuse_if_readonly(gobj, event)
  *  dumped by the machine trace).
  *
  *  Refused, and said. A column form sends every field it shows, so
- *  its Save after a reload wrote the OLD record over the newer one
- *  (fourth independent review, probe A3); a form whose column the
- *  reload removed answered "names no column" for ever. end_load()
+ *  its Save after a reload wrote the OLD record over the newer one;
+ *  a form whose column the reload removed answered "names no column"
+ *  for ever. end_load()
  *  closes such a dialog when the load lands; this is the same rule
  *  for whatever arrives anyway -- a stale screen, a confirmation
  *  that was up, a keyboard.
@@ -489,8 +494,7 @@ function built_on_a_replaced_model(gobj, event, kw)
  *  the model shown is kept, and it may be older than the store.
  *  The session is up, so no reconnect will ask for it again -- it
  *  was owed for as long as the session lasted, and a form opened
- *  on that model wrote every field of it over the newer record
- *  (fifth independent review; A3 of the fourth, by another path).
+ *  on that model wrote every field of it over the newer record.
  *
  *  So the operator's NEXT action asks it. An edit -- a form, a
  *  write, a confirmation, what reads the model whole (check,
@@ -562,7 +566,7 @@ function reload_after_move(gobj)
  *  none of the actions of a screen, so the screen it replaces goes
  *  and the toolbar stops answering: left up, a click on a card, on
  *  Back or on the drawing answered "Event NOT DEFINED in state
- *  ST_LOADING" and was lost (third independent review). A dialog
+ *  ST_LOADING" and was lost. A dialog
  *  left open is answered in ST_LOADING instead (ac_wait_for_the_load),
  *  and a load that LANDS closes it (end_load()): it was built on the
  *  model the load replaced, and its Save sends every field it shows.
@@ -969,8 +973,7 @@ function render_toolbar(gobj)
      *  reload that no longer has them keeps the position (it says so,
      *  and Back is the way out). Asked of the MODEL, not of the state:
      *  gated on the state, Diagram, Check, Export, Import and New topic
-     *  stayed up there and each logged "with no treedb open" (fourth
-     *  independent review, probe D2).  */
+     *  stayed up there and each logged "with no treedb open".  */
     let treedb_here = on_a_treedb && !!current_treedb(gobj);
     let topic_here = treedb_here && !!current_topic(gobj);
     /*  Nothing is legal while the model is in the air: every action is
@@ -1745,6 +1748,7 @@ function close_dialog(gobj)
     }
     let dialog = priv.dialog;
     priv.dialog = null;
+    priv.dialog_kind = "";
     priv.export_view = null;
     try {
         dialog.close();
@@ -1759,6 +1763,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
 
     close_dialog(gobj);
     priv.dialog_gen = priv.model_gen;
+    priv.dialog_kind = logical;
     priv.dialog = yui_shell_show_modal(yui_shell_of(gobj), $content, {
         dialog:        true,
         title:         title,
@@ -1767,6 +1772,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
         t:             t,
         on_close:      () => {
             priv.dialog = null;
+            priv.dialog_kind = "";
             priv.export_view = null;
         }
     });
@@ -2674,11 +2680,11 @@ function transport_in_session(gobj)
  *  The state is part of the question, and that is only true
  *  because NOTHING moves the editor out of ST_LOADING or ST_SAVING
  *  but the end of what is in flight: a position the host sends
- *  meanwhile waits in `pending_seg` (ac_show()). 7.25.6 let EV_SHOW
- *  move a RELOAD out of ST_LOADING, and every answer of it was then
- *  "for a load that is over": the records it had emptied stayed
- *  empty, and the next write patched them into a model with no
- *  treedb at all.
+ *  meanwhile waits in `pending_seg` (ac_show()). If EV_SHOW moved a
+ *  RELOAD out of ST_LOADING, every answer of it would be "for a load
+ *  that is over": the records it had emptied would stay empty, and
+ *  the next write would patch them into a model with no treedb at
+ *  all.
  ***************************************************************/
 function is_current_load(gobj, md)
 {
@@ -2995,12 +3001,74 @@ function position_seg(gobj)
  *  ...and the same in reverse. A tail naming a treedb or a topic
  *  the store does not have lands one level up rather than on an
  *  empty screen: a shared link outlives the schema it points at.
+ *
+ *  Every position the HOST sends comes through here, at once
+ *  (ac_show()) or when what was in flight ends (end_load(),
+ *  end_writes()). A move to another position closes the dialog of
+ *  the screen the editor left (close_dialog_left_behind()).
  ***************************************************************/
 function apply_seg(gobj, seg)
 {
+    let before = position_seg(gobj);
     let pos = seg_position(seg);
 
-    return go(gobj, pos.treedb_id, pos.topic_name, pos.diagram, false);
+    let ret = go(gobj, pos.treedb_id, pos.topic_name, pos.diagram, false);
+    if(position_seg(gobj) !== before) {
+        close_dialog_left_behind(gobj);
+    }
+    return ret;
+}
+
+/***************************************************************
+ *  The host moved the editor while a dialog was up. C_YUI_SHELL
+ *  keeps the overlays open on a move that changes only the subpath
+ *  (a url typed in, a link), so the dialog outlives its screen.
+ *
+ *  A form, the import and the orphans send events that only the
+ *  screen they were opened from declares, and they name their
+ *  topic under the treedb open at the time. Left up on another
+ *  screen, their Save answered "Event NOT DEFINED" and the edit was
+ *  lost with no word. So the dialog is closed and the operator told.
+ *  The import plan goes with its dialog: it was computed for the
+ *  treedb the editor left.
+ *
+ *  The export and the check stay: they show the texts they were
+ *  opened with, and what they send is legal in every state.
+ ***************************************************************/
+function close_dialog_left_behind(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv.dialog || DIALOGS_THAT_READ_NOTHING.includes(priv.dialog_kind)) {
+        return;
+    }
+    log_warning(`${gobj_short_name(gobj)}: the host moved the view while the dialog ` +
+        `${priv.dialog_kind} was open: closed`);
+    close_dialog(gobj);
+    forget_import_plan(gobj);
+    yui_shell_show_error(yui_shell_of(gobj), "the view moved: open the dialog again", {t: t});
+}
+
+/***************************************************************
+ *  A confirmation answered on another screen than the one it was
+ *  asked from. A confirmation is a shell modal, so a move sent by
+ *  the host does not close it. It names its topic and column, and
+ *  the actions look them up under the treedb open NOW: a Yes after
+ *  a move to another treedb deleted the topic or column of the same
+ *  name THERE.
+ *
+ *  Refused, and said. A kw with no `seg` stamp is not a
+ *  confirmation's and is not asked.
+ ***************************************************************/
+function asked_on_another_screen(gobj, event, kw)
+{
+    if(!kw || kw.seg === undefined || kw.seg === position_seg(gobj)) {
+        return false;
+    }
+    log_warning(`${gobj_short_name(gobj)}: ${event} refused, it was asked on ` +
+        `'${kw.seg}' and the view is on '${position_seg(gobj)}'`);
+    yui_shell_show_error(yui_shell_of(gobj), "the view moved: open the dialog again", {t: t});
+    return true;
 }
 
 function seg_position(seg)
@@ -3111,10 +3179,10 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  slow `nodes`): the model shown is what the store held a
              *  moment ago, and blanking it took the screen and every open
              *  form with it -- a form's Save then answered "Event NOT
-             *  DEFINED in state ST_IDLE" (fourth independent review). It
+             *  DEFINED in state ST_IDLE". It
              *  stays, as it does when the load cannot leave, and the
              *  reload is owed: the operator's next action asks it
-             *  (reload_first(), fifth independent review).  */
+             *  (reload_first()).  */
             if(priv.model) {
                 log_warning(`${gobj_short_name(gobj)}: the schemas could not be read ` +
                     `again (${priv.load_error}): the previous ones stay`);
@@ -3139,13 +3207,13 @@ function ac_mt_command_answer(gobj, event, kw, src)
         /*  The store was read whole: whatever reload was owed is paid,
          *  whoever asked for this one -- the operator's Refresh, a late
          *  write, the reconnect. Left owed, the next edit was refused
-         *  and read the store AGAIN (sixth independent review).  */
+         *  and read the store AGAIN.  */
         priv.reload_on_open = false;
         /*  The plan was a list of writes computed on the model this load
          *  replaces. Forgotten HERE, where the model goes, and not when
          *  the requests leave: a load that fails replaces nothing, and
          *  forgetting early left its dialog up with no plan and Import
-         *  disabled (sixth independent review).  */
+         *  disabled.  */
         forget_import_plan(gobj);
         build_model(gobj);
         /*  Same reason as order_undo above: this is the LOAD, and the
@@ -3191,7 +3259,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                  *  silence, a drag of five columns stopped at the first.
                  *  The reload is also the one a late write may have owed
                  *  (reload_after_write): left set, the next write loaded
-                 *  the whole model once more (fourth independent review).  */
+                 *  the whole model once more.  */
                 let not_sent = priv.save_queue.length - 1;
                 log_warning(`${gobj_short_name(gobj)}: '${command}' answered no record` +
                     (not_sent > 0 ? `: ${not_sent} write(s) after it were not sent` : ""));
@@ -3284,8 +3352,7 @@ function late_write_done(gobj, command, topic_name, data)
  *  The fkey is read with parse_fkey_ref(), because the store answers
  *  in list_dict -- `[{topic_name, id, hook_name}]` -- and not in the
  *  `topics^<topic id>^cols` strings this view writes. Split as a
- *  string, every production answer marked nothing (fourth independent
- *  review, probe C).
+ *  string, every production answer marked nothing.
  ***************************************************************/
 function mark_written_record(gobj, topic_name, record)
 {
@@ -3344,7 +3411,7 @@ function ac_show(gobj, event, kw, src)
     /*  A move like the editor's own (ac_back() and the rest): it goes,
      *  and pays the reload a refused load owes there. Without it a url
      *  or the browser's Back left it owed on a screen that asked for
-     *  nothing (sixth independent review).  */
+     *  nothing.  */
     apply_seg(gobj, seg);
     return reload_after_move(gobj);
 }
@@ -3368,7 +3435,7 @@ function ac_hide(gobj, event, kw, src)
  *
  *  Nothing else ends a load or a write the drop cut: their answers
  *  will never come, and waiting in ST_LOADING skipped the reload
- *  itself (M-1 of the independent review of 7.25.4).
+ *  itself.
  ***************************************************************/
 function ac_transport_state(gobj, event, kw, src)
 {
@@ -3417,12 +3484,11 @@ function ac_refresh(gobj, event, kw, src)
  *  a model the answers in the air are about to replace.
  *
  *  Refused, and SAID. Undeclared, it answered "Event NOT DEFINED
- *  in state ST_LOADING" and the edit was gone with no word (third
- *  independent review).
+ *  in state ST_LOADING" and the edit was gone with no word.
  *
  *  And NOT "try again": the same Save, once the load was in, sent
  *  the form built on the old model -- every field of the old record
- *  over the newer one (fourth independent review). The load that
+ *  over the newer one. The load that
  *  lands closes such a dialog (end_load()); one that fails leaves it
  *  up, on the model it was built on.
  ***************************************************************/
@@ -3439,8 +3505,7 @@ function ac_wait_for_the_load(gobj, event, kw, src)
  *  reload landed on zero treedbs while it was up) or ST_IDLE (no
  *  model). A confirmation is a shell modal, not this view's dialog,
  *  so the load that lands does not close it, and its Yes arrives
- *  anyway. Undeclared, it answered "Event NOT DEFINED" (fifth
- *  independent review).
+ *  anyway. Undeclared, it answered "Event NOT DEFINED".
  *
  *  Refused with the stamp's own words: whatever it was decided on
  *  is not on screen any more.
@@ -3461,13 +3526,12 @@ function ac_confirmed_on_nothing(gobj, event, kw, src)
  *  topics hold a draft in __system__ that is not saved (C_TREEDB's
  *  saved-schema, `draft_changed`). The mark of a write lived in this
  *  session's memory only, so a reload of the page, a reconnect or a
- *  refresh showed no draft while __system__ still differed (N13 of
- *  the 2026-09-22 review).
+ *  refresh showed no draft while __system__ still differed.
  *
  *  REPLACES what the host said before -- the host is the truth after
  *  a reload, and a Save is exactly the host saying "none any more".
  *  It only ever added, and a topic stayed a draft after the Save that
- *  published it (M1 of the 2026-09-23 review). What this session wrote
+ *  published it. What this session wrote
  *  stays marked: it is kept apart (see topic_is_draft()).
  ***************************************************************/
 function ac_drafts(gobj, event, kw, src)
@@ -3552,7 +3616,7 @@ function ac_show_orphans(gobj, event, kw, src)
  ***************************************************************/
 function confirm_then(gobj, message, detail, kw)
 {
-    kw = Object.assign({model_gen: gobj.priv.model_gen}, kw);
+    kw = Object.assign({model_gen: gobj.priv.model_gen, seg: position_seg(gobj)}, kw);
     /*  The answers are i18n KEYS: shell_modals names each button by its
      *  label, and its defaults ("Delete", "Cancel") are not lower-case, so
      *  no validated locale holds them -- they read English in every
@@ -4090,6 +4154,9 @@ function ac_confirmed(gobj, event, kw, src)
         return -1;
     }
     if(built_on_a_replaced_model(gobj, event, kw)) {
+        return -1;
+    }
+    if(asked_on_another_screen(gobj, event, kw)) {
         return -1;
     }
     if(kw.what === "import") {

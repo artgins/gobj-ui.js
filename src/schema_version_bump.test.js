@@ -3,7 +3,7 @@
  *
  *      "This topic was written in this session and is not saved."
  *
- *      An edit is a DRAFT (M36 of yunetas' 2026-09-21 review): it moves
+ *      An edit is a DRAFT: it moves
  *      no version, and the host's save-schema raises the versions of what
  *      changed. So "written" alone is the whole question -- the version is
  *      no longer measured against a baseline, which is also why the old

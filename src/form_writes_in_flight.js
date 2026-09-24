@@ -7,8 +7,7 @@
  *          answers, so the host has to answer EVERY way a write ends --
  *          and the transport closing under a write in flight, or a
  *          command that never left because there was no session, are two
- *          of them that nobody answered: the form stayed busy for ever
- *          (N8 of the 2026-09-22 review).
+ *          of them that nobody answered: the form stayed busy for ever.
  *
  *          A write is known by its TOPIC and its `form_write` serial,
  *          never by the serial alone: each topic has its own form, and

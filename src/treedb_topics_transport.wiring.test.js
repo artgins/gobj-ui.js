@@ -5,7 +5,7 @@
  *      through the real gclasses (C_YUI_SHELL, C_YUI_TREEDB_TOPICS) on a
  *      document double. The helper (form_writes_in_flight.js) was tested
  *      and right; what failed was that two hosts never called the action
- *      that uses it (M8 of the 2026-09-23 review), which no helper test
+ *      that uses it, which no helper test
  *      can see.
  *
  *          Copyright (c) 2026, ArtGins.

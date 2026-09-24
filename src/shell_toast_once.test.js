@@ -5,17 +5,17 @@
  *      stacked under it: one close of the transport settles every
  *      request it cut, each view that asked shows its failure, and
  *      the operator got a column of identical "the connection
- *      dropped" (low of the independent review of the 2nd round).
+ *      dropped".
  *
- *      And a repeat is a caller of its own (third independent
- *      review): its handle and its time are its own, and the toast
- *      stays while any caller still holds it.
+ *      And a repeat is a caller of its own: its handle and its time
+ *      are its own, and the toast stays while any caller still holds
+ *      it.
  *
  *      And every ✕ this module draws is a control with a NAME: a
- *      `title` and an `aria-label`, both translatable (fourth
- *      independent review: TOAST_CLOSE had the label only). So is
- *      every other button of a dialog (fifth: the dialog's back arrow
- *      had no title, and the Yes/No of every confirmation had neither).
+ *      `title` and an `aria-label`, both translatable (TOAST_CLOSE had
+ *      the label only). So is every other button of a dialog (the
+ *      dialog's back arrow had no title, and the Yes/No of every
+ *      confirmation had neither).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -78,7 +78,7 @@ describe("one toast per message on screen", () => {
 });
 
 /*
- *  The third independent review: a repeat was handed the FIRST toast's
+ *  A repeat was handed the FIRST toast's
  *  handle and timer. A repeat asking `timeout: 0` was dismissed on the
  *  first one's timer, and closing one caller's handle closed the toast
  *  another caller was still showing.
@@ -168,7 +168,7 @@ describe("every close control is named", () => {
     });
 });
 
-describe("every other button of a dialog is named (fifth review)", () => {
+describe("every other button of a dialog is named", () => {
 
     function named($b)
     {

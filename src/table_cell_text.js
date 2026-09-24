@@ -7,7 +7,7 @@
  *          (only its own `plaintext` formatter escapes), so a record's text
  *          returned as a string is parsed as markup: `a<b and c>d` showed
  *          as `ad`, and a field holding `<img src=x onerror=...>` ran it in
- *          the operator's browser (M31 of the 2026-09-21 review). Record
+ *          the operator's browser. Record
  *          data goes in as a TEXT NODE, and a cell built around it as DOM,
  *          never as an HTML string with the data interpolated.
  *

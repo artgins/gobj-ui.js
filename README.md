@@ -1790,6 +1790,25 @@ size. A card on its tier's default now saves its position and nothing else;
 a closed node saves no size at all (a square is not the card's size), its
 entry keeps what it had.
 
+**A Save that does not land is written again** (since `7.25.15`). `Save`
+writes one `__graphs__` record per topic that changed, and nothing answers such
+a write when it lands, so the engine takes it for granted when it leaves. A
+refused one was recorded as saved all the same: the next Save found nothing to
+write, and the arrangement was never stored. Now the host (`C_YUI_TREEDB_GRAPH`)
+tells the engine every way the write can fail -- the backend answers an error
+(shown as before), the transport refuses the command, or there is no session
+(the write is not sent) -- with `EV_GRAPHS_WRITE_REFUSED {topic}`. The engine
+forgets what it believed the backend holds for that topic
+(`forget_refused_graphs_write()` in `graph_save_plan.js`), logs a warning and
+lights Save again, so the next Save writes the topic. A host of its own that
+hosts `C_G6_NODES_TREE` sends the same event when its write of `__graphs__`
+fails:
+
+```js
+// in the host, when the answer to its update-node of __graphs__ is an error
+gobj_send_event(engine, "EV_GRAPHS_WRITE_REFUSED", {topic: record.topic}, gobj);
+```
+
 **Every saved look has a way back, in the context menu** (since `7.23.134`,
 replacing `reset sizes` / `reset topic sizes`). In edition, the node, the port
 and the edge menus each offer three resets — this one, its kind (`reset topic
@@ -2244,6 +2263,28 @@ else.
   gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);   // form, model_gen N
   gobj_send_event(editor, "EV_REFRESH", {}, host);                 // Save -> "wait for them"
   // ... the load lands (model_gen N+1): the form closes, the operator reopens it
+  ```
+- **A move sent by the host closes the dialog of the screen it left**
+  (7.25.15). `C_YUI_SHELL` keeps the overlays open on a move that changes only
+  the subpath (a url typed in, a link), so a dialog outlived its screen: its
+  Save, its import Preview or an orphan delete sent an event only that screen
+  declares, answered *"Event NOT DEFINED"*, and the edit was lost with no word.
+  Now an `EV_SHOW` that moves the view to another position -- at once, or when
+  a load or a write in flight ends -- closes the column form, the topic form,
+  the import (its plan goes with it) and the orphans, and tells the operator
+  `the view moved: open the dialog again` (an i18n key the consumer's locales
+  carry). The export and the check stay up: they show the texts they were
+  opened with and send nothing a screen declares. The same position sent again
+  closes nothing. A **confirmation** is a shell modal, which the move does not
+  close; it carries the position it was asked on (`seg`), and a Yes answered
+  on another position is refused with the same words. Before, a Yes to "delete
+  this column?" asked on `db/users` and answered after a move to `db2/users`
+  deleted `db2`'s column of the same name.
+
+  ```js
+  gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);   // on db/users
+  gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);      // form closed, said
+  gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);      // same position: nothing
   ```
 - **A load refused IN session keeps the model it was replacing** (7.25.9): a
   routing adapter's deadline on a slow `nodes` answers -1 while the session

@@ -37,7 +37,7 @@
  *  A Date -> the value of a `datetime-local` input, in local time,
  *  WITH seconds: the input is built with `step: 1`, which is what
  *  lets it hold them. Written as "YYYY-MM-DDTHH:mm" it lost them on
- *  every save of any field (M26 of the 2026-09-21 review).
+ *  every save of any field.
  ************************************************************/
 function date_to_datetime_local(value)
 {

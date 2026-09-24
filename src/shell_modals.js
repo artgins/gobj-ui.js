@@ -124,9 +124,8 @@ function maybe_apply_translator($node, opts)
  *      it -- until every handle is closed or has timed out. Handed the
  *      first caller's handle and timer, a repeat asking `timeout: 0`
  *      was dismissed on the first one's timer, and closing one
- *      caller's handle closed a toast another was still showing
- *      (third independent review). The operator's ✕ closes it for
- *      everybody.
+ *      caller's handle closed a toast another was still showing.
+ *      The operator's ✕ closes it for everybody.
  ***************************************************************/
 function show_notification(shell, kind, message, opts)
 {

@@ -18,7 +18,8 @@
  ***********************************************************************/
 import {describe, test, expect} from "vitest";
 import {
-    plan_graph_saves, topic_arrangement_changed, arrangement_of, apply_graphs_echo
+    plan_graph_saves, topic_arrangement_changed, arrangement_of, apply_graphs_echo,
+    forget_refused_graphs_write
 } from "./graph_save_plan.js";
 
 const ORIGIN = "f3163a9f-1f37-412a-b8c9-87a4341f14de";
@@ -150,7 +151,7 @@ describe("arrangement_of", () => {
  *  save by another browser, sends back. It used to rebuild the saved
  *  snapshot of EVERY topic, taking the copies from the live objects the
  *  view had already rearranged: what was unsaved in OTHER topics counted
- *  as saved, and the next Save skipped it (M32 of the 2026-09-21 review).
+ *  as saved, and the next Save skipped it.
  */
 describe("an echo of one __graphs__ record", () => {
     function state()
@@ -198,5 +199,38 @@ describe("an echo of one __graphs__ record", () => {
         expect(live.realms).toBeUndefined();
         expect(saved.realms).toBeUndefined();
         expect(live.yunos).toBeDefined();
+    });
+});
+
+/*
+ *  A write of `__graphs__` that the backend REFUSED. The view takes the
+ *  write for granted before it leaves (nothing answers it when it lands),
+ *  so a refused one was recorded as saved: the next Save found nothing to
+ *  write, and the arrangement was never stored.
+ */
+describe("a refused __graphs__ write", () => {
+
+    test("is planned again by the next Save", () => {
+        let live = five_topics();
+        let saved = five_topics();
+        live.yunos.nodes["1"].x = 500;
+        expect(plan_graph_saves(live, saved)).toEqual(["yunos"]);
+
+        /*  What save_topic_graph_properties() does before the publish.  */
+        saved.yunos = JSON.parse(JSON.stringify(live.yunos));
+        expect(plan_graph_saves(live, saved)).toEqual([]);
+
+        expect(forget_refused_graphs_write(saved, "yunos")).toBe(true);
+        expect(plan_graph_saves(live, saved)).toEqual(["yunos"]);
+        expect(Object.keys(saved)).not.toContain("yunos");
+        expect(Object.keys(saved).length).toBe(4);
+    });
+
+    test("a topic the view never believed saved: nothing to forget", () => {
+        let saved = five_topics();
+        expect(forget_refused_graphs_write(saved, "nothing")).toBe(false);
+        expect(forget_refused_graphs_write(saved, "")).toBe(false);
+        expect(forget_refused_graphs_write(null, "yunos")).toBe(false);
+        expect(Object.keys(saved).length).toBe(5);
     });
 });

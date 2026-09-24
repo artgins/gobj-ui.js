@@ -94,6 +94,7 @@ import {
 
 import {
     apply_graphs_echo,
+    forget_refused_graphs_write,
     plan_graph_saves,
     topic_arrangement_changed,
 } from "./graph_save_plan.js";
@@ -3275,12 +3276,12 @@ function save_topic_graph_properties(gobj, topic_name)
      *  the publish and as a copy, because the object below travels by
      *  reference and goes on being arranged after the write.
      *
-     *  Nothing answers an `EV_UPDATE_NODE` of `__graphs__` -- the view
-     *  writes that topic itself and is deliberately not told about it
-     *  (see the EV_RECORD_WRITTEN of C_YUI_TREEDB_GRAPH) -- so this is
-     *  the write taken for granted. A refused one leaves the view
-     *  believing the backend holds an arrangement it does not, until
-     *  the next load reads the records again.  */
+     *  Nothing answers an `EV_UPDATE_NODE` of `__graphs__` when it
+     *  lands -- the view writes that topic itself and is deliberately
+     *  not told about it (see the EV_RECORD_WRITTEN of
+     *  C_YUI_TREEDB_GRAPH) -- so this is the write taken for granted.
+     *  The host says when one does NOT land (EV_GRAPHS_WRITE_REFUSED),
+     *  and the next Save writes the topic again.  */
     priv._saved_graph_properties[topic_name] = json_deep_copy(properties);
 
     let kw_update = {
@@ -10504,6 +10505,34 @@ function ac_save_graph(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The host says a write of `__graphs__` did not land: the
+ *  backend refused it, the transport refused it on the way out,
+ *  or there was no session to send it on. kw: {topic}
+ *
+ *  save_topic_graph_properties() recorded it as saved before it
+ *  left. Forgotten now, and the Save is lit again: the next Save
+ *  writes the topic again. Before, the view believed the backend
+ *  held the arrangement, and the next Save had nothing to write.
+ ************************************************************/
+function ac_graphs_write_refused(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let topic_name = kw && kw.topic;
+
+    if(!topic_name) {
+        log_error(`${gobj_short_name(gobj)}: ${event} names no topic`);
+        return -1;
+    }
+    log_warning(`${gobj_short_name(gobj)}: the arrangement of '${topic_name}' ` +
+        `was not saved: the next Save writes it again`);
+    forget_refused_graphs_write(priv._saved_graph_properties, topic_name);
+    if(priv.edit_mode) {
+        mark_graph_dirty(gobj);
+    }
+    return 0;
+}
+
+/************************************************************
  *  Node created, from subscription
  ************************************************************/
 function ac_node_created(gobj, event, kw, src)
@@ -10582,8 +10611,8 @@ function ac_node_updated(gobj, event, kw, src)
             priv.__graphs__.push(node);
         }
         /*  Only THIS record's topic: a rebuild of every topic took their
-         *  saved copies from the live objects (M32 of the 2026-09-21
-         *  review). build_graph_properties() is for the load.  */
+         *  saved copies from the live objects.
+         *  build_graph_properties() is for the load.  */
         apply_graphs_echo(
             priv._graph_properties, priv._saved_graph_properties, priv.__graphs__, node
         );
@@ -10637,7 +10666,7 @@ function ac_node_updated(gobj, event, kw, src)
     update_local_node(gobj, topic_name, node);
     /*  `priv.graph`: this read an undeclared `graph`, the ReferenceError
      *  fell into the catch, and a card on screen kept its old record after
-     *  every UPDATED (M33 of the 2026-09-21 review). The catch is for G6,
+     *  every UPDATED. The catch is for G6,
      *  which throws on an id it does not hold -- a folded card.  */
     let on_screen = false;
     try {
@@ -11778,8 +11807,8 @@ function ac_confirmed(gobj, event, kw, src)
         }
         if(missing.length) {
             /*  Gone while the question was open (another writer deleted
-             *  them): said, to the log and to the person (a low of the
-             *  2026-09-22 review); the rest go on.  */
+             *  them): said, to the log and to the person; the rest go
+             *  on.  */
             log_error(`${gobj_short_name(gobj)}: ${event}: cards gone while ` +
                 `confirming the delete, not deleted: ${missing.join(", ")}`);
             yui_shell_show_error(yui_shell_of(gobj), "some records were gone before the delete", {t: t});
@@ -12022,6 +12051,7 @@ function create_gclass(gclass_name)
             ["EV_NODE_CREATED",             ac_node_created,        null],
             ["EV_NODE_UPDATED",             ac_node_updated,        null],
             ["EV_NODE_DELETED",             ac_node_deleted,        null],
+            ["EV_GRAPHS_WRITE_REFUSED",     ac_graphs_write_refused, null],
 
             /*--- Graph interaction events ---*/
             ["EV_NODE_CLICK",               ac_node_click,          null],
@@ -12091,6 +12121,7 @@ function create_gclass(gclass_name)
         ["EV_NODE_CREATED",             0],
         ["EV_NODE_UPDATED",             0],
         ["EV_NODE_DELETED",             0],
+        ["EV_GRAPHS_WRITE_REFUSED",     0],
 
         /*--- Graph interaction (internal) ---*/
         ["EV_NODE_CLICK",               0],

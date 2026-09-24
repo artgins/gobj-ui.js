@@ -7,9 +7,8 @@
  *          it, and that mark lived in the memory of the session only:
  *          a reload of the page, a reconnect or a refresh of the model
  *          lost the chip, the banner and the export warning while
- *          __system__ still differed from the file in use (N13 of the
- *          2026-09-22 review). The host reads that difference from
- *          C_TREEDB's `saved-schema` (`draft_changed`, by treedb) and
+ *          __system__ still differed from the file in use. The host
+ *          reads that difference from C_TREEDB's `saved-schema` (`draft_changed`, by treedb) and
  *          hands it here; the editor applies it to its model, in place
  *          of what the host said before.
  *

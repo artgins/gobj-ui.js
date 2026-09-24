@@ -140,7 +140,35 @@ function apply_graphs_echo(live, saved, records, rec)
     }
 }
 
+/***************************************************************
+ *  A write of one topic's arrangement did NOT land: the backend
+ *  refused it, the transport refused it on the way out, or there
+ *  was no session to send it on.
+ *
+ *      saved       {topic_name: properties}  what the backend has
+ *      topic_name  the topic of the refused record
+ *
+ *  The view records a write as saved BEFORE it leaves, because
+ *  nothing answers it when it lands. So a refused one left the view
+ *  believing the backend held an arrangement it does not, and the
+ *  next Save found nothing to write. What the backend holds for the
+ *  topic is not known any more, so it is forgotten: the next Save
+ *  writes the topic again (plan_graph_saves()).
+ *
+ *  Returns TRUE if there was something to forget.
+ ***************************************************************/
+function forget_refused_graphs_write(saved, topic_name)
+{
+    if(!is_object(saved) || !topic_name ||
+            !Object.prototype.hasOwnProperty.call(saved, topic_name)) {
+        return false;
+    }
+    delete saved[topic_name];
+    return true;
+}
+
 export {
+    forget_refused_graphs_write,
     apply_graphs_echo,
     plan_graph_saves,
     topic_arrangement_changed,

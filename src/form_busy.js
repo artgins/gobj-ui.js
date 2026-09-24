@@ -10,9 +10,8 @@
  *          that back. So a second busy(true) while already busy must not
  *          run at all -- it read the buttons it had just disabled as
  *          "disabled on their own", and the busy(false) of a refused write
- *          left Save and Cancel dead (N9 of the 2026-09-22 review: a record
- *          with a picked file went busy for the read, then busy again for
- *          the write). The caller owns `state` ({busy}) for the form's life.
+ *          left Save and Cancel dead (a record with a picked file went
+ *          busy for the read, then busy again for the write). The caller owns `state` ({busy}) for the form's life.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

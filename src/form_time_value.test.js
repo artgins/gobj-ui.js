@@ -4,7 +4,7 @@ import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value
 describe("form_time_value", () => {
 
     it("an epoch with seconds survives a round trip through the input", () => {
-        /*  M26 of the 2026-09-21 review: the input was written without
+        /*  The input was written without
          *  seconds, so every save of ANY field moved a writable time
          *  column back up to 59 s. */
         const epoch = 1790000037;   // :37 seconds

@@ -1504,7 +1504,7 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options)
 
     if(!priv.gobj_remote_yuno) {
         log_error(`${gobj_short_name(gobj)}: No gobj_remote_yuno defined`);
-        return;
+        return -1;
     }
 
     let command = "update-node";
@@ -1528,7 +1528,9 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options)
     );
     if(ret) {
         log_error(ret);
+        return -1;
     }
+    return 0;
 }
 
 /************************************************************
@@ -2113,6 +2115,11 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  would tell a schema editor that the schema changed because
              *  somebody dragged a node.
              */
+            if(result < 0 && command === "update-node") {
+                graphs_write_refused(gobj,
+                    kw_get_str(gobj, kw_command, "topic_name", "", 0),
+                    kw_get_dict(gobj, kw_command, "record", {}, 0));
+            }
             if(result >= 0 &&
                 kw_get_str(gobj, kw_command, "topic_name", "", 0) !== "__graphs__") {
                 gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
@@ -2473,22 +2480,62 @@ function ac_update_node(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    if(refuse_if_readonly(gobj, event)) {
-        return -1;
-    }
-
     let treedb_name = priv.treedb_name;
     let topic_name = kw.topic_name;
     let record = kw.record;
     let options = kw.options || {};
 
-    return treedb_update_node(
+    if(refuse_if_readonly(gobj, event)) {
+        graphs_write_refused(gobj, topic_name, record);
+        return -1;
+    }
+
+    /*  The engine's arrangement is sent with no way back when it lands,
+     *  so one that cannot leave must be said here: out of session the
+     *  transport may answer nothing at all.  */
+    if(topic_name === "__graphs__" && !is_connected(gobj)) {
+        log_warning(`${gobj_short_name(gobj)}: no session, the arrangement ` +
+            `was not sent`);
+        graphs_write_refused(gobj, topic_name, record);
+        return -1;
+    }
+
+    let ret = treedb_update_node(
         gobj,
         treedb_name,
         topic_name,
         record,
         options
     );
+    if(ret < 0) {
+        graphs_write_refused(gobj, topic_name, record);
+    }
+    return ret;
+}
+
+/************************************************************
+ *  A write of `__graphs__` did not land. The engine
+ *  (C_G6_NODES_TREE) took it for granted when it left -- nothing
+ *  answers it when it lands -- so it is told, and its next Save
+ *  writes the topic again. Other topics are the operator's data:
+ *  the answer's error says what happened to them.
+ ************************************************************/
+function graphs_write_refused(gobj, topic_name, record)
+{
+    let priv = gobj.priv;
+
+    if(topic_name !== "__graphs__") {
+        return;
+    }
+    let topic = (record && typeof record === "object") ? (record.topic || record.id) : "";
+    if(!topic) {
+        log_error(`${gobj_short_name(gobj)}: a refused __graphs__ write names no topic`);
+        return;
+    }
+    if(!priv.gobj_nodes_tree) {
+        return;     /*  no engine: nothing believes it was saved  */
+    }
+    gobj_send_event(priv.gobj_nodes_tree, "EV_GRAPHS_WRITE_REFUSED", {topic: topic}, gobj);
 }
 
 /********************************************

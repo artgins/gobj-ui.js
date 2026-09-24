@@ -1,37 +1,35 @@
 /***********************************************************************
  *          schema_editor_reload.wiring.test.js
  *
- *      C_YUI_SCHEMA_EDITOR while it RELOADS (the third independent
- *      review, 2026-09-23). A reload entered ST_LOADING and drew
- *      nothing: the screen it replaced stayed up and clickable, and
- *      ST_LOADING declares none of its actions, so a click on a card,
- *      on Back, on the drawing -- or the Save of a column form left
- *      open -- answered "Event NOT DEFINED in state ST_LOADING" and
+ *      C_YUI_SCHEMA_EDITOR while it RELOADS. A reload entered
+ *      ST_LOADING and drew nothing: the screen it replaced stayed up and
+ *      clickable, and ST_LOADING declares none of its actions, so a click
+ *      on a card, on Back, on the drawing -- or the Save of a column form
+ *      left open -- answered "Event NOT DEFINED in state ST_LOADING" and
  *      the click, or the edit, was lost.
  *
- *      And the lows of the same review: a position left over from a
- *      load that could not leave, a drop during a WRITE that dropped
- *      the host's position (a drop during a load applies it), the
- *      drawing of a treedb that is gone drawn over the old screen, and
- *      the reload of a late write that forgot this session's marks and
- *      never told the host a write had landed.
+ *      And what a reload left behind: a position left over from a load
+ *      that could not leave, a drop during a WRITE that dropped the
+ *      host's position (a drop during a load applies it), the drawing of
+ *      a treedb that is gone drawn over the old screen, the reload of a
+ *      late write that forgot this session's marks and never told the
+ *      host a write had landed, a dialog opened on the model it replaced
+ *      (its Save wrote the old record over the newer one), a load refused
+ *      IN session that blanked the model, a late write whose list_dict
+ *      fkey marked nothing, a write answered with no record that owed a
+ *      second reload and dropped the rest of its queue in silence, and a
+ *      toolbar gated on the state instead of on the treedb being there.
  *
- *      The fourth independent review (same day) found what a reload
- *      still left behind: a dialog opened on the model it replaced
- *      (its Save wrote the old record over the newer one), a load
- *      refused IN session that blanked the model, a late write whose
- *      list_dict fkey marked nothing, a write answered with no record
- *      that owed a second reload and dropped the rest of its queue in
- *      silence, and a toolbar gated on the state instead of on the
- *      treedb being there.
+ *      And where the owed reload lingered: a load that LANDED by another
+ *      road (the operator's Refresh, a late write) left it owed, so the
+ *      next edit was refused and read the store again; a move sent by the
+ *      host did not run it; a load that failed forgot the import plan of
+ *      a dialog it left up; and the export's two views switched in a DOM
+ *      handler, out of the machine.
  *
- *      The sixth independent review (same day) found where the owed
- *      reload still lingered: a load that LANDED by another road (the
- *      operator's Refresh, a late write) left it owed, so the next
- *      edit was refused and read the store again; a move sent by the
- *      host did not run it; a load that failed forgot the import plan
- *      of a dialog it left up; and the export's two views switched in
- *      a DOM handler, out of the machine.
+ *      And a dialog that outlives its screen through a move sent by the
+ *      host: its Save answered "Event NOT DEFINED", and a confirmation
+ *      answered after a move to another treedb deleted there.
  *
  *      Driven through the FSM on a document double, with a fake
  *      transport whose state is the one the library reads.
@@ -63,8 +61,10 @@ vi.mock("./shell_modals.js", () => ({
         }};
     },
     yui_shell_confirm_danger: (shell, message, opts) => {
-        confirms.push({message, opts});
-        return new Promise(() => {});
+        /*  Answered by the test that needs it (`resolve`), or never.  */
+        return new Promise((resolve) => {
+            confirms.push({message, opts, resolve});
+        });
     },
 }));
 
@@ -530,7 +530,7 @@ describe("a write given up that was DONE", () => {
     });
 });
 
-describe("a dialog built on the model a reload replaced (fourth review)", () => {
+describe("a dialog built on the model a reload replaced", () => {
 
     test("an edit form: the load that lands closes it, and its Save writes nothing", () => {
         const {editor, remote, host} = build("s1", "db/users");
@@ -588,7 +588,7 @@ describe("a dialog built on the model a reload replaced (fourth review)", () => 
             r.cols.push({id: "db.users.email", value: "email", order: 2, type: "integer",
                          topics: ["topics^db.users^cols"]});
         }));
-        /*  Forgotten when the load LANDS, not when it leaves (sixth review).  */
+        /*  Forgotten when the load LANDS, not when it leaves.  */
         expect(editor.priv.import_plan).toBe(null);
         expect(dialog.closed).toBe(true);
 
@@ -612,7 +612,7 @@ describe("a dialog built on the model a reload replaced (fourth review)", () => 
     });
 });
 
-describe("a load that fails IN session (fourth review)", () => {
+describe("a load that fails IN session", () => {
 
     test("keeps the model, the screen and the open form, says so, and owes the reload", () => {
         const {editor, remote, host} = build("b1", "db/users");
@@ -634,7 +634,7 @@ describe("a load that fails IN session (fourth review)", () => {
 
         /*  The form was built on a model that may be older than the
          *  store: its Save would write every field of it. It runs the
-         *  reload owed instead (fifth review), and the load that lands
+         *  reload owed instead, and the load that lands
          *  closes the form.  */
         form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
         expect(not_defined()).toEqual([]);
@@ -675,7 +675,7 @@ describe("a load that fails IN session (fourth review)", () => {
     });
 });
 
-describe("a late write, in the shape the store answers (fourth review)", () => {
+describe("a late write, in the shape the store answers", () => {
 
     test("a list_dict fkey marks the topic the column belongs to", () => {
         const {editor, remote, host} = build("c1", "db/users");
@@ -692,7 +692,7 @@ describe("a late write, in the shape the store answers (fourth review)", () => {
     });
 });
 
-describe("a write answered with no record (fourth review)", () => {
+describe("a write answered with no record", () => {
 
     test("the reload it asks is the one owed: the next write does not load again", () => {
         const {editor, remote, host} = build("n1", "db/users");
@@ -736,7 +736,7 @@ describe("a write answered with no record (fourth review)", () => {
     });
 });
 
-describe("the toolbar of a treedb that is not there (fourth review)", () => {
+describe("the toolbar of a treedb that is not there", () => {
 
     test("offers Back and Refresh, and nothing that needs the treedb", () => {
         const {editor, remote, host} = build("t1", "db");
@@ -773,7 +773,7 @@ describe("the toolbar of a treedb that is not there (fourth review)", () => {
     });
 });
 
-describe("every control of the editor's dialogs is named (fourth review)", () => {
+describe("every control of the editor's dialogs is named", () => {
 
     /*  A control a wrapping <label> names is the one shape that needs no
      *  attribute (CLAUDE.md, "title + aria-label").  */
@@ -810,7 +810,7 @@ describe("every control of the editor's dialogs is named (fourth review)", () =>
     });
 });
 
-describe("the export's two views are controls (fifth review)", () => {
+describe("the export's two views are controls", () => {
 
     test("each is a named button that says which one is shown, and switches the text", () => {
         const {editor, remote, host} = build("x1", "db");
@@ -840,7 +840,7 @@ describe("the export's two views are controls (fifth review)", () => {
     });
 });
 
-describe("a Refresh asked while a load is in flight (fifth review)", () => {
+describe("a Refresh asked while a load is in flight", () => {
 
     test("keeps the records of the model shown, not the half the first load got", () => {
         const {editor, remote, host} = build("h1", "db/users");
@@ -876,7 +876,7 @@ describe("a Refresh asked while a load is in flight (fifth review)", () => {
     });
 });
 
-describe("the reload a load refused in session owes (fifth review)", () => {
+describe("the reload a load refused in session owes", () => {
 
     function refused_load(name, subpath)
     {
@@ -956,7 +956,7 @@ describe("the reload a load refused in session owes (fifth review)", () => {
     });
 });
 
-describe("the import plan (fifth review)", () => {
+describe("the import plan", () => {
 
     const IMPORT = JSON.stringify({id: "db", topics: [{id: "users", pkey: "id", cols: [
         {id: "id", type: "string", flag: ["persistent", "required"]},
@@ -990,7 +990,7 @@ describe("the import plan (fifth review)", () => {
     });
 });
 
-describe("a confirmation answered where no treedb is open (fifth review)", () => {
+describe("a confirmation answered where no treedb is open", () => {
 
     test("after a reload that landed on zero treedbs: refused as stale, not NOT DEFINED", () => {
         const {editor, remote, host} = build("e1", "db/users");
@@ -1031,7 +1031,7 @@ describe("a confirmation answered where no treedb is open (fifth review)", () =>
     });
 });
 
-describe("the answers of the editor's confirmations are i18n keys (fifth review, live)", () => {
+describe("the answers of the editor's confirmations are i18n keys", () => {
 
     /*  shell_modals names each answer by its label; its defaults ("Delete",
      *  "Cancel") are not lower-case, so no validated locale holds them and
@@ -1046,7 +1046,7 @@ describe("the answers of the editor's confirmations are i18n keys (fifth review,
     });
 });
 
-describe("the owed reload, settled wherever a load lands (sixth review)", () => {
+describe("the owed reload, settled wherever a load lands", () => {
 
     function refused_load(name, subpath)
     {
@@ -1125,7 +1125,7 @@ describe("the owed reload, settled wherever a load lands (sixth review)", () => 
     });
 });
 
-describe("the import plan outlives a load that fails (sixth review)", () => {
+describe("the import plan outlives a load that fails", () => {
 
     const IMPORT = JSON.stringify({id: "db", topics: [{id: "users", pkey: "id", cols: [
         {id: "id", type: "string", flag: ["persistent", "required"]},
@@ -1173,7 +1173,7 @@ describe("the import plan outlives a load that fails (sixth review)", () => {
     });
 });
 
-describe("the export's two views go through the machine (sixth review)", () => {
+describe("the export's two views go through the machine", () => {
 
     test("a click on a view is an event, and the action switches the text", () => {
         const {editor, remote, host} = build("y1", "db");
@@ -1219,5 +1219,137 @@ describe("the export's two views go through the machine (sixth review)", () => {
         gobj_send_event(editor, "EV_EXPORT", {}, host);
         gobj_send_event(editor, "EV_EXPORT_VIEW", {pane: "yaml"}, editor);
         expect(errors().length).toBe(2);
+    });
+});
+
+describe("a move sent by the host while a dialog is up", () => {
+
+    /*  C_YUI_SHELL keeps the overlays open on a move that changes only
+     *  the subpath (a url typed in, a link). The dialog of the screen the
+     *  editor left sends what only that screen declares.  */
+    const MOVED = "the view moved: open the dialog again";
+
+    const IMPORT = JSON.stringify({id: "db", topics: [{id: "users", pkey: "id", cols: [
+        {id: "id", type: "string", flag: ["persistent", "required"]},
+        {id: "email", type: "string"}
+    ]}]});
+
+    function settle()
+    {
+        return new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
+    }
+
+    test("a column form: closed and said, not left to answer NOT DEFINED", () => {
+        const {editor, remote, host} = build("mv1", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        const form = modals[modals.length - 1];
+        expect(form.closed).toBe(false);
+
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(form.closed).toBe(true);
+        expect(editor.priv.dialog).toBe(null);
+        expect(shown).toEqual([MOVED]);
+        expect(not_defined()).toEqual([]);
+        expect(errors()).toEqual([]);
+        expect(commands).toEqual([]);
+    });
+
+    test("the import dialog: closed, and its plan forgotten", () => {
+        const {editor, remote, host} = build("mv2", "db");
+        gobj_send_event(editor, "EV_IMPORT", {}, host);
+        const dialog = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_PREVIEW_IMPORT", {prune: false, text: IMPORT,
+            model_gen: editor.priv.model_gen}, editor);
+        expect(editor.priv.import_plan).not.toBe(null);
+
+        gobj_send_event(editor, "EV_SHOW", {subpath: ""}, host);
+        expect(gobj_current_state(editor)).toBe("ST_TREEDBS");
+        expect(dialog.closed).toBe(true);
+        expect(editor.priv.import_plan).toBe(null);
+        expect(shown).toEqual([MOVED]);
+        expect(not_defined()).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a move that arrives during a load that fails: the same, when it is applied", () => {
+        const {editor, remote, host} = build("mv3", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        const form = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        expect(form.closed).toBe(false);
+        for(const c of take("nodes")) {
+            answer(editor, remote, c, -1, null, "deadline");
+        }
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(form.closed).toBe(true);
+        expect(shown).toEqual([KEPT, MOVED]);
+        expect(not_defined()).toEqual([]);
+    });
+
+    test("the same position sent again leaves the dialog alone", () => {
+        const {editor, remote, host} = build("mv4", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        const form = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db/users"}, host);
+        expect(form.closed).toBe(false);
+        expect(shown).toEqual([]);
+    });
+
+    test("the export and the check read nothing of the screen: they stay up", () => {
+        const {editor, remote, host} = build("mv5", "db");
+        gobj_send_event(editor, "EV_EXPORT", {}, host);
+        const exported = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_SHOW", {subpath: ""}, host);
+        expect(exported.closed).toBe(false);
+        exported.$content.querySelectorAll(".SCHEMA_EXPORT_TAB")[1].click();
+        expect(exported.$content.querySelector(".SCHEMA_EXPORT_TEXT").value.trim()
+            .startsWith("{")).toBe(true);
+
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);
+        gobj_send_event(editor, "EV_VALIDATE", {}, host);
+        const report = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db/users"}, host);
+        expect(report.closed).toBe(false);
+        expect(shown).toEqual([]);
+        expect(not_defined()).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a confirmation answered after a move to another treedb deletes nothing", async () => {
+        const {editor, remote, host} = build("mv6", "db/users");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.treedbs.push({id: "db2", schema_version: 1});
+            r.topics.push({id: "db2.users", value: "users", order: 1, pkey: "id",
+                topic_version: 1, treedbs: ["treedbs^db2^topics"]});
+            r.cols.push({id: "db2.users.id", value: "id", order: 1, type: "string",
+                flag: ["persistent", "required"], topics: ["topics^db2.users^cols"]});
+        }));
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+
+        gobj_send_event(editor, "EV_DELETE_COLUMN", {col: "id"}, host);
+        expect(confirms.length).toBe(1);
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db2/users"}, host);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        confirms[0].resolve(true);
+        await settle();
+
+        expect(take("delete-node")).toEqual([]);
+        expect(commands).toEqual([]);
+        expect(shown).toEqual([MOVED]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a confirmation answered on the screen it was asked from still runs", async () => {
+        const {editor, remote, host} = build("mv7", "db/users");
+        gobj_send_event(editor, "EV_DELETE_COLUMN", {col: "id"}, host);
+        confirms[0].resolve(true);
+        await settle();
+        expect(take("delete-node").length).toBe(1);
+        expect(shown).toEqual([]);
     });
 });

@@ -188,7 +188,7 @@ function mt_start(gobj)
      *  (yui_shell_set_connection_state). A write in flight when it drops
      *  is never answered, and its form waited for ever in every host
      *  that did not forward EV_TRANSPORT_STATE -- wattyzer and yunovatios
-     *  among them (M8 of the 2026-09-23 review). The transport itself is
+     *  among them. The transport itself is
      *  not subscribed to: see ac_transport_state().  */
     let shell = yui_shell_of(gobj);
     if(shell) {
@@ -2476,8 +2476,8 @@ function ac_transport_state(gobj, event, kw, src)
 
     /*
      *  A write in flight when the transport closes is never answered by
-     *  the backend: its form stayed open and busy for ever (N8 of the
-     *  2026-09-22 review). Answered refused: the form stays open on what
+     *  the backend: its form stayed open and busy for ever. Answered
+     *  refused: the form stays open on what
      *  was typed, and the person saves again when the session is back.
      */
     if(!connected) {
@@ -2648,8 +2648,8 @@ function ac_create_record(gobj, event, kw, src)
 
     /*  `create_only`: +New makes a NEW record. With `create` alone a taken
      *  id was an update -- the record overwritten and, through autolink
-     *  with the selects empty, unlinked, answered "Node update!" (M28 of
-     *  the 2026-09-21 review). A backend older than the option ignores it
+     *  with the selects empty, unlinked, answered "Node update!". A
+     *  backend older than the option ignores it
      *  and keeps the old upsert.  */
     let options = {
         list_dict: true,
@@ -2895,8 +2895,8 @@ function ac_update_record(gobj, event, kw, src)
 /************************************************************
  *  A write sent with no session never leaves: C_IEVENT_CLI logs
  *  "Not in session" and answers null, as it does when the command
- *  went -- so a form waiting for the answer waited for ever (N8 of
- *  the 2026-09-22 review). Refused before it is sent, aloud.
+ *  went -- so a form waiting for the answer waited for ever. Refused
+ *  before it is sent, aloud.
  ************************************************************/
 function refuse_without_session(gobj, topic_name)
 {

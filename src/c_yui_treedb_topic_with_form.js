@@ -1500,8 +1500,8 @@ function create_tabulator(gobj)
          *  what the ceiling costs is having to widen the column, or open
          *  the record, to read the end of it.
          *  `maxInitialWidth`, not `maxWidth`: the latter is a HARD ceiling
-         *  that neither the drag handle nor the double click could pass
-         *  (M29 of the 2026-09-21 review); this one caps only the width the
+         *  that neither the drag handle nor the double click could pass;
+         *  this one caps only the width the
          *  layout gives, and leaves the column to the reader.  */
         if(max_col_width > 0) {
             colDef.maxInitialWidth = max_col_width;
@@ -2153,8 +2153,8 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             let items = treedb_hook_data_size(value);
 
             if(items > 0) {
-                /*  DOM, not an HTML string: the row id is record data (M31
-                 *  of the 2026-09-21 review). A language change re-runs
+                /*  DOM, not an HTML string: the row id is record data. A
+                 *  language change re-runs
                  *  setColumns(), which re-runs this.  */
                 value = createElement2(hook_cell_spec(
                     row.id, col.id, items, t("show linked records"), "show linked records"
@@ -2250,7 +2250,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
     /*
      *  A string is record data, and Tabulator would parse it as markup
      *  (innerHTML): `a<b` lost its text, a field holding an `<img onerror>`
-     *  ran it (M31 of the 2026-09-21 review). Shown as a text node.
+     *  ran it. Shown as a text node.
      */
     if(typeof value === "string" && value !== "") {
         value = cell_text(value);
@@ -4035,7 +4035,7 @@ function ac_new_row(gobj, event, kw, src)
  *  What crosses the confirmation is the rows' IDENTITY, never their
  *  position: the view applies EV_TREEDB_NODE_* of every writer while the
  *  dialog is open, and a position names whatever row sits there when the
- *  person answers -- with force:true (A6 of the 2026-09-21 review).
+ *  person answers -- with force:true.
  ************************************************************/
 function ac_delete_rows(gobj, event, kw, src)
 {
@@ -4103,8 +4103,8 @@ function ac_confirmed(gobj, event, kw, src)
              *  them): never replaced by the row that took their place.  */
             log_error(`${gobj_short_name(gobj)}: ${event}: rows gone while ` +
                 `confirming the delete, not deleted: ${found.missing.join(", ")}`);
-            /*  The person who answered "yes" is told, not only the log
-             *  (a low of the 2026-09-22 review).  */
+            /*  The person who answered "yes" is told, not only the
+             *  log.  */
             yui_shell_show_error(yui_shell_of(gobj), "some records were gone before the delete", {t: t});
         }
         if(!found.rows.length) {
@@ -4374,8 +4374,8 @@ function ac_files_read(gobj, event, kw, src)
  *  open and BUSY, and the serial it waits for is taken here.
  *
  *  A refused write used to close the form all the same and throw
- *  away what was typed, although the README said it stayed open
- *  (M25 of the 2026-09-21 review): the close was posted with the
+ *  away what was typed, although the README said it stayed open:
+ *  the close was posted with the
  *  publish, before the backend had answered anything.
  ************************************************************/
 function wait_for_write_answer(gobj)

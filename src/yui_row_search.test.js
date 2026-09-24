@@ -115,7 +115,7 @@ describe("is_hook_size", () => {
  *  The children of a hook as the NODE EVENTS deliver them: `{id,
  *  topic_name}`, with no hook_name. Not taken for a reference, their
  *  topic_name -- the same word on every row -- was a wildcard for every
- *  row that had received an UPDATED (M30 of the 2026-09-21 review).
+ *  row that had received an UPDATED.
  */
 describe("a hook's children as the node events deliver them", () => {
     const row = {id: "w1", devices: [{id: "d7", topic_name: "devices"}]};

@@ -712,13 +712,18 @@ import {
 
 /*  Toasts (Bulma .notification, auto-dismiss after 5 s).  ONE per
  *  message on screen: the same string of the same kind again, while
- *  the first still shows, restarts its time and returns ITS handle
- *  instead of stacking a copy (7.25.7) -- one close of a transport
- *  settles every request in flight, and each view says its failure. */
+ *  the first still shows, is not stacked as a copy -- one close of a
+ *  transport settles every request in flight, and each view says its
+ *  failure.  But each caller keeps its OWN handle and its own time:
+ *  the toast stays until every caller has closed its handle or timed
+ *  out.  The operator's ✕ closes it for everybody.  */
 yui_shell_show_info(shell,    "Hello");
 yui_shell_show_warning(shell, "Watch out");
-yui_shell_show_error(shell,   "Boom");
-yui_shell_show_error(shell,   "Boom");    // still one "Boom" on screen
+let first = yui_shell_show_error(shell, "Boom");
+let second = yui_shell_show_error(shell, "Boom", {timeout: 0});
+                                          // still one "Boom" on screen
+first.close();                            // still up: `second` holds it
+second.close();                           // gone
 
 /*  Non-blocking modal (Bulma .modal-content + .box).  Click on
  *  background, the close button or Escape close it.  `content` may
