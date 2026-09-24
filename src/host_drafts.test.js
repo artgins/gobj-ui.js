@@ -15,7 +15,7 @@ const model = {
 
 describe("mark_host_drafts", () => {
 
-    it("marks the topics the host names, by treedb (N13)", () => {
+    it("marks the topics the host names, by treedb", () => {
         /*  The mark lived in the memory of one session: after a reload the
          *  editor showed no draft while __system__ still differed from the
          *  file in use. Rebuilt from the host's data.  */
@@ -68,7 +68,7 @@ describe("host_draft_ids", () => {
             .toEqual({"treedb_a^users": true, "treedb_b^users": true});
     });
 
-    it("is a fresh map every time: what the host stopped naming is gone (M1)", () => {
+    it("is a fresh map every time: what the host stopped naming is gone", () => {
         /*  mark_host_drafts() only ADDS, and the editor fed it the same map
          *  every time: a topic the host named before the Save stayed a
          *  draft after it.  */

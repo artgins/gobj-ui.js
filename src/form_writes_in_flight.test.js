@@ -30,7 +30,7 @@ describe("form writes in flight", () => {
         ]);
     });
 
-    it("the transport closes: every write in flight is abandoned, once (N8)", () => {
+    it("the transport closes: every write in flight is abandoned, once", () => {
         /*  The form of each one is answered EV_WRITE_REFUSED by the host
          *  and stays open on what was typed; before, it stayed busy for
          *  ever, because nobody answered a write whose answer was lost.  */

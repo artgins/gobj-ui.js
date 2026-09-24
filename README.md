@@ -2113,7 +2113,7 @@ columns**, each in its declared `order`, with the storage composed underneath â€
 the qualified id, the fkey to the parent, the place among the siblings, and the
 versions that publish the change.
 
-**An edit here is a draft** (7.23.196, with the SDK's M36 design). A write moves
+**An edit here is a draft** (7.23.196, with SDK 7.25.0). A write moves
 no version and reaches no treedb. The HOST publishes it with `C_TREEDB`'s
 `save-schema`, which raises the `topic_version` of each topic that changed
 (the one that regenerates `topic_cols.json`) and the `schema_version` (the one

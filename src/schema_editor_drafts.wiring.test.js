@@ -138,7 +138,7 @@ describe("EV_DRAFTS: the host is the truth", () => {
         expect(drafts_on_screen(editor)).toBe(1);
     });
 
-    test("the host names none any more (a Save): the mark goes (M1)", () => {
+    test("the host names none any more (a Save): the mark goes", () => {
         /*  It only ever ADDED: after the Save the editor still said
          *  "unsaved schema changes".  */
         const {editor, host} = build("d2");

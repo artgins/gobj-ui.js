@@ -9,7 +9,7 @@ const doc = {
 describe("table_cell_text", () => {
 
     it("record text is a text node, markup included", () => {
-        /*  M31: Tabulator puts a string through innerHTML  */
+        /*  Tabulator puts a string through innerHTML  */
         const node = cell_text("limit a<b and c>d", doc);
         expect(node.nodeType).toBe(3);
         expect(node.textContent).toBe("limit a<b and c>d");

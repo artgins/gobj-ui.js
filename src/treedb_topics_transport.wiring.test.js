@@ -169,7 +169,7 @@ function errors()
     return logged.filter((l) => l.level === "error").map((l) => l.msg);
 }
 
-describe("a Save in flight when the backend drops (M8)", () => {
+describe("a Save in flight when the backend drops", () => {
 
     test("the shell's connection edge answers every form, with no host forwarding", () => {
         const {shell, topics, forms} = build("t1");

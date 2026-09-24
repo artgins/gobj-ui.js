@@ -725,7 +725,7 @@ function build_model(gobj)
  *  measurement of "changed since" can be measured against.
  *
  *  `written` is forgotten only by an EV_REFRESH (the view's own
- *  Refresh button, or a host that sends one). Since M36 a write moves no
+ *  Refresh button, or a host that sends one). Since 7.23.196 a write moves no
  *  version, so `written` is the draft chip of what this session
  *  wrote and no longer half of a version measurement: a reload of
  *  the reconnect, or of a write that turned out done, forgot the

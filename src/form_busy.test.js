@@ -53,7 +53,7 @@ describe("set_toolbar_busy", () => {
         expect(tb.save.classList.contains("is-loading")).toBe(false);
     });
 
-    it("busy twice then free: Save and Cancel come back (N9)", () => {
+    it("busy twice then free: Save and Cancel come back", () => {
         /*  A record with a picked file went busy for the read and busy
          *  again for the write; the second pass recorded the buttons the
          *  first had disabled as disabled on their own, and the free of a
