@@ -316,6 +316,8 @@ const WAIT = "the schemas are loading: wait for them";
 const STALE = "the schemas were read again: open the dialog again";
 const KEPT = "cannot read the schemas again: the ones shown may be out of date, your next change reads them first";
 const OWED = "the schemas shown may be out of date: they are read again, try again when they are in";
+const OWED_FORM = "the schemas shown may be out of date: they are read again, and the form opens again on them with your changes";
+const GONE = "the schemas were read again and what the form was editing is not there any more";
 const NOT_SENT = "the treedb did not describe a write back: the writes after it were not sent";
 
 describe("the screen of a reload", () => {
@@ -618,6 +620,7 @@ describe("a load that fails IN session", () => {
         const {editor, remote, host} = build("b1", "db/users");
         gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
         const form = modals[modals.length - 1];
+        form.$content.querySelector('[data-name="header"]').value = "Identifier";
         gobj_send_event(editor, "EV_REFRESH", {}, host);
         const asked = take("nodes");
         answer(editor, remote, asked[0], -1, null, "deadline");
@@ -634,16 +637,28 @@ describe("a load that fails IN session", () => {
 
         /*  The form was built on a model that may be older than the
          *  store: its Save would write every field of it. It runs the
-         *  reload owed instead, and the load that lands
-         *  closes the form.  */
+         *  reload owed instead. The load that lands closes the form,
+         *  and opens it again ON THE SCHEMAS JUST READ with what the
+         *  operator changed: closed alone, what was typed was lost.  */
         form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
         expect(not_defined()).toEqual([]);
         expect(take("update-node")).toEqual([]);
-        expect(shown).toEqual([KEPT, OWED]);
+        expect(shown).toEqual([KEPT, OWED_FORM]);
+        const before = modals.length;
         expect(answer_the_load(editor, remote)).toBe(3);
         expect(form.closed).toBe(true);
-        expect(shown).toEqual([KEPT, OWED, STALE]);
+        expect(modals.length).toBe(before + 1);
+        const again = modals[modals.length - 1];
+        expect(again.closed).toBe(false);
+        expect(again.$content.querySelector('[data-name="header"]').value).toBe("Identifier");
+        expect(shown).toEqual([KEPT, OWED_FORM]);
         expect(editor.priv.reload_on_open).toBe(false);
+
+        /*  Its Save writes, on the record just read.  */
+        again.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        const [write] = take("update-node");
+        expect(write.kw.record.id).toBe("db.users.id");
+        expect(write.kw.record.header).toBe("Identifier");
         expect(errors()).toEqual([]);
     });
 
@@ -1351,5 +1366,138 @@ describe("a move sent by the host while a dialog is up", () => {
         await settle();
         expect(take("delete-node").length).toBe(1);
         expect(shown).toEqual([]);
+    });
+});
+
+describe("the form opened again after the owed reload", () => {
+
+    function owing(name, subpath)
+    {
+        const built = build(name, subpath);
+        built.editor.priv.reload_on_open = true;    /*  as a load refused in session leaves it  */
+        return built;
+    }
+
+    test("only what was CHANGED is carried: a field the store changed meanwhile shows the store's", () => {
+        const {editor, remote, host} = build("ro6", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        editor.priv.reload_on_open = true;
+        const form = modals[modals.length - 1];
+        form.$content.querySelector('[data-name="header"]').value = "Identifier";
+        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.cols[0].description = "written by somebody else";
+        }));
+        const again = modals[modals.length - 1];
+        expect(again.$content.querySelector('[data-name="header"]').value).toBe("Identifier");
+        expect(again.$content.querySelector('[data-name="description"]').value)
+            .toBe("written by somebody else");
+        again.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        const [write] = take("update-node");
+        expect(write.kw.record.description).toBe("written by somebody else");
+        expect(write.kw.record.header).toBe("Identifier");
+        expect(errors()).toEqual([]);
+    });
+
+    test("a NEW column comes back whole: its name, its type and its flags", () => {
+        const {editor, remote, host} = owing("ro2", "db/users");
+        /*  The owed reload runs on the form's opening too: open it on a
+         *  model that is current, then owe the reload.  */
+        editor.priv.reload_on_open = false;
+        gobj_send_event(editor, "EV_ADD_COLUMN", {}, host);
+        editor.priv.reload_on_open = true;
+        const form = modals[modals.length - 1];
+        form.$content.querySelector('[data-name="value"]').value = "email";
+        form.$content.querySelector('[data-name="header"]').value = "Email";
+        for(const $box of form.$content.querySelectorAll(".SCHEMA_FLAG_BOX")) {
+            if($box.dataset.flag === "required") {
+                $box.checked = true;
+            }
+        }
+        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        expect(shown).toEqual([OWED_FORM]);
+        answer_the_load(editor, remote);
+        const again = modals[modals.length - 1];
+        expect(again).not.toBe(form);
+        expect(again.$content.querySelector('[data-name="value"]').value).toBe("email");
+        expect(again.$content.querySelector('[data-name="header"]').value).toBe("Email");
+        const on = [...again.$content.querySelectorAll(".SCHEMA_FLAG_BOX")]
+            .filter(($b) => $b.checked).map(($b) => $b.dataset.flag);
+        expect(on).toContain("required");
+        expect(errors()).toEqual([]);
+    });
+
+    test("a topic form comes back the same way", () => {
+        const {editor, remote, host} = build("ro3", "db");
+        gobj_send_event(editor, "EV_EDIT_TOPIC", {topic: "users"}, host);
+        editor.priv.reload_on_open = true;
+        const form = modals[modals.length - 1];
+        form.$content.querySelector('[data-name="tkey"]').value = "tm";
+        form.$content.querySelector(".SCHEMA_TOPIC_FORM_SAVE").click();
+        expect(shown).toEqual([OWED_FORM]);
+        answer_the_load(editor, remote);
+        const again = modals[modals.length - 1];
+        expect(again).not.toBe(form);
+        expect(again.$content.querySelector('[data-name="tkey"]').value).toBe("tm");
+        expect(errors()).toEqual([]);
+    });
+
+    test("what the form edited is gone after the reload: not opened again, and SAID", () => {
+        const {editor, remote, host} = build("ro4", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        editor.priv.reload_on_open = true;
+        const form = modals[modals.length - 1];
+        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        const before = modals.length;
+        answer_the_load_with(editor, remote, records_with((r) => {
+            r.cols = [];
+        }));
+        expect(form.closed).toBe(true);
+        expect(modals.length).toBe(before);
+        expect(shown).toEqual([OWED_FORM, GONE]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a form closed by the operator while the reload ran is not opened again", () => {
+        const {editor, remote, host} = build("ro5", "db/users");
+        gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);
+        editor.priv.reload_on_open = true;
+        const form = modals[modals.length - 1];
+        form.$content.querySelector(".SCHEMA_COL_FORM_SAVE").click();
+        form.$content.querySelector(".SCHEMA_COL_FORM_CANCEL").click();
+        const before = modals.length;
+        answer_the_load(editor, remote);
+        expect(modals.length).toBe(before);
+        expect(shown).toEqual([OWED_FORM]);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("EV_REFRESH while a write is in flight", () => {
+
+    test("waits for the end of the writes: the queue is written whole, then the schemas are read", () => {
+        const {editor, remote, host} = build("rq1", "db");
+        gobj_send_event(editor, "EV_CONFIRMED", {what: "topic", topic: "users",
+            model_gen: editor.priv.model_gen}, editor);
+        expect(gobj_current_state(editor)).toBe("ST_SAVING");
+        const [first] = take("delete-node");
+        expect(first.kw.topic_name).toBe("cols");
+
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        expect(gobj_current_state(editor)).toBe("ST_SAVING");
+        expect(take("nodes")).toEqual([]);
+        expect(logged.some((l) => l.level === "warning" &&
+            /EV_REFRESH.*when the writes end/.test(l.msg))).toBe(true);
+
+        answer(editor, remote, first, 0, {});
+        const [second] = take("delete-node");
+        expect(second.kw.topic_name).toBe("topics");
+        answer(editor, remote, second, 0, {});
+
+        expect(gobj_current_state(editor)).toBe("ST_LOADING");
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(editor.priv.written).toEqual({});
+        expect(errors()).toEqual([]);
+        expect(not_defined()).toEqual([]);
     });
 });

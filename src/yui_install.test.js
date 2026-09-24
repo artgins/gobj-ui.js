@@ -140,3 +140,26 @@ test("subscribe(): a throwing listener does not break the others", async () => {
     off1();
     off2();
 });
+
+/*  The question asked when the app names none is an i18n KEY, the one
+ *  every consumer already defines ("install this app"). It was
+ *  "Install this app?", a key no locale carries, so an app that took
+ *  the default asked in English in every language.  */
+test("ask_once(): the default question and answers are i18n keys", async () => {
+    const asked = [];
+    vi.resetModules();
+    vi.doMock("./shell_modals.js", () => ({
+        yui_shell_confirm_yesno: (shell, message, opts) => {
+            asked.push({message, yes: opts.yes_label, no: opts.no_label});
+            return new Promise(() => {});
+        }
+    }));
+    try {
+        const {yui_install_ask_once} = await import("./yui_install.js");
+        window[STASH] = fake_event("accepted");
+        yui_install_ask_once({fake_shell: true}, {});
+        expect(asked).toEqual([{message: "install this app", yes: "install", no: "not now"}]);
+    } finally {
+        vi.doUnmock("./shell_modals.js");
+    }
+});

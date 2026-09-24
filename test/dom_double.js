@@ -173,6 +173,11 @@ class FakeElement extends FakeNode {
         if(k === "value") {
             this.value = s;
         }
+        if(k === "checked") {
+            /*  The attribute is the box's DEFAULT state, and a box
+             *  nobody has clicked yet shows it, as in a browser.  */
+            this.checked = true;
+        }
         if(k.startsWith("data-")) {
             const key = k.slice(5).replace(/-([a-z])/g, (m, c) => c.toUpperCase());
             this.dataset[key] = s;

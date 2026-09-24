@@ -1809,6 +1809,21 @@ fails:
 gobj_send_event(engine, "EV_GRAPHS_WRITE_REFUSED", {topic: record.topic}, gobj);
 ```
 
+**A refused write stays OWED until a Save writes it** (since `7.25.16`). In
+`7.25.15` the Save lit by the refusal went dark again at the next repaint of
+the history buttons -- they decide the Save from `history.canUndo()`, and they
+run on every history change, every change of mode and every redraw of the
+theme -- and a refusal heard in reading was never shown. The engine now keeps
+the topic as owed: the Save stays lit while one is, in edition and on entering
+it; the Save that writes the topic again pays it, and a reload of the data
+forgets it (the view holds what the backend holds).
+
+```js
+gobj_send_event(engine, "EV_GRAPHS_WRITE_REFUSED", {topic: "users"}, host);  // Save lit
+// ... a node moved and moved back (nothing to undo): Save still lit
+gobj_send_event(engine, "EV_SAVE_GRAPH", {}, engine);  // writes users; Save dark
+```
+
 **Every saved look has a way back, in the context menu** (since `7.23.134`,
 replacing `reset sizes` / `reset topic sizes`). In edition, the node, the port
 and the edge menus each offer three resets — this one, its kind (`reset topic
@@ -2206,6 +2221,7 @@ else.
   master the tranger, so it refuses every write), `base_route`, `$container`.
 - In: `EV_SHOW` (`{subpath}` — the tail it owns is `<treedb>[/<topic>]` or
   `<treedb>/diagram`), `EV_HIDE`, `EV_TRANSPORT_STATE`, `EV_REFRESH`,
+  `EV_DRAFTS` (`{drafts: {<treedb>: [<topic>, …]}}`, see above),
   `EV_LANGUAGE_CHANGED`, `EV_MT_COMMAND_ANSWER`.
 - A **drop** of the transport — `EV_TRANSPORT_STATE {connected: false}`, or a
   failed answer that arrives while the transport is out of `ST_SESSION` — ends
@@ -2229,6 +2245,19 @@ else.
   gobj_send_event(editor, "EV_REFRESH", {}, host);             // ST_LOADING
   gobj_send_event(editor, "EV_SHOW", {subpath: "db"}, host);   // waits
   // ... the three `nodes` answers land -> ST_TOPICS of `db`
+  ```
+
+  **`EV_REFRESH` waits too** (7.25.16). Heard in `ST_SAVING` -- a host that
+  sends it after a Save while the writes are still in flight -- it is logged
+  and run when the writes END, forgetting the drafts as a Refresh does. It
+  ran at once: the load replaced `ST_SAVING`, and what was still queued (the
+  topic of a topic delete, after its columns) was never sent, with no word.
+
+  ```js
+  gobj_send_event(editor, "EV_CONFIRMED", {what: "topic", topic: "users",
+      model_gen: n}, editor);                                  // ST_SAVING, 2 deletes
+  gobj_send_event(editor, "EV_REFRESH", {}, host);             // logged, waits
+  // ... both deletes answered -> ST_LOADING -> the model is read again
   ```
 - **The loading screen is drawn** (7.25.8): the body is cleared, the drawing
   destroyed and every toolbar button disabled, as in `ST_SAVING`, because
@@ -2313,6 +2342,28 @@ else.
   // the load failed in session: model kept, reload owed
   gobj_send_event(editor, "EV_EDIT_COLUMN", {col: "id"}, host);   // refused, said; ST_LOADING
   // ... the load lands: the same click now opens the form
+  ```
+
+  **The Save of a form open when the reload is owed keeps what was typed**
+  (7.25.16). It runs the owed reload and says
+  `the schemas shown may be out of date: they are read again, and the form opens again on them with your changes`.
+  The load that lands closes the form and opens it again on the schemas it
+  read, with the fields the operator CHANGED put back on top -- only those,
+  so a field left as it was shows what the store holds now and the next Save
+  does not write the old value over a newer one. A new column or topic comes
+  back whole (nothing of it is in the store). Before, the form was closed and
+  what was typed was lost. It is not opened again when what it edited is not
+  on the schemas read (a column deleted meanwhile, another treedb, another
+  screen): that is said with
+  `the schemas were read again and what the form was editing is not there any more`.
+  A form the operator closed while the load ran stays closed. Both texts are
+  i18n keys the consumer's locales carry.
+
+  ```js
+  // reload owed; column form of db.users.id open, header typed "Identifier"
+  // Save -> refused, the model is read again
+  // ... the load lands: the form opens again, header "Identifier", the rest
+  //     of the fields as the store holds them now; Save writes them
   ```
 
   A write answered with no record reloads the model and
@@ -3280,9 +3331,13 @@ a modal
 `TOAST*`. Every button of that chrome -- each ✕, a dialog's back arrow, a
 confirmation's answers (`CONFIRM_BTN`) -- carries a translatable `title` and
 `aria-label` (7.25.10). An answer is named by its own label, so pass i18n
-KEYS as `yes_label` / `confirm_label` / … (`{yes_label: "install"}`): the
-defaults (`"Yes"`, `"Delete"`) are not lower-case and no validated locale
-can hold them.
+KEYS as `yes_label` / `confirm_label` / … (`{yes_label: "install"}`). The
+defaults are keys too since 7.25.16 -- `"ok"`, `"yes"`, `"no"`, `"delete"`
+and `"cancel"` (they were `"OK"`, `"Yes"`, … , which no validated locale can
+hold) -- so an app that mounts these dialogs defines those five keys, and
+its `validate-locales` asks for them. `yui_install_ask_once()` asks
+`"install this app"` (was `"Install this app?"`), answered `"install"` /
+`"not now"`.
 
 Those names identify the *kind* of block, not the *instance*: every window in
 the app is a `C_YUI_WINDOW`, every popup is a `MODAL`. To target **one**

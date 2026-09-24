@@ -117,6 +117,7 @@ import {
     kw_get_int,
     kw_get_dict,
     is_object,
+    json_deep_copy,
     is_array,
     empty_string,
 } from "@yuneta/gobj-js";
@@ -246,6 +247,8 @@ let PRIVATE_DATA = {
     dropped_round:  0,      /*  the load a drop ended: its failures are the drop, said once  */
     dropped_write:  0,      /*  the same for the write a drop ended  */
     reload_after_write: false,  /*  a write given up turned out DONE while another was in flight  */
+    refresh_after_write: false, /*  EV_REFRESH heard while writes were in flight: run at their end  */
+    reopen_form:    null,   /*  the form whose Save ran the owed reload: opened again once it lands  */
 
     /*  A position that arrived while a load or a write was in flight  */
     pending_seg:    null,
@@ -522,12 +525,37 @@ function owes_reload(gobj)
         state !== "ST_LOADING" && state !== "ST_SAVING";
 }
 
-function reload_first(gobj, event)
+function reload_first(gobj, event, reopen)
 {
+    let priv = gobj.priv;
+
     if(!owes_reload(gobj)) {
         return false;
     }
-    gobj.priv.reload_on_open = false;
+    priv.reload_on_open = false;
+
+    /*  The Save of a FORM: what the operator typed is not thrown away
+     *  with the model it was typed on. The load that lands closes the
+     *  form (end_load()) and opens it again on the schemas it read,
+     *  with the fields the operator CHANGED put back on top -- only
+     *  those: a field left as it was shows what the store holds now,
+     *  so the next Save does not write the old value over a newer
+     *  one. Closed alone, the form took what was typed with it.  */
+    if(reopen && priv.dialog) {
+        priv.reopen_form = Object.assign(json_deep_copy(reopen), {
+            dialog:    priv.dialog,
+            treedb_id: priv.treedb_id
+        });
+        log_warning(`${gobj_short_name(gobj)}: ${event} refused, the schemas shown ` +
+            `may be out of date: they are read again first, and the form opens again ` +
+            `on them with its changes`);
+        yui_shell_show_error(yui_shell_of(gobj),
+            "the schemas shown may be out of date: they are read again, and the form opens again on them with your changes",
+            {t: t});
+        request_model(gobj, true);
+        return true;
+    }
+
     log_warning(`${gobj_short_name(gobj)}: ${event} refused, the schemas shown ` +
         `may be out of date: they are read again first`);
     yui_shell_show_error(yui_shell_of(gobj),
@@ -535,6 +563,53 @@ function reload_first(gobj, event)
         {t: t});
     request_model(gobj, true);
     return true;
+}
+
+/***************************************************************
+ *  The form reload_first() took down, opened again on the model
+ *  the load just made, with the operator's changes on top.
+ *
+ *  Only where it can mean the same thing: on the treedb it was
+ *  opened on, on the screen whose Save it has, and on a record
+ *  that is still there. Otherwise it is not opened, and that is
+ *  said -- a form opened on another treedb, or on nothing, would
+ *  save somewhere the operator never meant.
+ ***************************************************************/
+function reopen_form(gobj, r)
+{
+    let priv = gobj.priv;
+    let state = gobj_current_state(gobj);
+    let treedb = current_treedb(gobj);
+    let topic = null;
+    let col = null;
+    let fits = false;
+
+    if(treedb && r.treedb_id === priv.treedb_id) {
+        if(r.form === "column" && state === "ST_COLUMNS") {
+            topic = find_topic(priv.model, priv.treedb_id, r.topic);
+            col = (topic && !r.creating) ?
+                find_col(priv.model, priv.treedb_id, r.topic, r.col) : null;
+            fits = !!topic && (r.creating || !!col);
+        } else if(r.form === "topic" && state === "ST_TOPICS") {
+            topic = r.creating ? null : find_topic(priv.model, priv.treedb_id, r.topic);
+            fits = r.creating || !!topic;
+        }
+    }
+    if(!fits) {
+        log_warning(`${gobj_short_name(gobj)}: the ${r.form} form was not opened again: ` +
+            `what it edited is not on the schemas the reload read ` +
+            `(${r.treedb_id} ${r.topic}${r.col ? "." + r.col : ""}, now ${state})`);
+        yui_shell_show_error(yui_shell_of(gobj),
+            "the schemas were read again and what the form was editing is not there any more",
+            {t: t});
+        return -1;
+    }
+    if(r.form === "column") {
+        open_column_form(gobj, topic, col, null, r.changed);
+    } else {
+        open_topic_form(gobj, treedb, topic, r.changed);
+    }
+    return 0;
 }
 
 function reload_after_move(gobj)
@@ -1916,6 +1991,75 @@ function read_form($root)
 }
 
 /***************************************************************
+ *  A column form as its Save sends it: the fields and the flags.
+ ***************************************************************/
+function column_form_state($form)
+{
+    let values = read_form($form);
+    values.flag = read_flags($form);
+    return values;
+}
+
+/***************************************************************
+ *  The fields the operator CHANGED: those whose value is not the
+ *  one the form was opened with.
+ ***************************************************************/
+function form_changes(initial, values)
+{
+    let changed = {};
+
+    for(let name of Object.keys(values)) {
+        if(JSON.stringify(values[name]) !== JSON.stringify(initial[name])) {
+            changed[name] = values[name];
+        }
+    }
+    return changed;
+}
+
+/***************************************************************
+ *  Put changes back into a form just built (reopen_form()). The
+ *  flags are drawn again for the type the changes leave, holding
+ *  the flags they name, so none of them is hidden by the type.
+ ***************************************************************/
+function apply_form_changes(gobj, $form, changes)
+{
+    for(let name of Object.keys(changes)) {
+        if(name === "flag") {
+            continue;
+        }
+        let $control = $form.querySelector(`[data-name="${name}"]`);
+        if(!$control) {
+            log_warning(`${gobj_short_name(gobj)}: a change of '${name}' has no field ` +
+                `in the form opened again: not put back`);
+            continue;
+        }
+        if($control.type === "checkbox") {
+            $control.checked = !!changes[name];
+        } else {
+            $control.value = changes[name];
+        }
+    }
+
+    let $type = $form.querySelector('[data-name="type"]');
+    if($type && $form.querySelector(".SCHEMA_FLAGS")) {
+        let flags = Array.isArray(changes.flag) ? changes.flag : read_flags($form);
+        redraw_flags(gobj, $form, $type.value, flags);
+    }
+}
+
+/***************************************************************
+ *  Draw the flags of a column form again, for `type`, with
+ *  `current` checked.
+ ***************************************************************/
+function redraw_flags(gobj, $form, type, current)
+{
+    let $holder = $form.querySelector(".SCHEMA_FLAGS");
+    let $new = createElement2(flags_field(gobj, type, current));
+    $holder.parentNode.replaceChild($new, $holder);
+    refresh_language($new, t);
+}
+
+/***************************************************************
  *  The flags of a column, as checkboxes that say what they do.
  *
  *  Grouped the way they act, greyed when they are meaningless on
@@ -1977,7 +2121,7 @@ function read_flags($root)
  *  Offering a field that silently does something else is worse
  *  than not offering it.
  ***************************************************************/
-function open_column_form(gobj, topic, col, prefill)
+function open_column_form(gobj, topic, col, prefill, changes)
 {
     let priv = gobj.priv;
     /*  A DUPLICATE is a creation whose fields start filled: the name must
@@ -2051,11 +2195,7 @@ function open_column_form(gobj, topic, col, prefill)
      *  new type does not use.  */
     let $type = $form.querySelector('[data-name="type"]');
     $type.addEventListener("change", () => {
-        let $holder = $form.querySelector(".SCHEMA_FLAGS");
-        let current = read_flags($form);
-        let $new = createElement2(flags_field(gobj, $type.value, current));
-        $holder.parentNode.replaceChild($new, $holder);
-        refresh_language($new, t);
+        redraw_flags(gobj, $form, $type.value, read_flags($form));
     });
 
     /*  A flag that excludes another is answered here and not on save,
@@ -2075,15 +2215,22 @@ function open_column_form(gobj, topic, col, prefill)
         evt.stopPropagation();
         close_dialog(gobj);
     });
+    /*  What the form showed before the operator touched it: what
+     *  was CHANGED is measured against it (form_changes()).  */
+    let initial = column_form_state($form);
+    if(changes) {
+        apply_form_changes(gobj, $form, changes);
+    }
+
     $form.querySelector(".SCHEMA_COL_FORM_SAVE").addEventListener("click", (evt) => {
         evt.stopPropagation();
-        let values = read_form($form);
-        values.flag = read_flags($form);
+        let values = column_form_state($form);
         gobj_send_event(gobj, "EV_SAVE_COLUMN", {
             topic:     topic.name,
             col:       creating ? "" : col.name,
             creating:  creating,
             values:    values,
+            changed:   creating ? values : form_changes(initial, values),
             model_gen: model_gen
         }, gobj);
     });
@@ -2112,7 +2259,7 @@ function stringify_field(value)
  *  actually has: a pkey naming no column is a topic that does
  *  not open, and it is the first thing the validator looks for.
  ***************************************************************/
-function open_topic_form(gobj, treedb, topic)
+function open_topic_form(gobj, treedb, topic, changes)
 {
     let record = (topic && topic.record) || {};
     let creating = !topic;
@@ -2171,12 +2318,19 @@ function open_topic_form(gobj, treedb, topic)
         evt.stopPropagation();
         close_dialog(gobj);
     });
+    let initial = read_form($form);
+    if(changes) {
+        apply_form_changes(gobj, $form, changes);
+    }
+
     $form.querySelector(".SCHEMA_TOPIC_FORM_SAVE").addEventListener("click", (evt) => {
         evt.stopPropagation();
+        let values = read_form($form);
         gobj_send_event(gobj, "EV_SAVE_TOPIC", {
             topic:     creating ? "" : topic.name,
             creating:  creating,
-            values:    read_form($form),
+            values:    values,
+            changed:   creating ? values : form_changes(initial, values),
             model_gen: model_gen
         }, gobj);
     });
@@ -2756,27 +2910,46 @@ function end_load(gobj)
 {
     let priv = gobj.priv;
     let seg = priv.pending_seg;
+    let reopen = priv.reopen_form;
 
     priv.pending_seg = null;
+    priv.reopen_form = null;
     if(priv.dialog && priv.dialog_gen !== priv.model_gen) {
-        log_warning(`${gobj_short_name(gobj)}: a dialog was open on the schemas ` +
-            `the load replaced: closed`);
+        /*  The form whose Save asked for this load is opened again,
+         *  below, once the screen is there (reload_first()). Any other
+         *  dialog is closed, and that is said.  */
+        if(!reopen || reopen.dialog !== priv.dialog) {
+            reopen = null;
+            log_warning(`${gobj_short_name(gobj)}: a dialog was open on the schemas ` +
+                `the load replaced: closed`);
+            yui_shell_show_error(yui_shell_of(gobj),
+                "the schemas were read again: open the dialog again", {t: t});
+        }
         close_dialog(gobj);
-        yui_shell_show_error(yui_shell_of(gobj),
-            "the schemas were read again: open the dialog again", {t: t});
+    } else {
+        /*  Closed meanwhile by the operator, or a load that replaced
+         *  nothing: the form is where it was, or where it was left.  */
+        reopen = null;
     }
+
+    let ret = 0;
     if(priv.model) {
         if(seg !== null) {
-            return apply_seg(gobj, seg);
+            ret = apply_seg(gobj, seg);
+        } else {
+            ret = go(gobj, priv.treedb_id, priv.topic_name, priv.diagram, false);
         }
-        return go(gobj, priv.treedb_id, priv.topic_name, priv.diagram, false);
+    } else {
+        if(seg !== null) {
+            adopt_seg(gobj, seg);
+        }
+        gobj_change_state(gobj, "ST_IDLE");
+        render(gobj);
     }
-    if(seg !== null) {
-        adopt_seg(gobj, seg);
+    if(reopen) {
+        reopen_form(gobj, reopen);
     }
-    gobj_change_state(gobj, "ST_IDLE");
-    render(gobj);
-    return 0;
+    return ret;
 }
 
 /***************************************************************
@@ -2819,7 +2992,17 @@ function end_writes(gobj, error)
         render(gobj);
         publish_check(gobj);
     }
-    reload_if_owed(gobj);
+    if(priv.refresh_after_write) {
+        /*  The EV_REFRESH heard while the writes were in flight
+         *  (ac_refresh_after_the_writes()), run now that none is. It
+         *  reads the store whole, so it also pays a reload a late
+         *  write owed.  */
+        priv.refresh_after_write = false;
+        priv.reload_after_write = false;
+        request_model(gobj, false);
+    } else {
+        reload_if_owed(gobj);
+    }
     return error ? -1 : 0;
 }
 
@@ -3279,7 +3462,11 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
                     treedb_name: gobj_read_str_attr(gobj, "treedb_name")
                 });
-                request_model(gobj, true);
+                /*  An EV_REFRESH heard during the writes is paid by this
+                 *  load: it forgets the drafts, as the refresh would.  */
+                let refresh = priv.refresh_after_write;
+                priv.refresh_after_write = false;
+                request_model(gobj, !refresh);
                 return 0;
             }
         }
@@ -3473,6 +3660,25 @@ function ac_language_changed(gobj, event, kw, src)
 function ac_refresh(gobj, event, kw, src)
 {
     return request_model(gobj, false);
+}
+
+/***************************************************************
+ *  EV_REFRESH while writes are in flight: the view's own Refresh
+ *  is busy then, so it is a host's (after a Save, say).
+ *
+ *  Run when the writes END (end_writes()), not now. Run now, the
+ *  load replaced ST_SAVING and what was still queued was never
+ *  sent, with no word: nothing but the end of what is in flight
+ *  moves this view out of ST_LOADING or ST_SAVING.
+ ***************************************************************/
+function ac_refresh_after_the_writes(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    log_warning(`${gobj_short_name(gobj)}: ${event} while writes are in flight: ` +
+        `the schemas are read again when the writes end`);
+    priv.refresh_after_write = true;
+    return 0;
 }
 
 /***************************************************************
@@ -3717,7 +3923,8 @@ function ac_save_column(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
-    if(reload_first(gobj, event)) {
+    if(reload_first(gobj, event, {form: "column", topic: kw.topic, col: kw.col,
+                                  creating: !!kw.creating, changed: kw.changed || {}})) {
         return -1;
     }
     if(built_on_a_replaced_model(gobj, event, kw)) {
@@ -3892,7 +4099,8 @@ function ac_save_topic(gobj, event, kw, src)
     if(refuse_if_readonly(gobj, event)) {
         return -1;
     }
-    if(reload_first(gobj, event)) {
+    if(reload_first(gobj, event, {form: "topic", topic: kw.topic, col: "",
+                                  creating: !!kw.creating, changed: kw.changed || {}})) {
         return -1;
     }
     if(built_on_a_replaced_model(gobj, event, kw)) {
@@ -4306,7 +4514,9 @@ function create_gclass(gclass_name)
          *  the host are heard: every other action would be computed
          *  against a model the answer still in the air is about to
          *  change.  */
-        ["ST_SAVING", COMMON.slice()]
+        ["ST_SAVING", COMMON.filter((a) => a[0] !== "EV_REFRESH").concat([
+            ["EV_REFRESH",          ac_refresh_after_the_writes, null]
+        ])]
     ];
 
     /*---------------------------------------------*

@@ -493,6 +493,7 @@ let PRIVATE_DATA = {
     __graphs__:         [],         // Rows of __graphs__
     _graph_properties:  {},         // topic_name → {nodes: {node_id: {x,y,size,...}}}
     _saved_graph_properties: {},    // the same, as the BACKEND has it: what a Save compares against
+    _graphs_writes_owed: {},        // topic_name → true: a __graphs__ write the host said did not land
     yet_showed:         false,
     edit_mode:          false,
     operation_mode:     null,
@@ -3283,6 +3284,9 @@ function save_topic_graph_properties(gobj, topic_name)
      *  The host says when one does NOT land (EV_GRAPHS_WRITE_REFUSED),
      *  and the next Save writes the topic again.  */
     priv._saved_graph_properties[topic_name] = json_deep_copy(properties);
+    /*  Paid: this is the write that was owed, if one was. Refused
+     *  again, EV_GRAPHS_WRITE_REFUSED owes it again.  */
+    delete priv._graphs_writes_owed[topic_name];
 
     let kw_update = {
         treedb_name: priv.treedb_name,
@@ -3388,9 +3392,16 @@ function update_history_buttons(gobj)
                 disableElements($container, ".EV_HISTORY_UNDO");
                 set_active_state($container, ".EV_HISTORY_UNDO", false);
 
-                // No more undos: graph is back to original state, disable save
-                disableElements($container, ".EV_SAVE_GRAPH");
-                set_submit_state($container, ".EV_SAVE_GRAPH", false);
+                /*  No more undos: the graph is back to what was loaded
+                 *  or saved -- unless a write of it did not land. That
+                 *  one is still owed, and only a Save pays it.  */
+                if(graphs_write_is_owed(gobj)) {
+                    enableElements($container, ".EV_SAVE_GRAPH");
+                    set_submit_state($container, ".EV_SAVE_GRAPH", true);
+                } else {
+                    disableElements($container, ".EV_SAVE_GRAPH");
+                    set_submit_state($container, ".EV_SAVE_GRAPH", false);
+                }
             }
         } else {
             disableElements($container, ".EV_HISTORY_REDO");
@@ -4761,6 +4772,17 @@ function run_preview_undo(gobj, key)
     } catch(e) {
         log_error(`${gobj_short_name(gobj)}: cannot undo the preview: ${e}`);
     }
+}
+
+/************************************************************
+ *  Is a `__graphs__` write owed? The host said one did not land
+ *  (EV_GRAPHS_WRITE_REFUSED), and no Save has written that topic
+ *  since. The Save button stays lit while it is: the history
+ *  knows nothing of it, so `canUndo()` alone would put it out.
+ ************************************************************/
+function graphs_write_is_owed(gobj)
+{
+    return Object.keys(gobj.priv._graphs_writes_owed).length > 0;
 }
 
 function mark_graph_dirty(gobj)
@@ -10346,6 +10368,11 @@ function ac_clear_data(gobj, event, kw, src)
 
     gobj_write_attr(gobj, "records", {});
 
+    /*  A write owed is owed on the arrangement being thrown away: the
+     *  reload brings what the backend holds, and that is what the view
+     *  will hold.  */
+    priv._graphs_writes_owed = {};
+
     /*  The node counters belong to the data that is going away: a refresh
      *  that kept them would decide the layout on the previous treedb. */
     priv._nodes_total = 0;
@@ -10495,10 +10522,13 @@ function ac_save_graph(gobj, event, kw, src)
         let history = graph_get_plugin(gobj, "history");
         if(history) {
             history.clear();
-            update_history_buttons(gobj);
         }
 
         save_geometry(gobj); // Publish an EV_UPDATE_NODE of each node
+
+        /*  After the writes: they pay a write owed, and the buttons
+         *  are repainted from what is still owed.  */
+        update_history_buttons(gobj);
     }
 
     return 0;
@@ -10526,6 +10556,9 @@ function ac_graphs_write_refused(gobj, event, kw, src)
     log_warning(`${gobj_short_name(gobj)}: the arrangement of '${topic_name}' ` +
         `was not saved: the next Save writes it again`);
     forget_refused_graphs_write(priv._saved_graph_properties, topic_name);
+    /*  Owed until a Save writes it: update_history_buttons() keeps
+     *  the Save lit while it is, in edition and on entering it.  */
+    priv._graphs_writes_owed[topic_name] = true;
     if(priv.edit_mode) {
         mark_graph_dirty(gobj);
     }

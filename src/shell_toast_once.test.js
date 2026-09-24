@@ -30,6 +30,9 @@ const {
     yui_shell_show_info,
     yui_shell_show_modal,
     yui_shell_confirm_danger,
+    yui_shell_confirm_ok,
+    yui_shell_confirm_yesno,
+    yui_shell_confirm_yesnocancel,
 } = await import("./shell_modals.js");
 
 let shell = null;
@@ -198,5 +201,65 @@ describe("every other button of a dialog is named", () => {
             {title: true, title_key: "delete", label: true, label_key: "delete"},
             {title: true, title_key: "cancel", label: true, label_key: "cancel"},
         ]);
+    });
+});
+
+/*
+ *  A confirmation that names no label shows the DEFAULT ones, and those
+ *  are i18n keys like every other label: lower-case, translated by the
+ *  app's t(), and carried as the key of the text, the title and the
+ *  aria-label. They were "OK", "Yes", "No", "Delete" and "Cancel" --
+ *  keys no locale has, so the button read in English in every language.
+ */
+describe("the default labels of a confirmation are i18n keys", () => {
+
+    function keys_of($layer)
+    {
+        return [...$layer.querySelectorAll(".CONFIRM_BTN")].map(($b) => [
+            $b.getAttribute("data-i18n"),
+            $b.getAttribute("data-i18n-title"),
+            $b.getAttribute("data-i18n-aria-label"),
+        ]);
+    }
+
+    /*  What the reader hears: the aria-label, translated by t() when
+     *  the button is built.  */
+    function texts_of($layer)
+    {
+        return [...$layer.querySelectorAll(".CONFIRM_BTN")].map(($b) => $b.getAttribute("aria-label"));
+    }
+
+    const k = (key) => [key, key, key];
+
+    /*  A translator that tells a key it knows from one it does not.  */
+    const ES = {ok: "Aceptar", yes: "Sí", no: "No", delete: "Borrar", cancel: "Cancelar"};
+    const t = (key) => ES[key] || `?${key}?`;
+
+    test("ok", () => {
+        shell.priv.layers.modal = document.createElement("div");
+        yui_shell_confirm_ok(shell, "saved", {t: t});
+        expect(keys_of(shell.priv.layers.modal)).toEqual([k("ok")]);
+        expect(texts_of(shell.priv.layers.modal)).toEqual(["Aceptar"]);
+    });
+
+    test("yes / no", () => {
+        shell.priv.layers.modal = document.createElement("div");
+        yui_shell_confirm_yesno(shell, "go on?", {t: t});
+        expect(keys_of(shell.priv.layers.modal)).toEqual([k("yes"), k("no")]);
+        expect(texts_of(shell.priv.layers.modal)).toEqual(["Sí", "No"]);
+    });
+
+    test("yes / no / cancel", () => {
+        shell.priv.layers.modal = document.createElement("div");
+        yui_shell_confirm_yesnocancel(shell, "keep it?", {t: t});
+        expect(keys_of(shell.priv.layers.modal)).toEqual([k("yes"), k("no"), k("cancel")]);
+        expect(texts_of(shell.priv.layers.modal)).toEqual(["Sí", "No", "Cancelar"]);
+    });
+
+    test("delete / cancel", () => {
+        shell.priv.layers.modal = document.createElement("div");
+        yui_shell_confirm_danger(shell, "delete this column?", {t: t});
+        expect(keys_of(shell.priv.layers.modal)).toEqual([k("delete"), k("cancel")]);
+        expect(texts_of(shell.priv.layers.modal)).toEqual(["Borrar", "Cancelar"]);
     });
 });

@@ -5,6 +5,57 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.16
+
+- **`C_YUI_SCHEMA_EDITOR`: `EV_REFRESH` during a write waits for the end of
+  the writes.** Heard in `ST_SAVING` (a host that refreshes after a Save while
+  the writes are still in flight), it started the load at once: the load
+  replaced `ST_SAVING`, and the rest of the write queue (the topic of a topic
+  delete, after its columns) was never sent, with no message. Now it is logged
+  and run when the writes end; it forgets the drafts, as a Refresh does. A
+  write answered with no record pays it with the load it already asks.
+- **`C_YUI_SCHEMA_EDITOR`: the Save of a form, when a reload is owed, keeps
+  what was typed.** The Save runs the owed reload, as before. The load that
+  lands closes the form, as before, and now opens it again on the schemas it
+  read, with the fields the operator CHANGED put back on top. Only those: a
+  field left as it was shows what the store holds now, so the next Save does
+  not write an old value over a newer one. A new column or topic comes back
+  whole. Before, the form was closed and what was typed was lost. The form is
+  not opened again when what it edited is not on the schemas read, or the
+  view is on another treedb or screen, and that is said; a form the operator
+  closed meanwhile stays closed. New consumer i18n keys:
+  `the schemas shown may be out of date: they are read again, and the form opens again on them with your changes`
+  and
+  `the schemas were read again and what the form was editing is not there any more`.
+- **`C_G6_NODES_TREE`: a refused `__graphs__` write keeps the Save lit until a
+  Save writes it.** 7.25.15 lit the Save on `EV_GRAPHS_WRITE_REFUSED`, in
+  edition only, and the next repaint of the history buttons put it out: they
+  decide the Save from `history.canUndo()`, and they run on every history
+  change, every change of mode and every theme redraw. The topic is now kept
+  as owed: the Save stays lit while one is, also on entering edition after a
+  refusal heard in reading. The Save that writes the topic again pays it (the
+  buttons are repainted after the writes), a new refusal owes it again, and a
+  reload of the data forgets it.
+- **Shell dialogs: the default button labels are i18n keys.** When the caller
+  names no label, `yui_shell_confirm_ok()`, `_yesno()`, `_yesnocancel()` and
+  `_danger()` showed `"OK"`, `"Yes"`, `"No"`, `"Delete"` and `"Cancel"`. Since
+  7.25.10 a label is also the button's `title` and `aria-label`, through
+  `t()`, and no locale can hold those keys: the button read in English in
+  every language. The defaults are now `"ok"`, `"yes"`, `"no"`, `"delete"`
+  and `"cancel"`, written so a consumer's `validate-locales` finds them.
+  `yui_install_ask_once()` asks `"install this app"` (was
+  `"Install this app?"`), the key the consumers already carry. A consumer that
+  mounts these dialogs defines the five keys.
+- **README:** the schema editor's "In:" list names `EV_DRAFTS`.
+- **Tests:** `src/g6_graphs_write_owed.wiring.test.js` (the real
+  `C_G6_NODES_TREE` on a fake G6 graph), new cases in
+  `schema_editor_reload.wiring.test.js`, `shell_toast_once.test.js` and
+  `yui_install.test.js`: red on 3 + 7 + 4 + 1 against 7.25.15. The document
+  double now checks a box built with the `checked` attribute, as a browser
+  does.
+- **Dependencies:** dev dependency `@yuneta/gobj-js` `^7.25.2`;
+  `package-lock.json` records 7.25.2 (it still said 7.25.0).
+
 ## 7.25.15
 
 - **`C_YUI_SCHEMA_EDITOR`: a move sent by the host closes the dialog of the
