@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.18
+
+- **`C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH`: `EV_RECORD_WRITTEN`
+  carries what it says.** Its `treedb_name` and `record` were read from the
+  answer's command frame, which carries back only the request's
+  `__md_command__` (`C_IEVENT_CLI`, gui_agent's `C_AGENT_TREEDB_LINK`): with
+  every real transport they arrived as `""` and `{}`, and a graph's link or
+  unlink (which echoed nothing) named no topic either. `treedb_name` is now the
+  view's own, `record` is the node the store answered (as written; the node
+  deleted for a delete, the child for a link), and a link or unlink echoes the
+  child's topic and both refs, published as `topic_name`, `parent_ref` and
+  `child_ref`. No reader relied on the empty fields: gui_agent forwards its own
+  treedb name and gui_treedb ignores the event. Audited with it every other
+  read of a command frame in gobj-ui, gui_agent and gui_treedb: each reads
+  only what its request put in `__md_command__`. README: a section on the
+  event, with its kw.
+- **Tests:** `treedb_graph_writes.wiring.test.js` and
+  `treedb_topics_transport.wiring.test.js` answer with only `__md_command__`
+  in the frame, as the real transports do; red on 3 against 7.25.17.
+
 ## 7.25.17
 
 - **`C_YUI_TREEDB_GRAPH`: a refused `__graphs__` write reaches the engine

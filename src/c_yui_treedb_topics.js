@@ -1625,6 +1625,23 @@ function treedb_nodes(gobj, treedb_name, topic_name, options, page, purpose)
 }
 
 /************************************************************
+ *  The record a write answered: the node the store wrote (an
+ *  update or a create), deleted, or the child of a link. The
+ *  answer's frame carries back only `__md_command__`, never the
+ *  request's own record.
+ ************************************************************/
+function answered_record(data)
+{
+    if(data && typeof data === "object" && !Array.isArray(data)) {
+        return data;
+    }
+    if(Array.isArray(data) && data[0] && typeof data[0] === "object") {
+        return data[0];
+    }
+    return {};
+}
+
+/************************************************************
  *  Command to remote service
  ************************************************************/
 function treedb_create_node(gobj, treedb_name, topic_name, record, options)
@@ -2210,10 +2227,14 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  and cannot use the node events without answering its own writes
              *  in a loop.
              */
+            /*  From what THIS view knows and from the answer, never from
+             *  the request: the frame carries back only `__md_command__`,
+             *  so `treedb_name` and `record` read there arrived empty.
+             *  `record` is the node the store answered, as it was written.  */
             gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
-                treedb_name: kw_get_str(gobj, kw_command, "treedb_name", "", 0),
+                treedb_name: gobj_read_str_attr(gobj, "treedb_name"),
                 topic_name:  kw_get_str(gobj, kw_command, "topic_name", "", 0),
-                record:      kw_get_dict(gobj, kw_command, "record", {}, 0),
+                record:      answered_record(data),
                 created:     (command === "create-node"),
                 command:     command
             });

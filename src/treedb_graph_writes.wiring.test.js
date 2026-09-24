@@ -43,6 +43,7 @@ const {
 } = await import("@yuneta/gobj-js");
 
 const logged = [];
+const written = [];         /*  the EV_RECORD_WRITTEN the host heard  */
 const commands = [];        /*  what the fake transport was asked  */
 const told = [];            /*  what the fake engine was told  */
 let refuse_on_the_way = false;
@@ -65,6 +66,20 @@ beforeAll(async () => {
     });
 
     gclass_create("C_TEST_HOST", [], [["ST_IDLE", []]], {}, 0, [SDATA_END()], {}, 0, 0, 0, 0);
+    /*  The host of the view: it hears what the view publishes.  */
+    gclass_create(
+        "C_TEST_GRAPH_HOST",
+        [["EV_RECORD_WRITTEN", 0], ["EV_TOPIC_SELECTED", 0], ["EV_OPERATION_MODE_CHANGED", 0]],
+        [["ST_IDLE", [
+            ["EV_RECORD_WRITTEN", (gobj, event, kw) => {
+                written.push(kw);
+                return 0;
+            }, null],
+            ["EV_TOPIC_SELECTED", () => 0, null],
+            ["EV_OPERATION_MODE_CHANGED", () => 0, null]
+        ]]],
+        {}, 0, [SDATA_END()], {}, 0, 0, 0, 0
+    );
     gclass_create(
         "C_TEST_REMOTE",
         [],
@@ -120,6 +135,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
     logged.length = 0;
+    written.length = 0;
     commands.length = 0;
     told.length = 0;
     refuse_on_the_way = false;
@@ -129,9 +145,11 @@ function build(name)
 {
     const remote = gobj_create_service(`${name}_remote`, "C_TEST_REMOTE", {}, yuno);
     gobj_change_state(remote, "ST_SESSION");
+    const view_host = gobj_create(`${name}_view_host`, "C_TEST_GRAPH_HOST", {}, yuno);
     const host = gobj_create_service(`${name}_graph`, "C_YUI_TREEDB_GRAPH", {
         gobj_remote_yuno: remote,
-        treedb_name: "treedb_test"
+        treedb_name: "treedb_test",
+        subscriber: view_host
     }, yuno);
     const engine = host.priv.gobj_nodes_tree;
     expect(engine).toBeTruthy();
@@ -154,13 +172,13 @@ function save_arrangement(engine, topic)
  *  mt_command, gui_agent's C_AGENT_TREEDB_LINK), never the request's
  *  own kw. Echoing the whole kw here once hid that the refusal read
  *  its topic from a `record` no real answer carries.  */
-function answer(host, remote, request, result, comment)
+function answer(host, remote, request, result, comment, data)
 {
     const md_command = request.kw.__md_command__ || {};
     gobj_send_event(host, "EV_MT_COMMAND_ANSWER", {
         result: result,
         comment: comment || "",
-        data: null,
+        data: (data === undefined) ? null : data,
         __md_iev__: {command_stack: [{command: request.command, kw: md_command}]}
     }, remote);
 }
@@ -211,5 +229,55 @@ describe("a __graphs__ write that does not land is said to the engine", () => {
         }, engine);
         answer(host, remote, commands[0], -1, "refused");
         expect(refused()).toEqual([]);
+    });
+});
+
+/*  What THIS view wrote, told to its host. The answer carries back only
+ *  `__md_command__`: `treedb_name` and `record` read from that frame
+ *  arrived empty with every real transport.  */
+describe("EV_RECORD_WRITTEN carries what it says", () => {
+
+    test("an update: the treedb, the topic and the record the store answered", () => {
+        const {remote, host, engine} = build("w1");
+        logged.length = 0;      /*  the fake engine's fixture, not the check  */
+        gobj_send_event(host, "EV_UPDATE_NODE", {
+            topic_name: "yunos", record: {id: "1", x: 1}
+        }, engine);
+        const [write] = commands;
+        answer(host, remote, write, 0, "", {id: "1", x: 1, y: 2});
+        expect(written).toEqual([{
+            treedb_name: "treedb_test",
+            topic_name: "yunos",
+            record: {id: "1", x: 1, y: 2},
+            created: false,
+            command: "update-node"
+        }]);
+        expect(logged.filter((l) => l.level === "error")).toEqual([]);
+    });
+
+    test("a link: the child's topic, both refs, and the child the store answered", () => {
+        const {remote, host, engine} = build("w2");
+        gobj_send_event(host, "EV_LINK_NODES", {
+            parent_ref: "realms^r1^yunos", child_ref: "yunos^1"
+        }, engine);
+        const [link] = commands;
+        expect(link.command).toBe("link-nodes");
+        answer(host, remote, link, 0, "", {id: "1", realms: ["realms^r1^yunos"]});
+        expect(written).toEqual([{
+            treedb_name: "treedb_test",
+            topic_name: "yunos",
+            record: {id: "1", realms: ["realms^r1^yunos"]},
+            parent_ref: "realms^r1^yunos",
+            child_ref: "yunos^1",
+            created: false,
+            command: "link-nodes"
+        }]);
+    });
+
+    test("the arrangement (__graphs__) is not reported", () => {
+        const {remote, host, engine} = build("w3");
+        save_arrangement(engine, "yunos");
+        answer(host, remote, commands[0], 0, "", {id: "yunos"});
+        expect(written).toEqual([]);
     });
 });

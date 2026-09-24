@@ -989,6 +989,35 @@ hold the list again; the cell and a delete's question count either shape. The
 search box no longer finds a parent row by the id of one of its children: to
 find what hangs from a row, click its hook.
 
+### What a write says to the host: `EV_RECORD_WRITTEN`
+
+`C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` publish `EV_RECORD_WRITTEN`
+when a write of THEIRS is answered with success: a host whose work is not
+finished with the record (a schema editor, a pending Apply) needs that, and the
+`EV_TREEDB_NODE_*` events cannot tell its own writes from anybody else's. The
+graph does not report `__graphs__`, its own bookkeeping.
+
+```js
+// kw of EV_RECORD_WRITTEN
+{
+    treedb_name: "treedb_test",           // the view's own treedb
+    topic_name:  "yunos",                 // the topic written (the CHILD's, for a link)
+    record:      {id: "1", x: 1, y: 2},   // the node the store answered, as written
+    created:     false,                   // true for create-node
+    command:     "update-node",           // create/update/delete-node, link/unlink-nodes
+    parent_ref:  "realms^r1^yunos",       // graph, link/unlink only
+    child_ref:   "yunos^1"                // graph, link/unlink only
+}
+```
+
+Since `7.25.18` every field carries what it says. They were read from the
+answer's command frame, which carries back only the request's
+`__md_command__` -- `C_IEVENT_CLI` and gui_agent's `C_AGENT_TREEDB_LINK` both
+do -- so `treedb_name` and `record` arrived empty, and a link named no topic.
+`treedb_name` is now the view's, `record` is the node the answer carries (a
+delete answers the node deleted, a link the child), and a link echoes its topic
+and refs in `__md_command__`.
+
 ### Read-only treedbs: `readonly`
 
 `C_YUI_TREEDB_TOPICS` and `C_YUI_TREEDB_GRAPH` take a **`readonly`** attr; the

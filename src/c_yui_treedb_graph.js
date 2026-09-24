@@ -1576,6 +1576,38 @@ function treedb_delete_node(gobj, treedb_name, topic_name, record, options)
 }
 
 /************************************************************
+ *  What a link or an unlink asks back with its answer: the
+ *  topic of the CHILD (the node a link saves) and both refs.
+ *  `child_ref` is "topic^id", `parent_ref` "topic^id^hook".
+ ************************************************************/
+function link_echo(parent_ref, child_ref)
+{
+    let child_topic = (typeof child_ref === "string") ? child_ref.split("^")[0] : "";
+    return {
+        topic_name: child_topic,
+        parent_ref: parent_ref,
+        child_ref:  child_ref
+    };
+}
+
+/************************************************************
+ *  The record a write answered: the node the store wrote (an
+ *  update or a create), deleted, or the child of a link. The
+ *  answer's frame carries back only `__md_command__`, never the
+ *  request's own record.
+ ************************************************************/
+function answered_record(data)
+{
+    if(data && typeof data === "object" && !Array.isArray(data)) {
+        return data;
+    }
+    if(Array.isArray(data) && data[0] && typeof data[0] === "object") {
+        return data[0];
+    }
+    return {};
+}
+
+/************************************************************
  *  Command to remote service
  ************************************************************/
 function treedb_link_nodes(gobj, treedb_name, parent_ref, child_ref, options)
@@ -1596,6 +1628,7 @@ function treedb_link_nodes(gobj, treedb_name, parent_ref, child_ref, options)
         child_ref: child_ref,
         options: options || {}
     };
+    kw.__md_command__ = link_echo(parent_ref, child_ref);
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -1628,6 +1661,7 @@ function treedb_unlink_nodes(gobj, treedb_name, parent_ref, child_ref, options)
         child_ref: child_ref,
         options: options || {}
     };
+    kw.__md_command__ = link_echo(parent_ref, child_ref);
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -2111,8 +2145,12 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  answering its own writes in a loop.
              *
              *  Same event and same kw as C_YUI_TREEDB_TOPICS, plus `command`:
-             *  in a graph a LINK is as much a write as a record is, and the
-             *  three of them carry different halves of the kw.
+             *  in a graph a LINK is as much a write as a record is, and a
+             *  link adds its two refs. Read from what THIS view knows and
+             *  from the answer, never from the request: the frame carries
+             *  back only `__md_command__`. `treedb_name` is the view's,
+             *  `record` is the node the store answered (the child, for a
+             *  link).
              *
              *  `__graphs__` is EXCLUDED, and that exclusion is the point of
              *  reading this comment: the view writes that topic ITSELF, one
@@ -2128,13 +2166,18 @@ function ac_mt_command_answer(gobj, event, kw, src)
             }
             if(result >= 0 &&
                 kw_get_str(gobj, kw_command, "topic_name", "", 0) !== "__graphs__") {
-                gobj_publish_event(gobj, "EV_RECORD_WRITTEN", {
-                    treedb_name: kw_get_str(gobj, kw_command, "treedb_name", "", 0),
+                let written = {
+                    treedb_name: priv.treedb_name,
                     topic_name:  kw_get_str(gobj, kw_command, "topic_name", "", 0),
-                    record:      kw_get_dict(gobj, kw_command, "record", {}, 0),
+                    record:      answered_record(data),
                     created:     (command === "create-node"),
                     command:     command
-                });
+                };
+                if(command === "link-nodes" || command === "unlink-nodes") {
+                    written.parent_ref = kw_get_str(gobj, kw_command, "parent_ref", "", 0);
+                    written.child_ref = kw_get_str(gobj, kw_command, "child_ref", "", 0);
+                }
+                gobj_publish_event(gobj, "EV_RECORD_WRITTEN", written);
             }
             break;
 

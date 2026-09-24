@@ -29,6 +29,7 @@ const {register_c_yui_shell, yui_shell_set_connection_state} = await import("./c
 const {register_c_yui_treedb_topics} = await import("./c_yui_treedb_topics.js");
 
 const logged = [];
+const written = [];         /*  the EV_RECORD_WRITTEN the host heard  */
 const answers = [];         /*  what the fake forms were told  */
 const loaded = [];          /*  the rows each fake form was loaded with  */
 const commands = [];        /*  what the fake transport was asked  */
@@ -103,7 +104,10 @@ beforeAll(() => {
         "C_TEST_VIEW_HOST",
         [["EV_RECORD_WRITTEN", 0], ["EV_TOPIC_SELECTED", 0]],
         [["ST_IDLE", [
-            ["EV_RECORD_WRITTEN", () => 0, null],
+            ["EV_RECORD_WRITTEN", (gobj, event, kw) => {
+                written.push(kw);
+                return 0;
+            }, null],
             ["EV_TOPIC_SELECTED", () => 0, null]
         ]]],
         {}, 0, [SDATA_END()], {}, 0, 0, 0, 0
@@ -121,6 +125,7 @@ beforeAll(() => {
 
 beforeEach(() => {
     logged.length = 0;
+    written.length = 0;
     answers.length = 0;
     commands.length = 0;
     loaded.length = 0;
@@ -228,16 +233,26 @@ describe("a Save in flight when the backend drops", () => {
         save(topics, forms.roles, 1);
 
         /*  The answer of the users write, the way C_IEVENT_CLI delivers it:
-         *  the request's frame on top of the command_stack.  */
-        const ok = {result: 0, comment: "", data: [{id: "x"}], __md_iev__: {
-            command_stack: [{command: "update-node", kw: {
-                topic_name: "users", treedb_name: "treedb_test", form_write: 1, record: {id: "x"}
-            }}]
+         *  the request's `__md_command__` as the frame on top of the
+         *  command_stack, and nothing else of the request.  */
+        const users_write = commands.find((c) => c.command === "update-node" &&
+            c.kw.topic_name === "users");
+        const ok = {result: 0, comment: "", data: [{id: "x", name: "stored"}], __md_iev__: {
+            command_stack: [{command: "update-node", kw: users_write.kw.__md_command__}]
         }};
         gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", ok, remote);
         expect(answers).toEqual([
             {topic: "users", event: "EV_WRITE_DONE", form_write: 1},
         ]);
+        /*  What the host is told names the treedb and carries the record
+         *  the store answered: read off that frame, both arrived empty.  */
+        expect(written).toEqual([{
+            treedb_name: "treedb_test",
+            topic_name: "users",
+            record: {id: "x", name: "stored"},
+            created: false,
+            command: "update-node"
+        }]);
 
         yui_shell_set_connection_state(shell, false);
         expect(answers).toEqual([
@@ -253,7 +268,7 @@ describe("a Save in flight when the backend drops", () => {
  */
 function failed_write(topic_name, form_write)
 {
-    const md = {topic_name: topic_name, treedb_name: "treedb_test", record: {id: "x"}};
+    const md = {topic_name: topic_name};   /*  the request's __md_command__, and only it  */
     if(form_write) {
         md.form_write = form_write;
     }
