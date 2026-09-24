@@ -5,6 +5,42 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.17
+
+- **`C_YUI_TREEDB_GRAPH`: a refused `__graphs__` write reaches the engine
+  through the real transports.** The answer of a command carries back only
+  the request's `__md_command__`: `C_IEVENT_CLI` and gui_agent's
+  `C_AGENT_TREEDB_LINK` push it as the `command_stack` frame, and neither
+  echoes the `record`. The host read the arranged topic from that `record`,
+  found none, logged *"a refused __graphs__ write names no topic"* (an ERROR)
+  and did not send `EV_GRAPHS_WRITE_REFUSED`: the engine went on believing the
+  backend held the arrangement, and the next Save had nothing to write. The
+  fix of 7.25.15 worked only in its test, whose fake transport echoed the
+  whole request. The host now echoes the topic as `graph_topic` in
+  `__md_command__` and reads it from there.
+- **`C_YUI_SCHEMA_EDITOR`: a write in flight takes the body out of the
+  keyboard's reach.** The busy body stopped the pointer only; the shell's
+  focus trap put the focus back on the row control that had it, and Enter or
+  Delete there sent an action `ST_SAVING` does not declare (*"Event NOT
+  DEFINED"*). The busy body is now `inert` as well. `ST_LOADING` empties its
+  body, so nothing is left to reach there.
+- **`C_YUI_SCHEMA_EDITOR`: a write marks the topic of its record.** A column
+  write was marked on the topic on screen: an import from the topics screen
+  marked nothing (no draft chip, no export warning, and `validate_schema()`'s
+  `written_topics` missed the topic), and an import that added a topic from
+  another topic's screen marked the wrong one. The mark is now read from the
+  record the store answered, then from the record queued, and only then from
+  the screen.
+- **`C_YUI_SCHEMA_EDITOR`: the reason a load failed changes language.** It
+  was kept as the text `t()` gave when the load failed, or as the backend's
+  words, and shown as plain text. It is kept as a key and rendered with
+  `data-i18n`; with no comment from the backend it repeated the notice's
+  title and is now left out. No new i18n key.
+- **Tests:** `treedb_graph_writes.wiring.test.js`'s fake transport echoes only
+  `__md_command__`, as the real ones do (red on 1 of 5 against 7.25.16); new
+  cases in `schema_editor_reload.wiring.test.js` (red on 7 of 8).
+- **Dependencies:** dev dependency `@yuneta/gobj-js` `^7.25.3`.
+
 ## 7.25.16
 
 - **`C_YUI_SCHEMA_EDITOR`: `EV_REFRESH` during a write waits for the end of

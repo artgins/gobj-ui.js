@@ -1824,6 +1824,20 @@ gobj_send_event(engine, "EV_GRAPHS_WRITE_REFUSED", {topic: "users"}, host);  // 
 gobj_send_event(engine, "EV_SAVE_GRAPH", {}, engine);  // writes users; Save dark
 ```
 
+**The refusal reaches the engine through the real transports** (since
+`7.25.17`). The answer of a command carries back only the request's
+`__md_command__`, as its `command_stack` frame -- `C_IEVENT_CLI` and gui_agent's
+`C_AGENT_TREEDB_LINK` both do, and neither echoes the request's `record`. The
+host read the topic from that `record`, found none, logged *"a refused
+__graphs__ write names no topic"* and never told the engine: the 7.25.15 fix
+worked only in a test whose fake transport echoed the whole request. The host
+now puts the topic in the echo it asks for:
+
+```js
+kw.__md_command__ = {topic_name: "__graphs__", graph_topic: "users"};
+// the answer: __md_iev__.command_stack[0].kw === that echo, and nothing else
+```
+
 **Every saved look has a way back, in the context menu** (since `7.23.134`,
 replacing `reset sizes` / `reset topic sizes`). In edition, the node, the port
 and the edge menus each offer three resets — this one, its kind (`reset topic
@@ -2259,6 +2273,39 @@ else.
   gobj_send_event(editor, "EV_REFRESH", {}, host);             // logged, waits
   // ... both deletes answered -> ST_LOADING -> the model is read again
   ```
+- **A write in flight takes the body out of the keyboard's reach too**
+  (7.25.17). `ST_SAVING` keeps the screen under it and marks the body busy.
+  The busy class only stopped the pointer (`pointer-events: none`); the
+  shell's focus trap put the focus back on the row control that had it, and
+  Enter or Delete there sent `EV_DELETE_COLUMN` or `EV_SELECT_TOPIC`, which
+  `ST_SAVING` does not declare (*"Event NOT DEFINED"*). The busy body is now
+  also `inert`. `ST_LOADING` needs nothing: its body is emptied.
+
+  ```js
+  // in ST_SAVING
+  $container.querySelector(".SCHEMA_BODY").hasAttribute("inert");   // true
+  ```
+- **A write marks the topic of its RECORD, not the topic on screen**
+  (7.25.17). What "its version still has to move" is asked about is the set of
+  topics this session wrote (the draft chip, the export warning,
+  `validate_schema()`'s `written_topics`). A column write marked the topic on
+  screen, so an import from the topics screen (no topic on it) marked nothing,
+  and an import that added `roles` from the screen of `users` marked `users`.
+  The mark is read from the record the store answered (a new topic has its id
+  only there), then from the record queued (a column names its topic in its
+  fkey), and only then from the screen.
+
+  ```js
+  // import adding topic `roles`, run from db/users, every write answered
+  editor.priv.written;   // {"db.roles": true}   (was {"db.users": true})
+  ```
+- **The reason a load failed is a key** (7.25.17). The notice's detail was
+  the text of `t()` taken when the load failed (`cannot reach the treedb`,
+  `cannot load the schemas`) or the backend's words, shown as plain text: it
+  did not change language, and with no comment it repeated the notice's own
+  title. It is now kept as a key, written with `data-i18n` (the backend's
+  words translate to themselves when no locale has them), and left out when
+  it is the title.
 - **The loading screen is drawn** (7.25.8): the body is cleared, the drawing
   destroyed and every toolbar button disabled, as in `ST_SAVING`, because
   `ST_LOADING` declares none of a screen's actions. A **dialog** left open is

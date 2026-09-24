@@ -1501,3 +1501,164 @@ describe("EV_REFRESH while a write is in flight", () => {
         expect(not_defined()).toEqual([]);
     });
 });
+
+describe("the body while a write is in flight", () => {
+
+    /*  pointer-events stops the mouse and nothing else: the shell's
+     *  focus trap puts the focus back on the row control that had it,
+     *  and Delete or Enter there sent an action ST_SAVING does not
+     *  declare. `inert` takes the body out of the keyboard's reach too.  */
+    test("is inert, and answers again when the write ends", () => {
+        const {editor, remote, host} = build("r16k1", "db/users");
+        const $body = $in(editor, ".SCHEMA_BODY");
+        expect($body.hasAttribute("inert")).toBe(false);
+
+        const write = start_a_write(editor, host, "name");
+        expect($body.hasAttribute("inert")).toBe(true);
+
+        answer(editor, remote, write, 0, write.kw.record);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect($in(editor, ".SCHEMA_BODY").hasAttribute("inert")).toBe(false);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a drop that ends the write gives the body back too", () => {
+        const {editor, remote, host} = build("r16k2", "db/users");
+        start_a_write(editor, host, "name");
+        drop(editor, remote, host);
+        expect($in(editor, ".SCHEMA_BODY").hasAttribute("inert")).toBe(false);
+    });
+});
+
+describe("the writes of an import mark the topic they write", () => {
+
+    /*  An import that adds a topic, `roles`.  */
+    const IMPORT = JSON.stringify({id: "db", topics: [
+        {id: "users", pkey: "id", cols: [
+            {id: "id", type: "string", flag: ["persistent", "required"]}
+        ]},
+        {id: "roles", pkey: "id", cols: [
+            {id: "id", type: "string", flag: ["persistent", "required"]}
+        ]}
+    ]});
+
+    /*  The record as the store answers it: with the id it gave a new
+     *  one, and its fkeys in list_dict.  */
+    function as_the_store_answers(write)
+    {
+        const record = JSON.parse(JSON.stringify(write.kw.record));
+        const to_dict = (refs) => refs.map((ref) => {
+            const [topic_name, id, hook_name] = ref.split("^");
+            return {topic_name, id, hook_name};
+        });
+        if(write.kw.topic_name === "topics") {
+            record.id = record.id || `db.${record.value}`;
+            record.treedbs = to_dict(record.treedbs || []);
+        }
+        if(write.kw.topic_name === "cols") {
+            record.id = record.id || `${record.topics[0].split("^")[1]}.${record.value}`;
+            record.topics = to_dict(record.topics || []);
+        }
+        return record;
+    }
+
+    function run_the_import(editor, host)
+    {
+        gobj_send_event(editor, "EV_IMPORT", {}, host);
+        gobj_send_event(editor, "EV_PREVIEW_IMPORT", {prune: false, text: IMPORT,
+            model_gen: editor.priv.model_gen}, editor);
+        expect(editor.priv.import_plan.writes.length).toBeGreaterThan(0);
+        gobj_send_event(editor, "EV_APPLY_IMPORT", {model_gen: editor.priv.model_gen}, editor);
+        expect(gobj_current_state(editor)).toBe("ST_SAVING");
+    }
+
+    function answer_every_write(editor, remote)
+    {
+        for(let i = 0; i < 10; i++) {
+            const [write] = take("update-node");
+            if(!write) {
+                break;
+            }
+            answer(editor, remote, write, 0, as_the_store_answers(write));
+        }
+    }
+
+    test("from another topic's screen: the topic it wrote, not the one on screen", () => {
+        const {editor, remote, host} = build("r16m1", "db/users");
+        run_the_import(editor, host);
+        answer_every_write(editor, remote);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(editor.priv.written).toEqual({"db.roles": true});
+        expect(errors()).toEqual([]);
+    });
+
+    test("from the topics screen, where no topic is on screen", () => {
+        const {editor, remote, host} = build("r16m2", "db");
+        run_the_import(editor, host);
+        answer_every_write(editor, remote);
+        expect(gobj_current_state(editor)).toBe("ST_TOPICS");
+        expect(editor.priv.written).toEqual({"db.roles": true});
+        expect(errors()).toEqual([]);
+    });
+
+    test("a column answered with no record: the record it queued says the topic", () => {
+        const {editor, remote, host} = build("r16m3", "db/users");
+        run_the_import(editor, host);
+        const [topic] = take("update-node");
+        expect(topic.kw.topic_name).toBe("topics");
+        answer(editor, remote, topic, 0, as_the_store_answers(topic));
+        const [col] = take("update-node");
+        expect(col.kw.topic_name).toBe("cols");
+        answer(editor, remote, col, 0, null);
+        expect(editor.priv.written).toEqual({"db.roles": true});
+    });
+});
+
+describe("the reason a load failed", () => {
+
+    test("is a key the notice translates, not a string frozen in one language", () => {
+        const remote = gobj_create_service("r16e1_remote", "C_TEST_REMOTE", {}, yuno);
+        gobj_change_state(remote, "ST_SESSION");
+        const host = gobj_create("r16e1_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("r16e1_editor", "C_YUI_SCHEMA_EDITOR", {
+            gobj_remote_yuno: remote, treedb_name: "treedb_system_schema"
+        }, host);
+        gobj_start(editor);
+        for(const c of take("nodes")) {
+            answer(editor, remote, c, -1, null, "");
+        }
+        expect(gobj_current_state(editor)).toBe("ST_IDLE");
+        expect(editor.priv.load_error).toBe("cannot load the schemas");
+        /*  The notice already says it: no detail repeating the title.  */
+        expect($in(editor, ".SCHEMA_NOTICE_DETAIL")).toBe(null);
+    });
+
+    test("the backend's own words travel as its key", () => {
+        const remote = gobj_create_service("r16e2_remote", "C_TEST_REMOTE", {}, yuno);
+        gobj_change_state(remote, "ST_SESSION");
+        const host = gobj_create("r16e2_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("r16e2_editor", "C_YUI_SCHEMA_EDITOR", {
+            gobj_remote_yuno: remote, treedb_name: "treedb_system_schema"
+        }, host);
+        gobj_start(editor);
+        for(const c of take("nodes")) {
+            answer(editor, remote, c, -1, null, "treedb not found");
+        }
+        const $detail = $in(editor, ".SCHEMA_NOTICE_DETAIL");
+        expect($detail.getAttribute("data-i18n")).toBe("treedb not found");
+    });
+
+    test("a load that cannot leave keeps its key", () => {
+        const remote = gobj_create_service("r16e3_remote", "C_TEST_REMOTE", {}, yuno);
+        const host = gobj_create("r16e3_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("r16e3_editor", "C_YUI_SCHEMA_EDITOR", {
+            gobj_remote_yuno: remote, treedb_name: "treedb_system_schema"
+        }, host);
+        gobj_start(editor);
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        gobj_send_event(editor, "EV_REFRESH", {}, host);
+        expect(editor.priv.load_error).toBe("cannot reach the treedb");
+        const $detail = $in(editor, ".SCHEMA_NOTICE_DETAIL");
+        expect($detail.getAttribute("data-i18n")).toBe("cannot reach the treedb");
+    });
+});

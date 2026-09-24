@@ -403,7 +403,11 @@ function el_attrs(attrs)
 }
 
 /***************************************************************
- *  The body stops answering while a write is in flight.
+ *  The body stops answering while a write is in flight. For the
+ *  keyboard too: `pointer-events` stops the mouse alone, and the
+ *  shell's focus trap puts the focus back on the row control that
+ *  had it, where Enter or Delete sent an action ST_SAVING does
+ *  not declare. `inert` takes the whole body out of reach.
  ***************************************************************/
 function set_busy(gobj, busy)
 {
@@ -411,6 +415,7 @@ function set_busy(gobj, busy)
 
     if($body) {
         $body.classList.toggle("SCHEMA_BUSY", !!busy);
+        $body.toggleAttribute("inert", !!busy);
     }
 }
 
@@ -707,7 +712,7 @@ function request_model(gobj, keep_written)
         priv.records_before = null;
         priv.load_round++;
         priv.reload_on_open = true;
-        priv.load_error = t("cannot reach the treedb");
+        priv.load_error = "cannot reach the treedb";   /*  a key: the notice translates it  */
         if(priv.model) {
             yui_shell_show_error(yui_shell_of(gobj), "cannot reach the treedb", {t: t});
         }
@@ -993,9 +998,14 @@ function show_notice(gobj, key, detail)
     $notice.appendChild(createElement2(
         ["span", {class: "SCHEMA_NOTICE_TEXT", i18n: key}, t(key)]
     ));
-    if(detail) {
+    /*  The detail is a KEY too (ours, or the backend's words, which
+     *  translate to themselves when no locale has them), so a change
+     *  of language changes it with the rest. One that repeats the
+     *  title says nothing.  */
+    if(detail && detail !== key) {
         $notice.appendChild(createElement2(
-            ["span", {class: "SCHEMA_NOTICE_DETAIL yui-text-quiet ml-2"}, `${detail}`]
+            ["span", {class: "SCHEMA_NOTICE_DETAIL yui-text-quiet ml-2", i18n: `${detail}`},
+                t(`${detail}`)]
         ));
     }
 }
@@ -3350,7 +3360,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
         }
         priv.pending--;
         if(result < 0) {
-            priv.load_error = comment || t("cannot load the schemas");
+            priv.load_error = comment || "cannot load the schemas";   /*  a key  */
         } else if(priv.records && Array.isArray(priv.records[topic_name])) {
             priv.records[topic_name] = Array.isArray(data) ? data : [];
         }
@@ -3427,10 +3437,11 @@ function ac_mt_command_answer(gobj, event, kw, src)
             return end_writes(gobj, comment || t("the treedb refused the write"));
         }
         priv.save_wrote = true;
+        let record = null;
         if(command === "delete-node") {
             forget_record(gobj, topic_name, kw_get_str(gobj, md, "record_id", "", 0));
         } else {
-            let record = is_object(data) ? data
+            record = is_object(data) ? data
                 : (Array.isArray(data) && is_object(data[0]) ? data[0] : null);
             if(record) {
                 patch_record(gobj, topic_name, record);
@@ -3453,7 +3464,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                 }
                 if(topic_name === T_TOPICS || topic_name === T_COLS) {
                     let write = priv.save_queue[0];
-                    mark_written(gobj, topic_name, write ? write.record : null);
+                    mark_written(gobj, topic_name, null, write ? write.record : null);
                 }
                 priv.reload_after_write = false;
                 priv.save_queue = [];
@@ -3471,11 +3482,12 @@ function ac_mt_command_answer(gobj, event, kw, src)
             }
         }
         if(topic_name === T_TOPICS || topic_name === T_COLS) {
-            /*  Which record it was is in the QUEUE, not in the answer: an
-             *  adapter echoes only what it was asked to echo, and the
-             *  record is not small enough to be worth echoing.  */
+            /*  Which record it was: the one the store answered, else the
+             *  one in the QUEUE -- an adapter echoes only what it was
+             *  asked to echo, and the record is not small enough to be
+             *  worth echoing.  */
             let write = priv.save_queue[0];
-            mark_written(gobj, topic_name, write ? write.record : null);
+            mark_written(gobj, topic_name, record, write ? write.record : null);
         }
         priv.save_queue.shift();
         return run_next_write(gobj);
@@ -3544,35 +3556,46 @@ function late_write_done(gobj, command, topic_name, data)
 function mark_written_record(gobj, topic_name, record)
 {
     let priv = gobj.priv;
+    let marked = 0;
 
     if(!record) {
-        return;
+        return 0;
     }
     if(topic_name === T_TOPICS && typeof record.id === "string" && record.id) {
         priv.written[record.id] = true;
-        return;
+        return 1;
     }
     if(topic_name !== T_COLS) {
-        return;
+        return 0;
     }
     for(let ref of parse_fkey_ref(record.topics)) {
         priv.written[ref.id] = true;
+        marked++;
     }
+    return marked;
 }
 
 /***************************************************************
  *  Remember which topic this write belongs to, which is what
  *  "its version still has to move" is asked about.
+ *
+ *  Asked of the RECORD first: the one the store answered (a new
+ *  topic has its id only there), then the one queued (a column
+ *  names its topic in its fkey). The screen is the last resort,
+ *  and a poor one: an import writes topics the operator is not
+ *  on, and from the topics screen there is no topic on it at all.
  ***************************************************************/
-function mark_written(gobj, topic_name, record)
+function mark_written(gobj, topic_name, answered, queued)
 {
     let priv = gobj.priv;
-    let topic = current_topic(gobj);
 
-    if(topic_name === T_TOPICS && record && record.id) {
-        priv.written[record.id] = true;
+    if(mark_written_record(gobj, topic_name, answered) > 0) {
         return;
     }
+    if(mark_written_record(gobj, topic_name, queued) > 0) {
+        return;
+    }
+    let topic = current_topic(gobj);
     if(topic) {
         priv.written[topic.id] = true;
     }

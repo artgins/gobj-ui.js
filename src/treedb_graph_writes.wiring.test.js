@@ -149,13 +149,19 @@ function save_arrangement(engine, topic)
     });
 }
 
+/*  The answer as the real transports build it: the command frame
+ *  carries ONLY the request's `__md_command__` (C_IEVENT_CLI's
+ *  mt_command, gui_agent's C_AGENT_TREEDB_LINK), never the request's
+ *  own kw. Echoing the whole kw here once hid that the refusal read
+ *  its topic from a `record` no real answer carries.  */
 function answer(host, remote, request, result, comment)
 {
+    const md_command = request.kw.__md_command__ || {};
     gobj_send_event(host, "EV_MT_COMMAND_ANSWER", {
         result: result,
         comment: comment || "",
         data: null,
-        __md_iev__: {command_stack: [{command: request.command, kw: request.kw}]}
+        __md_iev__: {command_stack: [{command: request.command, kw: md_command}]}
     }, remote);
 }
 
@@ -172,6 +178,7 @@ describe("a __graphs__ write that does not land is said to the engine", () => {
         expect(commands.length).toBe(1);
         answer(host, remote, commands[0], -1, "not authorized");
         expect(refused()).toEqual(["yunos"]);
+        expect(logged.filter((l) => /names no topic/.test(l.msg))).toEqual([]);
     });
 
     test("landed: nothing is said", () => {

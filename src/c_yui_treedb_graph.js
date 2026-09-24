@@ -1520,6 +1520,12 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options)
     kw.__md_command__ = { // Data to be returned
         topic_name: topic_name,
     };
+    /*  The answer carries this echo and nothing else of the request: a
+     *  refused `__graphs__` write is told to the engine by the topic it
+     *  arranges, so that topic has to travel here.  */
+    if(topic_name === "__graphs__") {
+        kw.__md_command__.graph_topic = graph_topic_of(record);
+    }
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -2118,7 +2124,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
             if(result < 0 && command === "update-node") {
                 graphs_write_refused(gobj,
                     kw_get_str(gobj, kw_command, "topic_name", "", 0),
-                    kw_get_dict(gobj, kw_command, "record", {}, 0));
+                    kw_get_str(gobj, kw_command, "graph_topic", "", 0));
             }
             if(result >= 0 &&
                 kw_get_str(gobj, kw_command, "topic_name", "", 0) !== "__graphs__") {
@@ -2486,7 +2492,7 @@ function ac_update_node(gobj, event, kw, src)
     let options = kw.options || {};
 
     if(refuse_if_readonly(gobj, event)) {
-        graphs_write_refused(gobj, topic_name, record);
+        graphs_write_refused(gobj, topic_name, graph_topic_of(record));
         return -1;
     }
 
@@ -2496,7 +2502,7 @@ function ac_update_node(gobj, event, kw, src)
     if(topic_name === "__graphs__" && !is_connected(gobj)) {
         log_warning(`${gobj_short_name(gobj)}: no session, the arrangement ` +
             `was not sent`);
-        graphs_write_refused(gobj, topic_name, record);
+        graphs_write_refused(gobj, topic_name, graph_topic_of(record));
         return -1;
     }
 
@@ -2508,9 +2514,20 @@ function ac_update_node(gobj, event, kw, src)
         options
     );
     if(ret < 0) {
-        graphs_write_refused(gobj, topic_name, record);
+        graphs_write_refused(gobj, topic_name, graph_topic_of(record));
     }
     return ret;
+}
+
+/************************************************************
+ *  The topic a `__graphs__` record arranges.
+ ************************************************************/
+function graph_topic_of(record)
+{
+    if(!record || typeof record !== "object") {
+        return "";
+    }
+    return record.topic || record.id || "";
 }
 
 /************************************************************
@@ -2520,14 +2537,13 @@ function ac_update_node(gobj, event, kw, src)
  *  writes the topic again. Other topics are the operator's data:
  *  the answer's error says what happened to them.
  ************************************************************/
-function graphs_write_refused(gobj, topic_name, record)
+function graphs_write_refused(gobj, topic_name, topic)
 {
     let priv = gobj.priv;
 
     if(topic_name !== "__graphs__") {
         return;
     }
-    let topic = (record && typeof record === "object") ? (record.topic || record.id) : "";
     if(!topic) {
         log_error(`${gobj_short_name(gobj)}: a refused __graphs__ write names no topic`);
         return;
