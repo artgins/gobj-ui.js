@@ -597,9 +597,15 @@ Two layout facts the browser taught this component, both worth keeping:
   session, or refused by the transport on its way out, never reaches the
   backend, so no answer will ever come back for it -- the host answers it
   itself (`C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` since `7.25.21`: `i18n:
-  "no session"`, or the transport's refusal as `error`). While a path is
-  pending the viewer ignores every click on it, so a drill left unanswered
-  is a dead stub for the life of the viewer.
+  "no session"`, or the transport's refusal as `error`). So is a drill
+  already SENT when the session drops: a transport answers nothing in flight
+  on a close, so the host keeps the paths it asked and, on the disconnect
+  edge (`EV_TRANSPORT_STATE` or the shell's `EV_CONNECTION_STATE`, both
+  `{connected: false}`), answers each one `i18n: "the connection dropped"`
+  (since `7.25.22`); a failure that lands after that answer is dropped with
+  a warning, not shown twice. While a path is pending the viewer ignores
+  every click on it, so a drill left unanswered is a dead stub for the life
+  of the viewer.
   A host that cannot read a subtree says so with the error, as
   `C_YUI_TREEDB_TOPIC_WITH_FORM` does for its schema, cell and table viewers
   since `7.25.19` (before, it declared nothing: *"Event NOT DEFINED"*):

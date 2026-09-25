@@ -13,6 +13,12 @@
  *      stayed on "loading" for the life of the viewer, and no click --
  *      not even after the reconnect -- asked again.
  *
+ *      Before gobj-ui 7.25.22 a drill already SENT when the session
+ *      dropped was never answered either: the transport answers nothing
+ *      in flight on a close, and neither host remembered what it had
+ *      asked. Each host now keeps its drills in flight and answers them
+ *      on the disconnect edge.
+ *
  *      Driven through the real hosts and the real viewer on a document
  *      double, with a fake transport whose state is the one the hosts
  *      read and which refuses on demand.
@@ -229,4 +235,114 @@ for(const gclass of ["C_YUI_TREEDB_TOPICS", "C_YUI_TREEDB_GRAPH"]) {
             expect(logged.filter((l) => l.level === "error")).toEqual([]);
         });
     });
+
+    describe(`${gclass}: a drill in flight when the session drops is answered`, () => {
+
+        test("the drop answers the stub, and a click after the reconnect asks again", () => {
+            const {remote, host, viewer} = build(`${gclass}_d`, gclass);
+            click_stub(viewer);
+            expect(viewer.priv.pending.has("topics")).toBe(true);
+
+            /*  The session drops before the answer: the transport never
+             *  answers a command in flight.  */
+            gobj_change_state(remote, "ST_DISCONNECTED");
+            gobj_send_event(host, "EV_TRANSPORT_STATE", {connected: false}, host);
+
+            expect(viewer.priv.pending.has("topics")).toBe(false);
+            expect(viewer.priv.errors.get("topics")).toEqual(
+                {error: "the connection dropped", is_key: true});
+
+            /*  The same edge again answers nothing more.  */
+            logged.length = 0;
+            gobj_send_event(host, "EV_TRANSPORT_STATE", {connected: false}, host);
+            expect(logged.filter((l) => l.level === "error")).toEqual([]);
+
+            gobj_change_state(remote, "ST_SESSION");
+            gobj_send_event(host, "EV_TRANSPORT_STATE", {connected: true}, host);
+            click_stub(viewer);
+            expect(drills()).toEqual(["topics", "topics"]);
+            expect(viewer.priv.pending.has("topics")).toBe(true);
+        });
+
+        test("a failure that lands after the drop answered is not answered twice", () => {
+            /*  gui_agent's routing adapter answers every request in flight
+             *  as failed on the close, and that answer can land after the
+             *  edge that already answered the stub.  */
+            const {remote, host, viewer} = build(`${gclass}_h`, gclass);
+            click_stub(viewer);
+            const request = commands.find((c) => c.command === "print-tranger");
+            gobj_change_state(remote, "ST_DISCONNECTED");
+            gobj_send_event(host, "EV_TRANSPORT_STATE", {connected: false}, host);
+
+            logged.length = 0;
+            gobj_send_event(host, "EV_MT_COMMAND_ANSWER", {
+                result: -1, comment: "the connection dropped", data: null,
+                __md_iev__: {
+                    command_stack: [{command: "print-tranger", kw: request.kw.__md_command__}]
+                }
+            }, remote);
+            expect(viewer.priv.errors.get("topics")).toEqual(
+                {error: "the connection dropped", is_key: true});
+            expect(logged.filter((l) => l.level === "error")).toEqual([]);
+        });
+
+        test("a drill already answered is not answered again by a drop", () => {
+            const {remote, host, viewer} = build(`${gclass}_e`, gclass);
+            click_stub(viewer);
+            const request = commands.find((c) => c.command === "print-tranger");
+            gobj_send_event(host, "EV_MT_COMMAND_ANSWER", {
+                result: 0, comment: "", data: {a: 1, b: 2, c: 3},
+                __md_iev__: {
+                    command_stack: [{command: "print-tranger", kw: request.kw.__md_command__}]
+                }
+            }, remote);
+            expect(viewer.priv.pending.has("topics")).toBe(false);
+            expect(viewer.priv.errors.has("topics")).toBe(false);
+
+            gobj_change_state(remote, "ST_DISCONNECTED");
+            gobj_send_event(host, "EV_TRANSPORT_STATE", {connected: false}, host);
+            expect(viewer.priv.errors.has("topics")).toBe(false);
+            expect(logged.filter((l) => l.level === "error")).toEqual([]);
+        });
+
+        test("a drill that failed is not answered again by a drop", () => {
+            const {remote, host, viewer} = build(`${gclass}_f`, gclass);
+            click_stub(viewer);
+            const request = commands.find((c) => c.command === "print-tranger");
+            gobj_send_event(host, "EV_MT_COMMAND_ANSWER", {
+                result: -1, comment: "no such path", data: null,
+                __md_iev__: {
+                    command_stack: [{command: "print-tranger", kw: request.kw.__md_command__}]
+                }
+            }, remote);
+            expect(viewer.priv.errors.get("topics")).toEqual(
+                {error: "no such path", is_key: false});
+
+            gobj_change_state(remote, "ST_DISCONNECTED");
+            gobj_send_event(host, "EV_TRANSPORT_STATE", {connected: false}, host);
+            expect(viewer.priv.errors.get("topics")).toEqual(
+                {error: "no such path", is_key: false});
+        });
+    });
 }
+
+/*
+ *  wattyzer and yunovatios hear the edge from the SHELL
+ *  (EV_CONNECTION_STATE), not from a host that forwards the transport.
+ */
+describe("C_YUI_TREEDB_TOPICS: the shell's 'down' answers a drill in flight", () => {
+    test("EV_CONNECTION_STATE down answers the stub once, with its edge twin", () => {
+        const {remote, host, viewer} = build("topics_g", "C_YUI_TREEDB_TOPICS");
+        click_stub(viewer);
+
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        gobj_send_event(host, "EV_CONNECTION_STATE", {connected: false}, host);
+        expect(viewer.priv.pending.has("topics")).toBe(false);
+        expect(viewer.priv.errors.get("topics")).toEqual(
+            {error: "the connection dropped", is_key: true});
+
+        const errors_after_first = logged.filter((l) => l.level === "error").length;
+        gobj_send_event(host, "EV_TRANSPORT_STATE", {connected: false}, host);
+        expect(logged.filter((l) => l.level === "error").length).toBe(errors_after_first);
+    });
+});

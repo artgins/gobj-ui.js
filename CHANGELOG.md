@@ -5,6 +5,29 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.22
+
+- **fix: `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH`: a drill of the
+  raw-json viewer that is in flight when the session drops is answered.**
+  7.25.21 answered a drill that could not go out, but not one already sent:
+  the transport answers nothing in flight on a close (`C_IEVENT_CLI`), and
+  on a plain reconnect the same view and viewer stay, so the stub stayed on
+  "loading" and every click on it was ignored after the reconnect too.
+  gui_treedb, wattyzer and yunovatios were hit; gui_agent was not, its
+  `C_AGENT_TREEDB_LINK` answers every routed request on the close. Each
+  host now keeps the drilled paths in flight; on the disconnect edge
+  (`EV_TRANSPORT_STATE` for both hosts, the shell's `EV_CONNECTION_STATE`
+  for the topics view, both `{connected: false}`) it answers each one
+  `EV_SUBTREE_ERROR {path, i18n: "the connection dropped"}` and forgets it,
+  so a click once the session is back asks again. A normal answer or error
+  forgets its path, closing the viewer forgets them all, and a failure that
+  lands for a path already answered (gui_agent's link answers on the close
+  as well) is a warning, not a second error on the stub. Consumer i18n key
+  `the connection dropped` (gui_agent already had it). Inherited: no host
+  ever settled a drill on a transport edge.
+- This CHANGELOG no longer cites internal review rounds or finding ids: each
+  entry says what changed.
+
 ## 7.25.21
 
 - **fix: `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH`: a drill of the
@@ -314,24 +337,23 @@ before the fix.
 
 ## 7.25.12
 
-Fixes from the sixth independent review (after 7.25.11), all in
-`C_YUI_SCHEMA_EDITOR`.
+Fixes, all in `C_YUI_SCHEMA_EDITOR`.
 
-- **Any load that lands pays the reload a refused load owes (MEDIUM).** The
+- **Any load that lands pays the reload a refused load owes.** The
   owed reload was cleared only by the reload the editor asked for itself (and
   by the reconnect). After a refused load, the operator's own Refresh landed,
   and the flag stayed set: the next edit was refused and read the store again.
   The same happened after the reload of a late write. The flag is cleared
   where a load lands now, whoever asked for it.
-- **A load that fails keeps the import plan (LOW).** The plan was forgotten
+- **A load that fails keeps the import plan.** The plan was forgotten
   when the requests LEFT. A load that then failed in session kept the model,
   so the dialog stayed up with no plan and Import disabled. The plan is
   forgotten when a load LANDS and replaces the model, as the 7.25.9 contract
   said. A load that fails or never leaves keeps the plan and Import enabled.
-- **A move sent by the host runs the owed reload (LOW).** `EV_SHOW` from the
+- **A move sent by the host runs the owed reload.** `EV_SHOW` from the
   host (a url, the browser's Back) moved without asking for the reload a
   refused load owed. It runs it now, as the editor's own moves do.
-- **The export's C / JSON switch goes through the FSM (LOW).** The click
+- **The export's C / JSON switch goes through the FSM.** The click
   handler changed the pressed button and the text itself. It sends
   `EV_EXPORT_VIEW` (`{pane: "c" | "json"}`) now, and the action does the work.
   The event is answered in every state, because the dialog outlives the screen
@@ -350,9 +372,9 @@ Fixes from the sixth independent review (after 7.25.11), all in
 
 ## 7.25.10
 
-Fixes from the fifth independent review (after 7.25.9).
+Fixes.
 
-- **`C_YUI_SCHEMA_EDITOR`: the reload a refused load owes RUNS (LOW-MEDIUM).**
+- **`C_YUI_SCHEMA_EDITOR`: the reload a refused load owes RUNS.**
   A load refused in session (a routing adapter's deadline) kept the model and
   owed a reload that only a reconnect would ask: while the session stayed up
   it never ran, and a form opened on the model it kept could write the old
@@ -364,14 +386,14 @@ Fixes from the fifth independent review (after 7.25.9).
   immediate retry. The refused load's toast says what happens next:
   *"cannot read the schemas again: the ones shown may be out of date, your
   next change reads them first"* (replaces *"... the previous ones stay"*).
-- **Every control of a dialog is named** (LOW): the back arrow of an adaptive
+- **Every control of a dialog is named**: the back arrow of an adaptive
   dialog (`MODAL_BACK`) carries a `title` as well as its `aria-label`, and the
   answers of every confirmation (`CONFIRM_BTN`) carry both, from their own
   label key (`shell_modals.js`). The export's C / JSON switch was two tabs
   whose `<a>` had no href -- no keyboard reached them, nothing named them --
   and is two named buttons (`schema as c source`, `schema as json`), the one
   shown pressed.
-- **A Refresh during a load keeps the records shown** (LOW): the second
+- **A Refresh during a load keeps the records shown**: the second
   `request_model()` kept the half the first load had got as the records to
   put back, so a drop or a failure of it restored a model with no treedb.
 - **The import plan**: a Yes that finds it gone is a warning and a toast
@@ -393,10 +415,10 @@ New i18n keys for the consumer's locales: `schema as c source`,
 
 ## 7.25.9
 
-Fixes from the fourth independent review (after 7.25.8).
+Fixes.
 
 - **`C_YUI_SCHEMA_EDITOR`: a dialog built on a model a reload replaced writes
-  nothing (MEDIUM-HIGH).** 7.25.8 refused a dialog's Save during a load with
+  nothing.** 7.25.8 refused a dialog's Save during a load with
   *"try again when they are in"*, and trying again sent the form built on the
   OLD model -- a column form sends every field, so the old record was written
   over the newer one; a form whose column the reload removed logged *"names
@@ -408,7 +430,7 @@ Fixes from the fourth independent review (after 7.25.8).
   load starts. The refusal during a load says *"the schemas are loading: wait
   for them"*. New i18n keys for the consumer's locales (the 7.25.8 "try
   again" key is no longer used).
-- **A load refused IN session keeps the model** (MEDIUM): a routing
+- **A load refused IN session keeps the model**: a routing
   adapter's deadline blanked the editor into `ST_IDLE`, and an open form's
   Save logged *"Event NOT DEFINED in state ST_IDLE"*. The records are put
   back, the screen and the dialog stay, the operator is told (*"cannot read
@@ -430,10 +452,10 @@ Fixes from the fourth independent review (after 7.25.8).
 
 ## 7.25.8
 
-Fixes from the third independent review (after 7.25.7).
+Fixes.
 
-- **`C_YUI_SCHEMA_EDITOR`: a reload draws its loading screen (MEDIUM,
-  confirmed live).** `request_model()` entered `ST_LOADING` and drew nothing:
+- **`C_YUI_SCHEMA_EDITOR`: a reload draws its loading screen (confirmed
+  live).** `request_model()` entered `ST_LOADING` and drew nothing:
   the old screen stayed up and clickable, with Refresh still enabled, and a
   click on a card, on Back or on the drawing -- or the Save of a column form
   left open -- logged *"Event NOT DEFINED in state ST_LOADING"* and was lost.
@@ -465,10 +487,10 @@ Fixes from the third independent review (after 7.25.7).
 
 ## 7.25.7
 
-Fixes from the independent review of the 2nd round (after 7.25.4).
+Fixes.
 
 - **`C_YUI_SCHEMA_EDITOR`: a navigation during a load no longer empties the
-  model (HIGH, regression of 7.25.6).** `is_current_load()` matched an answer
+  model (regression of 7.25.6).** `is_current_load()` matched an answer
   by its round AND by the state being `ST_LOADING`, and the host's `EV_SHOW`
   moved a reload (Refresh, or the reconnect's) out of `ST_LOADING`: every
   answer was then "for a load that is over", and the next successful write
@@ -492,9 +514,9 @@ Fixes from the independent review of the 2nd round (after 7.25.4).
 
 ## 7.25.6
 
-Fixes from the independent review of 7.25.4.
+Fixes.
 
-- **`C_YUI_SCHEMA_EDITOR` gets out of a transport drop (M-1).** A drop left
+- **`C_YUI_SCHEMA_EDITOR` gets out of a transport drop.** A drop left
   it where it was: in `ST_SAVING` with its body busy, or in `ST_LOADING` --
   and the reconnect skipped the reload *because* the state was
   `ST_LOADING`. Only a reload of the page got it out. Now a drop (the host's
@@ -508,22 +530,20 @@ Fixes from the independent review of 7.25.4.
   write), so the answer of a request the drop cut is logged as a warning and
   ignored -- it used to be counted in the next load, or to end the next
   write.
-- **`package-lock.json` is in sync with `package.json` again** (L-4): it
+- **`package-lock.json` is in sync with `package.json` again**: it
   still named gobj-js `^7.21.0`, maplibre-gl `6.4.1` and tabulator-tables
   `6.5.2`, and `npm ci` refused it.
 
 ## 7.25.5
 
-Fixes from the 2026-09-23 review of the 2026-09-22 round.
+Fixes.
 
-- **`C_YUI_SCHEMA_EDITOR`: `EV_DRAFTS` REPLACES what the host said before
-  (M1).** It only added the host's marks to the session's, so a topic the
+- **`C_YUI_SCHEMA_EDITOR`: `EV_DRAFTS` REPLACES what the host said before.** It only added the host's marks to the session's, so a topic the
   host named before a Save stayed a draft after it ("unsaved schema changes"
   again). The host's marks are kept apart (`host_draft_ids()`, new in
   `host_drafts.js`) and swapped whole on each `EV_DRAFTS`; what the session
   wrote stays marked. A host sends the COMPLETE set every time, `{}` included.
-- **A form's Save in flight when the backend drops is answered in every host
-  (M8).** `C_YUI_TREEDB_TOPICS` only learnt the drop from a host-forwarded
+- **A form's Save in flight when the backend drops is answered in every host.** `C_YUI_TREEDB_TOPICS` only learnt the drop from a host-forwarded
   `EV_TRANSPORT_STATE`, which wattyzer and yunovatios never sent: Save and
   Cancel stayed busy for ever. `yui_shell_set_connection_state()` -- which
   those apps already call for the toolbar dot -- now publishes
@@ -555,7 +575,7 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
 
 ## 7.25.4
 
-- **The lows of the 2026-09-22 review.** A delete whose rows (table) or
+- **Smaller fixes.** A delete whose rows (table) or
   cards (graph) went while the question was open tells the PERSON, not only
   the log: new consumer i18n key *"some records were gone before the
   delete"*, added in every consumer's locales. A `time` column whose
@@ -566,8 +586,7 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
 
 ## 7.25.3
 
-- **`C_YUI_SCHEMA_EDITOR` rebuilds its drafts from the host (N13 of the
-  2026-09-22 review).** The mark of a topic written in this session lived
+- **`C_YUI_SCHEMA_EDITOR` rebuilds its drafts from the host.** The mark of a topic written in this session lived
   in the session's memory only: a reload of the page, a reconnect or a
   refresh of the model showed no chip, no banner and no export warning
   while `__system__` still differed from the file in use. New input event
@@ -580,7 +599,7 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
 ## 7.25.2
 
 - **A topic form's write is answered every way it can end, the transport
-  included (N8 of the 2026-09-22 review).** `C_YUI_TREEDB_TOPICS` keeps the
+  included.** `C_YUI_TREEDB_TOPICS` keeps the
   serials of the form writes it sent (`form_writes_in_flight.js`) and answers
   them `EV_WRITE_REFUSED` on the transport edge that closes the session; and
   a write asked with no session is refused before it is sent, with the
@@ -589,7 +608,7 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
   could not tell -- and a form waiting for an answer that would never come
   stayed open and busy for ever, Save disabled and spinning. The README said
   the host answered "no session included"; now it does.
-- **A form busy twice comes back whole (N9).** `set_form_busy()` is a
+- **A form busy twice comes back whole.** `set_form_busy()` is a
   transition (`form_busy.js`): a second `busy(true)` while busy touches
   nothing. A record with a picked file went busy for the read and busy again
   for the write, and the second pass recorded the buttons the first had
@@ -628,7 +647,7 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
 
 ## 7.23.196
 
-- **M36 of the 2026-09-21 treedb review — an edit of a schema is a draft.**
+- **An edit of a schema is a draft.**
   `C_YUI_SCHEMA_EDITOR` no longer raises `topic_version` and `schema_version`
   on every write (`version_writes()` is gone): the SDK's `save-schema`
   publishes a draft, once, and `apply-schema` puts it in use. The "version
@@ -643,7 +662,7 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
 
 ## 7.23.195
 
-- **M26 of the 2026-09-21 treedb review — a writable time column lost its
+- **A writable time column lost its
   seconds on every Save of ANY field.** The form shows a `time` / `now` column
   in a `datetime-local` input written as `YYYY-MM-DDTHH:mm`, and reads it back
   on every save: the stored epoch moved to the start of its minute. The input
@@ -651,7 +670,7 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
   `form_time_value.js` (`date_to_datetime_local()` /
   `datetime_local_to_epoch()`), whose round trip is tested. An empty input
   reads as `null`, not `NaN`.
-- **M31 — the text of a record was parsed as HTML in the treedb table.**
+- **The text of a record was parsed as HTML in the treedb table.**
   Tabulator puts a formatter's STRING result through `innerHTML`: a
   description `a<b and c>d` showed as `ad`, and a field holding
   `<img src=x onerror=...>` ran it in the operator's browser. Every string the
@@ -662,7 +681,7 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
 
 ## 7.23.194
 
-- **M28 of the 2026-09-21 treedb review — +New with an id that exists was a
+- **+New with an id that exists was a
   silent upsert.** `C_YUI_TREEDB_TOPICS` created through `update-node` with
   `create: true`, which updates a record that exists: the one there was
   overwritten and, through `autolink` with the selects empty, UNLINKED, and
@@ -673,9 +692,9 @@ Fixes from the 2026-09-23 review of the 2026-09-22 round.
 
 ## 7.23.193
 
-Block 3 of the 2026-09-21 treedb review (ids of yunetas' `TODO.md`).
+Fixes of the treedb views.
 
-- **A6 — the delete of ONE row was resolved by POSITION after the confirm
+- **The delete of ONE row was resolved by POSITION after the confirm
   dialog, and could delete another record** (with `force: true`). d60ec78
   replaced the record by `getPosition()` to keep the kw plain json; a position
   is regenerated by every `addData` / `deleteRow`, and the view applies the
@@ -683,7 +702,7 @@ Block 3 of the 2026-09-21 treedb review (ids of yunetas' `TODO.md`).
   crosses the dialog now, for one row and for a selection alike, and is found
   again with `getRow(id)`; a row gone meanwhile is reported, never replaced.
   New helpers `yui_row_ids()` / `yui_rows_by_ids()` in `yui_table_select.js`.
-- **M25 — a REFUSED Save closed the form and threw the edit away**, although
+- **A REFUSED Save closed the form and threw the edit away**, although
   the README said it stayed open: the close was posted with the publish. New
   attr `form_waits_for_answer` (off by default): the form stays open and busy,
   the write carries a `form_write` serial, and the host answers
@@ -691,28 +710,29 @@ Block 3 of the 2026-09-21 treedb review (ids of yunetas' `TODO.md`).
   events of `C_YUI_TREEDB_TOPIC_WITH_FORM`, so no host has to declare
   anything. `C_YUI_TREEDB_TOPICS` sets the attr and answers every way a write
   ends, the local refusals included.
-- **M24 — the toolbar code dereferenced buttons that `with_new_button` /
+- **The toolbar code dereferenced buttons that `with_new_button` /
   `with_delete_button: false` do not build**, and `render_selection_state()`
   enabled Delete only when a Copy button existed too.
-- **M33 — `ac_node_updated` of `C_G6_NODES_TREE` read an undeclared
+- **`ac_node_updated` of `C_G6_NODES_TREE` read an undeclared
   `graph`** inside a try/catch that swallowed the `ReferenceError`: a card on
   screen kept its old record after every UPDATED. It reads `priv.graph`, and
   the catch rethrows a `ReferenceError`.
-- **M32 — an echo of one `__graphs__` record rebuilt the saved snapshot of
+- **An echo of one `__graphs__` record rebuilt the saved snapshot of
   EVERY topic from the view's live objects**, so what was unsaved in other
   topics counted as saved and the next Save skipped it. The echo now moves
   only its own topic (`apply_graphs_echo()` in `graph_save_plan.js`).
-- **M27 — the demo host of the test-app did not declare `EV_REQUEST_JSON`
+- **The demo host of the test-app did not declare `EV_REQUEST_JSON`
   nor `EV_UPDATE_FIELD`** ("Event NOT DEFINED in state" on the Raw JSON
   button and on a cell edit). It answers both now.
-- **M29 — `max_col_width` was a hard ceiling** (Tabulator's `maxWidth`): the
+- **`max_col_width` was a hard ceiling** (Tabulator's `maxWidth`): the
   reader could not widen the column past it, although the attr said so. It is
   `maxInitialWidth` now.
-- **M30 — the row search took a hook's children as the node events deliver
+- **The row search took a hook's children as the node events deliver
   them, `{id, topic_name}`, for data**, so their `topic_name` was a wildcard.
   A reference is `{id, topic_name[, hook_name]}` and nothing more.
-- Found on the way: the host code of M25 used `kw_get_int` without importing
-  it; a `no-undef` pass over the touched files caught it before it shipped.
+- Found on the way: the host code of the refused Save used `kw_get_int`
+  without importing it; a `no-undef` pass over the touched files caught it
+  before it shipped.
 
 ## 7.23.192
 
@@ -1151,8 +1171,7 @@ literal), and the form's two writes call it with their `desc`.
 
 ## 7.23.169
 
-The nine gobj-ui findings of the 2026-09-15 treedb review (yunetas'
-`TODO.md`, "gobj-ui (treedb views)"), all of them.
+Nine fixes of the treedb views.
 
 **Every action crosses the automaton now.** Four places decided things outside
 the FSM, and the `machine` trace saw none of them:
@@ -1246,8 +1265,7 @@ went into the attr descriptions instead.
 
 ## 7.23.168
 
-Three fixes from the 2026-09-15 treedb review (A8, A9, A10 of yunetas'
-`TODO.md`).
+Three fixes of the treedb views.
 
 - **The form's Save no longer writes the read-only fields back.** The form
   shows every field of a record, and `ac_form_save_record` published the whole

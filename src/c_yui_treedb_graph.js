@@ -183,6 +183,7 @@ let PRIVATE_DATA = {
     json_gobj:          null,   /*  C_YUI_JSON viewer of the raw tranger (or null)  */
     json_win:           null,   /*  C_YUI_WINDOW hosting it, desktop (or null)  */
     json_modal:         null,   /*  shell modal hosting it, mobile (or null)  */
+    drills_in_flight:   null,   /*  Set of the viewer's drilled paths sent, not answered  */
     with_treedb_tables: false,
     canvas_id:          null,
     operation_mode:     null,
@@ -213,6 +214,10 @@ let __gclass__ = null;
 function mt_create(gobj)
 {
     let priv = gobj.priv;
+
+    /*  The drills of the raw-json viewer sent and not yet answered:
+     *  answered on the disconnect edge (answer_drills_in_flight).  */
+    priv.drills_in_flight = new Set();
 
     /*
      *  CHILD subscription model
@@ -474,10 +479,16 @@ function refresh_raw_json_button(gobj, connected)
  *  "Raw JSON" button disables the moment the session drops and re-enables on
  *  reconnect. The library view must not subscribe to the C_IEVENT_CLI itself
  *  (that forwards the subscription upstream and breaks the session).
+ *  On the drop, the drills of the raw-json viewer still in flight are
+ *  answered: the transport answers nothing in flight on a close.
  ************************************************************/
 function ac_transport_state(gobj, event, kw, src)
 {
-    refresh_raw_json_button(gobj, !!(kw && kw.connected));
+    let connected = !!(kw && kw.connected);
+    refresh_raw_json_button(gobj, connected);
+    if(!connected) {
+        answer_drills_in_flight(gobj);
+    }
     return 0;
 }
 
@@ -1270,6 +1281,7 @@ function close_json_viewer(gobj)
     priv.json_gobj = null;
     priv.json_win = null;
     priv.json_modal = null;
+    priv.drills_in_flight.clear();
 
     if(win && is_gobj(win)) {
         try {
@@ -1381,7 +1393,30 @@ function request_print_tranger(gobj, path)
     if(ret) {
         log_error(ret);
         answer_print_tranger_refused(gobj, path, {error: refusal_text(ret)});
+        return;
     }
+    if(path) {
+        priv.drills_in_flight.add(path);
+    }
+}
+
+/************************************************************
+ *  The session dropped: a drill already sent will never be answered
+ *  (the transport answers nothing in flight on a close), and its stub
+ *  would show "loading" for the life of the viewer. Answered here, so a
+ *  click once the session is back asks again. Idempotent: both edges of
+ *  one drop may arrive.
+ ************************************************************/
+function answer_drills_in_flight(gobj)
+{
+    let priv = gobj.priv;
+    let paths = Array.from(priv.drills_in_flight);
+    priv.drills_in_flight.clear();
+    paths.forEach((path) => {
+        log_warning(`${gobj_short_name(gobj)}: transport closed, the drill ` +
+            `'${path}' of the raw json is lost`);
+        answer_print_tranger_refused(gobj, path, {i18n: "the connection dropped"});
+    });
 }
 
 /************************************************************
@@ -2100,6 +2135,19 @@ function ac_mt_command_answer(gobj, event, kw, src)
             return 0;   /*  viewer closed before its answer landed: benign  */
         }
         let path = kw_get_str(gobj, kw_command, "path", "", 0);
+        if(path) {
+            let in_flight = priv.drills_in_flight.delete(path);
+            if(!in_flight && result < 0) {
+                /*  Already answered (the drop answered it, or the viewer
+                 *  was refilled): a second answer would log it twice.  */
+                log_warning(`${gobj_short_name(gobj)}: late failure of the drill ` +
+                    `'${path}' dropped, it was already answered: ${comment || ""}`);
+                return 0;
+            }
+        } else {
+            /*  A whole document replaces every stub the drills were for.  */
+            priv.drills_in_flight.clear();
+        }
         if(result < 0) {
             if(path) {
                 gobj_send_event(jv, "EV_SUBTREE_ERROR",
@@ -2411,6 +2459,7 @@ function ac_json_closed(gobj, event, kw, src)
     priv.json_gobj = null;
     priv.json_win = null;
     priv.json_modal = null;
+    priv.drills_in_flight.clear();
     if(jv && is_gobj(jv)) {
         try {
             /*  STOP before destroy — the viewer was STARTED in open_json_viewer
