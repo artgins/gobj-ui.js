@@ -672,7 +672,11 @@ const es_translation = {
     "A plain C_YUI_WINDOW. Drag the titlebar, resize the edges.": "Una C_YUI_WINDOW normal. Arrastra la barra de título, redimensiona los bordes.",
     "Minimize docks it as a chip; a press raises it; the x closes it.": "Minimizar la acopla como chip; una pulsación la eleva; la x la cierra.",
     "C_YUI_WINDOW floating windows managed by the C_YUI_WINDOW_MANAGER dock (service __window_manager__). Spawn a few: drag the titlebar, resize the edges, maximize; minimize rolls a window to a chip in the dock strip below, a press raises/focuses it, x closes it. Open windows float over the other chapters (the view is keep_alive). On mobile a window becomes a full-screen sheet — minimize it to the dock to get back. Fully offline.":
-        "Ventanas flotantes C_YUI_WINDOW gestionadas por el dock C_YUI_WINDOW_MANAGER (servicio __window_manager__). Abre unas cuantas: arrastra la barra de título, redimensiona los bordes, maximiza; minimizar recoge la ventana como chip en la tira del dock de abajo, una pulsación la eleva/enfoca, la x la cierra. Las ventanas abiertas flotan sobre los demás capítulos (la vista es keep_alive). En móvil la ventana se convierte en una hoja a pantalla completa — minimízala al dock para volver. Totalmente offline."
+        "Ventanas flotantes C_YUI_WINDOW gestionadas por el dock C_YUI_WINDOW_MANAGER (servicio __window_manager__). Abre unas cuantas: arrastra la barra de título, redimensiona los bordes, maximiza; minimizar recoge la ventana como chip en la tira del dock de abajo, una pulsación la eleva/enfoca, la x la cierra. Las ventanas abiertas flotan sobre los demás capítulos (la vista es keep_alive). En móvil la ventana se convierte en una hoja a pantalla completa — minimízala al dock para volver. Totalmente offline.",
+    /*  Asked by the raw-json viewer since gobj-ui 7.25.21 / 7.25.22  */
+    "ok": "Aceptar",
+    "this part cannot be loaded here": "Esta parte llegó truncada y no se puede cargar aquí",
+    "the connection dropped": "La conexión se cayó antes de llegar la respuesta"
 };
 
 /*

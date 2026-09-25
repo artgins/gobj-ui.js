@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.23
+
+- **deps: peer `maplibre-gl` `^6.11.2` (was `^6.10.0`), devDependency `vite`
+  `^8.3.1` (was `^8.2.1`).** No API of this library moved. maplibre 6.11.x
+  lists no breaking change; of its entries, the long press that now fires the
+  map's `contextmenu` event on a touch screen does not reach `C_YUI_MAP`, which
+  subscribes to no map `contextmenu` (the two DOM handlers in
+  `lib_maplibre.js` only stop the browser menu on the control buttons), and the
+  `Map#once(type, layerId, …)` fix does not touch the `once('mouseup')` /
+  `once('touchend')` of the marker drag. **6.11.2 changes what the worker and
+  the page say about glyphs**, so a worker cached from an older maplibre breaks
+  labels: a host that emits the worker itself must keep the version in its file
+  name (the test-app does: `maplibre-gl-worker-6.11.2.js`). vite 8.3 lists no
+  breaking change either; its new removal of unreferenced worker chunks does
+  not touch the maplibre worker, which the test-app emits as an asset.
+- test-app: vite `^8.3.1`, and the three Spanish strings the raw-json viewer
+  asks for since 7.25.21 / 7.25.22 (`ok`, `this part cannot be loaded here`,
+  `the connection dropped`): without them `validate-locales` stopped its build.
+
 ## 7.25.22
 
 - **fix: `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH`: a drill of the
