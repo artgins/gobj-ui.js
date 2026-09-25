@@ -235,3 +235,80 @@ describe("a refused __graphs__ write keeps the Save lit", () => {
         expect(errors()).toEqual([]);
     });
 });
+
+/*  A refusal is about the LOAD its write was sent from. Before gobj-ui
+ *  7.25.20 it carried only the topic: Save, then Refresh, then the
+ *  refusal landed and was applied to the FRESH load -- the Save lit
+ *  over nothing changed, and pressing it wrote a record identical to
+ *  what the backend holds.  */
+describe("a refusal of an earlier load is not applied to the current one", () => {
+
+    test("the write carries its load, and a refusal of it counts", () => {
+        const g = build("edition");
+        g.tree.priv._graph_properties.users.nodes.u1.x = 99;
+        gobj_send_event(g.tree, "EV_SAVE_GRAPH", {}, g.tree);
+        const [write] = published.filter((p) => p.event === "EV_UPDATE_NODE");
+        expect(typeof write.kw.graphs_load).toBe("number");
+
+        gobj_send_event(g.tree, "EV_GRAPHS_WRITE_REFUSED",
+            {topic: "users", graphs_load: write.kw.graphs_load}, g.tree);
+        expect(g.lit()).toBe(true);
+        expect(g.tree.priv._saved_graph_properties.users).toBe(undefined);
+        expect(errors()).toEqual([]);
+    });
+
+    test("Save, reload, then the refusal: ignored, and said", () => {
+        const g = build("edition");
+        g.tree.priv._graph_properties.users.nodes.u1.x = 99;
+        gobj_send_event(g.tree, "EV_SAVE_GRAPH", {}, g.tree);
+        const [write] = published.filter((p) => p.event === "EV_UPDATE_NODE");
+
+        gobj_send_event(g.tree, "EV_CLEAR_DATA", {}, g.tree);
+        /*  The reload brings what the backend holds.  */
+        g.tree.priv._graph_properties = {users: {nodes: {u1: {x: 10, y: 20}}}};
+        g.tree.priv._saved_graph_properties = {users: {nodes: {u1: {x: 10, y: 20}}}};
+        gobj_send_event(g.tree, "EV_SET_OPERATION_MODE", {operation_mode: "edition"}, g.tree);
+        logged.length = 0;
+
+        gobj_send_event(g.tree, "EV_GRAPHS_WRITE_REFUSED",
+            {topic: "users", graphs_load: write.kw.graphs_load}, g.tree);
+        expect(g.lit()).toBe(false);
+        expect(g.tree.priv._saved_graph_properties.users).toEqual({nodes: {u1: {x: 10, y: 20}}});
+        expect(logged.map((l) => [l.level, l.msg.replace(/^\S+: /, "")])).toEqual([
+            ["warning", "a refused write of the arrangement of 'users' belongs to an earlier load: ignored"]
+        ]);
+    });
+});
+
+/*  The FIRST record of a topic's arrangement arrives as a CREATE echo
+ *  (from this browser or another). Before gobj-ui 7.25.20 it rebuilt
+ *  every topic's saved copy from the live objects the view edits in
+ *  place, so an unsaved change of ANOTHER topic counted as saved and
+ *  the next Save did not write it.  */
+describe("a __graphs__ create echo moves only its own topic", () => {
+
+    test("an unsaved change of another topic stays unsaved", () => {
+        const g = build("edition");
+        g.tree.priv.descs = {};
+        g.tree.priv.__graphs__ = [
+            {id: "users", topic: "users", active: true,
+                properties: g.tree.priv._graph_properties.users}
+        ];
+        /*  Edited in place, not saved.  */
+        g.tree.priv._graph_properties.users.nodes.u1.x = 77;
+
+        gobj_send_event(g.tree, "EV_NODE_CREATED", {
+            topic_name: "__graphs__",
+            node: {id: "roles", topic: "roles", active: true,
+                properties: {nodes: {r1: {x: 1, y: 2}}}}
+        }, g.tree);
+
+        expect(g.tree.priv._saved_graph_properties.users).toEqual({nodes: {u1: {x: 10, y: 20}}});
+        expect(g.tree.priv._saved_graph_properties.roles).toEqual({nodes: {r1: {x: 1, y: 2}}});
+
+        gobj_send_event(g.tree, "EV_SAVE_GRAPH", {}, g.tree);
+        const writes = published.filter((p) => p.event === "EV_UPDATE_NODE");
+        expect(writes.map((w) => w.kw.record.id)).toEqual(["users"]);
+        expect(errors()).toEqual([]);
+    });
+});

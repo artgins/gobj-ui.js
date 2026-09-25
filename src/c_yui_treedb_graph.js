@@ -1325,7 +1325,7 @@ function request_print_tranger(gobj, path)
         let jv = priv.json_gobj;
         if(path && jv && is_gobj(jv) && !gobj_is_destroying(jv)) {
             gobj_send_event(jv, "EV_SUBTREE_ERROR",
-                {path: path, error: t("no session")}, gobj);
+                {path: path, i18n: "no session"}, gobj);
         }
         return;
     }
@@ -1498,7 +1498,7 @@ function treedb_create_node(gobj, treedb_name, topic_name, record, options)
 /************************************************************
  *  Command to remote service
  ************************************************************/
-function treedb_update_node(gobj, treedb_name, topic_name, record, options)
+function treedb_update_node(gobj, treedb_name, topic_name, record, options, graphs_load)
 {
     let priv = gobj.priv;
 
@@ -1525,6 +1525,11 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options)
      *  arranges, so that topic has to travel here.  */
     if(topic_name === "__graphs__") {
         kw.__md_command__.graph_topic = graph_topic_of(record);
+        /*  And the engine's LOAD it was sent from: a refusal answered
+         *  after a reload is not about the arrangement shown now.  */
+        if(graphs_load !== undefined) {
+            kw.__md_command__.graphs_load = graphs_load;
+        }
     }
 
     let ret = gobj_command(priv.gobj_remote_yuno,
@@ -2162,7 +2167,8 @@ function ac_mt_command_answer(gobj, event, kw, src)
             if(result < 0 && command === "update-node") {
                 graphs_write_refused(gobj,
                     kw_get_str(gobj, kw_command, "topic_name", "", 0),
-                    kw_get_str(gobj, kw_command, "graph_topic", "", 0));
+                    kw_get_str(gobj, kw_command, "graph_topic", "", 0),
+                    kw_command ? kw_command.graphs_load : undefined);
             }
             if(result >= 0 &&
                 kw_get_str(gobj, kw_command, "topic_name", "", 0) !== "__graphs__") {
@@ -2533,9 +2539,10 @@ function ac_update_node(gobj, event, kw, src)
     let topic_name = kw.topic_name;
     let record = kw.record;
     let options = kw.options || {};
+    let graphs_load = kw.graphs_load;
 
     if(refuse_if_readonly(gobj, event)) {
-        graphs_write_refused(gobj, topic_name, graph_topic_of(record));
+        graphs_write_refused(gobj, topic_name, graph_topic_of(record), graphs_load);
         return -1;
     }
 
@@ -2545,7 +2552,7 @@ function ac_update_node(gobj, event, kw, src)
     if(topic_name === "__graphs__" && !is_connected(gobj)) {
         log_warning(`${gobj_short_name(gobj)}: no session, the arrangement ` +
             `was not sent`);
-        graphs_write_refused(gobj, topic_name, graph_topic_of(record));
+        graphs_write_refused(gobj, topic_name, graph_topic_of(record), graphs_load);
         return -1;
     }
 
@@ -2554,10 +2561,11 @@ function ac_update_node(gobj, event, kw, src)
         treedb_name,
         topic_name,
         record,
-        options
+        options,
+        graphs_load
     );
     if(ret < 0) {
-        graphs_write_refused(gobj, topic_name, graph_topic_of(record));
+        graphs_write_refused(gobj, topic_name, graph_topic_of(record), graphs_load);
     }
     return ret;
 }
@@ -2578,9 +2586,11 @@ function graph_topic_of(record)
  *  (C_G6_NODES_TREE) took it for granted when it left -- nothing
  *  answers it when it lands -- so it is told, and its next Save
  *  writes the topic again. Other topics are the operator's data:
- *  the answer's error says what happened to them.
+ *  the answer's error says what happened to them. `graphs_load` is
+ *  the engine's load the write was sent from, handed back so it can
+ *  tell a refusal of an earlier load from one of the current.
  ************************************************************/
-function graphs_write_refused(gobj, topic_name, topic)
+function graphs_write_refused(gobj, topic_name, topic, graphs_load)
 {
     let priv = gobj.priv;
 
@@ -2594,7 +2604,11 @@ function graphs_write_refused(gobj, topic_name, topic)
     if(!priv.gobj_nodes_tree) {
         return;     /*  no engine: nothing believes it was saved  */
     }
-    gobj_send_event(priv.gobj_nodes_tree, "EV_GRAPHS_WRITE_REFUSED", {topic: topic}, gobj);
+    let kw = {topic: topic};
+    if(graphs_load !== undefined) {
+        kw.graphs_load = graphs_load;
+    }
+    gobj_send_event(priv.gobj_nodes_tree, "EV_GRAPHS_WRITE_REFUSED", kw, gobj);
 }
 
 /********************************************

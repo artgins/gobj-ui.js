@@ -156,15 +156,20 @@ function build(name)
     return {remote, host, engine};
 }
 
-/*  What the engine publishes on a Save of one topic's arrangement.  */
-function save_arrangement(engine, topic)
+/*  What the engine publishes on a Save of one topic's arrangement,
+ *  from its load number `graphs_load`.  */
+function save_arrangement(engine, topic, graphs_load)
 {
-    gobj_publish_event(engine, "EV_UPDATE_NODE", {
+    let kw = {
         treedb_name: "treedb_test",
         topic_name: "__graphs__",
         record: {id: topic, topic: topic, active: true, properties: {nodes: {}}},
         options: {list_dict: true, autolink: false, create: true}
-    });
+    };
+    if(graphs_load !== undefined) {
+        kw.graphs_load = graphs_load;
+    }
+    gobj_publish_event(engine, "EV_UPDATE_NODE", kw);
 }
 
 /*  The answer as the real transports build it: the command frame
@@ -186,6 +191,11 @@ function answer(host, remote, request, result, comment, data)
 function refused()
 {
     return told.filter((t) => t.event === "EV_GRAPHS_WRITE_REFUSED").map((t) => t.kw.topic);
+}
+
+function refused_kw()
+{
+    return told.filter((t) => t.event === "EV_GRAPHS_WRITE_REFUSED").map((t) => t.kw);
 }
 
 describe("a __graphs__ write that does not land is said to the engine", () => {
@@ -220,6 +230,30 @@ describe("a __graphs__ write that does not land is said to the engine", () => {
         refuse_on_the_way = true;
         save_arrangement(engine, "binaries");
         expect(refused()).toEqual(["binaries"]);
+    });
+
+    /*  Before gobj-ui 7.25.20 the refusal carried only the topic, and
+     *  the engine applied one answered after a reload to the fresh
+     *  load. The engine's load number now travels in __md_command__
+     *  and comes back with the refusal, on every path.  */
+    test("the engine's load comes back with the refusal, on every path", () => {
+        const {remote, host, engine} = build("g6");
+        save_arrangement(engine, "yunos", 7);
+        expect(commands[0].kw.__md_command__.graphs_load).toBe(7);
+        answer(host, remote, commands[0], -1, "not authorized");
+
+        refuse_on_the_way = true;
+        save_arrangement(engine, "binaries", 7);
+        refuse_on_the_way = false;
+
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        save_arrangement(engine, "realms", 8);
+
+        expect(refused_kw()).toEqual([
+            {topic: "yunos", graphs_load: 7},
+            {topic: "binaries", graphs_load: 7},
+            {topic: "realms", graphs_load: 8}
+        ]);
     });
 
     test("a refused write of another topic says nothing to the engine", () => {

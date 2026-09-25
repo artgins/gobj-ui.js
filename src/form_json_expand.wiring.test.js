@@ -43,10 +43,12 @@ const {
     SDATA_END, gclass_create,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
     gobj_start, gobj_send_event, gobj_current_state,
+    gobj_create_pure_child, gobj_read_attr,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_shell} = await import("./c_yui_shell.js");
 const {register_c_yui_json} = await import("./c_yui_json.js");
+const {t} = await import("i18next");
 const {register_c_yui_treedb_topic_with_form} = await import("./c_yui_treedb_topic_with_form.js");
 
 const logged = [];
@@ -86,6 +88,11 @@ function errors()
     return logged.filter((l) => l.level === "error").map((l) => l.msg);
 }
 
+function warnings()
+{
+    return logged.filter((l) => l.level === "warning").map((l) => l.msg);
+}
+
 describe("a viewer of the form asks to load a truncated part", () => {
 
     test("the form answers that it cannot, and the stub stops loading", () => {
@@ -112,10 +119,86 @@ describe("a viewer of the form asks to load a truncated part", () => {
         gobj_send_event(viewer, "EV_EXPAND_COLLAPSED", {path: "cols`name", size: 40}, viewer);
 
         expect(viewer.priv.pending.has("cols`name")).toBe(false);
-        expect(viewer.priv.errors.get("cols`name")).toBe("this part cannot be loaded here");
-        /*  The viewer logs what it could not load; nothing else is.  */
+        /*  The KEY travels, not its translation: the stub draws t(key)
+         *  with data-i18n, so it changes language with the app.  */
+        expect(viewer.priv.errors.get("cols`name")).toEqual(
+            {error: "this part cannot be loaded here", is_key: true});
+        /*  A host saying it cannot, by design, is a WARNING: an ERROR
+         *  on every click broke the clean-console check of a deploy and
+         *  reached the backend through the remote log.  */
+        expect(errors()).toEqual([]);
+        expect(warnings()).toEqual([
+            "C_YUI_JSON: subtree not loaded at 'cols`name': this part cannot be loaded here"
+        ]);
+
+    });
+});
+
+describe("the stub of a subtree that was not loaded", () => {
+
+    /*  A host answering with a KEY that it cannot, by design.  */
+    function make_viewer(name, answer)
+    {
+        gclass_create(`C_TEST_JSON_HOST_${name}`, [["EV_EXPAND_PATH", 0]], [
+            ["ST_IDLE", [["EV_EXPAND_PATH", function(gobj, event, kw, src) {
+                gobj_send_event(src, "EV_SUBTREE_ERROR",
+                    Object.assign({path: kw.path}, answer), gobj);
+                return 0;
+            }, null]]]
+        ], {}, 0, [SDATA_END()], {}, 0, 0, 0, 0);
+        const host = gobj_create(`${name}_host`, `C_TEST_JSON_HOST_${name}`, {}, yuno);
+        gobj_start(host);
+        const viewer = gobj_create_pure_child(`${name}_jv`, "C_YUI_JSON", {
+            json_data: {a: {__collapsed__: {size: 3, path: "a"}}}
+        }, host);
+        gobj_start(viewer);
+        return viewer;
+    }
+
+    function stub_error(viewer)
+    {
+        return gobj_read_attr(viewer, "$container").querySelector(".JSON_STUB_ERR");
+    }
+
+    test("a key is drawn translated, carries data-i18n, and follows the language", async () => {
+        const i18next = (await import("i18next")).default;
+        i18next.addResource("es", "translation",
+            "this part cannot be loaded here", "esta parte no se puede cargar aqui");
+
+        const viewer = make_viewer("s1",
+            {i18n: "this part cannot be loaded here", by_design: true});
+        logged.length = 0;
+        gobj_send_event(viewer, "EV_EXPAND_COLLAPSED", {path: "a", size: 3}, viewer);
+
+        let el = stub_error(viewer);
+        expect(el).toBeTruthy();
+        expect(el.getAttribute("data-i18n")).toBe("this part cannot be loaded here");
+        expect(el.textContent).toBe("this part cannot be loaded here");
+        expect(errors()).toEqual([]);
+        expect(warnings()).toEqual([
+            "C_YUI_JSON: subtree not loaded at 'a': this part cannot be loaded here"
+        ]);
+
+        await i18next.changeLanguage("es");
+        try {
+            gobj_send_event(viewer, "EV_LANGUAGE_CHANGED", {}, viewer);
+            expect(stub_error(viewer).textContent).toBe("esta parte no se puede cargar aqui");
+            expect(t("this part cannot be loaded here")).toBe("esta parte no se puede cargar aqui");
+        } finally {
+            await i18next.changeLanguage("en");
+        }
+    });
+
+    test("a failure in free text is drawn as it came, and is an ERROR", () => {
+        const viewer = make_viewer("s2", {error: "print-tranger failed"});
+        logged.length = 0;
+        gobj_send_event(viewer, "EV_EXPAND_COLLAPSED", {path: "a", size: 3}, viewer);
+
+        let el = stub_error(viewer);
+        expect(el.getAttribute("data-i18n")).toBe(null);
+        expect(el.textContent).toBe("print-tranger failed");
         expect(errors()).toEqual([
-            "C_YUI_JSON: subtree load failed at 'cols`name': this part cannot be loaded here"
+            "C_YUI_JSON: subtree load failed at 'a': print-tranger failed"
         ]);
     });
 });

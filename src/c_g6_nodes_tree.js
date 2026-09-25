@@ -494,6 +494,7 @@ let PRIVATE_DATA = {
     _graph_properties:  {},         // topic_name → {nodes: {node_id: {x,y,size,...}}}
     _saved_graph_properties: {},    // the same, as the BACKEND has it: what a Save compares against
     _graphs_writes_owed: {},        // topic_name → true: a __graphs__ write the host said did not land
+    _graphs_load:       0,          // the LOAD a __graphs__ write belongs to: EV_CLEAR_DATA starts another
     yet_showed:         false,
     edit_mode:          false,
     operation_mode:     null,
@@ -3301,7 +3302,10 @@ function save_topic_graph_properties(gobj, topic_name)
             list_dict: true,
             autolink: false,
             create: true
-        }
+        },
+        /*  Echoed back with a refusal (EV_GRAPHS_WRITE_REFUSED), so
+         *  one answered after a reload is told from one of THIS load.  */
+        graphs_load: priv._graphs_load
     };
     gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
 }
@@ -10372,6 +10376,9 @@ function ac_clear_data(gobj, event, kw, src)
      *  reload brings what the backend holds, and that is what the view
      *  will hold.  */
     priv._graphs_writes_owed = {};
+    /*  And a write still on its way belongs to it: its refusal, if
+     *  one comes, is about an arrangement this view no longer holds.  */
+    priv._graphs_load++;
 
     /*  The node counters belong to the data that is going away: a refresh
      *  that kept them would decide the layout on the previous treedb. */
@@ -10537,12 +10544,19 @@ function ac_save_graph(gobj, event, kw, src)
 /************************************************************
  *  The host says a write of `__graphs__` did not land: the
  *  backend refused it, the transport refused it on the way out,
- *  or there was no session to send it on. kw: {topic}
+ *  or there was no session to send it on.
+ *  kw: {topic, graphs_load}
  *
  *  save_topic_graph_properties() recorded it as saved before it
  *  left. Forgotten now, and the Save is lit again: the next Save
  *  writes the topic again. Before, the view believed the backend
  *  held the arrangement, and the next Save had nothing to write.
+ *
+ *  `graphs_load` is the load the write was sent from, echoed by the
+ *  host. A refusal of an EARLIER load is about an arrangement the
+ *  reload replaced with what the backend holds: applied, it lit the
+ *  Save over nothing changed (before gobj-ui 7.25.20). A host that
+ *  echoes no load is taken at its word, as before.
  ************************************************************/
 function ac_graphs_write_refused(gobj, event, kw, src)
 {
@@ -10552,6 +10566,11 @@ function ac_graphs_write_refused(gobj, event, kw, src)
     if(!topic_name) {
         log_error(`${gobj_short_name(gobj)}: ${event} names no topic`);
         return -1;
+    }
+    if(kw.graphs_load !== undefined && kw.graphs_load !== priv._graphs_load) {
+        log_warning(`${gobj_short_name(gobj)}: a refused write of the arrangement ` +
+            `of '${topic_name}' belongs to an earlier load: ignored`);
+        return 0;
     }
     log_warning(`${gobj_short_name(gobj)}: the arrangement of '${topic_name}' ` +
         `was not saved: the next Save writes it again`);
@@ -10600,10 +10619,16 @@ function ac_node_created(gobj, event, kw, src)
         return 0;
     }
 
-    // Handle __graphs__ creation: update _graph_properties
+    /*  The first record of a topic's arrangement. Only THAT topic
+     *  moves, as for an update echo: build_graph_properties() took
+     *  every topic's saved copy from the live objects the view edits
+     *  in place, so an unsaved change of another topic counted as
+     *  saved and its Save was lost (before gobj-ui 7.25.20).  */
     if(topic_name === '__graphs__') {
         priv.__graphs__.push(node);
-        build_graph_properties(gobj);
+        apply_graphs_echo(
+            priv._graph_properties, priv._saved_graph_properties, priv.__graphs__, node
+        );
         settle_owed_graphs_write(gobj, node);
         return 0;
     }

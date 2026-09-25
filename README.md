@@ -586,7 +586,7 @@ Two layout facts the browser taught this component, both worth keeping:
   `"graph"`), `$container` (mounted by the parent).
 - Input events: `EV_SET_JSON {json}` (replace the whole document; `ST_EMPTY` →
   `ST_READY`), `EV_SUBTREE_LOADED {path, json}` (splice a fetched subtree),
-  `EV_SUBTREE_ERROR {path, error}`, `EV_SET_VIEW_MODE {mode}` (`"tree"` /
+  `EV_SUBTREE_ERROR {path, error | i18n, by_design}`, `EV_SET_VIEW_MODE {mode}` (`"tree"` /
   `"text"` / `"graph"`; **no mode advances** to the next view, which is what
   the two-view toggle did when the list was two long), plus `EV_REFRESH` /
   `EV_SHOW` / `EV_HIDE` / `EV_LANGUAGE_CHANGED`.
@@ -597,10 +597,22 @@ Two layout facts the browser taught this component, both worth keeping:
   `C_YUI_TREEDB_TOPIC_WITH_FORM` does for its schema, cell and table viewers
   since `7.25.19` (before, it declared nothing: *"Event NOT DEFINED"*):
   ```js
-  gobj_send_event(src, "EV_SUBTREE_ERROR",
-      {path: kw.path, error: t("this part cannot be loaded here")}, gobj);
-  ``` That is the ONLY
-  one, on purpose: this viewer is a child of its host and subscribes it to
+  gobj_send_event(src, "EV_SUBTREE_ERROR", {
+      path:      kw.path,
+      i18n:      "this part cannot be loaded here",  // a KEY: t(key) + data-i18n
+      by_design: true     // not a failure: logged as a warning
+  }, gobj);
+  ```
+  `error` is text, drawn as it came (a backend's comment); `i18n` is a key,
+  so the stub changes language with the app -- a text translated by the host
+  stays in the language it was sent in. The name `i18n` is the one a
+  `validate-locales` scan looks for, so the key stays visible to it. `by_design`
+  says the host CANNOT, which is not a failure: the viewer logs it as a
+  WARNING, and anything else as an ERROR. Before `7.25.20` the form sent
+  `t(...)`, and every click on a stub logged an ERROR, which broke a
+  clean-console check and reached the backend through the remote log.
+
+  `EV_EXPAND_PATH` is the ONLY output event, on purpose: this viewer is a child of its host and subscribes it to
   everything it publishes, so every output event is a mandatory declaration in
   every host's FSM. The graph child's `EV_JSON_ITEM_CLICKED` stops here
   (`7.21.0` forwarded it and broke exactly that way); a host that wants node
@@ -1900,9 +1912,33 @@ worked only in a test whose fake transport echoed the whole request. The host
 now puts the topic in the echo it asks for:
 
 ```js
-kw.__md_command__ = {topic_name: "__graphs__", graph_topic: "users"};
+kw.__md_command__ = {topic_name: "__graphs__", graph_topic: "users", graphs_load: 3};
 // the answer: __md_iev__.command_stack[0].kw === that echo, and nothing else
 ```
+
+**A refusal belongs to the LOAD its write was sent from** (since `7.25.20`).
+"A reload forgets it" held only for a refusal that arrived BEFORE the reload:
+one answered after it was applied to the fresh load -- Save, Refresh, then the
+refusal lands -- and lit Save over nothing changed, and pressing it wrote a
+record identical to what the backend holds. The engine now counts its loads
+(each `EV_CLEAR_DATA` starts one) and puts the number in every `EV_UPDATE_NODE`
+of `__graphs__` as `graphs_load`; the host echoes it in `__md_command__` and
+hands it back with `EV_GRAPHS_WRITE_REFUSED {topic, graphs_load}`. A refusal of
+an earlier load is logged as a warning and ignored. A host that sends no
+`graphs_load` is taken at its word, as before:
+
+```js
+// in the host: the engine's load, from the EV_UPDATE_NODE it published
+gobj_send_event(engine, "EV_GRAPHS_WRITE_REFUSED",
+    {topic: record.topic, graphs_load: kw.graphs_load}, gobj);
+```
+
+**A `__graphs__` create echo moves only its own topic** (since `7.25.20`), as
+an update echo has since `7.25.19` (`apply_graphs_echo()`). The first record of
+a topic's arrangement -- from this browser or another -- rebuilt the saved
+copies of EVERY topic from the live objects the view arranges in place, so an
+unsaved change of another topic (a look reset in edition, say) counted as saved
+and the next Save did not write it.
 
 **Every saved look has a way back, in the context menu** (since `7.23.134`,
 replacing `reset sizes` / `reset topic sizes`). In edition, the node, the port
@@ -2381,7 +2417,13 @@ else.
   consumer's locales carry). A write that ends with an error -- a drop
   included -- still applies a position that waited, as a load does. Out of
   session a load is not asked at all (no *"not in session"* errors); the
-  reconnect loads.
+  reconnect loads. **Nor is a write** (7.25.20): each one of the queue asks
+  first, and out of session the writes end with `cannot reach the treedb`, a
+  warning, and a reload owed to the next session. A direct `C_IEVENT_CLI`
+  answers a command out of session with `null`, the answer of a request that
+  left, so before this the editor sat in `ST_SAVING`, inert, until another
+  drop. (gui_agent's `C_AGENT_TREEDB_LINK` answers an error string there, so
+  it was not hit.)
 - **A dialog is built on ONE model, and a load that replaces it closes it**
   (7.25.9). Every load that lands bumps `model_gen`; a dialog records the one
   it was opened on, and its Save, its import Preview/Run, an orphan delete and

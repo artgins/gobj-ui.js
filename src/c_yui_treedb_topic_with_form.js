@@ -3711,8 +3711,9 @@ function ac_expand_path(gobj, event, kw, src)
     let path = (kw && kw.path) || "";
 
     gobj_send_event(src, "EV_SUBTREE_ERROR", {
-        path:  path,
-        error: t("this part cannot be loaded here")
+        path:      path,
+        i18n:      "this part cannot be loaded here",
+        by_design: true
     }, gobj);
     return 0;
 }

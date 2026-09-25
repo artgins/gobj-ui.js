@@ -798,8 +798,9 @@ function ac_hide_diff(gobj, event, kw, src)
 function ac_expand_path(gobj, event, kw, src)
 {
     gobj_send_event(src, "EV_SUBTREE_ERROR", {
-        path: (kw && kw.path) || "",
-        error: t("collapsed in the source")
+        path:      (kw && kw.path) || "",
+        i18n:      "collapsed in the source",
+        by_design: true
     }, gobj);
     return 0;
 }

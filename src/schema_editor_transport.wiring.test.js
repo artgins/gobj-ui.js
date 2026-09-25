@@ -37,7 +37,7 @@ const {
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
     gobj_start, gobj_send_event, gobj_read_attr,
     gobj_change_state, gobj_current_state,
-    set_log_callback,
+    set_log_callback, log_error,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_schema_editor} = await import("./c_yui_schema_editor.js");
 
@@ -56,12 +56,32 @@ const RECORDS = {
     ],
 };
 
-/*  A transport out of session refuses in the RETURN, as C_IEVENT_CLI and
- *  the routing adapters do: a request that did not leave is not waited for.  */
+/*  A transport out of session refuses in the RETURN, as the routing
+ *  adapters do (gui_agent's C_AGENT_TREEDB_LINK): a request that did not
+ *  leave is not waited for. `refuse_on_the_way` makes it refuse IN
+ *  session too, as a transport that cannot send.  */
+let refuse_on_the_way = false;
+
 function remote_command_parser(gobj, command, kw, src)
 {
     if(gobj_current_state(gobj) !== "ST_SESSION") {
         return `${command}: not in session`;
+    }
+    if(refuse_on_the_way) {
+        return `${command}: cannot send`;
+    }
+    commands.push({command, kw, src});
+    return null;
+}
+
+/*  A DIRECT C_IEVENT_CLI, as its mt_command does it: out of session it
+ *  logs "Not in session" and answers NULL -- the same answer as a request
+ *  that left. The README allows `gobj_remote_yuno` to be one.  */
+function ievent_cli_command_parser(gobj, command, kw, src)
+{
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        log_error(`Not in session`);
+        return null;
     }
     commands.push({command, kw, src});
     return null;
@@ -93,6 +113,13 @@ beforeAll(() => {
         {mt_command_parser: remote_command_parser},
         0, [SDATA_END()], {}, 0, 0, 0, 0
     );
+    gclass_create(
+        "C_TEST_IEVENT_CLI",
+        [],
+        [["ST_DISCONNECTED", []], ["ST_SESSION", []]],
+        {mt_command_parser: ievent_cli_command_parser},
+        0, [SDATA_END()], {}, 0, 0, 0, 0
+    );
     register_c_yui_schema_editor();
     yuno = gobj_create_yuno("transport_yuno", "C_TEST_HOST", {});
     gobj_start(yuno);
@@ -102,6 +129,7 @@ beforeEach(() => {
     logged.length = 0;
     commands.length = 0;
     shown.length = 0;
+    refuse_on_the_way = false;
 });
 
 function take(command)
@@ -148,9 +176,10 @@ function reconnect(editor, remote, host)
     gobj_send_event(editor, "EV_TRANSPORT_STATE", {connected: true}, host);
 }
 
-function build(name, loaded)
+function build(name, loaded, remote_gclass)
 {
-    const remote = gobj_create_service(`${name}_remote`, "C_TEST_REMOTE", {}, yuno);
+    const remote = gobj_create_service(`${name}_remote`,
+        remote_gclass || "C_TEST_REMOTE", {}, yuno);
     gobj_change_state(remote, "ST_SESSION");
     const host = gobj_create(`${name}_host`, "C_TEST_EDITOR_HOST", {}, yuno);
     const editor = gobj_create(`${name}_editor`, "C_YUI_SCHEMA_EDITOR", {
@@ -453,5 +482,60 @@ describe("a write answered after it was given up", () => {
         expect(gobj_current_state(editor)).toBe("ST_LOADING");
         expect(take("nodes").length).toBe(3);
         expect(errors()).toEqual([]);
+    });
+});
+
+/*  Before gobj-ui 7.25.20 a write never asked whether the transport was
+ *  in session. A direct C_IEVENT_CLI answers null out of session, which
+ *  remote_command() took for "sent": the editor sat in ST_SAVING, busy
+ *  and inert, until another drop.  */
+describe("a write with the transport out of session", () => {
+
+    test("a direct C_IEVENT_CLI: the write ends, said, and the next session reads again", () => {
+        const {editor, remote, host} = build("x1", true, "C_TEST_IEVENT_CLI");
+        /*  Gone, and the host's edge has not arrived yet.  */
+        gobj_change_state(remote, "ST_DISCONNECTED");
+
+        gobj_send_event(editor, "EV_SAVE_COLUMN", {
+            creating: true, topic: "users", values: {value: "name", type: "string"}
+        }, host);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(is_busy(editor)).toBe(false);
+        expect(take("update-node")).toEqual([]);
+        expect(shown).toEqual(["cannot reach the treedb"]);
+        expect(errors()).toEqual([]);
+        expect(warnings()).toEqual([
+            "C_YUI_SCHEMA_EDITOR^x1_editor: no session, 'update-node' of 'cols' was not sent"
+        ]);
+
+        gobj_send_event(editor, "EV_TRANSPORT_STATE", {connected: false}, host);
+        reconnect(editor, remote, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        expect(errors()).toEqual([]);
+    });
+
+    /*  The toast is handed the KEY (yui_shell_show_error translates it
+     *  and keeps it for a change of language). This path passed
+     *  t("cannot reach the treedb"), a text that cannot re-translate.  */
+    test("a transport that refuses in session: the toast gets the key", async () => {
+        const i18next = (await import("i18next")).default;
+        if(!i18next.isInitialized) {
+            await i18next.init({lng: "en", resources: {}});
+        }
+        i18next.addResource(i18next.language || "en", "translation",
+            "cannot reach the treedb", "TRANSLATED: cannot reach the treedb");
+        try {
+            const {editor, remote, host} = build("x2", true);
+            refuse_on_the_way = true;
+            gobj_send_event(editor, "EV_SAVE_COLUMN", {
+                creating: true, topic: "users", values: {value: "name", type: "string"}
+            }, host);
+            expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+            expect(shown).toEqual(["cannot reach the treedb"]);
+            expect(errors()).toEqual(["update-node: cannot send"]);
+        } finally {
+            i18next.removeResourceBundle(i18next.language || "en", "translation");
+        }
     });
 });

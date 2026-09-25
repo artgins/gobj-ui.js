@@ -5,6 +5,63 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.20
+
+- **`C_YUI_JSON` / `C_YUI_TREEDB_TOPIC_WITH_FORM`: the "cannot be loaded
+  here" stub changes language, and a click on it is not an ERROR.** The form
+  answered `EV_EXPAND_PATH` with `t("this part cannot be loaded here")`, a
+  text already translated: the viewer drew it with no `data-i18n`, so it
+  stayed in the language of the click, and logged every click as an ERROR --
+  an answer that is BY DESIGN, which broke a deploy's clean-console check and
+  reached the backend through the remote log. `EV_SUBTREE_ERROR` now takes
+  the KEY as `i18n` (drawn as `t(key)` with `data-i18n`; the name is the one
+  `validate-locales` scans for) and `by_design: true` (logged as a warning);
+  `error` stays free text and an ERROR. The same for the pad's `collapsed in
+  the source`, and the `no session` of the topics and graph views is now a
+  key too. (New in 7.25.19.)
+
+  ```js
+  gobj_send_event(src, "EV_SUBTREE_ERROR",
+      {path: kw.path, i18n: "this part cannot be loaded here", by_design: true}, gobj);
+  ```
+- **`C_G6_NODES_TREE`: a `__graphs__` refusal answered after a reload is not
+  applied to the fresh load.** The refusal carried only the topic, so Save,
+  Refresh, then the refusal landing lit Save over nothing changed, and
+  pressing it wrote a record identical to what the backend holds -- against
+  the README's "a reload of the data forgets it". The engine counts its loads
+  (`EV_CLEAR_DATA` starts one) and sends `graphs_load` with each
+  `EV_UPDATE_NODE` of `__graphs__`; `C_YUI_TREEDB_GRAPH` echoes it in
+  `__md_command__` and hands it back with `EV_GRAPHS_WRITE_REFUSED {topic,
+  graphs_load}` on all three paths (the backend's error, the transport's
+  refusal, no session). A refusal of an earlier load is a warning and is
+  ignored; a host that sends no `graphs_load` is taken at its word. (New in
+  7.25.15/16.)
+- **`C_G6_NODES_TREE`: a `__graphs__` CREATE echo no longer marks unsaved
+  edits of other topics as saved.** It rebuilt every topic's saved copy from
+  the live objects the view arranges in place (`build_graph_properties()`),
+  so a look reset in topic A, not yet saved, counted as saved when another
+  browser created the first `__graphs__` record of topic B, and the next Save
+  did not write A. The create echo now goes through `apply_graphs_echo()`,
+  as the update echo has since 7.25.19. (Inherited.)
+- **`C_YUI_SCHEMA_EDITOR`: a write out of session ends instead of hanging in
+  `ST_SAVING`.** `request_model()` asked `transport_in_session()` before a
+  load, `run_next_write()` did not. A direct `C_IEVENT_CLI` -- which the
+  README allows as `gobj_remote_yuno` -- answers a command out of session
+  with `null`, the answer of a request that left, so the editor waited in
+  `ST_SAVING`, busy and inert, until another drop. Each write now asks first;
+  out of session the writes end with `cannot reach the treedb`, a warning,
+  and a reload owed to the next session. Nobody was hit: gui_agent's
+  `C_AGENT_TREEDB_LINK` answers an error string there. The test transport now
+  has a twin that behaves like `C_IEVENT_CLI`. (Inherited.)
+- **`C_YUI_SCHEMA_EDITOR`: the "cannot reach the treedb" toast of a refused
+  write carries the key**, as the other callers do, so it re-translates.
+  (Inherited.)
+- **README: the `EV_EXPAND_PATH` example closed its code fence on a line with
+  text** (`` ``` That is the ONLY``), so the rest of the bullet rendered as
+  code on GitHub and npm. (New in 7.25.19.)
+- devDependency `@yuneta/gobj-js` `^7.25.6` (its `kw_find_path()` fix; the
+  peer range is unchanged).
+
 ## 7.25.19
 
 - **`C_YUI_TREEDB_TOPICS`: `EV_RECORD_WRITTEN` for a delete, and `created`

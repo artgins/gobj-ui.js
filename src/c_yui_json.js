@@ -64,6 +64,7 @@ import {
     gclass_create,
     gclass_find_by_name,
     log_error,
+    log_warning,
     gobj_read_pointer_attr,
     gobj_parent,
     gobj_subscribe_event,
@@ -898,8 +899,12 @@ function push_collapsed_row(ctx, value, segments, depth, key, rows)
     children.push(['span', {class: 'JSON_STUB_HINT is-size-7 ml-2',
                             'data-i18n': is_pending ? 'loading' : 'click to load'},
                    is_pending ? 'loading' : 'click to load']);
-    if(err) {
-        children.push(['span', {class: 'JSON_STUB_ERR has-text-danger is-size-7 ml-2'}, String(err)]);
+    if(err && err.is_key) {
+        children.push(['span', {class: 'JSON_STUB_ERR has-text-danger is-size-7 ml-2',
+                                'data-i18n': err.error}, t(err.error)]);
+    } else if(err) {
+        children.push(['span', {class: 'JSON_STUB_ERR has-text-danger is-size-7 ml-2'},
+                       String(err.error)]);
     }
 
     let attrs = {
@@ -1117,17 +1122,35 @@ function ac_subtree_loaded(gobj, event, kw, src)
 }
 
 /************************************************************
- *   EV_SUBTREE_ERROR { path, error } — mark the failed branch
+ *   EV_SUBTREE_ERROR { path, error | i18n, by_design }
+ *   — mark the branch that was not loaded.
+ *
+ *   `error` is text, drawn as it came (a backend's comment).
+ *   `i18n` is a KEY, drawn as t(key) with data-i18n so the stub
+ *   changes language with the app (a text translated by the host
+ *   stays in the language it was sent in). The name is the one a
+ *   locale check scans for (`i18n: "<key>"`), so the key of every
+ *   host stays visible to it.
+ *   `by_design`: the host answers that it CANNOT read a subtree
+ *   (a form holds records, a pasted pad has no backend) -- that is
+ *   not a failure, and it is logged as a warning. Anything else is
+ *   a load that failed, logged as an error.
  ************************************************************/
 function ac_subtree_error(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
     let path = kw.path || "";
+    let is_key = !!kw.i18n;
+    let error = kw.i18n || kw.error || "error";
     priv.pending.delete(path);
-    priv.errors.set(path, kw.error || "error");
+    priv.errors.set(path, {error: error, is_key: is_key});
 
-    log_error(`${GCLASS_NAME}: subtree load failed at '${path}': ${kw.error || ""}`);
+    if(kw.by_design) {
+        log_warning(`${GCLASS_NAME}: subtree not loaded at '${path}': ${error}`);
+    } else {
+        log_error(`${GCLASS_NAME}: subtree load failed at '${path}': ${error}`);
+    }
 
     render_view(gobj);
     return 0;

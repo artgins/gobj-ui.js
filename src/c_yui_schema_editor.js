@@ -2820,6 +2820,19 @@ function run_next_write(gobj)
     let command = write_command(write.op);
     let options = write_options(write.op);
 
+    /*  Out of session a write is not sent, and ends here. A direct
+     *  C_IEVENT_CLI answers a command out of session with null -- the
+     *  answer of a request that LEFT -- so without this the editor
+     *  waited in ST_SAVING, inert, for an answer that never comes
+     *  (before gobj-ui 7.25.20). What the queue wrote before is not
+     *  known to the next session: it reads the model again.  */
+    if(!transport_in_session(gobj)) {
+        log_warning(`${gobj_short_name(gobj)}: no session, '${command}' ` +
+            `of '${write.topic_name}' was not sent`);
+        priv.reload_on_open = true;
+        return end_writes(gobj, "cannot reach the treedb");
+    }
+
     priv.write_tag++;
     if(remote_command(gobj, command, {
         topic_name: write.topic_name,
@@ -2827,7 +2840,7 @@ function run_next_write(gobj)
         options:    options,
         record_id:  write.record.id || ""
     }, {write: priv.write_tag}) < 0) {
-        return end_writes(gobj, t("cannot reach the treedb"));
+        return end_writes(gobj, "cannot reach the treedb");  /*  a key: the toast translates it  */
     }
     return 0;
 }
