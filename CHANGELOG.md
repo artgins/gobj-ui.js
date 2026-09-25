@@ -5,6 +5,24 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.21
+
+- **fix: `C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH`: a drill of the
+  raw-json viewer asked out of session, or refused by the transport, is
+  answered.** Only the "no `gobj_remote_yuno`" case answered the viewer. A
+  drill with the session down went to the transport, which refused it
+  (gui_agent's `C_AGENT_TREEDB_LINK`: *"cannot route 'print-tranger' -- not
+  in session"*; `C_IEVENT_CLI` logs *"Not in session"* and returns null), and
+  the host only logged it: the stub stayed on "loading", and as `C_YUI_JSON`
+  ignores a click on a pending path, it stayed so after the reconnect too,
+  until the viewer was closed. The host now checks the session first and
+  answers `EV_SUBTREE_ERROR {path, i18n: "no session"}` (a warning names the
+  host), and a transport refusal is answered `{path, error: <its text>}`; the
+  stub says why, and a click once the session is back asks again. The whole
+  document asked out of session shows the same key as a notice. Inherited:
+  the drill has been answered only on the backend's own answer since it was
+  written.
+
 ## 7.25.20
 
 - **`C_YUI_JSON` / `C_YUI_TREEDB_TOPIC_WITH_FORM`: the "cannot be loaded

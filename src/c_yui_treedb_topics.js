@@ -1944,6 +1944,42 @@ function request_schema_file(gobj)
 }
 
 /************************************************************
+ *  A drill (or the whole document) that will get no answer from the
+ *  backend is answered HERE, or its stub shows "loading" for the life
+ *  of the viewer: C_YUI_JSON ignores every click on a pending path.
+ *  `answer` is {i18n: <key>} or {error: <text>}.
+ ************************************************************/
+function answer_print_tranger_refused(gobj, path, answer)
+{
+    let jv = gobj.priv.json_gobj;
+    if(!jv || !is_gobj(jv) || gobj_is_destroying(jv)) {
+        return;     /*  no viewer to answer: the refusal is already logged  */
+    }
+    if(path) {
+        gobj_send_event(jv, "EV_SUBTREE_ERROR",
+            Object.assign({path: path}, answer), gobj);
+    } else {
+        yui_shell_show_error(yui_shell_of(gobj),
+            answer.i18n || answer.error, {t: t});
+    }
+}
+
+/************************************************************
+ *  The text of a transport's refusal: gobj_command() answers a string,
+ *  a command response or a number.
+ ************************************************************/
+function refusal_text(ret)
+{
+    if(typeof ret === "string" && ret) {
+        return ret;
+    }
+    if(ret && typeof ret === "object" && typeof ret.comment === "string" && ret.comment) {
+        return ret.comment;
+    }
+    return "print-tranger failed";
+}
+
+/************************************************************
  *  The whole tranger, for the raw-json viewer.
  ************************************************************/
 function request_print_tranger(gobj, path)
@@ -1952,11 +1988,13 @@ function request_print_tranger(gobj, path)
     let remote = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
     if(!remote) {
         log_error(`${gobj_short_name(gobj)}: No gobj_remote_yuno defined`);
-        let jv = priv.json_gobj;
-        if(path && jv && is_gobj(jv) && !gobj_is_destroying(jv)) {
-            gobj_send_event(jv, "EV_SUBTREE_ERROR",
-                {path: path, i18n: "no session"}, gobj);
-        }
+        answer_print_tranger_refused(gobj, path, {i18n: "no session"});
+        return;
+    }
+    if(!is_connected(gobj)) {
+        log_warning(`${gobj_short_name(gobj)}: print-tranger '${path || ""}' ` +
+            `not asked: no session`);
+        answer_print_tranger_refused(gobj, path, {i18n: "no session"});
         return;
     }
     let ret = gobj_command(remote, "print-tranger",
@@ -1972,6 +2010,7 @@ function request_print_tranger(gobj, path)
         }, gobj);
     if(ret) {
         log_error(ret);
+        answer_print_tranger_refused(gobj, path, {error: refusal_text(ret)});
     }
 }
 

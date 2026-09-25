@@ -593,6 +593,13 @@ Two layout facts the browser taught this component, both worth keeping:
 - Output event: `EV_EXPAND_PATH {path, size}` (`EVF_OUTPUT_EVENT`) — the parent
   must declare it in its own FSM (CHILD subscription model), and ANSWER it: the
   stub shows "loading" until `EV_SUBTREE_LOADED` or `EV_SUBTREE_ERROR` arrives.
+  **Every** way the drill can fail is an answer: a request asked out of
+  session, or refused by the transport on its way out, never reaches the
+  backend, so no answer will ever come back for it -- the host answers it
+  itself (`C_YUI_TREEDB_TOPICS` / `C_YUI_TREEDB_GRAPH` since `7.25.21`: `i18n:
+  "no session"`, or the transport's refusal as `error`). While a path is
+  pending the viewer ignores every click on it, so a drill left unanswered
+  is a dead stub for the life of the viewer.
   A host that cannot read a subtree says so with the error, as
   `C_YUI_TREEDB_TOPIC_WITH_FORM` does for its schema, cell and table viewers
   since `7.25.19` (before, it declared nothing: *"Event NOT DEFINED"*):
