@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.24
+
+- **fix: the icon bar (`C_YUI_NAV` `icon-bar`) no longer scrolls with room to
+  spare.** It is a Bulma `.level`, and Bulma 1 puts a `gap` of 0.75rem
+  between its items -- on top of each item's own padding. With five labelled
+  items gui_agent's bottom bar scrolled at 360px: 29px over in Spanish, 5px
+  in English, the fifth item clipped. `.yui-nav-iconbar` sets `gap: 0`; the
+  items still share the spare width (`flex: 1 0 auto`) and the bar still
+  scrolls when they do not fit. Measured with the real Bulma in Chromium and
+  Firefox: both locales fit, 19px left in Spanish.
+
 ## 7.25.23
 
 - **deps: peer `maplibre-gl` `^6.11.2` (was `^6.10.0`), devDependency `vite`

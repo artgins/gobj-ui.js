@@ -175,6 +175,8 @@
     display: flex;
     justify-content: flex-start;
     align-items: stretch;
+    gap: 0;     /* Bulma's .level puts 0.75rem between the padded items: five
+                   labels of gui_agent scrolled at 360px (Spanish 29px over) */
     margin: 0;
     padding: 0.25rem 0;
     width: 100%;
