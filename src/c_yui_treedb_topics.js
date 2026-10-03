@@ -172,8 +172,10 @@ function mt_create(gobj)
     gobj.priv.drills_in_flight = new Set();
     /*  The parents re-read because a link moved their hook, by
      *  "<topic>\u0000<id>", each with `dirty` when another link came
-     *  while its read was out (reread_linked_parent).  */
+     *  while its read was out, and the `seq` of its request: an
+     *  answer of another request is not its (reread_linked_parent).  */
     gobj.priv.parent_rereads = new Map();
+    gobj.priv.reread_seq = 0;
 
     build_ui(gobj);
 
@@ -1687,7 +1689,7 @@ function answered_record(data)
  *  Command to remote service: one node, in the shape the table
  *  reads its topic with (TABLE_READ_OPTIONS)
  ************************************************************/
-function treedb_get_node(gobj, treedb_name, topic_name, node_id)
+function treedb_get_node(gobj, treedb_name, topic_name, node_id, reread_seq)
 {
     let gobj_remote_yuno = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
     let kw = {
@@ -1701,6 +1703,7 @@ function treedb_get_node(gobj, treedb_name, topic_name, node_id)
     kw.__md_command__ = { // Data to be returned
         topic_name: topic_name,
         node_id: node_id,
+        reread_seq: reread_seq
     };
 
     let ret = gobj_command(
@@ -1739,9 +1742,11 @@ function is_row_loaded(gobj, topic_name, node_id)
  *  Read again a parent whose hook a link or an unlink moved
  *  (ac_treedb_node_linked), ONE read in flight per parent: a
  *  link that comes while it is out only marks it dirty, and
- *  its answer asks once more (settle_linked_parent_reread).
+ *  its answer asks once more (answer_linked_parent_reread).
  *  A burst of links to one parent costs two reads of it, not
  *  one per link -- each read is the parent with every child.
+ *  Each request carries its `seq`: only its own answer settles
+ *  the entry.
  ************************************************************/
 function reread_linked_parent(gobj, treedb_name, topic_name, node_id)
 {
@@ -1752,8 +1757,9 @@ function reread_linked_parent(gobj, treedb_name, topic_name, node_id)
         in_flight.dirty = true;
         return 0;
     }
-    priv.parent_rereads.set(key, {dirty: false});
-    let ret = treedb_get_node(gobj, treedb_name, topic_name, node_id);
+    let seq = ++priv.reread_seq;
+    priv.parent_rereads.set(key, {dirty: false, seq: seq});
+    let ret = treedb_get_node(gobj, treedb_name, topic_name, node_id, seq);
     if(ret < 0) {
         priv.parent_rereads.delete(key);    // Error already logged
     }
@@ -1761,26 +1767,79 @@ function reread_linked_parent(gobj, treedb_name, topic_name, node_id)
 }
 
 /************************************************************
- *  The answer of a parent's re-read arrived (or failed): if
- *  links came while it was out, read it once more -- when its
- *  row is still loaded.
+ *  A whole read of a topic brought every row as it is now: the
+ *  re-reads of its parents still out have nothing to add, and
+ *  their answers, when they come, are not taken. It is also
+ *  what bounds an entry whose answer never comes on a live
+ *  session (a request lost by the backend): the drop clears
+ *  every entry (ac_transport_state), the next read of the
+ *  topic (its refresh, its open, the reconnect) clears its own.
  ************************************************************/
-function settle_linked_parent_reread(gobj, topic_name, node_id)
+function forget_topic_rereads(gobj, topic_name)
+{
+    let prefix = `${topic_name}\u0000`;
+    for(const key of Array.from(gobj.priv.parent_rereads.keys())) {
+        if(key.startsWith(prefix)) {
+            gobj.priv.parent_rereads.delete(key);
+        }
+    }
+}
+
+/************************************************************
+ *  The answer of a parent's re-read. It is a refresh nobody
+ *  asked for, so a failure is a warning, never the app's error
+ *  modal: a force-delete of a loaded parent publishes UNLINKED
+ *  per child, and the re-read reaches the backend after the
+ *  delete ("Node not found") -- in every open viewer.
+ *
+ *  Only the answer of the request in flight counts: one cut by
+ *  a drop, or superseded by a whole read of the topic, that
+ *  arrives after a new request went out must neither settle
+ *  the new one nor update the row with older data.
+ *
+ *  Then, if links came while it was out, the parent is read
+ *  once more -- when its row is still loaded.
+ ************************************************************/
+function answer_linked_parent_reread(gobj, result, comment, data, kw_command)
 {
     let priv = gobj.priv;
+    let topic_name = kw_get_str(gobj, kw_command, "topic_name", "", 0);
+    let node_id = kw_get_str(gobj, kw_command, "node_id", "", 0);
+    let seq = kw_get_int(gobj, kw_command, "reread_seq", 0, 0);
     let key = `${topic_name}\u0000${node_id}`;
     let in_flight = priv.parent_rereads.get(key);
-    if(!in_flight) {
-        /*  Its read was abandoned by a drop (ac_transport_state):
-         *  the reconnect reads the whole topic.  */
-        return;
+    if(!in_flight || in_flight.seq !== seq) {
+        if(result < 0) {
+            log_warning(`${gobj_short_name(gobj)}: late failure of the re-read of ` +
+                `the linked parent '${topic_name}^${node_id}' dropped, it was ` +
+                `settled already (a drop, or a whole read of the topic): ${comment || ""}`);
+        }
+        return 0;
     }
     priv.parent_rereads.delete(key);
+
+    if(result < 0) {
+        log_warning(`${gobj_short_name(gobj)}: the re-read of the linked parent ` +
+            `'${topic_name}^${node_id}' failed: ${comment || ""}`);
+    } else {
+        /*  A table closed while the read was out has no row to update.  */
+        let gobj_formtable = get_gobj_formtable(gobj, topic_name);
+        if(gobj_formtable) {
+            gobj_send_event(
+                gobj_formtable,
+                "EV_LOAD_NODE_UPDATED",
+                [data],
+                gobj
+            );
+        }
+    }
+
     if(in_flight.dirty && is_connected(gobj) && is_row_loaded(gobj, topic_name, node_id)) {
         reread_linked_parent(
             gobj, gobj_read_str_attr(gobj, "treedb_name"), topic_name, node_id
         );  // Error already logged
     }
+    return 0;
 }
 
 /************************************************************
@@ -2324,18 +2383,13 @@ function ac_mt_command_answer(gobj, event, kw, src)
         return 0;
     }
 
-    if(result < 0 && command === "node") {
-        settle_linked_parent_reread(
-            gobj,
-            kw_get_str(gobj, kw_command, "topic_name", "", 0),
-            kw_get_str(gobj, kw_command, "node_id", "", 0)
-        );
-        if(!is_connected(gobj)) {
-            /*  The drop answered it: the reconnect reads the topic.  */
-            log_warning(`${gobj_short_name(gobj)}: the re-read of a linked parent ` +
-                `was cut by the drop: ${comment || ""}`);
-            return 0;
-        }
+    /*
+     *  A parent re-read because a link or an unlink moved its hook
+     *  (ac_treedb_node_linked). Before the generic error path: its
+     *  failure is a warning, never the app-wide modal.
+     */
+    if(command === "node") {
+        return answer_linked_parent_reread(gobj, result, comment, data, kw_command);
     }
 
     if(result < 0) {
@@ -2432,6 +2486,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                         gobj
                     );
                 } else if(req_id) {
+                    forget_topic_rereads(gobj, topic_name); // the rows a table shows, read now
                     gobj_send_event(
                         gobj_topic_form,
                         "EV_PAGE_LOADED",
@@ -2444,6 +2499,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                         gobj
                     );
                 } else {
+                    forget_topic_rereads(gobj, topic_name);
                     gobj_send_event(
                         gobj_topic_form,
                         "EV_LOAD_NODES",
@@ -2451,31 +2507,6 @@ function ac_mt_command_answer(gobj, event, kw, src)
                         gobj
                     );
                 }
-            }
-            break;
-
-        case "node":
-            /*
-             *  A parent re-read because a link or an unlink moved its hook
-             *  (ac_treedb_node_linked): an update of its row. A table
-             *  closed while the read was out has no row to update.
-             */
-            {
-                let node_topic = kw_get_str(gobj, kw_command, "topic_name", "", 0);
-                let gobj_formtable = get_gobj_formtable(gobj, node_topic);
-                if(gobj_formtable) {
-                    gobj_send_event(
-                        gobj_formtable,
-                        "EV_LOAD_NODE_UPDATED",
-                        [data],
-                        gobj
-                    );
-                }
-                settle_linked_parent_reread(
-                    gobj,
-                    node_topic,
-                    kw_get_str(gobj, kw_command, "node_id", "", 0)
-                );
             }
             break;
 

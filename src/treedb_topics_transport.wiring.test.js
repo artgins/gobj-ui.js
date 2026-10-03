@@ -11,10 +11,23 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {describe, test, expect, beforeAll, beforeEach} from "vitest";
+import {describe, test, expect, beforeAll, beforeEach, vi} from "vitest";
 import {install_dom_double} from "../test/dom_double.js";
 
 install_dom_double();
+
+/*  The app-wide error modal: what it is asked to show is asserted.  */
+const shown = vi.hoisted(() => []);
+vi.mock("./shell_modals.js", async (importOriginal) => {
+    const original = await importOriginal();
+    return {
+        ...original,
+        yui_shell_show_error: (shell, message) => {
+            shown.push(message);
+            return {close() {}};
+        },
+    };
+});
 
 const gobj_js = await import("@yuneta/gobj-js");
 const {
@@ -140,6 +153,7 @@ beforeEach(() => {
     commands.length = 0;
     loaded.length = 0;
     updated.length = 0;
+    shown.length = 0;
 });
 
 function build(name)
@@ -678,5 +692,110 @@ describe("a link told as EV_TREEDB_NODE_LINKED / UNLINKED", () => {
         link(topics, "admin", "carol");
         expect(node_reads().length).toBe(2);
         expect(errors()).toEqual([]);
+        expect(shown).toEqual([]);
+    });
+
+    function failed_read(request, comment)
+    {
+        return {result: -1, comment: comment, data: null, __md_iev__: {
+            command_stack: [{command: "node", kw: request.kw.__md_command__}]
+        }};
+    }
+
+    function warnings()
+    {
+        return logged.filter((l) => l.level === "warning").map((l) => l.msg);
+    }
+
+    /*
+     *  A force-delete of a loaded parent publishes UNLINKED per child, and
+     *  the re-read reaches the backend after the delete: "Node not found".
+     *  A refresh nobody asked for: a warning, never the app-wide modal.
+     */
+    test("a re-read that fails while connected: a warning, no modal, settled", () => {
+        const {shell, topics, forms} = build("tl_fail");
+        yui_shell_set_connection_state(shell, true);
+        forms.roles.rows.add("admin");
+        link(topics, "admin", "alice");
+        link(topics, "admin", "bob");   /*  dirty  */
+        expect(node_reads().length).toBe(1);
+
+        /*  The row is gone meanwhile: the dirty entry asks nothing more.  */
+        forms.roles.rows.delete("admin");
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            failed_read(node_reads()[0], "Node not found"), remote);
+        expect(shown).toEqual([]);
+        expect(errors()).toEqual([]);
+        expect(warnings().some((m) => m.includes("re-read of the linked parent") &&
+            m.includes("Node not found"))).toBe(true);
+        expect(node_reads().length).toBe(1);
+        expect(updated).toEqual([]);
+
+        /*  Settled: the next link of a loaded parent reads again.  */
+        forms.roles.rows.add("admin");
+        link(topics, "admin", "carol");
+        expect(node_reads().length).toBe(2);
+    });
+
+    /*
+     *  A read cut by a drop answers -1 LATE, after the reconnect and after
+     *  a new read of the same parent went out: it is not the new read's
+     *  answer, and settles nothing of it.
+     */
+    test("a late failure of a read cut by a drop does not settle the new read", () => {
+        const {shell, topics, forms} = build("tl_late");
+        yui_shell_set_connection_state(shell, true);
+        forms.roles.rows.add("admin");
+        link(topics, "admin", "alice");
+        const first = node_reads()[0];
+
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: false}, topics);
+        gobj_change_state(remote, "ST_SESSION");
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
+
+        link(topics, "admin", "bob");
+        expect(node_reads().length).toBe(2);
+        const second = node_reads()[1];
+
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            failed_read(first, "the session closed"), remote);
+        expect(shown).toEqual([]);
+        expect(errors()).toEqual([]);
+
+        /*  The second read is still the one in flight: a link only marks it.  */
+        link(topics, "admin", "carol");
+        expect(node_reads().length).toBe(2);
+
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            answer_ok(second, {id: "admin"}), remote);
+        expect(updated).toEqual([{topic: "roles", rows: [{id: "admin"}]}]);
+        expect(node_reads().length).toBe(3);    /*  dirty: one more  */
+    });
+
+    /*
+     *  A whole read of the topic brings every row as it is now: a re-read
+     *  still out is moot, its late answer is not taken (older data), and
+     *  the parent is free to be read on the next link -- which is also
+     *  what releases an entry whose answer never comes.
+     */
+    test("a whole read of the topic settles its re-reads still out", () => {
+        const {shell, topics, forms} = build("tl_whole");
+        yui_shell_set_connection_state(shell, true);
+        forms.roles.rows.add("admin");
+        link(topics, "admin", "alice");
+        const lost = node_reads()[0];
+
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            nodes_answer_of("roles", [{id: "admin"}]), remote);
+
+        link(topics, "admin", "bob");
+        expect(node_reads().length).toBe(2);
+
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            answer_ok(lost, {id: "admin", stale: true}), remote);
+        expect(updated).toEqual([]);
+        expect(errors()).toEqual([]);
+        expect(shown).toEqual([]);
     });
 });
