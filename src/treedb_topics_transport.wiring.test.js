@@ -523,7 +523,7 @@ describe("what the drop hid is read again on the reconnect", () => {
 });
 
 /*
- *  SDK 7.25.23 turns `with_link_events` on by default: a link or an unlink
+ *  SDK 7.26.0 turns `with_link_events` on by default: a link or an unlink
  *  no longer arrives as the parent's EV_TREEDB_NODE_UPDATED, but as the
  *  relationship, which carries no node. The parent's row (its hook column)
  *  must still move: the view reads the parent again.

@@ -1495,7 +1495,7 @@ function subscribe_treedb(gobj, topic_name)
 
     /*
      *  A link/unlink changes the hook of the PARENT, and a backend with
-     *  `with_link_events` (the default since SDK 7.25.23) tells it as the
+     *  `with_link_events` (the default since SDK 7.26.0) tells it as the
      *  relationship, with no `topic_name`: the parent's topic is
      *  `parent_topic_name`. The child's row moves on its own UPDATED.
      */

@@ -8,7 +8,7 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 ## 7.25.26
 
 - **`C_YUI_TREEDB_TOPICS` follows a link told as `EV_TREEDB_NODE_LINKED` /
-  `UNLINKED`.** SDK 7.25.23 turns `with_link_events` on by default, so a
+  `UNLINKED`.** SDK 7.26.0 turns `with_link_events` on by default, so a
   link or an unlink no longer arrives as the parent's
   `EV_TREEDB_NODE_UPDATED`, but as the relationship (`hook_name`,
   `parent_topic_name`, `parent_id`, `child_topic_name`, `child_id`), which

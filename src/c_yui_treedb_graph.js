@@ -1890,7 +1890,7 @@ function get_nodes(gobj, topic_name)
  *  filtered by treedb_name alone (a {topic_name} filter would match nothing).
  *
  *  NOTE: the backend only publishes them when its C_NODE service runs
- *  with `with_link_events` (the default since SDK 7.25.23; a v1 backend
+ *  with `with_link_events` (the default since SDK 7.26.0; a v1 backend
  *  sets it off). Without it, a link/unlink is announced the
  *  backward-compatible way — an
  *  EV_TREEDB_NODE_UPDATED of the PARENT — which cannot move an edge here:
