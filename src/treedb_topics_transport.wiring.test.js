@@ -32,6 +32,7 @@ const logged = [];
 const written = [];         /*  the EV_RECORD_WRITTEN the host heard  */
 const answers = [];         /*  what the fake forms were told  */
 const loaded = [];          /*  the rows each fake form was loaded with  */
+const updated = [];         /*  the rows each fake form was told changed  */
 const commands = [];        /*  what the fake transport was asked  */
 
 /*
@@ -65,6 +66,12 @@ function ac_form_load(gobj, event, kw, src)
     return 0;
 }
 
+function ac_form_update(gobj, event, kw, src)
+{
+    updated.push({topic: gobj.priv_topic, rows: kw});
+    return 0;
+}
+
 let yuno = null;
 let remote = null;
 
@@ -84,11 +91,13 @@ beforeAll(() => {
     );
     gclass_create(
         "C_YUI_TREEDB_TOPIC_WITH_FORM",
-        [["EV_WRITE_DONE", 0], ["EV_WRITE_REFUSED", 0], ["EV_LOAD_NODES", 0]],
+        [["EV_WRITE_DONE", 0], ["EV_WRITE_REFUSED", 0], ["EV_LOAD_NODES", 0],
+         ["EV_LOAD_NODE_UPDATED", 0]],
         [["ST_IDLE", [
             ["EV_WRITE_DONE",    ac_form_answer, null],
             ["EV_WRITE_REFUSED", ac_form_answer, null],
-            ["EV_LOAD_NODES",    ac_form_load,   null]
+            ["EV_LOAD_NODES",    ac_form_load,   null],
+            ["EV_LOAD_NODE_UPDATED", ac_form_update, null]
         ]]],
         {},
         0,
@@ -129,6 +138,7 @@ beforeEach(() => {
     answers.length = 0;
     commands.length = 0;
     loaded.length = 0;
+    updated.length = 0;
 });
 
 function build(name)
@@ -509,5 +519,57 @@ describe("what the drop hid is read again on the reconnect", () => {
         gobj_change_state(remote, "ST_SESSION");
         gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
         expect(nodes_asked().sort()).toEqual(["roles", "users"]);
+    });
+});
+
+/*
+ *  SDK 7.25.23 turns `with_link_events` on by default: a link or an unlink
+ *  no longer arrives as the parent's EV_TREEDB_NODE_UPDATED, but as the
+ *  relationship, which carries no node. The parent's row (its hook column)
+ *  must still move: the view reads the parent again.
+ */
+describe("a link told as EV_TREEDB_NODE_LINKED / UNLINKED", () => {
+
+    for(const event of ["EV_TREEDB_NODE_LINKED", "EV_TREEDB_NODE_UNLINKED"]) {
+        test(`${event} re-reads the parent and updates its row`, () => {
+            const {shell, topics} = build(`tl_${event}`);
+            yui_shell_set_connection_state(shell, true);
+
+            gobj_send_event(topics, event, {
+                treedb_name: "treedb_test",
+                hook_name: "users",
+                parent_topic_name: "roles",
+                parent_id: "admin",
+                child_topic_name: "users",
+                child_id: "alice"
+            }, remote);
+
+            const request = commands.find((c) => c.command === "node");
+            expect(request.kw.topic_name).toBe("roles");
+            expect(request.kw.node_id).toBe("admin");
+            expect(request.kw.options).toEqual({list_dict: true, hook_size: true});
+
+            gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+                answer_ok(request, {id: "admin", users: [{size: 1}]}), remote);
+            expect(updated).toEqual([
+                {topic: "roles", rows: [{id: "admin", users: [{size: 1}]}]}
+            ]);
+            expect(errors()).toEqual([]);
+        });
+    }
+
+    test("a link of another treedb reads nothing", () => {
+        const {shell, topics} = build("tl_other");
+        yui_shell_set_connection_state(shell, true);
+        gobj_send_event(topics, "EV_TREEDB_NODE_LINKED", {
+            treedb_name: "treedb_other",
+            hook_name: "users",
+            parent_topic_name: "roles",
+            parent_id: "admin",
+            child_topic_name: "users",
+            child_id: "alice"
+        }, remote);
+        expect(commands.filter((c) => c.command === "node")).toEqual([]);
+        expect(errors()).toEqual([]);
     });
 });

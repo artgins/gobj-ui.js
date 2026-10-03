@@ -1492,6 +1492,27 @@ function subscribe_treedb(gobj, topic_name)
         },
         gobj
     );
+
+    /*
+     *  A link/unlink changes the hook of the PARENT, and a backend with
+     *  `with_link_events` (the default since SDK 7.25.23) tells it as the
+     *  relationship, with no `topic_name`: the parent's topic is
+     *  `parent_topic_name`. The child's row moves on its own UPDATED.
+     */
+    for(let event of ["EV_TREEDB_NODE_LINKED", "EV_TREEDB_NODE_UNLINKED"]) {
+        gobj_subscribe_event(
+            gobj_remote_yuno,
+            event,
+            {
+                __service__: treedb_name,
+                __filter__: {
+                    "treedb_name": treedb_name,
+                    "parent_topic_name": topic_name
+                }
+            },
+            gobj
+        );
+    }
 }
 
 /************************************************************
@@ -1502,9 +1523,9 @@ function subscribe_treedb(gobj, topic_name)
  *   fix, and no caller to add on that account.
  *
  *   It is kept deliberately. It is the only place that knows the
- *   exact shape the remote subscription was made with — the three
- *   events, `__service__` and the `treedb_name`+`topic_name`
- *   filter — and a remote unsubscribe only lands if it matches
+ *   exact shape the remote subscription was made with — the five
+ *   events, `__service__` and the `treedb_name`+`topic_name` (or
+ *   `parent_topic_name`) filter — and a remote unsubscribe only lands if it matches
  *   the subscribe verbatim. Deleting it would not remove that
  *   knowledge, it would move it to whoever needs it next, to be
  *   rederived from the subscribe side and got right again.
@@ -1556,6 +1577,19 @@ function unsubscribe_treedb(gobj, topic_name)
         },
         gobj
     );
+    for(let event of ["EV_TREEDB_NODE_LINKED", "EV_TREEDB_NODE_UNLINKED"]) {
+        gobj_unsubscribe_event(gobj_remote_yuno,
+            event,
+            {
+                __service__: treedb_name,
+                __filter__: {
+                    "treedb_name": treedb_name,
+                    "parent_topic_name": topic_name
+                }
+            },
+            gobj
+        );
+    }
 }
 
 /********************************************
@@ -1643,6 +1677,38 @@ function answered_record(data)
         return data[0];
     }
     return {};
+}
+
+/************************************************************
+ *  Command to remote service: one node, in the shape the table
+ *  reads its topic with (TABLE_READ_OPTIONS)
+ ************************************************************/
+function treedb_get_node(gobj, treedb_name, topic_name, node_id)
+{
+    let gobj_remote_yuno = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
+    let kw = {
+        service: treedb_name,
+        treedb_name: treedb_name,
+        topic_name: topic_name,
+        node_id: node_id,
+        options: Object.assign({}, TABLE_READ_OPTIONS)
+    };
+
+    kw.__md_command__ = { // Data to be returned
+        topic_name: topic_name,
+    };
+
+    let ret = gobj_command(
+        gobj_remote_yuno,
+        "node",
+        kw,
+        gobj
+    );
+    if(ret) {
+        log_error(ret);
+        return -1;
+    }
+    return 0;
 }
 
 /************************************************************
@@ -2302,6 +2368,19 @@ function ac_mt_command_answer(gobj, event, kw, src)
             }
             break;
 
+        case "node":
+            /*
+             *  A parent re-read because a link or an unlink moved its hook
+             *  (ac_treedb_node_linked): an update of its row.
+             */
+            gobj_send_event(
+                get_gobj_formtable(gobj, kw_get_str(gobj, kw_command, "topic_name", "", 0)),
+                "EV_LOAD_NODE_UPDATED",
+                [data],
+                gobj
+            );
+            break;
+
         case "create-node":
         case "update-node":
         case "delete-node":
@@ -2716,6 +2795,30 @@ function ac_treedb_node_updated(gobj, event, kw, src)
     }
 
     return 0;
+}
+
+/********************************************
+ *  Remote subscription response
+ *  EV_TREEDB_NODE_LINKED / EV_TREEDB_NODE_UNLINKED: the relationship
+ *  ({hook_name, parent_topic_name, child_topic_name, parent_id,
+ *  child_id, treedb_name}), not a node. The parent's hook changed and
+ *  the event does not carry it: read the parent again.
+ ********************************************/
+function ac_treedb_node_linked(gobj, event, kw, src)
+{
+    let treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
+    let parent_topic_name = kw_get_str(gobj, kw, "parent_topic_name", "", 0);
+    let parent_id = kw_get_str(gobj, kw, "parent_id", "", 0);
+
+    if(treedb_name !== gobj_read_str_attr(gobj, "treedb_name")) {
+        return 0;
+    }
+    if(!parent_topic_name || !parent_id) {
+        log_error(`${gobj_short_name(gobj)}: ${event} without parent_topic_name/parent_id`);
+        return -1;
+    }
+
+    return treedb_get_node(gobj, treedb_name, parent_topic_name, parent_id); // Error already logged
 }
 
 /********************************************
@@ -3222,6 +3325,8 @@ function create_gclass(gclass_name)
             ["EV_TREEDB_NODE_CREATED",  ac_treedb_node_created,     null],
             ["EV_TREEDB_NODE_UPDATED",  ac_treedb_node_updated,     null],
             ["EV_TREEDB_NODE_DELETED",  ac_treedb_node_deleted,     null],
+            ["EV_TREEDB_NODE_LINKED",   ac_treedb_node_linked,      null],
+            ["EV_TREEDB_NODE_UNLINKED", ac_treedb_node_linked,      null],
             ["EV_CREATE_RECORD",        ac_create_record,           null],
             ["EV_UPDATE_RECORD",        ac_update_record,           null],
             ["EV_UPDATE_FIELD",         ac_update_field,            null],
@@ -3256,6 +3361,8 @@ function create_gclass(gclass_name)
         ["EV_TREEDB_NODE_CREATED",  event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_TREEDB_NODE_UPDATED",  event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_TREEDB_NODE_DELETED",  event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_TREEDB_NODE_LINKED",   event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_TREEDB_NODE_UNLINKED", event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_CREATE_RECORD",        0],
         ["EV_UPDATE_RECORD",        0],
         ["EV_UPDATE_FIELD",         0],

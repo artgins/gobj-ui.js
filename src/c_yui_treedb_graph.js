@@ -1889,9 +1889,10 @@ function get_nodes(gobj, topic_name)
  *  treedb_name}), with no `topic_name` — so they are subscribed ONCE, and
  *  filtered by treedb_name alone (a {topic_name} filter would match nothing).
  *
- *  NOTE: the backend only publishes them when its C_NODE service is
- *  configured with `with_link_events` (SDF_RD, default FALSE). Without it,
- *  a link/unlink is announced the backward-compatible way — an
+ *  NOTE: the backend only publishes them when its C_NODE service runs
+ *  with `with_link_events` (the default since SDK 7.25.23; a v1 backend
+ *  sets it off). Without it, a link/unlink is announced the
+ *  backward-compatible way — an
  *  EV_TREEDB_NODE_UPDATED of the PARENT — which cannot move an edge here:
  *  an edge IS a fkey of the CHILD (link-saves-child), and the parent's fkeys
  *  did not change. That is why an open Graph kept showing stale edges when

@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.26
+
+- **`C_YUI_TREEDB_TOPICS` follows a link told as `EV_TREEDB_NODE_LINKED` /
+  `UNLINKED`.** SDK 7.25.23 turns `with_link_events` on by default, so a
+  link or an unlink no longer arrives as the parent's
+  `EV_TREEDB_NODE_UPDATED`, but as the relationship (`hook_name`,
+  `parent_topic_name`, `parent_id`, `child_topic_name`, `child_id`), which
+  carries no node. The table subscribed only to the update, so the parent's
+  row -- its hook column -- stayed as it was until the topic was read again.
+  Each loaded topic now also subscribes the two link events filtered by
+  `parent_topic_name`, and on one it reads the parent again (`node`, with the
+  options it reads its topic with, so the hook column keeps its shape) and
+  updates its row. The child's row moves on its own update, as before.
+  Against a backend with link events off nothing changes: it never publishes
+  them. `C_YUI_TREEDB_GRAPH` already followed them; its note on the default
+  is corrected.
+
 ## 7.25.25
 
 - **`C_YUI_SCHEMA_EDITOR` warns before deleting a column with data behind
