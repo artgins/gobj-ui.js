@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.0
+
+The release that goes with SDK 7.26.0 (the version names the SDK; no API
+moved).
+
+- **`C_YUI_TREEDB_TOPICS` re-reads a linked parent once, and only when it is
+  shown.** On every `EV_TREEDB_NODE_LINKED` / `UNLINKED` it read the parent
+  again, the parent collapsed whole with every child id: a burst of links to
+  one parent cost one full read per link and per viewer, the cost SDK
+  7.26.0's `with_link_events` default was made to remove. Now a parent is
+  read only when its row is loaded in the table of its topic, one read at a
+  time per parent; links that come while a read is out mark it, and one more
+  read follows (a burst: two reads).
+- **A failed re-read of a parent is a warning, never the app's error
+  modal.** A parent deleted with `force` publishes `UNLINKED` per child, and
+  the re-read reached the backend after the delete (*"Node not found"*):
+  every open viewer got a modal for a refresh nobody asked for. Each re-read
+  carries its own sequence (`reread_seq`) and only its own answer settles
+  it: a late `-1` of a read cut by a drop, arriving after the reconnect,
+  touches nothing. A full read of the topic (or of a page) settles the
+  re-reads it makes pointless.
+
 ## 7.25.26
 
 - **`C_YUI_TREEDB_TOPICS` follows a link told as `EV_TREEDB_NODE_LINKED` /
