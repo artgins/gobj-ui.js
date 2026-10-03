@@ -193,6 +193,14 @@ const PURPOSE = "schema_editor";
  *  close_dialog_left_behind()).  */
 const DIALOGS_THAT_READ_NOTHING = ["SCHEMA_EXPORT_DIALOG", "SCHEMA_REPORT_DIALOG"];
 
+/*  The read of a topic's records before one of its columns is deleted
+ *  (start_column_check()): pages of this many records, this many pages at
+ *  most. A column with data behind it is a legal schema and a data
+ *  decision: the records keep the values, and no reader shows them any
+ *  more. The operator is told so, not stopped.  */
+const COLUMN_CHECK_PAGE = 500;
+const COLUMN_CHECK_PAGES = 10;
+
 
 /***************************************************************
  *              Attrs
@@ -208,6 +216,11 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
+    /*  The read of a column's records before its delete is confirmed:
+     *  {seq, topic, col, from, pages, scanned}, or null  */
+    column_check:       null,
+    column_check_seq:   0,
+
     /*  What the store answered, and what it means  */
     records:        null,   /*  {treedbs, topics, cols} as they arrived  */
     records_before: null,   /*  the records of the model shown, while a load replaces them  */
@@ -3356,6 +3369,10 @@ function ac_mt_command_answer(gobj, event, kw, src)
         return 0;       /*  another panel's answer on a shared transport  */
     }
 
+    if(command === "nodes" && kw_get_int(gobj, md, "column_check", 0, 0)) {
+        return column_check_answered(gobj, md, result, comment, data);
+    }
+
     /*  A failure while the transport is not in session is the DROP, not a
      *  refusal: a routing adapter settles what it had in flight when its
      *  session closes, and that can arrive before the host's
@@ -4016,8 +4033,137 @@ function ac_delete_column(gobj, event, kw, src)
         return -1;
     }
 
-    confirm_then(gobj, "delete this column?", `${topic.name}.${col.name}`,
-        {what: "column", topic: topic.name, col: col.name});
+    return start_column_check(gobj, topic.name, col.name);
+}
+
+/***************************************************************
+ *  A column deleted with values behind it: the records keep them, and
+ *  no reader shows them any more. Before the confirmation, the
+ *  topic's records are read (of the treedb whose schema this is, not
+ *  of the system schema), a page at a time, until one holds a value in
+ *  the column, the topic ends, or COLUMN_CHECK_PAGES are read; the
+ *  confirmation then says which. A check that cannot be made does not
+ *  stop the delete: the confirmation says so. Up to 7.25.24 the
+ *  confirmation was the same with data or without.
+ ***************************************************************/
+function start_column_check(gobj, topic_name, col_name)
+{
+    let priv = gobj.priv;
+    priv.column_check_seq++;
+    priv.column_check = {
+        seq: priv.column_check_seq, topic: topic_name, col: col_name,
+        from: 1, pages: 0, scanned: 0
+    };
+    if(ask_column_page(gobj) < 0) {
+        return confirm_column_delete(gobj, "unknown");  // Error already logged
+    }
+    return 0;
+}
+
+function ask_column_page(gobj)
+{
+    let priv = gobj.priv;
+    let c = priv.column_check;
+    return remote_command(gobj, "nodes", {
+        service:     priv.treedb_id,
+        treedb_name: priv.treedb_id,
+        topic_name:  c.topic,
+        from:        c.from,
+        limit:       COLUMN_CHECK_PAGE
+    }, {column_check: c.seq});
+}
+
+function value_is_empty(v)
+{
+    if(v === undefined || v === null || v === "") {
+        return true;
+    }
+    if(Array.isArray(v)) {
+        return v.length === 0;
+    }
+    if(is_object(v)) {
+        return Object.keys(v).length === 0;
+    }
+    return false;
+}
+
+/*  An answer of the read: the EV_MT_COMMAND_ANSWER that carried it is
+ *  the event; this decides the next page or the confirmation.  */
+function column_check_answered(gobj, md, result, comment, data)
+{
+    let priv = gobj.priv;
+    let c = priv.column_check;
+    if(!c || kw_get_int(gobj, md, "column_check", 0, 0) !== c.seq) {
+        log_warning(`${gobj_short_name(gobj)}: 'nodes' of a column check that is over: ignored`);
+        return 0;
+    }
+    if(gobj_current_state(gobj) !== "ST_COLUMNS") {
+        priv.column_check = null;
+        log_warning(`${gobj_short_name(gobj)}: the check of column '${c.topic}.${c.col}' ` +
+            `answered after the view left the columns: no delete asked`);
+        return 0;
+    }
+    if(result < 0) {
+        log_warning(`${gobj_short_name(gobj)}: cannot read '${c.topic}' to check column ` +
+            `'${c.col}': ${comment}`);
+        return confirm_column_delete(gobj, "unknown");
+    }
+    let page = is_object(data) && Array.isArray(data.data) ? data.data : null;
+    if(!page) {
+        log_error(`${gobj_short_name(gobj)}: 'nodes' of '${c.topic}' answered no page ` +
+            `to the check of column '${c.col}'`);
+        return confirm_column_delete(gobj, "unknown");
+    }
+    for(const record of page) {
+        if(is_object(record) && !value_is_empty(record[c.col])) {
+            return confirm_column_delete(gobj, "found");
+        }
+    }
+    c.pages++;
+    c.scanned += page.length;
+    c.from += page.length;
+    if(page.length === 0 || c.scanned >= kw_get_int(gobj, data, "total_rows", 0, 0)) {
+        return confirm_column_delete(gobj, "empty");
+    }
+    if(c.pages >= COLUMN_CHECK_PAGES) {
+        return confirm_column_delete(gobj, "capped");
+    }
+    if(ask_column_page(gobj) < 0) {
+        return confirm_column_delete(gobj, "unknown");  // Error already logged
+    }
+    return 0;
+}
+
+/*  The confirmation, with what the read found: "empty" asks as always;
+ *  "found", "capped" and "unknown" say what becomes of the values.  */
+function confirm_column_delete(gobj, verdict)
+{
+    let priv = gobj.priv;
+    let c = priv.column_check;
+    priv.column_check = null;
+
+    const NOTES = {
+        found:   "records of this topic hold values in this column: they keep them, but no reader shows them any more",
+        capped:  "the records read hold no value in this column, but not all were read: the rest may hold values that no reader will show any more",
+        unknown: "the records of this topic could not be read: if they hold values in this column, they keep them, but no reader shows them any more"
+    };
+    let message = "delete this column?";
+    if(NOTES[verdict]) {
+        let children = [
+            ["p", {class: "CONFIRM_MSG yui-confirm-msg", i18n: message}, t(message)],
+            ["p", {class: "SCHEMA_COLUMN_DATA_NOTE has-text-danger", i18n: NOTES[verdict]},
+                t(NOTES[verdict])]
+        ];
+        if(verdict === "capped") {
+            children.push(["p", {class: "SCHEMA_COLUMN_DATA_READ"}, [
+                ["span", {i18n: "records read"}, t("records read")],
+                ["span", {class: "ml-1"}, String(c.scanned)]
+            ]]);
+        }
+        message = createElement2(["div", {class: "SCHEMA_COLUMN_DATA_WARNING"}, children]);
+    }
+    confirm_then(gobj, message, `${c.topic}.${c.col}`,
+        {what: "column", topic: c.topic, col: c.col});
     return 0;
 }
 

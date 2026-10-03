@@ -5,6 +5,23 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.25.25
+
+- **`C_YUI_SCHEMA_EDITOR` warns before deleting a column with data behind
+  it.** The records keep their values for a deleted column, and no reader
+  shows them any more -- a legal schema and a data decision, so the
+  operator is warned, not stopped. Before the confirmation the editor reads
+  the topic's records of the treedb whose schema it is (paged `nodes`, 500
+  per page, 10 pages at most) until one holds a value in the column. The
+  confirmation then says it ("records of this topic hold values in this
+  column..."), that the read stopped before the end ("not all were read",
+  with the count), or that the records could not be read; with none holding
+  a value it is the plain "delete this column?" as before. A failed read
+  does not stop the delete. Each answer of the read enters the FSM
+  (`EV_MT_COMMAND_ANSWER`, `__md_command__.column_check`); one that lands
+  after the view left the columns asks nothing. New consumer i18n keys
+  (four): see `schema_editor_column_data.wiring.test.js` for the texts.
+
 ## 7.25.24
 
 - **fix: the icon bar (`C_YUI_NAV` `icon-bar`) no longer scrolls with room to

@@ -212,6 +212,20 @@ function answer_the_load(editor, remote)
     return asked.length;
 }
 
+/*  A column delete reads the topic's records before it asks
+ *  (schema_editor_column_data.wiring.test.js): answered with none
+ *  holding a value, the confirmation is the plain one.  */
+function answer_the_column_check(editor, remote)
+{
+    const asked = commands.filter((c) => c.command === "nodes" &&
+        c.kw.__md_command__ && c.kw.__md_command__.column_check);
+    for(const c of asked) {
+        commands.splice(commands.indexOf(c), 1);
+        answer(editor, remote, c, 0, {total_rows: 0, pages: 1, data: []});
+    }
+    return asked.length;
+}
+
 function drop(editor, remote, host)
 {
     gobj_change_state(remote, "ST_DISCONNECTED");
@@ -1092,6 +1106,7 @@ describe("the answers of the editor's confirmations are i18n keys", () => {
     test("a column delete asks with `delete` / `cancel`", () => {
         const {editor, remote, host} = build("k1", "db/users");
         gobj_send_event(editor, "EV_DELETE_COLUMN", {col: "id"}, host);
+        expect(answer_the_column_check(editor, remote)).toBe(1);
         expect(confirms.length).toBe(1);
         expect([confirms[0].opts.confirm_label, confirms[0].opts.cancel_label])
             .toEqual(["delete", "cancel"]);
@@ -1384,6 +1399,7 @@ describe("a move sent by the host while a dialog is up", () => {
         expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
 
         gobj_send_event(editor, "EV_DELETE_COLUMN", {col: "id"}, host);
+        expect(answer_the_column_check(editor, remote)).toBe(1);
         expect(confirms.length).toBe(1);
         gobj_send_event(editor, "EV_SHOW", {subpath: "db2/users"}, host);
         expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
@@ -1399,6 +1415,7 @@ describe("a move sent by the host while a dialog is up", () => {
     test("a confirmation answered on the screen it was asked from still runs", async () => {
         const {editor, remote, host} = build("mv7", "db/users");
         gobj_send_event(editor, "EV_DELETE_COLUMN", {col: "id"}, host);
+        expect(answer_the_column_check(editor, remote)).toBe(1);
         confirms[0].resolve(true);
         await settle();
         expect(take("delete-node").length).toBe(1);
