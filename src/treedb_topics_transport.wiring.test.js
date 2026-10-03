@@ -104,6 +104,7 @@ beforeAll(() => {
         [
             SDATA(data_type_t.DTP_STRING, "topic_name", 0, "", "topic"),
             SDATA(data_type_t.DTP_BOOLEAN, "with_remote_paging", 0, false, "pulls its pages"),
+            SDATA(data_type_t.DTP_POINTER, "tabulator", 0, null, "the table: only getRow() is read"),
             SDATA_END()
         ],
         {}, 0, 0, 0, 0
@@ -162,9 +163,13 @@ function build(name)
     for(const topic of ["users", "roles"]) {
         /*  Named as the view names its forms: the answer of a `nodes`
          *  finds its table by that name.  */
+        /*  The ids of the rows the table holds: what a link reads
+         *  again is a parent whose row is loaded.  */
+        const rows = new Set();
         forms[topic] = gobj_create(`${name}_topics?${topic}`, "C_YUI_TREEDB_TOPIC_WITH_FORM",
-            {topic_name: topic}, topics);
+            {topic_name: topic, tabulator: {getRow: (id) => (rows.has(id)? {id}: false)}}, topics);
         forms[topic].priv_topic = topic;
+        forms[topic].rows = rows;
     }
     /*  What the start of a shell with no routes says is the fixture's,
      *  not the behaviour under test: the check starts here.  */
@@ -532,8 +537,9 @@ describe("a link told as EV_TREEDB_NODE_LINKED / UNLINKED", () => {
 
     for(const event of ["EV_TREEDB_NODE_LINKED", "EV_TREEDB_NODE_UNLINKED"]) {
         test(`${event} re-reads the parent and updates its row`, () => {
-            const {shell, topics} = build(`tl_${event}`);
+            const {shell, topics, forms} = build(`tl_${event}`);
             yui_shell_set_connection_state(shell, true);
+            forms.roles.rows.add("admin");
 
             gobj_send_event(topics, event, {
                 treedb_name: "treedb_test",
@@ -570,6 +576,107 @@ describe("a link told as EV_TREEDB_NODE_LINKED / UNLINKED", () => {
             child_id: "alice"
         }, remote);
         expect(commands.filter((c) => c.command === "node")).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    /*
+     *  Each read of a parent is the parent with every child. A burst of
+     *  links to one parent (a bulk link, an import) must not cost one read
+     *  per link per open view: one read in flight per parent, and one more
+     *  when links came while it was out.
+     */
+    function link(topics, parent_id, child_id)
+    {
+        gobj_send_event(topics, "EV_TREEDB_NODE_LINKED", {
+            treedb_name: "treedb_test",
+            hook_name: "users",
+            parent_topic_name: "roles",
+            parent_id: parent_id,
+            child_topic_name: "users",
+            child_id: child_id
+        }, remote);
+    }
+
+    function node_reads()
+    {
+        return commands.filter((c) => c.command === "node");
+    }
+
+    test("a burst of links to one loaded parent: at most two reads", () => {
+        const {shell, topics, forms} = build("tl_burst");
+        yui_shell_set_connection_state(shell, true);
+        forms.roles.rows.add("admin");
+
+        for(let i = 0; i < 50; i++) {
+            link(topics, "admin", `user${i}`);
+        }
+        expect(node_reads().length).toBe(1);
+
+        /*  The first answer: links came while it was out, one more read.  */
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            answer_ok(node_reads()[0], {id: "admin"}), remote);
+        expect(node_reads().length).toBe(2);
+
+        /*  The second: nothing came meanwhile, the burst is over.  */
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER",
+            answer_ok(node_reads()[1], {id: "admin"}), remote);
+        expect(node_reads().length).toBe(2);
+        expect(updated.length).toBe(2);
+
+        /*  A link after the burst reads again.  */
+        link(topics, "admin", "late");
+        expect(node_reads().length).toBe(3);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a link to a parent not loaded reads nothing", () => {
+        const {shell, topics, forms} = build("tl_unloaded");
+        yui_shell_set_connection_state(shell, true);
+        forms.roles.rows.add("other");
+
+        link(topics, "admin", "alice");
+        expect(node_reads()).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a link to a parent of a topic with no table reads nothing", () => {
+        const {shell, topics} = build("tl_notable");
+        yui_shell_set_connection_state(shell, true);
+        gobj_send_event(topics, "EV_TREEDB_NODE_LINKED", {
+            treedb_name: "treedb_test",
+            hook_name: "items",
+            parent_topic_name: "groups",
+            parent_id: "g1",
+            child_topic_name: "items",
+            child_id: "i1"
+        }, remote);
+        expect(node_reads()).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a drop abandons the read in flight: the next link reads again", () => {
+        const {shell, topics, forms} = build("tl_drop");
+        yui_shell_set_connection_state(shell, true);
+        forms.roles.rows.add("admin");
+        link(topics, "admin", "alice");
+        link(topics, "admin", "bob");
+        expect(node_reads().length).toBe(1);
+
+        gobj_change_state(remote, "ST_DISCONNECTED");
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: false}, topics);
+        /*  The adapter settles the read it had in flight: no second read
+         *  out of session, no modal.  */
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", {
+            result: -1, comment: "the session closed", data: null, __md_iev__: {
+                command_stack: [{command: "node", kw: node_reads()[0].kw.__md_command__}]
+            }
+        }, remote);
+        expect(node_reads().length).toBe(1);
+
+        gobj_change_state(remote, "ST_SESSION");
+        gobj_send_event(topics, "EV_TRANSPORT_STATE", {connected: true}, topics);
+        link(topics, "admin", "carol");
+        expect(node_reads().length).toBe(2);
         expect(errors()).toEqual([]);
     });
 });

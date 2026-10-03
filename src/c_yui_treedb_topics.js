@@ -170,6 +170,10 @@ function mt_create(gobj)
     /*  The drills of the raw-json viewer sent and not yet answered:
      *  answered on the disconnect edge (answer_drills_in_flight).  */
     gobj.priv.drills_in_flight = new Set();
+    /*  The parents re-read because a link moved their hook, by
+     *  "<topic>\u0000<id>", each with `dirty` when another link came
+     *  while its read was out (reread_linked_parent).  */
+    gobj.priv.parent_rereads = new Map();
 
     build_ui(gobj);
 
@@ -1696,6 +1700,7 @@ function treedb_get_node(gobj, treedb_name, topic_name, node_id)
 
     kw.__md_command__ = { // Data to be returned
         topic_name: topic_name,
+        node_id: node_id,
     };
 
     let ret = gobj_command(
@@ -1709,6 +1714,73 @@ function treedb_get_node(gobj, treedb_name, topic_name, node_id)
         return -1;
     }
     return 0;
+}
+
+/************************************************************
+ *  Is the row of `node_id` loaded in the table of its topic?
+ *  A table not open, or open on other rows (a page that does
+ *  not hold it), shows nothing of the node: there is nothing to
+ *  refresh, its rows are read when they are shown.
+ ************************************************************/
+function is_row_loaded(gobj, topic_name, node_id)
+{
+    let gobj_formtable = get_gobj_formtable(gobj, topic_name);
+    if(!gobj_formtable) {
+        return false;
+    }
+    let tabulator = gobj_read_attr(gobj_formtable, "tabulator");
+    if(!tabulator) {
+        return false;
+    }
+    return !!tabulator.getRow(node_id);
+}
+
+/************************************************************
+ *  Read again a parent whose hook a link or an unlink moved
+ *  (ac_treedb_node_linked), ONE read in flight per parent: a
+ *  link that comes while it is out only marks it dirty, and
+ *  its answer asks once more (settle_linked_parent_reread).
+ *  A burst of links to one parent costs two reads of it, not
+ *  one per link -- each read is the parent with every child.
+ ************************************************************/
+function reread_linked_parent(gobj, treedb_name, topic_name, node_id)
+{
+    let priv = gobj.priv;
+    let key = `${topic_name}\u0000${node_id}`;
+    let in_flight = priv.parent_rereads.get(key);
+    if(in_flight) {
+        in_flight.dirty = true;
+        return 0;
+    }
+    priv.parent_rereads.set(key, {dirty: false});
+    let ret = treedb_get_node(gobj, treedb_name, topic_name, node_id);
+    if(ret < 0) {
+        priv.parent_rereads.delete(key);    // Error already logged
+    }
+    return ret;
+}
+
+/************************************************************
+ *  The answer of a parent's re-read arrived (or failed): if
+ *  links came while it was out, read it once more -- when its
+ *  row is still loaded.
+ ************************************************************/
+function settle_linked_parent_reread(gobj, topic_name, node_id)
+{
+    let priv = gobj.priv;
+    let key = `${topic_name}\u0000${node_id}`;
+    let in_flight = priv.parent_rereads.get(key);
+    if(!in_flight) {
+        /*  Its read was abandoned by a drop (ac_transport_state):
+         *  the reconnect reads the whole topic.  */
+        return;
+    }
+    priv.parent_rereads.delete(key);
+    if(in_flight.dirty && is_connected(gobj) && is_row_loaded(gobj, topic_name, node_id)) {
+        reread_linked_parent(
+            gobj, gobj_read_str_attr(gobj, "treedb_name"), topic_name, node_id
+        );  // Error already logged
+    }
 }
 
 /************************************************************
@@ -2252,6 +2324,20 @@ function ac_mt_command_answer(gobj, event, kw, src)
         return 0;
     }
 
+    if(result < 0 && command === "node") {
+        settle_linked_parent_reread(
+            gobj,
+            kw_get_str(gobj, kw_command, "topic_name", "", 0),
+            kw_get_str(gobj, kw_command, "node_id", "", 0)
+        );
+        if(!is_connected(gobj)) {
+            /*  The drop answered it: the reconnect reads the topic.  */
+            log_warning(`${gobj_short_name(gobj)}: the re-read of a linked parent ` +
+                `was cut by the drop: ${comment || ""}`);
+            return 0;
+        }
+    }
+
     if(result < 0) {
         if(command === "descs") {
             /*  The schema couldn't load (not a treedb, no authz for it, backend
@@ -2371,14 +2457,26 @@ function ac_mt_command_answer(gobj, event, kw, src)
         case "node":
             /*
              *  A parent re-read because a link or an unlink moved its hook
-             *  (ac_treedb_node_linked): an update of its row.
+             *  (ac_treedb_node_linked): an update of its row. A table
+             *  closed while the read was out has no row to update.
              */
-            gobj_send_event(
-                get_gobj_formtable(gobj, kw_get_str(gobj, kw_command, "topic_name", "", 0)),
-                "EV_LOAD_NODE_UPDATED",
-                [data],
-                gobj
-            );
+            {
+                let node_topic = kw_get_str(gobj, kw_command, "topic_name", "", 0);
+                let gobj_formtable = get_gobj_formtable(gobj, node_topic);
+                if(gobj_formtable) {
+                    gobj_send_event(
+                        gobj_formtable,
+                        "EV_LOAD_NODE_UPDATED",
+                        [data],
+                        gobj
+                    );
+                }
+                settle_linked_parent_reread(
+                    gobj,
+                    node_topic,
+                    kw_get_str(gobj, kw_command, "node_id", "", 0)
+                );
+            }
             break;
 
         case "create-node":
@@ -2679,6 +2777,7 @@ function ac_transport_state(gobj, event, kw, src)
          *  no table: its node events are published to nobody. Every open
          *  table is read again when the session is back.  */
         gobj.priv.reread_on_session = true;
+        gobj.priv.parent_rereads.clear();   /*  the reconnect reads every open table  */
         answer_drills_in_flight(gobj);
         abandon_form_writes(gobj.priv.form_writes).forEach((w) => {
             log_warning(`${gobj_short_name(gobj)}: transport closed, the write ${w.form_write} of '${w.topic_name}' is lost`);
@@ -2802,7 +2901,9 @@ function ac_treedb_node_updated(gobj, event, kw, src)
  *  EV_TREEDB_NODE_LINKED / EV_TREEDB_NODE_UNLINKED: the relationship
  *  ({hook_name, parent_topic_name, child_topic_name, parent_id,
  *  child_id, treedb_name}), not a node. The parent's hook changed and
- *  the event does not carry it: read the parent again.
+ *  the event does not carry it: read the parent again -- only when its
+ *  row is loaded (a table not open, or on another page, has nothing to
+ *  refresh), and one read in flight per parent (reread_linked_parent).
  ********************************************/
 function ac_treedb_node_linked(gobj, event, kw, src)
 {
@@ -2818,7 +2919,11 @@ function ac_treedb_node_linked(gobj, event, kw, src)
         return -1;
     }
 
-    return treedb_get_node(gobj, treedb_name, parent_topic_name, parent_id); // Error already logged
+    if(!is_row_loaded(gobj, parent_topic_name, parent_id)) {
+        return 0;
+    }
+
+    return reread_linked_parent(gobj, treedb_name, parent_topic_name, parent_id); // Error already logged
 }
 
 /********************************************
