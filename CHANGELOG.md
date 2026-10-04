@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **devDependency `vite ^8.3.2`; the lockfile and the test-app on
+  `maplibre-gl` 6.12.0.** The peer floor stays `^6.11.2`: 6.12.0 lists no
+  breaking change and nothing in `C_YUI_MAP` needs it. Its `GeoJSONSource`
+  fixes (memory no longer grows when `setData` comes faster than the worker
+  takes it; a `setData` no longer overwritten by an earlier load) reach a
+  host that installs it. The test-app emits `maplibre-gl-worker-6.12.0.js`.
+
 ## 7.26.0
 
 The release that goes with SDK 7.26.0 (the version names the SDK; no API
