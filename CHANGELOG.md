@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **The lockfile and the test-app on `maplibre-gl` 6.13.0; the test-app's
+  worker plugin emits the shared chunk only when the worker imports it.** The
+  peer floor stays `^6.11.2`: 6.13.0 lists no breaking change and nothing in
+  `C_YUI_MAP` needs it. What it does change is the worker: it is now
+  self-contained (508 KB instead of 19 KB plus the shared chunk) and
+  `maplibre-gl-shared.mjs` ships EMPTY, kept only until the next major. The
+  plugin used to copy it regardless, which now publishes an empty
+  `maplibre-gl-shared-<v>.js` and would fail the build once 7.0 drops the
+  file. The test-app emits `maplibre-gl-worker-6.13.0.js` alone; deployed to
+  demo.yuneta.io and niyamaka.com, the map draws with labels and no error.
+
 - **devDependency `vite ^8.3.2`; the lockfile and the test-app on
   `maplibre-gl` 6.12.0.** The peer floor stays `^6.11.2`: 6.12.0 lists no
   breaking change and nothing in `C_YUI_MAP` needs it. Its `GeoJSONSource`

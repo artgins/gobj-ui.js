@@ -102,6 +102,12 @@ const pkg_versions = [
  *  function` once per tile, with the map drawing no labels (paid for in
  *  yunovatios, 2026-09-04). A versioned name makes it impossible: a bump gets a
  *  fresh URL.
+ *
+ *  Since 6.13.0 the worker is self-contained: it imports nothing, and
+ *  maplibre-gl-shared.mjs ships EMPTY (kept until the next major only for
+ *  build processes like this one). So the shared chunk is emitted only when
+ *  the installed worker still imports it -- an empty asset otherwise, and a
+ *  missing file once 7.0 drops it.
  */
 const MAPLIBRE_VERSION = dep_version("maplibre-gl");
 const MAPLIBRE_WORKER_FILE = `maplibre-gl-worker-${MAPLIBRE_VERSION}.js`;
@@ -132,20 +138,21 @@ const maplibre_worker_assets = () => {
                 return;
             }
             const worker = readFileSync(path.join(dist, "maplibre-gl-worker.mjs"), "utf8")
-                .replaceAll("maplibre-gl-shared.mjs", MAPLIBRE_SHARED_FILE)
-                .replace(/\n?\/\/# sourceMappingURL=.*$/, "");
-            const shared = readFileSync(path.join(dist, "maplibre-gl-shared.mjs"), "utf8")
                 .replace(/\n?\/\/# sourceMappingURL=.*$/, "");
             this.emitFile({
                 type: "asset",
                 fileName: `assets/${MAPLIBRE_WORKER_FILE}`,
-                source: worker,
+                source: worker.replaceAll("maplibre-gl-shared.mjs", MAPLIBRE_SHARED_FILE),
             });
-            this.emitFile({
-                type: "asset",
-                fileName: `assets/${MAPLIBRE_SHARED_FILE}`,
-                source: shared,
-            });
+            if(worker.includes("maplibre-gl-shared.mjs")) {
+                const shared = readFileSync(path.join(dist, "maplibre-gl-shared.mjs"), "utf8")
+                    .replace(/\n?\/\/# sourceMappingURL=.*$/, "");
+                this.emitFile({
+                    type: "asset",
+                    fileName: `assets/${MAPLIBRE_SHARED_FILE}`,
+                    source: shared,
+                });
+            }
         },
     };
 };
