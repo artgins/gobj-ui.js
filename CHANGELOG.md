@@ -7,6 +7,27 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.26.1
+
+Two fixes in the Developer window (`yui_dev.js`), plus the `maplibre-gl` and
+`vite` bumps of the lockfile and the test-app below.
+
+- **"Copy" in the Collapsed view copies what is on screen.** It serialised
+  every entry with `JSON.stringify(payload, null, 4)` whatever the view said,
+  so one `list-map` answer put 1.4 MB of laid-out JSON on the clipboard while
+  the window showed four folded lines -- too big to paste anywhere. Now, in
+  the Collapsed view, each entry is copied as it is painted: one line per row,
+  a closed branch as its one-line summary (`▸ data {places:[…],devices:[…]}`)
+  and only an OPENED branch with its content, four characters further in
+  (`entry_shown_lines()`, read from the DOM, because whether a branch is open
+  lives only there). The Expanded view still copies the whole payload, which
+  is what it shows.
+- **The TRACES row scrolls on its own.** Its chips did not fit a narrow
+  window and the group pushed the whole window into scrolling sideways, the
+  log with it. The row now takes its own line of the control bar, the label
+  stays and the chips run in a strip with its own horizontal scroll
+  (`YDEV_GROUP_SCROLL` / `YDEV_SCROLL`), each chip on one line.
+
 - **The lockfile and the test-app on `maplibre-gl` 6.13.0; the test-app's
   worker plugin emits the shared chunk only when the worker imports it.** The
   peer floor stays `^6.11.2`: 6.13.0 lists no breaking change and nothing in

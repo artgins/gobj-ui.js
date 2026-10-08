@@ -419,6 +419,15 @@ function ensure_dev_style()
     background: rgba(0,0,0,0.03);
 }
 .YDEV_GROUP { display: inline-flex; align-items: center; gap: 5px; }
+/*  A whole line of the bar, whose chips scroll sideways inside it: the
+    window never does. min-width 0 so the flex line can be narrower than
+    its content; the chips keep their size and their label on one line.  */
+.YDEV_GROUP_SCROLL { flex: 1 1 100%; min-width: 0; }
+.YDEV_SCROLL {
+    display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1 1 auto;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; padding-bottom: 2px;
+}
+.YDEV_SCROLL > * { flex: 0 0 auto; white-space: nowrap; }
 .YDEV_LABEL {
     font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em;
     opacity: 0.6; align-self: center;
@@ -1411,10 +1420,62 @@ function refresh_dev_chrome()
     update_stats();
 }
 
+/*  The payload of a FOLDED entry as text, the way it is on screen: one line
+ *  per row, a closed branch as its one-line summary (`data {places: […], …}`)
+ *  and only an OPENED branch with its content, four characters further in.
+ *
+ *  Read from the painted DOM and not from the payload, because whether a
+ *  branch is open lives only there. It is the copy a person wants to paste
+ *  somewhere: the folded view exists because a list-map answer is 1.4 MB,
+ *  and the copy used to be that 1.4 MB laid out whatever the screen said.
+ *  The browser console copies what it shows, and so does this now.  */
+function kw_shown_lines($kw, indent, out)
+{
+    if(!$kw) {
+        return out;
+    }
+    for(let $n of $kw.children) {
+        if($n.classList.contains('TRAFFIC_ROW')) {
+            let $key = $n.querySelector('.TRAFFIC_KEY');
+            let key = $key ? $key.textContent : '';
+            let vals = [];
+            for(let $c of $n.children) {
+                if($c.classList.contains('TRAFFIC_BULLET') || $c === $key) {
+                    continue;
+                }
+                vals.push($c.children.length ?
+                    Array.from($c.children).map(($x) => $x.textContent).join(' ') :
+                    $c.textContent);
+            }
+            out.push(`${indent}• ${key} ${vals.join(' ')}`.trimEnd());
+        } else if($n.tagName === 'DETAILS') {
+            let $sum = $n.querySelector(':scope > summary');
+            let $key = $sum ? $sum.querySelector('.TRAFFIC_NEST_KEY') : null;
+            let $hint = $sum ? $sum.querySelector('.TRAFFIC_NEST_HINT_WRAP') : null;
+            out.push(`${indent}${$n.open ? '▾' : '▸'} ` +
+                `${$key ? $key.textContent : ''} ${$hint ? $hint.textContent : ''}`.trimEnd());
+            if($n.open) {
+                kw_shown_lines($n.querySelector(':scope > .TRAFFIC_KW'), indent + '    ', out);
+            }
+        }
+    }
+    return out;
+}
+
+/*  A painted folded entry as the lines of its payload. Exported for its
+    test.  */
+function entry_shown_lines($entry)
+{
+    let $kw = $entry ? $entry.querySelector(':scope > .TRAFFIC_KW') : null;
+    return kw_shown_lines($kw, '    ', []);
+}
+
 /*  Serialize the currently-visible (filtered) traffic to plain text:
  *  one header line per entry (time · direction · title · event/command)
- *  followed by its pretty-printed payload. Honours the active filters and
- *  search so the copy matches exactly what is on screen. */
+ *  followed by its payload AS THE VIEW SHOWS IT -- folded, what is on
+ *  screen (entry_shown_lines()); laid out, the whole payload. Honours the
+ *  active filters and search so the copy matches exactly what is on
+ *  screen. */
 function traffic_to_text()
 {
     let ctx = build_filter_ctx();
@@ -1433,6 +1494,11 @@ function traffic_to_text()
             `${e.title ? "[" + e.title + "] " : ""}${e.event}` +
             `${e.command ? " " + e.command : ""}`;
         out.push(head);
+        if(dev_traffic_view() !== "expanded" && e.$node) {
+            out.push(...entry_shown_lines(e.$node));
+            out.push("");
+            continue;
+        }
         let payload = e.kw ? e.kw : e.jn;
         try {
             out.push(JSON.stringify(payload, null, 4));
@@ -1672,10 +1738,18 @@ function build_control_bar()
 
     let grp = (label, items) => ['div', {class: 'YDEV_GROUP'},
         [['span', {class: 'YDEV_LABEL', 'data-i18n': label}, t(label)], ...items]];
+    /*  A row too long for the window scrolls ON ITS OWN: the label stays,
+        the chips run in a strip with its own horizontal scroll. The TRACES
+        row did not fit and pushed the whole window into scrolling sideways,
+        the log with it.  */
+    let grp_scroll = (label, items) => ['div', {class: 'YDEV_GROUP YDEV_GROUP_SCROLL'}, [
+        ['span', {class: 'YDEV_LABEL', 'data-i18n': label}, t(label)],
+        ['div', {class: 'YDEV_SCROLL'}, items],
+    ]];
     let sep = () => ['span', {class: 'YDEV_SEP'}, ''];
 
     return createElement2(['div', {class: 'YDEV_BAR'}, [
-        grp('traces', [...trace_chips, simple_mach, traces_payload]), sep(),
+        grp_scroll('traces', [...trace_chips, simple_mach, traces_payload]),
         grp('output', [output_seg]), sep(),
         grp('view', [view_seg]), expand_grp, sep(),
         grp('show', dir_chips), sep(),
@@ -1867,4 +1941,6 @@ export {
         the stylesheet below is a template literal, so one backtick in a CSS
         comment stops the whole module from parsing.  */
     object_preview, object_preview_parts,
+    /*  And the copy of the folded view, with the renderer it reads.  */
+    entry_shown_lines, render_detailed,
 };
