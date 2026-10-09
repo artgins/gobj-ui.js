@@ -7,6 +7,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.26.2
+
+- **shell: `yui_shell_last_route_outside(shell, route)`** -- where the reader
+  last was OUTSIDE a route: the most recent visited route that is neither
+  `route` nor below it, or `""` when the page never left it. The other half of
+  `yui_shell_last_route_under()`, from the same memory of visited routes. It
+  is what a view's "back" button means -- the view the reader came from, as
+  browser Back does: a yunovatios device page whose button named the summary
+  sent back to the summary a reader who had come from the map. Skipping the
+  whole subtree keeps going from one record to the next out of "back".
+  Documented in ROUTING.md §7 and unit-tested
+  (`yui_shell_last_route.test.js`).
+
 ## 7.26.1
 
 Two fixes in the Developer window (`yui_dev.js`), plus the `maplibre-gl` and

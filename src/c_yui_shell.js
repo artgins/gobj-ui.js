@@ -3277,6 +3277,37 @@ function yui_shell_last_route_under(shell_gobj, route)
 }
 
 /************************************************************
+ *  Where the reader last was OUTSIDE `route`: the most recent
+ *  visited route that is neither `route` nor below it, or "" when
+ *  there is none (the page landed there and never left).
+ *
+ *  It is the other half of yui_shell_last_route_under(), and it is
+ *  what a "back" button of a view means: the view the reader CAME
+ *  FROM, wherever that was.  Browser Back already does that; a
+ *  button that names one fixed route instead only agrees with it
+ *  when the reader happened to come from there.  Excluding the
+ *  whole subtree is the point -- going from one record of a detail
+ *  view to the next must not make "back" step through them.
+ *
+ *  Like the other memories, a mirror of the url for the page: the
+ *  caller decides what to do with "" (a fixed fallback, usually).
+ ************************************************************/
+function yui_shell_last_route_outside(shell_gobj, route)
+{
+    let priv = shell_gobj && shell_gobj.priv;
+    if(!priv || !is_array(priv.route_mru) || !route) {
+        return "";
+    }
+    for(let i = priv.route_mru.length - 1; i >= 0; i--) {
+        let r = priv.route_mru[i];
+        if(r !== route && r.indexOf(route + "/") !== 0) {
+            return r;
+        }
+    }
+    return "";
+}
+
+/************************************************************
  *  Resolve the shell that governs `gobj`: the nearest
  *  C_YUI_SHELL ancestor, else the last shell created on the
  *  page (apps have exactly one).  Null when no shell exists —
@@ -3716,6 +3747,7 @@ export {
     yui_shell_zone,
     yui_shell_navigate,
     yui_shell_last_route_under,
+    yui_shell_last_route_outside,
     yui_shell_nav_map,
     yui_shell_set_sub_routes,
     yui_shell_register_event_handler,

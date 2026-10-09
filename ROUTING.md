@@ -237,6 +237,15 @@ rare exception — see the shell's action-route handling).
   navigates itself (a push). Made for a view whose state lives in its tail: a
   treedb graph's focus is `<graph>/<topic>`, so a button to the bare route
   removed the focus every time.
+- **Last route outside a prefix** (`yui_shell_last_route_outside(shell,
+  route)`, since gobj-ui 7.26.2): the other half of the same memory -- the most
+  recent route that is neither `route` nor below it, or `""` when the page
+  never left it. It is what the "back" button of a view means: the view the
+  reader CAME FROM, as browser Back does. A button that names one fixed route
+  agrees with Back only when the reader came from there. Excluding the whole
+  subtree means stepping from one record of a detail view to the next does not
+  turn "back" into a walk through the records. On `""` the caller falls back
+  to a fixed route of its own.
 - **Back/Forward** need no code: they change the hash, the shell re-routes
   through the same path, views react to `EV_ROUTE_CHANGED` (including an empty
   `subpath` → view home).
