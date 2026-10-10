@@ -66,12 +66,19 @@ import {
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
 import {
     yui_shell_of,
+    yui_shell_icons_changed,
     yui_shell_set_sub_routes,
     yui_shell_navigate,
     yui_shell_last_route_under,
     yui_shell_previous_route,
 } from "./c_yui_shell.js";
 import {nodes_answer} from "./nodes_answer.js";
+import {
+    ICONS_TOPIC,
+    yui_icons_set_user,
+    yui_icons_put_user,
+    yui_icons_remove_user
+} from "./lib_icons.js";
 import {yui_toolbar_icon} from "./yui_toolbar.js";
 import {
     desc_pkey2s, desc_tkey, col_key_roles, system_flag_names
@@ -1256,6 +1263,56 @@ function request_treedb_descs(gobj)
 }
 
 /************************************************************
+ *  A user view shows the topics of the user and, of the system
+ *  topics, only __icons__: its nodes are what the user ADDS to
+ *  the app (the icons a column `icon` can name), so editing them
+ *  is the user's business. The other `__` topics are the
+ *  treedb's own bookkeeping.
+ ************************************************************/
+function topic_is_shown(topic_name)
+{
+    return topic_name.substring(0, 2) !== "__" || topic_name === ICONS_TOPIC;
+}
+
+/************************************************************
+ *  The nodes of __icons__ are the user icons of the app: each
+ *  load and each write of them goes to the icon registry
+ *  (lib_icons.js), and the shell tells the views that decided
+ *  at render time whether a name was an icon.
+ *
+ *  how: "load" (nodes = the whole topic), "put" (one node
+ *  created or updated) or "remove" (one node deleted).
+ ************************************************************/
+function feed_user_icons(gobj, how, nodes)
+{
+    switch(how) {
+        case "load":
+            yui_icons_set_user(nodes);
+            break;
+        case "put":
+            for(const node of nodes) {
+                yui_icons_put_user(node);
+            }
+            break;
+        case "remove":
+            for(const node of nodes) {
+                if(node && typeof node.id === "string") {
+                    yui_icons_remove_user(node.id);
+                }
+            }
+            break;
+        default:
+            log_error(`${gobj_short_name(gobj)}: feed_user_icons(): unknown '${how}'`);
+            return;
+    }
+
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        yui_shell_icons_changed(shell);
+    }
+}
+
+/************************************************************
  *  Response of remote command
  ************************************************************/
 function process_treedb_descs(gobj)
@@ -1271,11 +1328,8 @@ function process_treedb_descs(gobj)
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     let readonly = gobj_read_bool_attr(gobj, "readonly");
     for(const [key, desc] of Object.entries(descs)) {
-        if(system) {
-        } else {
-            if(key.substring(0, 2) === "__") {
-                continue;
-            }
+        if(!system && !topic_is_shown(key)) {
+            continue;
         }
 
         let kw_topic_form = {
@@ -1292,7 +1346,11 @@ function process_treedb_descs(gobj)
             treedb_name: treedb_name,
             topic_name: key,
             desc: desc,
-            with_remote_paging: gobj_read_bool_attr(gobj, "with_remote_paging"),
+            /*  __icons__ is read WHOLE, never by pages: its nodes are the
+             *  user icons of the app (feed_user_icons), and a page of them
+             *  would leave the rest of the icons undrawn.  */
+            with_remote_paging: key !== ICONS_TOPIC &&
+                gobj_read_bool_attr(gobj, "with_remote_paging"),
             page_size: gobj_read_integer_attr(gobj, "page_size"),
             with_selection_bar: gobj_read_bool_attr(gobj, "with_selection_bar"),
             /*  This host answers every write of the form (see
@@ -1402,7 +1460,7 @@ function register_sub_routes(gobj)
     }
     if(is_object(descs)) {
         for(let topic of Object.keys(descs)) {
-            if(!system && topic.substring(0, 2) === "__") {
+            if(!system && !topic_is_shown(topic)) {
                 continue;
             }
             nodes.push({
@@ -2503,6 +2561,9 @@ function ac_mt_command_answer(gobj, event, kw, src)
                     );
                 } else {
                     forget_topic_rereads(gobj, topic_name);
+                    if(topic_name === ICONS_TOPIC) {
+                        feed_user_icons(gobj, "load", answer.rows);
+                    }
                     gobj_send_event(
                         gobj_topic_form,
                         "EV_LOAD_NODES",
@@ -2914,6 +2975,9 @@ function ac_treedb_node_created(gobj, event, kw, src)
     let node = kw_get_dict_value(gobj, kw, "node", null, 0);
 
     if(treedb_name === gobj_read_str_attr(gobj, "treedb_name")) {
+        if(topic_name === ICONS_TOPIC) {
+            feed_user_icons(gobj, "put", [node]);
+        }
         let gobj_formtable = get_gobj_formtable(gobj, topic_name);
         gobj_send_event(
             gobj_formtable,
@@ -2936,6 +3000,9 @@ function ac_treedb_node_updated(gobj, event, kw, src)
     let node = kw_get_dict_value(gobj, kw, "node", null, 0);
 
     if(treedb_name === gobj_read_str_attr(gobj, "treedb_name")) {
+        if(topic_name === ICONS_TOPIC) {
+            feed_user_icons(gobj, "put", [node]);
+        }
         let gobj_formtable = get_gobj_formtable(gobj, topic_name);
         gobj_send_event(
             gobj_formtable,
@@ -2988,6 +3055,9 @@ function ac_treedb_node_deleted(gobj, event, kw, src)
     let node = kw_get_dict_value(gobj, kw, "node", null, 0);
 
     if(treedb_name === gobj_read_str_attr(gobj, "treedb_name")) {
+        if(topic_name === ICONS_TOPIC) {
+            feed_user_icons(gobj, "remove", [node]);
+        }
         let gobj_formtable = get_gobj_formtable(gobj, topic_name);
         gobj_send_event(
             gobj_formtable,

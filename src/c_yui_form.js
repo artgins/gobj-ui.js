@@ -73,6 +73,11 @@ import {field_is_readonly} from "./form_field_readonly.js";
  *  dialog rebuilds the form on every open, and re-rendering a form under
  *  the user mid-edit would throw away what they typed. */
 import {yui_is_dark} from "./yui_theme.js";
+import {
+    yui_icons_list,
+    yui_icons_is_svg_field,
+    yui_svg_icon_element
+} from "./lib_icons.js";
 /*  ORDER MATTERS, and it is this way round: `tabulator.css` is OUR sheet of
  *  fixes ON TOP of Tabulator's theme, and at equal specificity the cascade is
  *  decided by which one the bundle emits last. Imported before the theme (as
@@ -579,6 +584,12 @@ function build_html_form(gobj, $form, prefix, template)
 {
     Object.entries(template).forEach(([key, value]) => {
         const field_desc = template_get_field_desc(key, value);
+        /*  The drawing of a user icon (`svg` of __icons__): a text area
+         *  with the icon it draws below it.  */
+        if(!prefix && yui_icons_is_svg_field(
+                gobj_read_str_attr(gobj, "topic_name"), field_desc.name)) {
+            field_desc.type = "svg";
+        }
         let html_field_conf = build_form_field_conf(gobj, field_desc);
 
         /*
@@ -740,8 +751,21 @@ function build_form_field_conf(gobj, field_desc)
             field_conf.tag = "file";
             break;
 
-        case "image":
+        /*  The NAME of an icon, chosen from the icons there are -- each
+         *  drawn beside its name -- and not typed from memory.  */
         case "icon":
+            field_conf.tag = "select2";
+            field_conf.options = yui_icons_list().map(icon => icon.name);
+            break;
+
+        case "svg":
+            field_conf.tag = "textarea";
+            field_conf.extras.rows = 6;
+            field_conf.extras.spellcheck = "false";
+            field_conf.extras.class = "textarea is-family-monospace";
+            break;
+
+        case "image":
         case "string":
             field_conf.tag = 'input';
             field_conf.inputType = 'text';
@@ -1308,6 +1332,9 @@ function create_form_field(
             let extend = ['textarea', attrs];
             $extend = createElement2(extend);
             $control.appendChild($extend);
+            if(field_desc.type === "svg") {
+                attach_svg_preview(gobj, $control, $extend);
+            }
             break;
         }
 
@@ -1362,14 +1389,17 @@ function create_form_field(
                 ));
                 opts = [];
             }
+            /*  An icon name is not text to translate: it is a class.  */
+            let is_icon = (field_desc.type === "icon");
             let extend = ["select",
                 {
                     name: name,
                     class: '',
                     multiple: true,
                 },
-                opts.map(option =>
-                    ['option', {value:option, i18n:option}, option]
+                opts.map(option => is_icon
+                    ? ['option', {value:option}, option]
+                    : ['option', {value:option, i18n:option}, option]
                 )
             ];
             $extend = createElement2(extend);
@@ -1377,9 +1407,11 @@ function create_form_field(
             $extend.tom_select = new TomSelect($extend, {
                 allowEmptyOption: true,
                 placeholder: placeholder,
-                /*  single-valued fkey (real_type string): one selection only */
-                maxItems: (field_desc.type === "fkey" &&
-                    field_desc.real_type === "string")? 1 : null,
+                /*  single-valued fkey (real_type string): one selection only.
+                 *  An icon column holds one name.  */
+                maxItems: (is_icon || (field_desc.type === "fkey" &&
+                    field_desc.real_type === "string"))? 1 : null,
+                render: is_icon? icon_select_render() : undefined,
                 plugins: {
                     'clear_button': {
                         /*  i18n keys are lower-case by convention (the apps'
@@ -1596,6 +1628,92 @@ function attach_color_value($control, $input)
     $input.yui_color_value = $value;
 
     $control.appendChild($value);
+}
+
+/******************************************************************
+ *  How the icon picker draws a name: the icon, then the name.
+ *  The names come from yui_icons_list() -- class names, already
+ *  [a-z0-9-] -- and are escaped anyway, because they are written
+ *  as markup.
+ ******************************************************************/
+function icon_select_render()
+{
+    function draw(data, escape) {
+        let name = escape(data.value);
+        return `<div class="ICON_SELECT_ITEM"><span class="icon"><i class="${name}" aria-hidden="true"></i></span><span>${escape(data.text)}</span></div>`;
+    }
+    return {
+        option: draw,
+        item: draw
+    };
+}
+
+/******************************************************************
+ *  Why a drawing cannot be an icon, in the reader's language.
+ *  The causes are the fixed set yui_svg_sanitize() answers, each
+ *  written here as a literal t() so validate-locales sees it.
+ ******************************************************************/
+function svg_error_text(error)
+{
+    switch(error) {
+        case "empty svg":
+            return t("empty svg");
+        case "svg too big":
+            return t("svg too big");
+        case "not an svg document":
+            return t("not an svg document");
+        case "svg without size":
+            return t("svg without size");
+        case "svg without shapes":
+            return t("svg without shapes");
+        default:
+            log_error(`svg_error_text(): unknown cause '${error}'`);
+            return error;
+    }
+}
+
+/******************************************************************
+ *  The icon a drawing (`svg` of __icons__) makes, below its text
+ *  area, redrawn as it is typed: what is saved is what the app
+ *  will show. A drawing that cannot be drawn says why, and what
+ *  the sanitizer left out is named.
+ ******************************************************************/
+function attach_svg_preview(gobj, $control, $textarea)
+{
+    let $preview = createElement2(
+        ['div', {class: 'SVG_PREVIEW is-flex is-align-items-center mt-2'}, [
+            ['span', {class: 'SVG_PREVIEW_ICON icon is-large is-size-3'}],
+            ['span', {class: 'SVG_PREVIEW_NOTE is-size-7 yui-text-quiet ml-2'}]
+        ]]
+    );
+    $control.appendChild($preview);
+    let $icon = $preview.querySelector('.SVG_PREVIEW_ICON');
+    let $note = $preview.querySelector('.SVG_PREVIEW_NOTE');
+
+    function redraw() {
+        $icon.replaceChildren();
+        $note.textContent = "";
+        if(!$textarea.value || !$textarea.value.trim()) {
+            return;
+        }
+        let preview = yui_svg_icon_element($textarea.value);
+        if(preview.error) {
+            $note.textContent = svg_error_text(preview.error);
+            return;
+        }
+        $icon.appendChild(preview.element);
+        if(preview.dropped && preview.dropped.length > 0) {
+            /*  What the sanitizer left out is named as the svg names it
+             *  (`script`, `@onclick`): it is the reader's own markup.  */
+            $note.textContent = `${t("left out")}: ${preview.dropped.join(" ")}`;
+        }
+    }
+
+    $textarea.yui_svg_preview = redraw;
+    $textarea.addEventListener('input', function() {
+        redraw();
+        gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+    });
 }
 
 /******************************************************************
@@ -2455,6 +2573,9 @@ function clear_data(gobj, $form)
                 $input.tom_select.clear();
             } else {
                 $input.value = null;
+                if($input.yui_svg_preview) {
+                    $input.yui_svg_preview();
+                }
             }
         }
     });
@@ -2611,12 +2732,23 @@ function set_form_values(gobj, template, $form, record)
                 break;
             case "textarea":
                 $input.value = value;
+                if($input.yui_svg_preview) {
+                    $input.yui_svg_preview();
+                }
                 break;
             case "select":
                 $input.value = value;
                 break;
             case "select2":
                 $input.tom_select.clear();
+                /*  A name the list does not carry (an icon deleted, or
+                 *  not loaded yet) is kept, not dropped: dropping it would
+                 *  write "" on the next save of an unrelated field.  */
+                if(field_desc && field_desc.type === "icon" &&
+                        is_string(value) && value &&
+                        !$input.tom_select.options[value]) {
+                    $input.tom_select.addOption({value: value, text: value});
+                }
                 $input.tom_select.setValue(value);
                 break;
             case "checkbox":
@@ -2797,6 +2929,7 @@ function treedb_value_2_form_value(gobj, field_desc, value)
         case "color":
         case "image":
         case "icon":
+        case "svg":
         case "tel":
         case "template":
         case "table":
@@ -2938,11 +3071,17 @@ function form_value_2_treedb_value(gobj, field_desc, value)
                     break;
             }
             break;
+        case "icon":
+            /*  The picker is a tom-select of one item, which answers a list  */
+            if(Array.isArray(value)) {
+                value = value.length > 0? value[0] : "";
+            }
+            break;
         case "date":
         case "color":
         case "image":
-        case "icon":
         case "tel":
+        case "svg":
             break;
         case "template":
             if(is_string(value)) {
@@ -3504,4 +3643,4 @@ function register_c_yui_form()
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_yui_form };
+export { register_c_yui_form, svg_error_text };

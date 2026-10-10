@@ -3119,6 +3119,15 @@ function create_gclass(gclass_name)
                                      |event_flag_t.EVF_PUBLIC_EVENT
                                      |event_flag_t.EVF_NO_WARN_SUBS],
 
+        /*  The user icons changed (a view loaded `__icons__`, or a node of
+         *  it was written, and called yui_shell_icons_changed). A class name
+         *  picks its icon up by itself once the rule exists, but a view that
+         *  DECIDED, at render time, whether a name is an icon at all -- the
+         *  icon cell of a table -- has to decide again.  */
+        ["EV_ICONS_CHANGED",          event_flag_t.EVF_OUTPUT_EVENT
+                                     |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS],
+
         /*  The app's backend connection went up or down
          *  (yui_shell_set_connection_state), {connected}. Delivered only
          *  to the subscribers that declare it: see
@@ -3644,6 +3653,24 @@ function yui_shell_language_changed(shell_gobj)
 }
 
 /************************************************************
+ *  The user icons changed (lib_icons.js: yui_icons_set_user,
+ *  yui_icons_put_user, yui_icons_remove_user): PUBLISH it, so
+ *  the views that decided at render time whether a name is an
+ *  icon draw it again.
+ *
+ *  The registry is a module and knows no shell; the view that
+ *  fed it calls this.
+ ************************************************************/
+function yui_shell_icons_changed(shell_gobj)
+{
+    if(!shell_gobj || !is_gobj(shell_gobj)) {
+        log_error("yui_shell_icons_changed(): no shell");
+        return;
+    }
+    gobj_publish_event(shell_gobj, "EV_ICONS_CHANGED", {});
+}
+
+/************************************************************
  *  Set the backend-connection state painted by every
  *  type:"connection" toolbar item.  Host/event-driven: the
  *  app calls this from its transport handlers (EV_ON_OPEN →
@@ -3798,6 +3825,7 @@ export {
     yui_shell_set_translator,
     yui_shell_translate,
     yui_shell_language_changed,
+    yui_shell_icons_changed,
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,
     yui_shell_set_toolbar_item_badge,

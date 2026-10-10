@@ -21,9 +21,19 @@
  *         disableElements, …) work on toolbar icons exactly like on
  *         regular Bulma/FA buttons — no icon-specific helpers needed.
  *
+ *      3. User icons: the icons a user adds as DATA, one node of the
+ *         treedb system topic `__icons__` each (id = name, svg = drawing).
+ *         They join system 1 at run time: each becomes a rule
+ *         `.yi-u-<id>::before` in a stylesheet of their own, so every
+ *         component that draws an icon by class name draws them too.
+ *         `yi-u-` is the user's namespace, and the reason a user icon can
+ *         never replace an icon of the library.
+ *
  *      Copyright (c) 2025-2026, ArtGins.
  *      All Rights Reserved.
  *********************************************************/
+
+import {log_error, log_warning} from "@yuneta/gobj-js";
 
 const CUSTOM_SVG_ICONS_ID = 'g6-custom-svgicons';
 
@@ -218,4 +228,389 @@ export function yui_icon_is_defined(name)
 
     __icon_defined__[name] = defined;
     return defined;
+}
+
+/************************************************************
+ *
+ *      User icons
+ *
+ ************************************************************/
+
+/*
+ *  The treedb system topic that holds them (TREEDB_ICONS_TOPIC in
+ *  tr_treedb.h) and its drawing column. The schema of the topic is the
+ *  SDK's, fixed, which is why the GUI may know a column of it by name.
+ */
+export const ICONS_TOPIC = "__icons__";
+const ICONS_SVG_COL = "svg";
+
+/*
+ *  The class of a user icon is `yi-u-<id>`: a namespace no icon of the
+ *  library uses, so a user icon can never replace one of them -- not
+ *  today, and not when the library adds an icon of the same name.
+ */
+export const USER_ICON_PREFIX = "yi-u-";
+const USER_ICON_ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/*
+ *  An icon is a few hundred bytes; this is a drawing, not an icon, and it
+ *  would be carried in the stylesheet of every page.
+ */
+const USER_ICON_MAX_SVG = 32768;
+
+const USER_ICONS_STYLE_ID = "yui-user-icons";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/*
+ *  What an icon may be made of: shapes. Everything else -- script,
+ *  foreignObject, image, use, style, text, gradients, filters -- is
+ *  dropped with its subtree. The svg is written by whoever can write a
+ *  node, and it is drawn on every page of the app.
+ */
+const SVG_ELEMENTS = [
+    "svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon"
+];
+const SVG_ATTRIBUTES = [
+    "d", "cx", "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2",
+    "width", "height", "points", "transform",
+    "fill", "fill-rule", "fill-opacity", "clip-rule", "opacity",
+    "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin",
+    "stroke-miterlimit", "stroke-opacity", "stroke-dasharray"
+];
+/*  Numbers, path commands, colours, transforms. No quotes, no `<`, no `&`,
+ *  no `:` -- so no url, no javascript, no entity, and nothing that can
+ *  close the attribute it is written into.  */
+const SVG_VALUE_RE = /^[a-zA-Z0-9\s.,#%()+-]*$/;
+
+const __user_icons__ = new Map();   // id -> {svg, mask}
+
+/************************************************************
+ *  Is this field the drawing of an icon of __icons__?
+ *  The form edits it as a text area with a preview, and the
+ *  table shows the icon instead of the svg source.
+ ************************************************************/
+export function yui_icons_is_svg_field(topic_name, field_name)
+{
+    return topic_name === ICONS_TOPIC && field_name === ICONS_SVG_COL;
+}
+
+/************************************************************
+ *  The class of the user icon named `id`.
+ ************************************************************/
+export function yui_user_icon_class(id)
+{
+    return USER_ICON_PREFIX + id;
+}
+
+/************************************************************
+ *  Rebuild an svg from its SHAPES only.
+ *
+ *  Return {svg, dropped} -- svg is the clean markup, dropped the
+ *  names of what was left out -- or {error} when there is
+ *  nothing to draw. The error is one of a FIXED set, so a GUI
+ *  can translate it: "empty svg", "svg too big", "not an svg
+ *  document", "svg without size", "svg without shapes". The markup is never inserted anywhere as
+ *  it came: it is parsed, and a new one is written from the
+ *  elements and attributes allowed above.
+ ************************************************************/
+export function yui_svg_sanitize(svg_text)
+{
+    if(typeof svg_text !== "string" || !svg_text.trim()) {
+        return {error: "empty svg"};
+    }
+    if(svg_text.length > USER_ICON_MAX_SVG) {
+        return {error: "svg too big"};
+    }
+
+    let doc;
+    try {
+        doc = new DOMParser().parseFromString(svg_text, "image/svg+xml");
+    } catch(e) {
+        return {error: "not an svg document"};
+    }
+    let root = doc && doc.documentElement;
+    if(!root || root.getElementsByTagName("parsererror").length > 0) {
+        return {error: "not an svg document"};
+    }
+    return rebuild_svg_from_shapes(root);
+}
+
+/************************************************************
+ *  The second half of yui_svg_sanitize(), on a PARSED tree:
+ *  anything with `localName`, `attributes` ({name, localName,
+ *  prefix, value}), `children` and `getAttribute()` -- a DOM
+ *  element, or the plain objects a test builds.
+ ************************************************************/
+export function rebuild_svg_from_shapes(root)
+{
+    if(!root || root.localName !== "svg") {
+        return {error: "not an svg document"};
+    }
+
+    let dropped = new Set();
+    let shapes = 0;
+
+    function value_is_safe(value)
+    {
+        return SVG_VALUE_RE.test(value) && !/url\s*\(/i.test(value);
+    }
+
+    function clean_attrs(el, allowed)
+    {
+        let out = "";
+        for(const attr of Array.from(el.attributes || [])) {
+            let name = attr.localName || attr.name;
+            if(attr.prefix || !allowed.includes(name)) {
+                if(name !== "xmlns" && attr.prefix !== "xmlns") {
+                    dropped.add(`@${attr.name}`);
+                }
+                continue;
+            }
+            let value = String(attr.value).trim();
+            if(!value_is_safe(value)) {
+                dropped.add(`@${attr.name}`);
+                continue;
+            }
+            out += ` ${name}="${value}"`;
+        }
+        return out;
+    }
+
+    function clean_node(el)
+    {
+        let name = el.localName;
+        if(!SVG_ELEMENTS.includes(name) || name === "svg") {
+            dropped.add(name);
+            return "";
+        }
+        if(name !== "g") {
+            shapes++;
+        }
+        let inner = "";
+        for(const child of Array.from(el.children || [])) {
+            inner += clean_node(child);
+        }
+        return `<${name}${clean_attrs(el, SVG_ATTRIBUTES)}>${inner}</${name}>`;
+    }
+
+    /*
+     *  The viewBox is what scales the drawing into the 1em box of an
+     *  icon. Without one, the width and height of the root say the size
+     *  it was drawn at, and that is the box.
+     */
+    let view_box = (root.getAttribute("viewBox") || "").trim();
+    if(!/^-?[\d.]+([\s,]+-?[\d.]+){3}$/.test(view_box)) {
+        let w = parseFloat(root.getAttribute("width"));
+        let h = parseFloat(root.getAttribute("height"));
+        if(!(w > 0 && h > 0)) {
+            return {error: "svg without size"};
+        }
+        view_box = `0 0 ${w} ${h}`;
+    }
+
+    /*  What the root says for every shape: an icon drawn with strokes
+     *  (fill="none" stroke=...) is all in these.  */
+    const ROOT_ATTRIBUTES = ["fill", "fill-rule", "stroke", "stroke-width",
+                             "stroke-linecap", "stroke-linejoin"];
+    let root_attrs = "";
+    for(const name of ROOT_ATTRIBUTES) {
+        let value = (root.getAttribute(name) || "").trim();
+        if(value && value_is_safe(value)) {
+            root_attrs += ` ${name}="${value}"`;
+        } else if(value) {
+            dropped.add(`@${name}`);
+        }
+    }
+    for(const attr of Array.from(root.attributes || [])) {
+        let name = attr.localName || attr.name;
+        if(attr.prefix === "xmlns" || name === "xmlns" ||
+                ["viewBox", "width", "height", "version"].includes(name) ||
+                (!attr.prefix && ROOT_ATTRIBUTES.includes(name))) {
+            continue;
+        }
+        dropped.add(`@${attr.name}`);
+    }
+
+    let inner = "";
+    for(const child of Array.from(root.children || [])) {
+        inner += clean_node(child);
+    }
+    if(shapes === 0) {
+        return {error: "svg without shapes"};
+    }
+
+    return {
+        svg: `<svg xmlns="${SVG_NS}" viewBox="${view_box}"${root_attrs}>${inner}</svg>`,
+        dropped: Array.from(dropped)
+    };
+}
+
+/************************************************************
+ *  The CSS `url(...)` of an svg, to be used as a mask.
+ *  Every character that could end the string or the url is
+ *  percent-encoded.
+ ************************************************************/
+export function svg_mask_url(svg)
+{
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+/************************************************************
+ *  An element that shows an svg as an icon, before it is
+ *  registered (a form preview, a cell of __icons__ itself).
+ *  Return {element} or {error}.
+ ************************************************************/
+export function yui_svg_icon_element(svg_text)
+{
+    let clean = yui_svg_sanitize(svg_text);
+    if(clean.error) {
+        return {error: clean.error};
+    }
+    let el = document.createElement("span");
+    el.className = "USER_ICON_PREVIEW";
+    let mask = svg_mask_url(clean.svg);
+    el.style.setProperty("-webkit-mask-image", mask);
+    el.style.setProperty("mask-image", mask);
+    return {element: el, dropped: clean.dropped};
+}
+
+/************************************************************
+ *  Write the stylesheet of the user icons again, from the map.
+ ************************************************************/
+function rebuild_user_icons_stylesheet()
+{
+    let css = "";
+    for(const [id, icon] of __user_icons__) {
+        css += `.${yui_user_icon_class(id)}::before {` +
+               `-webkit-mask-image: ${icon.mask}; mask-image: ${icon.mask};}\n`;
+    }
+
+    try {
+        let el = document.getElementById(USER_ICONS_STYLE_ID);
+        if(!el) {
+            el = document.createElement("style");
+            el.id = USER_ICONS_STYLE_ID;
+            document.head.appendChild(el);
+        }
+        el.textContent = css;
+    } catch(e) {
+        log_error(`user icons: cannot write the stylesheet: ${e}`);
+    }
+
+    /*  The answer of yui_icon_is_defined() about a user icon has changed.  */
+    for(const name of Object.keys(__icon_defined__)) {
+        if(name.startsWith(USER_ICON_PREFIX)) {
+            delete __icon_defined__[name];
+        }
+    }
+}
+
+/************************************************************
+ *  Validate one node of __icons__.
+ *  Return the entry to keep, or null (warning logged).
+ ************************************************************/
+function user_icon_entry(node)
+{
+    let id = node && node.id;
+    if(typeof id !== "string" || !USER_ICON_ID_RE.test(id)) {
+        log_warning(`user icons: bad icon name '${id}': lowercase letters, digits and '-' only`);
+        return null;
+    }
+    let clean = yui_svg_sanitize(node.svg);
+    if(clean.error) {
+        log_warning(`user icons: icon '${id}' not drawn: ${clean.error}`);
+        return null;
+    }
+    return {svg: clean.svg, mask: svg_mask_url(clean.svg)};
+}
+
+/************************************************************
+ *  Replace every user icon with the nodes of __icons__.
+ *  Return the number of icons registered.
+ ************************************************************/
+export function yui_icons_set_user(nodes)
+{
+    __user_icons__.clear();
+    if(Array.isArray(nodes)) {
+        for(const node of nodes) {
+            let entry = user_icon_entry(node);
+            if(entry) {
+                __user_icons__.set(node.id, entry);
+            }
+        }
+    } else if(nodes) {
+        log_error(`user icons: the nodes of ${ICONS_TOPIC} must be a list`);
+    }
+    rebuild_user_icons_stylesheet();
+    return __user_icons__.size;
+}
+
+/************************************************************
+ *  A node of __icons__ was created or updated.
+ *  Return true if the icon is drawn.
+ ************************************************************/
+export function yui_icons_put_user(node)
+{
+    let entry = user_icon_entry(node);
+    if(entry) {
+        __user_icons__.set(node.id, entry);
+    } else if(node && typeof node.id === "string") {
+        /*  An update that broke the drawing takes the old one away: the
+         *  store holds the new svg, and showing the old one would say the
+         *  edit had not landed.  */
+        __user_icons__.delete(node.id);
+    }
+    rebuild_user_icons_stylesheet();
+    return !!entry;
+}
+
+/************************************************************
+ *  A node of __icons__ was deleted.
+ ************************************************************/
+export function yui_icons_remove_user(id)
+{
+    __user_icons__.delete(id);
+    rebuild_user_icons_stylesheet();
+}
+
+/************************************************************
+ *  Every icon a user can choose: the library's, read from the
+ *  loaded stylesheets (an app may extend yui_icons.css, so it
+ *  is asked, not listed), then the user's.
+ *  Return [{name, user}], each half sorted by name.
+ ************************************************************/
+export function yui_icons_list()
+{
+    let library = new Set();
+    try {
+        for(const sheet of Array.from(document.styleSheets || [])) {
+            if(sheet.ownerNode && sheet.ownerNode.id === USER_ICONS_STYLE_ID) {
+                continue;
+            }
+            let rules;
+            try {
+                rules = sheet.cssRules;
+            } catch(e) {
+                continue;   /*  a cross-origin sheet cannot be read, and holds no yi- icon  */
+            }
+            for(const rule of Array.from(rules || [])) {
+                let selector = rule.selectorText || "";
+                for(const m of selector.matchAll(/\.(yi-[a-z0-9-]+)::?before/g)) {
+                    if(!m[1].startsWith(USER_ICON_PREFIX)) {
+                        library.add(m[1]);
+                    }
+                }
+            }
+        }
+    } catch(e) {
+        log_error(`user icons: cannot read the stylesheets: ${e}`);
+    }
+
+    let list = Array.from(library).sort().map(name => ({name, user: false}));
+    let users = Array.from(__user_icons__.keys()).sort();
+    for(const id of users) {
+        list.push({name: yui_user_icon_class(id), user: true});
+    }
+    return list;
 }

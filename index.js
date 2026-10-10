@@ -118,7 +118,19 @@ export {
  *  Libraries and utilities
  */
 export { addClasses, removeClasses, toggleClasses, removeChildElements, disableElements, enableElements, set_submit_state, set_cancel_state, set_active_state, set_pressed_state, getStrokeColor } from "./src/lib_graph.js";
-export { inject_svg_icons } from "./src/lib_icons.js";
+export {
+    inject_svg_icons,
+    yui_icon_is_defined,
+    ICONS_TOPIC,
+    USER_ICON_PREFIX,
+    yui_user_icon_class,
+    yui_svg_sanitize,
+    yui_svg_icon_element,
+    yui_icons_set_user,
+    yui_icons_put_user,
+    yui_icons_remove_user,
+    yui_icons_list,
+} from "./src/lib_icons.js";
 export { EditControl, MarkerControl } from "./src/lib_maplibre.js";
 export { yui_asset_id, yui_asset_ids, yui_asset_src, yui_asset_element, yui_asset_missing } from "./src/yui_asset.js";
 export {

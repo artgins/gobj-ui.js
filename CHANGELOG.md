@@ -7,6 +7,31 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.26.6
+
+- **Icons a user adds, as data.** The SDK gives every treedb a system topic
+  `__icons__` (one node per icon: `id` the name, `svg` the drawing), and a
+  column flagged `icon` names one as `yi-u-<id>`. `lib_icons.js` keeps them
+  as a stylesheet of `.yi-u-<id>::before` masks (`yui_icons_set_user`,
+  `yui_icons_put_user`, `yui_icons_remove_user`, `yui_icons_list`), so every
+  component that draws an icon by class draws them too. `yi-u-` is a
+  namespace no library icon uses: a user icon cannot replace one. The svg is
+  REBUILT from its shapes (`yui_svg_sanitize`), never inserted as it came.
+  README: "Icons a user adds".
+- **shell: `yui_shell_icons_changed(shell)` publishes `EV_ICONS_CHANGED`.**
+- **treedb topics:** shows `__icons__` as a tab even when `system` is false,
+  reads it whole and feeds the registry on every load and write.
+- **treedb table:** redraws its `icon` cells on `EV_ICONS_CHANGED` (the cell
+  decided at render time whether a name was an icon, and kept the grey name
+  for an icon loaded after it). The `svg` cell of `__icons__` shows the icon.
+- **`yui_icon_is_defined()`** forgets its answer about a `yi-u-` name when
+  the user icons change; it cached every answer for the life of the page.
+- **form:** an `icon` column is a picker that draws each icon beside its name
+  (it was a text box, so a name had to be typed from memory); the `svg` of
+  `__icons__` is a text area with a live preview. New i18n keys for the
+  consumers: `__icons__`, `left out`, `empty svg`, `svg too big`, `not an svg
+  document`, `svg without size`, `svg without shapes`.
+
 ## 7.26.5
 
 - **schema editor: its `←` lands where browser Back lands.** It went UP a

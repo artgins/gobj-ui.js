@@ -72,7 +72,7 @@ import {
     yui_shell_of,
 } from "./c_yui_shell.js";
 
-import {register_c_yui_form} from "./c_yui_form.js";
+import {register_c_yui_form, svg_error_text} from "./c_yui_form.js";
 import {register_c_yui_json} from "./c_yui_json.js";
 import {attach_clear} from "./yui_inputs.js";
 
@@ -91,7 +91,11 @@ import {
 } from "./yui_table_select.js";
 
 import {yui_table_filter_clear} from "./yui_table_filter_clear.js";
-import {yui_icon_is_defined} from "./lib_icons.js";
+import {
+    yui_icon_is_defined,
+    yui_icons_is_svg_field,
+    yui_svg_icon_element
+} from "./lib_icons.js";
 import {row_matches} from "./yui_row_search.js";
 
 import {t} from "i18next";
@@ -467,6 +471,9 @@ function mt_start(gobj)
     let shell = yui_shell_of(gobj);
     if(shell) {
         gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+        /*  An `icon` cell decides when it is drawn whether its name is an
+         *  icon (icon_formatter), and a user icon can arrive after that.  */
+        gobj_subscribe_event(shell, "EV_ICONS_CHANGED", {}, gobj);
     }
     create_tabulator(gobj);
 }
@@ -479,6 +486,7 @@ function mt_stop(gobj)
     let shell = yui_shell_of(gobj);
     if(shell) {
         gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+        gobj_unsubscribe_event(shell, "EV_ICONS_CHANGED", {}, gobj);
     }
     close_form_dialog(gobj);
     close_schema_dialog(gobj);
@@ -1377,7 +1385,18 @@ function create_tabulator(gobj)
         if(field_desc.is_hidden) {
             continue;
         }
+        /*  The drawing of a user icon: the cell shows the icon, not its
+         *  source, and it is edited in the form (a text area with a
+         *  preview) -- never typed into a cell, nor filtered.  */
+        if(yui_icons_is_svg_field(gobj_read_str_attr(gobj, "topic_name"), col.id)) {
+            field_desc.type = "svg";
+        }
         switch(field_desc.type) {
+            case "svg":
+                hozAlign = "center";
+                vertAlign = "middle";
+                colFormatter = svg_cell_formatter;
+                break;
             case "hook":
                 hozAlign = "center";
                 cellClick = function(e, cell) {
@@ -2065,6 +2084,31 @@ function icon_formatter(cell)
         "span",
         {class: `ICON_CELL ${name}`, title: name, "aria-label": name}
     ]);
+}
+
+/************************************************************
+ *  Cell of the drawing of a user icon (`svg` of __icons__): the
+ *  icon itself, as the app will draw it. A drawing that cannot
+ *  be drawn says why, in plain grey -- the same honest half as
+ *  an unknown icon name in icon_formatter.
+ ************************************************************/
+function svg_cell_formatter(cell)
+{
+    let svg = cell.getValue();
+    if(!is_string(svg) || empty_string(svg)) {
+        return "";
+    }
+    let preview = yui_svg_icon_element(svg);
+    if(preview.error) {
+        let text = svg_error_text(preview.error);
+        return createElement2([
+            "span",
+            {class: "ICON_CELL_UNKNOWN is-size-7 yui-text-quiet", title: text},
+            text
+        ]);
+    }
+    preview.element.classList.add("ICON_CELL");
+    return preview.element;
 }
 
 /************************************************************
@@ -3753,6 +3797,36 @@ function ac_language_changed(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *  The user icons changed (published by the shell): the cells
+ *  of an `icon` column decided when they were drawn whether
+ *  their name was an icon, so they are drawn again.
+ ************************************************************/
+function ac_icons_changed(gobj, event, kw, src)
+{
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        return 0;
+    }
+    let desc = gobj_read_attr(gobj, "desc");
+    let cols = (desc && Array.isArray(desc.cols))? desc.cols : [];
+    let icon_cols = cols.filter(col =>
+        col && col.id && treedb_get_field_desc(col).type === "icon"
+    );
+    if(icon_cols.length === 0) {
+        return 0;
+    }
+    try {
+        for(const row of tabulator.getRows()) {
+            row.reformat();
+        }
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot redraw the icon cells: ${e}`);
+        return -1;
+    }
+    return 0;
+}
+
 function ac_load_nodes(gobj, event, kw, src)
 {
     let data = kw;
@@ -5333,6 +5407,7 @@ function create_gclass(gclass_name)
     const states = [
         ["ST_IDLE", [
             ["EV_LANGUAGE_CHANGED",     ac_language_changed,   null],
+            ["EV_ICONS_CHANGED",        ac_icons_changed,      null],
             ["EV_LOAD_NODES",           ac_load_nodes,         null],
             ["EV_LOAD_NODE_CREATED",    ac_load_node_created,  null],
             ["EV_LOAD_NODE_UPDATED",    ac_load_node_updated,  null],
@@ -5390,6 +5465,7 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const event_types = [
         ["EV_LANGUAGE_CHANGED",     0],
+        ["EV_ICONS_CHANGED",        0],
         ["EV_LOAD_NODES",           0],
         ["EV_LOAD_NODE_CREATED",    0],
         ["EV_LOAD_NODE_UPDATED",    0],

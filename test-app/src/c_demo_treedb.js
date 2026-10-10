@@ -35,6 +35,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {lead_block} from "./demo_lead.js";
+import {yui_icons_set_user} from "@yuneta/gobj-ui/src/lib_icons.js";
 
 import {t} from "i18next";
 
@@ -61,6 +62,8 @@ const USERS_DESC = {
          flag: ["persistent", "writable"]},
         {id: "enabled",    header: "Enabled",    type: "boolean",
          flag: ["persistent", "writable"]},
+        {id: "icon",       header: "Icon",       type: "string",
+         flag: ["persistent", "writable", "icon"]},
         {id: "config",     header: "Config",     type: "dict",
          flag: ["persistent", "writable"]},
         {id: "department", header: "Department", type: "string",
@@ -74,17 +77,27 @@ const USERS_DESC = {
     ]
 };
 
+/*  A user icon, as a node of `__icons__` would bring it: the `icon`
+ *  column names it `yi-u-demo-star`, beside the library's `yi-bolt`.  */
+const DEMO_USER_ICONS = [
+    {id: "demo-star",
+     svg: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'>" +
+          "<path d='M12 2l3 7h7l-5.5 4.5 2 7.5-6.5-4.5-6.5 4.5 2-7.5L2 9h7z'/></svg>"}
+];
+
 /*  In-memory "backend" data, reset on every page load. */
 function initial_data()
 {
     return {
         users: [
             {id: "ada",   name: "Ada Lovelace",  age: 36, enabled: true,
+             icon: "yi-bolt",
              config: {theme: "dark", limits: {cpu: 2}},
              department: "departments^engineering^users",
              teams: ["teams^core^members", "teams^ui^members"],
              secret: "s3cr3t"},
             {id: "alan",  name: "Alan Turing",   age: 41, enabled: true,
+             icon: "yi-u-demo-star",
              config: {theme: "light"},
              department: "departments^engineering^users",
              teams: ["teams^core^members"],
@@ -256,6 +269,8 @@ function build_ui(gobj)
     let priv  = gobj.priv;
     let title = gobj_read_attr(gobj, "title") || "TreeDB";
     let lead  = gobj_read_attr(gobj, "lead")  || "";
+
+    yui_icons_set_user(DEMO_USER_ICONS);
 
     let topic = gobj_create_pure_child(
         "demo_treedb_topic",

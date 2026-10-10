@@ -2716,6 +2716,73 @@ The user needs the `read` permission of that service. The service is not the
 one the connection was opened for, so a user who is not root must also hold a
 role in it, or the ievent gate refuses to route the command there.
 
+### Icons a user adds — `__icons__` and `yui_icons_*`
+
+The icon set of the library (`yui_icons.css`) is fixed: a CSS mask per glyph,
+shipped with the package. A user adds icons of their own as DATA. Every treedb
+has the system topic **`__icons__`** (SDK 7.26.7+): one node per icon, its `id`
+the name and `svg` the drawing. A column flagged `icon` then names it as
+**`yi-u-<id>`**:
+
+```c
+/*  In the schema of the topic that shows an icon  */
+'icon': {
+    'header': 'Icon',
+    'type': 'string',
+    'flag': ['icon', 'writable', 'persistent']
+}
+```
+
+```json
+{"id": "transformer", "svg": "<svg viewBox='0 0 24 24'><path d='M4 4h16v16H4z'/></svg>"}
+```
+
+A row of that topic with `"icon": "yi-u-transformer"` shows that drawing.
+
+- **`yi-u-` is the user's namespace.** No icon of the library uses it, so a
+  user icon can never replace one -- not today, and not when the library adds
+  an icon of the same name. The name is `[a-z0-9]` words joined by `-`.
+- **The drawing is a MASK**, like the library's: painted with `currentColor`,
+  one colour, the shapes' alpha only. A multicolour svg comes out as a
+  silhouette.
+- **The svg is rebuilt, never inserted.** `yui_svg_sanitize()` parses it and
+  writes a new one from the shapes alone (`path`, `circle`, `rect`, `ellipse`,
+  `line`, `polyline`, `polygon`, `g`) and their geometric and stroke
+  attributes. Script, `foreignObject`, `image`, `use`, styles, handlers and any
+  `url(...)` value are left out. It is done where the svg is DRAWN, because any
+  writer with the right to write a node can write one. Up to 32 KB.
+
+**Who loads them.** `C_YUI_TREEDB_TOPICS` does it for you: it shows
+`__icons__` as a tab even when `system` is false (the only `__` topic it
+shows), reads it whole (never by pages), and hands every load and write to the
+registry. An app that does not mount that view feeds the registry itself, from
+its own `nodes` answer and `EV_TREEDB_NODE_*` subscription:
+
+```js
+import {yui_icons_set_user, yui_icons_put_user, yui_icons_remove_user}
+    from "@yuneta/gobj-ui/src/lib_icons.js";
+import {yui_shell_icons_changed} from "@yuneta/gobj-ui/src/c_yui_shell.js";
+
+yui_icons_set_user(nodes);           // the whole of __icons__
+yui_shell_icons_changed(shell);      // EV_ICONS_CHANGED: views redraw
+```
+
+**Redraw.** A class name picks its icon up by itself once the rule exists. The
+icon cell of a table does not: it decides when it is drawn whether a name is an
+icon at all (an unknown name is shown in grey). So the shell publishes
+**`EV_ICONS_CHANGED`**, and `C_YUI_TREEDB_TOPIC_WITH_FORM` redraws its `icon`
+cells on it.
+
+**Editing.** In the form, an `icon` column is a picker that draws every icon
+beside its name: the library's, then the user's (`yui_icons_list()`). The
+`svg` of `__icons__` is a text area with the icon it makes below it, redrawn
+as it is typed, naming what the sanitizer left out. In the table, the `svg`
+cell shows the icon, not its source, and is never edited in place.
+
+**i18n keys** the app's locales must carry: `__icons__` (the tab), `left
+out`, and the five causes of `svg_error_text()` -- `empty svg`, `svg too big`,
+`not an svg document`, `svg without size`, `svg without shapes`.
+
 ### JSON viewer — `setup_json_pad`
 
 `setup_json_pad(self)` opens a **blank JSON pad** (`C_YUI_JSON_PAD`) in a
