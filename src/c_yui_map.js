@@ -3,7 +3,7 @@
  *
  *          Map Manager
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
@@ -30,6 +30,7 @@ import {
     gobj_start,
     gobj_name,
     gobj_unsubscribe_event,
+    gobj_stop_children,
 } from "@yuneta/gobj-js";
 
 import "maplibre-gl/dist/maplibre-gl.css"; // Import MapLibre styles
@@ -308,6 +309,8 @@ function mt_stop(gobj)
     if(shell) {
         gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
     }
+    /*  The marker windows are children of the map: they stop with it.  */
+    gobj_stop_children(gobj);
     return 0;
 }
 
@@ -710,84 +713,25 @@ function find_device(gobj, id)
 }
 
 /************************************************************
- *  Event handler for click
+ *  Event handler for click: maplibre's callback only turns the
+ *  click into an event; the work is ac_marker_clicked().
+ *  Plain json: the marker's identity and where it is.
  ************************************************************/
 function onClick(gobj, e)
 {
-    let priv = gobj.priv;
-
-    const map = priv.xmap;
-
-    // Get feature properties and coordinates
-    const coordinates = e.features[0].geometry.coordinates.slice();
-    const properties = e.features[0].properties;
-
-    /*  A marker may or may not be backed by a gobj service. Only look it up
-     *  when the feature carries a name (verbose=false: a marker without a
-     *  service is a normal case handled by the popup branch below, not an
-     *  error). gobj_find_service() would otherwise crash on undefined. */
-    const gobj_service = properties.gobj_service_name
-        ? gobj_find_service(properties.gobj_service_name, false)
-        : null;
-    if(gobj_service) {
-        let name = clean_name(gobj_name(gobj_service));
-        let window_service_name = `window-map-${name}`;
-
-        let popupContent = createElement2(
-            ['div',
-                {
-                    class: 'xmap columns m-0 p-0 is-flex-wrap-wrap',
-                },
-                gobj_read_attr(gobj_service, "$container")
-            ]
-        );
-
-        let gobj_window = gobj_create_service(
-            window_service_name,
-            "C_YUI_WINDOW",
-            {
-                $parent: document.getElementById('top-layer'),
-                width: 700,
-                height: 500,
-                auto_save_size_and_position: false,
-                center: true,
-                showMax: false,
-                content_size: true,
-                /*  The marker's own name: this window is one marker's
-                 *  detail, and several can be open at once, so the bar
-                 *  must say WHICH. It is DATA, so it travels in
-                 *  title_prefix (never translated) — in `title` it
-                 *  would get a data-i18n and a marker named like a
-                 *  locale key ("status") would render translated. */
-                title_prefix: gobj_name(gobj_service),
-                title: "",
-                icon: "yi-location-dot",
-                logical_class: "MAP_MARKER_WINDOW",
-                body: popupContent
-            },
-            gobj
-        );
-        if(!gobj_window) {
-            log_error(`${gobj_name(gobj)}: cannot create the marker window`);
-            return;
-        }
-        gobj_start(gobj_window);
-
-    } else {
-        // Initialize a popup
-        const popup = new maplibregl.Popup({
-            closeButton: true,
-            closeOnClick: true, // Automatically close when clicking elsewhere
-            closeOnMove: true,
-            anchor: 'center',
-            maxWidth: 'none',
-        });
-
-        const popupContent = `
-            <b>${properties.name}</b><br>Id: ${properties.id}
-        `;
-        popup.setLngLat(coordinates).setHTML(popupContent).addTo(map);
+    let feature = e && e.features && e.features[0];
+    if(!feature) {
+        log_error(`${gobj_name(gobj)}: marker click with no feature`);
+        return;
     }
+    let properties = feature.properties || {};
+    let coordinates = feature.geometry.coordinates.slice();
+    gobj_send_event(gobj, "EV_MARKER_CLICKED", {
+        gobj_service_name: properties.gobj_service_name || "",
+        name:              (properties.name !== undefined)? String(properties.name) : "",
+        id:                (properties.id !== undefined)? String(properties.id) : "",
+        coordinates:       coordinates
+    }, gobj);
 }
 
 /************************************************************
@@ -984,6 +928,100 @@ function ac_refresh(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  EV_MARKER_CLICKED {gobj_service_name, name, id, coordinates}
+ *
+ *  A marker backed by a gobj service opens that service's view in
+ *  a window -- ONE per marker: a second click is told to the open
+ *  one (EV_SHOW). (It created a second window under the same service
+ *  name, moved the one $container into it and left the first one
+ *  empty; closing the first then unregistered the second's name.)
+ *  A marker without a service gets a popup with its name and id.
+ ************************************************************/
+function ac_marker_clicked(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    const map = priv.xmap;
+
+    /*  A marker may or may not be backed by a gobj service. Only look it up
+     *  when the feature carries a name (verbose=false: a marker without a
+     *  service is a normal case handled by the popup branch below, not an
+     *  error). gobj_find_service() would otherwise crash on undefined. */
+    const gobj_service = kw.gobj_service_name
+        ? gobj_find_service(kw.gobj_service_name, false)
+        : null;
+
+    if(gobj_service) {
+        let name = clean_name(gobj_name(gobj_service));
+        let window_service_name = `window-map-${name}`;
+
+        let gobj_window = gobj_find_service(window_service_name, false);
+        if(gobj_window) {
+            gobj_send_event(gobj_window, "EV_SHOW", {}, gobj);
+            return 0;
+        }
+
+        let popupContent = createElement2(
+            ['div',
+                {
+                    class: 'xmap columns m-0 p-0 is-flex-wrap-wrap',
+                },
+                gobj_read_attr(gobj_service, "$container")
+            ]
+        );
+
+        gobj_window = gobj_create_service(
+            window_service_name,
+            "C_YUI_WINDOW",
+            {
+                $parent: document.getElementById('top-layer'),
+                width: 700,
+                height: 500,
+                auto_save_size_and_position: false,
+                center: true,
+                showMax: false,
+                content_size: true,
+                /*  The marker's own name: this window is one marker's
+                 *  detail, and several can be open at once, so the bar
+                 *  must say WHICH. It is DATA, so it travels in
+                 *  title_prefix (never translated) — in `title` it
+                 *  would get a data-i18n and a marker named like a
+                 *  locale key ("status") would render translated. */
+                title_prefix: gobj_name(gobj_service),
+                title: "",
+                icon: "yi-location-dot",
+                logical_class: "MAP_MARKER_WINDOW",
+                body: popupContent
+            },
+            gobj
+        );
+        if(!gobj_window) {
+            log_error(`${gobj_name(gobj)}: cannot create the marker window`);
+            return -1;
+        }
+        gobj_start(gobj_window);
+        return 0;
+    }
+
+    const popup = new maplibregl.Popup({
+        closeButton: true,
+        closeOnClick: true, // Automatically close when clicking elsewhere
+        closeOnMove: true,
+        anchor: 'center',
+        maxWidth: 'none',
+    });
+
+    /*  Built as nodes, never as markup: the name and the id are data.  */
+    let $content = document.createElement('div');
+    let $name = document.createElement('b');
+    $name.textContent = kw.name;
+    $content.appendChild($name);
+    $content.appendChild(document.createElement('br'));
+    $content.appendChild(document.createTextNode(`Id: ${kw.id}`));
+    popup.setLngLat(kw.coordinates).setDOMContent($content).addTo(map);
+    return 0;
+}
+
+/************************************************************
  *
  ************************************************************/
 function ac_select(gobj, event, kw, src)
@@ -1056,6 +1094,7 @@ function create_gclass(gclass_name)
             ["EV_MAP_ON_LOAD",              ac_map_on_load,         null],
             ["EV_REFRESH",                  ac_refresh,             null],
             ["EV_SELECT",                   ac_select,              null],
+            ["EV_MARKER_CLICKED",           ac_marker_clicked,      null],
             ["EV_SHOW",                     ac_show,                null],
             ["EV_HIDE",                     ac_hide,                null]
         ]]
@@ -1071,6 +1110,7 @@ function create_gclass(gclass_name)
         ["EV_MAP_ON_LOAD",              0],
         ["EV_REFRESH",                  0],
         ["EV_SELECT",                   0],
+        ["EV_MARKER_CLICKED",           0],
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0]
     ];

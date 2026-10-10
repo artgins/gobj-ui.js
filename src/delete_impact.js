@@ -78,9 +78,11 @@ function delete_impact(desc, records)
             if(n === 0) {
                 continue;
             }
-            /*  A column can be BOTH (a department's `users` is a hook to its
-             *  users and a fkey to the department that manages it). Counting
-             *  it on both sides is right: the delete does both things. */
+            /*  A column is a hook OR a fkey: the treedb refuses one flagged
+             *  both ("A column cannot be both 'hook' and 'fkey'"), and a node
+             *  that is a child and a parent carries two columns. A column
+             *  read from an older store may still carry both; it is counted
+             *  on both sides, which is what its delete would do. */
             if(col.flag.indexOf("hook") >= 0) {
                 out.children += n;
             }

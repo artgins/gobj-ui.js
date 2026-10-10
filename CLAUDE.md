@@ -34,7 +34,7 @@ Two cases the rule reaches that no attribute can:
 
 ⚠️ **A key that arrives as a VARIABLE is invisible to every consumer's
 `validate-locales`** — a data table, a helper's argument, a local alias of
-`t()`. `yui_dev.js` is the worst case (46 keys, six such sites); its list is
+`t()`. `yui_dev.js` is the worst case (51 keys, seven such sites); its list is
 written above `TRACE_DEFS` for a consumer to copy.
 
 The full rule, with what does NOT count as a name, is in the README

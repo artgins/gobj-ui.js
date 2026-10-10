@@ -156,6 +156,8 @@ function mt_destroy(gobj)
  ************************************************************/
 function build_ui(gobj)
 {
+    let back_label = gobj_read_attr(gobj, "back_label");
+    let next_label = gobj_read_attr(gobj, "next_label");
     let $container = createElement2(
         ['div', {class: 'C_YUI_WIZARD', style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'yui-wizard-header is-flex is-align-items-center is-flex-grow-0',
@@ -168,17 +170,21 @@ function build_ui(gobj)
             ],
             ['div', {class: 'yui-wizard-footer is-flex is-justify-content-space-between is-flex-grow-0',
                      style: 'gap:.5rem; padding:.5rem;'}, [
-                ['button', {class: 'yui-wizard-back button', 'aria-label': t('back'), 'data-i18n-aria-label': 'back'}, [
+                ['button', {class: 'yui-wizard-back button',
+                            title: t(back_label), 'data-i18n-title': back_label,
+                            'aria-label': t(back_label), 'data-i18n-aria-label': back_label}, [
                     ['span', {class: 'icon'}, ['i', {class: 'yi-arrow-left'}]],
-                    ['span', {class: 'is-hidden-mobile', i18n: 'back'}, 'back']
+                    ['span', {class: 'is-hidden-mobile', i18n: back_label}, back_label]
                 ], {
                     click: function(evt) {
                         evt.stopPropagation();
                         gobj_send_event(gobj, "EV_PREV", {}, gobj);
                     }
                 }],
-                ['button', {class: 'yui-wizard-primary button is-link', 'aria-label': t('next'), 'data-i18n-aria-label': 'next'}, [
-                    ['span', {class: 'yui-wizard-primary-label', i18n: 'next'}, 'next']
+                ['button', {class: 'yui-wizard-primary button is-link',
+                            title: t(next_label), 'data-i18n-title': next_label,
+                            'aria-label': t(next_label), 'data-i18n-aria-label': next_label}, [
+                    ['span', {class: 'yui-wizard-primary-label', i18n: next_label}, next_label]
                 ], {
                     click: function(evt) {
                         evt.stopPropagation();
@@ -243,10 +249,15 @@ function render_chrome(gobj)
     let $title   = $container.querySelector('.yui-wizard-title');
     let $counter = $container.querySelector('.yui-wizard-counter');
     let $back    = $container.querySelector('.yui-wizard-back');
+    let $primary = $container.querySelector('.yui-wizard-primary');
     let $plabel  = $container.querySelector('.yui-wizard-primary-label');
 
-    $title.setAttribute('i18n', model.title);
-    $title.textContent = model.title;
+    /*  render_chrome runs on every step change, AFTER the host's one-time
+     *  refresh_language($container,t): translate HERE, and stamp the
+     *  canonical `data-i18n` (a bare `i18n` attribute is not read by
+     *  refresh_language) so a later language switch re-translates it.  */
+    $title.setAttribute('data-i18n', model.title);
+    $title.textContent = t(model.title);
 
     if(model.count > 0) {
         $counter.textContent = `${model.idx + 1} / ${model.count}`;
@@ -256,8 +267,12 @@ function render_chrome(gobj)
 
     $back.classList.toggle('is-hidden', !model.show_back);
 
-    $plabel.setAttribute('i18n', model.primary_label);
-    $plabel.textContent = model.primary_label;
+    $plabel.setAttribute('data-i18n', model.primary_label);
+    $plabel.textContent = t(model.primary_label);
+    $primary.setAttribute('title', t(model.primary_label));
+    $primary.setAttribute('data-i18n-title', model.primary_label);
+    $primary.setAttribute('aria-label', t(model.primary_label));
+    $primary.setAttribute('data-i18n-aria-label', model.primary_label);
 
     /*
      *  Show only the current step

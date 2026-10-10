@@ -89,6 +89,7 @@ import "tabulator-tables/dist/css/tabulator_bulma.css";
 import "./tabulator.css";
 import {is_time_field} from "./json_view_helpers.js";
 import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
+import {parse_json_field, json_editor_value} from "./form_json_field.js";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
 // import { Tabulator } from "tabulator-tables";  // Import light Tabulator JS
 
@@ -492,11 +493,66 @@ function destroy_ui(gobj)
 {
     let $container = gobj_read_attr(gobj, "$container");
     if($container) {
+        destroy_widgets(gobj, $container);
         if($container.parentNode) {
             $container.parentNode.removeChild($container);
         }
         gobj_write_attr(gobj, "$container", null);
     }
+}
+
+/************************************************************
+ *  The icon a table cell draws as its control (delete the row,
+ *  add a nested row): an element, so it carries its name. Drawn
+ *  by Tabulator on every render, so t() at render time is
+ *  current.
+ ************************************************************/
+function cell_icon(icon_class, key)
+{
+    let $i = document.createElement('i');
+    $i.className = icon_class;
+    $i.setAttribute('title', t(key));
+    $i.setAttribute('aria-label', t(key));
+    return $i;
+}
+
+/************************************************************
+ *  Destroy the third-party widgets the form built. Removing
+ *  their DOM is not enough: Tom Select keeps listeners on
+ *  `document` and `window`, the jsoneditor is a live Svelte app
+ *  and a Tabulator keeps its observers -- each one a closure over
+ *  this form, alive for the life of the page. Nested tables go
+ *  first: their parent's destroy drops the rows they hang from.
+ ************************************************************/
+function destroy_widgets(gobj, $container)
+{
+    let destroy = (what, widget) => {
+        try {
+            widget.destroy();
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: cannot destroy ${what}: ${e}`);
+        }
+    };
+    $container.querySelectorAll('.yui-tabulator-table-nested').forEach(($el) => {
+        if($el.tabulator) {
+            destroy("nested table", $el.tabulator);
+            $el.tabulator = null;
+        }
+    });
+    $container.querySelectorAll('.yui-form-data-input').forEach(($el) => {
+        if($el.tom_select) {
+            destroy("select", $el.tom_select);
+            $el.tom_select = null;
+        }
+        if($el.jsoneditor) {
+            destroy("json editor", $el.jsoneditor);
+            $el.jsoneditor = null;
+        }
+        if($el.tabulator) {
+            destroy("table", $el.tabulator);
+            $el.tabulator = null;
+        }
+    });
 }
 
 /******************************************************************
@@ -1200,7 +1256,9 @@ function create_form_field(
                     ['div', {class: 'field-body'}, [
                         ['div', {class: 'field'}, [
                             ['div', {class: '' }, [
-                                ['button', {class: 'button p-1'}, [
+                                ['button', {class: 'button p-1',
+                                            title: t('add'), 'data-i18n-title': 'add',
+                                            'aria-label': t('add'), 'data-i18n-aria-label': 'add'}, [
                                     ['span', {class: 'icon m-0'}, '<i class="yi-plus"></i>'],
                                     ['span', {class: 'p-1 pr-2 is-hidden-mobile', i18n: 'add'}, 'add'],
                                 ], {
@@ -1356,7 +1414,8 @@ function create_form_field(
                         name: name
                     },
                     opts.map(option =>
-                        ['option', {value:option, i18n:option}, option]
+                        ['option', {value:option, i18n:option},
+                         document.createTextNode(String(option))]     // data, not markup
                     ),
                     {
                         'change': function (evt) {
@@ -1450,19 +1509,18 @@ function create_form_field(
 
         case 'radio':
         {
-            // TODO review, not tested
-            // for(const option of options) {
-            //     // WARNING here can't use data-i18n, the radio element is destroyed.
-                let elm = `
-                   <label class="radio">
-                      <input type="radio" name="${name}">
-                      ${t(options)}
-                    </label>
-                `;
-
-                $extend = createOneHtml(elm);
-                $control.appendChild($extend);
-            // }
+            // TODO review, not tested: one radio, labelled by `options`
+            /*  Built as nodes: the name and the label are data, and the
+             *  label keeps its key so it re-translates. The <label> WRAPS
+             *  its control, which is what names it.  */
+            let label_key = String(options === undefined || options === null ? "" : options);
+            $extend = createElement2(
+                ['label', {class: 'radio'}, [
+                    ['input', {type: 'radio', name: name}],
+                    ['span', {i18n: label_key}, label_key]
+                ]]
+            );
+            $control.appendChild($extend);
             break;
         }
 
@@ -1488,12 +1546,18 @@ function create_form_field(
                 props: {
                     readOnly: !!readonly,
                     onChange: function() {
+                        /*  A field marked wrong clears its mark as soon as
+                         *  it holds good json again.  */
+                        if($extend.yui_json_error) {
+                            check_json_editor($extend);
+                            mark_field_validity($extend);
+                        }
                         gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
                     },
-                    /*  La lista vive en json_view_helpers.js: el visor de
-                     *  JSON y este editor tienen que reconocer los MISMOS
-                     *  campos, y tener cada uno su copia es como dejaron de
-                     *  hacerlo.  */
+                    /*  The list lives in json_view_helpers.js: the JSON
+                     *  viewer and this editor must recognise the SAME
+                     *  fields, and a copy each is how they stopped
+                     *  doing so.  */
                     timestampTag: function({field, value, path}) {
                         return is_time_field(field);
                     },
@@ -1951,7 +2015,7 @@ function create_tabulator(gobj, $extend, name, template)
         columns.push(
             {
                 formatter: function(cell, formatterParams) {
-                    return '<i style="" class="yi-trash has-text-danger"></i>';
+                    return cell_icon('yi-trash has-text-danger', 'delete');
                 },
                 width:40,
                 hozAlign:"center",
@@ -2062,7 +2126,7 @@ function template2columns(gobj, columns, template, sub_elements)
             validator.push("required");
         }
 
-        // TODO añade los validator necesarios, como validator.push("integer");
+        // TODO add the validators needed, like validator.push("integer");
 
         switch(field_desc.type) {
             case "object":
@@ -2075,7 +2139,7 @@ function template2columns(gobj, columns, template, sub_elements)
 
             case "template":
                 // field_conf.tag = "fieldset";
-                // TODO si es para editar, tiene que ser field_conf.tag = "jsoneditor";
+                // TODO when editing, it must be field_conf.tag = "jsoneditor";
                 break;
 
             case "blob":
@@ -2091,8 +2155,8 @@ function template2columns(gobj, columns, template, sub_elements)
                 // field_conf.tag = "table";
                 // field_conf.options =  enum_list;
                 // column.editor = "false";
-                // TODO es otra tabla, poner buttons:
-                // TODO     - para mostrar/ocultar la segunda tabla
+                // TODO it is another table: give it buttons
+                // TODO     - to show/hide the second table
 
                 let template = field_desc.enum_list;
                 sub_elements.push({
@@ -2102,7 +2166,7 @@ function template2columns(gobj, columns, template, sub_elements)
 
                 Object.assign(column, {
                     formatter: function(cell, formatterParams) {
-                        return '<i style="" class="yi-plus has-text-link"></i>';
+                        return cell_icon('yi-plus has-text-link', 'add');
                     },
                     hozAlign:"center",
                     cellClick: function(evt, cell) {
@@ -2345,6 +2409,9 @@ function template2columns(gobj, columns, template, sub_elements)
  ************************************************************/
 function field_validation_message($input)
 {
+    if($input.yui_json_error) {
+        return t($input.yui_json_error);
+    }
     let v = $input.validity;
     if(v && v.valueMissing) {
         return t("this field is required");
@@ -2369,7 +2436,7 @@ function mark_field_validity($input)
      *  field. Reading `validity` asks the same question and fires nothing.
      *  A control with no `validity` (a wrapper div) is not invalid.  */
     let v = $input.validity;
-    let ok = !v || v.valid;
+    let ok = (!v || v.valid) && !$input.yui_json_error;
 
     if(ok) {
         $input.classList.remove('is-danger');
@@ -2399,6 +2466,16 @@ function validate_form(gobj, $form)
         validated = false;
     }
 
+    /*  checkValidity() does not see a jsoneditor: it is no form control.
+     *  A text that is not json -- or not the column's shape -- used to be
+     *  saved as {} or [].  */
+    $form.querySelectorAll('.jsoneditor.yui-form-data-input').forEach($editor => {
+        if(!check_json_editor($editor)) {
+            validated = false;
+            mark_field_validity($editor);
+        }
+    });
+
     $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
         if(!$table.tabulator.validate()) {
             validated = false;
@@ -2412,6 +2489,24 @@ function validate_form(gobj, $form)
     });
 
     return validated;
+}
+
+/************************************************************
+ *  Does the jsoneditor `$editor` hold json its column can store?
+ *  Leaves the answer on the element (`yui_json_error`, an i18n key
+ *  or ""), where mark_field_validity() reads it.
+ ************************************************************/
+function check_json_editor($editor)
+{
+    let jsoneditor = $editor.jsoneditor;
+    let field_desc = $editor.field_desc;
+    if(!jsoneditor || !field_desc || $editor.hasAttribute('readonly')) {
+        $editor.yui_json_error = "";
+        return true;
+    }
+    let r = parse_json_field(json_editor_value(jsoneditor.get()), field_desc.type);
+    $editor.yui_json_error = r.error;
+    return !r.error;
 }
 
 /************************************************************
@@ -3001,6 +3096,20 @@ function treedb_value_2_form_value(gobj, field_desc, value)
 }
 
 /************************************************************
+ *  A json field's value, parsed. validate_form() refuses a field
+ *  that does not parse, so reaching the error here is a path that
+ *  skipped it: logged, never quiet.
+ ************************************************************/
+function parse_json_value(gobj, field_desc, value)
+{
+    let r = parse_json_field(value, field_desc.type);
+    if(r.error) {
+        log_error(`${gobj_short_name(gobj)}: field '${field_desc.name}' (${field_desc.type}) holds no valid json, stored as empty`);
+    }
+    return r.value;
+}
+
+/************************************************************
  *  Convert from frontend to backend
  *  operation: "create" "update"
  ************************************************************/
@@ -3014,21 +3123,7 @@ function form_value_2_treedb_value(gobj, field_desc, value)
      *  interpreted-widget conversions ('exec' mode) below.  */
     if(gobj_read_str_attr(gobj, "render_mode") === "edit" &&
             (type === "template" || type === "table" || type === "coordinates")) {
-        if(is_string(value)) {
-            try {
-                value = JSON.parse(value);
-            } catch (e) {
-                value = (type === "table")? [] : {};
-            }
-        }
-        if(type === "table") {
-            if(!is_array(value)) {
-                value = [];
-            }
-        } else if(!is_object(value) && !is_array(value)) {
-            value = {};
-        }
-        return value;
+        return parse_json_value(gobj, field_desc, value);
     }
 
     switch(type) {
@@ -3084,19 +3179,7 @@ function form_value_2_treedb_value(gobj, field_desc, value)
         case "svg":
             break;
         case "template":
-            if(is_string(value)) {
-                // Come from the form
-                try {
-                    value = JSON.parse(value);
-                } catch (e) {
-                    value = {};
-                }
-            } else if(is_object(value)) {
-                // Come from the table
-            }
-            if(!is_object(value)) {
-                value = {};
-            }
+            value = parse_json_value(gobj, field_desc, value);
             break;
         case "table":
         case "id":
@@ -3117,19 +3200,7 @@ function form_value_2_treedb_value(gobj, field_desc, value)
             break;
         case "array":
         case "list":
-            if(is_string(value)) {
-                // Come from the form
-                try {
-                    value = JSON.parse(value);
-                } catch (e) {
-                    value = [];
-                }
-            } else if(is_array(value)) {
-                // Come from the table
-            }
-            if(!is_array(value)) {
-                value = [];
-            }
+            value = parse_json_value(gobj, field_desc, value);
             break;
         case "real":
             value = parseFloat(value)  || 0.0;
@@ -3138,21 +3209,7 @@ function form_value_2_treedb_value(gobj, field_desc, value)
             value = parseBoolean(value);
             break;
         case "blob":
-            if(is_string(value)) {
-                // Come from the form
-                try {
-                    value = JSON.parse(value);
-                } catch (e) {
-                    value = {};
-                }
-
-            } else if(is_object(value)) {
-                // Come from the table
-            } else if(is_array(value)) {
-                // Come from the table
-            } else {
-                value = {};
-            }
+            value = parse_json_value(gobj, field_desc, value);
             break;
         case "number":
             break;
@@ -3370,7 +3427,7 @@ function ac_add_table_row(gobj, event, kw, src)
             }
         })
         .catch(function(error){
-            //handle error updating data
+            log_error(`${gobj_short_name(gobj)}: cannot add a table row: ${error}`);
         });
 
     // TODO improve, to use only once the timeout?

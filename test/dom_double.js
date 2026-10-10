@@ -380,7 +380,25 @@ class FakeElement extends FakeNode {
         return this.textContent;
     }
     set innerHTML(v) {
-        this.textContent = String(v || "").replace(/<[^>]*>/g, "");
+        const html = String(v || "");
+        this.textContent = html.replace(/<[^>]*>/g, "");
+        if(this.tagName === "TEMPLATE") {
+            /*  createOneHtml() reads `template.content.firstChild`: the
+             *  first element of the markup, by its tag only (an inline
+             *  svg glyph, a string-built control).  */
+            this._content = new FakeFragment();
+            const m = html.trim().match(/^<([a-zA-Z][\w-]*)/);
+            if(m) {
+                const el = new FakeElement(m[1]);
+                el.textContent = this.textContent;
+                this._content.appendChild(el);
+            } else if(this.textContent) {
+                this._content.appendChild(new FakeText(this.textContent));
+            }
+        }
+    }
+    get content() {
+        return this._content || new FakeFragment();
     }
 
     /*  Events  */
@@ -407,6 +425,13 @@ class FakeElement extends FakeNode {
     focus() {
     }
     blur() {
+    }
+    /*  No constraint validation: every control is valid.  */
+    checkValidity() {
+        return true;
+    }
+    reportValidity() {
+        return true;
     }
     select() {
     }

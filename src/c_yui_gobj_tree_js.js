@@ -649,6 +649,10 @@ function mt_destroy(gobj)
         cancelAnimationFrame(priv._resize_raf);
         priv._resize_raf = 0;
     }
+    if(priv.find_timer) {
+        clearTimeout(priv.find_timer);
+        priv.find_timer = null;
+    }
 
     if(priv.graph) {
         priv.graph.destroy();
@@ -1177,7 +1181,14 @@ function build_graph(gobj)
     });
 
     graph.on(NodeEvent.CLICK, (evt) => {
-        gobj_send_event(gobj, "EV_NODE_CLICK", {evt: evt}, gobj);
+        /*  An identity, never the G6 event: a kw is plain json, and the
+         *  event is circular -- the machine trace dumps the kw.  */
+        let client = (evt && evt.client)? evt.client : null;
+        gobj_send_event(gobj, "EV_NODE_CLICK", {
+            id:       (evt && evt.target && evt.target.id)? String(evt.target.id) : "",
+            client_x: (client && typeof client.x === "number")? client.x : 0,
+            client_y: (client && typeof client.y === "number")? client.y : 0
+        }, gobj);
     });
 
     graph.on(CanvasEvent.CLICK, (evt) => {
@@ -2691,7 +2702,7 @@ function ac_node_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
-    let node_id = kw.evt.target.id;
+    let node_id = kw.id;
 
     /*
      *  Prefer our own cached node_data (richer) and fall back to
@@ -2734,8 +2745,8 @@ function ac_node_click(gobj, event, kw, src)
     /*
      *  Show popover at click position
      */
-    let client_x = (kw.evt && kw.evt.client) ? kw.evt.client.x : 0;
-    let client_y = (kw.evt && kw.evt.client) ? kw.evt.client.y : 0;
+    let client_x = kw.client_x || 0;
+    let client_y = kw.client_y || 0;
     show_popover(gobj, node_data, client_x, client_y);
 
     return 0;

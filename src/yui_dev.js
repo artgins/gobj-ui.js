@@ -852,15 +852,21 @@ function full_sections(payload)
     let out = {};
     for(let k of Object.keys(payload)) {
         if(k === "schema") {
-            if(show_schema) { out[k] = payload[k]; }
+            if(show_schema) {
+                out[k] = payload[k];
+            }
             continue;
         }
         if(k === "data") {
-            if(show_data) { out[k] = payload[k]; }
+            if(show_data) {
+                out[k] = payload[k];
+            }
             continue;
         }
         if(/^__.*__$/.test(k)) {
-            if(show_meta) { out[k] = payload[k]; }
+            if(show_meta) {
+                out[k] = payload[k];
+            }
             continue;
         }
         out[k] = payload[k];
@@ -1665,6 +1671,7 @@ function build_control_bar()
     let mk_dir = (dir, glyph, key, title) => ['button', {
         class: 'YDEV_CHIP s-' + dir, 'data-dir': key, type: 'button',
         title: t(title), 'data-i18n-title': title,
+        'aria-label': t(title), 'data-i18n-aria-label': title,
     }, glyph, {
         click: (ev) => {
             ev.stopPropagation();

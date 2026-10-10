@@ -563,10 +563,13 @@ function build_ui(gobj)
 
 function build_mode_button(gobj, mode)
 {
+    /*  The name is COMPOSED for a bucket (period_name), so it carries no
+     *  key: ac_language_changed() rewrites the text and both names.  */
+    let name = mode_name(mode);
     let $btn = createElement2(
         ["button", {class: `button YUI_PERIOD_MODE YUI_PERIOD_MODE_${mode.id.toUpperCase()}`,
-                    type: "button"},
-            [["span", {class: "YUI_PERIOD_MODE_TEXT"}, mode_name(mode)]]
+                    type: "button", title: name, "aria-label": name},
+            [["span", {class: "YUI_PERIOD_MODE_TEXT"}, name]]
         ]);
     $btn.addEventListener("click", () => {
         gobj_send_event(gobj, "EV_SET_MODE", {mode: mode.id}, gobj);
@@ -588,10 +591,12 @@ function build_more_menu(gobj)
         if(!mode.overflow) {
             continue;
         }
+        let name = mode_name(mode);
         let $item = createElement2(
             ["a", {class: `dropdown-item YUI_PERIOD_MODE ` +
-                          `YUI_PERIOD_MODE_${mode.id.toUpperCase()}`, href: "#"},
-                [["span", {class: "YUI_PERIOD_MODE_TEXT"}, mode_name(mode)]]
+                          `YUI_PERIOD_MODE_${mode.id.toUpperCase()}`, href: "#",
+                   title: name, "aria-label": name},
+                [["span", {class: "YUI_PERIOD_MODE_TEXT"}, name]]
             ]);
         $item.addEventListener("click", (ev) => {
             ev.preventDefault();
@@ -996,7 +1001,9 @@ function render_calendar(gobj)
               : build_years_grid(gobj, view);
 
     let $today = createElement2(
-        ["button", {class: "button is-ghost mt-2 YUI_PERIOD_CAL_TODAY", type: "button"},
+        ["button", {class: "button is-ghost mt-2 YUI_PERIOD_CAL_TODAY", type: "button",
+                    title: t("today"), "data-i18n-title": "today",
+                    "aria-label": t("today"), "data-i18n-aria-label": "today"},
             [["span", {"data-i18n": "today"}, t("today")]]
         ]);
     $today.addEventListener("click", () => {
@@ -1357,10 +1364,13 @@ function ac_language_changed(gobj, event, kw, src)
         if(!mode.$btn) {
             continue;
         }
+        let name = mode_name(mode);
         let $text = mode.$btn.querySelector(".YUI_PERIOD_MODE_TEXT");
         if($text) {
-            $text.textContent = mode_name(mode);
+            $text.textContent = name;
         }
+        mode.$btn.setAttribute("title", name);
+        mode.$btn.setAttribute("aria-label", name);
     }
     repaint(gobj);
     if(priv.$calendar) {

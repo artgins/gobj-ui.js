@@ -633,6 +633,8 @@ function build_zone(gobj, zone)
 
     let $toggle = createElement2(
         ['button', {class: 'GCLASS_ZONE_TOGGLE', type: 'button',
+                    title: t(zone.key), 'data-i18n-title': zone.key,
+                    'aria-label': t(zone.key), 'data-i18n-aria-label': zone.key,
                     'aria-expanded': collapsed? 'false': 'true'}, [
             ['span', {class: 'icon GCLASS_ZONE_ARROW'}, [
                 ['i', {class: collapsed? 'yi-chevron-right': 'yi-chevron-down'}]
@@ -726,8 +728,10 @@ function build_attrs(attrs)
             ['td', {class: 'GCLASS_CELL_KEY'}, a.id],
             ['td', {class: 'GCLASS_CELL_TYPE'}, a.type],
             ['td', {class: 'GCLASS_CELL_FLAGS'}, flag_chips(a.flags)],
-            ['td', {class: 'GCLASS_CELL_DEFAULT'}, a.default_value],
-            ['td', {class: 'GCLASS_CELL_DESC'}, a.description]
+            /*  What a remote yuno answers is data, not markup: Text nodes,
+             *  or a default starting with '<' would be parsed as HTML.  */
+            ['td', {class: 'GCLASS_CELL_DEFAULT'}, document.createTextNode(String(a.default_value ?? ""))],
+            ['td', {class: 'GCLASS_CELL_DESC'}, document.createTextNode(String(a.description ?? ""))]
         ]];
     });
 

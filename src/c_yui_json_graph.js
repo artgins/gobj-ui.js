@@ -5,7 +5,7 @@
  *          Displays JSON data as a hierarchical graph visualization
  *          Migrated from mx_json_viewer.js (mxGraph)
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
@@ -753,7 +753,14 @@ function build_graph(gobj)
     }
 
     graph.on(NodeEvent.CLICK, (evt) => {
-        gobj_send_event(gobj, "EV_NODE_CLICK", {evt: evt}, gobj);
+        /*  An identity, never the G6 event: a kw is plain json, and the
+         *  event is circular -- the machine trace dumps the kw.  */
+        let client = (evt && evt.client)? evt.client : null;
+        gobj_send_event(gobj, "EV_NODE_CLICK", {
+            id:       (evt && evt.target && evt.target.id)? String(evt.target.id) : "",
+            client_x: (client && typeof client.x === "number")? client.x : 0,
+            client_y: (client && typeof client.y === "number")? client.y : 0
+        }, gobj);
     });
 
     /*  ONE hook for the readout, the same one the treedb graph uses:
@@ -1071,12 +1078,24 @@ function cell_matches(key, value, type, needle)
  ************************************************************/
 function get_json_type(value)
 {
-    if(is_string(value))  return "string";
-    if(is_null(value))    return "null";
-    if(is_number(value))  return "number";
-    if(is_boolean(value)) return "boolean";
-    if(is_object(value))  return "dict";
-    if(is_array(value))   return "list";
+    if(is_string(value)) {
+        return "string";
+    }
+    if(is_null(value)) {
+        return "null";
+    }
+    if(is_number(value)) {
+        return "number";
+    }
+    if(is_boolean(value)) {
+        return "boolean";
+    }
+    if(is_object(value)) {
+        return "dict";
+    }
+    if(is_array(value)) {
+        return "list";
+    }
     return "unknown";
 }
 
@@ -1787,7 +1806,9 @@ class JsonTreeLayout extends BaseLayout {
             }
             let total = 0;
             for(let i = 0; i < kids.length; i++) {
-                if(i > 0) total += H_GAP;
+                if(i > 0) {
+                    total += H_GAP;
+                }
                 total += calc_subtree_width(kids[i]);
             }
             subtree_widths[node_id] = Math.max(total, node_dims[node_id].w);
@@ -1818,11 +1839,15 @@ class JsonTreeLayout extends BaseLayout {
             positions[node_id] = {x, y};
 
             let kids = children_map[node_id] || [];
-            if(kids.length === 0) return;
+            if(kids.length === 0) {
+                return;
+            }
 
             let total_width = 0;
             for(let i = 0; i < kids.length; i++) {
-                if(i > 0) total_width += H_GAP;
+                if(i > 0) {
+                    total_width += H_GAP;
+                }
                 total_width += subtree_widths[kids[i]];
             }
 
@@ -1842,7 +1867,9 @@ class JsonTreeLayout extends BaseLayout {
          */
         let total_root_width = 0;
         for(let i = 0; i < roots.length; i++) {
-            if(i > 0) total_root_width += H_GAP;
+            if(i > 0) {
+                total_root_width += H_GAP;
+            }
             total_root_width += subtree_widths[roots[i].id];
         }
 
@@ -2323,7 +2350,7 @@ function ac_node_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
-    let node_id = kw.evt.target.id;
+    let node_id = kw.id;
 
     let nodedata;
     try {

@@ -148,7 +148,9 @@ function build_ui(gobj)
         ['div', {class: 'C_YUI_PAGER', style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'yui-pager-header is-flex is-align-items-center is-flex-grow-0',
                      style: 'gap:.25rem; padding:.25rem .25rem;'}, [
-                ['button', {class: 'yui-pager-back button is-white is-hidden', 'aria-label': t('back'), 'data-i18n-aria-label': 'back'}, [
+                ['button', {class: 'yui-pager-back button is-white is-hidden',
+                            title: t('back'), 'data-i18n-title': 'back',
+                            'aria-label': t('back'), 'data-i18n-aria-label': 'back'}, [
                     ['span', {class: 'icon'}, ['i', {class: 'yi-arrow-left'}]]
                 ], {
                     click: function(evt) {
@@ -157,7 +159,9 @@ function build_ui(gobj)
                     }
                 }],
                 ['span', {class: 'yui-pager-title is-flex-grow-1', style: 'font-weight:600;'}, ''],
-                ['button', {class: 'yui-pager-discard button is-white is-hidden', 'aria-label': t('discard'), 'data-i18n-aria-label': 'discard'}, [
+                ['button', {class: 'yui-pager-discard button is-white is-hidden',
+                            title: t('discard'), 'data-i18n-title': 'discard',
+                            'aria-label': t('discard'), 'data-i18n-aria-label': 'discard'}, [
                     ['span', {class: 'icon'}, ['i', {class: 'yi-broom'}]],
                     ['span', {class: 'is-hidden-mobile', i18n: 'discard'}, 'discard']
                 ], {
@@ -233,13 +237,14 @@ function render_header(gobj)
      *  deeper pages show a back arrow.
      */
     let $back_icon = $back.querySelector('i');
-    if(model.back_kind === "close") {
-        $back_icon.className = 'yi-xmark';
-        $back.setAttribute('aria-label', 'close');
-    } else {
-        $back_icon.className = 'yi-arrow-left';
-        $back.setAttribute('aria-label', 'back');
-    }
+    let back_key = (model.back_kind === "close") ? 'close' : 'back';
+    $back_icon.className = (back_key === 'close') ? 'yi-xmark' : 'yi-arrow-left';
+    /*  The key moves with the glyph: a key left on "back" made the ✕ of
+     *  the root page announce itself as Back after a language switch.  */
+    $back.setAttribute('title', t(back_key));
+    $back.setAttribute('data-i18n-title', back_key);
+    $back.setAttribute('aria-label', t(back_key));
+    $back.setAttribute('data-i18n-aria-label', back_key);
     $discard.classList.toggle('is-hidden', !model.show_discard);
     /*  render_header runs on every push/pop/replace, AFTER the host's
      *  one-time refresh_language($container,t), so the title must be

@@ -13,6 +13,17 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > routing contract (URL = source of truth, push/replace history, the
 > position/preference/transient litmus).
 >
+> **Peer floors today** (`package.json`): `@yuneta/gobj-js` `^7.22.2`,
+> `@antv/g6` `^5.1.0`, `bulma` `^1.0.4`, `i18next` `^26.3.6`, `maplibre-gl`
+> `^6.11.2`, `tabulator-tables` `^6.5.3`, `tom-select` `^2.6.2`, `uplot`
+> `^1.6.32`, `vanilla-jsoneditor` `^3.13.0`. The notices below say when and why
+> each floor moved; the list above is what a consumer must meet now.
+>
+> **BREAKING (7.23.172):** the peer floor of `@yuneta/gobj-js` rose to
+> `^7.22.0`. The Developer window turns the runtime's trace bits on and off and
+> never reads a message to decide what to show; it needs the trace API of that
+> gobj-js. See the CHANGELOG entry.
+>
 > **BREAKING (7.0.0):** a **dependency-only major** — no component API moved.
 > The `maplibre-gl` peer floor rises to `^6.4.1`, which is where `DOM.sanitize`
 > stops leaving dangerous attributes behind when several sit next to each other.
@@ -68,28 +79,24 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 This repository carries **two parallel lines** with different layouts and
 consumers. They are independent snapshots (no shared git ancestry):
 
-| Line | Branch | Tag | Layout | Consumed by | How | Status |
-|------|--------|-----|--------|-------------|-----|--------|
-| **v2** | `main` | `2.0.0`+ | `src/` subdir | **gui_agent**, **gui_treedb** | local `file:` dep on the yunetas submodule | active development |
-| **v2** | `main` | `2.0.0`+ | `src/` subdir | **wattyzer** | published npm `@yuneta/gobj-ui@^5.0.0` (dist-tag `latest`) | active development |
-| **v1** | `v1` | `1.0.1` | `src/` subdir | **estadodelaire**, **hidraulia** | published npm `@yuneta/gobj-ui@^1.0.1` (dist-tag `legacy`) | frozen, maintenance-only |
+| Line | Branch | Latest tag | Layout | Consumed by | How | Status |
+|------|--------|------------|--------|-------------|-----|--------|
+| **v2** | `main` | `7.26.x` | `src/` subdir | **gui_agent**, **gui_treedb**, **wattyzer**, the **yunovatios** GUIs | published npm `@yuneta/gobj-ui` (dist-tag `latest`) | active development |
+| **v1** | `v1` | `1.0.4` | `src/` subdir | **estadodelaire**, **hidraulia** | published npm `@yuneta/gobj-ui@^1.0.4` (dist-tag `legacy`) | frozen, maintenance-only |
 
 - **v2 / `main`** is the active development line: the declarative shell
-  (legacy-stack-free since `3.0.0`). It is embedded as a git submodule in **yunetas** at
-  `kernel/js/gobj-ui`, and the in-repo JS yunos
-  (**`yunos/js/gui_agent`**, **`yunos/js/gui_treedb`**) consume that checkout as a
-  `file:` dependency (`@yuneta/gobj-ui` → `../../../kernel/js/gobj-ui`), importing
-  by package specifier (`@yuneta/gobj-ui/src/*.js`, exports map `"./src/*"`; the
-  `index.js` barrel and the vite plugin stay at the package root).
-  **wattyzer takes the same line from the registry** (since 2026-07-25): the
-  published tarball ships `src/`, `index.js` and the vite plugin, so the import
-  specifiers are identical — but library work only reaches it after a
-  `npm publish` and a range bump on its side. Two consequences worth knowing:
-  a fix cannot be validated in wattyzer before it is released, and wattyzer is
-  the consumer that proves the **tarball** is complete, not just the checkout.
+  (legacy-stack-free since `3.0.0`). It is embedded as a git submodule in
+  **yunetas** at `kernel/js/gobj-ui`, and **every app takes it from the npm
+  registry** (since 2026-08-03 there is no `file:` consumer left). Apps import
+  by package specifier (`@yuneta/gobj-ui/src/*.js`, exports map `"./src/*"`;
+  the `index.js` barrel and the vite plugin stay at the package root), and the
+  published tarball ships `src/`, `index.js` and the vite plugin. So library
+  work reaches an app only after a `npm publish` and a range bump on its side
+  (`npm run deploy-round` does the round). `test-app/` is the one exception:
+  it consumes the working tree (`file:..`), which is what it is for.
 - **v1 / `v1`** is the frozen legacy-only stack (the declarative shell is not on
   this line). It is **published to npm**; estadodelaire and hidraulia depend on
-  `@yuneta/gobj-ui@^1.0.0` from the registry. Land only maintenance fixes here,
+  `@yuneta/gobj-ui@^1.0.4` from the registry. Land only maintenance fixes here,
   then `npm publish` a new `1.x`.
 
 All new feature work lands on `main`/v2.
@@ -97,15 +104,15 @@ All new feature work lands on `main`/v2.
 ## Usage
 
 ```bash
-# v2 (active): clone yunetas with submodules; the in-repo yunos pick it up via file:
+# v2 (active): every app installs the published package
+npm install @yuneta/gobj-ui@latest
+
+# working on the library itself: clone yunetas with submodules
 git clone --recurse-submodules <yunetas>
 git submodule update --init kernel/js/gobj-ui      # yunetas tracks main/v2
 
-# v2 from the registry (wattyzer, and any out-of-tree consumer)
-npm install @yuneta/gobj-ui@^5.0.0
-
-# v1 (frozen): consumers just install the published package
-npm install @yuneta/gobj-ui@^1.0.0
+# v1 (frozen): consumers install the legacy line
+npm install @yuneta/gobj-ui@legacy
 ```
 
 Edit v2 from the yunetas `kernel/js/gobj-ui` checkout, commit on `main` in this
@@ -3273,6 +3280,46 @@ metadata (`__md_treedb__`).
 
 ## Conventions
 
+### The GUI rules a consumer inherits
+
+This library draws for several apps, so its rules are theirs too. The full
+text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
+
+- **Every action goes through the FSM.** A DOM callback only sends an event;
+  the work is in the action, where the `machine` trace sees it.
+- **A `kw` is plain JSON.** Never a gobj, a widget or a DOM node: the trace
+  dumps the kw, and those objects are circular. Pass an identity (`{id}`)
+  and resolve it in the action.
+
+  ```js
+  graph.on(NodeEvent.CLICK, (evt) => {
+      gobj_send_event(gobj, "EV_NODE_CLICK", {id: String(evt.target.id)}, gobj);
+  });
+  ```
+- **Every control has a `title` and an `aria-label`, each with its key**
+  (`data-i18n-title`, `data-i18n-aria-label`); see the i18n section below.
+- **No transitions or animations.** A menu, popover or state change appears
+  at once; a third-party transition is overridden with
+  `transition: none !important`.
+- **Icon-only buttons are decided at design time, against the longest
+  locale**, never measured at run time: `<span class="is-hidden-mobile">`
+  around the label when the row would not fit at ~360px.
+- **One icon shape per meaning** (chevron = open/close one thing, shafted
+  arrow = step or back, tree box = one level, double chevron = all). Never
+  reuse a glyph because it is there.
+- **Bulma helpers carry `!important`** (`.is-hidden`, `.is-flex`): toggle
+  `is-hidden`, or use `style.setProperty('display', 'none', 'important')`.
+
+### Releasing
+
+`npm run build && npm test`, then `npm publish`. A published version reaches
+an app only through **`npm run deploy-round`**: it waits for the registry to
+serve the version, then per app raises the range, installs, builds, deploys
+and reads back the bundle each host serves (`--check` only reads back,
+`--only <name>` does one app, `--no-wait` skips the registry). The private
+consumers are listed in `~/.yuneta/gobj-ui-consumers.json` (see
+`scripts/gobj-ui-consumers.example.json`); the demo (`test-app/`) is built in.
+
 ### Colour: a brand token as INK takes `-on-scheme`, as a FILL it does not
 
 A Bulma brand colour (`--bulma-link`, `--bulma-danger`, …) is built to carry
@@ -3387,7 +3434,9 @@ yui_shell_translate(shell, $el);   // LIBRARY-built DOM, right after building it
 
 and **app view gclasses translate their own DOM** — they own a `t`, so they call
 `refresh_language($container, t)` at the end of their build (this is why the
-shell does not translate a mounted view: see `mount_view` in `c_yui_shell.js`).
+shell does not translate a mounted view: see `build_view_gobj()` in
+`c_yui_shell.js`, which translates only the section-index `C_YUI_NAV` it
+synthesizes itself).
 `yui_shell_translate` is a no-op when the app registered no translator, so
 behaviour is unchanged for apps that never call `yui_shell_set_translator`.
 

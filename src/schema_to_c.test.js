@@ -228,6 +228,13 @@ describe("the characters that cannot be written as themselves", () => {
         expect(load_like_the_yuno(src).topics[0].cols.id.header).toBe("a\\b");
     });
 
+    test("a newline, a tab and another control character survive both layers", () => {
+        const header = "line one\nline\ttwo\r\u0001";
+        const src = with_header(header);
+        expect(src.split("\n").every((line) => !line.includes("line two"))).toBe(true);
+        expect(load_like_the_yuno(src).topics[0].cols.id.header).toBe(header);
+    });
+
     test("all three at once", () => {
         const header = 'a\\b "c" d\'e';
         expect(load_like_the_yuno(with_header(header)).topics[0].cols.id.header)

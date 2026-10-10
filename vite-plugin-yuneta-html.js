@@ -6,16 +6,27 @@
  *            - <title> from config.title
  *            - <meta> tags from config.metadata
  *            - Content-Security-Policy from config.csp_connect_src
+ *              (always emitted: connect-src 'self' alone when the
+ *              list is missing, with a warning)
  *
  *          Usage in vite.config.js (vendored copy):
  *            import { yunetaHtmlPlugin } from "./src/gobj-ui/vite-plugin-yuneta-html.js";
  *            plugins: [ yunetaHtmlPlugin({ defaultTitle: "My App" }) ]
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import fs from "fs";
 import path from "path";
+
+/*  config.json is build input, but its text lands inside markup.  */
+function escape_html(value) {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
 
 /**
  *  @param {object} [options]
@@ -52,7 +63,7 @@ export function yunetaHtmlPlugin(options = {}) {
                 if (config.metadata) {
                     for (const [key, value] of Object.entries(config.metadata)) {
                         if (value) {
-                            metadataHtml += `  <meta name="${key}" content="${value}">\n`;
+                            metadataHtml += `  <meta name="${escape_html(key)}" content="${escape_html(value)}">\n`;
                         }
                     }
                 }
@@ -83,10 +94,21 @@ export function yunetaHtmlPlugin(options = {}) {
                  *  injected style blocks.  Don't loosen the script
                  *  side without a strong reason.
                  *------------------------------------------*/
+                /*  A config with no csp_connect_src used to get NO policy
+                 *  at all, silently. It gets the same policy with
+                 *  connect-src 'self' only, and a warning.  */
                 let cspHtml = "";
-                if (config.csp_connect_src) {
-                    const origins = config.csp_connect_src
-                        .filter(s => !s.startsWith("_comment"));
+                {
+                    let origins = [];
+                    if (Array.isArray(config.csp_connect_src)) {
+                        origins = config.csp_connect_src
+                            .filter(s => !s.startsWith("_comment"));
+                    } else {
+                        console.warn(
+                            "⚠️ config.json has no csp_connect_src array: " +
+                            "the Content-Security-Policy allows connect-src 'self' only"
+                        );
+                    }
 
                     const connectSrc = ["'self'", ...origins].join("\n            ");
 
@@ -112,7 +134,7 @@ export function yunetaHtmlPlugin(options = {}) {
                  *  Apply replacements
                  *------------------------------------------*/
                 return html
-                    .replace("<title></title>", `<title>${title}</title>`)
+                    .replace("<title></title>", `<title>${escape_html(title)}</title>`)
                     .replace("<!-- METADATA_PLACEHOLDER -->", metadataHtml)
                     .replace("<!-- CSP_PLACEHOLDER -->", cspHtml);
             }

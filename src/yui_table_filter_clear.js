@@ -1,37 +1,37 @@
 /***********************************************************************
  *          yui_table_filter_clear.js
  *
- *      LA ✕ DE LOS FILTROS DE CABECERA DE UNA TABULATOR.
+ *      THE ✕ OF A TABULATOR'S HEADER FILTERS.
  *
- *      Un filtro de columna se pone escribiendo y se quita BORRANDO lo
- *      escrito, letra a letra, y no hay nada en la cabecera que diga
- *      que se puede quitar.  Con varias columnas filtradas, volver a
- *      ver la tabla entera es un ejercicio de memoria: cuáles toqué.
- *      La ✕ lo dice y lo hace.
+ *      A column filter is set by typing and removed by DELETING what
+ *      was typed, letter by letter, and nothing in the header says it
+ *      can be removed. With several columns filtered, getting the
+ *      whole table back is an exercise of memory: which ones did I
+ *      touch. The ✕ says it and does it.
  *
- *      TRES DECISIONES QUE NO SON OBVIAS:
+ *      THREE DECISIONS THAT ARE NOT OBVIOUS:
  *
- *      - **Se ve mientras el filtro tenga contenido, con foco o sin
- *        él.**  Es al revés que la ✕ de un formulario
- *        (`yui_inputs.js`), que sólo aparece en el campo que se está
- *        editando para no encender un aspa en cada campo relleno.  Aquí
- *        el caso de uso es justo el contrario: el filtro ya está puesto,
- *        el foco está en otra parte, y lo que se quiere es verlo y
- *        quitarlo.  Escondida tras el foco harían falta dos clics.
+ *      - **It shows while the filter has content, focused or not.**
+ *        The opposite of a form's ✕ (`yui_inputs.js`), which appears
+ *        only on the field being edited so as not to light a cross on
+ *        every filled field. Here the use case is the reverse: the
+ *        filter is already set, the focus is elsewhere, and what is
+ *        wanted is to see it and remove it. Hidden behind the focus it
+ *        would take two clicks.
  *
- *      - **Se borra con la API, no simulando teclas.**
- *        `setHeaderFilterValue(field, "")` es lo que Tabulator ofrece, y
- *        deja el valor y el filtro consistentes.  Sintetizar un `input`
- *        sobre el `<input>` depende de a qué escuche el editor de ese
- *        filtro, que cambia con el tipo de columna.
+ *      - **It clears through the API, not by faking keys.**
+ *        `setHeaderFilterValue(field, "")` is what Tabulator offers,
+ *        and it keeps the value and the filter consistent. Synthesising
+ *        an `input` on the `<input>` depends on what that filter's
+ *        editor listens to, which changes with the column type.
  *
- *      - **Se recorre la cabecera, no se envuelve el editor.**  Las
- *        columnas se construyen del esquema del topic, así que no hay un
- *        sitio único donde envolver el editor; y la cabecera se rehace
- *        sola cuando cambian las columnas.  El recorrido es idempotente
- *        -- marca lo que ya tiene aspa -- y se dispara con un
- *        `querySelector` de una sola pasada, así que repetirlo en cada
- *        render no cuesta nada.
+ *      - **The header is walked, the editor is not wrapped.** The
+ *        columns are built from the topic's schema, so there is no
+ *        single place to wrap the editor; and the header rebuilds
+ *        itself when the columns change. The walk is idempotent -- it
+ *        marks what already has its cross -- and is triggered by a
+ *        one-pass `querySelector`, so repeating it on every render
+ *        costs nothing.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -47,9 +47,9 @@ const MARK = "data-yui-filter-clear";
 
 
 /***************************************************************
- *  Pon (o repón) la ✕ de cada filtro de cabecera de `table`.
+ *  Put (or put back) the ✕ of every header filter of `table`.
  *
- *  Idempotente: los que ya la tienen se saltan.
+ *  Idempotent: the ones that already have it are skipped.
  ***************************************************************/
 function decorate(table)
 {
@@ -58,7 +58,7 @@ function decorate(table)
     }
     let $pending = table.element.querySelector(`.tabulator-header-filter:not([${MARK}])`);
     if(!$pending) {
-        return;     /*  nada nuevo en la cabecera  */
+        return;     /*  nothing new in the header  */
     }
 
     let list = table.element.querySelectorAll(`.tabulator-header-filter:not([${MARK}])`);
@@ -67,22 +67,22 @@ function decorate(table)
 
         let $input = $filter.querySelector("input");
         if(!$input) {
-            continue;   /*  un filtro que no se escribe: un select, un rango  */
+            continue;   /*  a filter that is not typed: a select, a range  */
         }
 
-        /*  El campo se lee del `.tabulator-col` que lo contiene, que es
-         *  quien lo lleva; el `<input>` no sabe de qué columna es.  */
+        /*  The field is read from the `.tabulator-col` holding it, which
+         *  is what carries it; the `<input>` does not know its column.  */
         let $col = $filter.closest(".tabulator-col");
         let field = $col? $col.getAttribute("tabulator-field"): "";
         if(!field) {
-            continue;   /*  sin campo no hay a quién decirle que se limpie  */
+            continue;   /*  without a field there is nobody to tell to clear  */
         }
 
         $filter.classList.add("yui-filter-has-clear");
 
-        /*  La clave viaja con el botón: un `title` puesto con t() al
-         *  construir es invisible para refresh_language(), y se queda en
-         *  el idioma de aquel momento para siempre.  */
+        /*  The key travels with the button: a `title` set with t() at
+         *  build time is invisible to refresh_language(), and stays in
+         *  the language of that moment for ever.  */
         let $btn = createElement2(["button", {
             type:                   "button",
             class:                  "delete is-small yui-filter-clear",
@@ -100,7 +100,7 @@ function decorate(table)
         $input.addEventListener("input", sync);
         $input.addEventListener("change", sync);
         $btn.addEventListener("click", (event) => {
-            event.stopPropagation();    /*  no ordenar la columna al pulsar  */
+            event.stopPropagation();    /*  a press must not sort the column  */
             table.setHeaderFilterValue(field, "");
             sync();
         });
@@ -111,11 +111,11 @@ function decorate(table)
 }
 
 /***************************************************************
- *  Engancha la ✕ a una tabla ya creada.
+ *  Hook the ✕ onto a table already created.
  *
- *  Se llama una vez, con la tabla construida.  Los enganches
- *  cubren los dos momentos en que la cabecera aparece o se
- *  rehace: cuando se construye y cuando cambian las columnas.
+ *  Called once, with the table built. The hooks cover the two
+ *  moments the header appears or is rebuilt: when it is built
+ *  and when the columns change.
  ***************************************************************/
 export function yui_table_filter_clear(table)
 {
@@ -132,9 +132,9 @@ export function yui_table_filter_clear(table)
 }
 
 /***************************************************************
- *  Repasa el estado de las ✕ tras un cambio que no vino del
- *  teclado -- limpiar todos los filtros, cargar una vista
- *  guardada -- porque eso no dispara `input`.
+ *  Go over the state of the ✕s after a change that did not come
+ *  from the keyboard -- clearing every filter, loading a saved
+ *  view -- because that fires no `input`.
  ***************************************************************/
 export function yui_table_filter_clear_refresh(table)
 {

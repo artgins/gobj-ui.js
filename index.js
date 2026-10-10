@@ -5,7 +5,11 @@
  *
  *          Barrel re-exports for the v2 source, which lives in src/.
  *          This is the canonical line, embedded as the yunetas submodule
- *          kernel/js/gobj-ui and consumed by wattyzer via a file: dep.
+ *          kernel/js/gobj-ui and published to npm; every app takes it
+ *          from the registry. The barrel is a SUBSET: most apps import
+ *          by specifier (`@yuneta/gobj-ui/src/<module>.js`), which is
+ *          how C_YUI_NODE, yui_shell_of() and the rest of the deep
+ *          surface are reached.
  *
  *          Copyright (c) 2024-2026, ArtGins.
  *          All Rights Reserved.

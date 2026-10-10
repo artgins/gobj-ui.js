@@ -469,7 +469,8 @@ function ac_register_window(gobj, event, kw, src)
     let prefix = kw.title_prefix || "";
     let label_items = [];
     if(prefix) {
-        label_items.push(['span', {class: 'yui-dock-label-prefix'}, prefix]);
+        label_items.push(['span', {class: 'yui-dock-label-prefix'},
+            document.createTextNode(String(prefix))]);    // data, not markup
     }
     if(title_key) {
         label_items.push(
@@ -479,7 +480,8 @@ function ac_register_window(gobj, event, kw, src)
     }
     if(label_items.length === 0) {
         /*  No split halves supplied (legacy caller): plain text. */
-        label_items.push(['span', {class: 'yui-dock-label-kind'}, title]);
+        label_items.push(['span', {class: 'yui-dock-label-kind'},
+            document.createTextNode(String(title))]);     // data, not markup
     }
 
     let entry = {gobj: win, $chip: null, minimized: false};
@@ -496,7 +498,9 @@ function ac_register_window(gobj, event, kw, src)
         ), [
             chip_lead(kw.icon),
             ['span', {class: 'yui-dock-label'}, label_items],
-            ['button', {class: 'yui-dock-close', type: 'button', 'aria-label': t('close'), 'data-i18n-aria-label': 'close'}, WC_X, {
+            ['button', {class: 'yui-dock-close', type: 'button',
+                        title: t('close'), 'data-i18n-title': 'close',
+                        'aria-label': t('close'), 'data-i18n-aria-label': 'close'}, WC_X, {
                 click: (evt) => {
                     evt.stopPropagation();
                     gobj_send_event(entry.gobj, "EV_CLOSE_WINDOW", {}, gobj);

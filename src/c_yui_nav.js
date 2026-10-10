@@ -108,7 +108,7 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",    0,  null,         "Subscriber of output events"),
 
 SDATA(data_type_t.DTP_STRING,   "menu_id",       0,  "",           "Id of the menu this nav renders"),
-SDATA(data_type_t.DTP_STRING,   "nav_label",     0,  "",           "Human-readable label for aria/heading; falls back to menu_id"),
+SDATA(data_type_t.DTP_STRING,   "nav_label",     0,  "",           "i18n key of the label for aria/heading; falls back to 'navigation'"),
 SDATA(data_type_t.DTP_JSON,     "menu_items",    0,  null,         "Array of menu items to render"),
 SDATA(data_type_t.DTP_STRING,   "zone",          0,  "",           "Zone id where this nav lives"),
 SDATA(data_type_t.DTP_STRING,   "layout",        0,  "vertical",   "vertical|icon-bar|tabs|drawer|submenu|accordion"),
@@ -128,7 +128,8 @@ SDATA_END()
 let __nav_aria_seq__ = 0;
 
 let PRIVATE_DATA = {
-    click_handler: null
+    click_handler: null,
+    key_handler:   null
 };
 let __gclass__ = null;
 
@@ -192,6 +193,9 @@ function mt_destroy(gobj)
     let priv = gobj.priv;
     if($c && priv && priv.click_handler) {
         $c.removeEventListener("click", priv.click_handler);
+    }
+    if($c && priv && priv.key_handler) {
+        $c.removeEventListener("keydown", priv.key_handler);
     }
     if($c && $c.parentNode) {
         $c.parentNode.removeChild($c);
@@ -261,8 +265,11 @@ function build_ui(gobj)
     if(layout !== "drawer") {
         $container.setAttribute("role", "navigation");
         if(!$container.hasAttribute("aria-label")) {
-            let label = gobj_read_attr(gobj, "nav_label") || menu_id;
-            $container.setAttribute("aria-label", label);
+            /*  A key, translated by the shell's translator: the bare
+             *  menu_id read out "secondary.main.system".  */
+            let label = gobj_read_attr(gobj, "nav_label") || "navigation";
+            $container.setAttribute("aria-label", t(label));
+            $container.setAttribute("data-i18n-aria-label", label);
         }
     }
 
@@ -294,6 +301,9 @@ function rebuild(gobj)
     /*  Drop the old delegated click listener before discarding the node. */
     if($old && priv.click_handler) {
         $old.removeEventListener("click", priv.click_handler);
+    }
+    if($old && priv.key_handler) {
+        $old.removeEventListener("keydown", priv.key_handler);
     }
 
     build_ui(gobj);   /*  writes a fresh $container + wires new clicks  */
@@ -408,17 +418,24 @@ function render_tabs(gobj, items)
          *  wire_clicks by its data-close-item marker). */
         if(it.closable) {
             children.push(["span", {class: "icon is-small yui-nav-close ml-2",
-                    "data-close-item": it.id, role: "button",
+                    "data-close-item": it.id, role: "button", tabindex: "0",
                     "aria-label": t("close"), "data-i18n-aria-label": "close",
                     title: t("close"), "data-i18n-title": "close"},
                 ["i", {class: "yi-xmark", "aria-hidden":"true"}]]);
         }
+        /*  A tab with show_label:false is a bare icon: the label is
+         *  its only name (same contract as item_li).  */
+        let label = it.name || "";
         let a_attrs = {
             href: it.route ? "#" + it.route : "#",
             "data-item-id": it.id,
-            "data-route":   it.route || ""
+            "data-route":   it.route || "",
+            "aria-label":   label || it.id
         };
-        let tip = it.tooltip || it.aria_label;
+        if(label) {
+            a_attrs["data-i18n-aria-label"] = label;
+        }
+        let tip = it.tooltip || it.aria_label || label;
         if(tip) {
             a_attrs.title = tip;
             a_attrs["data-i18n-title"] = tip;
@@ -536,12 +553,13 @@ function render_drawer(gobj, items)
      *  outer wrapper.  Open/close is driven from the toolbar or from the
      *  public yui_shell_{open,close,toggle}_drawer() helpers.
      */
-    let menu_id = gobj_read_attr(gobj, "menu_id") || "drawer";
     let wrap = document.createElement("div");
     wrap.className = "yui-drawer";
     wrap.setAttribute("role", "dialog");
     wrap.setAttribute("aria-modal", "true");
-    wrap.setAttribute("aria-label", menu_id);
+    let nav_label = gobj_read_attr(gobj, "nav_label") || "navigation";
+    wrap.setAttribute("aria-label", t(nav_label));
+    wrap.setAttribute("data-i18n-aria-label", nav_label);
 
     let back = document.createElement("div");
     back.className = "yui-drawer-backdrop";
@@ -551,7 +569,8 @@ function render_drawer(gobj, items)
     let panel = document.createElement("div");
     panel.className = "yui-drawer-panel";
     panel.setAttribute("role", "navigation");
-    panel.setAttribute("aria-label", menu_id);
+    panel.setAttribute("aria-label", t(nav_label));
+    panel.setAttribute("data-i18n-aria-label", nav_label);
     panel.appendChild(render_vertical(gobj, items));
 
     wrap.appendChild(back);
@@ -614,6 +633,10 @@ function render_accordion(gobj, items)
         };
         if(!empty_string(head_text)) {
             head_attrs.i18n = head_text;
+            head_attrs.title = head_text;
+            head_attrs["data-i18n-title"] = head_text;
+            head_attrs["aria-label"] = head_text;
+            head_attrs["data-i18n-aria-label"] = head_text;
         }
         let $hdr = createElement2(["button", head_attrs, head_text]);
         $container.appendChild($hdr);
@@ -717,7 +740,7 @@ function item_li(gobj, it, opts)
      *  Skip when both empty so we don't emit `title=""` noise.
      *  Mirror the value in `data-i18n-title` so refresh_language()
      *  can re-translate the tooltip on language switch. */
-    let tip = it.tooltip || it.aria_label;
+    let tip = it.tooltip || it.aria_label || label;
     if(tip) {
         a_attrs.title = tip;
         a_attrs["data-i18n-title"] = tip;
@@ -771,7 +794,7 @@ function item_iconbar(gobj, it, opts)
     if(label) {
         a_attrs["data-i18n-aria-label"] = label;
     }
-    let tip = it.tooltip || it.aria_label;
+    let tip = it.tooltip || it.aria_label || label;
     if(tip) {
         a_attrs.title = tip;
         a_attrs["data-i18n-title"] = tip;
@@ -864,6 +887,21 @@ function wire_clicks(gobj, $container)
 
     $container.addEventListener("click", handler);
     priv.click_handler = handler;
+
+    /*  The ✕ of a closable tab is a span (a button inside the tab's
+     *  <a> is invalid): Enter/Space on it does what a click does.  */
+    let key_handler = ev => {
+        if(ev.key !== "Enter" && ev.key !== " ") {
+            return;
+        }
+        let target = ev.target;
+        if(!target || !target.closest || !target.closest("[data-close-item]")) {
+            return;
+        }
+        handler(ev);
+    };
+    $container.addEventListener("keydown", key_handler);
+    priv.key_handler = key_handler;
 }
 
 
@@ -972,8 +1010,9 @@ function ac_route_changed(gobj, event, kw, src)
 
 function css_escape(s)
 {
-    /*  Minimal escape for attribute selector */
-    return String(s).replace(/"/g, '\\"');
+    /*  For a quoted attribute selector: a backslash too, or a route
+     *  carrying one makes querySelector throw.  */
+    return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 /***************************************************************

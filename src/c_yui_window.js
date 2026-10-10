@@ -3,7 +3,7 @@
  *
  *          Window - position fixed
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 
@@ -14,6 +14,7 @@ import {
     gclass_create,
     event_flag_t,
     log_error,
+    log_warning,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
     gobj_write_attr,
@@ -102,7 +103,7 @@ SDATA(data_type_t.DTP_STRING,   "logical_class",0,  "",     "Logical UPPER_SNAKE
 SDATA(data_type_t.DTP_STRING,   "title_prefix", 0,  "",     "Optional DATA half of the title (a topic/service/marker name), shown before `title` and never translated. Use it instead of composing `${name} · ${t(key)}` into `title`, which cannot re-translate"),
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, an i18n KEY: painted in the title bar (unless `header` overrides it) and on the dock chip. Pass the key, not t(key), or it cannot re-translate"),
 SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Window icon (by window type), leading the title bar and the dock chip: a yi-* class name or inline SVG"),
-// TODO pendiente focus modal keyboard
+// TODO declared, NOT implemented yet: focus, modal, keyboard (Escape does not close a window)
 SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "Brings focus to the element, can be a number or selector"),
 SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "Enable modal mode"),
 SDATA(data_type_t.DTP_BOOLEAN,  "keyboard",     0,  true,   "Close window on ESC if not modal"),
@@ -188,15 +189,7 @@ function mt_create(gobj)
          *  is also why a navigation panel prefers a manager, and falls
          *  back to `keep_on_navigate` when the app has no dock.
          *  Retired in mt_destroy (covers every teardown path). */
-        let shell = yui_shell_of(gobj);
-        if(shell) {
-            let overlay = yui_shell_register_overlay(
-                shell,
-                function() { close_window(gobj); },
-                {keep_on_navigate: gobj_read_bool_attr(gobj, "keep_on_navigate")}
-            );
-            gobj_write_attr(gobj, "back_overlay", overlay);
-        }
+        register_back_overlay(gobj);
     }
 
     /*  Keep the window inside the viewport on a breakpoint change.
@@ -347,7 +340,7 @@ function build_default_header(gobj)
     if(!empty_string(prefix)) {
         items.push(
             ['span', {class: 'WINDOW_TITLE_PREFIX has-text-weight-semibold'},
-             prefix]
+             document.createTextNode(String(prefix))]     // data, not markup
         );
     }
     if(!empty_string(title)) {
@@ -400,7 +393,11 @@ function resolve_manager(gobj)
         return null;
     }
     if(typeof m === "string") {
-        m = gobj_find_service(m, false) || null;
+        let name = m;
+        m = gobj_find_service(name, false) || null;
+        if(!m) {
+            log_warning(`${GCLASS_NAME}: window manager '${name}' not found: no dock, no minimize`);
+        }
         gobj_write_attr(gobj, "manager", m);
     }
     return m;
@@ -550,7 +547,9 @@ function build_ui(gobj)
                      *      Minimize (to dock)
                      *----------------------------*/
                     ['button', {
-                        class: 'WINDOW_MIN yui-wc wc-min', type: 'button', 'aria-label': t('minimize'), 'data-i18n-aria-label': 'minimize',
+                        class: 'WINDOW_MIN yui-wc wc-min', type: 'button',
+                        title: t('minimize'), 'data-i18n-title': 'minimize',
+                        'aria-label': t('minimize'), 'data-i18n-aria-label': 'minimize',
                         style: (gobj_read_bool_attr(gobj, "showMin") &&
                                 gobj_read_pointer_attr(gobj, "manager")) ? '' : 'display:none;',
                     }, WC_MIN, {
@@ -563,7 +562,9 @@ function build_ui(gobj)
                      *      Maximize / restore
                      *----------------------------*/
                     ['button', {
-                        class: 'WINDOW_MAX yui-wc wc-max', type: 'button', 'aria-label': t('maximize'), 'data-i18n-aria-label': 'maximize',
+                        class: 'WINDOW_MAX yui-wc wc-max', type: 'button',
+                        title: t('maximize'), 'data-i18n-title': 'maximize',
+                        'aria-label': t('maximize'), 'data-i18n-aria-label': 'maximize',
                         style: gobj_read_bool_attr(gobj, "showMax") ? '' : 'display:none;',
                     }, WC_MAX, {
                         click: (evt) => {
@@ -575,11 +576,13 @@ function build_ui(gobj)
                      *      Close
                      *----------------------------*/
                     ['button', {
-                        class: 'WINDOW_CLOSE yui-wc wc-close', type: 'button', 'aria-label': t('close'), 'data-i18n-aria-label': 'close',
+                        class: 'WINDOW_CLOSE yui-wc wc-close', type: 'button',
+                        title: t('close'), 'data-i18n-title': 'close',
+                        'aria-label': t('close'), 'data-i18n-aria-label': 'close',
                     }, WC_CLOSE, {
                         click: (evt) => {
                             evt.stopPropagation();
-                            close_window(gobj);
+                            gobj_send_event(gobj, "EV_CLOSE_WINDOW", {}, gobj);
                         }
                     }]
                 ]]
@@ -753,6 +756,37 @@ function destroy_ui(gobj)
 }
 
 /************************************************************
+ *  Register this floating window in the shell's overlay history,
+ *  so the browser Back closes it.
+ *
+ *  The shell takes the entry off its stack BEFORE it calls the
+ *  close function (Back, or a route change draining overlays). When
+ *  a subscriber of EV_WINDOW_TO_CLOSE vetoes the close, the window
+ *  stays up with no entry: Back would no longer close it, and it
+ *  would float over the next views. So a window that survives its
+ *  own close function registers again.
+ ************************************************************/
+function register_back_overlay(gobj)
+{
+    let shell = yui_shell_of(gobj);
+    if(!shell) {
+        return;
+    }
+    let overlay = yui_shell_register_overlay(
+        shell,
+        function() {
+            gobj_write_attr(gobj, "back_overlay", null);
+            close_window(gobj);
+            if(!gobj_is_destroying(gobj) && !gobj_read_attr(gobj, "back_overlay")) {
+                register_back_overlay(gobj);
+            }
+        },
+        {keep_on_navigate: gobj_read_bool_attr(gobj, "keep_on_navigate")}
+    );
+    gobj_write_attr(gobj, "back_overlay", overlay);
+}
+
+/************************************************************
  *
  ************************************************************/
 function close_window(gobj)
@@ -780,14 +814,22 @@ function close_window(gobj)
             yui_shell_of(gobj), kw_close.warning,
             {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
         ).then(function(answer) {
-            if(answer === "yes") {
-                if(on_close) {
-                    on_close();
-                }
-                gobj_stop(gobj);
-                gobj_stop_children(gobj);
-                gobj_destroy(gobj);
+            if(answer !== "yes") {
+                return;
             }
+            /*  The question was asynchronous: the window may have been
+             *  torn down by another path while it was open.  */
+            if(gobj_is_destroying(gobj)) {
+                return;
+            }
+            if(on_close) {
+                on_close();
+            }
+            if(gobj_is_running(gobj)) {
+                gobj_stop(gobj);
+            }
+            gobj_stop_children(gobj);
+            gobj_destroy(gobj);
         });
     }
 }
@@ -841,8 +883,12 @@ function set_max_icon(gobj, maximized)
     }
     let $btn = $container.querySelector('.wc-max');
     if($btn) {
+        let key = maximized ? 'restore' : 'maximize';
         $btn.innerHTML = maximized ? WC_RESTORE : WC_MAX;
-        $btn.setAttribute('aria-label', maximized ? 'restore' : 'maximize');
+        $btn.setAttribute('title', t(key));
+        $btn.setAttribute('data-i18n-title', key);
+        $btn.setAttribute('aria-label', t(key));
+        $btn.setAttribute('data-i18n-aria-label', key);
     }
 }
 

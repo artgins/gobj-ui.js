@@ -267,7 +267,23 @@ function c_text(text)
     return text
         .replace(/\\/g, JSON_BACKSLASH)
         .replace(/"/g, JSON_DQUOTE)
-        .replace(/'/g, JSON_QUOTE);
+        .replace(/'/g, JSON_QUOTE)
+        .replace(/[\u0000-\u001f\u007f]/g, json_control);
+}
+
+/*  A control character (a newline in a description) cannot stand as
+ *  itself in either layer: a raw newline ends the C literal's line,
+ *  and JSON refuses any control character inside a string. It is
+ *  written as its JSON escape, with the backslash doubled for C.  */
+const JSON_SHORT_ESCAPES = {"\n": "n", "\r": "r", "\t": "t", "\b": "b", "\f": "f"};
+
+function json_control(ch)
+{
+    let short = JSON_SHORT_ESCAPES[ch];
+    if(short) {
+        return C_BACKSLASH + short;
+    }
+    return C_BACKSLASH + "u" + ch.charCodeAt(0).toString(16).padStart(4, "0");
 }
 
 /***************************************************************

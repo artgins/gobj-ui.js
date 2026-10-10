@@ -90,7 +90,10 @@ Corollaries:
 - **Resolution is longest-declared-prefix** (`route_resolver.js`): a request for
   `/a/b/c/d` mounts the view declared at the deepest matching ancestor (say
   `/a/b`) and hands it the trailing **`subpath`** (`c/d`). Root `/` matches only
-  exactly, never as a catch-all.
+  exactly, never as a catch-all — **unless** its target is flagged
+  `owns_subtree`, which is what a `shell.tree` declared at `/` synthesizes
+  (SHELL.md §3.2.1): then `/` is the deepest ancestor of every route nothing
+  else declares, and the whole route is its `subpath`.
 - **Routes are normalized before resolution** (`normalize_route`): leading `/`
   ensured, duplicate slashes collapsed, trailing slashes stripped (root `/`
   kept). Hashes come from the outside world — a shared link typed as `#/a/b/`

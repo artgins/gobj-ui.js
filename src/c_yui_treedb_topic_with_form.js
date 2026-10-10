@@ -113,6 +113,7 @@ import {
     yui_asset_ids, yui_asset_element, yui_asset_open_link, yui_asset_release
 } from "./yui_asset.js";
 import {delete_impact} from "./delete_impact.js";
+import {parse_json_field} from "./form_json_field.js";
 
 import "./c_yui_treedb_topic_with_form.css";
 import {yui_shell_show_error} from "./shell_modals.js";
@@ -495,6 +496,7 @@ function mt_stop(gobj)
     close_cell_file_dialog(gobj);
     close_hook_choice(gobj);
     drop_pending_assets(gobj);
+    drop_pending_pages(gobj);
     table__destroy(gobj);
 }
 
@@ -1785,6 +1787,7 @@ function create_tabulator(gobj)
             try {
                 n = tabulator.getDataCount("active");
             } catch(e) {
+                log_warning(`${gobj_short_name(gobj)}: cannot count the table's rows: ${e}`);
                 n = 0;
             }
         }
@@ -2138,7 +2141,9 @@ function build_json_cell_preview(value)
         ['a', {
             class: 'JSON_CELL',
             title: t('show json'),
-            'data-i18n-title': 'show json'
+            'data-i18n-title': 'show json',
+            'aria-label': t('show json'),
+            'data-i18n-aria-label': 'show json'
         }, [
             ['span', {class: 'JSON_CELL_ICON icon yi-eye'}],
             ['span', {class: 'JSON_CELL_PREVIEW'}, text]
@@ -3480,54 +3485,19 @@ function transform__form_value_2_treedb_value(gobj, col, value, operation)
         case "object":
         case "dict":
         case "template":
-            if(is_string(value)) {
-                // Come from the form
-                try {
-                    value = JSON.parse(value);
-                } catch (e) {
-                    value = {};
-                }
-            } else if(is_object(value)) {
-                // Come from the table
-            }
-            if(!is_object(value)) {
-                value = {};
-            }
-            break;
         case "array":
         case "list":
-            if(is_string(value)) {
-                // Come from the form
-                try {
-                    value = JSON.parse(value);
-                } catch (e) {
-                    value = [];
-                }
-            } else if(is_array(value)) {
-                // Come from the table
-            }
-            if(!is_array(value)) {
-                value = [];
-            }
-            break;
         case "coordinates":
-        case "blob":
-            if(is_string(value)) {
-                // Come from the form
-                try {
-                    value = JSON.parse(value);
-                } catch (e) {
-                    value = {};
-                }
-
-            } else if(is_object(value)) {
-                // Come from the table
-            } else if(is_array(value)) {
-                // Come from the table
-            } else {
-                value = {};
+        case "blob": {
+            /*  A value that is no json of the column's shape becomes the
+             *  empty one -- said, not quiet.  */
+            let r = parse_json_field(value, field_desc.type);
+            if(r.error) {
+                log_warning(`${gobj_short_name(gobj)}: column '${col.id}' (${field_desc.type}) holds no valid json, taken as empty`);
             }
+            value = r.value;
             break;
+        }
 
         case "enum":
             switch(field_desc.real_type) {
@@ -4930,6 +4900,25 @@ function request_page(gobj, page, size)
             }
         );
     });
+}
+
+/************************************************************
+ *  The view stops: no page request is waited for any more. Each
+ *  one's watchdog would otherwise fire EV_PAGE_TIMEOUT on a gobj
+ *  stopped -- or destroyed -- 20 s later.
+ ************************************************************/
+function drop_pending_pages(gobj)
+{
+    let priv = gobj.priv;
+    let pending = priv._pending_pages || {};
+    priv._pending_pages = {};
+    for(let req_id of Object.keys(pending)) {
+        let pend = pending[req_id];
+        if(pend.timer) {
+            window.clearTimeout(pend.timer);
+        }
+        pend.reject(new Error("the view stopped"));
+    }
 }
 
 /************************************************************

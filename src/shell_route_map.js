@@ -249,6 +249,8 @@ function build_body(shell, t)
         ["input", {class: "input is-small ROUTEMAP_SEARCH", type: "text",
                    placeholder: t("filter", {defaultValue: "Filter…"}),
                    "data-i18n-placeholder": "filter",
+                   title: t("filter", {defaultValue: "Filter"}),
+                   "data-i18n-title": "filter",
                    "aria-label": t("filter", {defaultValue: "Filter"}),
                    "data-i18n-aria-label": "filter"}]
     );
@@ -334,6 +336,10 @@ function build_body(shell, t)
             $tree,
             ["div", {class: "ROUTEMAP_ACTIONS"}, [
                 ["button", {class: "button is-small ROUTEMAP_PRINT",
+                            title: t("print", {defaultValue: "Print"}),
+                            "data-i18n-title": "print",
+                            "aria-label": t("print", {defaultValue: "Print"}),
+                            "data-i18n-aria-label": "print",
                             i18n: "print"}, t("print", {defaultValue: "Print"})]
             ]]
         ]]

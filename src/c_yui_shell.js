@@ -33,7 +33,7 @@ import {
     SDATA, SDATA_END, data_type_t, event_flag_t, gclass_flag_t,
     gclass_create, log_error, log_warning,
     gobj_create, gobj_destroy,
-    gobj_start, gobj_stop,
+    gobj_start, gobj_stop, gobj_stop_children,
     gobj_parent,
     gobj_gclass_name,
     gobj_publish_event,
@@ -44,6 +44,7 @@ import {
     refresh_language,
     is_gobj,
     gobj_has_event,
+    gobj_short_name,
     gobj_is_destroying,
 } from "@yuneta/gobj-js";
 
@@ -419,6 +420,10 @@ function mt_stop(gobj)
         st.items = {};
         st.active_route = null;
     }
+
+    /*  Whatever else the shell hosts — the site map window — stops
+     *  with it, or destroying the shell destroys a RUNNING gobj.  */
+    gobj_stop_children(gobj);
 }
 
 /***************************************************************
@@ -1795,12 +1800,13 @@ function build_toolbar_action_item(gobj, it)
         btn_attrs["aria-haspopup"] = "menu";
         btn_attrs["aria-expanded"] = "false";
     }
-    /*  Hover tooltip: prefer explicit `tooltip`, fall back to
-     *  `aria_label` (usually the same intent — e.g. "Search (Ctrl+F)").
-     *  Skip when both empty so we don't emit `title=""` noise.
+    /*  Hover tooltip: prefer explicit `tooltip`, then `aria_label`
+     *  (usually the same intent — e.g. "Search (Ctrl+F)"), then the
+     *  name: every control carries a title. Skip only when all are
+     *  empty, so we don't emit `title=""` noise.
      *  Mirror the value in `data-i18n-title` so refresh_language()
      *  can re-translate the tooltip on language switch. */
-    let tip = it.tooltip || it.aria_label;
+    let tip = it.tooltip || i18n_aria;
     if(tip) {
         btn_attrs.title = tip;
         btn_attrs["data-i18n-title"] = tip;
@@ -1866,6 +1872,11 @@ function build_toolbar_brand_item(gobj, it)
     } else {
         attrs.type = "button";
     }
+    let tip = it.tooltip || i18n_aria;
+    if(tag !== "div" && tip) {
+        attrs.title = tip;
+        attrs["data-i18n-title"] = tip;
+    }
     let $item = createElement2([tag, attrs, [
         ["img", {class: "yui-toolbar-brand-logo",
                  src: it.logo, alt: alt}],
@@ -1904,7 +1915,7 @@ function build_toolbar_avatar_item(gobj, it)
         attrs["aria-haspopup"] = "menu";
         attrs["aria-expanded"] = "false";
     }
-    let tip = it.tooltip || it.aria_label;
+    let tip = it.tooltip || i18n_aria;
     if(tip) {
         attrs.title = tip;
         attrs["data-i18n-title"] = tip;
@@ -1991,7 +2002,7 @@ function build_toolbar_connection_item(gobj, it)
         "aria-label": aria_key,
         "data-i18n-aria-label": i18n_aria
     };
-    let tip = it.tooltip || it.aria_label;
+    let tip = it.tooltip || i18n_aria;
     if(tip) {
         attrs.title = tip;
         attrs["data-i18n-title"] = tip;
@@ -2219,6 +2230,14 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
         $panel.style.right = "auto";
         $panel.style.left = `${Math.round(left)}px`;
     }
+    /*  And inside it vertically: on a short phone screen a long menu
+     *  (one row per language) ran off the bottom, out of reach. It
+     *  scrolls inside itself instead (see `dismiss` below).  */
+    let max_h = window.innerHeight - Math.max(0, pos.top) - margin;
+    if(max_h > 0) {
+        $panel.style.maxHeight = `${Math.round(max_h)}px`;
+        $panel.style.overflowY = "auto";
+    }
 
     /*  Translate the lazily-built panel (see the note above). */
     yui_shell_translate(gobj, $panel);
@@ -2242,7 +2261,15 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
      *  trigger.  Match native <select> UX and dismiss on either.
      *  Capture-phase + passive scroll so we hear all scrollers (any
      *  ancestor, not just window) without blocking them. */
-    let dismiss = () => close_toolbar_dropdown(gobj);
+    let dismiss = (ev) => {
+        /*  The panel's own scroll is the reader reaching its last rows,
+         *  not a layout shift.  */
+        if(ev && ev.type === "scroll" && ev.target && ev.target !== document &&
+                $panel.contains(ev.target)) {
+            return;
+        }
+        close_toolbar_dropdown(gobj);
+    };
     document.addEventListener("scroll", dismiss, {capture: true, passive: true});
     window.addEventListener("resize", dismiss);
 
@@ -2359,6 +2386,8 @@ function build_dropdown_row(gobj, sub, idx)
     };
     if(i18n_aria) {
         attrs["data-i18n-aria-label"] = i18n_aria;
+        attrs.title = i18n_aria;
+        attrs["data-i18n-title"] = i18n_aria;
     }
     let $btn = createElement2(["button", attrs, children]);
     $btn.addEventListener("click", ev => {
@@ -2442,6 +2471,7 @@ function push_escape(gobj, layer, handler)
 {
     let priv = gobj.priv;
     if(!priv || !priv.escape_stack) {
+        log_warning(`C_YUI_SHELL: push_escape('${layer}') on a shell that is gone: Escape will not close it`);
         return;
     }
     priv.escape_stack.push({ layer: layer, handler: handler });
@@ -2451,7 +2481,7 @@ function pop_escape(gobj, handler)
 {
     let priv = gobj.priv;
     if(!priv || !priv.escape_stack) {
-        return;
+        return;     /*  not an error: an overlay closing after its shell was torn down  */
     }
     let idx = priv.escape_stack.findIndex(e => e.handler === handler);
     if(idx >= 0) {
@@ -2513,9 +2543,15 @@ function drain_overlays(gobj)
     /*  Survivors keep their relative order: the stack is a LIFO and a
      *  panel that outlives the drain must stay where it was, or Escape
      *  would start closing overlays in an order the user never built. */
+    /*  The stack is taken whole BEFORE any close runs: an overlay that
+     *  vetoes its close registers again (C_YUI_WINDOW), and popping
+     *  the live stack would pop that new entry and close it again,
+     *  for ever. Such an entry is newer than every survivor, so it
+     *  goes above them.  */
+    let entries = priv.overlay_stack.splice(0);
     let kept = [];
-    while(priv.overlay_stack.length > 0) {
-        let entry = priv.overlay_stack.pop();
+    while(entries.length > 0) {
+        let entry = entries.pop();
         if(entry.keep_on_navigate) {
             kept.unshift(entry);
             continue;
@@ -2526,9 +2562,7 @@ function drain_overlays(gobj)
             log_warning(`C_YUI_SHELL: overlay close on navigation failed: ${e}`);
         }
     }
-    for(let entry of kept) {
-        priv.overlay_stack.push(entry);
-    }
+    priv.overlay_stack.unshift(...kept);
 }
 
 /*  A URL rewrite moved the entry `st` tags to `hash`.  When `st` is a live
@@ -2817,7 +2851,10 @@ function ac_nav_clicked(gobj, event, kw, src)
 {
     let route = (kw && kw.route) || "";
     if(empty_string(route)) {
-        return 0;
+        /*  C_YUI_NAV publishes no click for an item without a route:
+         *  whoever sent this one is broken.  */
+        log_warning(`C_YUI_SHELL: ${event} with no route, from ${gobj_short_name(src)}`);
+        return -1;
     }
 
     /*  A click on a section returns to where the user was inside it.
@@ -2947,8 +2984,9 @@ function prune_route(shell_gobj, route)
 
 function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
 {
-    let priv = shell_gobj.priv;
+    let priv = shell_gobj && shell_gobj.priv;
     if(!priv) {
+        log_error(`C_YUI_SHELL: yui_shell_set_submenu('${parent_item_id}') — no shell`);
         return -1;
     }
     let nav = find_secondary_nav(priv, parent_item_id);
@@ -3005,8 +3043,12 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
     }
     priv.dynamic_routes[parent_item_id] = new_routes;
 
-    /*  Push the new items into the nav (rebuilds its DOM in place). */
+    /*  Push the new items into the nav (rebuilds its DOM in place), and
+     *  re-apply the translator: the rebuilt labels carry their keys as
+     *  raw text until somebody translates them (the same policy as the
+     *  index view below, and as C_YUI_NODE's projections).  */
     gobj_send_event(nav, "EV_SET_ITEMS", {items: items}, shell_gobj);
+    yui_shell_translate(shell_gobj, gobj_read_attr(nav, "$container"));
 
     /*  Section-index landing (submenu.index): keep the synthesized
      *  target and any mounted index view (a "cards" C_YUI_NAV in the
@@ -3040,18 +3082,21 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
  *          Global methods table
  *---------------------------------------------*/
 /***************************************************************
- *  EV_CONNECTION_STATE is an OPTIONAL fact: a view that waits for a
- *  backend answer subscribes to it by name. An app that subscribed
- *  to EVERY event of its shell with one attr (`subscriber`) did not
- *  ask for it and does not declare it -- published to it anyway, the
- *  event would be an FSM error in the app on every connection edge,
- *  and adding it to the shell a breaking change for every such app.
- *  So it reaches only the subscribers that declare it. Every other
- *  event of the shell goes out as before.
+ *  EV_CONNECTION_STATE and EV_ICONS_CHANGED are OPTIONAL facts: a
+ *  view that needs one subscribes to it by name. An app that
+ *  subscribed to EVERY event of its shell with one attr
+ *  (`subscriber`) did not ask for them and does not declare them --
+ *  published to it anyway, each would be an FSM error in the app
+ *  every time it fires, and adding one to the shell a breaking
+ *  change for every such app (7.26.6 did exactly that with
+ *  EV_ICONS_CHANGED). So they reach only the subscribers that
+ *  declare them. Every other event of the shell goes out as before.
  ***************************************************************/
+const OPTIONAL_EVENTS = new Set(["EV_CONNECTION_STATE", "EV_ICONS_CHANGED"]);
+
 function mt_publication_pre_filter(gobj, subs, event, kw)
 {
-    if(event !== "EV_CONNECTION_STATE") {
+    if(!OPTIONAL_EVENTS.has(event)) {
         return 1;
     }
     let subscriber = subs && subs.subscriber;
@@ -3123,7 +3168,9 @@ function create_gclass(gclass_name)
          *  it was written, and called yui_shell_icons_changed). A class name
          *  picks its icon up by itself once the rule exists, but a view that
          *  DECIDED, at render time, whether a name is an icon at all -- the
-         *  icon cell of a table -- has to decide again.  */
+         *  icon cell of a table -- has to decide again. Delivered only to
+         *  the subscribers that declare it: see
+         *  mt_publication_pre_filter().  */
         ["EV_ICONS_CHANGED",          event_flag_t.EVF_OUTPUT_EVENT
                                      |event_flag_t.EVF_PUBLIC_EVENT
                                      |event_flag_t.EVF_NO_WARN_SUBS],
@@ -3484,9 +3531,20 @@ function yui_shell_register_event_handler(shell_gobj, event, gclass)
 
 /*  Drawer helpers — toggle the off-canvas nav from the outside
  *  (e.g. a hamburger button in the toolbar).  menu_id is optional. */
-function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj, menu_id);   }
-function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }
-function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }
+function yui_shell_open_drawer(shell_gobj, menu_id)
+{
+    open_drawer(shell_gobj, menu_id);
+}
+
+function yui_shell_close_drawer(shell_gobj, menu_id)
+{
+    close_drawer(shell_gobj, menu_id);
+}
+
+function yui_shell_toggle_drawer(shell_gobj, menu_id)
+{
+    toggle_drawer(shell_gobj, menu_id);
+}
 
 /*  Escape priority chain — public API used by overlays that the
  *  shell does not own (modals from #4, future popups, custom
@@ -3612,7 +3670,7 @@ function yui_shell_set_translator(shell_gobj, t)
  *
  *  The division of labour, unchanged: LIBRARY-built DOM is
  *  translated through here; APP view gclasses translate their own
- *  DOM (they own a `t` — see mount_view).
+ *  DOM (they own a `t` — see build_view_gobj).
  *
  *  Silent no-op with no shell or no translator: an app that never
  *  registered one keeps the previous behaviour instead of losing

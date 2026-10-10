@@ -5,7 +5,99 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 7.26.7
+
+Fixes from the read-only audit of gobj-js, gobj-ui and their use in the
+yunovatios SPAs (2026-10-10).
+
+- **security: data no longer goes to `createElement2()` as a bare string**,
+  which it parses as HTML when it starts with `<`. A window's `title_prefix`
+  (a treedb or topic name), the dock chip's label, a remote gclass's attr
+  default and description, a form select's options: each goes in as a Text
+  node, so `<img src=x onerror=...>` is shown, not run.
+- **i18n: new consumer keys `restore` and `navigation`** (the maximise
+  button's restored state, the nav landmarks).
+- **shell: `EV_ICONS_CHANGED` reaches only the subscribers that declare it**,
+  like `EV_CONNECTION_STATE`. 7.26.6 added it as an output event of the shell,
+  and an app that subscribes to every event of its shell (`subscriber`) logged
+  *"Event NOT DEFINED in state"* on every load or write of `__icons__` -- every
+  visit to a treedb view against an SDK >= 7.26.7. Wiring-tested.
+- **form: a json field that does not parse is refused, not saved as `{}`/`[]`.**
+  `validate_form()` asked the browser and the tables, and a jsoneditor is
+  neither; the conversion caught the parse error and stored the empty value, so
+  a trailing comma in text mode wiped the column with no log. Now a field whose
+  text is not json -- or not its column's shape (a list in a dict) -- is marked
+  (`invalid json`) and Save does nothing until it is fixed; the conversions that
+  still meet one log it. `form_json_field.js` (unit-tested) holds the rule;
+  wiring-tested through the real gclass.
+- **form: its widgets are destroyed with it** (Tom Select, the jsoneditor,
+  every Tabulator, nested ones first). Removing their DOM left Tom Select's
+  `document`/`window` listeners and the editor's Svelte app alive for the life
+  of the page, one set per form opened.
+- **form:** the delete/add cell icons and the "add row" button carry their
+  names; the radio is built as nodes (its name was interpolated into markup);
+  a failed `addRow` is logged.
+- **schema export: a control character in a value no longer breaks the C
+  file.** `c_text()` escaped `\`, `"` and `'` only; a newline in a description
+  ended the literal's line. Control characters are written as their JSON
+  escapes, backslash doubled for C. Tested through the yuno's loader.
+- **wizard: its title and its primary button translate and re-translate.** It
+  stamped a bare `i18n` attribute (which `refresh_language()` does not read)
+  and put the raw key in the text; on the last step the button read `confirm`
+  while its keys still said `next`. `back_label`/`next_label` are honoured.
+  Wiring-tested.
+- **window: a window that vetoes its close keeps its Back entry.** The shell
+  takes the entry off before calling the close; a subscriber that set
+  `abort_close` left the window up with no entry, so Back no longer closed it.
+  It registers again. The shell's overlay drain now takes the stack whole
+  before closing, so a re-registered entry is not closed again in a loop.
+  Wiring-tested (the document double learnt `template.content`).
+- **window:** the ✕ goes through `EV_CLOSE_WINDOW`; the asynchronous "close
+  anyway?" path checks the window is still alive; the min/max/close buttons and
+  the dock chip's ✕ carry a `title`; maximize/restore swaps its keys with its
+  glyph (`restore` was a literal); a `manager` name that resolves to nothing is
+  logged. New consumer i18n key: **`restore`**.
+- **pager:** back/discard carry a `title`; the root page's ✕ swaps its keys too
+  (it was announced as "Back" after a language switch).
+- **shell:** `yui_shell_set_submenu()` translates the nav it rebuilds; its
+  `mt_stop` stops every child (the site map window was left running); the
+  toolbar dropdown fits the viewport and scrolls inside itself instead of
+  closing on its own scroll; every toolbar item and dropdown row carries a
+  `title`; an empty-route nav click and a `push_escape` on a dead shell are
+  logged.
+- **nav:** tabs with `show_label:false` are named; the closable tab's ✕ is
+  focusable and answers Enter/Space; accordion heads carry their names; a nav
+  link's `title` falls back to its label; the landmark `aria-label` is a key
+  (`nav_label`, else **`navigation`** -- new consumer key) instead of the bare
+  `menu_id` ("secondary.main.system"); `css_escape` escapes backslashes.
+- **map: a marker click goes through the FSM (`EV_MARKER_CLICKED`) and opens
+  ONE window per marker.** A second click created a second window under the
+  same service name, moved the one `$container` into it and left the first
+  empty. The windows stop with the map; the fallback popup is built as nodes
+  (`setHTML` with the marker's name and id).
+- **graphs:** `C_YUI_GOBJ_TREE_JS` and `C_YUI_JSON_GRAPH` send `EV_NODE_CLICK`
+  with an identity, not the G6 event; the gobj tree clears its find timer on
+  destroy; the nodes tree's three document drags end on `pointercancel`.
+- **treedb table:** pending page requests are dropped on stop (their watchdog
+  fired `EV_PAGE_TIMEOUT` on a stopped gobj 20 s later); the json cell carries
+  an `aria-label`; the copy path's json columns log what they cannot parse.
+- **period:** mode buttons and "today" carry `title`/`aria-label`.
+  **gclass view:** the zone toggles too. **dev window:** the direction chips
+  carry an `aria-label`. **site map:** the filter and Print carry both.
+- **uplot:** the container it creates is stored as an element
+  (`gobj_write_bool_attr` stored a boolean).
+- **vite plugin:** the Content-Security-Policy is always emitted (with
+  `connect-src 'self'` and a warning when `csp_connect_src` is missing; it was
+  silently dropped), and the title/metadata are escaped.
+- Braces on the one-line bodies of `yui_dev.js`, `c_yui_shell.js` and
+  `c_yui_json_graph.js`; `yui_table_filter_clear.js` and a few comments of
+  `c_yui_form.js` translated to English; `delete_impact.js` no longer says a
+  column can be hook and fkey at once.
+- Docs: README (consumers and dist-tags of today, current peer floors, the
+  7.23.172 BREAKING, the GUI rules a consumer inherits, `deploy-round`),
+  ROUTING.md (`owns_subtree` at `/`), the stale `mount_view` reference.
+  `SHELL.spanish.md` deleted: unlinked, Spanish in a public repo, and a third
+  of `SHELL.md`.
 
 ## 7.26.6
 

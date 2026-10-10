@@ -211,7 +211,7 @@ function build_ui(gobj)
                 }
             ]
         );
-        gobj_write_bool_attr(gobj, "$container", $container);
+        gobj_write_attr(gobj, "$container", $container);
         gobj_write_bool_attr(gobj, "own_container", true);
     }
 

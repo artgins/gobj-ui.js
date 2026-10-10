@@ -38,7 +38,7 @@ const {
     gobj_change_state, gobj_current_state,
     set_log_callback,
 } = gobj_js;
-const {register_c_yui_shell, yui_shell_set_connection_state} = await import("./c_yui_shell.js");
+const {register_c_yui_shell, yui_shell_set_connection_state, yui_shell_icons_changed} = await import("./c_yui_shell.js");
 const {register_c_yui_treedb_topics} = await import("./c_yui_treedb_topics.js");
 
 const logged = [];
@@ -252,6 +252,14 @@ describe("a Save in flight when the backend drops", () => {
         const {shell} = build("t4");
         yui_shell_set_connection_state(shell, true);
         yui_shell_set_connection_state(shell, false);
+        expect(errors()).toEqual([]);
+    });
+
+    test("nor EV_ICONS_CHANGED, which 7.26.6 added to the shell", () => {
+        /*  An app hosting a treedb view heard it on every load of
+         *  `__icons__` and answered "Event NOT DEFINED in state".  */
+        const {shell} = build("t4b");
+        yui_shell_icons_changed(shell);
         expect(errors()).toEqual([]);
     });
 

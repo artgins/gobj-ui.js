@@ -5579,6 +5579,7 @@ function start_node_resize(gobj, e, mx, my)
     function onPointerUp(ev) {
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
 
         // Calculate final size in world coordinates from the viewport rect deltas
         const dLeft = (currentRect.left - origVpRect.left) / zoom;
@@ -5631,8 +5632,19 @@ function start_node_resize(gobj, e, mx, my)
         });
     }
 
+    /*  A cancelled pointer (the browser took the touch) is no drop: the
+     *  listeners go, and what was there stays. Without it they stayed
+     *  on `document` until some later pointerup, which then dropped.  */
+    function onPointerCancel(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
+        update_resize_handles_position(gobj);
+    }
+
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerCancel);
 }
 
 /************************************************************
@@ -6477,6 +6489,7 @@ function start_link_drag(gobj, e)
     function onPointerUp(ev) {
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
         priv.$container.style.cursor = '';
 
         // Remove drag line
@@ -6503,8 +6516,24 @@ function start_link_drag(gobj, e)
         }
     }
 
+    /*  A cancelled pointer (the browser took the touch) is no drop: the
+     *  listeners go, and what was there stays. Without it they stayed
+     *  on `document` until some later pointerup, which then dropped.  */
+    function onPointerCancel(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
+        priv.$container.style.cursor = '';
+        if(priv._link_drag_svg) {
+            priv._link_drag_svg.remove();
+            priv._link_drag_svg = null;
+        }
+        exit_linking_mode(gobj);
+    }
+
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerCancel);
 }
 
 /************************************************************
@@ -6744,6 +6773,7 @@ function start_port_resize(gobj, e)
     function onPointerUp(ev) {
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
 
         // Calculate new radius in world coordinates
         const dx = ev.clientX - clientCx;
@@ -6769,8 +6799,19 @@ function start_port_resize(gobj, e)
         });
     }
 
+    /*  A cancelled pointer (the browser took the touch) is no drop: the
+     *  listeners go, and what was there stays. Without it they stayed
+     *  on `document` until some later pointerup, which then dropped.  */
+    function onPointerCancel(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
+        update_port_resize_handles_position(gobj);
+    }
+
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerCancel);
 }
 
 /************************************************************
