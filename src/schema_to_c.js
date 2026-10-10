@@ -279,6 +279,16 @@ const JSON_SHORT_ESCAPES = {"\n": "n", "\r": "r", "\t": "t", "\b": "b", "\f": "f
 
 function json_control(ch)
 {
+    /*  A NUL has no way through: jansson refuses "\u0000" in a string
+     *  unless the loader passes JSON_ALLOW_NUL, which the yunos do not, so
+     *  the whole schema would fail to load. It is written as U+FFFD, the
+     *  replacement character -- visible in the literal and on screen, not
+     *  dropped without a trace (this module is dependency-free on purpose:
+     *  scripts/schema_diagram.mjs loads it with no npm install, so it has
+     *  no log to write to).  */
+    if(ch === "\u0000") {
+        return C_BACKSLASH + "ufffd";
+    }
     let short = JSON_SHORT_ESCAPES[ch];
     if(short) {
         return C_BACKSLASH + short;

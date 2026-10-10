@@ -44,12 +44,14 @@ export function yunetaHtmlPlugin(options = {}) {
                 const configPath = options.configPath ||
                     path.resolve(process.cwd(), "config.json");
 
+                /*  Without a config.json the page still gets its policy
+                 *  (connect-src 'self' only): it used to get none at all.  */
+                let config = {};
                 if (!fs.existsSync(configPath)) {
                     console.error("⚠️ config.json not found at", configPath);
-                    return html;
+                } else {
+                    config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
                 }
-
-                const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
                 /*------------------------------------------*
                  *  Title
@@ -101,8 +103,11 @@ export function yunetaHtmlPlugin(options = {}) {
                 {
                     let origins = [];
                     if (Array.isArray(config.csp_connect_src)) {
+                        /*  Escaped: an origin lands inside the content="..."
+                         *  attribute, where a quote would end it.  */
                         origins = config.csp_connect_src
-                            .filter(s => !s.startsWith("_comment"));
+                            .filter(s => typeof s === "string" && !s.startsWith("_comment"))
+                            .map(escape_html);
                     } else {
                         console.warn(
                             "⚠️ config.json has no csp_connect_src array: " +

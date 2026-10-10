@@ -132,6 +132,6 @@ describe("a json field that does not parse", () => {
         expect($editor.classList.contains("is-danger")).toBe(false);
         gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
         expect(saved.length).toBe(1);
-        expect(saved[0].settings).toBe('{"a": 1}');
+        expect(saved[0].settings).toEqual({a: 1});     // parsed: the backend gets json, not text
     });
 });

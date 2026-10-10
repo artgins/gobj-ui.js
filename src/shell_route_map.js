@@ -37,6 +37,7 @@ import {yui_shell_nav_map} from "./c_yui_shell.js";
 import {attach_clear} from "./yui_inputs.js";
 
 import i18next from "i18next";
+import {text_node} from "./yui_text.js";
 
 const WIN_NAME = "shell-route-map-window";
 
@@ -78,10 +79,10 @@ function render_node(node)
         row.push(["span", {class: "icon ROUTEMAP_ICON"},
             [["i", {class: node.icon}]]]);
     }
-    row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label}, node.label]);
+    row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label}, text_node(node.label)]);
     /*  Documentation columns: route + implementing gclass + action event. */
     if(node.route) {
-        row.push(["code", {class: "ROUTEMAP_ROUTE"}, node.route]);
+        row.push(["code", {class: "ROUTEMAP_ROUTE"}, text_node(node.route)]);
     }
     if(node.gclass) {
         row.push(["span", {class: "ROUTEMAP_GCLASS",
@@ -89,7 +90,7 @@ function render_node(node)
             node.gclass]);
     }
     if(node.event) {
-        row.push(["span", {class: "ROUTEMAP_EVENT"}, node.event]);
+        row.push(["span", {class: "ROUTEMAP_EVENT"}, text_node(node.event)]);
     }
     /*  A reference: this route's structure is drawn under whichever
      *  surface owns it (the model's dedupe keeps one subtree per
@@ -479,11 +480,10 @@ export function yui_shell_show_route_map(shell, opts)
         let win_ref = {gobj: null};
         /*  A workspace surface, not a thing floating over one view: it
          *  joins the dock when the app HAS one (minimise, restore, focus
-         *  like any other window).  Passed only when it exists —
-         *  gobj_find_service() answers `undefined` for an absent
-         *  service, and handing undefined to a DTP_POINTER attr is one
-         *  "attr undefined: manager" per open in every app without a
-         *  dock.  Without one the map stays a floating overlay, and
+         *  like any other window).  Passed only when it exists (an absent
+         *  service is null, which a DTP_POINTER takes as "no dock"; up to
+         *  gobj-js 7.12.0 it was undefined, one "attr undefined: manager"
+         *  per open).  Without one the map stays a floating overlay, and
          *  `keep_on_navigate` gives it the same survives-navigation
          *  behaviour there. */
         let $body = build_body(shell, t);
@@ -505,11 +505,10 @@ export function yui_shell_show_route_map(shell, opts)
             title:      "site map",
             icon:       "yi-bars",
             body:       $body,
-            /*  Opt into the dock/taskbar if the app provides one. `|| null`
-             *  because gobj_find_service returns UNDEFINED when absent, and an
-             *  undefined attr value logs "attr undefined: manager" — one per
-             *  open in every app without a window manager (wattyzer). The same
-             *  trap yui_dev.js already documents; null = no dock, and
+            /*  Opt into the dock/taskbar if the app provides one: null = no
+             *  dock (gobj_find_service() answers null for an absent service
+             *  since gobj-js 7.12.0; the `|| null` is the old guard, from when
+             *  it answered undefined), and
              *  keep_on_navigate then gives the map the same
              *  survives-navigation behaviour a docked window has. */
             manager: gobj_find_service("__window_manager__", false) || null,

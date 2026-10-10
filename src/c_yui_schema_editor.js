@@ -158,6 +158,7 @@ import {
 } from "./shell_modals.js";
 
 import {t} from "i18next";
+import {text_node} from "./yui_text.js";
 
 
 /***************************************************************
@@ -1111,11 +1112,11 @@ function render_toolbar(gobj)
     ];
     if(priv.treedb_id) {
         $trail.push(["span", {class: "SCHEMA_CRUMB_SEP"}, "/"]);
-        $trail.push(["span", {class: "SCHEMA_CRUMB_TREEDB"}, priv.treedb_id]);
+        $trail.push(["span", {class: "SCHEMA_CRUMB_TREEDB"}, text_node(priv.treedb_id)]);
     }
     if(priv.topic_name) {
         $trail.push(["span", {class: "SCHEMA_CRUMB_SEP"}, "/"]);
-        $trail.push(["span", {class: "SCHEMA_CRUMB_TOPIC"}, priv.topic_name]);
+        $trail.push(["span", {class: "SCHEMA_CRUMB_TOPIC"}, text_node(priv.topic_name)]);
     }
     if(priv.diagram) {
         $trail.push(["span", {class: "SCHEMA_CRUMB_SEP"}, "/"]);

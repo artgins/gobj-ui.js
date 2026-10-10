@@ -176,6 +176,7 @@ import {
 import {yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 import {yui_shell_of} from "./c_yui_shell.js";
 import {yui_shell_show_error} from "./shell_modals.js";
+import {g6_event_kw} from "./g6_event_kw.js";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -473,6 +474,7 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
+    _drag_unwire:   null,   // removes the document listeners of a drag in flight
     /*---------------- camera anchor ----------------*/
     anchor_id:      "",     // the node the camera keeps in the middle
     anchor_state:   "off",  // "off" | "arming" | "on"
@@ -716,6 +718,11 @@ function mt_destroy(gobj)
     let priv = gobj.priv;
 
     uninstall_fold_listener(gobj);
+
+    if(priv._drag_unwire) {
+        priv._drag_unwire();    // a resize or a link drag still in flight
+        priv._drag_unwire = null;
+    }
 
     if(priv._on_pointerdown_focus) {
         priv.$container.removeEventListener(
@@ -1059,30 +1066,6 @@ function build_graph(gobj)
     });
 }
 
-/************************************************************
- *  A G6 event, as PLAIN JSON.
- *
- *  A kw is dumped by the `machine` trace (`trace_json(kw)`), and a
- *  G6 / @antv/g event is circular: serializing one THROWS, so the
- *  first thing a kw carrying `evt` breaks is the trace the FSM
- *  exists to feed. It also drags a live graph element into a
- *  message that may be read after that element is gone.
- *
- *  What the actions read of it is an id and three scalars. The
- *  event itself never leaves the callback that received it.
- ************************************************************/
-function g6_event_kw(evt)
-{
-    let target = (evt && evt.target)? evt.target : null;
-    let client = (evt && evt.client)? evt.client : null;
-
-    return {
-        id:       (target && target.id)? String(target.id) : "",
-        shift:    !!(evt && evt.shiftKey),
-        client_x: (client && typeof client.x === "number")? client.x : 0,
-        client_y: (client && typeof client.y === "number")? client.y : 0
-    };
-}
 
 /************************************************************
  *  Configure G6 event handlers
@@ -5645,6 +5628,13 @@ function start_node_resize(gobj, e, mx, my)
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
     document.addEventListener('pointercancel', onPointerCancel);
+    /*  A view destroyed in the middle of the drag takes them off too
+     *  (mt_destroy): they are closures over this gobj, on `document`.  */
+    gobj.priv._drag_unwire = function() {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
+    };
 }
 
 /************************************************************
@@ -6534,6 +6524,13 @@ function start_link_drag(gobj, e)
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
     document.addEventListener('pointercancel', onPointerCancel);
+    /*  A view destroyed in the middle of the drag takes them off too
+     *  (mt_destroy): they are closures over this gobj, on `document`.  */
+    gobj.priv._drag_unwire = function() {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
+    };
 }
 
 /************************************************************
@@ -6812,6 +6809,13 @@ function start_port_resize(gobj, e)
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
     document.addEventListener('pointercancel', onPointerCancel);
+    /*  A view destroyed in the middle of the drag takes them off too
+     *  (mt_destroy): they are closures over this gobj, on `document`.  */
+    gobj.priv._drag_unwire = function() {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', onPointerCancel);
+    };
 }
 
 /************************************************************

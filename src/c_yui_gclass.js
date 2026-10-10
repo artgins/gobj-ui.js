@@ -85,6 +85,7 @@ import {yui_copy_json, yui_button_mark_done} from "./yui_clipboard.js";
 import {t} from "i18next";
 
 import "./c_yui_gclass.css";
+import {text_node} from "./yui_text.js";
 
 
 /***************************************************************
@@ -451,7 +452,7 @@ function render_raw(gobj)
 
     let dump = json_text_dump(description, MAX_RAW_CHARS);
     let children = [
-        ['pre', {class: 'GCLASS_RAW_BODY'}, dump.text]
+        ['pre', {class: 'GCLASS_RAW_BODY'}, document.createTextNode(String(dump.text))]
     ];
     if(dump.capped) {
         children.push(
@@ -568,7 +569,7 @@ function build_head(gobj, model)
     }
 
     for(let flag of model.gcflag) {
-        items.push(['span', {class: 'GCLASS_CHIP GCLASS_GCFLAG'}, flag]);
+        items.push(['span', {class: 'GCLASS_CHIP GCLASS_GCFLAG'}, text_node(flag)]);
     }
 
     let current = gobj_read_str_attr(gobj, "current_state");
@@ -710,7 +711,7 @@ function flag_chips(flags)
         } else if(flag.indexOf("REQUIRED") >= 0) {
             cls += ' is-required';
         }
-        return ['span', {class: cls}, flag];
+        return ['span', {class: cls}, text_node(flag)];
     });
 }
 
@@ -725,13 +726,13 @@ function build_attrs(attrs)
 
     let rows = attrs.map(function(a) {
         return ['tr', row_attrs(`${a.id} ${a.type} ${a.flags.join(" ")} ${a.description}`), [
-            ['td', {class: 'GCLASS_CELL_KEY'}, a.id],
-            ['td', {class: 'GCLASS_CELL_TYPE'}, a.type],
+            ['td', {class: 'GCLASS_CELL_KEY'}, text_node(a.id)],
+            ['td', {class: 'GCLASS_CELL_TYPE'}, text_node(a.type)],
             ['td', {class: 'GCLASS_CELL_FLAGS'}, flag_chips(a.flags)],
             /*  What a remote yuno answers is data, not markup: Text nodes,
              *  or a default starting with '<' would be parsed as HTML.  */
-            ['td', {class: 'GCLASS_CELL_DEFAULT'}, document.createTextNode(String(a.default_value ?? ""))],
-            ['td', {class: 'GCLASS_CELL_DESC'}, document.createTextNode(String(a.description ?? ""))]
+            ['td', {class: 'GCLASS_CELL_DEFAULT'}, text_node(a.default_value)],
+            ['td', {class: 'GCLASS_CELL_DESC'}, text_node(a.description)]
         ]];
     });
 
@@ -767,20 +768,20 @@ function build_commands(commands)
     for(let c of commands) {
         if(c.kind === "section") {
             rows.push(['tr', row_attrs(c.label, {class: 'GCLASS_ROW GCLASS_CMD_SECTION'}), [
-                ['td', {colspan: '2'}, c.label]
+                ['td', {colspan: '2'}, text_node(c.label)]
             ]]);
             continue;
         }
 
-        let name_items = [['span', {class: 'GCLASS_CMD_NAME'}, c.id]];
+        let name_items = [['span', {class: 'GCLASS_CMD_NAME'}, text_node(c.id)]];
         for(let alias of c.alias) {
-            name_items.push(['span', {class: 'GCLASS_CHIP GCLASS_ALIAS'}, alias]);
+            name_items.push(['span', {class: 'GCLASS_CHIP GCLASS_ALIAS'}, text_node(alias)]);
         }
         name_items = name_items.concat(flag_chips(c.flags));
 
         rows.push(['tr', row_attrs(`${c.id} ${c.alias.join(" ")} ${c.description}`), [
             ['td', {class: 'GCLASS_CELL_KEY'}, name_items],
-            ['td', {class: 'GCLASS_CELL_DESC'}, c.description]
+            ['td', {class: 'GCLASS_CELL_DESC'}, text_node(c.description)]
         ]]);
 
         for(let p of c.parameters) {
@@ -788,10 +789,10 @@ function build_commands(commands)
                                        {class: 'GCLASS_ROW GCLASS_CMD_PARAM'}), [
                 ['td', {class: 'GCLASS_CELL_KEY'}, [
                     ['span', {class: 'GCLASS_PARAM_MARK'}, "↳"],
-                    ['span', {class: 'GCLASS_PARAM_NAME'}, p.id],
-                    ['span', {class: 'GCLASS_PARAM_TYPE'}, p.type]
+                    ['span', {class: 'GCLASS_PARAM_NAME'}, text_node(p.id)],
+                    ['span', {class: 'GCLASS_PARAM_TYPE'}, text_node(p.type)]
                 ].concat(flag_chips(p.flags))],
-                ['td', {class: 'GCLASS_CELL_DESC'}, p.description]
+                ['td', {class: 'GCLASS_CELL_DESC'}, text_node(p.description)]
             ]]);
         }
     }
@@ -842,8 +843,8 @@ function build_traces(levels)
 
     let rows = levels.map(function(l) {
         return ['tr', row_attrs(`${l.id} ${l.description}`), [
-            ['td', {class: 'GCLASS_CELL_KEY'}, l.id],
-            ['td', {class: 'GCLASS_CELL_DESC'}, l.description]
+            ['td', {class: 'GCLASS_CELL_KEY'}, text_node(l.id)],
+            ['td', {class: 'GCLASS_CELL_DESC'}, text_node(l.description)]
         ]];
     });
 
@@ -881,7 +882,7 @@ function build_machine(gobj, fsm)
     ];
     for(let state of fsm.states) {
         let cls = 'GCLASS_MX_STATE';
-        let items = [['span', {class: 'GCLASS_MX_STATE_NAME'}, state.name]];
+        let items = [['span', {class: 'GCLASS_MX_STATE_NAME'}, text_node(state.name)]];
 
         if(state.name === current) {
             cls += ' is-current';
@@ -901,7 +902,7 @@ function build_machine(gobj, fsm)
     let body_rows = fsm.rows.map(function(row) {
         let cells = [
             ['td', {class: 'GCLASS_MX_EVENT'},
-             [['span', {}, row.event]].concat(event_flag_chips(row.flags))]
+             [['span', {}, text_node(row.event)]].concat(event_flag_chips(row.flags))]
         ];
         row.cells.forEach(function(cell, i) {
             let state = fsm.states[i];
@@ -918,7 +919,7 @@ function build_machine(gobj, fsm)
 
             let items = [];
             if(cell.action) {
-                items.push(['span', {class: 'GCLASS_MX_ACTION'}, cell.action]);
+                items.push(['span', {class: 'GCLASS_MX_ACTION'}, text_node(cell.action)]);
             } else if(cell.has_action) {
                 /*  The C side cannot name an action: `states2json()`
                  *  writes the literal "action" for all of them. A mark
@@ -940,7 +941,7 @@ function build_machine(gobj, fsm)
             }
             if(cell.next_state) {
                 items.push(['span', {class: 'GCLASS_MX_ARROW'}, "▸"]);
-                items.push(['span', {class: 'GCLASS_MX_NEXT'}, cell.next_state]);
+                items.push(['span', {class: 'GCLASS_MX_NEXT'}, text_node(cell.next_state)]);
             }
 
             cells.push(['td', {class: 'GCLASS_MX_CELL' +
@@ -967,7 +968,7 @@ function build_machine(gobj, fsm)
         blocks.push(['div', {class: 'GCLASS_CHIPS GCLASS_PUBLISHED'},
             fsm.published.map(function(p) {
                 return ['span', row_attrs(p.event, {class: 'GCLASS_PUB_ROW'}), [
-                    ['span', {class: 'GCLASS_CHIP GCLASS_PUB_EVENT'}, p.event]
+                    ['span', {class: 'GCLASS_CHIP GCLASS_PUB_EVENT'}, text_node(p.event)]
                 ].concat(event_flag_chips(p.flags))];
             })]);
     }

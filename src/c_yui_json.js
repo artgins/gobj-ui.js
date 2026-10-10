@@ -111,6 +111,7 @@ import {attach_clear} from "./yui_inputs.js";
 import {t} from "i18next";
 
 import "./c_yui_json.css";
+import {text_node} from "./yui_text.js";
 
 
 /***************************************************************
@@ -884,7 +885,7 @@ function push_collapsed_row(ctx, value, segments, depth, key, rows)
 
     let key_spec = (key === null || key === "")
         ? null
-        : ['span', {class: 'JSON_KEY'}, String(key)];
+        : ['span', {class: 'JSON_KEY'}, text_node(key)];
 
     let stub_text = (info.is_array ? "[" : "{") +
         (size !== undefined ? String(size) : "?") +
@@ -895,7 +896,7 @@ function push_collapsed_row(ctx, value, segments, depth, key, rows)
         children.push(key_spec);
         children.push(['span', {class: 'JSON_PUNCT'}, ': ']);
     }
-    children.push(['span', {class: 'JSON_STUB'}, stub_text]);
+    children.push(['span', {class: 'JSON_STUB'}, text_node(stub_text)]);
     children.push(['span', {class: 'JSON_STUB_HINT is-size-7 ml-2',
                             'data-i18n': is_pending ? 'loading' : 'click to load'},
                    is_pending ? 'loading' : 'click to load']);
@@ -935,7 +936,7 @@ function toggle_row(gobj, key, size, is_object, depth, path, open, value)
 
     let body = [];
     if(key !== null && key !== "") {
-        body.push(['span', {class: 'JSON_KEY'}, String(key)]);
+        body.push(['span', {class: 'JSON_KEY'}, text_node(key)]);
         body.push(['span', {class: 'JSON_PUNCT'}, ': ']);
     }
     body.push(['span', {class: 'JSON_SUMMARY yui-text-quiet'}, summary]);
@@ -952,7 +953,7 @@ function toggle_row(gobj, key, size, is_object, depth, path, open, value)
      */
     let label = container_label(value, MAX_LABEL_CHARS);
     if(label) {
-        body.push(['span', {class: 'JSON_SUMMARY_ID ml-2'}, label]);
+        body.push(['span', {class: 'JSON_SUMMARY_ID ml-2'}, text_node(label)]);
     }
 
     return ['div', {class: 'JSON_ROW JSON_CONTAINER', style: row_indent(depth)}, [
@@ -992,10 +993,10 @@ function leaf_row(key, value, depth)
 
     let body = [];
     if(key !== null && key !== "") {
-        body.push(['span', {class: 'JSON_KEY'}, String(key)]);
+        body.push(['span', {class: 'JSON_KEY'}, text_node(key)]);
         body.push(['span', {class: 'JSON_PUNCT'}, ': ']);
     }
-    body.push(['span', {class: 'JSON_VALUE JSON_TYPE_' + type.toUpperCase()}, text]);
+    body.push(['span', {class: 'JSON_VALUE JSON_TYPE_' + type.toUpperCase()}, text_node(text)]);
 
     if(key !== null && is_time_field(String(key))) {
         let wall = format_epoch(value);

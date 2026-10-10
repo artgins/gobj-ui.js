@@ -110,6 +110,7 @@ import {json_diff_rows} from "./json_view_helpers.js";
 import {t} from "i18next";
 
 import "./c_yui_json_pad.css";
+import {text_node} from "./yui_text.js";
 
 /***************************************************************
  *              Constants
@@ -605,7 +606,7 @@ function render_diff(gobj)
             ['tbody', {}, rows.map((row) => {
                 return ['tr', {class: `JSON_PAD_DIFF_ROW JSON_PAD_DIFF_${row.kind.toUpperCase()}`}, [
                     ['td', {}, [KIND_TAG[row.kind]()]],
-                    ['td', {class: 'JSON_PAD_DIFF_PATH'}, row.id],
+                    ['td', {class: 'JSON_PAD_DIFF_PATH'}, text_node(row.id)],
                     value_cell('JSON_PAD_DIFF_FROM', row, 'from'),
                     value_cell('JSON_PAD_DIFF_TO', row, 'to')
                 ]];

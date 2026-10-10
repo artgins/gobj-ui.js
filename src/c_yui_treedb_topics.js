@@ -85,6 +85,7 @@ import {
 } from "./treedb_topic_keys.js";
 
 import {t} from "i18next";
+import {text_node} from "./yui_text.js";
 
 /***************************************************************
  *              Constants
@@ -440,7 +441,7 @@ function build_ui(gobj)
                                 'TREEDB_TOPICS_SOURCE' : 'TREEDB_TOPICS_SOURCE is-hidden',
                              title: source_url, 'aria-label': source_url}, [
                         ['span', {class: 'icon'}, [yui_toolbar_icon('yi-cloudversify')]],
-                        ['span', {class: 'TREEDB_TOPICS_SOURCE_URL'}, source_url]
+                        ['span', {class: 'TREEDB_TOPICS_SOURCE_URL'}, text_node(source_url)]
                     ]],
                     ...graph_items,
                     /*  Inspect the treedb's raw tranger json (whole service,
@@ -622,7 +623,7 @@ function add_tab(gobj, gobj2, id, text, icon)
      *  TAB: Add text
      */
     $a.appendChild(
-        createElement2(['span', {i18n: text, class: ''}, text])
+        createElement2(['span', {i18n: text, class: ''}, text_node(text)])
     );
 
     /*
@@ -824,7 +825,7 @@ function add_topic_card(gobj, id, text, icon, desc)
                    'aria-label': text, 'data-i18n-aria-label': text}, [
                 ['span', {class: 'icon is-medium'}, [['i', {class: icon || 'yi-table',
                     'aria-hidden': 'true'}]]],
-                ['span', {class: 'yui-nav-label', i18n: text}, text]
+                ['span', {class: 'yui-nav-label', i18n: text}, text_node(text)]
             ]]
         );
         $card.addEventListener("click", function(ev) {
@@ -861,7 +862,7 @@ function add_topic_card(gobj, id, text, icon, desc)
 
     let $card = createElement2(
         ['div', {class: 'TREEDB_TOPIC_CARD', 'data-topic': topic}, [
-            ['span', {class: 'TREEDB_TOPIC_CARD_NAME', i18n: text}, text],
+            ['span', {class: 'TREEDB_TOPIC_CARD_NAME', i18n: text}, text_node(text)],
             ...topic_card_meta(desc),
             ['div', {class: 'TREEDB_TOPIC_CARD_ACTIONS'}, actions]
         ]]
@@ -1169,15 +1170,15 @@ function build_topic_info_panel(gobj, $info, topic, desc)
         push_meta("system", ["code", {title: `${desc.system_flag}`}, sf_names.join(" | ")]);
     }
     if(pkey) {
-        push_meta("pkey", ["code", {}, pkey]);
+        push_meta("pkey", ["code", {}, text_node(pkey)]);
     }
     if(pkey2s.length > 0) {
         push_meta("pkey2s", ["span", {class: "tags"},
-            pkey2s.map(name => ["span", {class: "tag is-warning"}, name])
+            pkey2s.map(name => ["span", {class: "tag is-warning"}, text_node(name)])
         ]);
     }
     push_meta("tkey", tkey
-        ? ["code", {}, tkey]
+        ? ["code", {}, text_node(tkey)]
         : ["span", {class: "has-text-grey", i18n: "append time"}, "append time"]
     );
 

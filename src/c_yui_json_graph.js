@@ -17,6 +17,7 @@ import {
     gclass_create,
     gclass_find_by_name,
     log_error,
+    log_warning,
     gobj_read_pointer_attr,
     gobj_parent,
     gobj_subscribe_event,
@@ -81,6 +82,7 @@ import {
     has_branch,
     count_branches,
 } from "./json_view_helpers.js";
+import {g6_event_kw} from "./g6_event_kw.js";
 
 /***************************************************************
  *              Constants
@@ -755,12 +757,7 @@ function build_graph(gobj)
     graph.on(NodeEvent.CLICK, (evt) => {
         /*  An identity, never the G6 event: a kw is plain json, and the
          *  event is circular -- the machine trace dumps the kw.  */
-        let client = (evt && evt.client)? evt.client : null;
-        gobj_send_event(gobj, "EV_NODE_CLICK", {
-            id:       (evt && evt.target && evt.target.id)? String(evt.target.id) : "",
-            client_x: (client && typeof client.x === "number")? client.x : 0,
-            client_y: (client && typeof client.y === "number")? client.y : 0
-        }, gobj);
+        gobj_send_event(gobj, "EV_NODE_CLICK", g6_event_kw(evt), gobj);
     });
 
     /*  ONE hook for the readout, the same one the treedb graph uses:
@@ -2355,7 +2352,11 @@ function ac_node_click(gobj, event, kw, src)
     let nodedata;
     try {
         nodedata = graph.getNodeData(node_id);
-    } catch(e) {}
+    } catch(e) {
+        /*  G6 throws for an id it no longer holds (a click that raced a
+         *  redraw): the click lands on nothing.  */
+        log_warning(`${gobj_short_name(gobj)}: node '${node_id}' clicked, not in the graph: ${e}`);
+    }
 
     /*
      *  A waiting anchor TAKES the click: it is what the reader armed

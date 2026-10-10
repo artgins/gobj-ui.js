@@ -31,6 +31,10 @@ import {
     gobj_name,
     gobj_unsubscribe_event,
     gobj_stop_children,
+    gobj_match_children,
+    gobj_is_running,
+    gobj_stop,
+    gobj_destroy,
 } from "@yuneta/gobj-js";
 
 import "maplibre-gl/dist/maplibre-gl.css"; // Import MapLibre styles
@@ -309,9 +313,29 @@ function mt_stop(gobj)
     if(shell) {
         gobj_unsubscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
     }
-    /*  The marker windows are children of the map: they stop with it.  */
+    /*  The marker windows are children of the map, and they go with it:
+     *  a C_YUI_WINDOW has no mt_stop, so stopping one leaves it on screen
+     *  holding its service name. They are destroyed here, not in
+     *  mt_destroy (gobj_destroy() destroys the children BEFORE calling
+     *  mt_destroy).  */
+    retire_marker_windows(gobj);
     gobj_stop_children(gobj);
     return 0;
+}
+
+/***************************************************************
+ *  Destroy the windows the markers opened.
+ ***************************************************************/
+function retire_marker_windows(gobj)
+{
+    let windows = gobj_match_children(gobj, {__gclass_name__: "C_YUI_WINDOW"}) || [];
+    for(let win of windows) {
+        if(gobj_is_running(win)) {
+            gobj_stop(win);
+        }
+        gobj_stop_children(win);
+        gobj_destroy(win);
+    }
 }
 
 /***************************************************************

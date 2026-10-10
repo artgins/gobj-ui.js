@@ -81,6 +81,7 @@ import {
 import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
 import { ensure_pinch_zoom_patch } from "./g6_touch_gestures.js";
 import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
+import {g6_event_kw} from "./g6_event_kw.js";
 
 /***************************************************************
  *              Constants
@@ -1183,12 +1184,7 @@ function build_graph(gobj)
     graph.on(NodeEvent.CLICK, (evt) => {
         /*  An identity, never the G6 event: a kw is plain json, and the
          *  event is circular -- the machine trace dumps the kw.  */
-        let client = (evt && evt.client)? evt.client : null;
-        gobj_send_event(gobj, "EV_NODE_CLICK", {
-            id:       (evt && evt.target && evt.target.id)? String(evt.target.id) : "",
-            client_x: (client && typeof client.x === "number")? client.x : 0,
-            client_y: (client && typeof client.y === "number")? client.y : 0
-        }, gobj);
+        gobj_send_event(gobj, "EV_NODE_CLICK", g6_event_kw(evt), gobj);
     });
 
     graph.on(CanvasEvent.CLICK, (evt) => {
@@ -2715,7 +2711,11 @@ function ac_node_click(gobj, event, kw, src)
             if(nd && nd.data) {
                 node_data = nd.data;
             }
-        } catch(e) {}
+        } catch(e) {
+            /*  G6 throws for an id it no longer holds (a click that raced
+             *  a redraw): the click lands on nothing.  */
+            log_warning(`${gobj_short_name(gobj)}: node '${node_id}' clicked, not in the graph: ${e}`);
+        }
     }
 
     if(!node_data) {

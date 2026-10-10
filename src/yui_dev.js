@@ -29,6 +29,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import i18next, {t} from 'i18next';
+import {text_node} from "./yui_text.js";
 
 /***********************************************************************
  *          Traffic model (bounded ring buffer)
@@ -628,7 +629,7 @@ function traffic_scalar_row(key, value)
         value is one click away in the Expanded view. On a value SHORTER than
         the clip -- almost all of them -- it repeated the visible text anyway.  */
     let val_children = [
-        ['span', {class: 'TRAFFIC_VAL ' + cls}, text],
+        ['span', {class: 'TRAFFIC_VAL ' + cls}, text_node(text)],
     ];
     if((key in TRAFFIC_TS_FIELDS) && typeof value === "number") {
         let iso = traffic_iso(value);
@@ -751,12 +752,12 @@ function traffic_value_node(key, value)
     let hint = is_arr ?
         [['span', {class: 'TRAFFIC_NEST_HINT'}, `[${count}]`]] :
         object_preview_parts(value, count).map(
-            (t) => ['span', {class: 'TRAFFIC_PREV ' + t.cls}, t.text]
+            (t) => ['span', {class: 'TRAFFIC_PREV ' + t.cls}, text_node(t.text)]
         );
     return ['details', {class: 'TRAFFIC_NEST'}, [
         ['summary', {}, [
             ['span', {class: 'TRAFFIC_BULLET'}, '▸'],
-            ['span', {class: 'TRAFFIC_NEST_KEY'}, key],
+            ['span', {class: 'TRAFFIC_NEST_KEY'}, text_node(key)],
             ['span', {class: 'TRAFFIC_NEST_HINT_WRAP'}, hint],
         ]],
         ['div', {class: 'TRAFFIC_KW'}, traffic_bullets(value)],
@@ -804,12 +805,12 @@ function traffic_bullets(obj)
 function event_spans(e)
 {
     let spans = [['span', {class: 'TRAFFIC_ARROW'}, dir_arrow(e.dir)],
-                 ['span', {class: 'TRAFFIC_EVENT'}, e.event]];
+                 ['span', {class: 'TRAFFIC_EVENT'}, text_node(e.event)]];
     if(e.command) {
-        spans.push(['span', {class: 'TRAFFIC_CMD'}, e.command]);
+        spans.push(['span', {class: 'TRAFFIC_CMD'}, text_node(e.command)]);
     }
     if(e.title) {
-        spans.push(['span', {class: 'TRAFFIC_SRC'}, e.title]);
+        spans.push(['span', {class: 'TRAFFIC_SRC'}, text_node(e.title)]);
     }
     return spans;
 }
@@ -891,7 +892,7 @@ function render_full(e)
     }
     let children = [
         ['div', {class: 'TRAFFIC_HEADER'}, head],
-        ['pre', {class: 'TRAFFIC_FULL'}, text],
+        ['pre', {class: 'TRAFFIC_FULL'}, document.createTextNode(String(text))],
     ];
     return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir)}, children]);
 }
@@ -1860,10 +1861,11 @@ function setup_dev(self, show)
                 center: false,
                 title: "developer",
                 icon: "yi-terminal",
-                /*  Opt into the dock/taskbar if the app provides one. `|| null`
-                 *  because gobj_find_service returns undefined when absent, and
-                 *  an undefined attr value logs "attr undefined: manager" (apps
-                 *  without a window manager, e.g. wattyzer). null = no dock. */
+                /*  Opt into the dock/taskbar if the app provides one; null =
+                 *  no dock. (gobj_find_service() answers null for an absent
+                 *  service since gobj-js 7.12.0; the `|| null` is from when it
+                 *  answered undefined, which logged "attr undefined: manager",
+                 *  and stays as a guard.) */
                 manager: gobj_find_service("__window_manager__", false) || null,
                 /*  A monitor is watched WHILE navigating: closing it on every
                  *  route change made it useless for the one job it has.  A

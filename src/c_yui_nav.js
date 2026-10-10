@@ -82,6 +82,7 @@ import {
     breakpoints_from_expr,
     bulma_hidden_class,
 } from "./shell_show_on.js";
+import {text_node} from "./yui_text.js";
 
 /***************************************************************
  *              Constants
@@ -411,7 +412,7 @@ function render_tabs(gobj, items)
                 ["i", {class: it.icon, "aria-hidden":"true"}]]);
         }
         if(show_label && !empty_string(it.name)) {
-            children.push(["span", {i18n: it.name}, it.name]);
+            children.push(["span", {i18n: it.name}, text_node(it.name)]);
         }
         /*  Optional close affordance: a trailing ✕ that emits
          *  EV_NAV_ITEM_CLOSE instead of navigating (caught first in
@@ -495,7 +496,7 @@ function render_breadcrumb(gobj, items)
         }
         if(show_label !== false) {
             let label = it.name || it.id || "";
-            children.push(["span", {class: "yui-nav-label", i18n: label}, label]);
+            children.push(["span", {class: "yui-nav-label", i18n: label}, text_node(label)]);
         }
         let a_attrs = {
             class: "yui-nav-item yui-nav-crumb",
@@ -541,7 +542,7 @@ function render_backbar(gobj)
             ["a", a_attrs, [
                 ["span", {class: "icon is-small"},
                     ["i", {class: "yi-arrow-left", "aria-hidden": "true"}]],
-                ["span", label_attrs, label]
+                ["span", label_attrs, text_node(label)]
             ]]
         ]
     );
@@ -683,7 +684,7 @@ function item_li(gobj, it, opts)
             span_attrs.i18n = label;
         }
         return ["li", {class: "yui-nav-section-header", role: "presentation"},
-            ["span", span_attrs, label]
+            ["span", span_attrs, text_node(label)]
         ];
     }
 
@@ -695,7 +696,7 @@ function item_li(gobj, it, opts)
         ? ["span", {class: "icon"}, ["i", {class: it.icon, "aria-hidden":"true"}]]
         : null;
     let label_el = (show_label && !empty_string(label))
-        ? ["span", {class: "yui-nav-label", i18n: label}, label]
+        ? ["span", {class: "yui-nav-label", i18n: label}, text_node(label)]
         : null;
 
     let a_class = "yui-nav-item";
@@ -764,7 +765,7 @@ function item_iconbar(gobj, it, opts)
            ["i", {class: it.icon, "aria-hidden":"true"}]]
         : null;
     let label_el = (show_label && !empty_string(label))
-        ? ["span", {class: "yui-nav-label is-size-7", i18n: label}, label]
+        ? ["span", {class: "yui-nav-label is-size-7", i18n: label}, text_node(label)]
         : null;
 
     let children = [];

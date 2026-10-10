@@ -122,6 +122,7 @@ import "./tabulator.css";
 import {cell_text, hook_cell_spec} from "./table_cell_text.js";
 
 import { TabulatorFull as Tabulator } from "tabulator-tables";
+import {text_node} from "./yui_text.js";
 
 /***************************************************************
  *              Constants
@@ -612,8 +613,8 @@ function build_ui(gobj)
 {
     function create_table_toolbar()
     {
-        // TODO pon autorización, solo si está autorizado a modificar los datos!!!
-        // TODO deja que estos botones se queden en el top cuando se hace scroll (clip ?)
+        // TODO authorization: only when the user may modify the data!!!
+        // TODO keep these buttons at the top when scrolling (clip ?)
         let $table_toolbar = [];
         /*  One plan decides every write affordance (treedb_write_plan.js):
          *  `readonly` is the STATE of the topic and beats each with_* flag,
@@ -1886,9 +1887,9 @@ function create_tabulator(gobj)
         tabulator._ready = true;
         apply_row_filters(gobj);
         update_rowcount();
-        /*  La ✕ de cada filtro de cabecera. Un filtro se quita borrando lo
-         *  escrito, y con varias columnas filtradas volver a la tabla entera
-         *  era acordarse de cuáles se tocaron. */
+        /*  The ✕ of each header filter. A filter is removed by erasing what
+         *  was typed, and with several columns filtered, getting back to the
+         *  whole table meant remembering which ones were touched. */
         yui_table_filter_clear(tabulator);
         if(tabulator._pendingData !== undefined) {
             tabulator.setData(tabulator._pendingData);
@@ -2146,7 +2147,7 @@ function build_json_cell_preview(value)
             'data-i18n-aria-label': 'show json'
         }, [
             ['span', {class: 'JSON_CELL_ICON icon yi-eye'}],
-            ['span', {class: 'JSON_CELL_PREVIEW'}, text]
+            ['span', {class: 'JSON_CELL_PREVIEW'}, text_node(text)]
         ]]
     );
 }
@@ -3002,7 +3003,7 @@ function open_cell_file_dialog(gobj, row_id, col_id)
                 ['span', {class: 'CELL_FILE_LOADING', i18n: 'loading'}, 'loading']
             ]],
             ['div', {class: 'CELL_FILE_CAPTION'}, [
-                ['span', {class: 'CELL_FILE_ID'}, id]
+                ['span', {class: 'CELL_FILE_ID'}, text_node(id)]
             ]]
         ]]
     ));
@@ -3065,7 +3066,7 @@ function fill_cell_file_slot(gobj, pend, answer, error)
             .filter((s) => !!s).join(" · ");
         if(meta) {
             $caption.appendChild(
-                createElement2(['span', {class: 'CELL_FILE_META'}, meta])
+                createElement2(['span', {class: 'CELL_FILE_META'}, text_node(meta)])
             );
         }
         /*  Full size, in the browser's own viewer: a photo is read at its
@@ -3149,7 +3150,7 @@ function open_hook_choice_dialog(gobj, targets, parent_id, hook)
                 'aria-label': t(tg.topic_name),
                 'data-i18n-aria-label': tg.topic_name
             }, [
-                ['span', {i18n: tg.topic_name}, tg.topic_name]
+                ['span', {i18n: tg.topic_name}, text_node(tg.topic_name)]
             ], {
                 click: () => {
                     gobj_send_event(gobj, "EV_CHOOSE_LINKED", {
@@ -3489,13 +3490,17 @@ function transform__form_value_2_treedb_value(gobj, col, value, operation)
         case "list":
         case "coordinates":
         case "blob": {
-            /*  A value that is no json of the column's shape becomes the
-             *  empty one -- said, not quiet.  */
+            /*  A value that is no json of the column's shape is logged and
+             *  handed on AS IT IS, the same as C_YUI_FORM does: an empty
+             *  {} / [] in its place is a value nobody wrote (a copy put it
+             *  on the clipboard, a save wiped the column). The form refuses
+             *  to save such a field before it gets here.  */
             let r = parse_json_field(value, field_desc.type);
             if(r.error) {
-                log_warning(`${gobj_short_name(gobj)}: column '${col.id}' (${field_desc.type}) holds no valid json, taken as empty`);
+                log_error(`${gobj_short_name(gobj)}: column '${col.id}' (${field_desc.type}) holds no valid json, handed on as it is`);
+            } else {
+                value = r.value;
             }
-            value = r.value;
             break;
         }
 
@@ -3820,7 +3825,7 @@ function ac_load_nodes(gobj, event, kw, src)
     }
 
     /*
-     *  TODO situate en el row updated ???
+     *  TODO scroll to the updated row ???
      *  Select only if it has update/create mode
      */
     // if(data.length == 1) {
@@ -3860,7 +3865,7 @@ function ac_load_node_created(gobj, event, kw, src)
     }
 
     /*
-     *  TODO situate en el row updated ???
+     *  TODO scroll to the updated row ???
      *  Select only if it has update/create mode
      */
 
@@ -3902,7 +3907,7 @@ function ac_load_node_updated(gobj, event, kw, src)
     }
 
     /*
-     *  TODO situate en el row updated ???
+     *  TODO scroll to the updated row ???
      *  Select only if it has update/create mode
      */
 
@@ -4056,7 +4061,7 @@ function ac_new_row(gobj, event, kw, src)
         return -1;      /*  Error already logged  */
     }
     /*
-     *  Build default values. TODO no debería estar en desc configuration?
+     *  Build default values. TODO should this not be in the desc configuration?
      */
     let row = {};
     let desc = gobj_read_attr(gobj, "desc");

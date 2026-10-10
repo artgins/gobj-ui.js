@@ -27,6 +27,7 @@ const {register_c_yui_window} = await import("./c_yui_window.js");
 
 const logged = [];
 let veto = true;
+let warning = null;
 let yuno = null;
 
 beforeAll(async () => {
@@ -43,6 +44,9 @@ beforeAll(async () => {
         [["ST_IDLE", [
             ["EV_WINDOW_TO_CLOSE", (gobj, event, kw) => {
                 kw.abort_close = veto;
+                if(warning) {
+                    kw.warning = warning;
+                }
                 return 0;
             }, null]
         ]]],
@@ -57,6 +61,7 @@ beforeAll(async () => {
 beforeEach(() => {
     logged.length = 0;
     veto = true;
+    warning = null;
 });
 
 function errors()
@@ -96,6 +101,36 @@ describe("a floating window that vetoes its close", () => {
         press_back();
         expect(gobj_is_destroying(win)).toBe(true);
         expect(shell.priv.overlay_stack).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("that ASKS first: Back closes the question, it does not stack another", async () => {
+        const app = gobj_create("vapp2", "C_TEST_VETO_APP", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create("vshell2", "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        logged.length = 0;
+
+        const win = gobj_create_service("vwin2", "C_YUI_WINDOW",
+            {subscriber: app, header: "x", body: ["div", {}, "body"]}, app);
+        gobj_start(win);
+        warning = "unsaved changes";
+
+        /*  Back: the window asks. Only the question is on the stack.  */
+        press_back();
+        expect(gobj_is_destroying(win)).toBe(false);
+        expect(shell.priv.overlay_stack.length).toBe(1);
+        expect(gobj_read_attr(win, "back_overlay")).toBe(null);
+
+        /*  Back again: the question goes; the window takes its entry back
+         *  only then, once there is nothing above it.  */
+        press_back();
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(gobj_is_destroying(win)).toBe(false);
+        const entry = gobj_read_attr(win, "back_overlay");
+        expect(entry).toBeTruthy();
+        expect(shell.priv.overlay_stack).toEqual([entry]);
         expect(errors()).toEqual([]);
     });
 });

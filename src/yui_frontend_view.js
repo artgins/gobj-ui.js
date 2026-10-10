@@ -74,10 +74,10 @@ function setup_frontend_view(self)
             title: "frontend view",
             icon: "yi-hexagon-nodes",
             body: $body,
-            /*  Opt into the dock/taskbar if the app provides one. `|| null`
-             *  because gobj_find_service returns undefined when absent, and
-             *  an undefined attr value logs "attr undefined: manager" (apps
-             *  without a window manager, e.g. wattyzer). null = no dock. */
+            /*  Opt into the dock/taskbar if the app provides one; null = no
+             *  dock. (gobj_find_service() answers null for an absent service
+             *  since gobj-js 7.12.0; the `|| null` is from when it answered
+             *  undefined, and stays as a guard.) */
             manager: gobj_find_service("__window_manager__", false) || null,
         },
         self

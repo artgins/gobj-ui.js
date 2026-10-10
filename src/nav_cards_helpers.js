@@ -11,6 +11,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+import {text_node} from "./yui_text.js";
 
 /************************************************************
  *  Descriptor of one card: an <a> carrying the same data-*
@@ -28,7 +29,7 @@ export function card_descriptor(it, show_label)
             ["i", {class: it.icon, "aria-hidden": "true"}]]);
     }
     if(show_label && label) {
-        children.push(["span", {class: "yui-nav-label", i18n: label}, label]);
+        children.push(["span", {class: "yui-nav-label", i18n: label}, text_node(label)]);
     }
 
     let a_attrs = {

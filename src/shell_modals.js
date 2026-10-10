@@ -47,6 +47,7 @@ import {
     yui_shell_register_overlay,
     yui_shell_overlay_dismissed,
 } from "./c_yui_shell.js";
+import {text_node} from "./yui_text.js";
 
 
 /***************************************************************
@@ -154,7 +155,8 @@ function show_notification(shell, kind, message, opts)
             [
                 ["button", {class: "TOAST_CLOSE delete", title: t("close"), "data-i18n-title": "close",
                     "aria-label": t("close"), "data-i18n-aria-label": "close"}],
-                ["p", {...p_attrs, class: "TOAST_MSG"}, message]
+                ["p", {...p_attrs, class: "TOAST_MSG"},
+                    (typeof message === "string")? text_node(message) : message]
             ]
         ]
     );
@@ -281,7 +283,7 @@ export function yui_shell_show_modal(shell, content, opts)
                     "aria-label": t("back"), "data-i18n-aria-label": "back"},
                 [["i", {class: "yi-arrow-left"}]]],
             ["span", {class: "MODAL_TITLE yui-dialog-title"},
-                (title_prefix ? [["span", {class: "MODAL_TITLE_PREFIX"}, title_prefix]] : [])
+                (title_prefix ? [["span", {class: "MODAL_TITLE_PREFIX"}, text_node(title_prefix)]] : [])
                     .concat(title
                         ? [["span", {class: "MODAL_TITLE_KIND", i18n: title}, title]]
                         : [])],
@@ -492,7 +494,7 @@ function build_dialog(shell, message, buttons, opts)
     let icon = CONFIRM_TYPE_ICONS[type] || CONFIRM_TYPE_ICONS["question"];
 
     let $body_children = (typeof message === "string")
-        ? [["p", {class: "CONFIRM_MSG yui-confirm-msg", i18n: message}, message]]
+        ? [["p", {class: "CONFIRM_MSG yui-confirm-msg", i18n: message}, text_node(message)]]
         : [message];
 
     let $footer_children = buttons.map(b => {

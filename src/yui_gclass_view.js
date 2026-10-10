@@ -228,9 +228,9 @@ function open_gclass_view(host, gclass_name, opts)
             body:       $box,
             /*  The same dock the other windows are on: raising a window
              *  is the manager's job, and a viewer registered nowhere
-             *  cannot come to the front when the reader clicks it. `||
-             *  null` because gobj_find_service answers undefined when
-             *  absent, and an undefined attr logs "attr undefined".  */
+             *  cannot come to the front when the reader clicks it. An
+             *  absent service is null (gobj-js 7.12.0+); the `|| null` is
+             *  the guard from when it was undefined.  */
             manager:    gobj_find_service("__window_manager__", false) || null,
             on_close:   on_close,
         },

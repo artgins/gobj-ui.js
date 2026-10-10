@@ -42,6 +42,7 @@ const {register_c_yui_shell, yui_shell_set_connection_state, yui_shell_icons_cha
 const {register_c_yui_treedb_topics} = await import("./c_yui_treedb_topics.js");
 
 const logged = [];
+const icons_heard = [];      /*  the EV_ICONS_CHANGED a declaring app heard  */
 const written = [];         /*  the EV_RECORD_WRITTEN the host heard  */
 const answers = [];         /*  what the fake forms were told  */
 const loaded = [];          /*  the rows each fake form was loaded with  */
@@ -138,6 +139,18 @@ beforeAll(() => {
     /*  An app that subscribes to EVERY event of its shell and declares
      *  none of the new ones: wattyzer's and yunovatios' shape.  */
     gclass_create("C_TEST_APP", [], [["ST_IDLE", []]], {}, 0, [SDATA_END()], {}, 0, 0, 0, 0);
+    /*  An app that DOES declare it: it must still be told.  */
+    gclass_create(
+        "C_TEST_ICONS_APP",
+        [["EV_ICONS_CHANGED", 0]],
+        [["ST_IDLE", [
+            ["EV_ICONS_CHANGED", () => {
+                icons_heard.push(1);
+                return 0;
+            }, null]
+        ]]],
+        {}, 0, [SDATA_END()], {}, 0, 0, 0, 0
+    );
 
     register_c_yui_shell();
     register_c_yui_treedb_topics();
@@ -260,6 +273,19 @@ describe("a Save in flight when the backend drops", () => {
          *  `__icons__` and answered "Event NOT DEFINED in state".  */
         const {shell} = build("t4b");
         yui_shell_icons_changed(shell);
+        expect(errors()).toEqual([]);
+    });
+
+    test("an app that declares EV_ICONS_CHANGED is still told", () => {
+        icons_heard.length = 0;
+        const app = gobj_create("t4c_app", "C_TEST_ICONS_APP", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create("t4c_shell", "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        logged.length = 0;
+        yui_shell_icons_changed(shell);
+        expect(icons_heard.length).toBe(1);
         expect(errors()).toEqual([]);
     });
 

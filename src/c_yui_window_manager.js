@@ -45,6 +45,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
+import {text_node} from "./yui_text.js";
 
 
 /***************************************************************
@@ -470,7 +471,7 @@ function ac_register_window(gobj, event, kw, src)
     let label_items = [];
     if(prefix) {
         label_items.push(['span', {class: 'yui-dock-label-prefix'},
-            document.createTextNode(String(prefix))]);    // data, not markup
+            text_node(prefix)]);    // data, not markup
     }
     if(title_key) {
         label_items.push(
@@ -481,7 +482,7 @@ function ac_register_window(gobj, event, kw, src)
     if(label_items.length === 0) {
         /*  No split halves supplied (legacy caller): plain text. */
         label_items.push(['span', {class: 'yui-dock-label-kind'},
-            document.createTextNode(String(title))]);     // data, not markup
+            text_node(title)]);     // data, not markup
     }
 
     let entry = {gobj: win, $chip: null, minimized: false};

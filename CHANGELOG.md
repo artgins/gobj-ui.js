@@ -5,6 +5,70 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.8
+
+The review of 7.26.7 (yunovatios `REV-CLOUD.md` §V): two regressions of that
+release, and what it left half done.
+
+- **fix: a form with a table, destroyed right after a save or an undo, threw
+  an uncaught TypeError** (regression of 7.26.7). `set_changed_stated(false)`
+  re-wires the tables from a 200 ms timer, and 7.26.7's `destroy_widgets()`
+  nulls `$table.tabulator` -- a dialog closes the moment its record is saved.
+  The timer is kept and cancelled in `destroy_ui()`, and skips a table that is
+  gone. Wiring-tested.
+- **fix: Back on a window that ASKS before closing (unsaved changes) stacked a
+  dialog per press** (regression of 7.26.7). The window put its Back entry back
+  at once, ABOVE the question it had just opened, so Back no longer closed the
+  question. `close_window()` says what happened (`closed` / `vetoed` /
+  `asking`), and an asking window takes its entry back only once the question
+  is over. Wiring-tested.
+- **security: data no longer goes into `createElement2()` as a bare string**
+  anywhere in the library: a string that starts with `<` is parsed as markup
+  there. New `text_node()` (`yui_text.js`). It covers the nav labels (what
+  `yui_shell_set_submenu()` injects at run time: gui_agent's hosts, gui_treedb's
+  services), the JSON viewer's keys and values, every row of the remote gclass
+  view, the Developer window's traffic, the site map, treedb cells and topic
+  cards, schema-editor crumbs, form labels (schema headers) and options, toast
+  and confirm messages, modal title prefixes.
+- **fix: the marker window of the map comes back on a second click.**
+  `C_YUI_WINDOW`'s `EV_SHOW` was an empty stub: it now brings the window out of
+  the dock and to the front (`EV_FOCUS_WINDOW` to its manager), or, without a
+  dock, shows it and puts it on top of its layer. The map destroys its marker
+  windows in `mt_stop` (a window has no `mt_stop`: stopping one left it on
+  screen holding its service name).
+- **fix: a json field.** A value that is no json of its shape is logged and
+  handed on AS IT IS, never replaced by an empty `{}`/`[]` nobody wrote (a copy
+  put it on the clipboard), at ERROR level in both places; a `dict`/`object`
+  column goes to the host parsed, not as the editor's text (a backend that
+  reads bad text stores `{}` without a word); the error line under the field
+  carries its `data-i18n` and re-translates; a tree-mode string root is checked
+  as the string it is (it was parsed a second time).
+- **fix: `EV_ADD_TABLE_ROW` carries a table id**, not the `$row`/`$table`
+  elements (a kw is plain json; a Tabulator element is circular and broke the
+  `machine` trace). The form resolves it through a weak registry; its 30 ms
+  redraw re-checks that the form and the table are still there.
+- **a11y:** the trash and "+" cells are buttons (role, focus, Enter/Space,
+  `data-i18n-*`); Tom Select's ✕ is named after the render, with its key.
+- **fix, small:** a drag in flight takes its `document` listeners off when its
+  graph is destroyed; `drain_overlays()` skips an entry an earlier close of the
+  same drain already dismissed; a node click that races a redraw is a warning,
+  not a silent `catch`; the three graphs share `g6_event_kw()`; vanilla-jsoneditor's
+  asynchronous `destroy()` failure is logged; `schema_to_c` writes a NUL as
+  U+FFFD (jansson refuses `\u0000` without `JSON_ALLOW_NUL`); `modal`,
+  `keyboard`, `focus` say "NOT implemented" in their own description;
+  comments that still said `gobj_find_service()` answers `undefined`; the last
+  Spanish comments of the touched files.
+- ⚠️ **Behaviour change of 7.26.7, said now: the Content-Security-Policy is
+  ALWAYS emitted** by `vite-plugin-yuneta-html.js`, with `connect-src 'self'`
+  alone when `config.json` has no `csp_connect_src` -- and now also when there
+  is no `config.json` at all. **Check your `config.json`**: an app that talks
+  to a websocket on another port (`wss://host:1620` is another origin), loads
+  map tiles or external fonts, and declared none of them, loses them with only
+  a build warning. The origins are escaped now. Tested
+  (`vite_plugin_yuneta_html.test.js`).
+- test-app: `restore` and `navigation` keys. Tests: a positive delivery of
+  `EV_ICONS_CHANGED` to an app that declares it.
+
 ## 7.26.7
 
 Fixes from the read-only audit of gobj-js, gobj-ui and their use in the

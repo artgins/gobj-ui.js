@@ -40,4 +40,10 @@ describe("parse_json_field", () => {
         expect(json_field_shape("table")).toBe("list");
         expect(json_field_shape("blob")).toBe("any");
     });
+
+    it("a tree-mode string root is read as the string it is, as the save reads it", () => {
+        expect(json_editor_value({json: "123"})).toBe('"123"');
+        expect(parse_json_field(json_editor_value({json: "123"}), "blob")).toEqual({value: "123", error: ""});
+        expect(parse_json_field(json_editor_value({json: "abc"}), "blob")).toEqual({value: "abc", error: ""});
+    });
 });

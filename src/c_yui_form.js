@@ -47,6 +47,7 @@ import {
     refresh_language,
     treedb_decoder_fkey,
     gclass_find_by_name,
+    gobj_is_destroying,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
@@ -90,6 +91,7 @@ import "./tabulator.css";
 import {is_time_field} from "./json_view_helpers.js";
 import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
+import {text_node} from "./yui_text.js";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
 // import { Tabulator } from "tabulator-tables";  // Import light Tabulator JS
 
@@ -159,7 +161,15 @@ SDATA(data_type_t.DTP_BOOLEAN,  "changes",          0,  false,  "Indicates if ch
 SDATA_END()
 ];
 
-let PRIVATE_DATA = {};
+let PRIVATE_DATA = {
+    /*  The deferred re-wiring of the tables' dataChanged after a
+     *  save/undo (see set_changed_stated): cancelled in destroy_ui. */
+    rearm_timer: null,
+    /*  table_id -> WeakRef of its element: EV_ADD_TABLE_ROW names a
+     *  table by id (a kw is plain json), see table_identity().  */
+    tables: null,
+    table_seq: 0,
+};
 
 let __gclass__ = null;
 
@@ -190,6 +200,7 @@ function mt_create(gobj)
     let name = clean_name(gobj_name(gobj));
     gobj_write_attr(gobj, "form_id", "form" + name);
 
+    gobj.priv.tables = new Map();
     build_ui(gobj);
 }
 
@@ -253,11 +264,11 @@ function set_changed_stated(gobj, changed)
     let $form = $container.querySelector('form');
 
     /*
-     *  Los dos pueden NO estar: desde que la botonera es configurable
-     *  (`toolbar`), un dialogo de una sola accion pide ["save"] y aqui no
-     *  hay undo que habilitar.  Antes se daban por presentes y quitar uno
-     *  reventaba con "can't access property setAttribute, a is null" al
-     *  primer cambio en el formulario.
+     *  Either of the two may be MISSING: since the toolbar is configurable
+     *  (`toolbar`), a one-action dialog asks for ["save"] and there is no
+     *  undo to enable here.  They used to be taken for granted, and leaving
+     *  one out blew up with "can't access property setAttribute, a is null"
+     *  at the first change in the form.
      */
     const enable = ($btn, on, color) => {
         if(!$btn) {
@@ -288,12 +299,12 @@ function set_changed_stated(gobj, changed)
         enable($button_undo, true, "Magenta");
 
         $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
-            if(isEventSet($table.tabulator, "dataChanged")) {
+            if($table.tabulator && isEventSet($table.tabulator, "dataChanged")) {
                 $table.tabulator.off("dataChanged");
             }
 
             $table.querySelectorAll('.yui-tabulator-table-nested').forEach($table_nested => {
-                if(isEventSet($table_nested.tabulator, "dataChanged")) {
+                if($table_nested.tabulator && isEventSet($table_nested.tabulator, "dataChanged")) {
                     $table_nested.tabulator.off("dataChanged");
                 }
             });
@@ -308,25 +319,37 @@ function set_changed_stated(gobj, changed)
         enable($button_save, false, OFF_COLOR);
         enable($button_undo, false, OFF_COLOR);
 
-        // TODO improve
-        setTimeout(function() {
-            $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
-                if(isEventSet($table.tabulator, "dataChanged")) {
-                    $table.tabulator.off("dataChanged");
+        /*
+         *  TODO improve. The tables are re-wired a moment later, once the
+         *  data just loaded has settled. The timer is kept so that
+         *  destroy_ui() cancels it: a form closed right after a save (what
+         *  a dialog does) destroyed its widgets first, and the timer then
+         *  called .on() on a null tabulator -- an uncaught TypeError.
+         */
+        if(gobj.priv.rearm_timer) {
+            clearTimeout(gobj.priv.rearm_timer);
+        }
+        gobj.priv.rearm_timer = setTimeout(function() {
+            gobj.priv.rearm_timer = null;
+            if(gobj_is_destroying(gobj)) {
+                return;     // destroy_ui() cancels it; this is the belt
+            }
+            const rearm = (tabulator) => {
+                if(!tabulator) {
+                    return;     // destroyed with its form
                 }
-                $table.tabulator.on("dataChanged", function(data) {
+                if(isEventSet(tabulator, "dataChanged")) {
+                    tabulator.off("dataChanged");
+                }
+                tabulator.on("dataChanged", function(data) {
                     //data - the updated table data
                     gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
                 });
-
+            };
+            $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
+                rearm($table.tabulator);
                 $table.querySelectorAll('.yui-tabulator-table-nested').forEach($table_nested => {
-                    if(isEventSet($table_nested.tabulator, "dataChanged")) {
-                        $table_nested.tabulator.off("dataChanged");
-                    }
-                    $table_nested.tabulator.on("dataChanged", function(data) {
-                        //data - the updated table data
-                        gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
-                    });
+                    rearm($table_nested.tabulator);
                 });
             });
         }, 200);
@@ -491,6 +514,10 @@ function build_ui(gobj)
  ************************************************************/
 function destroy_ui(gobj)
 {
+    if(gobj.priv && gobj.priv.rearm_timer) {
+        clearTimeout(gobj.priv.rearm_timer);
+        gobj.priv.rearm_timer = null;
+    }
     let $container = gobj_read_attr(gobj, "$container");
     if($container) {
         destroy_widgets(gobj, $container);
@@ -509,11 +536,60 @@ function destroy_ui(gobj)
  ************************************************************/
 function cell_icon(icon_class, key)
 {
+    /*  A control, not a picture: role, focus and the keys of a button. A
+     *  key press clicks it, so it reaches the same Tabulator cellClick as
+     *  the pointer.  */
     let $i = document.createElement('i');
     $i.className = icon_class;
+    $i.setAttribute('role', 'button');
+    $i.setAttribute('tabindex', '0');
     $i.setAttribute('title', t(key));
+    $i.setAttribute('data-i18n-title', key);
     $i.setAttribute('aria-label', t(key));
+    $i.setAttribute('data-i18n-aria-label', key);
+    $i.addEventListener('keydown', function(evt) {
+        if(evt.key === 'Enter' || evt.key === ' ') {
+            evt.preventDefault();
+            $i.click();
+        }
+    });
     return $i;
+}
+
+/************************************************************
+ *  The identity of a table element, for the kw of
+ *  EV_ADD_TABLE_ROW: a kw is plain json, and an element (with its
+ *  `.tabulator`, circular) broke the `machine` trace that dumps it.
+ *  Given on first use and kept on the element; the registry holds
+ *  it weakly, so a nested table re-built by its row formatter is
+ *  not kept alive by it.
+ ************************************************************/
+function table_identity(gobj, $table)
+{
+    if(!$table.yui_table_id) {
+        let priv = gobj.priv;
+        priv.table_seq += 1;
+        $table.yui_table_id = `t${priv.table_seq}`;
+        priv.tables.set($table.yui_table_id, new WeakRef($table));
+    }
+    return $table.yui_table_id;
+}
+
+/************************************************************
+ *  The element of a table identity, or null when it is gone.
+ ************************************************************/
+function find_table(gobj, table_id)
+{
+    let priv = gobj.priv;
+    let ref = priv.tables? priv.tables.get(table_id) : null;
+    let $table = ref? ref.deref() : null;
+    if(!$table) {
+        if(priv.tables) {
+            priv.tables.delete(table_id);
+        }
+        return null;
+    }
+    return $table;
 }
 
 /************************************************************
@@ -528,7 +604,14 @@ function destroy_widgets(gobj, $container)
 {
     let destroy = (what, widget) => {
         try {
-            widget.destroy();
+            /*  vanilla-jsoneditor 3 destroys asynchronously: its failure
+             *  is a rejected promise, which no try/catch sees.  */
+            let r = widget.destroy();
+            if(r && typeof r.then === "function") {
+                r.catch((e) => {
+                    log_warning(`${gobj_short_name(gobj)}: cannot destroy ${what}: ${e}`);
+                });
+            }
         } catch(e) {
             log_warning(`${gobj_short_name(gobj)}: cannot destroy ${what}: ${e}`);
         }
@@ -598,6 +681,19 @@ function name_form_control($field, conf)
     if($ts && !$ts.getAttribute("aria-label")) {
         $ts.setAttribute("aria-label", t(key));
         $ts.setAttribute("data-i18n-aria-label", key);
+    }
+
+    /*  The ✕ of the clear_button plugin is drawn by Tom Select too, with a
+     *  title written once with t() and no key: named here, after the
+     *  render, with its key, so it re-translates.  */
+    let $clear = $field.querySelector(".ts-wrapper .clear-button");
+    if($clear) {
+        const CLEAR_KEY = "remove all selected options";
+        $clear.setAttribute("role", "button");
+        $clear.setAttribute("title", t(CLEAR_KEY));
+        $clear.setAttribute("data-i18n-title", CLEAR_KEY);
+        $clear.setAttribute("aria-label", t(CLEAR_KEY));
+        $clear.setAttribute("data-i18n-aria-label", CLEAR_KEY);
     }
 }
 
@@ -1161,12 +1257,7 @@ function create_form_field(
      *
      *--------------------------------------*/
     let $element;
-    let kw_add_table_row = {
-        $row: null,     // not null if it's a nested table
-        $table: null,   // Element of tabulator
-        record: {},
-        loading: false,
-    };
+    let $add_table = null;  // the table the field's "add" button adds a row to
 
     switch (tag) {
         case 'input':
@@ -1175,7 +1266,7 @@ function create_form_field(
                     $element = createElement2(
                         ['div', {class: 'xfield field is-horizontal'}, [
                             ['div', {class: 'field-label is-normal' }, [
-                                ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
+                                ["label", {class:"label ", i18n:(label_i18n||label), for:name}, text_node(label)]
                             ]],
 
                             ['div', {class: 'field-body'}, [
@@ -1192,7 +1283,7 @@ function create_form_field(
                     $element = createElement2(
                         ['div', {class: 'xfield field is-horizontal'}, [
                             ['div', {class: 'field-label is-normal' }, [
-                                ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
+                                ["label", {class:"label ", i18n:(label_i18n||label), for:name}, text_node(label)]
                             ]],
 
                             ['div', {class: 'field-body'}, [
@@ -1215,7 +1306,7 @@ function create_form_field(
             $element = createElement2(
                 ['div', {class: 'xfield field is-horizontal'}, [
                     ['div', {class: 'field-label is-normal' }, [
-                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
+                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, text_node(label)]
                     ]],
 
                     ['div', {class: 'field-body'}, [
@@ -1231,7 +1322,7 @@ function create_form_field(
             $element = createElement2(
                 ['div', {class: 'xfield field is-horizontal'}, [
                     ['div', {class: 'field-label is-normal' }, [
-                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
+                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, text_node(label)]
                     ]],
 
                     ['div', {class: 'field-body'}, [
@@ -1250,7 +1341,7 @@ function create_form_field(
             $element = createElement2(
                 ['div', {class: 'field is-horizontal tabulator-buttons'}, [
                     ['div', {class: 'field-label is-normal' }, [
-                        ['label', {class:'label', i18n:(label_i18n||label)}, label]
+                        ['label', {class:'label', i18n:(label_i18n||label)}, text_node(label)]
                     ]],
 
                     ['div', {class: 'field-body'}, [
@@ -1265,8 +1356,18 @@ function create_form_field(
                                     click: function(evt) {
                                         evt.stopPropagation();
                                         evt.preventDefault();
+                                        if(!$add_table) {
+                                            log_error(`${gobj_short_name(gobj)}: "add" of a field without a table`);
+                                            return;
+                                        }
                                         gobj_send_event(gobj,
-                                            "EV_ADD_TABLE_ROW", kw_add_table_row, gobj
+                                            "EV_ADD_TABLE_ROW",
+                                            {
+                                                table_id: table_identity(gobj, $add_table),
+                                                record: {},
+                                                loading: false,
+                                            },
+                                            gobj
                                         );
                                     }
                                 }]
@@ -1295,7 +1396,7 @@ function create_form_field(
             $element = createElement2(
                 ['div', {class: 'xfield field is-horizontal'}, [
                     ['div', {class: 'field-label is-normal' }, [
-                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, label]
+                        ["label", {class:"label ", i18n:(label_i18n||label), for:name}, text_node(label)]
                     ]],
 
                     ['div', {class: 'field-body'}, [
@@ -1415,7 +1516,7 @@ function create_form_field(
                     },
                     opts.map(option =>
                         ['option', {value:option, i18n:option},
-                         document.createTextNode(String(option))]     // data, not markup
+                         text_node(option)]     // data, not markup
                     ),
                     {
                         'change': function (evt) {
@@ -1457,8 +1558,8 @@ function create_form_field(
                     multiple: true,
                 },
                 opts.map(option => is_icon
-                    ? ['option', {value:option}, option]
-                    : ['option', {value:option, i18n:option}, option]
+                    ? ['option', {value:option}, text_node(option)]
+                    : ['option', {value:option, i18n:option}, text_node(option)]
                 )
             ];
             $extend = createElement2(extend);
@@ -1517,7 +1618,7 @@ function create_form_field(
             $extend = createElement2(
                 ['label', {class: 'radio'}, [
                     ['input', {type: 'radio', name: name}],
-                    ['span', {i18n: label_key}, label_key]
+                    ['span', {i18n: label_key}, text_node(label_key)]
                 ]]
             );
             $control.appendChild($extend);
@@ -1595,7 +1696,7 @@ function create_form_field(
             $extend = createElement2(extend);
             $control.appendChild($extend);
             $extend.tabulator = create_tabulator(gobj, $extend, name, options);
-            kw_add_table_row["$table"] = $extend;
+            $add_table = $extend;
             break;
         }
 
@@ -2131,7 +2232,7 @@ function template2columns(gobj, columns, template, sub_elements)
         switch(field_desc.type) {
             case "object":
             case "dict":
-                // TODO es otro formulario, pongo un button y que abra un popup?
+                // TODO it is another form: a button that opens it in a popup?
                 // Object.entries(value).forEach(([key, value]) => {
                 //     build_html_form_field_conf_from_template(gobj, $form, key, value);
                 // });
@@ -2173,11 +2274,14 @@ function template2columns(gobj, columns, template, sub_elements)
                         evt.stopPropagation();
                         let $row = cell.getRow().getElement();
                         let $extend = $row.querySelector(`[name="${field_desc.name}"]`);
+                        if(!$extend) {
+                            log_error(`${gobj_short_name(gobj)}: nested table '${field_desc.name}' not found in its row`);
+                            return;
+                        }
                         gobj_send_event(gobj,
                             "EV_ADD_TABLE_ROW",
                             {
-                                $row: $row,         // not null if it's a nested table
-                                $table: $extend,    // Element of tabulator
+                                table_id: table_identity(gobj, $extend),
                                 record: {},
                                 loading: false,
                             },
@@ -2409,14 +2513,28 @@ function template2columns(gobj, columns, template, sub_elements)
  ************************************************************/
 function field_validation_message($input)
 {
+    let key = field_validation_key($input);
+    if(key) {
+        return t(key);
+    }
+    return $input.validationMessage;
+}
+
+/************************************************************
+ *  The i18n key of the message, when the message is ours ("" when
+ *  it is the browser's): written as the help line's data-i18n, so
+ *  a language change re-translates the line on screen.
+ ************************************************************/
+function field_validation_key($input)
+{
     if($input.yui_json_error) {
-        return t($input.yui_json_error);
+        return $input.yui_json_error;
     }
     let v = $input.validity;
     if(v && v.valueMissing) {
-        return t("this field is required");
+        return "this field is required";
     }
-    return $input.validationMessage;
+    return "";
 }
 
 /************************************************************
@@ -2442,6 +2560,7 @@ function mark_field_validity($input)
         $input.classList.remove('is-danger');
         if($h) {
             $h.textContent = '';
+            $h.removeAttribute('data-i18n');
             $h.style.display = 'none';
         }
         return true;
@@ -2449,6 +2568,12 @@ function mark_field_validity($input)
 
     $input.classList.add('is-danger');
     if($h) {
+        let key = field_validation_key($input);
+        if(key) {
+            $h.setAttribute('data-i18n', key);
+        } else {
+            $h.removeAttribute('data-i18n');    // the browser's own sentence
+        }
         $h.textContent = field_validation_message($input);
         $h.style.display = 'block';
     }
@@ -2920,8 +3045,7 @@ function load_tabulator_data(gobj, $table, value)
             gobj_send_event(gobj,
                 "EV_ADD_TABLE_ROW",
                 {
-                    $row: null,     // not null if it's a nested table
-                    $table: $table, // Element of tabulator
+                    table_id: table_identity(gobj, $table),
                     record: row,
                     loading: true,
                 },
@@ -2934,8 +3058,7 @@ function load_tabulator_data(gobj, $table, value)
                 gobj_send_event(gobj,
                     "EV_ADD_TABLE_ROW",
                     {
-                        $row: null,     // not null if it's a nested table
-                        $table: $table, // Element of tabulator
+                        table_id: table_identity(gobj, $table),
                         record: row,
                         loading: true,
                     },
@@ -3098,13 +3221,16 @@ function treedb_value_2_form_value(gobj, field_desc, value)
 /************************************************************
  *  A json field's value, parsed. validate_form() refuses a field
  *  that does not parse, so reaching the error here is a path that
- *  skipped it: logged, never quiet.
+ *  skipped it: logged, and the value is handed on AS IT IS. An
+ *  empty `{}` / `[]` in its place is a value nobody wrote, and
+ *  saved it wipes the column.
  ************************************************************/
 function parse_json_value(gobj, field_desc, value)
 {
     let r = parse_json_field(value, field_desc.type);
     if(r.error) {
-        log_error(`${gobj_short_name(gobj)}: field '${field_desc.name}' (${field_desc.type}) holds no valid json, stored as empty`);
+        log_error(`${gobj_short_name(gobj)}: field '${field_desc.name}' (${field_desc.type}) holds no valid json, handed on as it is`);
+        return value;
     }
     return r.value;
 }
@@ -3197,6 +3323,9 @@ function form_value_2_treedb_value(gobj, field_desc, value)
             break;
         case "object":
         case "dict":
+            /*  Parsed like a list: it went out as the editor's TEXT, and a
+             *  backend that reads a bad text stores {} without a word. */
+            value = parse_json_value(gobj, field_desc, value);
             break;
         case "array":
         case "list":
@@ -3400,9 +3529,13 @@ function ac_set_file_preview(gobj, event, kw, src)
  ************************************************************/
 function ac_add_table_row(gobj, event, kw, src)
 {
-    let $row = kw["$row"];  // not null if it's a nested table in this row
-    let $table = kw.$table; // Element of tabulator
-    let tabulator = $table.tabulator;
+    let table_id = kw.table_id;
+    let $table = find_table(gobj, table_id);
+    let tabulator = $table? $table.tabulator : null;
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: EV_ADD_TABLE_ROW to a table that is gone: '${table_id}'`);
+        return -1;
+    }
     let record = kw.record;
     let loading = kw.loading;
 
@@ -3432,13 +3565,14 @@ function ac_add_table_row(gobj, event, kw, src)
 
     // TODO improve, to use only once the timeout?
     setTimeout(function() {
-        if($row) {
-            let $tabulator = $row.closest('.yui-tabulator-table');
-            if($tabulator && $tabulator.tabulator) {
-                $tabulator.tabulator.redraw(); /* Delete double scrollbar */
-            }
-        } else {
-            tabulator.redraw(); /* Delete double scrollbar */
+        if(gobj_is_destroying(gobj)) {
+            return;     // the form went in the meantime: nothing to redraw
+        }
+        /*  The table itself, or -- for a nested one -- the table of the
+         *  row it lives in. Re-checked: it may be destroyed by now.  */
+        let $outer = $table.closest('.yui-tabulator-table');
+        if($outer && $outer.tabulator) {
+            $outer.tabulator.redraw(); /* Delete double scrollbar */
         }
     }, 30);
 

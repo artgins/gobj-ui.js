@@ -2,9 +2,13 @@
  *          nav_cards_helpers.test.js
  *
  *      Unit tests for the pure "cards" layout descriptor builders.
- *      Descriptors are plain createElement2 arrays, so no DOM needed.
+ *      Descriptors are plain createElement2 arrays; the label is a Text
+ *      node (data, never markup), so a document double is installed.
  ***********************************************************************/
 import { test, expect } from "vitest";
+import {install_dom_double} from "../test/dom_double.js";
+
+install_dom_double();
 import {
     card_descriptor,
     cards_grid_descriptor,
@@ -35,7 +39,7 @@ test("card carries the nav item data-* contract", () => {
     let [label_tag, label_attrs, label_text] = children[1];
     expect(label_tag).toBe("span");
     expect(label_attrs.i18n).toBe("budgets");
-    expect(label_text).toBe("budgets");
+    expect(label_text.textContent).toBe("budgets");
 });
 
 test("card without icon renders label only", () => {
@@ -45,7 +49,7 @@ test("card without icon renders label only", () => {
     );
     expect(children.length).toBe(1);
     expect(children[0][0]).toBe("span");
-    expect(children[0][2]).toBe("x label");
+    expect(children[0][2].textContent).toBe("x label");
 });
 
 test("show_label=false drops the label span", () => {

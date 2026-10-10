@@ -54,6 +54,8 @@ const es_translation = {
     "breadcrumbs": "Miga de pan",
     "minimize": "Minimizar",
     "maximize": "Maximizar",
+    "restore": "Restaurar",
+    "navigation": "Navegación",
     "coordinates...": "Coordenadas...",
     /*  Keys the LIBRARY asks for and the demo did not define, plus the
      *  shell declaration's own. Found by dumping the deployed page and
@@ -693,6 +695,8 @@ const es_translation = {
  *  as "Q3 2026" — so unlike the demo's own keys they need an `en` bundle.
  */
 const en_translation = {
+    "restore": "Restore",
+    "navigation": "Navigation",
     "pkey2s": "Secondary keys",
     "tkey": "Time key",
     "append time": "append time",

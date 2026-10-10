@@ -2552,6 +2552,9 @@ function drain_overlays(gobj)
     let kept = [];
     while(entries.length > 0) {
         let entry = entries.pop();
+        if(entry.dismissed) {
+            continue;   // its owner went with an earlier close of this drain
+        }
         if(entry.keep_on_navigate) {
             kept.unshift(entry);
             continue;
@@ -2618,6 +2621,10 @@ function overlay_dismissed(gobj, entry)
     if(!priv || !priv.overlay_stack || !entry) {
         return;
     }
+    /*  Marked even when it is no longer on the stack: drain_overlays()
+     *  works on a COPY, and an entry whose owner an earlier close of the
+     *  same drain already took down must not be closed a second time. */
+    entry.dismissed = true;
     let idx = priv.overlay_stack.indexOf(entry);
     if(idx < 0) {
         /*  Already removed by the popstate handler (closed via Back). */

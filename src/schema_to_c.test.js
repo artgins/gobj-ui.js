@@ -17,7 +17,8 @@ import { schema_to_diagram } from "./schema_to_diagram.js";
 
 
 /***************************************************************
- *  What the yuno does to the literal before parsing it:
+ *  A JS MODEL of the yuno's loader (not the C code itself) --
+ *  what the yuno does to the literal before parsing it:
  *      1. the C compiler resolves `\<newline>` continuations and
  *         the `\\` / `\"` escapes,
  *      2. helper_quote2doublequote() turns EVERY ' into ",
@@ -233,6 +234,12 @@ describe("the characters that cannot be written as themselves", () => {
         const src = with_header(header);
         expect(src.split("\n").every((line) => !line.includes("line two"))).toBe(true);
         expect(load_like_the_yuno(src).topics[0].cols.id.header).toBe(header);
+    });
+
+    test("a NUL becomes U+FFFD: jansson refuses \\u0000 without JSON_ALLOW_NUL", () => {
+        const src = with_header("a\u0000b");
+        expect(src.includes("u0000")).toBe(false);
+        expect(load_like_the_yuno(src).topics[0].cols.id.header).toBe("a\ufffdb");
     });
 
     test("all three at once", () => {

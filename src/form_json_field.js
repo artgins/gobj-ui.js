@@ -101,8 +101,12 @@ export function parse_json_field(value, type)
 }
 
 /************************************************************
- *  What a jsoneditor content ({text} or {json}) holds: the
- *  text as typed, or the tree-mode json.
+ *  What a jsoneditor content ({text} or {json}) holds, as TEXT:
+ *  the text as typed, or the tree-mode json serialized -- which is
+ *  what get_form_values() reads out of the editor too. Handing the
+ *  tree-mode value back as is made parse_json_field() parse a
+ *  string ROOT a second time: "123" was checked as the number 123,
+ *  and "abc" as a text that is no json.
  ************************************************************/
 export function json_editor_value(content)
 {
@@ -112,5 +116,8 @@ export function json_editor_value(content)
     if(content.text !== undefined) {
         return content.text;
     }
-    return content.json;
+    if(content.json === undefined) {
+        return undefined;
+    }
+    return JSON.stringify(content.json);
 }

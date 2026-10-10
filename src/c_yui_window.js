@@ -54,6 +54,7 @@ import {
 } from "./c_yui_shell.js";
 
 import "./c_yui_window.css";
+import {text_node} from "./yui_text.js";
 
 /***************************************************************
  *              Constants
@@ -104,9 +105,9 @@ SDATA(data_type_t.DTP_STRING,   "title_prefix", 0,  "",     "Optional DATA half 
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, an i18n KEY: painted in the title bar (unless `header` overrides it) and on the dock chip. Pass the key, not t(key), or it cannot re-translate"),
 SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Window icon (by window type), leading the title bar and the dock chip: a yi-* class name or inline SVG"),
 // TODO declared, NOT implemented yet: focus, modal, keyboard (Escape does not close a window)
-SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "Brings focus to the element, can be a number or selector"),
-SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "Enable modal mode"),
-SDATA(data_type_t.DTP_BOOLEAN,  "keyboard",     0,  true,   "Close window on ESC if not modal"),
+SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "NOT implemented yet: would bring focus to the element, a number or a selector"),
+SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "NOT implemented yet: would enable modal mode"),
+SDATA(data_type_t.DTP_BOOLEAN,  "keyboard",     0,  true,   "NOT implemented yet: would close the window on ESC (Escape does nothing today)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "back_dismissable", 0, true, "Browser Back closes this window (floating overlays only; ignored when it has a `manager`)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "keep_on_navigate", 0, false, "This window is a navigation PANEL: a route change does not close it"),
 SDATA(data_type_t.DTP_POINTER,  "back_overlay", 0,  null,   "Internal: overlay-history entry (Back-button integration)"),
@@ -340,7 +341,7 @@ function build_default_header(gobj)
     if(!empty_string(prefix)) {
         items.push(
             ['span', {class: 'WINDOW_TITLE_PREFIX has-text-weight-semibold'},
-             document.createTextNode(String(prefix))]     // data, not markup
+             text_node(prefix)]     // data, not markup
         );
     }
     if(!empty_string(title)) {
@@ -772,13 +773,25 @@ function register_back_overlay(gobj)
     if(!shell) {
         return;
     }
+    /*  A window that survives its close gets its entry back -- but only
+     *  once the question is over. A close that ASKS (unsaved changes)
+     *  opened a dialog that registered its own entry; one put back now
+     *  would sit ABOVE the question, and every Back would stack another
+     *  dialog instead of closing the one on screen.  */
+    const rearm = function() {
+        if(!gobj_is_destroying(gobj) && !gobj_read_attr(gobj, "back_overlay")) {
+            register_back_overlay(gobj);
+        }
+    };
     let overlay = yui_shell_register_overlay(
         shell,
         function() {
             gobj_write_attr(gobj, "back_overlay", null);
-            close_window(gobj);
-            if(!gobj_is_destroying(gobj) && !gobj_read_attr(gobj, "back_overlay")) {
-                register_back_overlay(gobj);
+            const closing = close_window(gobj);
+            if(closing.state === "vetoed") {
+                rearm();
+            } else if(closing.state === "asking") {
+                closing.answer.then(rearm);
             }
         },
         {keep_on_navigate: gobj_read_bool_attr(gobj, "keep_on_navigate")}
@@ -787,7 +800,12 @@ function register_back_overlay(gobj)
 }
 
 /************************************************************
- *
+ *  Ask to close the window. Answers what happened:
+ *      {state: "closed"}               the window is destroyed
+ *      {state: "vetoed"}               a subscriber kept it open
+ *      {state: "asking", answer}       a subscriber asked a question
+ *                                      first; `answer` resolves to
+ *                                      it once it is over
  ************************************************************/
 function close_window(gobj)
 {
@@ -809,29 +827,34 @@ function close_window(gobj)
         }
         gobj_stop_children(gobj);
         gobj_destroy(gobj);
-    } else if(kw_close.warning) {
-        yui_shell_confirm_yesnocancel(
-            yui_shell_of(gobj), kw_close.warning,
-            {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
-        ).then(function(answer) {
-            if(answer !== "yes") {
-                return;
-            }
-            /*  The question was asynchronous: the window may have been
-             *  torn down by another path while it was open.  */
-            if(gobj_is_destroying(gobj)) {
-                return;
-            }
-            if(on_close) {
-                on_close();
-            }
-            if(gobj_is_running(gobj)) {
-                gobj_stop(gobj);
-            }
-            gobj_stop_children(gobj);
-            gobj_destroy(gobj);
-        });
+        return {state: "closed"};
     }
+    if(!kw_close.warning) {
+        return {state: "vetoed"};
+    }
+    const answer = yui_shell_confirm_yesnocancel(
+        yui_shell_of(gobj), kw_close.warning,
+        {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
+    ).then(function(answer) {
+        if(answer !== "yes") {
+            return answer;
+        }
+        /*  The question was asynchronous: the window may have been
+         *  torn down by another path while it was open.  */
+        if(gobj_is_destroying(gobj)) {
+            return answer;
+        }
+        if(on_close) {
+            on_close();
+        }
+        if(gobj_is_running(gobj)) {
+            gobj_stop(gobj);
+        }
+        gobj_stop_children(gobj);
+        gobj_destroy(gobj);
+        return answer;
+    });
+    return {state: "asking", answer: answer};
 }
 
 /************************************************************
@@ -1211,7 +1234,25 @@ function ac_refresh(gobj, event, kw, src)
  ************************************************************/
 function ac_show(gobj, event, kw, src)
 {
-
+    /*  Bring the window back in front of the reader: out of the dock if
+     *  it was minimized, above the others. The manager owns both when
+     *  there is one; without one the window is just made visible and
+     *  moved to the top of its layer.  */
+    let manager = gobj_read_pointer_attr(gobj, "manager");
+    if(manager) {
+        gobj_send_event(manager, "EV_FOCUS_WINDOW", {window: gobj}, gobj);
+        return 0;
+    }
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        log_error(`${gobj_short_name(gobj)}: EV_SHOW without a container`);
+        return -1;
+    }
+    $container.style.removeProperty('display');
+    let $parent = $container.parentNode;
+    if($parent && $parent.lastChild !== $container) {
+        $parent.appendChild($container);
+    }
     return 0;
 }
 
