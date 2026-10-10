@@ -7,6 +7,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.26.5
+
+- **schema editor: its `←` lands where browser Back lands.** It went UP a
+  level (columns, topics, treedbs) whatever came before, so after two topics
+  opened one after the other Back returned to the first one and the arrow to
+  the treedb. With a route of its own (`base_route`, as the agent console
+  mounts it) it now asks the shell for `yui_shell_previous_route()`; mounted
+  without one -- in a window, where the route before is the app's behind it --
+  or when the page has not moved, it still goes up a level.
+
 ## 7.26.4
 
 - **shell: `yui_shell_previous_route(shell)`** -- the route the reader was on

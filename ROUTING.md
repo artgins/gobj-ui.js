@@ -252,7 +252,8 @@ rare exception — see the shell's action-route handling).
   reader came from there; `yui_shell_last_route_outside()` disagrees as soon as
   the reader moved inside the subtree -- one record to the next, or up a
   breadcrumb. On `""` the caller falls back to a fixed route of its own. The
-  topics view's `←` and the treedb graph's `← back` use it.
+  topics view's `←`, the treedb graph's `← back` and the schema editor's `←`
+  (when it has a route of its own) use it.
   A "←" that means UP a level (the `backbar` of `C_YUI_NAV`/`C_YUI_NODE`, which
   names the section it goes to) is a different control, and stays a fixed
   route.

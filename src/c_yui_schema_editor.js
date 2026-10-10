@@ -149,7 +149,7 @@ import {grouped_flags, toggle_flag} from "./schema_flags.js";
 import {write_command, write_options} from "./schema_write_options.js";
 import {COL_TYPES} from "./schema_validate.js";
 
-import {yui_shell_of} from "./c_yui_shell.js";
+import {yui_shell_of, yui_shell_navigate, yui_shell_previous_route} from "./c_yui_shell.js";
 import {
     yui_shell_show_modal,
     yui_shell_show_error,
@@ -3830,9 +3830,31 @@ function ac_select_topic(gobj, event, kw, src)
     return reload_after_move(gobj);
 }
 
+/***************************************************************
+ *  «←»: where browser Back goes, the route before this one.
+ *
+ *  It went UP a level (columns -> topics -> treedbs) whatever came
+ *  before, and Back undoes the last move: after two topics opened from
+ *  the diagram, Back returned to the first one and the arrow to the
+ *  treedb (2026-10-10). The rule is that both land on the same place.
+ *
+ *  The exception to "this view navigates nothing itself" is this one
+ *  control, like the topics view's arrow: it asks the shell, which is
+ *  what remembers. Only with a route of its own: mounted without one
+ *  (in a window), the route before is the APP's, behind the editor, and
+ *  the arrow keeps going up a level. Up a level too when the page has
+ *  not moved.
+ ***************************************************************/
 function ac_back(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    let shell = gobj_read_attr(gobj, "base_route") ? yui_shell_of(gobj) : null;
+    let came_from = shell ? yui_shell_previous_route(shell) : "";
+    if(came_from) {
+        yui_shell_navigate(shell, came_from, {push: true});
+        return 0;
+    }
 
     if(priv.diagram || priv.topic_name) {
         go(gobj, priv.treedb_id, "", false, true);
