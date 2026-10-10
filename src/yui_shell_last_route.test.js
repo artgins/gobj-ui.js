@@ -4,15 +4,31 @@
  *  They read only `priv.route_mru`, so a bare object stands in for
  *  the shell.
  */
-import {describe, it, expect} from "vitest";
+import {describe, it, expect, vi} from "vitest";
+
+/*  yui_shell_previous_route() reads the shell's `current_route` attr;
+ *  the stand-in carries it in `attrs`.  */
+vi.mock("@yuneta/gobj-js", async (importOriginal) => {
+    const orig = await importOriginal();
+    return {
+        ...orig,
+        gobj_read_attr: (gobj, name) => (gobj && gobj.attrs && name in gobj.attrs)?
+            gobj.attrs[name]: orig.gobj_read_attr(gobj, name),
+    };
+});
+
 import {
     yui_shell_last_route_under,
     yui_shell_last_route_outside,
+    yui_shell_previous_route,
 } from "./c_yui_shell.js";
 
-function shell(mru)
+function shell(mru, current)
 {
-    return {priv: {route_mru: mru}};
+    return {
+        priv: {route_mru: mru},
+        attrs: {current_route: current === undefined? mru[mru.length - 1] || "": current},
+    };
 }
 
 describe("yui_shell_last_route_outside", () => {
@@ -49,5 +65,28 @@ describe("yui_shell_last_route_under", () => {
         const s = shell(["/graph/users", "/alarms"]);
         expect(yui_shell_last_route_under(s, "/graph")).toBe("/graph/users");
         expect(yui_shell_last_route_under(s, "/cards")).toBe("/cards");
+    });
+});
+
+describe("yui_shell_previous_route", () => {
+    it("answers the route before the current one, as browser Back does", () => {
+        const s = shell(["/topics", "/topics/device_types", "/topics/devices"]);
+        expect(yui_shell_previous_route(s)).toBe("/topics/device_types");
+    });
+
+    it("goes back to the previous record, not past it", () => {
+        const s = shell(["/map/table", "/detail/E1", "/detail/E2"]);
+        expect(yui_shell_previous_route(s)).toBe("/detail/E1");
+    });
+
+    it("goes back DOWN after a breadcrumb took the reader up", () => {
+        const s = shell(["/schemas/db", "/schemas/db/users", "/schemas/db/users/cols", "/schemas/db"]);
+        expect(yui_shell_previous_route(s)).toBe("/schemas/db/users/cols");
+    });
+
+    it("answers empty when the page has not moved", () => {
+        expect(yui_shell_previous_route(shell(["/detail/E1"]))).toBe("");
+        expect(yui_shell_previous_route(shell([]))).toBe("");
+        expect(yui_shell_previous_route(null)).toBe("");
     });
 });

@@ -240,12 +240,22 @@ rare exception — see the shell's action-route handling).
 - **Last route outside a prefix** (`yui_shell_last_route_outside(shell,
   route)`, since gobj-ui 7.26.2): the other half of the same memory -- the most
   recent route that is neither `route` nor below it, or `""` when the page
-  never left it. It is what the "back" button of a view means: the view the
-  reader CAME FROM, as browser Back does. A button that names one fixed route
-  agrees with Back only when the reader came from there. Excluding the whole
-  subtree means stepping from one record of a detail view to the next does not
-  turn "back" into a walk through the records. On `""` the caller falls back
-  to a fixed route of its own.
+  never left it: the last view the reader saw before a subtree. It is NOT what
+  a "←" uses (see the next item): it skips the routes inside the subtree, and
+  browser Back does not.
+- **The route before this one** (`yui_shell_previous_route(shell)`, since
+  gobj-ui 7.26.4): the most recent route that is not the current one, or `""`
+  when the page has not moved. **This is what a view's own "←" uses**, because
+  the rule is that it lands where browser Back lands: two controls that say
+  "back" and go to different places leave the reader not knowing which to
+  trust. A fixed route (the landing, a summary) agrees with Back only when the
+  reader came from there; `yui_shell_last_route_outside()` disagrees as soon as
+  the reader moved inside the subtree -- one record to the next, or up a
+  breadcrumb. On `""` the caller falls back to a fixed route of its own. The
+  topics view's `←` and the treedb graph's `← back` use it.
+  A "←" that means UP a level (the `backbar` of `C_YUI_NAV`/`C_YUI_NODE`, which
+  names the section it goes to) is a different control, and stays a fixed
+  route.
 - **Back/Forward** need no code: they change the hash, the shell re-routes
   through the same path, views react to `EV_ROUTE_CHANGED` (including an empty
   `subpath` → view home).

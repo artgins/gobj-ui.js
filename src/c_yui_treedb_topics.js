@@ -69,7 +69,7 @@ import {
     yui_shell_set_sub_routes,
     yui_shell_navigate,
     yui_shell_last_route_under,
-    yui_shell_last_route_outside,
+    yui_shell_previous_route,
 } from "./c_yui_shell.js";
 import {nodes_answer} from "./nodes_answer.js";
 import {yui_toolbar_icon} from "./yui_toolbar.js";
@@ -2760,16 +2760,15 @@ function ac_set_landing_view(gobj, event, kw, src)
  *  `device_types` opened `devices`, and the arrow then showed the cards
  *  instead of `device_types`, where Back went.
  *
- *  So it asks the shell for the last route outside the topic on screen
- *  (yui_shell_last_route_outside): the previous topic, the landing, or
- *  the view the reader came from. With none -- the page landed on this
+ *  So it asks the shell for the route before this one
+ *  (yui_shell_previous_route): the previous topic, the landing, or the
+ *  view the reader came from. With none -- the page landed on this
  *  topic -- it goes to the landing, as before.
  ************************************************************/
 function ac_back_to_topics(gobj, event, kw, src)
 {
     let shell = yui_shell_of(gobj);
-    let here = shell ? (gobj_read_attr(shell, "current_route") || "") : "";
-    let came_from = here ? yui_shell_last_route_outside(shell, here) : "";
+    let came_from = shell ? yui_shell_previous_route(shell) : "";
     if(came_from) {
         yui_shell_navigate(shell, came_from, {push: true});
         return 0;

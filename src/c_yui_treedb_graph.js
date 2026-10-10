@@ -92,7 +92,8 @@ import {
     set_pressed_state,
 } from "./lib_graph.js";
 import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
-import {yui_shell_of, yui_shell_set_sub_routes} from "./c_yui_shell.js";
+import {yui_shell_of, yui_shell_set_sub_routes, yui_shell_navigate, yui_shell_previous_route}
+    from "./c_yui_shell.js";
 
 import {t} from "i18next";
 
@@ -1104,10 +1105,15 @@ function make_toolbar(gobj)
 }
 
 /************************************************************
- *  "← topics": a real hash link back to the topics grid (host-supplied
- *  `back_route`), shown only when set. Lets a graph reached from a topic
- *  card's graph icon return to the cards landing — symmetric with the
- *  topics view's own back button. Absent (e.g. wattyzer) ⇒ no button.
+ *  "← back": shown only when the host supplies `back_route`. Absent
+ *  (e.g. wattyzer) ⇒ no button.
+ *
+ *  It goes where browser Back goes (EV_BACK_TO_TOPICS): the route the
+ *  reader was on before, and `back_route` only when there is none. It
+ *  used to go to `back_route` -- the topics grid -- whatever came before,
+ *  so a graph opened from one topic sent the reader to the cards while
+ *  Back returned to that topic. The `href` stays `back_route`: a real
+ *  link, for a middle click or a copied address.
  *
  *  It is deliberately NOT a toolbar item: yui_toolbar() lays its items in
  *  a horizontally SCROLLING container, and this is the only control here
@@ -1126,12 +1132,17 @@ function make_back_to_topics(gobj)
     let $back = createElement2(
         ['a', {class: 'GRAPH_BACK_TOPICS button ml-1 mr-1 is-flex-shrink-0',
                href: back_route,
-               title: t('topics'), 'aria-label': t('topics'),
-               'data-i18n-title': 'topics', 'data-i18n-aria-label': 'topics'}, [
+               title: t('back'), 'aria-label': t('back'),
+               'data-i18n-title': 'back', 'data-i18n-aria-label': 'back'}, [
             ['span', {class: 'icon'}, [['i', {class: 'yi-arrow-left'}]]],
             ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;',
-                      i18n: 'topics'}, 'topics']
-        ]]
+                      i18n: 'back'}, 'back']
+        ], {
+            click: (evt) => {
+                evt.preventDefault();
+                gobj_send_event(gobj, "EV_BACK_TO_TOPICS", {}, gobj);
+            }
+        }]
     );
     refresh_language($back, t);
 
@@ -3639,6 +3650,27 @@ function ac_set_focus_topic(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  "← back": to the route the reader was on before, as browser Back,
+ *  and to `back_route` when there is none (the page landed here).
+ ************************************************************/
+function ac_back_to_topics(gobj, event, kw, src)
+{
+    let shell = yui_shell_of(gobj);
+    let came_from = shell ? yui_shell_previous_route(shell) : "";
+    if(came_from) {
+        yui_shell_navigate(shell, came_from, {push: true});
+        return 0;
+    }
+    let back_route = gobj_read_attr(gobj, "back_route") || "";
+    if(!back_route) {
+        log_error(`${gobj_short_name(gobj)}: back asked with no back_route`);
+        return -1;
+    }
+    window.location.hash = back_route;
+    return 0;
+}
+
+/************************************************************
  *  Parent (routing) inform us that we go showing
  *
  *      {
@@ -3737,6 +3769,7 @@ function create_gclass(gclass_name)
             ["EV_LEGEND_STATE",             ac_legend_state,            null],
             ["EV_FIND_RESULT",              ac_find_result,             null],
             ["EV_SHOW",                     ac_show,                    null],
+            ["EV_BACK_TO_TOPICS",           ac_back_to_topics,          null],
             ["EV_HIDE",                     ac_hide,                    null],
             ["EV_TRANSPORT_STATE",          ac_transport_state,         null],
             ["EV_LANGUAGE_CHANGED",         ac_language_changed,        null],
@@ -3791,6 +3824,7 @@ function create_gclass(gclass_name)
         ["EV_RECORD_WRITTEN",
             event_flag_t.EVF_OUTPUT_EVENT | event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_SHOW",                     0],
+        ["EV_BACK_TO_TOPICS",           0],
         ["EV_HIDE",                     0],
         ["EV_LANGUAGE_CHANGED",         0],
         ["EV_TRANSPORT_STATE",          0],

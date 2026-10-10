@@ -3308,6 +3308,39 @@ function yui_shell_last_route_outside(shell_gobj, route)
 }
 
 /************************************************************
+ *  The route the reader was on BEFORE this one: the most recent
+ *  visited route that is not the current one, or "" when there is
+ *  none (the page landed here and has not moved).
+ *
+ *  It is what a view's own "←" must use, because the rule is that it
+ *  lands where browser Back lands (2026-10-10): two controls that say
+ *  "back" and go to different places leave the reader not knowing
+ *  which one to trust. A button that names a fixed route (the landing,
+ *  a summary) agrees with Back only when the reader came from there;
+ *  one that skips a subtree (yui_shell_last_route_outside()) disagrees
+ *  as soon as the reader moved inside it -- from one record to the
+ *  next, or up a breadcrumb.
+ *
+ *  The caller navigates there itself, as a push, and falls back to a
+ *  fixed route of its own on "".
+ ************************************************************/
+function yui_shell_previous_route(shell_gobj)
+{
+    let priv = shell_gobj && shell_gobj.priv;
+    if(!priv || !is_array(priv.route_mru)) {
+        return "";
+    }
+    let here = gobj_read_attr(shell_gobj, "current_route") || "";
+    for(let i = priv.route_mru.length - 1; i >= 0; i--) {
+        let r = priv.route_mru[i];
+        if(r !== here) {
+            return r;
+        }
+    }
+    return "";
+}
+
+/************************************************************
  *  Resolve the shell that governs `gobj`: the nearest
  *  C_YUI_SHELL ancestor, else the last shell created on the
  *  page (apps have exactly one).  Null when no shell exists —
@@ -3748,6 +3781,7 @@ export {
     yui_shell_navigate,
     yui_shell_last_route_under,
     yui_shell_last_route_outside,
+    yui_shell_previous_route,
     yui_shell_nav_map,
     yui_shell_set_sub_routes,
     yui_shell_register_event_handler,

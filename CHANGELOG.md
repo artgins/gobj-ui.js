@@ -7,6 +7,21 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.26.4
+
+- **shell: `yui_shell_previous_route(shell)`** -- the route the reader was on
+  before this one, or `""` when the page has not moved. It is what a view's own
+  `←` must use: the rule (2026-10-10) is that it lands where browser Back lands.
+  7.26.3 used `yui_shell_last_route_outside()` for the topics view, which skips
+  the whole subtree of the current route and so disagrees with Back as soon as
+  the reader moved inside it (one record to the next, up a breadcrumb).
+  Unit-tested; ROUTING.md §7.
+- **treedb topics:** the `←` of an open topic uses it.
+- **treedb graph:** its `← topics` (shown when the host supplies `back_route`)
+  went to `back_route` whatever came before; it now goes to the previous route
+  (`EV_BACK_TO_TOPICS`), and to `back_route` only when there is none. The
+  `href` stays `back_route`, a real link. Its label is `back`.
+
 ## 7.26.3
 
 - **treedb topics: the `←` of an open topic goes back to where the reader
