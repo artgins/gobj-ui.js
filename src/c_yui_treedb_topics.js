@@ -69,6 +69,7 @@ import {
     yui_shell_set_sub_routes,
     yui_shell_navigate,
     yui_shell_last_route_under,
+    yui_shell_last_route_outside,
 } from "./c_yui_shell.js";
 import {nodes_answer} from "./nodes_answer.js";
 import {yui_toolbar_icon} from "./yui_toolbar.js";
@@ -367,13 +368,15 @@ function build_ui(gobj)
                      *  graph's toolbar has many more, so it keeps
                      *  is-hidden-mobile. */
 
-                    /*  Back to the topic-cards grid (cards-landing mode only);
-                     *  hidden until a topic is open. */
+                    /*  Back to where the reader was (cards-landing mode only);
+                     *  hidden until a topic is open. It is 'back' and not
+                     *  'topics' because that is where it goes: the previous
+                     *  topic, the landing, or the view the reader came from. */
                     ['button', {class: 'button TREEDB_TOPICS_BACK is-hidden',
-                                title: t('topics'), 'aria-label': t('topics'),
-                                'data-i18n-title': 'topics', 'data-i18n-aria-label': 'topics'}, [
+                                title: t('back'), 'aria-label': t('back'),
+                                'data-i18n-title': 'back', 'data-i18n-aria-label': 'back'}, [
                         ['span', {class: 'icon'}, [yui_toolbar_icon('yi-arrow-left')]],
-                        ['span', {i18n: 'topics'}, 'topics']
+                        ['span', {i18n: 'back'}, 'back']
                     ], {
                         click: (evt) => {
                             evt.stopPropagation();
@@ -2749,10 +2752,29 @@ function ac_set_landing_view(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Back from a topic to the cards-landing grid (the section index).
+ *  Back from a topic to WHERE THE READER WAS.
+ *
+ *  Browser Back and this button must land on the same place, or the
+ *  reader cannot tell which one to trust (2026-10-10). The button went to
+ *  the landing whatever came before it, so "linked records" from
+ *  `device_types` opened `devices`, and the arrow then showed the cards
+ *  instead of `device_types`, where Back went.
+ *
+ *  So it asks the shell for the last route outside the topic on screen
+ *  (yui_shell_last_route_outside): the previous topic, the landing, or
+ *  the view the reader came from. With none -- the page landed on this
+ *  topic -- it goes to the landing, as before.
  ************************************************************/
 function ac_back_to_topics(gobj, event, kw, src)
 {
+    let shell = yui_shell_of(gobj);
+    let here = shell ? (gobj_read_attr(shell, "current_route") || "") : "";
+    let came_from = here ? yui_shell_last_route_outside(shell, here) : "";
+    if(came_from) {
+        yui_shell_navigate(shell, came_from, {push: true});
+        return 0;
+    }
+
     /*  With host routes the landing is a POSITION, so Back GOES there, the
      *  way the toggle does, and the route drives the switch.
      *

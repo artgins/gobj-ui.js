@@ -7,6 +7,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.26.3
+
+- **treedb topics: the `←` of an open topic goes back to where the reader
+  WAS**, the same place browser Back goes. It went to the landing whatever came
+  before, so "linked records" from `device_types` opened `devices`, and the
+  arrow then showed the topic cards while Back returned to `device_types`: two
+  controls that say "back" and land in different places. It now asks the shell
+  for the last route outside the topic on screen
+  (`yui_shell_last_route_outside()`) -- the previous topic, the landing, or the
+  view the reader came from -- and falls back to the landing when the page
+  landed on that topic. Its label is **`back`** (was `topics`), because that is
+  what it does now; every consumer already carries the key.
+
 ## 7.26.2
 
 - **shell: `yui_shell_last_route_outside(shell, route)`** -- where the reader
