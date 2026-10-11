@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.21
+
+- **the schema editor refuses a topic or column name that breaks THE name
+  rule of timeranger2 and treedb** (`tranger2_name_is_identifier()`, SDK
+  7.26.9): `.`, `..`, or a name holding `/` or the path delimiter `` ` ``.
+  Said at once, before the backend answers a generic refusal. New consumer
+  i18n key ``a name cannot be . or .., nor hold / or ` `` (copy it into each
+  app's locales). yunovatios
+  `REV-CLOUD.md` §V13.1.
+
 ## 7.26.20
 
 - **the long press of the G6 graphs is measured on `performance.now()`**, a

@@ -361,6 +361,18 @@ function mt_destroy(gobj)
 
 
 
+/************************************************************
+ *  THE name rule of timeranger2 and treedb
+ *  (tranger2_name_is_identifier(), SDK 7.26.9): a topic or a column
+ *  name is a directory and a key, so it cannot be "." or "..", nor hold
+ *  '/' or the path delimiter '`'. Said here, before the backend answers
+ *  a generic "cannot create topic".
+ ************************************************************/
+function name_breaks_the_rule(name)
+{
+    return name === "." || name === ".." || name.includes("/") || name.includes("`");
+}
+
 /***************************************************************
  *  The frame: a toolbar that never changes place, a notice line
  *  for what the whole view has to say, and one body the screens
@@ -4026,6 +4038,10 @@ function ac_save_column(gobj, event, kw, src)
         yui_shell_show_error(yui_shell_of(gobj), "a column needs a name", {t: t});
         return -1;
     }
+    if(kw.creating && name_breaks_the_rule(String(values.value).trim())) {
+        yui_shell_show_error(yui_shell_of(gobj), "a name cannot be . or .., nor hold / or `", {t: t});
+        return -1;
+    }
     if(kw.creating && find_col(priv.model, priv.treedb_id, kw.topic, String(values.value).trim())) {
         yui_shell_show_error(yui_shell_of(gobj), "that column is already there", {t: t});
         return -1;
@@ -4331,6 +4347,10 @@ function ac_save_topic(gobj, event, kw, src)
         let name = String(values.value || "").trim();
         if(empty_string(name)) {
             yui_shell_show_error(yui_shell_of(gobj), "a topic needs a name", {t: t});
+            return -1;
+        }
+        if(name_breaks_the_rule(name)) {
+            yui_shell_show_error(yui_shell_of(gobj), "a name cannot be . or .., nor hold / or `", {t: t});
             return -1;
         }
         if(find_topic(priv.model, priv.treedb_id, name)) {
