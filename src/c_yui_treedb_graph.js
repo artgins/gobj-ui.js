@@ -3025,6 +3025,17 @@ const LEGEND_STAR_MAIN_STYLE = LEGEND_GLYPH_STYLE +
  *  outside the box is clipped by its neighbours.  */
 const LEGEND_FOCUSED_STYLE = 'box-shadow: inset 0 0 0 2px var(--bulma-text, #2e333d);';
 
+/************************************************************
+ *  The name of a topic in the legend: schema data, never markup.
+ ************************************************************/
+function legend_name_item(topic_name, is_main, hidden)
+{
+    return ['span', {class: 'GRAPH_LEGEND_NAME',
+                     style: (is_main? LEGEND_MAIN_NAME_STYLE : LEGEND_NAME_STYLE) +
+                            (hidden? ' text-decoration:line-through; opacity:.6;' : '')},
+            text_node(topic_name)];
+}
+
 function refresh_legend(gobj)
 {
     let priv = gobj.priv;
@@ -3082,10 +3093,7 @@ function refresh_legend(gobj)
                              `background:${entry.color || "#94a3b8"}; ` +
                              `border:1px solid rgba(0,0,0,.25);` +
                              (hidden? 'opacity:.35;' : '')}],
-            ['span', {class: 'GRAPH_LEGEND_NAME',
-                      style: (is_main? LEGEND_MAIN_NAME_STYLE : LEGEND_NAME_STYLE) +
-                             (hidden? ' text-decoration:line-through; opacity:.6;' : '')},
-             text_node(topic_name)],      // schema data, never markup
+            legend_name_item(topic_name, is_main, hidden),
             ['span', {class: 'GRAPH_LEGEND_COUNT',
                       style: LEGEND_COUNT_STYLE},
              hidden? `${entry.total}` : `${entry.visible}/${entry.total}`]
@@ -3874,4 +3882,7 @@ function register_c_yui_treedb_graph()
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_yui_treedb_graph };
+export {
+    register_c_yui_treedb_graph,
+    legend_name_item,       // exported for its test
+};

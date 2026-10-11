@@ -4823,5 +4823,9 @@ export {
     register_c_yui_schema_editor,
     /*  Exported for its test: the rule that decides whether a topic still
      *  owes a version bump, which is asked in two places.  */
-    topic_is_draft
+    topic_is_draft,
+    /*  Exported for their test: the options and the value of a form
+     *  control are names from the schema, data, never markup.  */
+    select_input,
+    textarea_input,
 };

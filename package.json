@@ -1,6 +1,6 @@
 {
   "name": "@yuneta/gobj-ui",
-  "version": "7.26.13",
+  "version": "7.26.14",
   "type": "module",
   "main": "dist/gobj-ui.cjs.js",
   "module": "dist/gobj-ui.es.js",
@@ -28,6 +28,7 @@
     "check-markup": "node scripts/check-markup-strings.mjs",
     "prebuild": "npm run check-markup",
     "pretest": "npm run check-markup",
+    "qa-history": "node scripts/qa-history.mjs",
     "deploy-round": "node scripts/deploy-round.mjs",
     "prepublishOnly": "npm run build"
   },

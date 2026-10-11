@@ -176,6 +176,10 @@ let PRIVATE_DATA = {
      *  that landing, which must not navigate.  */
     restore_hash:    "",
     skip_hash:       "",
+    /*  A route pushed (yui_shell_navigate) while a back() of ours was in
+     *  flight: it is navigated once the back() is over, or the traversal
+     *  would run from it and undo it.  */
+    deferred_route:  "",
     popstate_handler: null,
     /*  Avatar item support — every toolbar item with type:"avatar"
      *  registers its <span> here so refresh_avatars() can repaint
@@ -442,6 +446,21 @@ function mt_start(gobj)
             } catch(e) {
                 log_warning(`C_YUI_SHELL: overlay close on Back failed: ${e}`);
             }
+            if(typeof top.below_hash === "string" && top.hash !== top.below_hash &&
+                    window.location.hash === top.below_hash) {
+                /*  A replace navigation had written the view's position
+                 *  on the marker, and stepping off it landed on the entry
+                 *  under it, on the old hash: put the position back, and
+                 *  let the hashchange of this landing pass -- Back closed
+                 *  the panel, it did not move the view.  */
+                try {
+                    window.history.replaceState(window.history.state, "", top.hash);
+                    p.skip_hash = top.hash;
+                    p.last_hash = top.hash;
+                } catch(e) {
+                    log_warning(`C_YUI_SHELL: restoring '${top.hash}' failed: ${e}`);
+                }
+            }
         };
         window.addEventListener("popstate", priv.popstate_handler);
     }
@@ -522,6 +541,7 @@ function mt_stop(gobj)
     priv.markers_after_hashchange = false;
     priv.restore_hash = "";
     priv.skip_hash = "";
+    priv.deferred_route = "";
     if(priv.keydown_handler) {
         window.removeEventListener("keydown", priv.keydown_handler);
         priv.keydown_handler = null;
@@ -2813,6 +2833,11 @@ function push_pending_markers(gobj)
         entry.hash = window.location.hash;
         push_overlay_marker(gobj, entry);     // Error already logged
     }
+    if(priv.deferred_route) {
+        let route = priv.deferred_route;
+        priv.deferred_route = "";
+        yui_shell_navigate(gobj, route);
+    }
 }
 
 function overlay_dismissed(gobj, entry)
@@ -3674,6 +3699,16 @@ function yui_shell_zone(shell_gobj, zone_id)
 function yui_shell_navigate(shell_gobj, route, opts)
 {
     if(!(opts && opts.replace) && gobj_read_attr(shell_gobj, "use_hash")) {
+        let priv = shell_gobj.priv;
+        if(priv && priv.expected_pops > 0) {
+            /*  A back() of ours is in flight (an overlay closed in this
+             *  same turn, e.g. a dialog's action that closes it and then
+             *  navigates): a push now lands BEFORE the traversal, which
+             *  then runs from it and undoes it (and in Firefox lands on
+             *  the closed overlay's marker). Navigate once it is over.  */
+            priv.deferred_route = route;
+            return;
+        }
         let target_hash = route_to_hash(route);
         if(window.location.hash !== target_hash) {
             /*  Push a real history entry; the hashchange handler mounts. */

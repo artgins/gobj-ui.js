@@ -50,6 +50,48 @@ function url_hash(url)
         url.slice(url.indexOf("#")) : null;
 }
 
+/*  The model's own writes of the fragment: never a "link".  */
+function set_hash(h)
+{
+    if(session.raw_hash_set) {
+        session.raw_hash_set(h);
+    } else {
+        window.location.hash = h;
+    }
+}
+
+/*  As a browser does with `location.hash = x` -- what the push of
+ *  yui_shell_navigate() does: a new entry, popstate, then the queued
+ *  hashchange. Opt-in, and undone by links_on_hash_assign_off(): the
+ *  other tests assign the hash to set their page up.  */
+function links_on_hash_assign()
+{
+    let raw = window.location.hash;
+    session.raw_hash_set = (h) => {
+        raw = h;
+    };
+    Object.defineProperty(window.location, "hash", {
+        configurable: true,
+        get() {
+            return raw;
+        },
+        set(v) {
+            if(v === raw) {
+                return;
+            }
+            link_to(v);
+        }
+    });
+}
+
+function links_on_hash_assign_off()
+{
+    const h = window.location.hash;
+    delete window.location.hash;
+    session.raw_hash_set = null;
+    window.location.hash = h;
+}
+
 function install_history_model()
 {
     session.entries = [{state: null, hash: window.location.hash}];
@@ -64,7 +106,7 @@ function install_history_model()
         pushState(state, title, url) {
             const h = url_hash(url);
             if(h !== null) {
-                window.location.hash = h;
+                set_hash(h);
             }
             session.entries.splice(session.index + 1);
             session.entries.push({state: state, hash: window.location.hash});
@@ -73,7 +115,7 @@ function install_history_model()
         replaceState(state, title, url) {
             const h = url_hash(url);
             if(h !== null) {
-                window.location.hash = h;
+                set_hash(h);
             }
             session.entries[session.index] = {state: state, hash: window.location.hash};
         },
@@ -112,7 +154,7 @@ function traverse_to(index)
 {
     const left = window.location.hash;
     session.index = index;
-    window.location.hash = session.entries[index].hash;
+    set_hash(session.entries[index].hash);
     fire_popstate();
     if(session.entries[index].hash !== left) {
         queue_hashchange();
@@ -126,7 +168,7 @@ function link_to(hash)
     session.entries.splice(session.index + 1);
     session.entries.push({state: null, hash: hash});
     session.index++;
-    window.location.hash = hash;
+    set_hash(hash);
     fire_popstate();
     queue_hashchange();
 }
@@ -224,6 +266,9 @@ function routed_shell(name, app)
 /*  A test leaves no shell listening and no queued hashchange behind: the
  *  next test's shell would otherwise hear the previous test's traversal.  */
 afterEach(async () => {
+    if(session.raw_hash_set) {
+        links_on_hash_assign_off();     // a test that failed half-way
+    }
     await next_task();
     await next_task();
     for(const sh of shells.splice(0)) {
@@ -484,8 +529,40 @@ describe("a routed shell, a realistic history (V5)", () => {
 
         user_back();
         await next_task();
+        await next_task();
         expect(closed).toBe(1);
         expect(shell.priv.overlay_stack).toEqual([]);
+        /*  Back closed the panel; it did not move the view.  */
+        expect(window.location.hash).toBe("#/home/pos");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/home/pos");
+    });
+
+    test("a dialog's action that closes it and navigates in the same turn: the navigation survives", async () => {
+        const app = gobj_create("vapp_go", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("vshell_go", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed, yui_shell_navigate} =
+            await import("./c_yui_shell.js");
+        const entry = yui_shell_register_overlay(shell, () => {});
+        await next_task();
+        links_on_hash_assign();
+
+        yui_shell_overlay_dismissed(shell, entry);     // the close: a back() of ours
+        yui_shell_navigate(shell, "/prev");            // and the navigation, same turn
+        for(let i = 0; i < 4; i++) {
+            await next_task();
+        }
+        expect(shell.priv.expected_pops).toBe(0);
+        expect(window.location.hash).toBe("#/prev");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/prev");
+        expect(window.history.state).toBe(null);       // no marker left
+
+        user_back();
+        await next_task();
+        await next_task();
+        expect(window.location.hash).toBe("#/home");   // not swallowed
     });
 
     test("a button close after a replace navigation keeps the position", async () => {

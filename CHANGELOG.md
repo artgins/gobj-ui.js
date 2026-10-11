@@ -5,6 +5,51 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.14
+
+Closing what the review of 2026-10-10 left open (yunovatios `REV-CLOUD.md`
+R6), and the first check of the shell's history in a REAL browser.
+
+- **BREAKING: the window manager refuses a window gobj in the kw.**
+  `EV_REGISTER_WINDOW`, `EV_UNREGISTER_WINDOW`, `EV_MINIMIZE_WINDOW` and
+  `EV_FOCUS_WINDOW` take `{window: gobj_full_name(window)}`, sent BY the window
+  (it is the event's `src`). The gobj in the kw, accepted with a warning since
+  7.26.10, is now an error and the event does nothing. Nobody outside the
+  library sends these events (checked in yunos-js, yunovatios, wattyzer and
+  yunomusica); a sender must now pass the name and be the window.
+- **fix: Back closed the panel but lost the view's position.** With a panel
+  open (no dock, `keep_on_navigate`) and the view under it writing its
+  position with a replace navigation, Back closed the panel (7.26.13) and then
+  re-navigated to the hash under the marker, so `/history/pos-1` became
+  `/history`. The shell puts the position back and lets that landing's
+  hashchange pass, as the panel's x already did.
+- **fix: a dialog action that closes an overlay and navigates in the same
+  turn lost the navigation.** The close retires the overlay's marker with a
+  `history.back()`; the push of `yui_shell_navigate()` landed before that
+  traversal, which then ran from it and undid it -- and in Firefox landed on
+  the closed overlay's marker, an orphan that swallowed the next Back. A push
+  made while a back() of the shell's is in flight now waits for it to land.
+- **qa: `npm run qa-history`** (`scripts/qa-history.mjs`), the shell's history
+  in Chromium AND Firefox, on a new test-app chapter `/history`
+  (`C_DEMO_HISTORY`: a panel with no dock and `keep_on_navigate`, a button
+  that writes the position with a replace, and a "close and go" action). It
+  found the two fixes above, which the history model of the unit tests did
+  not show. Against the shell of 7.26.12 it fails 6 of 6 cases, against
+  7.26.13 4 of 6, and passes 6 of 6 now. The model got an opt-in assignment
+  of `location.hash` that behaves as a browser (new entry, popstate, queued
+  hashchange), and both fixes have a model test that fails on 7.26.13.
+- **tests: data as text, component level** (`data_as_text.wiring.test.js`,
+  `gclass_head_text.wiring.test.js`): the icon cell, the schema editor's
+  select and textarea, the JSON viewer's subtree error, the shell's toolbar
+  and dropdown labels, the treedb graph legend, the G6 toolbar markup, the
+  gclass method chips and the raw dump's error. Each one fails with its
+  pre-fix line put back. To reach them, `icon_formatter`, `select_input` and
+  `textarea_input` are exported, and the legend name and the G6 toolbar item
+  are small exported helpers (`legend_name_item`, `toolbar_item_html`); no
+  behaviour moved. The raw dump's error is markup only when a bare string is
+  thrown (`String()` of an Error starts with "Error:"), and that is what the
+  test throws.
+
 ## 7.26.13
 
 The fifth check of the review (yunovatios `REV-CLOUD.md` §V5). All in the

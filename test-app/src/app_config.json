@@ -1376,6 +1376,22 @@
                     }
                 },
                 {
+                    "id": "history",
+                    "name": "History",
+                    "icon": "yi-arrow-rotate-left",
+                    "tooltip": "A panel over a view that writes its position in the URL",
+                    "route": "/history",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_DEMO_HISTORY",
+                        "lifecycle": "keep_alive",
+                        "kw": {
+                            "title": "History",
+                            "lead": "A navigation panel (a C_YUI_WINDOW with no dock and keep_on_navigate) over a view that writes its position in the URL with a replace. Open the panel, write a position, press Back: the panel closes and the position stays. Driven by scripts/qa-history.mjs."
+                        }
+                    }
+                },
+                {
                     "id": "map",
                     "name": "Map",
                     "icon": "yi-location-dot",

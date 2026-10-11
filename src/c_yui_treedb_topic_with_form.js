@@ -5563,4 +5563,9 @@ function register_c_yui_treedb_topic_with_form()
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_yui_treedb_topic_with_form };
+export {
+    register_c_yui_treedb_topic_with_form,
+    /*  Exported for its test: an icon cell shows a name that fails the
+     *  check as text, never as markup (it is a value of the record).  */
+    icon_formatter,
+};

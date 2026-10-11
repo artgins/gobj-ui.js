@@ -130,7 +130,17 @@ checkout and publish.
 npm install
 npm run build      # vite -> dist/ (ES/CJS/UMD/IIFE, min + non-min)
 npm test           # vitest (v2/main only; v1 has no test target)
+npm run qa-history # the shell's browser history in REAL Chromium and Firefox
 ```
+
+`npm run qa-history` (`scripts/qa-history.mjs`) starts the test-app's vite
+dev server and drives its `/history` chapter: a panel with no dock and
+`keep_on_navigate` over a view that writes its position with a `replace`.
+Back must close the panel and keep the position, the panel's x must keep it,
+and a dialog action that closes the panel and navigates in the same turn must
+keep the navigation. The unit tests drive a MODEL of the history; this is the
+check in the browsers themselves. Run it after any change to the overlay
+history of `C_YUI_SHELL`. Playwright and its browsers come from the test-app.
 
 `dist/` is gitignored. v1 consumers get `dist/` from the **published** npm
 tarball; v2 consumers import source files by specifier, whether they resolve

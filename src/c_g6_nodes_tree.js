@@ -180,6 +180,47 @@ import {g6_event_kw} from "./g6_event_kw.js";
 import {css_color_or_null} from "./yui_data_color.js";
 
 /***************************************************************
+ *  The markup of one toolbar item. Everything that goes into it is
+ *  escaped, the read-out branch too: its text, title and value are
+ *  values (a zoom figure, a translated title), never markup.
+ ***************************************************************/
+function toolbar_item_html(item)
+{
+    if(item.separator) {
+        return `<div class="g6-toolbar-sep" aria-hidden="true"></div>`;
+    }
+
+    const extra_class = item.className ? ` ${escapeHtml(String(item.className))}` : '';
+    const title       = escapeHtml(String(item.title ?? ''));
+
+    if(item.readout) {
+        return (
+            `<div class="g6-toolbar-readout${extra_class}"` +
+            ` title="${title}" aria-label="${title}">` +
+            `${escapeHtml(String(item.text ?? ''))}` +
+            `</div>`
+        );
+    }
+
+    const disabled = item.disabled ? ' disabled' : '';
+    const is_text   = (item.text !== undefined);
+    const kind_class = is_text ? ' g6-toolbar-item-text' : '';
+    const body = is_text
+        ? `<span class="g6-toolbar-text">${escapeHtml(String(item.text))}</span>`
+        : `<svg aria-hidden="true" focusable="false">` +
+          `<use xlink:href="#${escapeHtml(String(item.id))}"></use>` +
+          `</svg>`;
+
+    return (
+        `<div class="g6-toolbar-item${kind_class}${extra_class}"` +
+        ` value="${escapeHtml(String(item.value))}" title="${title}"` +
+        ` aria-label="${title}"${disabled}>` +
+        `${body}` +
+        `</div>`
+    );
+}
+
+/***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
  *  and disabled support, plus three item kinds G6 does not have.
  *
@@ -208,43 +249,7 @@ class YuiToolbar extends Toolbar
     async getDOMContent()
     {
         const items = await this.options.getItems();
-        return items.map((item) => {
-            if(item.separator) {
-                return `<div class="g6-toolbar-sep" aria-hidden="true"></div>`;
-            }
-
-            /*  Everything that goes into this markup is escaped, the
-             *  read-out branch too: its text, title and value are values
-             *  (a zoom figure, a translated title), never markup.  */
-            const extra_class = item.className ? ` ${escapeHtml(String(item.className))}` : '';
-            const title       = escapeHtml(String(item.title ?? ''));
-
-            if(item.readout) {
-                return (
-                    `<div class="g6-toolbar-readout${extra_class}"` +
-                    ` title="${title}" aria-label="${title}">` +
-                    `${escapeHtml(String(item.text ?? ''))}` +
-                    `</div>`
-                );
-            }
-
-            const disabled = item.disabled ? ' disabled' : '';
-            const is_text   = (item.text !== undefined);
-            const kind_class = is_text ? ' g6-toolbar-item-text' : '';
-            const body = is_text
-                ? `<span class="g6-toolbar-text">${escapeHtml(String(item.text))}</span>`
-                : `<svg aria-hidden="true" focusable="false">` +
-                  `<use xlink:href="#${escapeHtml(String(item.id))}"></use>` +
-                  `</svg>`;
-
-            return (
-                `<div class="g6-toolbar-item${kind_class}${extra_class}"` +
-                ` value="${escapeHtml(String(item.value))}" title="${title}"` +
-                ` aria-label="${title}"${disabled}>` +
-                `${body}` +
-                `</div>`
-            );
-        }).join('');
+        return items.map(toolbar_item_html).join('');
     }
 }
 register(ExtensionCategory.PLUGIN, 'yui-toolbar', YuiToolbar);
@@ -12431,4 +12436,7 @@ function register_c_g6_nodes_tree()
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_g6_nodes_tree };
+export {
+    register_c_g6_nodes_tree,
+    toolbar_item_html,      // exported for its test
+};

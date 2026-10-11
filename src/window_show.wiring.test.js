@@ -98,12 +98,12 @@ describe("EV_SHOW", () => {
         expect($w.style.getPropertyValue("display")).toBe("");
         expect(errors().some((m) => m.includes("is not the src"))).toBe(true);
 
-        /*  The old form (the gobj in the kw) still works, with a warning.  */
+        /*  The old form (the gobj in the kw) is refused since 7.26.14,
+         *  even from the window itself.  */
         logged.length = 0;
         gobj_send_event(dock, "EV_MINIMIZE_WINDOW", {window: w}, w);
-        expect($w.style.getPropertyValue("display")).toBe("none");
-        expect(errors()).toEqual([]);
-        expect(logged.some((l) => l.level === "warning" && l.msg.includes("gobj_full_name"))).toBe(true);
+        expect($w.style.getPropertyValue("display")).toBe("");
+        expect(errors().some((m) => m.includes("carries the window gobj"))).toBe(true);
     });
 
     test("with plain strings as TEXT (set_strings_are_text) the controls are still svg", () => {
@@ -148,7 +148,7 @@ describe("EV_SHOW", () => {
             /*  The OLD form (the gobj in the kw), sent by another gobj.  */
             logged.length = 0;
             gobj_send_event(dock, ev, {window: w}, other);
-            expect(errors().some((m) => m.includes("is not the src"))).toBe(true);
+            expect(errors().some((m) => m.includes("carries the window gobj"))).toBe(true);
         }
         expect(dock.priv.windows.length).toBe(n_windows);     // nothing unregistered
         expect(dock.priv.windows.some((e) => e.gobj === other)).toBe(false);  // nothing registered

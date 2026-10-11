@@ -35,7 +35,6 @@ import {
     data_type_t,
     gclass_create,
     log_error,
-    log_warning,
     is_gobj,
     gobj_full_name,
     gobj_short_name,
@@ -350,31 +349,19 @@ function chip_lead(icon)
  *  trace dumps it), so the window travels in it as its FULL NAME,
  *  which the trace can print, and the gobj is the event's src --
  *  every sender is the window itself. Up to 7.26.9 the kw carried
- *  the gobj; that is still taken, with a warning, for this release.
+ *  the gobj; since 7.26.14 that is refused.
  ************************************************************/
-let warned_gobj_in_kw = false;
-
 function window_of(gobj, event, kw, src)
 {
     let w = kw && kw.window;
     if(is_gobj(w)) {
-        if(!warned_gobj_in_kw) {
-            warned_gobj_in_kw = true;
-            log_warning(
-                `${gobj_short_name(gobj)}: ${event} carries the window gobj ` +
-                `in its kw: send {window: gobj_full_name(window)} from the window`
-            );
-        }
-        if(w !== src) {
-            /*  Only the window speaks for itself, in either form.  */
-            log_error(
-                `${gobj_short_name(gobj)}: ${event}: window ` +
-                `'${gobj_full_name(w)}' is not the src of the event ` +
-                `(${is_gobj(src) ? gobj_full_name(src) : String(src)})`
-            );
-            return null;
-        }
-        return w;
+        /*  The gobj in the kw was accepted up to 7.26.13 (with a warning
+         *  since 7.26.10). A kw is plain json: refused.  */
+        log_error(
+            `${gobj_short_name(gobj)}: ${event} carries the window gobj in ` +
+            `its kw: send {window: gobj_full_name(window)} from the window`
+        );
+        return null;
     }
     if(!is_gobj(src) || gobj_full_name(src) !== w) {
         log_error(

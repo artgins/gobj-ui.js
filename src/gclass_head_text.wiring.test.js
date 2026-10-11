@@ -60,4 +60,43 @@ describe("C_YUI_GCLASS header", () => {
         expect($c.querySelector(".GCLASS_CURRENT").textContent).toBe(EVIL);
         expect($c.querySelector("img")).toBe(null);
     });
+
+    test("the method chips are text (V3.1 #4)", () => {
+        const view = gobj_create("gclass_methods_text", "C_YUI_GCLASS", {
+            description: {id: "C_X", gcflag: [], attrs: [], commands: [],
+                          gclass_methods: [EVIL], internal_methods: [EVIL],
+                          FSM: {events: [], states: {}}},
+        }, yuno);
+        gobj_start(view);
+        const $c = gobj_read_attr(view, "$container");
+        const chips = $c.querySelectorAll(".GCLASS_METHOD");
+        expect(chips.length).toBe(2);
+        for(const chip of chips) {
+            expect(chip.textContent).toBe(EVIL);
+        }
+        expect($c.querySelector("img")).toBe(null);
+    });
+
+    test("the error of the raw dump is text (V3.1 #4)", () => {
+        const description = {
+            id: "C_X", gcflag: [], attrs: [], commands: [],
+            gclass_methods: [], internal_methods: [],
+            FSM: {events: [], states: {}},
+            toJSON() {
+                /*  A bare string thrown is what reaches the screen as is:
+                 *  String() of an Error starts with "Error:", never "<".  */
+                throw EVIL;
+            },
+        };
+        const view = gobj_create("gclass_raw_error_text", "C_YUI_GCLASS", {
+            description: description, view_mode: "raw",
+        }, yuno);
+        gobj_start(view);
+        const $c = gobj_read_attr(view, "$container");
+        const $err = $c.querySelector(".GCLASS_RAW_ERROR");
+        expect($err).not.toBe(null);
+        expect($err.textContent.includes(EVIL)).toBe(true);
+        expect($c.querySelector("img")).toBe(null);
+    });
 });
+

@@ -63,6 +63,7 @@ import {register_c_demo_period} from "./c_demo_period.js";
 import {register_c_demo_map}    from "./c_demo_map.js";
 import {register_c_demo_modals} from "./c_demo_modals.js";
 import {register_c_demo_windows} from "./c_demo_windows.js";
+import {register_c_demo_history} from "./c_demo_history.js";
 import {register_c_demo_node_lab} from "./c_demo_node_lab.js";
 import {register_c_demo_tranger_link} from "./c_demo_tranger_link.js";
 
@@ -137,6 +138,7 @@ function main()
     register_c_demo_map();
     register_c_demo_modals();
     register_c_demo_windows();
+    register_c_demo_history();
     register_c_demo_node_lab();
     register_c_demo_tranger_link();
 
