@@ -2803,7 +2803,12 @@ function push_overlay_marker(gobj, entry)
      *  lower overlay's marker, an app's own) keeps its keys; the stamp
      *  is added to them, and replaces an older stamp.  */
     let below = window.history.state;
-    if(below === null || (typeof below === "object" && !Array.isArray(below))) {
+    /*  A PLAIN object only: a Map or a Date is an object too (the state
+     *  is a structured clone), and Object.assign() copies none of it.  */
+    let plain = below !== null && typeof below === "object" &&
+        (Object.getPrototypeOf(below) === Object.prototype ||
+         Object.getPrototypeOf(below) === null);
+    if(below === null || plain) {
         try {
             window.history.replaceState(
                 Object.assign({}, below, { __yui_below__: entry.id }), "");
@@ -2813,7 +2818,7 @@ function push_overlay_marker(gobj, entry)
     } else {
         log_warning(
             `C_YUI_SHELL: the entry under an overlay holds a history state that ` +
-            `is not an object, it cannot be stamped: Back will not close the overlay`
+            `is not a plain object, it cannot be stamped: Back will not close the overlay`
         );
     }
     try {
@@ -2931,6 +2936,7 @@ function push_pending_markers(gobj)
 {
     let priv = gobj.priv;
     let pending = priv.pending_markers.splice(0);
+    let pushed = [];
     for(let entry of pending) {
         entry.marker_pending = false;
         if(entry.dismissed || priv.overlay_stack.indexOf(entry) < 0) {
@@ -2939,7 +2945,10 @@ function push_pending_markers(gobj)
         /*  The traversal was same-hash, but a route may have moved
          *  meanwhile: the marker lives on the hash it is pushed on.  */
         entry.hash = window.location.hash;
-        push_overlay_marker(gobj, entry);     // Error already logged
+        if(push_overlay_marker(gobj, entry)) {
+            pushed.push(entry.id);
+        }
+        // else: Error already logged
     }
     clear_deferred_timer(gobj);
     if(priv.expected_pops === 0) {
@@ -2950,6 +2959,7 @@ function push_pending_markers(gobj)
         priv.deferred_route = "";
         yui_shell_navigate(gobj, route);
     }
+    return pushed;      // the ids of the markers it pushed, in order
 }
 
 function overlay_dismissed(gobj, entry)
@@ -3264,7 +3274,12 @@ function ac_back_wait_timeout(gobj, event, kw, src)
     priv.expected_pop_hash = "";
     priv.expected_pop_ids = [];
     priv.restore_hash = "";
-    push_pending_markers(gobj);     // and navigates the deferred route
+    /*  The markers of the overlays opened during the wait go on top of
+     *  the dead one, before the route: a late back() steps back one entry
+     *  from the route and lands on the highest of them, not on the dead
+     *  marker -- they are its landing too.  */
+    let pushed = push_pending_markers(gobj);    // and navigates the deferred route
+    given_up.ids.push(...pushed);
     priv.given_up = given_up;
     return 0;
 }

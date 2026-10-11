@@ -34,8 +34,10 @@
  *      string (its type is not known before running); a description
  *      built piece by piece (push() into an array that is later the
  *      content); a computed tag with an attrs slot that is not an object
- *      literal; markup given to innerHTML, or to a widget (Tabulator,
- *      G6), which are other sinks. set_strings_are_text(true) logs, once
+ *      literal; a replace() whose replacement is a function or whose
+ *      pattern is a variable, and a method called on a function result
+ *      (String(x).replace(...)); markup given to innerHTML, or to a
+ *      widget (Tabulator, G6), which are other sinks. set_strings_are_text(true) logs, once
  *      at run time, every string that reaches createElement2() starting
  *      with '<': that is the other half of the check.
  *
@@ -107,41 +109,82 @@ const PURE_METHODS = new Set([
     "toLowerCase", "toUpperCase"
 ]);
 
-/*  replace()/replaceAll() on a receiver that is static and with static
- *  arguments is computed, so a tag stripped away is seen as stripped.
- *  Anything else is no longer static. Its head is the receiver's -- a
- *  receiver that carries data stays BUILT markup through them, and so
- *  does a static one whose replacement is data
- *  ('<b>NAME</b>'.replace('NAME', name)) -- unless the REPLACEMENT brings
- *  markup: then that is what the result may start with, and with data
- *  somewhere it is built markup ('x'.replace('x', `<b>${y}</b>`),
- *  ('a' + name).replace('a', '<b>')).  */
-function replaced(method, head, args)
+/*  replace()/replaceAll(). A receiver that is static, with a static
+ *  pattern and a static replacement, is computed, so a tag stripped away
+ *  is seen as stripped. Otherwise the result is no longer static, and its
+ *  head is what is known to come BEFORE the first match: the receiver's
+ *  text up to it, then the replacement's head
+ *  ('<b>NAME</b>'.replace('NAME', name) is '<b>' + data: built;
+ *  'abc'.replace('abc', '<i>' + y) is '<i>' + data: built). Where the
+ *  first match is decides it, so the replacement is the head only when the
+ *  pattern can match at 0: ('z' + name).replace('a', '<b>') starts with
+ *  'z', and 'abc'.replace('x', '<i>' + y) is 'abc'.
+ *  Not seen: a replacement that is a function, a pattern in a variable.  */
+function static_pattern(arg)
 {
-    let replacement = (args.length === 2)? leading(args[1]) : null;
-    if(head.complete && args.length === 2) {
-        let pattern = null;
-        if(args[0].type === "Literal" && args[0].regex) {
-            try {
-                pattern = new RegExp(args[0].regex.pattern, args[0].regex.flags);
-            } catch(e) {
-                pattern = null;
-            }
-        } else if(is_string_literal(args[0])) {
-            pattern = args[0].value;
-        }
-        if(pattern !== null && replacement && replacement.complete) {
-            try {
-                return {text: String.prototype[method].call(head.text, pattern, replacement.text),
-                        complete: true};
-            } catch(e) {
-                /*  replaceAll() with a regex that is not global throws:
-                 *  so does the code, the check need not know what it gives. */
-            }
+    if(arg.type === "Literal" && arg.regex) {
+        try {
+            return new RegExp(arg.regex.pattern, arg.regex.flags);
+        } catch(e) {
+            return null;
         }
     }
-    if(replacement && starts_with_markup(replacement.text)) {
-        return {text: replacement.text, complete: false};
+    if(is_string_literal(arg)) {
+        return arg.value;
+    }
+    return null;
+}
+
+function first_match(text, pattern)
+{
+    if(typeof pattern === "string") {
+        return text.indexOf(pattern);
+    }
+    try {
+        const re = new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ""));
+        const m = re.exec(text);
+        return m ? m.index : -1;
+    } catch(e) {
+        return -1;
+    }
+}
+
+function replaced(method, head, args)
+{
+    if(args.length !== 2) {
+        return {text: head.text, complete: false};
+    }
+    const pattern = static_pattern(args[0]);
+    const replacement = leading(args[1]);
+    if(pattern === null) {
+        return {text: head.text, complete: false};
+    }
+    if(head.complete && replacement && replacement.complete) {
+        try {
+            return {text: String.prototype[method].call(head.text, pattern, replacement.text),
+                    complete: true};
+        } catch(e) {
+            /*  replaceAll() with a regex that is not global throws: so
+             *  does the code, the check need not know what it gives.  */
+            return {text: head.text, complete: false};
+        }
+    }
+    const rep_head = replacement ? replacement.text : "";
+    const idx = first_match(head.text, pattern);
+    if(idx >= 0) {
+        return {text: head.text.slice(0, idx) + rep_head, complete: false};
+    }
+    if(head.complete) {
+        return {text: head.text, complete: true};      // no match: the receiver as it is
+    }
+    if(typeof pattern === "string") {
+        /*  The first match is in the data: no earlier than where the
+         *  pattern could start straddling the known text.  */
+        const keep = Math.max(0, head.text.length - pattern.length + 1);
+        if(keep === 0) {
+            return {text: rep_head, complete: false};
+        }
+        return {text: head.text.slice(0, keep), complete: false};
     }
     return {text: head.text, complete: false};
 }

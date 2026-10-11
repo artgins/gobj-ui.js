@@ -72,6 +72,15 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, ('a' + name).replace('a', 'b')]);`)).toEqual([]);
     });
 
+    test("V8.3: the replacement is the head only where the pattern can match at 0", () => {
+        expect(rules_of(`x(['span', {}, ('z' + name).replace('a', '<b>')]);`)).toEqual([]);
+        expect(rules_of(`x(['span', {}, 'abc'.replace('x', '<i>' + y)]);`)).toEqual([]);
+        expect(rules_of(`x(['span', {}, 'zabc'.replace('abc', '<i>' + y)]);`)).toEqual([]);
+        expect(rules_of(`x(['span', {}, '<p>abc'.replace('abc', y)]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, ('' + name).replace('a', '<b>')]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, '<b>x</b>'.replace(/x/, y)]);`)).toEqual(["built"]);
+    });
+
     test("what is fine", () => {
         expect(rules_of(`x(['span', {}, 'plain text']);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, html_markup('<i class="yi-a"></i>')]);`)).toEqual([]);

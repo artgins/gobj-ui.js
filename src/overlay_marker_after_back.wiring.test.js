@@ -357,7 +357,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         expect(shell.priv.expected_pops).toBe(0);
         expect(session.entries.length).toBe(2);           // the dead first marker, ahead
         expect(session.index).toBe(0);
-        expect(window.history.state.__yui_overlay__).toBeUndefined();   // stamped, no marker
+        expect(window.history.state).toEqual({__yui_below__: first.id});   // stamped, no marker
         expect(errors()).toEqual([]);
     });
 
@@ -622,7 +622,7 @@ describe("a routed shell, a realistic history (V5)", () => {
         const b = yui_shell_register_overlay(shell, () => {});
         yui_shell_overlay_dismissed(shell, b);        // its button: back() to A's marker
         await next_task();
-        expect(window.history.state.__yui_overlay__).toBe(a.id);   // stamped for B, which is gone
+        expect(window.history.state).toEqual({__yui_overlay__: a.id, __yui_below__: b.id});
 
         traverse_to(session.index + 1);               // Forward, onto B's dead marker
         expect(closed_a).toBe(0);
@@ -958,5 +958,50 @@ describe("a back() given up on that lands after all (V7.2)", () => {
         await next_task();
         expect(shell_warnings().filter(m => m.includes("arriving late")).length).toBe(1);
         expect(shell_warnings().some(m => m.includes("undoes route '/prev'"))).toBe(true);
+    });
+});
+
+describe("V8: the edges of the stamp and of the late landing", () => {
+    test("a late back() lands on the marker of an overlay opened during the wait: said too", async () => {
+        const app = gobj_create("v8app1", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v8shell1", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed, yui_shell_navigate} =
+            await import("./c_yui_shell.js");
+        const x = yui_shell_register_overlay(shell, () => {});
+        let late = null;
+        window.history.back = () => { late = () => traverse_to(session.index - 1); };
+        links_on_hash_assign();
+
+        yui_shell_overlay_dismissed(shell, x);
+        yui_shell_navigate(shell, "/prev");
+        const y = yui_shell_register_overlay(shell, () => {}, {keep_on_navigate: true});
+        expect(y.marker_pending).toBe(true);
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        await next_task();
+        expect(window.location.hash).toBe("#/prev");
+
+        late();                                       // from #/prev onto Y's marker
+        await next_task();
+        await next_task();
+        expect(window.history.state.__yui_overlay__).toBe(y.id);
+        expect(shell_warnings().filter(m => m.includes("arriving late")).length).toBe(1);
+    });
+
+    test("a state that is not a plain object is not stamped over, and says so", async () => {
+        const app = gobj_create("v8app2", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v8shell2", app);
+        const {yui_shell_register_overlay} = await import("./c_yui_shell.js");
+        const app_state = new Map([["k", 1]]);
+        window.history.replaceState(app_state, "");
+        logged.length = 0;
+        yui_shell_register_overlay(shell, () => {});
+        expect(session.entries[0].state).toBe(app_state);
+        expect(shell_warnings().filter(m => m.includes("not a plain object")).length).toBe(1);
     });
 });

@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.17
+
+Eighth check of the review (yunovatios `REV-CLOUD.md` §V8).
+
+- **checker: a false positive of 7.26.16 that could fail a consumer's
+  `prebuild`.** It took the head of a `replace()` replacement as the head of
+  the result wherever the pattern matched: `('z' + name).replace('a', '<b>')`
+  (starts with `z`) and `'abc'.replace('x', '<i>' + y)` (no match: it is
+  `'abc'`) were `built`. The head is now what is known to come before the
+  FIRST match -- the receiver up to it, then the replacement -- and a static
+  receiver with no match is the receiver as it is. A replacement that is a
+  function and a pattern in a variable stay unseen (said in the header).
+- **fix: a late `back()` that landed on the marker of an overlay opened during
+  the wait undid the route in silence.** Those markers go on top of the dead
+  one before the route, so a late `back()` lands on the highest of them; their
+  ids are part of what the warning watches for now.
+- **fix: a `Map` or a `Date` in `history.state` was replaced by the stamp.**
+  Only a plain object takes the stamp; any other state is left as it is and
+  logged (Back does not close that overlay), and `ROUTING.md` says so.
+- docs: `SHELL.md` lists every event the shell publishes (it had two of six),
+  and says which ones reach only a subscriber that declares them.
+- tests: the stamp assertions check the stamp itself (`{__yui_below__: id}`),
+  not only that no marker is left.
+
 ## 7.26.16
 
 Seventh check of the review (yunovatios `REV-CLOUD.md` §V7).

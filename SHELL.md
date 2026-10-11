@@ -666,6 +666,25 @@ Published events:
   fact event, published after a navigation has fully succeeded:
   the previous view is hidden, the new view is mounted/shown, the
   stage's `active_route` is updated.
+- `EV_NAV_ITEM_CLOSE` — `{ item_id, route, menu_id, zone }`. The ✕ of a
+  closable tab of a child `C_YUI_NAV`, re-published for the app, which
+  decides what closing it means.
+- `EV_LANGUAGE_CHANGED` — `{}`. The app switched the language and
+  called `yui_shell_language_changed()`: a view that composed text at
+  render time (a Tabulator header, a counter) re-renders it.
+- `EV_ICONS_CHANGED` — `{}`. `yui_shell_icons_changed()`: the user icons
+  changed, and a view that decided at render time whether a name is an
+  icon decides again. **Delivered only to a subscriber that declares
+  it** (`mt_publication_pre_filter()`).
+- `EV_CONNECTION_STATE` — `{ connected }`.
+  `yui_shell_set_connection_state()`: the app's backend went up or
+  down. **Delivered only to a subscriber that declares it**, as
+  `EV_ICONS_CHANGED`.
+
+The shell is a SERVICE: every subscriber of it receives the events above
+that are not marked as delivered on declaration, so an app subscribed with
+`subscriber` declares them (or the FSM answers *"Event NOT DEFINED in
+state"*).
 
 The pair *requested ↔ changed* is the canonical Yuneta way to
 audit a gobj's behaviour: every intent is recorded regardless of
