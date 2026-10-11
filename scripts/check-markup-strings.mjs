@@ -47,11 +47,11 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {readFileSync, readdirSync, statSync, realpathSync} from "node:fs";
-import {join, relative} from "node:path";
+import {join, relative, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {parse} from "acorn";
 
-const TAG_RE = /^[a-z][a-z0-9-]*$/;
+const TAG_RE = /^[a-z][a-z0-9-]*$/i;
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git", "build", "_build"]);
 
 function list_files(path, out)
@@ -91,37 +91,119 @@ function starts_with_markup(s)
     return typeof s === "string" && s.trim().startsWith("<");
 }
 
-/*  The leftmost string of a '+' chain, the head of a template, or the
- *  receiver of a '.concat()'.  */
-function built_markup(n)
+/*  String methods that keep the head of their receiver (a markup head
+ *  stays a markup head through them).  */
+const HEAD_KEEPING_METHODS = new Set([
+    "trim", "trimStart", "trimEnd", "toString", "valueOf", "normalize",
+    "toLowerCase", "toUpperCase", "replace", "replaceAll", "padEnd", "concat"
+]);
+
+function concat_parts(parts)
+{
+    /*  parts: [{text, complete}] in order. The leading text runs while
+     *  the parts are static.  */
+    let text = "";
+    for(const p of parts) {
+        if(p === null) {
+            return {text, complete: false};
+        }
+        text += p.text;
+        if(!p.complete) {
+            return {text, complete: false};
+        }
+    }
+    return {text, complete: true};
+}
+
+function template_parts(quasis, expressions, raw)
+{
+    let parts = [];
+    for(let i = 0; i < quasis.length; i++) {
+        let q = quasis[i].value;
+        parts.push({text: raw ? q.raw : (q.cooked ?? ""), complete: true});
+        if(i < expressions.length) {
+            parts.push(leading(expressions[i]));
+        }
+    }
+    return parts;
+}
+
+/*  The text an expression STARTS with, as far as it is static:
+ *  {text, complete} (complete: the whole value is static), or null when
+ *  it starts with something the check cannot see.  */
+function leading(n)
 {
     if(!n) {
-        return false;
+        return null;
     }
-    if(n.type === "CallExpression" && n.callee.type === "MemberExpression" &&
-            !n.callee.computed && n.callee.property.name === "concat") {
-        let head = n.callee.object;
-        let s = static_string(head);
-        if(s !== null) {
-            return starts_with_markup(s);
+    if(is_string_literal(n)) {
+        return {text: n.value, complete: true};
+    }
+    if(n.type === "TemplateLiteral") {
+        return concat_parts(template_parts(n.quasis, n.expressions, false));
+    }
+    if(n.type === "TaggedTemplateExpression") {
+        let tag = n.tag;
+        if(tag.type === "MemberExpression" && !tag.computed &&
+                tag.object.type === "Identifier" && tag.object.name === "String" &&
+                tag.property.name === "raw") {
+            return concat_parts(template_parts(n.quasi.quasis, n.quasi.expressions, true));
         }
-        return built_markup(head);
-    }
-    if(n.type === "TemplateLiteral" && n.expressions.length > 0) {
-        return starts_with_markup(n.quasis[0].value.cooked);
+        return null;
     }
     if(n.type === "BinaryExpression" && n.operator === "+") {
-        let left = n;
-        while(left.type === "BinaryExpression" && left.operator === "+") {
-            left = left.left;
-        }
-        let s = static_string(left);
-        if(s !== null) {
-            return starts_with_markup(s);
-        }
-        return left.type === "TemplateLiteral" && starts_with_markup(left.quasis[0].value.cooked);
+        let operands = [];
+        let flatten = (e) => {
+            if(e.type === "BinaryExpression" && e.operator === "+") {
+                flatten(e.left);
+                flatten(e.right);
+            } else {
+                operands.push(e);
+            }
+        };
+        flatten(n);
+        return concat_parts(operands.map(leading));
     }
-    return false;
+    if(n.type === "SequenceExpression") {
+        return leading(n.expressions[n.expressions.length - 1]);
+    }
+    if(n.type === "CallExpression" && n.callee.type === "MemberExpression" &&
+            !n.callee.computed) {
+        let method = n.callee.property.name;
+        let receiver = n.callee.object;
+        if(method === "join" && receiver.type === "ArrayExpression") {
+            let sep = n.arguments.length ? leading(n.arguments[0]) : {text: ",", complete: true};
+            let parts = [];
+            receiver.elements.forEach((el, k) => {
+                if(k > 0) {
+                    parts.push(sep);
+                }
+                parts.push(leading(el));
+            });
+            return concat_parts(parts);
+        }
+        if(HEAD_KEEPING_METHODS.has(method)) {
+            let head = leading(receiver);
+            if(head === null) {
+                return null;
+            }
+            if(method === "concat") {
+                return concat_parts([head, ...n.arguments.map(leading)]);
+            }
+            /*  The head is kept; the whole is no longer known to be static.  */
+            return {text: head.text, complete: false};
+        }
+        return null;
+    }
+    return null;
+}
+
+/*  Markup BUILT with values: its static head starts with '<' and it is
+ *  not static as a whole.  */
+function built_markup(n)
+{
+    let head = leading(n);
+    return !!head && !head.complete && starts_with_markup(head.text);
 }
 
 /*  [tag, attrs, content, events?]: a tag and an attrs slot. A literal
@@ -192,8 +274,12 @@ function check_content(n, findings, file, src, where)
         check_content(n.right, findings, file, src, where);
         return;
     }
-    let s = static_string(n);
-    if(s !== null && starts_with_markup(s)) {
+    if(n.type === "SequenceExpression") {
+        check_content(n.expressions[n.expressions.length - 1], findings, file, src, where);
+        return;
+    }
+    let head = leading(n);
+    if(head && head.complete && starts_with_markup(head.text)) {
         findings.push({file, line: n.loc.start.line, rule: where === "list" ? "in-list" : "literal",
             text: src.slice(n.start, Math.min(n.end, n.start + 90))});
         return;
@@ -223,7 +309,8 @@ function check_file(file, root)
         }
         let content = n.elements[2];
         if(content && content.type === "ArrayExpression" && content.elements.length > 0) {
-            let head = static_string(content.elements[0]);
+            let lead = leading(content.elements[0]);
+            let head = (lead && lead.complete)? lead.text : null;
             if(head !== null && starts_with_markup(head)) {
                 /*  createElement2() reads a list that starts with a string
                  *  as ONE description: '<b>' would be its tag.  */
@@ -256,7 +343,14 @@ function main()
     const targets = process.argv.slice(2).length ? process.argv.slice(2) : ["src"];
     let files = [];
     for(const t of targets) {
-        list_files(join(root, t), files);
+        const path = resolve(root, t);      // an absolute path stays absolute
+        try {
+            statSync(path);
+        } catch(e) {
+            console.error(`check-markup-strings: no such file or directory: ${t}`);
+            process.exit(2);
+        }
+        list_files(path, files);
     }
 
     let all = [];

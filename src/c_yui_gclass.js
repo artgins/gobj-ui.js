@@ -556,7 +556,7 @@ function build_head(gobj, model)
 {
     let items = [
         ['span', {class: 'GCLASS_NAME'},
-         model.id || gobj_read_str_attr(gobj, "gclass_name") || "?"]
+         text_node(model.id || gobj_read_str_attr(gobj, "gclass_name") || "?")]
     ];
 
     if(model.instances !== null) {
@@ -577,7 +577,7 @@ function build_head(gobj, model)
         items.push(
             ['span', {class: 'GCLASS_CHIP GCLASS_CURRENT',
                       title: t("current state"),
-                      'data-i18n-title': 'current state'}, current]);
+                      'data-i18n-title': 'current state'}, text_node(current)]);
     }
 
     return ['div', {class: 'GCLASS_HEAD'}, items];

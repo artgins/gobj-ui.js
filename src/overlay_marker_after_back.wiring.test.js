@@ -38,12 +38,20 @@ let veto = true;
 let warning = null;
 let yuno = null;
 
-/*  The session history of one tab.  */
-const session = {entries: [{state: null}], index: 0};
+/*  The session history of one tab. Each entry carries its hash, as a
+ *  browser's does: a traversal lands on the entry's hash, and fires a
+ *  hashchange after the popstate when that hash is not the one it left.  */
+const session = {entries: [{state: null, hash: ""}], index: 0};
+
+function url_hash(url)
+{
+    return (typeof url === "string" && url.includes("#"))?
+        url.slice(url.indexOf("#")) : null;
+}
 
 function install_history_model()
 {
-    session.entries = [{state: null}];
+    session.entries = [{state: null, hash: window.location.hash}];
     session.index = 0;
     window.history = {
         get state() {
@@ -52,19 +60,26 @@ function install_history_model()
         get length() {
             return session.entries.length;
         },
-        pushState(state) {
+        pushState(state, title, url) {
+            const h = url_hash(url);
+            if(h !== null) {
+                window.location.hash = h;
+            }
             session.entries.splice(session.index + 1);
-            session.entries.push({state: state});
+            session.entries.push({state: state, hash: window.location.hash});
             session.index++;
         },
-        replaceState(state) {
-            session.entries[session.index] = {state: state};
+        replaceState(state, title, url) {
+            const h = url_hash(url);
+            if(h !== null) {
+                window.location.hash = h;
+            }
+            session.entries[session.index] = {state: state, hash: window.location.hash};
         },
         back() {
             setTimeout(() => {
                 if(session.index > 0) {
-                    session.index--;
-                    fire_popstate();
+                    traverse_to(session.index - 1);
                 }
             }, 0);
         },
@@ -82,11 +97,21 @@ function fire_popstate()
     window.dispatchEvent(ev);
 }
 
+function traverse_to(index)
+{
+    const left = window.location.hash;
+    session.index = index;
+    window.location.hash = session.entries[index].hash;
+    fire_popstate();
+    if(window.location.hash !== left) {
+        window.dispatchEvent(new Event("hashchange"));
+    }
+}
+
 /*  The user's Back: the browser's own traversal.  */
 function user_back()
 {
-    session.index--;
-    fire_popstate();
+    traverse_to(session.index - 1);
 }
 
 function next_task()
@@ -256,8 +281,9 @@ describe("an overlay registered while a back() of ours is in flight", () => {
             {keep_on_navigate: true});
         expect(second.marker_pending).toBe(true);
 
-        /*  A navigation: the hash moves, our back() will never land.  */
-        window.location.hash = "#/other";
+        /*  A navigation: the hash moves (a new entry, as a link does), our
+         *  back() will never land.  */
+        window.history.pushState(null, "", "#/other");
         window.dispatchEvent(new Event("hashchange"));
         expect(shell.priv.expected_pops).toBe(0);
         expect(second.marker_pending).toBe(false);
@@ -288,4 +314,68 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         expect(shell.priv.expected_pops).toBe(0);
         expect(shell.priv.pending_markers).toEqual([]);
     });
+
+    test("a dropped back() and a Back to another hash: the waiting overlay is not closed, no orphan marker", async () => {
+        const app = gobj_create("mapp6", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create("mshell6", "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        window.location.hash = "#/prev";
+        install_history_model();
+        window.history.pushState(null, "", "#/home");    // a route entry
+
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} =
+            await import("./c_yui_shell.js");
+        const first = yui_shell_register_overlay(shell, () => {});
+        window.history.back = () => {};               // the browser drops it
+        yui_shell_overlay_dismissed(shell, first);
+        expect(shell.priv.expected_pops).toBe(1);
+        let closed = 0;
+        const second = yui_shell_register_overlay(shell, () => { closed++; },
+            {keep_on_navigate: true});
+        expect(second.marker_pending).toBe(true);
+
+        /*  The reader goes back two entries at once (a long press on Back,
+         *  history.go(-2)): from the dead marker straight to #/prev, a hash
+         *  that is not the landing ours expected.  */
+        traverse_to(0);
+        expect(window.location.hash).toBe("#/prev");
+        expect(closed).toBe(0);
+        expect(shell.priv.overlay_stack).toEqual([second]);
+        expect(second.marker_pending).toBe(false);
+        expect(window.history.state).toEqual({__yui_overlay__: second.id});
+        expect(second.hash).toBe("#/prev");
+
+        /*  And its marker is a real one: the next Back closes it.  */
+        user_back();
+        expect(closed).toBe(1);
+        expect(shell.priv.overlay_stack).toEqual([]);
+    });
+
+    test("a button close after a replace navigation lands where expected, without a 'dropped' warning", async () => {
+        const app = gobj_create("mapp7", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create("mshell7", "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        window.location.hash = "#/home";
+        install_history_model();
+
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} =
+            await import("./c_yui_shell.js");
+        const entry = yui_shell_register_overlay(shell, () => {}, {keep_on_navigate: true});
+        /*  The view under it writes its position into the URL with replace:
+         *  the marker's own entry moves to another hash.  */
+        window.history.replaceState(window.history.state, "", "#/home/pos");
+        logged.length = 0;
+
+        yui_shell_overlay_dismissed(shell, entry);    // the close button
+        await next_task();
+        await next_task();
+        expect(shell.priv.expected_pops).toBe(0);
+        expect(window.location.hash).toBe("#/home");
+        expect(logged.some((l) => l.msg.includes("did not land"))).toBe(false);
+    });
 });
+

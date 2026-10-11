@@ -38,6 +38,16 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['div', {}, ['<b>x</b>', other]]);`)).toEqual(["list-head"]);
     });
 
+    test("the gaps of 7.26.11: raw, join, empty heads, method on built markup, case, sequence", () => {
+        expect(rules_of("x(['span', {}, String.raw`<b>${name}</b>`]);")).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, ['<b>', name, '</b>'].join('')]);`)).toEqual(["built"]);
+        expect(rules_of("x(['span', {}, `${''}<b>${name}`]);")).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, '' + '<b>' + name]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, ('<b>' + name).trim()]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['SPAN', {}, '<b>x</b>']);`)).toEqual(["literal"]);
+        expect(rules_of(`x(['span', {}, (log(), '<b>x</b>')]);`)).toEqual(["literal"]);
+    });
+
     test("what is fine", () => {
         expect(rules_of(`x(['span', {}, 'plain text']);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, html_markup('<i class="yi-a"></i>')]);`)).toEqual([]);
@@ -45,4 +55,20 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, name]);`)).toEqual([]);     // a variable: not visible here
         expect(rules_of(`const t3 = [a, b, '<b>'];`)).toEqual([]);  // not a description
     });
+
+    test("as a command: an absolute path works, a missing one says so (exit 2)", async () => {
+        const {spawnSync} = await import("node:child_process");
+        const {fileURLToPath} = await import("node:url");
+        const script = fileURLToPath(new URL("./check-markup-strings.mjs", import.meta.url));
+        const dir = mkdtempSync(join(tmpdir(), "cms-cli-"));
+        writeFileSync(join(dir, "ok.js"), "x(['span', {}, 'text']);");
+        const ok = spawnSync(process.execPath, [script, dir], {cwd: tmpdir(), encoding: "utf8"});
+        expect(ok.status).toBe(0);
+        expect(ok.stdout).toContain("OK (1 files)");
+        const missing = spawnSync(process.execPath, [script, join(dir, "nope")], {encoding: "utf8"});
+        expect(missing.status).toBe(2);
+        expect(missing.stderr).toContain("no such file or directory");
+        expect(missing.stderr).not.toContain("    at ");
+    });
 });
+

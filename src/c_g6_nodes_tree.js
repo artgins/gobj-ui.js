@@ -213,14 +213,17 @@ class YuiToolbar extends Toolbar
                 return `<div class="g6-toolbar-sep" aria-hidden="true"></div>`;
             }
 
-            const extra_class = item.className ? ` ${item.className}` : '';
-            const title       = item.title ?? '';
+            /*  Everything that goes into this markup is escaped, the
+             *  read-out branch too: its text, title and value are values
+             *  (a zoom figure, a translated title), never markup.  */
+            const extra_class = item.className ? ` ${escapeHtml(String(item.className))}` : '';
+            const title       = escapeHtml(String(item.title ?? ''));
 
             if(item.readout) {
                 return (
                     `<div class="g6-toolbar-readout${extra_class}"` +
                     ` title="${title}" aria-label="${title}">` +
-                    `${item.text ?? ''}` +
+                    `${escapeHtml(String(item.text ?? ''))}` +
                     `</div>`
                 );
             }
@@ -231,12 +234,12 @@ class YuiToolbar extends Toolbar
             const body = is_text
                 ? `<span class="g6-toolbar-text">${escapeHtml(String(item.text))}</span>`
                 : `<svg aria-hidden="true" focusable="false">` +
-                  `<use xlink:href="#${item.id}"></use>` +
+                  `<use xlink:href="#${escapeHtml(String(item.id))}"></use>` +
                   `</svg>`;
 
             return (
                 `<div class="g6-toolbar-item${kind_class}${extra_class}"` +
-                ` value="${item.value}" title="${title}"` +
+                ` value="${escapeHtml(String(item.value))}" title="${title}"` +
                 ` aria-label="${title}"${disabled}>` +
                 `${body}` +
                 `</div>`
@@ -2302,6 +2305,8 @@ function topic_defaults_of(gobj, topic_name)
  *  refused value logs, and the node wears the topic's colour.
  ************************************************************/
 const refused_colors_logged = new Set();     // once per (gobj, value): every repaint asks again
+const REFUSED_COLORS_LOG_MAX = 200;
+let refused_colors_capped = false;
 
 function data_color(gobj, value)
 {
@@ -2311,9 +2316,21 @@ function data_color(gobj, value)
     let color = css_color_or_null(value);
     if(!color) {
         let key = `${gobj_short_name(gobj)}\u0000${String(value)}`;
-        if(!refused_colors_logged.has(key) && refused_colors_logged.size < 200) {
+        if(refused_colors_logged.has(key)) {
+            return color;
+        }
+        if(refused_colors_logged.size < REFUSED_COLORS_LOG_MAX) {
             refused_colors_logged.add(key);
             log_warning(`${gobj_short_name(gobj)}: colour refused, not a css colour: ${JSON.stringify(value)}`);
+        } else if(!refused_colors_capped) {
+            /*  Bounded, but not silent: say once that the rest go unlogged.
+             *  An LRU would log again and again on every repaint of a
+             *  graph with more refused colours than it holds.  */
+            refused_colors_capped = true;
+            log_warning(
+                `${gobj_short_name(gobj)}: ${REFUSED_COLORS_LOG_MAX} refused colours ` +
+                `logged; further refused colours are not logged`
+            );
         }
     }
     return color;

@@ -267,13 +267,20 @@ function mt_start(gobj)
     if(gobj_read_attr(gobj, "use_hash")) {
         priv.hash_handler = () => {
             let p = gobj.priv;
+            let dropped = false;
             if(p && p.expected_pops > 0 &&
                     window.location.hash !== p.expected_pop_hash) {
                 drop_expected_pops(gobj);   // a back() of ours never landed
+                dropped = true;
             }
             let route = hash_to_route(window.location.hash);
             if(!empty_string(route)) {
                 navigate_to(gobj, route);
+            }
+            if(dropped) {
+                /*  After the navigation: an overlay it drained gets no
+                 *  marker, a kept one gets it on the hash it now lives on. */
+                push_pending_markers(gobj);
             }
         };
         window.addEventListener("hashchange", priv.hash_handler);
@@ -291,9 +298,20 @@ function mt_start(gobj)
             if(p.expected_pops > 0 &&
                     window.location.hash !== p.expected_pop_hash) {
                 /*  Not the landing of ours: it was dropped. Whatever
-                 *  this traversal is, it is handled below as any other. */
+                 *  this traversal is, it is handled as any other, and
+                 *  the overlays that waited get their markers AFTER it:
+                 *  pushed first, the waiting top had a marker the
+                 *  traversal then took as "stepped off" -- it was closed
+                 *  and its marker left orphaned.  */
                 drop_expected_pops(gobj);
+                on_traversal(ev);
+                push_pending_markers(gobj);
+                return;
             }
+            on_traversal(ev);
+        };
+        let on_traversal = (ev) => {
+            let p = gobj.priv;
             if(p.expected_pops > 0) {
                 /*  A history.back() we issued to retire a dismissed
                  *  overlay — the teardown already happened. */
@@ -307,6 +325,10 @@ function mt_start(gobj)
                 return;
             }
             let top = p.overlay_stack[p.overlay_stack.length - 1];
+            if(top.marker_pending) {
+                /*  It has no marker yet: no traversal can step off it.  */
+                return;
+            }
             /*  Did this traversal step OFF the top overlay's marker?
              *  That is the only landing that closes it, and the marker's
              *  OWN hash is what says so: pushState() with no URL keeps
@@ -2652,6 +2674,10 @@ function push_overlay_history(gobj, close, opts)
 function push_overlay_marker(gobj, entry)
 {
     let priv = gobj.priv;
+    /*  The entry UNDER the marker is on this hash, and a back() off the
+     *  marker lands there -- even after a replace-navigation rewrote the
+     *  marker's own hash (retag_overlay_hash()).  */
+    entry.below_hash = window.location.hash;
     try {
         window.history.pushState({ __yui_overlay__: entry.id }, "");
     } catch(e) {
@@ -2669,8 +2695,8 @@ function push_overlay_marker(gobj, entry)
 
 /*  A history.back() of ours that the browser dropped: nothing will land
  *  for it, so it must not wait for a landing and swallow the reader's
- *  next Back. The overlays that waited for it get their markers now, on
- *  the hash they are on.  */
+ *  next Back. The overlays that waited for it get their markers from the
+ *  caller (push_pending_markers()), after the traversal is handled.  */
 function drop_expected_pops(gobj)
 {
     let priv = gobj.priv;
@@ -2683,7 +2709,8 @@ function drop_expected_pops(gobj)
     );
     priv.expected_pops = 0;
     priv.expected_pop_hash = "";
-    push_pending_markers(gobj);
+    /*  The caller pushes the waiting markers, once it has handled the
+     *  traversal that told it.  */
 }
 
 /*  The history.back() calls of ours have all landed: push the markers of
@@ -2739,7 +2766,8 @@ function overlay_dismissed(gobj, entry)
     let st = window.history.state;
     if(st && st.__yui_overlay__ === entry.id) {
         priv.expected_pops++;
-        priv.expected_pop_hash = window.location.hash;
+        priv.expected_pop_hash = (typeof entry.below_hash === "string")?
+            entry.below_hash : window.location.hash;
         try {
             window.history.back();
         } catch(e) {

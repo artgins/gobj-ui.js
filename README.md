@@ -3350,16 +3350,22 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
      must declare as a devDependency (npm does not install a dependency's
      devDependencies). It lists a markup string literal in a description
      (`literal`, wrap it in `html_markup()`), markup built with values
-     (`built`: a template, a `+` or a `.concat()`; build the element with
-     `createElement2()` and pass the value as text), a markup string in a list
+     (`built`: a template, `String.raw`, a `+` chain, `.concat()`, a
+     `[...].join()`, or a string method such as `.trim()` over one of those,
+     whose STATIC head starts with `<` — empty pieces before it are skipped;
+     build the element with `createElement2()` and pass the value as text),
+     a markup string in a list
      of children (`in-list`, which is text since gobj-js 7.26.2) and a list of
      children whose first item is a markup string (`list-head`: such a list is
-     read as one description). A ternary or `||`/`&&` is checked branch by
-     branch. It CANNOT see: a variable or a function result that holds a
-     string; a description built piece by piece (`push()` into the content
-     list); a computed tag with an attrs slot that is not an object literal;
-     markup given to `innerHTML` or to a widget (Tabulator, G6). Step 3 is
-     the check for those.
+     read as one description). A ternary, `||`/`&&`/`??` and a comma
+     sequence (its last item) are checked branch by branch; a tag is matched
+     in any case. It CANNOT see: a variable or a function result that holds
+     a string (a helper that returns markup); a template whose head is an
+     expression that is not a static string (`` `${prefix}<b>` ``); a
+     description built piece by piece (`push()` into the content list); a
+     computed tag with an attrs slot that is not an object literal; markup
+     given to `innerHTML` or to a widget (Tabulator, G6). Step 3 is the check
+     for those. A path that does not exist exits with 2 and a message.
   2. Call `set_strings_are_text(true)` before the first `createElement2()`.
   3. Walk the app and read the console: each string that starts with `<` is
      logged once (*"use html_markup() if it is markup"*). A logged string is

@@ -5,6 +5,42 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.12
+
+Fourth check of the review (yunovatios `REV-CLOUD.md` §V4).
+
+- **fix (regression of 7.26.11): a dropped `back()` and a traversal to
+  another hash closed the overlay that was waiting for its marker.** On the
+  popstate path `drop_expected_pops()` pushed the waiting markers BEFORE the
+  traversal was handled, so the waiting top overlay already had a marker on
+  the landing hash, the traversal read as "stepped off its marker", and it
+  was closed with its marker left orphaned (the next Back swallowed). The
+  traversal is handled first now, and the markers are pushed after it, on
+  both the popstate and the hashchange paths; a top overlay whose marker is
+  still pending is never closed by a traversal (none can step off it).
+- **fix: a close button after a replace-navigation logged a false "did not
+  land, dropped".** The expected landing of the shell's `back()` was the
+  CURRENT hash, which a replace-navigation had moved onto the marker
+  (`retag_overlay_hash()`); the entry under the marker is on the hash the
+  marker was pushed on. That hash is recorded with the marker and expected.
+- **security: two data sinks left.** `C_YUI_GCLASS`'s header shows the
+  gclass name and the instance's current state as text (they come from a
+  remote description); the treedb graph legend shows the topic name as text;
+  the G6 toolbar escapes the text, title, value and id of its read-out branch
+  too (and its class names).
+- **check-markup-strings: the gaps of 7.26.11.** It reads the static HEAD of
+  an expression: `String.raw` templates, `[...].join()`, a template or a `+`
+  chain whose head starts with empty pieces, and string methods (`.trim()` …)
+  over built markup; a tag in upper case; a comma sequence (its last item).
+  An absolute path argument works, and a path that does not exist exits 2
+  with a message instead of a stack. The README lists what it cannot see.
+- **The refused-colour log is not silent past its cap:** the 201st refused
+  colour logs once that further ones are not logged (an LRU would relog on
+  every repaint).
+- tests: history model with a hash per entry (a traversal lands on its
+  entry's hash and fires a hashchange); the two history cases and the gclass
+  header fail on 7.26.11; the checker's new cases fail on its 7.26.11 script.
+
 ## 7.26.11
 
 The third check of the review (yunovatios `REV-CLOUD.md` §V3).

@@ -81,6 +81,7 @@ import {
 
 
 import {attach_clear, refresh_clear} from "./yui_inputs.js";
+import {text_node} from "./yui_text.js";
 import {register_c_g6_nodes_tree} from "./c_g6_nodes_tree.js";
 import {yui_toolbar, yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE} from "./yui_toolbar.js";
 import {
@@ -3084,7 +3085,7 @@ function refresh_legend(gobj)
             ['span', {class: 'GRAPH_LEGEND_NAME',
                       style: (is_main? LEGEND_MAIN_NAME_STYLE : LEGEND_NAME_STYLE) +
                              (hidden? ' text-decoration:line-through; opacity:.6;' : '')},
-             topic_name],
+             text_node(topic_name)],      // schema data, never markup
             ['span', {class: 'GRAPH_LEGEND_COUNT',
                       style: LEGEND_COUNT_STYLE},
              hidden? `${entry.total}` : `${entry.visible}/${entry.total}`]
