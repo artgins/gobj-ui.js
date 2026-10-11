@@ -640,7 +640,7 @@ function traffic_scalar_row(key, value)
 
     return ['div', {class: 'TRAFFIC_ROW'}, [
         ['span', {class: 'TRAFFIC_BULLET'}, '•'],
-        ['span', {class: 'TRAFFIC_KEY'}, key + ':'],
+        ['span', {class: 'TRAFFIC_KEY'}, text_node(key + ':')],
         ['span', {}, val_children],
     ]];
 }
@@ -744,7 +744,7 @@ function traffic_value_node(key, value)
     if(count === 0) {
         return ['div', {class: 'TRAFFIC_ROW'}, [
             ['span', {class: 'TRAFFIC_BULLET'}, '•'],
-            ['span', {class: 'TRAFFIC_KEY'}, key + ':'],
+            ['span', {class: 'TRAFFIC_KEY'}, text_node(key + ':')],
             ['span', {class: 'TRAFFIC_VAL t-empty'}, is_arr ? '[ ]' : '{ }'],
         ]];
     }

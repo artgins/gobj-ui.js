@@ -5,6 +5,61 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.9
+
+The second check of the review (yunovatios `REV-CLOUD.md` §V2).
+
+- **security: the data sinks 7.26.8 missed.** 7.26.8 said "anywhere in the
+  library", and it was not. These now pass their data through `text_node()`:
+  the record id in the delete confirmation (`C_YUI_TREEDB_TOPIC_WITH_FORM`);
+  the heading of an accordion section and of a submenu (`C_YUI_NAV`: the items
+  `yui_shell_set_submenu()` injects); the keys of the Developer window's traffic
+  rows; the topic info panel and the topic cards of `C_YUI_TREEDB_TOPICS` (pkey2s,
+  relations, column id, type and relation, title, version, column count); the
+  schema editor's topic and column tables, flags, findings, orphans, import
+  plan counts, cards and the detail of its notice (the backend's words); the
+  column chooser of the topic table; `yui_asset`'s content type and detail; the
+  event-flag chips of `C_YUI_GCLASS`; the file id of a file cell; and the
+  `title` half of a window title and of a modal or confirm title (a host may
+  pass a column id there).
+- **security: a column title from a schema `header` is text.** Tabulator puts
+  a string title in with `innerHTML`. The topic table's title formatter returns
+  a Text node, and the nested tables of `C_YUI_FORM` get the new
+  `text_title_formatter` (`yui_text.js`).
+- **security: a node colour from `__graphs__` is checked before it goes into a
+  card.** The treedb graph wrote it raw into the `style="..."` of the card's
+  and the chip's html, so a stored fill like `red" onmouseover="...` ran. Only
+  a css colour passes (`yui_data_color.js`: hex, rgb()/hsl(), a name, and
+  `CSS.supports()` where there is one); another value is logged and the node
+  wears its topic's colour.
+- **security: `csp_connect_src` takes one CSP source per entry.** An entry
+  with a `;`, a `,` or a space is refused with an error: `wss://a; base-uri *`
+  added a directive of its own. The plugin and its policy are documented in
+  the README.
+- **fix: an overlay registered while a `history.back()` of the shell is still
+  in flight waits for it to land.** The common case is a window that asks
+  about unsaved changes on Back, answered with a BUTTON: the question's close
+  calls `history.back()` (asynchronous), and in the same turn the window
+  pushed its marker again (synchronous). Checked in Chromium and in Firefox
+  against 7.26.8: in Chromium the user's next Back LEFT THE APP; in Firefox it
+  was swallowed, and the window stayed open. The marker is pushed once the
+  pop has landed, and an overlay closed before that has none. Wiring-tested
+  with a model of session history.
+- **fix: a form redraws the table that took the rows.** 7.26.8 made the 30 ms
+  redraw always redraw the OUTER table; rows loaded into a nested table
+  redraw the nested one again, as before 7.26.8. A row added by hand to a
+  nested table still redraws the outer one, which is what grew.
+- **fix: the table registry of `C_YUI_FORM` is pruned** on destroy, when its
+  widgets are destroyed, and of collected entries when a new table registers.
+- **a11y: Tom Select's ✕ is reachable with the keyboard** (`tabindex="0"`,
+  Enter/Space click it).
+- **fix, small:** the seven silent one-line `catch(e) {}` of the treedb graph
+  and the gobj tree log a warning; a wiring test for the map destroying its
+  marker windows in `mt_stop`; the last Spanish comment
+  (`form_toolbar_plan.js`).
+- **build:** the suite runs against `@yuneta/gobj-js` 7.26.2 (devDependency;
+  it ran against 7.25.8). The peer floor is unchanged.
+
 ## 7.26.8
 
 The review of 7.26.7 (yunovatios `REV-CLOUD.md` §V): two regressions of that

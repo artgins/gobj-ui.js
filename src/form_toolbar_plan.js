@@ -64,11 +64,11 @@ function plan_toolbar(wanted)
         }
     }
 
-    /*  Con un solo grupo, repartir con `space-between` deja el boton
-     *  pegado a un borde y el hueco entero al otro lado: un dialogo de
-     *  una accion se ve mejor centrado.  Lo decide aqui y no el CSS de
-     *  quien llama, porque la clase que lo reparte es un helper de Bulma
-     *  y esos llevan `!important`: una regla de app no puede ganarles. */
+    /*  With one group only, `space-between` puts the button against one
+     *  edge and the whole gap on the other side: a dialog of one action
+     *  looks better centred.  It is decided here and not in the caller's
+     *  CSS, because the class that spreads them is a Bulma helper, and
+     *  those carry `!important`: an app rule cannot win over them. */
     const single_group = (left.length === 0) !== (right.length === 0);
 
     return {left, right, unknown, single_group};

@@ -1756,7 +1756,9 @@ function restore_view_anchored(gobj, anchor)
     if(typeof anchor.zoom === "number" && anchor.zoom > 0) {
         try {
             graph.zoomTo(anchor.zoom);
-        } catch(e) {}
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: zoom not restored: ${e}`);
+        }
     }
 
     /*
@@ -1768,7 +1770,9 @@ function restore_view_anchored(gobj, anchor)
         let dx = anchor.viewport_x - vp[0];
         let dy = anchor.viewport_y - vp[1];
         graph.translateBy([dx, dy]);
-    } catch(e) {}
+    } catch(e) {
+        log_warning(`${gobj_short_name(gobj)}: anchor node not put back at its screen spot: ${e}`);
+    }
 }
 
 /************************************************************

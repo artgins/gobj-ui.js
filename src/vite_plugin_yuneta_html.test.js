@@ -65,15 +65,30 @@ describe("vite-plugin-yuneta-html", () => {
         err.mockRestore();
     });
 
+    test("an entry that is not a single source is refused, the rest kept", () => {
+        const err = vi.spyOn(console, "error").mockImplementation(() => {});
+        const html = transform({
+            title: "App",
+            csp_connect_src: [
+                "wss://a:1; base-uri *", "wss://b, wss://c", "wss://d wss://e",
+                "wss://ok:1620"
+            ]
+        });
+        expect(connect_src(html)).toEqual(["'self'", "wss://ok:1620"]);
+        expect(html).not.toContain("base-uri");
+        expect(err).toHaveBeenCalledTimes(3);
+        err.mockRestore();
+    });
+
     test("what config.json says is escaped where it lands in markup", () => {
         const html = transform({
             title: "</title><script>x()</script>",
             metadata: {description: '"><b>'},
-            csp_connect_src: ['wss://a" onload="x']
+            csp_connect_src: ['wss://a"onload="x']
         });
         expect(html).not.toContain("<script>");
         expect(html).toContain("&lt;/title&gt;&lt;script&gt;");
         expect(html).not.toContain('content=""><b>"');
-        expect(html).not.toContain('wss://a" onload');
+        expect(html).not.toContain('wss://a"onload');
     });
 });

@@ -7,7 +7,8 @@
  *            - <meta> tags from config.metadata
  *            - Content-Security-Policy from config.csp_connect_src
  *              (always emitted: connect-src 'self' alone when the
- *              list is missing, with a warning)
+ *              list is missing, with a warning; an entry that is
+ *              not one CSP source -- a `;`, `,` or space -- is refused)
  *
  *          Usage in vite.config.js (vendored copy):
  *            import { yunetaHtmlPlugin } from "./src/gobj-ui/vite-plugin-yuneta-html.js";
@@ -107,6 +108,19 @@ export function yunetaHtmlPlugin(options = {}) {
                          *  attribute, where a quote would end it.  */
                         origins = config.csp_connect_src
                             .filter(s => typeof s === "string" && !s.startsWith("_comment"))
+                            .filter(s => {
+                                /*  One SOURCE of the CSP grammar: a `;` would
+                                 *  open a new directive (`wss://a; base-uri *`),
+                                 *  and a `,` or a space would add sources the
+                                 *  entry does not name.  */
+                                if (/[;,\s]/.test(s)) {
+                                    console.error(
+                                        `❌ csp_connect_src entry refused, not a single source: ${JSON.stringify(s)}`
+                                    );
+                                    return false;
+                                }
+                                return true;
+                            })
                             .map(escape_html);
                     } else {
                         console.warn(

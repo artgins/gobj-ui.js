@@ -177,6 +177,7 @@ import {yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 import {yui_shell_of} from "./c_yui_shell.js";
 import {yui_shell_show_error} from "./shell_modals.js";
 import {g6_event_kw} from "./g6_event_kw.js";
+import {css_color_or_null} from "./yui_data_color.js";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -2296,6 +2297,23 @@ function topic_defaults_of(gobj, topic_name)
 }
 
 /************************************************************
+ *  A colour read from DATA (a `__graphs__` record), or null.
+ *  It is written into a card's html (see yui_data_color.js): a
+ *  refused value logs, and the node wears the topic's colour.
+ ************************************************************/
+function data_color(gobj, value)
+{
+    if(value === undefined || value === null || value === "") {
+        return null;
+    }
+    let color = css_color_or_null(value);
+    if(!color) {
+        log_warning(`${gobj_short_name(gobj)}: colour refused, not a css colour: ${JSON.stringify(value)}`);
+    }
+    return color;
+}
+
+/************************************************************
  *  What a node is PAINTED with: its own colours, then the
  *  topic's default, then the topic's colour.
  *
@@ -2312,8 +2330,10 @@ function node_paint_of(gobj, desc, geometry)
 {
     let defaults = topic_defaults_of(gobj, desc.topic_name);
     let g = is_object(geometry)? geometry : {};
-    let fill = g.fill || (defaults && defaults.fill) || desc.color;
-    let stroke = g.stroke || (defaults && defaults.stroke) || getStrokeColor(fill);
+    let fill = data_color(gobj, g.fill) ||
+               data_color(gobj, defaults && defaults.fill) || desc.color;
+    let stroke = data_color(gobj, g.stroke) ||
+                 data_color(gobj, defaults && defaults.stroke) || getStrokeColor(fill);
     let line_width = g.lineWidth || (defaults && defaults.lineWidth) || 1;
     return {fill: fill, stroke: stroke, lineWidth: line_width};
 }
@@ -5275,7 +5295,9 @@ function select_node(gobj, node_id)
     history_pause(gobj);
     try {
         graph.setElementState(node_id, ['selected']);
-    } catch(e) {}
+    } catch(e) {
+        log_warning(`${gobj_short_name(gobj)}: node state not set: ${e}`);
+    }
     priv._selected_node_id = node_id;
     paint_selection(gobj, [node_id]);
 
@@ -5319,7 +5341,9 @@ function deselect_node(gobj)
                 states[id] = [];
             }
             graph.setElementState(states);
-        } catch(e) {}
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: node states not cleared: ${e}`);
+        }
         priv._selected_node_id = null;
         paint_selection(gobj, []);
 
@@ -6834,7 +6858,9 @@ function select_edge(gobj, edge_id)
     history_pause(gobj);
     try {
         graph.setElementState(edge_id, ['selected']);
-    } catch(e) {}
+    } catch(e) {
+        log_warning(`${gobj_short_name(gobj)}: edge state not set: ${e}`);
+    }
 
     show_edge_icon(gobj);
 
@@ -6856,7 +6882,9 @@ function deselect_edge(gobj)
         history_pause(gobj);
         try {
             graph.setElementState(priv._selected_edge_id, []);
-        } catch(e) {}
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: edge state not cleared: ${e}`);
+        }
         priv._selected_edge_id = null;
 
         graph_draw(gobj).then(() => {
@@ -6995,7 +7023,9 @@ function show_edge_popover(gobj)
     history_pause(gobj);
     try {
         graph.setElementState(edge_id, []);
-    } catch(e) {}
+    } catch(e) {
+        log_warning(`${gobj_short_name(gobj)}: edge state not cleared for the style preview: ${e}`);
+    }
     graph_draw(gobj).then(() => {
         history_resume(gobj);
     });

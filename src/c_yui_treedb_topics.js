@@ -765,10 +765,10 @@ function topic_card_meta(desc)
     if(desc.topic_version !== undefined && desc.topic_version !== null && desc.topic_version !== "") {
         head.push(['span', {class: 'TREEDB_TOPIC_CARD_VERSION',
                             title: t('version'), 'data-i18n-title': 'version'},
-                   `v${desc.topic_version}`]);
+                   text_node(`v${desc.topic_version}`)]);
     }
     head.push(['span', {class: 'TREEDB_TOPIC_CARD_COLS'}, [
-        ['span', {}, `${n_cols}`],
+        ['span', {}, text_node(n_cols)],
         ['span', {i18n: 'columns'}, 'columns']
     ]]);
     meta.push(['div', {class: 'TREEDB_TOPIC_CARD_META'}, head]);
@@ -780,7 +780,7 @@ function topic_card_meta(desc)
         let list = pkey2s.join(", ");
         meta.push(['div', {class: 'TREEDB_TOPIC_CARD_REL TREEDB_TOPIC_CARD_PKEY2S', title: list}, [
             ['span', {class: 'TREEDB_TOPIC_CARD_REL_LABEL', i18n: 'pkey2s'}, 'pkey2s'],
-            ['span', {class: 'TREEDB_TOPIC_CARD_REL_LIST'}, list]
+            ['span', {class: 'TREEDB_TOPIC_CARD_REL_LIST'}, text_node(list)]
         ]]);
     }
 
@@ -789,7 +789,7 @@ function topic_card_meta(desc)
         return ['div', {class: `TREEDB_TOPIC_CARD_REL ${cls}`, title: list}, [
             ['span', {class: 'TREEDB_TOPIC_CARD_REL_ARROW', 'aria-hidden': 'true'}, arrow],
             ['span', {class: 'TREEDB_TOPIC_CARD_REL_LABEL', i18n: key}, key],
-            ['span', {class: 'TREEDB_TOPIC_CARD_REL_LIST'}, list]
+            ['span', {class: 'TREEDB_TOPIC_CARD_REL_LIST'}, text_node(list)]
         ]];
     };
     if(parents.length) {
@@ -1163,7 +1163,7 @@ function build_topic_info_panel(gobj, $info, topic, desc)
         );
     };
     if(desc.topic_version !== undefined && desc.topic_version !== null && desc.topic_version !== "") {
-        push_meta("version", ["span", {class: "tag is-info"}, `${desc.topic_version}`]);
+        push_meta("version", ["span", {class: "tag is-info"}, text_node(desc.topic_version)]);
     }
     let sf_names = system_flag_names(desc.system_flag);
     if(sf_names.length > 0) {
@@ -1200,9 +1200,9 @@ function build_topic_info_panel(gobj, $info, topic, desc)
         let is_key = roles.length > 0;
         $rows.push(
             ["tr", is_key ? {class: "TREEDB_TOPIC_INFO_KEY_COL"} : {}, [
-                ["td", {}, [["code", is_key ? {class: "has-text-weight-bold"} : {}, `${col.id}`]]],
-                ["td", {}, `${type}`],
-                ["td", is_key ? {class: "has-text-weight-semibold"} : {}, `${rel}`]
+                ["td", {}, [["code", is_key ? {class: "has-text-weight-bold"} : {}, text_node(col.id)]]],
+                ["td", {}, text_node(type)],
+                ["td", is_key ? {class: "has-text-weight-semibold"} : {}, text_node(rel)]
             ]]
         );
     }
@@ -1212,7 +1212,7 @@ function build_topic_info_panel(gobj, $info, topic, desc)
             ["h3", {class: "TREEDB_TOPIC_INFO_TITLE title is-5"}, [
                 ["span", {class: "icon-text"}, [
                     ["span", {class: "icon"}, [["i", {class: "yi-circle-info"}]]],
-                    ["span", {i18n: `${topic}`}, `${topic}`]
+                    ["span", {i18n: `${topic}`}, text_node(topic)]
                 ]]
             ]],
             ["table", {class: "table is-narrow TREEDB_TOPIC_INFO_META mb-4"}, [

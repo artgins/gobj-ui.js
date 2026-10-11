@@ -91,7 +91,7 @@ import "./tabulator.css";
 import {is_time_field} from "./json_view_helpers.js";
 import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
-import {text_node} from "./yui_text.js";
+import {text_node, text_title_formatter} from "./yui_text.js";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
 // import { Tabulator } from "tabulator-tables";  // Import light Tabulator JS
 
@@ -521,6 +521,9 @@ function destroy_ui(gobj)
     let $container = gobj_read_attr(gobj, "$container");
     if($container) {
         destroy_widgets(gobj, $container);
+        if(gobj.priv && gobj.priv.tables) {
+            gobj.priv.tables.clear();
+        }
         if($container.parentNode) {
             $container.parentNode.removeChild($container);
         }
@@ -568,6 +571,13 @@ function table_identity(gobj, $table)
 {
     if(!$table.yui_table_id) {
         let priv = gobj.priv;
+        /*  The entries of tables the collector already took go first: a
+         *  nested table rebuilt by its row formatter leaves one behind.  */
+        for(let [id, ref] of priv.tables) {
+            if(!ref.deref()) {
+                priv.tables.delete(id);
+            }
+        }
         priv.table_seq += 1;
         $table.yui_table_id = `t${priv.table_seq}`;
         priv.tables.set($table.yui_table_id, new WeakRef($table));
@@ -616,11 +626,17 @@ function destroy_widgets(gobj, $container)
             log_warning(`${gobj_short_name(gobj)}: cannot destroy ${what}: ${e}`);
         }
     };
+    let forget = ($el) => {
+        if($el.yui_table_id && gobj.priv && gobj.priv.tables) {
+            gobj.priv.tables.delete($el.yui_table_id);
+        }
+    };
     $container.querySelectorAll('.yui-tabulator-table-nested').forEach(($el) => {
         if($el.tabulator) {
             destroy("nested table", $el.tabulator);
             $el.tabulator = null;
         }
+        forget($el);
     });
     $container.querySelectorAll('.yui-form-data-input').forEach(($el) => {
         if($el.tom_select) {
@@ -635,6 +651,7 @@ function destroy_widgets(gobj, $container)
             destroy("table", $el.tabulator);
             $el.tabulator = null;
         }
+        forget($el);
     });
 }
 
@@ -690,6 +707,18 @@ function name_form_control($field, conf)
     if($clear) {
         const CLEAR_KEY = "remove all selected options";
         $clear.setAttribute("role", "button");
+        /*  A button a keyboard can reach and press: a key press clicks
+         *  it, so it reaches Tom Select's own click handler.  */
+        $clear.setAttribute("tabindex", "0");
+        if(!$clear.yui_keys_wired) {
+            $clear.yui_keys_wired = true;
+            $clear.addEventListener("keydown", function(evt) {
+                if(evt.key === "Enter" || evt.key === " ") {
+                    evt.preventDefault();
+                    $clear.click();
+                }
+            });
+        }
         $clear.setAttribute("title", t(CLEAR_KEY));
         $clear.setAttribute("data-i18n-title", CLEAR_KEY);
         $clear.setAttribute("aria-label", t(CLEAR_KEY));
@@ -2206,6 +2235,7 @@ function template2columns(gobj, columns, template, sub_elements)
         let column = {
             field: field_desc.name,
             title: t(field_desc.header || field_desc.name),
+            titleFormatter: text_title_formatter,
             editable: get_editable_state,
             editor: false,
             headerWordWrap: true,
@@ -3568,11 +3598,14 @@ function ac_add_table_row(gobj, event, kw, src)
         if(gobj_is_destroying(gobj)) {
             return;     // the form went in the meantime: nothing to redraw
         }
-        /*  The table itself, or -- for a nested one -- the table of the
-         *  row it lives in. Re-checked: it may be destroyed by now.  */
-        let $outer = $table.closest('.yui-tabulator-table');
-        if($outer && $outer.tabulator) {
-            $outer.tabulator.redraw(); /* Delete double scrollbar */
+        /*  A row LOADED redraws the table that took it, nested or not; a
+         *  row ADDED by hand to a nested table redraws the table of the
+         *  row the nested one lives in, which is what grew (closest()
+         *  is the table itself for an outer one). Re-checked: it may be
+         *  destroyed by now.  */
+        let $target = loading? $table : $table.closest('.yui-tabulator-table');
+        if($target && $target.tabulator) {
+            $target.tabulator.redraw(); /* Delete double scrollbar */
         }
     }, 30);
 

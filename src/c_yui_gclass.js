@@ -1070,7 +1070,7 @@ function event_flag_chips(flags)
             } else {
                 cls += ' is-public';
             }
-            return ['span', {class: cls}, flag.replace("EVF_", "")];
+            return ['span', {class: cls}, text_node(flag.replace("EVF_", ""))];
         });
 }
 

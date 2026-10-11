@@ -1,6 +1,6 @@
 {
   "name": "@yuneta/gobj-ui",
-  "version": "7.26.8",
+  "version": "7.26.9",
   "type": "module",
   "main": "dist/gobj-ui.cjs.js",
   "module": "dist/gobj-ui.es.js",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@rollup/plugin-terser": "^1.0.0",
     "@vitest/coverage-v8": "^4.1.10",
-    "@yuneta/gobj-js": "^7.25.8",
+    "@yuneta/gobj-js": "^7.26.2",
     "vite": "^8.3.3",
     "vitest": "^4.1.10"
   },

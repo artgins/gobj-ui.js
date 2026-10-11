@@ -347,7 +347,7 @@ function build_default_header(gobj)
     if(!empty_string(title)) {
         items.push(
             ['span', {class: 'WINDOW_TITLE_KIND has-text-weight-semibold',
-                      i18n: title}, title]
+                      i18n: title}, text_node(title)]
         );
     }
 

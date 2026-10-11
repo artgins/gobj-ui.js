@@ -1029,7 +1029,7 @@ function show_notice(gobj, key, detail, detail_is_key)
             attrs.i18n = `${detail}`;
         }
         $notice.appendChild(createElement2(
-            ["span", attrs, detail_is_key ? t(`${detail}`) : `${detail}`]
+            ["span", attrs, text_node(detail_is_key ? t(`${detail}`) : `${detail}`)]
         ));
     }
 }
@@ -1273,7 +1273,7 @@ function open_card(gobj, logical, title, icon, tags, event, kw)
         return ["span", {class: `${logical}_TAG tag ${tag.style || ""}`.trimEnd()},
             tag.i18n
                 ? [["span", {i18n: tag.i18n}, t(tag.i18n)],
-                   ["span", {class: "ml-1"}, `${tag.text}`]]
+                   ["span", {class: "ml-1"}, text_node(tag.text)]]
                 : `${tag.text}`];
     });
 
@@ -1282,7 +1282,7 @@ function open_card(gobj, logical, title, icon, tags, event, kw)
             ["p", {class: `${logical}_TITLE is-flex is-align-items-center`,
                    style: "gap:.4rem;"}, [
                 ["span", {class: "icon"}, [["i", {class: icon}]]],
-                ["span", {class: `${logical}_NAME has-text-weight-semibold`}, `${title}`]
+                ["span", {class: `${logical}_NAME has-text-weight-semibold`}, text_node(title)]
             ]],
             ["div", {class: `${logical}_TAGS tags mt-2`, style: "gap:.25rem;"}, $tags]
         ]]
@@ -1385,7 +1385,7 @@ function render_topics(gobj, $body)
 
         $rows.push(["tr", {class: "SCHEMA_TOPIC_ROW", role: "button", tabindex: "0"}, [
             ["td", {class: "SCHEMA_TOPIC_NAME"}, [
-                ["span", {class: "has-text-weight-semibold"}, `${topic.name}`],
+                ["span", {class: "has-text-weight-semibold"}, text_node(topic.name)],
                 topic.system_topic
                     ? ["span", {class: "SCHEMA_TOPIC_SYSTEM tag ml-2",
                                 i18n: "system"}, t("system")]
@@ -1399,14 +1399,14 @@ function render_topics(gobj, $body)
                     : ["span", {}, ""],
                 ambiguous
                     ? ["div", {class: "SCHEMA_TOPIC_ID is-size-7 yui-text-quiet"},
-                        [["code", {}, `${topic.id}`]]]
+                        [["code", {}, text_node(topic.id)]]]
                     : ["span", {}, ""]
             ]],
-            ["td", {class: "SCHEMA_TOPIC_PKEY"}, [["code", {}, `${topic.pkey || "id"}`]]],
-            ["td", {class: "SCHEMA_TOPIC_COLS has-text-right"}, `${topic.cols.length}`],
+            ["td", {class: "SCHEMA_TOPIC_PKEY"}, [["code", {}, text_node(topic.pkey || "id")]]],
+            ["td", {class: "SCHEMA_TOPIC_COLS has-text-right"}, text_node(topic.cols.length)],
             ["td", {class: "SCHEMA_TOPIC_VERSION"}, [
                 ["span", {class: `tag ${pending ? "is-warning" : "is-info"} is-light`},
-                    `${topic.topic_version === undefined ? "?" : topic.topic_version}`]
+                    text_node(topic.topic_version === undefined ? "?" : topic.topic_version)]
             ]],
             ["td", {class: "SCHEMA_TOPIC_ACTIONS has-text-right"}, $actions]
         ], {
@@ -1616,7 +1616,7 @@ function column_row(gobj, topic, col, index, readonly, twice)
          *  open_card(). It is why 'writable', 'image', 'wild' and every
          *  other unstyled flag rendered as an empty pill.  */
         return ["span", {class: `SCHEMA_COL_FLAG tag ${yui_tint(flag_style(flag))}`.trimEnd()},
-            `${flag}`];
+            text_node(flag)];
     });
 
     /*  An unset `blob` column comes back as `{}`, which is an object and
@@ -1646,22 +1646,22 @@ function column_row(gobj, topic, col, index, readonly, twice)
                 readonly ? [] : [["span", {class: "icon yui-text-quiet"},
                     [["i", {class: "yi-grip-vertical"}]]]]],
             ["td", {class: "SCHEMA_COL_NAME"}, [
-                ["code", {}, `${col.name}`],
+                ["code", {}, text_node(col.name)],
                 ambiguous
                     ? ["span", {class: "SCHEMA_COL_ID is-size-7 yui-text-quiet ml-2"},
-                        [["code", {}, `${col.id}`]]]
+                        [["code", {}, text_node(col.id)]]]
                     : ["span", {}, ""],
                 is_pkey
                     ? ["span", {class: "SCHEMA_COL_PKEY tag is-info is-light ml-2",
                                 i18n: "pkey"}, t("pkey")]
                     : ["span", {}, ""]
             ]],
-            ["td", {class: "SCHEMA_COL_HEADER"}, `${record.header || ""}`],
-            ["td", {class: "SCHEMA_COL_TYPE"}, [["code", {}, `${record.type || ""}`]]],
+            ["td", {class: "SCHEMA_COL_HEADER"}, text_node(record.header || "")],
+            ["td", {class: "SCHEMA_COL_TYPE"}, [["code", {}, text_node(record.type || "")]]],
             ["td", {class: "SCHEMA_COL_FLAGS"}, [
                 ["div", {class: "tags", style: "gap:.2rem;"}, $flags]
             ]],
-            ["td", {class: "SCHEMA_COL_LINK"}, `${link}`],
+            ["td", {class: "SCHEMA_COL_LINK"}, text_node(link)],
             ["td", {class: "SCHEMA_COL_ACTIONS has-text-right"}, $actions]
         ]]
     );
@@ -2116,7 +2116,7 @@ function flags_field(gobj, type, current)
                 ["input", el_attrs({type: "checkbox", class: "SCHEMA_FLAG_BOX",
                            "data-flag": flag.name,
                            checked: flag.on ? "checked" : undefined})],
-                ["span", {class: "SCHEMA_FLAG_NAME ml-1"}, `${flag.name}`]
+                ["span", {class: "SCHEMA_FLAG_NAME ml-1"}, text_node(flag.name)]
             ]];
         });
 
@@ -2389,9 +2389,9 @@ function open_report(gobj, findings, treedb_id)
                                  " is-light", i18n: finding.severity}, t(finding.severity)]
             ]],
             ["td", {class: "SCHEMA_REPORT_WHAT", i18n: finding.code}, t(finding.code)],
-            ["td", {class: "SCHEMA_REPORT_TOPIC"}, `${finding.topic || ""}`],
-            ["td", {class: "SCHEMA_REPORT_COL"}, `${finding.col || ""}`],
-            ["td", {class: "SCHEMA_REPORT_DETAIL"}, [["code", {}, `${finding.detail || ""}`]]]
+            ["td", {class: "SCHEMA_REPORT_TOPIC"}, text_node(finding.topic || "")],
+            ["td", {class: "SCHEMA_REPORT_COL"}, text_node(finding.col || "")],
+            ["td", {class: "SCHEMA_REPORT_DETAIL"}, [["code", {}, text_node(finding.detail || "")]]]
         ]];
     });
 
@@ -2664,7 +2664,7 @@ function render_import_plan(gobj, plan)
         return ["li", {class: `SCHEMA_IMPORT_LINE SCHEMA_IMPORT_${write.op.toUpperCase()}`}, [
             ["span", {class: `tag is-light ${write.op === "delete" ? "is-danger" : "is-info"}`,
                       i18n: write.op}, t(write.op)],
-            ["code", {class: "ml-2"}, `${what}`]
+            ["code", {class: "ml-2"}, text_node(what)]
         ]];
     });
 
@@ -2672,9 +2672,9 @@ function render_import_plan(gobj, plan)
         ["div", {class: "SCHEMA_IMPORT_SUMMARY"}, [
             ["p", {class: "SCHEMA_IMPORT_COUNT is-size-7 yui-text-quiet mb-2"}, [
                 ["span", {i18n: "writes"}, t("writes")],
-                ["span", {class: "ml-1"}, `${plan.writes.length}`],
+                ["span", {class: "ml-1"}, text_node(plan.writes.length)],
                 ["span", {class: "ml-3", i18n: "deletions"}, t("deletions")],
-                ["span", {class: "ml-1 has-text-weight-bold"}, `${deletes.length}`]
+                ["span", {class: "ml-1 has-text-weight-bold"}, text_node(deletes.length)]
             ]],
             ["ul", {class: "SCHEMA_IMPORT_LINES is-size-7",
                     style: "max-height:14rem; overflow:auto;"}, $lines]
@@ -2699,7 +2699,7 @@ function open_orphans(gobj)
     let row = (kind, entry) => {
         return ["tr", {class: "SCHEMA_ORPHAN_ROW"}, [
             ["td", {class: "SCHEMA_ORPHAN_KIND", i18n: kind}, t(kind)],
-            ["td", {class: "SCHEMA_ORPHAN_ID"}, [["code", {}, `${entry.id}`]]],
+            ["td", {class: "SCHEMA_ORPHAN_ID"}, [["code", {}, text_node(entry.id)]]],
             ["td", {class: "SCHEMA_ORPHAN_ACTIONS has-text-right"},
                 readonly ? [] : [row_icon(gobj, "SCHEMA_ORPHAN_DELETE", "yi-trash", "delete",
                     "EV_DELETE_ORPHAN", {kind: kind, id: entry.id, model_gen: priv.model_gen})]]

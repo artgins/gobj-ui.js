@@ -20,6 +20,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
+import {text_node} from "./yui_text.js";
 
 import "./yui_asset.css";
 
@@ -357,10 +358,10 @@ function yui_asset_element(answer, opts = {})
 
     if(kind === "other") {
         const children = [
-            ["span", {class: "ASSET_OTHER_TYPE"}, String(answer.content_type || "?")]
+            ["span", {class: "ASSET_OTHER_TYPE"}, text_node(answer.content_type || "?")]
         ];
         if(opts.detail) {
-            children.push(["span", {class: "ASSET_OTHER_DETAIL"}, String(opts.detail)]);
+            children.push(["span", {class: "ASSET_OTHER_DETAIL"}, text_node(opts.detail)]);
         }
         const $card = createElement2(["div", {class: `${cls} ASSET_OTHER`}, children]);
         const $open = yui_asset_open_link(answer);

@@ -29,3 +29,15 @@ export function text_node(value)
     }
     return document.createTextNode(String(value).trim());
 }
+
+/************************************************************
+ *  A Tabulator `titleFormatter` that shows the column title as text.
+ *
+ *  Tabulator puts a STRING title in with innerHTML, so a title taken
+ *  from a schema (`header`, which the schema editor writes) is markup
+ *  unless the column carries a formatter that returns a Node.
+ ************************************************************/
+export function text_title_formatter(cell)
+{
+    return text_node(cell.getValue());
+}

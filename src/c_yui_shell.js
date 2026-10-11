@@ -155,6 +155,9 @@ let PRIVATE_DATA = {
     /*  Count of history.back() calls WE issued to retire a dismissed
      *  overlay; the popstate they trigger is expected and ignored. */
     expected_pops:   0,
+    /*  Overlays registered while one of those history.back() calls is
+     *  still in flight: their marker is pushed once it has landed.  */
+    pending_markers: [],
     popstate_handler: null,
     /*  Avatar item support — every toolbar item with type:"avatar"
      *  registers its <span> here so refresh_avatars() can repaint
@@ -278,6 +281,9 @@ function mt_start(gobj)
                 /*  A history.back() we issued to retire a dismissed
                  *  overlay — the teardown already happened. */
                 p.expected_pops--;
+                if(p.expected_pops === 0) {
+                    push_pending_markers(gobj);
+                }
                 return;
             }
             if(p.overlay_stack.length === 0) {
@@ -2603,16 +2609,60 @@ function push_overlay_history(gobj, close, opts)
                    *  dock-managed window registers no overlay at all. */
                   keep_on_navigate: !!(opts && opts.keep_on_navigate) };
     priv.overlay_stack.push(entry);
+
+    /*  A history.back() of ours still in flight (an overlay closed by a
+     *  button, and this one opened in the same turn: a window that takes
+     *  its entry back when its question is answered, a dialog that opens
+     *  another). back() is ASYNCHRONOUS and pushState is not, so a marker
+     *  pushed now lands BEFORE the traversal, which then runs from it:
+     *  the marker is left orphaned ahead of the old one, and the pop we
+     *  counted is the user's next Back. The marker waits for the landing.  */
+    if(priv.expected_pops > 0) {
+        entry.marker_pending = true;
+        priv.pending_markers.push(entry);
+        return entry;
+    }
+    if(!push_overlay_marker(gobj, entry)) {
+        return null;    // Error already logged
+    }
+    return entry;
+}
+
+function push_overlay_marker(gobj, entry)
+{
+    let priv = gobj.priv;
     try {
         window.history.pushState({ __yui_overlay__: entry.id }, "");
     } catch(e) {
         /*  pushState failed (rare): drop the entry so overlay_dismissed
          *  won't later history.back() past a real route. */
-        priv.overlay_stack.pop();
+        let idx = priv.overlay_stack.indexOf(entry);
+        if(idx >= 0) {
+            priv.overlay_stack.splice(idx, 1);
+        }
         log_warning(`C_YUI_SHELL: overlay pushState failed: ${e}`);
-        return null;
+        return false;
     }
-    return entry;
+    return true;
+}
+
+/*  The history.back() calls of ours have all landed: push the markers of
+ *  the overlays registered meanwhile, in their order. One closed in the
+ *  meantime (dismissed, drained, or no longer on the stack) has none.  */
+function push_pending_markers(gobj)
+{
+    let priv = gobj.priv;
+    let pending = priv.pending_markers.splice(0);
+    for(let entry of pending) {
+        entry.marker_pending = false;
+        if(entry.dismissed || priv.overlay_stack.indexOf(entry) < 0) {
+            continue;
+        }
+        /*  The traversal was same-hash, but a route may have moved
+         *  meanwhile: the marker lives on the hash it is pushed on.  */
+        entry.hash = window.location.hash;
+        push_overlay_marker(gobj, entry);     // Error already logged
+    }
 }
 
 function overlay_dismissed(gobj, entry)
@@ -2631,6 +2681,10 @@ function overlay_dismissed(gobj, entry)
         return;
     }
     priv.overlay_stack.splice(idx, 1);
+    if(entry.marker_pending) {
+        /*  Its marker was never pushed: there is nothing to retire.  */
+        return;
+    }
     /*  Retire the synthetic browser entry ONLY when it is the CURRENT
      *  one — its state marker is live — so history.back() steps off it
      *  invisibly (same hash, no route change).  In every other case the

@@ -3309,6 +3309,59 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
   reuse a glyph because it is there.
 - **Bulma helpers carry `!important`** (`.is-hidden`, `.is-flex`): toggle
   `is-hidden`, or use `style.setProperty('display', 'none', 'important')`.
+- **Data goes into the DOM as text, never as a string.** `createElement2()`
+  parses a string that starts with `<` as markup, and Tabulator puts a string
+  column title in with `innerHTML`. A value from outside (a backend answer, a
+  treedb node, a schema `header`, a name somebody typed) goes in as a Text
+  node, in the CONTENT slot of a description (gobj-js before 7.26.2 drops a
+  Text node inside a children array):
+
+  ```js
+  import {text_node, text_title_formatter} from "@yuneta/gobj-ui/src/yui_text.js";
+  createElement2(["span", {class: "FOO_NAME", i18n: name}, text_node(name)]);
+  columns.push({field: "x", title: header, titleFormatter: text_title_formatter});
+  ```
+
+### `index.html`: title, metadata and the Content-Security-Policy
+
+The vite plugin `yunetaHtmlPlugin` (`vite-plugin-yuneta-html.js`) fills
+`index.html` from the app's `config.json` at build time. The page needs the
+three placeholders `<title></title>`, `<!-- METADATA_PLACEHOLDER -->` and
+`<!-- CSP_PLACEHOLDER -->`.
+
+```js
+// vite.config.js
+import { yunetaHtmlPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-html.js";
+export default { plugins: [ yunetaHtmlPlugin({ defaultTitle: "My App" }) ] };
+```
+
+```json
+{
+    "title": "My App",
+    "metadata": {"description": "What the app does"},
+    "csp_connect_src": [
+        "_comment: the backend this SPA talks to",
+        "wss://my.host:1620",
+        "https://auth.my.host"
+    ]
+}
+```
+
+- **The policy is always emitted** (since 7.26.7). Without `csp_connect_src`,
+  or without a `config.json` at all, the page gets the same policy with
+  `connect-src 'self'` only, and the build prints a warning. So a page that
+  talks to a backend on another origin must declare that origin here, or
+  the browser refuses the connection.
+- **`csp_connect_src` is a list of CSP sources**, one per entry: an origin
+  (`wss://host:port`) or a scheme (`wss:`). An entry that starts with
+  `_comment` is ignored. An entry that holds a `;`, a `,` or a space is
+  refused with an error (since 7.26.9): it is not one source, and a `;`
+  would add a directive of its own (`wss://a; base-uri *`).
+- The rest of the policy is fixed: `script-src 'self'` (no inline script:
+  put pre-paint code in `public/<name>.js` and load it with `<script src>`),
+  `style-src 'self' 'unsafe-inline'`, and `blob:`/`data:` where workers,
+  images, media and fonts need them.
+- Every text from `config.json` is escaped where it lands in the markup.
 
 ### Releasing
 

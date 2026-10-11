@@ -597,7 +597,7 @@ function render_submenu(gobj, items)
     return createElement2(
         ["aside", {class: "menu p-2"},
             [
-                ["p", heading_attrs, heading_text],
+                ["p", heading_attrs, text_node(heading_text)],
                 ["ul", {class: "menu-list"}, lis]
             ]
         ]
@@ -639,7 +639,7 @@ function render_accordion(gobj, items)
             head_attrs["aria-label"] = head_text;
             head_attrs["data-i18n-aria-label"] = head_text;
         }
-        let $hdr = createElement2(["button", head_attrs, head_text]);
+        let $hdr = createElement2(["button", head_attrs, text_node(head_text)]);
         $container.appendChild($hdr);
 
         let $ul = createElement2(

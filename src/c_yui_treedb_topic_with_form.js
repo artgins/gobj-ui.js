@@ -1147,7 +1147,7 @@ function col_title_formatter(gobj, col)
         if(t(col.id, {defaultValue: NO_I18N}) !== NO_I18N) {
             attrs.i18n = col.id;
         }
-        return createElement2(['span', attrs, text]);
+        return createElement2(['span', attrs, text_node(text)]);
     };
 }
 
@@ -2045,7 +2045,7 @@ function file_cell_formatter(cell, formatterParams, onRendered)
     }
     const children = [
         ['span', {class: 'FILE_CELL_ICON icon yi-eye'}],
-        ['span', {class: 'FILE_CELL_ID'}, yui_file_id_label(ids[0])]
+        ['span', {class: 'FILE_CELL_ID'}, text_node(yui_file_id_label(ids[0]))]
     ];
     if(ids.length > 1) {
         children.push(['span', {class: 'FILE_CELL_MORE'}, `+${ids.length - 1}`]);
@@ -4814,7 +4814,7 @@ function build_delete_question(gobj, records)
     if(one && one[pkey] !== undefined && one[pkey] !== null) {
         lines.push(["p", {class: "DELETE_ASK_WHAT", style: ROW}, [
             ["span", {i18n: "delete"}, t("delete")],
-            ["strong", {}, String(one[pkey])]
+            ["strong", {}, text_node(one[pkey])]
         ]]);
     } else {
         lines.push(["p", {class: "DELETE_ASK_WHAT", style: ROW}, [
@@ -5069,7 +5069,7 @@ function ac_open_columns(gobj, event, kw, src)
         $list.appendChild(createElement2(
             ['label', {class: 'checkbox is-block mb-1 TREEDB_COLUMN_ITEM'}, [
                 $cb,
-                ['span', {class: 'ml-2'}, column.getDefinition().title || field]
+                ['span', {class: 'ml-2'}, text_node(column.getDefinition().title || field)]
             ]]
         ));
     }

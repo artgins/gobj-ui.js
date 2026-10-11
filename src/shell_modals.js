@@ -285,7 +285,7 @@ export function yui_shell_show_modal(shell, content, opts)
             ["span", {class: "MODAL_TITLE yui-dialog-title"},
                 (title_prefix ? [["span", {class: "MODAL_TITLE_PREFIX"}, text_node(title_prefix)]] : [])
                     .concat(title
-                        ? [["span", {class: "MODAL_TITLE_KIND", i18n: title}, title]]
+                        ? [["span", {class: "MODAL_TITLE_KIND", i18n: title}, text_node(title)]]
                         : [])],
             ["button", {class: "MODAL_CLOSE yui-dialog-x", type: "button", title: t("close"), "data-i18n-title": "close",
                     "aria-label": t("close"), "data-i18n-aria-label": "close"},
@@ -527,7 +527,7 @@ function build_dialog(shell, message, buttons, opts)
     if(!empty_string(title)) {
         $card_children.push(
             ["p", {class: "CONFIRM_TITLE yui-confirm-title has-text-centered",
-                   i18n: title}, title]
+                   i18n: title}, text_node(title)]
         );
     }
     $card_children.push(
