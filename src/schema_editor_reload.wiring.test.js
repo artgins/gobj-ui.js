@@ -1748,3 +1748,28 @@ describe("names the treedb refuses", () => {
         }
     });
 });
+
+
+/*
+ *  The name field says whether the LAST save refused its name (REV-CLOUD
+ *  V15.4): set by every refusal of the name, cleared by a save that gets
+ *  past them. It was set by the rule only, and never cleared.
+ */
+describe("aria-invalid of the name field", () => {
+    test("set by a bad name and by a duplicate, cleared by a good one", () => {
+        const {editor, host} = build("aria_topic", "db");
+        gobj_send_event(editor, "EV_ADD_TOPIC", {}, host);
+        const form = modals[modals.length - 1];
+        const $value = form.$content.querySelector('[data-name="value"]');
+        const save = (name) => {
+            gobj_send_event(editor, "EV_SAVE_TOPIC", {
+                creating: true, topic: "", values: {value: name}
+            }, host);
+        };
+        save("a/b");
+        expect($value.getAttribute("aria-invalid")).toBe("true");
+        save("ok_name");
+        expect($value.getAttribute("aria-invalid")).toBe(null);
+        take("update-node");
+    });
+});

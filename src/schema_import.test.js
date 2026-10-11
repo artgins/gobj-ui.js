@@ -282,3 +282,31 @@ describe("names the treedb refuses stop the plan before any write (REV-CLOUD V14
         expect(plan.writes.length).toBeGreaterThan(0);
     });
 });
+
+
+describe("the import reads the hook map and the treedb id (REV-CLOUD V15.4)", () => {
+    test("a hook to an fkey x`y or to a topic a/b that no column declares: conflicts", () => {
+        let plan = plan_import(null, {
+            id: "db", schema_version: "1",
+            topics: [{id: "p", pkey: "id", cols: {
+                "id": {id: "id", type: "string"},
+                "kids": {id: "kids", type: "dict", flag: ["hook"], hook: {"k": "x`y", "a/b": "pid"}},
+            }}]
+        });
+        expect(plan.writes).toEqual([]);
+        let codes = plan.conflicts.map((c) => c.code);
+        expect(codes).toContain("column name breaks the name rule");
+        expect(codes).toContain("topic name breaks the name rule");
+    });
+
+    test("a treedb a/b, and a column with no id in an array: conflicts, not dropped", () => {
+        let plan = plan_import(null, {
+            id: "a/b", schema_version: "1",
+            topics: [{id: "t", pkey: "id", cols: [{id: "id", type: "string"}, {id: "", type: "string"}]}]
+        });
+        expect(plan.writes).toEqual([]);
+        let codes = plan.conflicts.map((c) => c.code);
+        expect(codes).toContain("treedb name breaks the name rule");
+        expect(codes).toContain("column has no name");
+    });
+});

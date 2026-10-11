@@ -372,14 +372,29 @@ function mt_destroy(gobj)
  ************************************************************/
 function refuse_bad_name(gobj, $message)
 {
+    mark_name_field(gobj, true);
+    yui_shell_show_error(yui_shell_of(gobj), $message, {t: t});
+    return -1;
+}
+
+/************************************************************
+ *  The name field says whether the LAST save refused its name:
+ *  set by every refusal of the name (empty, a rule, a duplicate),
+ *  cleared by a save that gets past them.
+ ************************************************************/
+function mark_name_field(gobj, invalid)
+{
     let priv = gobj.priv;
     let $value = priv.dialog_content?
         priv.dialog_content.querySelector('[data-name="value"]') : null;
-    if($value) {
-        $value.setAttribute("aria-invalid", "true");
+    if(!$value) {
+        return;
     }
-    yui_shell_show_error(yui_shell_of(gobj), $message, {t: t});
-    return -1;
+    if(invalid) {
+        $value.setAttribute("aria-invalid", "true");
+    } else {
+        $value.removeAttribute("aria-invalid");
+    }
 }
 
 /***************************************************************
@@ -4047,6 +4062,7 @@ function ac_save_column(gobj, event, kw, src)
 
     let values = kw.values || {};
     if(kw.creating && empty_string(String(values.value || "").trim())) {
+        mark_name_field(gobj, true);
         yui_shell_show_error(yui_shell_of(gobj), "a column needs a name", {t: t});
         return -1;
     }
@@ -4055,9 +4071,11 @@ function ac_save_column(gobj, event, kw, src)
             ["span", {i18n: "invalid column name"}, t("invalid column name")]));
     }
     if(kw.creating && find_col(priv.model, priv.treedb_id, kw.topic, String(values.value).trim())) {
+        mark_name_field(gobj, true);
         yui_shell_show_error(yui_shell_of(gobj), "that column is already there", {t: t});
         return -1;
     }
+    mark_name_field(gobj, false);
 
     close_dialog(gobj);
     return queue_writes(gobj, [{
@@ -4358,6 +4376,7 @@ function ac_save_topic(gobj, event, kw, src)
     if(kw.creating) {
         let name = String(values.value || "").trim();
         if(empty_string(name)) {
+            mark_name_field(gobj, true);
             yui_shell_show_error(yui_shell_of(gobj), "a topic needs a name", {t: t});
             return -1;
         }
@@ -4366,9 +4385,11 @@ function ac_save_topic(gobj, event, kw, src)
                 ["span", {i18n: "invalid topic name"}, t("invalid topic name")]));
         }
         if(find_topic(priv.model, priv.treedb_id, name)) {
+            mark_name_field(gobj, true);
             yui_shell_show_error(yui_shell_of(gobj), "that topic is already there", {t: t});
             return -1;
         }
+        mark_name_field(gobj, false);
     }
 
     close_dialog(gobj);

@@ -211,14 +211,42 @@ function plan_import(treedb, incoming, options)
      *  stop the plan BEFORE any write: run through, the backend refused
      *  them half way, with the writes before them already done.
      */
+    if(topic_name_breaks_the_rule(treedb_id)) {
+        /*  The treedb is a directory too (treedb_open_db() refuses it)  */
+        conflicts.push({code: "treedb name breaks the name rule", topic: "", col: ""});
+    }
     for(let in_topic of incoming.topics) {
         let name = (in_topic || {}).id;
         if(name && topic_name_breaks_the_rule(name)) {
             conflicts.push({code: "topic name breaks the name rule", topic: name, col: ""});
         }
+        let cols = (in_topic || {}).cols;
+        if(Array.isArray(cols)) {
+            /*  incoming_cols() drops a column with no id: said, not dropped  */
+            for(let c of cols) {
+                if(!c || !c.id) {
+                    conflicts.push({code: "column has no name", topic: name || "", col: ""});
+                }
+            }
+        }
         for(let in_col of incoming_cols(in_topic || {})) {
             if(col_name_breaks_the_rule(in_col.name)) {
                 conflicts.push({code: "column name breaks the name rule", topic: name || "", col: in_col.name});
+            }
+            /*  The hook map names a child topic and its fkey column: names
+             *  the treedb refuses too, even when no column declares them.  */
+            let hook = (in_col.col || {}).hook;
+            if(hook && typeof hook === "object" && !Array.isArray(hook)) {
+                for(let [child_topic, fkey_col] of Object.entries(hook)) {
+                    if(topic_name_breaks_the_rule(child_topic)) {
+                        conflicts.push({code: "topic name breaks the name rule",
+                                        topic: name || "", col: in_col.name});
+                    }
+                    if(col_name_breaks_the_rule(fkey_col)) {
+                        conflicts.push({code: "column name breaks the name rule",
+                                        topic: name || "", col: in_col.name});
+                    }
+                }
             }
         }
     }

@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.23
+
+Fifteenth check of the review (yunovatios `REV-CLOUD.md` §V15.4).
+
+- **`plan_import()` reads the hook map**: a hook that names a child topic or
+  an fkey column the treedb refuses (`a/b`, ``x`y``) is a conflict even when
+  no column declares that name; it planned the writes. Also a conflict now:
+  a treedb id that breaks the rule (`treedb name breaks the name rule`), and
+  a column with no id in an array of columns (`column has no name`), which
+  was dropped in silence.
+- **the name field's `aria-invalid` says the LAST save**: every refusal of
+  the name sets it (empty, a rule, a duplicate) and a save that gets past
+  them clears it. It was set by the rule only, and never cleared while the
+  dialog stayed up.
+- **Consumer i18n keys**: `treedb name breaks the name rule`, `column has no
+  name`. The codes of `validate_schema()` and `plan_import()` are i18n keys
+  rendered through `t(code)`: a consumer's `validate-locales` sees them when
+  it scans `add("error", "…")` and `code: "…"` (gui_agent's does, from
+  yunos-js of this round).
+
 ## 7.26.22
 
 Fourteenth check of the review (yunovatios `REV-CLOUD.md` §V14.2).
