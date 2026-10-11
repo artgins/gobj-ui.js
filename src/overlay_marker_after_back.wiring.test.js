@@ -1029,8 +1029,8 @@ describe("V9: the warning of a late back() has a window", () => {
         await next_task();
         expect(shell_warnings().filter(m => m.includes("given up")).length).toBe(1);
 
-        const now = Date.now();
-        const spy = vi.spyOn(Date, "now").mockImplementation(() => now + 6000);
+        const now = performance.now();
+        const spy = vi.spyOn(performance, "now").mockImplementation(() => now + 6000);
         try {
             late();                                   // the reader's Back, 6 s later
             await next_task();

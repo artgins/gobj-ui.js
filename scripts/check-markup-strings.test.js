@@ -92,6 +92,11 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, 'abc'.replace('abc', '$&<i>' + y)]);`)).toEqual([]);   // $& is 'abc': no markup head
     });
 
+    test("V10.3: only blank before the match: the replacement heads the content", () => {
+        expect(rules_of(`x(['span', {}, (' a' + name).replace('ab', '<b>')]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, (' z' + name).replace('ab', '<b>')]);`)).toEqual([]);
+    });
+
     test("what is fine", () => {
         expect(rules_of(`x(['span', {}, 'plain text']);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, html_markup('<i class="yi-a"></i>')]);`)).toEqual([]);

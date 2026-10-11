@@ -201,7 +201,9 @@ same hash) and an **overlay stack**:
   already holds when that is a plain object: a lower overlay's marker, an
   app's own; a state of any other kind -- a string, a `Map`, a `Date` -- cannot
   be stamped, which is logged, and that overlay gets NO marker: it closes by
-  its own controls, and no Back of the reader's is spent on it), and **only a
+  its own controls, and no Back of the reader's is spent on it. An overlay
+  opened ON TOP of it gets none either, since the entry under it is that same
+  entry; a Back there leaves the route and closes both), and **only a
   landing on the entry stamped with the TOP overlay's id closes it**. A fresh
   entry, the top's own marker, a dead marker, or an entry stamped for another
   overlay (stamps stay on their entries) keeps it open. Before 7.26.15 a link
@@ -213,7 +215,10 @@ same hash) and an **overlay stack**:
   gone back between the two):
   after an F5 the session history keeps the markers of the earlier load, and
   an id starting again from 1 matched them -- a Back onto an old marker was
-  taken for the new overlay's own entry and lost (before 7.26.16).
+  taken for the new overlay's own entry and lost (before 7.26.16). The
+  entries of the earlier load are still dead entries: after a reload with
+  overlays open, each of them absorbs one Back once the new overlays are
+  closed -- by design, as any dead marker.
 - **A navigation made while the shell retires a marker waits for it.** An
   overlay closed by its button retires its marker with a `history.back()`,
   which is asynchronous; a push made in the same turn (`yui_shell_navigate()`,

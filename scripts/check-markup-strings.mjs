@@ -119,7 +119,13 @@ const PURE_METHODS = new Set([
  *  'abc'.replace('abc', '<i>' + y) is '<i>' + data: built). Where the
  *  first match is decides it, so the replacement is the head only when the
  *  pattern can match at 0: ('z' + name).replace('a', '<b>') starts with
- *  'z', and 'abc'.replace('x', '<i>' + y) is 'abc'.
+ *  'z', and 'abc'.replace('x', '<i>' + y) is 'abc'. With only blank
+ *  before where it can match, the replacement still heads the content,
+ *  since createElement2() trims.
+ *  A regex on a receiver that carries data is not positioned at all:
+ *  alternatives and lookaheads can make the data match first, so markup
+ *  in the replacement is taken as the head (the conservative reading).
+ *  A `$` in the replacement ends what is known of it.
  *  Not seen: a replacement that is a function, a pattern in a variable.  */
 function static_pattern(arg)
 {
@@ -202,8 +208,10 @@ function replaced(method, head, args)
     while(keep < head.text.length && !pattern.startsWith(head.text.slice(keep))) {
         keep++;
     }
-    if(keep === 0) {
-        return {text: rep_head, complete: false};
+    /*  Only blank before the match: createElement2() trims, so the
+     *  replacement's head is what starts the content (' <b>' is markup).  */
+    if(head.text.slice(0, keep).trim() === "") {
+        return {text: head.text.slice(0, keep) + rep_head, complete: false};
     }
     return {text: head.text.slice(0, keep), complete: false};
 }

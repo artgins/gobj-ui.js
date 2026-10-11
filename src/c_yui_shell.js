@@ -2820,7 +2820,8 @@ function push_overlay_marker(gobj, entry)
     } else {
         log_warning(
             `C_YUI_SHELL: the entry under an overlay holds a history state that ` +
-            `is not a plain object, it cannot be stamped: Back will not close the overlay`
+            `is not a plain object, it cannot be stamped: the overlay gets no ` +
+            `history marker, Back will not close it (its own controls do)`
         );
     }
     if(!stamped) {
@@ -2921,7 +2922,7 @@ function note_late_landing(gobj, ev)
     let priv = gobj.priv;
     let given_up = priv.given_up;
     let st = ev && ev.state;
-    if(given_up && Date.now() > given_up.until) {
+    if(given_up && performance.now() > given_up.until) {
         priv.given_up = null;   // too late to be that back(): a Back of the reader's
         return;
     }
@@ -3290,7 +3291,9 @@ function ac_back_wait_timeout(gobj, event, kw, src)
     let given_up = {
         ids:   priv.expected_pop_ids.slice(),
         route: priv.deferred_route,
-        until: Date.now() + LATE_LANDING_WINDOW_MS
+        /*  A monotonic clock: a wall clock set back holds the window
+         *  open, set forward closes it early.  */
+        until: performance.now() + LATE_LANDING_WINDOW_MS
     };
     priv.expected_pops = 0;
     priv.expected_pop_hash = "";

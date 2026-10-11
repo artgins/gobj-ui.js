@@ -5,6 +5,20 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.19
+
+Tenth check of the review (yunovatios `REV-CLOUD.md` §V10).
+
+- **checker: a blank before the match hid the replacement's markup**:
+  `(' a' + name).replace('ab', '<b>')` starts with `<b>` once
+  `createElement2()` trims, and is `built` now. The doc above the
+  `replace()` helpers says the regex and `$` rules too.
+- **the window of the late `back()` warning runs on `performance.now()`**, a
+  monotonic clock: a wall clock set back held it open.
+- the warning of an unstampable state says the overlay gets no history marker;
+  `ROUTING.md` says an overlay opened on top of such one gets none either, and
+  that the dead entries of an earlier load each absorb one Back.
+
 ## 7.26.18
 
 Ninth check of the review (yunovatios `REV-CLOUD.md` §V9).
