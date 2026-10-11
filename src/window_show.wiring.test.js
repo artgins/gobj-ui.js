@@ -22,7 +22,7 @@ if(typeof globalThis.matchMedia === "undefined") {
 const {
     SDATA_END, gclass_create,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
-    gobj_start, gobj_read_attr, gobj_send_event,
+    gobj_start, gobj_read_attr, gobj_send_event, gobj_full_name,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_window} = await import("./c_yui_window.js");
@@ -73,11 +73,36 @@ describe("EV_SHOW", () => {
         gobj_start(w);
         const $w = gobj_read_attr(w, "$container");
 
-        gobj_send_event(dock, "EV_MINIMIZE_WINDOW", {window: w}, w);
+        gobj_send_event(dock, "EV_MINIMIZE_WINDOW", {window: gobj_full_name(w)}, w);
         expect($w.style.getPropertyValue("display")).toBe("none");
 
         gobj_send_event(w, "EV_SHOW", {}, yuno);
         expect($w.style.getPropertyValue("display")).toBe("");
         expect(errors()).toEqual([]);
+    });
+
+    test("the dock's events carry the window's NAME, plain json; the gobj is the src", () => {
+        const dock = gobj_create_service("name_dock", "C_YUI_WINDOW_MANAGER", {}, yuno);
+        gobj_start(dock);
+        const w = gobj_create_service("name_w", "C_YUI_WINDOW",
+            {header: "w", body: ["div", {}, "w"], manager: dock}, yuno);
+        gobj_start(w);
+        const $w = gobj_read_attr(w, "$container");
+
+        /*  What the window itself sent to register is json.  */
+        expect(dock.priv.windows.some((e) => e.gobj === w)).toBe(true);
+
+        /*  A name that is not the src's is refused, loudly.  */
+        logged.length = 0;
+        gobj_send_event(dock, "EV_MINIMIZE_WINDOW", {window: "someone^else"}, w);
+        expect($w.style.getPropertyValue("display")).toBe("");
+        expect(errors().some((m) => m.includes("is not the src"))).toBe(true);
+
+        /*  The old form (the gobj in the kw) still works, with a warning.  */
+        logged.length = 0;
+        gobj_send_event(dock, "EV_MINIMIZE_WINDOW", {window: w}, w);
+        expect($w.style.getPropertyValue("display")).toBe("none");
+        expect(errors()).toEqual([]);
+        expect(logged.some((l) => l.level === "warning" && l.msg.includes("gobj_full_name"))).toBe(true);
     });
 });

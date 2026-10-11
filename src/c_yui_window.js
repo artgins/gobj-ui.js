@@ -42,6 +42,7 @@ import {
     gobj_is_destroying,
     refresh_language,
     empty_string,
+    gobj_full_name,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
@@ -163,7 +164,7 @@ function mt_create(gobj)
             $c.addEventListener("pointerdown", function() {
                 let m = gobj_read_pointer_attr(gobj, "manager");
                 if(m) {
-                    gobj_send_event(m, "EV_FOCUS_WINDOW", {window: gobj}, gobj);
+                    gobj_send_event(m, "EV_FOCUS_WINDOW", {window: gobj_full_name(gobj)}, gobj);
                 }
             }, true);
         }
@@ -175,7 +176,7 @@ function mt_create(gobj)
          *  own), `title_prefix` the DATA half, never translated. */
         let chip_title = composed_title(gobj);
         gobj_send_event(manager, "EV_REGISTER_WINDOW", {
-            window: gobj,
+            window: gobj_full_name(gobj),
             title: chip_title ? chip_title : gobj_short_name(gobj),
             title_key: gobj_read_str_attr(gobj, "title") || "",
             title_kind_text: empty_string(gobj_read_str_attr(gobj, "title"))
@@ -215,7 +216,7 @@ function mt_destroy(gobj)
 {
     let manager = gobj_read_pointer_attr(gobj, "manager");
     if(manager) {
-        gobj_send_event(manager, "EV_UNREGISTER_WINDOW", {window: gobj}, gobj);
+        gobj_send_event(manager, "EV_UNREGISTER_WINDOW", {window: gobj_full_name(gobj)}, gobj);
     }
 
     /*  Retire the overlay-history entry, if this was a Back-dismissable
@@ -415,7 +416,7 @@ function do_minimize(gobj)
         log_error(`${gobj_short_name(gobj)}: minimize without a window manager`);
         return;
     }
-    gobj_send_event(manager, "EV_MINIMIZE_WINDOW", {window: gobj}, gobj);
+    gobj_send_event(manager, "EV_MINIMIZE_WINDOW", {window: gobj_full_name(gobj)}, gobj);
 }
 
 /************************************************************
@@ -1240,7 +1241,7 @@ function ac_show(gobj, event, kw, src)
      *  moved to the top of its layer.  */
     let manager = gobj_read_pointer_attr(gobj, "manager");
     if(manager) {
-        gobj_send_event(manager, "EV_FOCUS_WINDOW", {window: gobj}, gobj);
+        gobj_send_event(manager, "EV_FOCUS_WINDOW", {window: gobj_full_name(gobj)}, gobj);
         return 0;
     }
     let $container = gobj_read_attr(gobj, "$container");

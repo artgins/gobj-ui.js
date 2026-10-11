@@ -35,6 +35,10 @@ import {
     data_type_t,
     gclass_create,
     log_error,
+    log_warning,
+    is_gobj,
+    gobj_full_name,
+    gobj_short_name,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
     gobj_send_event,
@@ -342,6 +346,38 @@ function chip_lead(icon)
 /************************************************************
  *   Find a registry entry by its window gobj.
  ************************************************************/
+/************************************************************
+ *  The window an event is about. A kw is plain json (the machine
+ *  trace dumps it), so the window travels in it as its FULL NAME,
+ *  which the trace can print, and the gobj is the event's src --
+ *  every sender is the window itself. Up to 7.26.9 the kw carried
+ *  the gobj; that is still taken, with a warning, for this release.
+ ************************************************************/
+let warned_gobj_in_kw = false;
+
+function window_of(gobj, event, kw, src)
+{
+    let w = kw && kw.window;
+    if(is_gobj(w)) {
+        if(!warned_gobj_in_kw) {
+            warned_gobj_in_kw = true;
+            log_warning(
+                `${gobj_short_name(gobj)}: ${event} carries the window gobj ` +
+                `in its kw: send {window: gobj_full_name(window)} from the window`
+            );
+        }
+        return w;
+    }
+    if(!is_gobj(src) || gobj_full_name(src) !== w) {
+        log_error(
+            `${gobj_short_name(gobj)}: ${event}: window '${w}' is not the ` +
+            `src of the event (${is_gobj(src) ? gobj_full_name(src) : String(src)})`
+        );
+        return null;
+    }
+    return src;
+}
+
 function find_entry(priv, win)
 {
     for(let e of priv.windows) {
@@ -457,8 +493,11 @@ function ac_register_window(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    let win = kw.window;
-    if(!win || find_entry(priv, win)) {
+    let win = window_of(gobj, event, kw, src);
+    if(!win) {
+        return -1;      // Error already logged
+    }
+    if(find_entry(priv, win)) {
         return 0;
     }
 
@@ -547,7 +586,11 @@ function ac_unregister_window(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    let entry = find_entry(priv, kw.window);
+    let win = window_of(gobj, event, kw, src);
+    if(!win) {
+        return -1;      // Error already logged
+    }
+    let entry = find_entry(priv, win);
     if(!entry) {
         return 0;
     }
@@ -564,7 +607,11 @@ function ac_unregister_window(gobj, event, kw, src)
  ************************************************************/
 function ac_minimize_window(gobj, event, kw, src)
 {
-    let entry = find_entry(gobj.priv, kw.window);
+    let win = window_of(gobj, event, kw, src);
+    if(!win) {
+        return -1;      // Error already logged
+    }
+    let entry = find_entry(gobj.priv, win);
     if(entry) {
         minimize_entry(gobj, entry);
     }
@@ -576,7 +623,11 @@ function ac_minimize_window(gobj, event, kw, src)
  ************************************************************/
 function ac_focus_window(gobj, event, kw, src)
 {
-    let entry = find_entry(gobj.priv, kw.window);
+    let win = window_of(gobj, event, kw, src);
+    if(!win) {
+        return -1;      // Error already logged
+    }
+    let entry = find_entry(gobj.priv, win);
     if(entry) {
         focus_entry(gobj, entry);
     }

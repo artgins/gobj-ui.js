@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.10
+
+- **change: the window manager's events carry the window's NAME, not the
+  gobj.** `EV_REGISTER_WINDOW`, `EV_UNREGISTER_WINDOW`, `EV_MINIMIZE_WINDOW`
+  and `EV_FOCUS_WINDOW` sent `{window: gobj}`: a kw is plain json (the machine
+  trace dumps it, and a log sink that serialises it fails on a gobj). The
+  window sends `{window: gobj_full_name(window)}` and is the `src` of the
+  event, which is where the manager takes the gobj from; a name that is not
+  the src's is refused with an error. The old form (the gobj in the kw) is
+  still taken for this release, with one warning.
+
 ## 7.26.9
 
 The second check of the review (yunovatios `REV-CLOUD.md` §V2).
