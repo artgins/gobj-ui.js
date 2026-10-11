@@ -64,6 +64,14 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, name.replace(/a/g, '')]);`)).toEqual([]);   // not visible
     });
 
+    test("V7.4: markup brought by the replacement, with data somewhere", () => {
+        expect(rules_of(`x(['span', {}, 'abc'.replace('abc', '<i>' + y)]);`)).toEqual(["built"]);
+        expect(rules_of("x(['span', {}, 'x'.replace('x', `<b>${y}</b>`)]);")).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, ('a' + name).replace('a', '<b>')]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, 'abc'.replace('abc', '<i>')]);`)).toEqual(["literal"]);
+        expect(rules_of(`x(['span', {}, ('a' + name).replace('a', 'b')]);`)).toEqual([]);
+    });
+
     test("what is fine", () => {
         expect(rules_of(`x(['span', {}, 'plain text']);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, html_markup('<i class="yi-a"></i>')]);`)).toEqual([]);

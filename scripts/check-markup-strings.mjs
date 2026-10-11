@@ -109,12 +109,16 @@ const PURE_METHODS = new Set([
 
 /*  replace()/replaceAll() on a receiver that is static and with static
  *  arguments is computed, so a tag stripped away is seen as stripped.
- *  Anything else keeps the receiver's head and is no longer static: a
+ *  Anything else is no longer static. Its head is the receiver's -- a
  *  receiver that carries data stays BUILT markup through them, and so
  *  does a static one whose replacement is data
- *  ('<b>NAME</b>'.replace('NAME', name)).  */
+ *  ('<b>NAME</b>'.replace('NAME', name)) -- unless the REPLACEMENT brings
+ *  markup: then that is what the result may start with, and with data
+ *  somewhere it is built markup ('x'.replace('x', `<b>${y}</b>`),
+ *  ('a' + name).replace('a', '<b>')).  */
 function replaced(method, head, args)
 {
+    let replacement = (args.length === 2)? leading(args[1]) : null;
     if(head.complete && args.length === 2) {
         let pattern = null;
         if(args[0].type === "Literal" && args[0].regex) {
@@ -126,7 +130,6 @@ function replaced(method, head, args)
         } else if(is_string_literal(args[0])) {
             pattern = args[0].value;
         }
-        let replacement = leading(args[1]);
         if(pattern !== null && replacement && replacement.complete) {
             try {
                 return {text: String.prototype[method].call(head.text, pattern, replacement.text),
@@ -136,6 +139,9 @@ function replaced(method, head, args)
                  *  so does the code, the check need not know what it gives. */
             }
         }
+    }
+    if(replacement && starts_with_markup(replacement.text)) {
+        return {text: replacement.text, complete: false};
     }
     return {text: head.text, complete: false};
 }

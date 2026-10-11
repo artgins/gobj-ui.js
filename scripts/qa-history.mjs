@@ -36,6 +36,10 @@
  *            the chapter (V6.1, p8).
  *        (g) as (c), by the other road: the panel closes and a menu
  *            click (EV_NAV_CLICKED) navigates in the same turn (V6.2, p9).
+ *        (h) a reload (F5) on the panel's marker, the panel opened again:
+ *            Back closes it -- the marker of the earlier load is not the
+ *            new panel's own entry (V7.3, e1) -- and Back still leaves the
+ *            chapter (the earlier load's entries absorb at most one).
  *
  *      Besides the cases, a warning of the shell (C_YUI_SHELL: ...) in
  *      the console is a failure: the false "did not land ... dropped" of
@@ -311,6 +315,35 @@ async function case_g(page)
     return {ok, after_click, after_back, orphan};
 }
 
+async function case_h(page)
+{
+    await fresh(page);
+    await page.click(".DEMO_HISTORY_OPEN");
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await settle(page);
+    await page.reload({waitUntil: "networkidle"});
+    await page.waitForSelector(".C_DEMO_HISTORY", {timeout: 15000});
+    await settle(page);
+    await page.click(".DEMO_HISTORY_OPEN");
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await settle(page);
+    await page.goBack();
+    await settle(page);
+    const after_back = await snap(page);
+    let backs = 0;
+    let left = after_back;
+    while(left.hash !== "#/windows" && backs < 3) {
+        await page.goBack();
+        await settle(page);
+        left = await snap(page);
+        backs++;
+    }
+
+    const ok = !after_back.panel && after_back.hash === "#/history" &&
+        left.hash === "#/windows" && backs <= 2;
+    return {ok, after_back, left, backs};
+}
+
 /*
  *  Main
  */
@@ -330,7 +363,8 @@ try {
                                       ["d: link back", case_d],
                                       ["e: link back after a position", case_e],
                                       ["f: link from the position", case_f],
-                                      ["g: close and click", case_g]]) {
+                                      ["g: close and click", case_g],
+                                      ["h: reload, open again, Back", case_h]]) {
                 const context = await browser.newContext({viewport: {width: 1250, height: 850}});
                 const page = await context.newPage();
                 page.on("pageerror", (e) => {

@@ -5,6 +5,36 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.16
+
+Seventh check of the review (yunovatios `REV-CLOUD.md` §V7).
+
+- **fix: the stamp under a marker was written and never compared.** 7.26.15
+  stamped the entry under an overlay's marker but closed the top overlay on
+  ANY landing with a state that was not a marker, so Forward onto an entry
+  stamped for an earlier dialog -- or onto an entry the app pushed with a
+  state of its own -- closed a panel the reader had not left. Only a landing
+  on the entry stamped with the TOP overlay's id closes it now. The stamp is
+  added to whatever state the entry already holds (a lower overlay's marker,
+  an app's own), instead of skipping that entry; a state that is not an
+  object cannot be stamped and is logged.
+- **fix: overlay ids restarted from 1 after a reload**, and the session
+  history keeps the markers of the earlier load: a Back onto an old marker was
+  taken for the new overlay's own entry and lost. Ids start from the clock,
+  above every id of an earlier load.
+- **the wait for a back() of the shell goes through the FSM**: the timer only
+  sends `EV_BACK_WAIT_TIMEOUT` to the shell, and giving up is an action. A
+  back() given up on that lands after all, on its overlay's dead marker, has
+  undone the route that ran -- the shell cannot tell it from a Back of the
+  reader's, so it says so with a warning instead of staying quiet.
+- **checker: markup brought by a `replace()` replacement is built markup**
+  when data is anywhere in the expression (`'x'.replace('x', `<b>${y}</b>`)`,
+  `('a' + name).replace('a', '<b>')`). Not a regression: no checker saw it.
+- **qa: `qa-history` case h** -- an F5 on the panel's marker, the panel opened
+  again, Back closes it. Fails on 7.26.15, 16/16 in Chromium and Firefox now.
+  The history model gets the stale stamp, the app's own state, the reload
+  and the late landing, each failing on 7.26.15.
+
 ## 7.26.15
 
 Sixth check of the review (yunovatios `REV-CLOUD.md` §V6), in a real browser.

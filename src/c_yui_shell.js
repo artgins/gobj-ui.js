@@ -152,7 +152,6 @@ let PRIVATE_DATA = {
      *  code) retires its history entry via history.back().  Gated on
      *  `use_hash` — see push_overlay_history / overlay_dismissed. */
     overlay_stack:   [],
-    overlay_seq:     0,
     /*  Count of history.back() calls WE issued to retire a dismissed
      *  overlay; the popstate they trigger is expected and ignored. */
     expected_pops:   0,
@@ -183,6 +182,10 @@ let PRIVATE_DATA = {
     /*  Bounds the wait for that back(): one that never lands must not
      *  hold every later navigation for ever.  */
     deferred_timer:  null,
+    /*  The overlays whose back() is in flight, and -- once the wait for
+     *  them is given up -- what to say if one lands after all.  */
+    expected_pop_ids: [],
+    given_up:        null,
     popstate_handler: null,
     /*  Avatar item support — every toolbar item with type:"avatar"
      *  registers its <span> here so refresh_avatars() can repaint
@@ -332,6 +335,7 @@ function mt_start(gobj)
             if(!p) {
                 return;
             }
+            note_late_landing(gobj, ev);
             /*  A traversal that moved the hash is followed by a
              *  hashchange, QUEUED: it runs after this handler, and it is
              *  the one that navigates (and drains).  */
@@ -422,36 +426,22 @@ function mt_start(gobj)
                  *  below, on the hash it had.)  */
                 return;
             }
-            /*  Which entry did it land ON?  Markers ({__yui_overlay__:
-             *  id}) tag synthetic entries; route entries have a null
-             *  state.
-             *    - Landing ON the top overlay's OWN entry (a Back from a
-             *      subpath entry pushed above it, or an odd
-             *      history.go(n)): the overlay is at its home entry —
-             *      keep it open.
-             *    - Any other landing (the route entry below, or a lower
-             *      overlay's marker) closes the top overlay: strict
-             *      LIFO. */
+            /*  Which entry did it land ON? Only the entry the top's marker
+             *  was pushed over steps off it, and push_overlay_marker()
+             *  stamped that one with the top's id ({__yui_below__: id}).
+             *  Any other landing keeps the overlay open:
+             *    - a fresh entry, no state: a push (a link,
+             *      `location.hash = ...`) fires popstate too;
+             *    - the top's OWN marker (a Back from an entry pushed above
+             *      it);
+             *    - a dead marker (Forward onto an overlay closed by its
+             *      button, a Back onto one a navigation drained), or a
+             *      marker of another page load;
+             *    - an entry stamped for ANOTHER overlay: stamps stay on
+             *      their entries, and a stale one is not this marker's
+             *      floor.  */
             let st = ev && ev.state;
-            if(!st) {
-                /*  An entry with no state is a FRESH one: a push (a
-                 *  link, `location.hash = ...`) fires popstate too, and a
-                 *  link to the hash the panel was opened on is not a
-                 *  Back. A step off a marker lands on the entry under it,
-                 *  which push_overlay_marker() stamped, or on a lower
-                 *  overlay's marker.  */
-                return;
-            }
-            if(st.__yui_overlay__ === top.id) {
-                return;
-            }
-            if(st.__yui_overlay__ > top.id &&
-                    !p.overlay_stack.some(e => e.id === st.__yui_overlay__)) {
-                /*  A dead marker NEWER than the top: Forward reaches it
-                 *  (an overlay closed by its button above this one), and
-                 *  so does a Back onto the marker of an overlay a
-                 *  navigation drained under a panel that stayed. It is
-                 *  not a step off the top's marker.  */
+            if(!st || st.__yui_below__ !== top.id) {
                 return;
             }
             p.overlay_stack.pop();
@@ -557,6 +547,8 @@ function mt_stop(gobj)
     priv.skip_hash = "";
     priv.deferred_route = "";
     clear_deferred_timer(gobj);
+    priv.expected_pop_ids = [];
+    priv.given_up = null;
     if(priv.keydown_handler) {
         window.removeEventListener("keydown", priv.keydown_handler);
         priv.keydown_handler = null;
@@ -2750,6 +2742,13 @@ function retag_overlay_hash(gobj, st, hash)
     }
 }
 
+/*  Overlay ids are unique across page LOADS, not only within one: the
+ *  session history keeps the markers and stamps of a load after an F5,
+ *  and an id that starts again from 1 matched them (a Back onto an old
+ *  marker taken for the new overlay's own, and lost). Started from the
+ *  clock, they are above every id of an earlier load.  */
+let __overlay_seq__ = Date.now() * 1000;
+
 function push_overlay_history(gobj, close, opts)
 {
     let priv = gobj.priv;
@@ -2761,7 +2760,7 @@ function push_overlay_history(gobj, close, opts)
      *  step OFF this marker from a route traversal; it is NOT the resting
      *  route (a `stay` action route parks the URL off it).  Kept in sync
      *  by the silent replaceState fix-up in navigate_to(). */
-    let entry = { id: ++priv.overlay_seq, close: close,
+    let entry = { id: ++__overlay_seq__, close: close,
                   hash: window.location.hash,
                   /*  Read by drain_overlays: a navigation PANEL survives a
                    *  resting-route change.  Dropping it here left the whole
@@ -2796,18 +2795,26 @@ function push_overlay_marker(gobj, entry)
      *  marker lands there -- even after a replace-navigation rewrote the
      *  marker's own hash (retag_overlay_hash()).  */
     entry.below_hash = window.location.hash;
-    /*  Stamp the entry under the marker: a step off the marker lands on
-     *  it, and a push (a link, `location.hash = ...`) lands on a fresh
-     *  entry with no state -- both fire popstate, on the same hash when
-     *  the link points where the overlay was opened, and the state is
-     *  the only thing that tells them apart. An entry with a state of
-     *  its own (a lower marker, an app's) keeps it.  */
-    if(window.history.state === null) {
+    /*  Stamp the entry under the marker with this overlay's id: a step
+     *  off the marker lands on it, and nothing else does -- a push (a
+     *  link, `location.hash = ...`) lands on a fresh entry with no
+     *  state, and both fire popstate, on the same hash when the link
+     *  points where the overlay was opened. A state already there (a
+     *  lower overlay's marker, an app's own) keeps its keys; the stamp
+     *  is added to them, and replaces an older stamp.  */
+    let below = window.history.state;
+    if(below === null || (typeof below === "object" && !Array.isArray(below))) {
         try {
-            window.history.replaceState({ __yui_below__: entry.id }, "");
+            window.history.replaceState(
+                Object.assign({}, below, { __yui_below__: entry.id }), "");
         } catch(e) {
             log_warning(`C_YUI_SHELL: stamping the entry under an overlay failed: ${e}`);
         }
+    } else {
+        log_warning(
+            `C_YUI_SHELL: the entry under an overlay holds a history state that ` +
+            `is not an object, it cannot be stamped: Back will not close the overlay`
+        );
     }
     try {
         window.history.pushState({ __yui_overlay__: entry.id }, "");
@@ -2840,6 +2847,7 @@ function drop_expected_pops(gobj)
     );
     priv.expected_pops = 0;
     priv.expected_pop_hash = "";
+    priv.expected_pop_ids = [];
     clear_deferred_timer(gobj);
     if(priv.deferred_route) {
         /*  The history moved on under it (a link, a Back): that move is
@@ -2872,24 +2880,38 @@ function defer_route(gobj, route)
     }
     priv.deferred_route = route;
     if(!priv.deferred_timer) {
+        /*  The timer only says that the time is up: the giving up is
+         *  an action of the FSM (ac_back_wait_timeout).  */
         priv.deferred_timer = window.setTimeout(() => {
-            let p = gobj.priv;
-            if(!p) {
+            if(!gobj.priv) {
                 return;
             }
-            p.deferred_timer = null;
-            if(p.expected_pops === 0) {
-                return;
-            }
-            log_warning(
-                `C_YUI_SHELL: ${p.expected_pops} history.back() of ours did not ` +
-                `land in ${DEFERRED_ROUTE_WAIT_MS} ms, given up`
-            );
-            p.expected_pops = 0;
-            p.expected_pop_hash = "";
-            p.restore_hash = "";
-            push_pending_markers(gobj);     // and navigates the deferred route
+            gobj.priv.deferred_timer = null;
+            gobj_send_event(gobj, "EV_BACK_WAIT_TIMEOUT", {}, gobj);
         }, DEFERRED_ROUTE_WAIT_MS);
+    }
+}
+
+/*  A back() of ours given up on can still land, late: on the dead marker
+ *  of the overlay it was retiring, after the route that waited for it
+ *  was pushed -- and its hashchange then moves the reader back off that
+ *  route. A Back of the reader's own lands on the same entry, so the
+ *  shell cannot tell the two apart; it says so instead of staying quiet.  */
+function note_late_landing(gobj, ev)
+{
+    let priv = gobj.priv;
+    let given_up = priv.given_up;
+    let st = ev && ev.state;
+    if(!given_up || !st) {
+        return;     // a push (the waiting route's own) lands on a fresh entry
+    }
+    priv.given_up = null;   // only the first traversal can be that back()
+    if(given_up.ids.includes(st.__yui_overlay__)) {
+        log_warning(
+            `C_YUI_SHELL: a traversal landed on the marker of an overlay whose ` +
+            `history.back() was given up on: if it is that back(), arriving late, ` +
+            `it undoes route '${given_up.route}'`
+        );
     }
 }
 
@@ -2920,6 +2942,9 @@ function push_pending_markers(gobj)
         push_overlay_marker(gobj, entry);     // Error already logged
     }
     clear_deferred_timer(gobj);
+    if(priv.expected_pops === 0) {
+        priv.expected_pop_ids = [];
+    }
     if(priv.deferred_route) {
         let route = priv.deferred_route;
         priv.deferred_route = "";
@@ -2961,6 +2986,7 @@ function overlay_dismissed(gobj, entry)
     let st = window.history.state;
     if(st && st.__yui_overlay__ === entry.id) {
         priv.expected_pops++;
+        priv.expected_pop_ids.push(entry.id);
         priv.expected_pop_hash = (typeof entry.below_hash === "string")?
             entry.below_hash : window.location.hash;
         /*  A position written on the marker by a replace navigation is
@@ -2971,6 +2997,7 @@ function overlay_dismissed(gobj, entry)
             window.history.back();
         } catch(e) {
             priv.expected_pops--;
+            priv.expected_pop_ids.pop();
             log_warning(`C_YUI_SHELL: overlay history.back() failed: ${e}`);
         }
     }
@@ -3214,6 +3241,31 @@ function ac_nav_clicked(gobj, event, kw, src)
     } else {
         navigate_to(gobj, route);
     }
+    return 0;
+}
+
+/************************************************************
+ *  The wait for a back() of ours is over and it has not landed
+ *  (defer_route()): give it up, and run the route that waited for it.
+ *  If it lands after all, note_late_landing() says so.
+ ************************************************************/
+function ac_back_wait_timeout(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.expected_pops === 0) {
+        return 0;   // it landed meanwhile: push_pending_markers() ran the route
+    }
+    log_warning(
+        `C_YUI_SHELL: ${priv.expected_pops} history.back() of ours did not ` +
+        `land in ${DEFERRED_ROUTE_WAIT_MS} ms, given up`
+    );
+    let given_up = {ids: priv.expected_pop_ids.slice(), route: priv.deferred_route};
+    priv.expected_pops = 0;
+    priv.expected_pop_hash = "";
+    priv.expected_pop_ids = [];
+    priv.restore_hash = "";
+    push_pending_markers(gobj);     // and navigates the deferred route
+    priv.given_up = given_up;
     return 0;
 }
 
@@ -3468,13 +3520,17 @@ function create_gclass(gclass_name)
             ["EV_DRAWER_CLOSE_REQUESTED", ac_drawer_close_requested, null],
             /*  Close 'x' on a closable tab (from a child C_YUI_NAV);
              *  re-published for the app. */
-            ["EV_NAV_ITEM_CLOSE",         ac_nav_item_close,         null]
+            ["EV_NAV_ITEM_CLOSE",         ac_nav_item_close,         null],
+            /*  The wait for a history.back() of the shell is over: the
+             *  timer of defer_route() says so.  */
+            ["EV_BACK_WAIT_TIMEOUT",      ac_back_wait_timeout,      null]
         ]]
     ];
 
     const event_types = [
         ["EV_NAV_CLICKED",            0],
         ["EV_DRAWER_CLOSE_REQUESTED", 0],
+        ["EV_BACK_WAIT_TIMEOUT",      0],
         ["EV_NAV_ITEM_CLOSE",         event_flag_t.EVF_OUTPUT_EVENT
                                      |event_flag_t.EVF_PUBLIC_EVENT
                                      |event_flag_t.EVF_NO_WARN_SUBS],

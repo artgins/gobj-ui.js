@@ -196,11 +196,19 @@ same hash) and an **overlay stack**:
   is why matching on the resting route left `stay` modals unclosable by Back.
 - **A link is not a Back**, even to that hash. A fragment push (a link,
   `location.hash = ...`) fires `popstate` too, on a fresh entry with no
-  state. So when the shell pushes a marker it stamps the entry under it
-  (`{__yui_below__: id}`, unless it already has a state), and only a landing
-  on a stamped entry or on a lower marker closes the top overlay. Before
-  7.26.15 a link back to the hash a panel was opened on closed the panel, and
-  after a replace navigation left the URL and the view on screen disagreeing.
+  state. So when the shell pushes a marker it stamps the entry under it with
+  the overlay's id (`{__yui_below__: id}`, added to whatever state the entry
+  already holds: a lower overlay's marker, an app's own), and **only a
+  landing on the entry stamped with the TOP overlay's id closes it**. A fresh
+  entry, the top's own marker, a dead marker, or an entry stamped for another
+  overlay (stamps stay on their entries) keeps it open. Before 7.26.15 a link
+  back to the hash a panel was opened on closed the panel; in 7.26.15 any
+  state that was not a marker closed it, so Forward onto an entry stamped for
+  an earlier dialog closed a panel that had not been left.
+- **Overlay ids are unique across page loads** (they start from the clock):
+  after an F5 the session history keeps the markers of the earlier load, and
+  an id starting again from 1 matched them -- a Back onto an old marker was
+  taken for the new overlay's own entry and lost (before 7.26.16).
 - **A navigation made while the shell retires a marker waits for it.** An
   overlay closed by its button retires its marker with a `history.back()`,
   which is asynchronous; a push made in the same turn (`yui_shell_navigate()`,
@@ -208,7 +216,11 @@ same hash) and an **overlay stack**:
   The route waits for the landing; a newer one replaces it with a warning; a
   traversal of the user's in between drops it with a warning (the user's move
   is the newer one); and a `back()` that has not landed in a second is given
-  up on, so the route runs.
+  up on, so the route runs (the timer sends `EV_BACK_WAIT_TIMEOUT` to the
+  shell; the giving up is an action of its FSM). A `back()` given up on can
+  still land, late, on the dead marker of its overlay, and undo the route that
+  ran: the shell cannot tell it from a Back of the reader's, so it says so
+  with a warning.
 
 Use this for every modal/popup. Never encode an overlay as a route (a
 deep-linkable modal is an *action route* with `redirect:"stay"`, a deliberate,

@@ -70,12 +70,14 @@ function errors()
 }
 
 /*  A Back off a marker lands on the entry under it, which the shell
- *  stamped when it pushed the marker: a landing with NO state is a push
- *  (a link), not a Back.  */
-function press_back()
+ *  stamped with the TOP overlay's id when it pushed the marker: a landing
+ *  with no state is a push (a link), and one with another overlay's stamp
+ *  is not this marker's floor.  */
+function press_back(shell)
 {
+    const stack = shell.priv.overlay_stack;
     const ev = new Event("popstate");
-    ev.state = {__yui_below__: 0};
+    ev.state = {__yui_below__: stack.length ? stack[stack.length - 1].id : 0};
     window.dispatchEvent(ev);
 }
 
@@ -94,7 +96,7 @@ describe("a floating window that vetoes its close", () => {
         const first = gobj_read_attr(win, "back_overlay");
         expect(first).toBeTruthy();
 
-        press_back();
+        press_back(shell);
         expect(gobj_is_destroying(win)).toBe(false);
         const second = gobj_read_attr(win, "back_overlay");
         expect(second).toBeTruthy();
@@ -102,7 +104,7 @@ describe("a floating window that vetoes its close", () => {
         expect(shell.priv.overlay_stack).toEqual([second]);
 
         veto = false;
-        press_back();
+        press_back(shell);
         expect(gobj_is_destroying(win)).toBe(true);
         expect(shell.priv.overlay_stack).toEqual([]);
         expect(errors()).toEqual([]);
@@ -122,14 +124,14 @@ describe("a floating window that vetoes its close", () => {
         warning = "unsaved changes";
 
         /*  Back: the window asks. Only the question is on the stack.  */
-        press_back();
+        press_back(shell);
         expect(gobj_is_destroying(win)).toBe(false);
         expect(shell.priv.overlay_stack.length).toBe(1);
         expect(gobj_read_attr(win, "back_overlay")).toBe(null);
 
         /*  Back again: the question goes; the window takes its entry back
          *  only then, once there is nothing above it.  */
-        press_back();
+        press_back(shell);
         await new Promise(resolve => setTimeout(resolve, 0));
         expect(gobj_is_destroying(win)).toBe(false);
         const entry = gobj_read_attr(win, "back_overlay");

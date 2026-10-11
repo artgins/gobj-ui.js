@@ -357,7 +357,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         expect(shell.priv.expected_pops).toBe(0);
         expect(session.entries.length).toBe(2);           // the dead first marker, ahead
         expect(session.index).toBe(0);
-        expect(window.history.state).toEqual({__yui_below__: 1});    // stamped, no marker
+        expect(window.history.state.__yui_overlay__).toBeUndefined();   // stamped, no marker
         expect(errors()).toEqual([]);
     });
 
@@ -622,7 +622,7 @@ describe("a routed shell, a realistic history (V5)", () => {
         const b = yui_shell_register_overlay(shell, () => {});
         yui_shell_overlay_dismissed(shell, b);        // its button: back() to A's marker
         await next_task();
-        expect(window.history.state).toEqual({__yui_overlay__: a.id});
+        expect(window.history.state.__yui_overlay__).toBe(a.id);   // stamped for B, which is gone
 
         traverse_to(session.index + 1);               // Forward, onto B's dead marker
         expect(closed_a).toBe(0);
@@ -842,5 +842,121 @@ describe("a route waiting for a back() of ours (V6.2)", () => {
         await next_task();
         await next_task();
         expect(window.location.hash).toBe("#/home");  // not swallowed
+    });
+});
+
+/*
+ *  Seventh check of the review (V7).
+ */
+describe("only the entry stamped for the top overlay is its floor (V7.1, V7.3)", () => {
+    test("Forward onto an entry stamped for another overlay does not close the panel", async () => {
+        const app = gobj_create("v7app1", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v7shell1", app);
+        const {yui_shell_register_overlay} = await import("./c_yui_shell.js");
+        let closed_panel = 0;
+        let closed_dialog = 0;
+        yui_shell_register_overlay(shell, () => { closed_panel++; }, {keep_on_navigate: true});
+        link_to("#/other");
+        await next_task();
+        link_to("#/home");                            // L2
+        await next_task();
+        await next_task();
+        yui_shell_register_overlay(shell, () => { closed_dialog++; });   // stamps L2
+
+        user_back();                                  // off the dialog's marker
+        await next_task();
+        expect(closed_dialog).toBe(1);
+        expect(closed_panel).toBe(0);
+        user_back();                                  // to #/other
+        await next_task();
+        await next_task();
+        traverse_to(session.index + 1);               // Forward onto L2, stamped for the dialog
+        await next_task();
+        await next_task();
+        expect(closed_panel).toBe(0);
+        expect(shell.priv.overlay_stack.length).toBe(1);
+        expect(shell_warnings()).toEqual([]);
+    });
+
+    test("Forward onto an entry the app pushed with a state of its own does not close the panel", async () => {
+        const app = gobj_create("v7app2", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v7shell2", app);
+        const {yui_shell_register_overlay} = await import("./c_yui_shell.js");
+        let closed = 0;
+        yui_shell_register_overlay(shell, () => { closed++; }, {keep_on_navigate: true});
+        window.history.pushState({app: 3}, "");        // the app's own entry, above the marker
+
+        user_back();                                  // onto the marker: home
+        await next_task();
+        expect(closed).toBe(0);
+        traverse_to(session.index + 1);               // Forward onto {app: 3}
+        await next_task();
+        expect(closed).toBe(0);
+        user_back();
+        user_back();                                  // off the marker: closes it
+        await next_task();
+        expect(closed).toBe(1);
+    });
+
+    test("after a reload, a marker of the earlier load is not the new overlay's", async () => {
+        const app = gobj_create("v7app3", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        /*  The session as an F5 leaves it: on a marker of the earlier load,
+         *  whose overlay id started from 1.  */
+        session.entries = [
+            {state: {__yui_below__: 1}, hash: "#/home"},
+            {state: {__yui_overlay__: 1}, hash: "#/home"}
+        ];
+        session.index = 1;
+        const shell = routed_shell("v7shell3", app);
+        const {yui_shell_register_overlay} = await import("./c_yui_shell.js");
+        let closed = 0;
+        const entry = yui_shell_register_overlay(shell, () => { closed++; }, {keep_on_navigate: true});
+        expect(entry.id).toBeGreaterThan(1);
+        expect(session.entries[1].state).toEqual({__yui_overlay__: 1, __yui_below__: entry.id});
+
+        user_back();                                  // off the new marker, onto the old one
+        await next_task();
+        expect(closed).toBe(1);
+        user_back();                                  // the old marker's floor: nothing to close
+        await next_task();
+        expect(shell_warnings()).toEqual([]);
+    });
+});
+
+describe("a back() given up on that lands after all (V7.2)", () => {
+    test("its late landing is said out loud", async () => {
+        const app = gobj_create("v7app4", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v7shell4", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed, yui_shell_navigate} =
+            await import("./c_yui_shell.js");
+        const entry = yui_shell_register_overlay(shell, () => {});
+        let late = null;
+        window.history.back = () => { late = () => traverse_to(session.index - 1); };
+        links_on_hash_assign();
+
+        yui_shell_overlay_dismissed(shell, entry);
+        yui_shell_navigate(shell, "/prev");
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        await next_task();
+        expect(window.location.hash).toBe("#/prev");
+        expect(shell_warnings().filter(m => m.includes("given up")).length).toBe(1);
+
+        late();                                       // it lands now, on the dead marker
+        await next_task();
+        await next_task();
+        expect(shell_warnings().filter(m => m.includes("arriving late")).length).toBe(1);
+        expect(shell_warnings().some(m => m.includes("undoes route '/prev'"))).toBe(true);
     });
 });
