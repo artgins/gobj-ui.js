@@ -339,14 +339,12 @@ function chip_lead(icon)
         return ['span', {class: 'yui-dock-dot'}, ''];
     }
     if(icon.charAt(0) === '<') {
-        return ['span', {class: 'yui-dock-icon'}, icon];
+        /*  The window's `icon` attr, the app's own: inline svg is markup.  */
+        return ['span', {class: 'yui-dock-icon'}, html_markup(icon)];
     }
     return ['span', {class: 'yui-dock-icon'}, [['i', {class: icon}]]];
 }
 
-/************************************************************
- *   Find a registry entry by its window gobj.
- ************************************************************/
 /************************************************************
  *  The window an event is about. A kw is plain json (the machine
  *  trace dumps it), so the window travels in it as its FULL NAME,
@@ -367,6 +365,15 @@ function window_of(gobj, event, kw, src)
                 `in its kw: send {window: gobj_full_name(window)} from the window`
             );
         }
+        if(w !== src) {
+            /*  Only the window speaks for itself, in either form.  */
+            log_error(
+                `${gobj_short_name(gobj)}: ${event}: window ` +
+                `'${gobj_full_name(w)}' is not the src of the event ` +
+                `(${is_gobj(src) ? gobj_full_name(src) : String(src)})`
+            );
+            return null;
+        }
         return w;
     }
     if(!is_gobj(src) || gobj_full_name(src) !== w) {
@@ -379,6 +386,9 @@ function window_of(gobj, event, kw, src)
     return src;
 }
 
+/************************************************************
+ *   Find a registry entry by its window gobj.
+ ************************************************************/
 function find_entry(priv, win)
 {
     for(let e of priv.windows) {

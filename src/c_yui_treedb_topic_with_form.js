@@ -122,7 +122,7 @@ import "./tabulator.css";
 import {cell_text, hook_cell_spec} from "./table_cell_text.js";
 
 import { TabulatorFull as Tabulator } from "tabulator-tables";
-import {text_node} from "./yui_text.js";
+import {text_node, text_list_item_formatter} from "./yui_text.js";
 
 /***************************************************************
  *              Constants
@@ -1288,7 +1288,10 @@ function create_tabulator(gobj)
                 break;
             case "enum":
                 colDef.editor = "list";
-                colDef.editorParams = {values: field_desc.enum_list || []};
+                colDef.editorParams = {
+                    values: field_desc.enum_list || [],
+                    itemFormatter: text_list_item_formatter     // schema data
+                };
                 break;
             case "integer":
             case "real":
@@ -1339,7 +1342,8 @@ function create_tabulator(gobj)
                 colDef.headerFilter = "list";
                 colDef.headerFilterParams = {
                     values: field_desc.enum_list || [],
-                    clearable: true
+                    clearable: true,
+                    itemFormatter: text_list_item_formatter     // schema data
                 };
                 break;
             case "fkey":
@@ -2080,7 +2084,7 @@ function icon_formatter(cell)
         return createElement2([
             "span",
             {class: "ICON_CELL_UNKNOWN is-size-7 yui-text-quiet", title: name},
-            name
+            text_node(name)     // data, not markup: it failed the name check
         ]);
     }
 

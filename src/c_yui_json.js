@@ -905,7 +905,7 @@ function push_collapsed_row(ctx, value, segments, depth, key, rows)
                                 'data-i18n': err.error}, t(err.error)]);
     } else if(err) {
         children.push(['span', {class: 'JSON_STUB_ERR has-text-danger is-size-7 ml-2'},
-                       String(err.error)]);
+                       text_node(err.error)]);  // the backend's words
     }
 
     let attrs = {

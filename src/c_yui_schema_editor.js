@@ -1989,7 +1989,7 @@ function select_input(name, value, options)
     let $options = options.map((option) => {
         return ["option", el_attrs({value: `${option}`,
                            selected: `${option}` === `${value}` ? "selected" : undefined}),
-            `${option}`];
+            text_node(`${option}`)];    // names from the schema: data
     });
 
     return ["div", {class: "select is-fullwidth"}, [
@@ -2002,7 +2002,7 @@ function textarea_input(name, value, rows, placeholder)
     return ["textarea", {class: "textarea", "data-name": name,
                          rows: `${rows || 3}`,
                          placeholder: placeholder || ""},
-        value === undefined || value === null ? "" : `${value}`];
+        text_node(value === undefined || value === null ? "" : `${value}`)];
 }
 
 /***************************************************************

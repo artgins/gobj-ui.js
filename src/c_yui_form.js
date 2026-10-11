@@ -92,7 +92,7 @@ import "./tabulator.css";
 import {is_time_field} from "./json_view_helpers.js";
 import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
-import {text_node, text_title_formatter} from "./yui_text.js";
+import {text_node, text_title_formatter, text_list_item_formatter} from "./yui_text.js";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
 // import { Tabulator } from "tabulator-tables";  // Import light Tabulator JS
 
@@ -2325,6 +2325,7 @@ function template2columns(gobj, columns, template, sub_elements)
             case "enum":
                 column.editor = "list";
                 column.editorParams = {
+                    itemFormatter: text_list_item_formatter     // schema data
                 };
                 switch(field_desc.real_type) {
                     case "string": // TODO review types

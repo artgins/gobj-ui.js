@@ -17,7 +17,7 @@ const {
     SDATA_END, gclass_create, gobj_start_up, gobj_create_yuno, gobj_create,
     gobj_read_attr, set_log_callback
 } = await import("@yuneta/gobj-js");
-const {text_node, text_title_formatter} = await import("./yui_text.js");
+const {text_node, text_title_formatter, text_list_item_formatter} = await import("./yui_text.js");
 const {register_c_yui_nav} = await import("./c_yui_nav.js");
 const {card_descriptor} = await import("./nav_cards_helpers.js");
 
@@ -65,3 +65,15 @@ describe("text_node()", () => {
         expect($c.querySelector(".yui-accordion-head").textContent).toBe(EVIL);
     });
 });
+
+describe("text_list_item_formatter (Tabulator list editor / header filter)", () => {
+    test("returns an ELEMENT (Tabulator appends only an HTMLElement) holding the label as text", () => {
+        const EVIL = '<img src=x onerror="window.__pwned=1">';
+        const el = text_list_item_formatter(EVIL, EVIL, {}, null);
+        expect(el instanceof HTMLElement).toBe(true);
+        expect(el.querySelector("img")).toBe(null);
+        expect(el.textContent).toBe(EVIL);
+        expect(text_list_item_formatter(null).textContent).toBe("");
+    });
+});
+

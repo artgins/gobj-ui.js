@@ -335,7 +335,8 @@ function build_default_header(gobj)
     let items = [];
     if(!empty_string(icon)) {
         if(icon.charAt(0) === '<') {
-            items.push(['span', {class: 'icon'}, icon]);
+            /*  The `icon` attr is the app's own: inline svg is markup.  */
+            items.push(['span', {class: 'icon'}, html_markup(icon)]);
         } else {
             items.push(['span', {class: 'icon'}, [['i', {class: icon}]]]);
         }

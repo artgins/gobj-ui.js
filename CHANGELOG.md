@@ -5,6 +5,54 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.11
+
+The third check of the review (yunovatios `REV-CLOUD.md` §V3).
+
+- **security: the data sinks the 7.26.9 sweep missed** (outside the strict
+  mode, which estadodelaire, hidraulia and wattyzer do not turn on):
+  - `icon_formatter` of the treedb topic table: a value of an icon column that
+    is not a defined `yi-*` name was put in as content -- a stored XSS. It is
+    text now.
+  - The schema editor's `select_input` / `textarea_input` put `${option}` /
+    `${value}` in raw (sibling topic names, pkey columns, the enum list). Text.
+  - Tabulator `list` editors and header filters with `values: enum_list`
+    (topic table, `C_YUI_FORM`): Tabulator does `el.innerHTML = item.label`
+    unless an `itemFormatter` returns an HTMLElement. New
+    `text_list_item_formatter()` (`yui_text.js`) returns a span with the label
+    as text, and every such column carries it.
+  - `C_YUI_GCLASS`: the method chips of a remote gclass and the raw dump's
+    error; `C_YUI_JSON`: a stub's error text (the backend's words). Text.
+  - Low risk, done for the rule: the shell's toolbar and dropdown labels go in
+    as Text nodes (re-translated as before); the G6 toolbar text and the
+    context-menu labels, which G6 puts in with innerHTML, are escaped.
+- **fix: an inline-svg `icon` of `C_YUI_WINDOW` (header and dock chip) was a
+  bare string**, so in strict mode it rendered as text. It is the app's own
+  markup: `html_markup()`.
+- **security: the window manager's transition branch took a gobj in the kw
+  from ANY src**, so during 7.26.10 a third gobj could still minimise, focus
+  or unregister any window. It now requires the gobj to be the src as well,
+  like the name form. Tests cover register, focus, unregister and minimise.
+- **fix: a `history.back()` of the shell that the browser drops** (a navigation
+  in the same turn cancels a queued traversal) left `expected_pops` at 1 for
+  ever: it swallowed the reader's next Back, and the overlays registered in
+  between waited without a marker. The hash of the back() is recorded; a
+  popstate or hashchange that lands on ANOTHER hash drops the expectation
+  (logged) and pushes the waiting markers. `mt_stop` clears both.
+- **`check-markup-strings.mjs` sees more and is published.** It checks a
+  ternary or `||`/`&&` branch by branch, a `'<b>'.concat(x)`, a computed tag
+  when the attrs slot is an object literal, and a list of children whose first
+  item is a markup string (`list-head`: read as one description). It ships in
+  the package (`files`), so a consumer runs
+  `node node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs src`
+  and declares `acorn` as its own devDependency. It has tests now; the README
+  lists what it cannot see.
+- A refused data colour of the G6 tree is logged once per (gobj, value), not
+  on every repaint.
+- Correction to 7.26.9: `map_stop_windows.wiring.test.js` PINS behaviour that
+  7.26.8 already had (the map retired its windows); it does not fail on the
+  old code, as that entry implied.
+
 ## 7.26.10
 
 - **change: the window manager's events carry the window's NAME, not the
@@ -32,8 +80,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   a markup string in a children list (text since gobj-js 7.26.2). A consumer
   runs it on its own `src` (README, "Markup is said out loud"). `acorn` is a
   devDependency for it.
-- **peer: `@yuneta/gobj-js` floor raised to `^7.26.3`**, because
-  `html_markup()` first ships there (devDependency 7.26.3 too).
+- **BREAKING (peer): `@yuneta/gobj-js` floor raised to `^7.26.3`**, because
+  `html_markup()` first ships there (devDependency 7.26.3 too). A consumer
+  whose lockfile holds gobj-js < 7.26.3 gets an `ERESOLVE` when it takes this
+  gobj-ui, and with `--legacy-peer-deps` a build error (`html_markup` is not
+  exported): loud, not silent. Raise `@yuneta/gobj-js` to `^7.26.3` in the
+  same change that raises gobj-ui (wattyzer is on `^7.22.2`). Marked here by
+  the 7.26.11 review; the numbering follows the SDK, so no major can say it.
 
 ## 7.26.9
 

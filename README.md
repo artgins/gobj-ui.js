@@ -13,11 +13,16 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > routing contract (URL = source of truth, push/replace history, the
 > position/preference/transient litmus).
 >
-> **Peer floors today** (`package.json`): `@yuneta/gobj-js` `^7.22.2`,
+> **Peer floors today** (`package.json`): `@yuneta/gobj-js` `^7.26.3`,
 > `@antv/g6` `^5.1.0`, `bulma` `^1.0.4`, `i18next` `^26.3.6`, `maplibre-gl`
 > `^6.11.2`, `tabulator-tables` `^6.5.3`, `tom-select` `^2.6.2`, `uplot`
 > `^1.6.32`, `vanilla-jsoneditor` `^3.13.0`. The notices below say when and why
 > each floor moved; the list above is what a consumer must meet now.
+>
+> **BREAKING (7.26.10):** the peer floor of `@yuneta/gobj-js` rose to
+> `^7.26.3`. The library passes its markup through `html_markup()`, which first
+> ships in that gobj-js. A consumer locked on an older gobj-js gets `ERESOLVE`:
+> raise both in the same change. See the CHANGELOG entry.
 >
 > **BREAKING (7.23.172):** the peer floor of `@yuneta/gobj-js` rose to
 > `^7.22.0`. The Developer window turns the runtime's trace bits on and off and
@@ -3338,14 +3343,23 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
   longer run. The test-app runs in that mode. An app turns it on at startup,
   before it builds anything, once its own code is migrated:
 
-  1. Run the static check on the app's sources:
+  1. Run the static check on the app's sources, from the published package
+     (7.26.11+ ships the script):
      `node node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs src`
-     (it needs `acorn`). It lists a markup string literal in a description
+     — usually from the app's `prebuild`. It imports `acorn`, which the APP
+     must declare as a devDependency (npm does not install a dependency's
+     devDependencies). It lists a markup string literal in a description
      (`literal`, wrap it in `html_markup()`), markup built with values
-     (`built`, build the element with `createElement2()` and pass the value
-     as text) and a markup string in a list of children (`in-list`, which is
-     text since gobj-js 7.26.2). It cannot see a variable that holds a
-     string.
+     (`built`: a template, a `+` or a `.concat()`; build the element with
+     `createElement2()` and pass the value as text), a markup string in a list
+     of children (`in-list`, which is text since gobj-js 7.26.2) and a list of
+     children whose first item is a markup string (`list-head`: such a list is
+     read as one description). A ternary or `||`/`&&` is checked branch by
+     branch. It CANNOT see: a variable or a function result that holds a
+     string; a description built piece by piece (`push()` into the content
+     list); a computed tag with an attrs slot that is not an object literal;
+     markup given to `innerHTML` or to a widget (Tabulator, G6). Step 3 is
+     the check for those.
   2. Call `set_strings_are_text(true)` before the first `createElement2()`.
   3. Walk the app and read the console: each string that starts with `<` is
      logged once (*"use html_markup() if it is markup"*). A logged string is

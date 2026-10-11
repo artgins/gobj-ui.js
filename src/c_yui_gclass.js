@@ -462,7 +462,7 @@ function render_raw(gobj)
     if(dump.error) {
         children.push(
             ['div', {class: 'GCLASS_RAW_ERROR has-text-danger is-size-7 p-2'},
-             dump.error]);
+             text_node(dump.error)]);     // the backend's words
     }
 
     let $body = createElement2(['div', {class: 'GCLASS_RAW_WRAP'}, children]);
@@ -819,14 +819,14 @@ function build_methods(model)
     if(model.methods.length) {
         blocks.push(['div', {class: 'GCLASS_CHIPS'},
             model.methods.map((m) =>
-                ['span', row_attrs(m, {class: 'GCLASS_CHIP GCLASS_METHOD'}), m])]);
+                ['span', row_attrs(m, {class: 'GCLASS_CHIP GCLASS_METHOD'}), text_node(m)])]);
     }
     if(model.internal_methods.length) {
         blocks.push(['div', {class: 'GCLASS_SUBTITLE', i18n: 'internal methods'},
                      t("internal methods")]);
         blocks.push(['div', {class: 'GCLASS_CHIPS'},
             model.internal_methods.map((m) =>
-                ['span', row_attrs(m, {class: 'GCLASS_CHIP GCLASS_METHOD'}), m])]);
+                ['span', row_attrs(m, {class: 'GCLASS_CHIP GCLASS_METHOD'}), text_node(m)])]);
     }
 
     return ['div', {class: 'GCLASS_METHODS'}, blocks];

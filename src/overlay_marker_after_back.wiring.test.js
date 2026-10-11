@@ -209,4 +209,83 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         expect(window.history.state).toBe(null);
         expect(errors()).toEqual([]);
     });
+
+    test("a user Back queued after ours is the user's: it closes the next overlay", async () => {
+        const app = gobj_create("mapp3", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create("mshell3", "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        logged.length = 0;
+        install_history_model();
+
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} =
+            await import("./c_yui_shell.js");
+        let closed_a = 0;
+        const a = yui_shell_register_overlay(shell, () => { closed_a++; });
+        const b = yui_shell_register_overlay(shell, () => {});
+        expect(session.entries.length).toBe(3);
+        yui_shell_overlay_dismissed(shell, b);        // our back(), in flight
+        await next_task();                            // ours lands first...
+        expect(shell.priv.expected_pops).toBe(0);
+        user_back();                                  // ... then the user's
+        expect(closed_a).toBe(1);
+        expect(shell.priv.overlay_stack).toEqual([]);
+        expect(errors()).toEqual([]);
+        expect(a).toBeTruthy();
+    });
+
+    test("a back() of ours that never lands does not swallow the next Back", async () => {
+        const app = gobj_create("mapp4", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create("mshell4", "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        logged.length = 0;
+        install_history_model();
+        window.location.hash = "#/home";
+
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} =
+            await import("./c_yui_shell.js");
+        const first = yui_shell_register_overlay(shell, () => {});
+        window.history.back = () => {};               // the browser drops it
+        yui_shell_overlay_dismissed(shell, first);
+        expect(shell.priv.expected_pops).toBe(1);
+        let closed = 0;
+        const second = yui_shell_register_overlay(shell, () => { closed++; },
+            {keep_on_navigate: true});
+        expect(second.marker_pending).toBe(true);
+
+        /*  A navigation: the hash moves, our back() will never land.  */
+        window.location.hash = "#/other";
+        window.dispatchEvent(new Event("hashchange"));
+        expect(shell.priv.expected_pops).toBe(0);
+        expect(second.marker_pending).toBe(false);
+        expect(window.history.state).toEqual({__yui_overlay__: second.id});
+
+        /*  The next Back is the user's, and it closes the overlay.  */
+        logged.length = 0;
+        user_back();
+        expect(closed).toBe(1);
+        expect(errors()).toEqual([]);
+    });
+
+    test("mt_stop forgets the landings it can no longer hear", async () => {
+        const app = gobj_create("mapp5", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create("mshell5", "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        install_history_model();
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} =
+            await import("./c_yui_shell.js");
+        const {gobj_stop} = await import("@yuneta/gobj-js");
+        const first = yui_shell_register_overlay(shell, () => {});
+        window.history.back = () => {};
+        yui_shell_overlay_dismissed(shell, first);
+        yui_shell_register_overlay(shell, () => {});
+        gobj_stop(shell);
+        expect(shell.priv.expected_pops).toBe(0);
+        expect(shell.priv.pending_markers).toEqual([]);
+    });
 });

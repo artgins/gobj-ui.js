@@ -64,6 +64,7 @@ import {
 } from "./shell_toolbar_helpers.js";
 
 import { resolve_route, normalize_route } from "./route_resolver.js";
+import { text_node } from "./yui_text.js";
 import { build_nav_map } from "./route_map_model.js";
 import {
     section_index_target,
@@ -155,6 +156,11 @@ let PRIVATE_DATA = {
     /*  Count of history.back() calls WE issued to retire a dismissed
      *  overlay; the popstate they trigger is expected and ignored. */
     expected_pops:   0,
+    /*  The hash those history.back() calls were issued on: a back() of
+     *  ours steps off a marker and lands on the SAME hash. A landing on
+     *  another hash means the browser dropped ours (a navigation in the
+     *  same turn cancels a queued traversal), see drop_expected_pops(). */
+    expected_pop_hash: "",
     /*  Overlays registered while one of those history.back() calls is
      *  still in flight: their marker is pushed once it has landed.  */
     pending_markers: [],
@@ -260,6 +266,11 @@ function mt_start(gobj)
 
     if(gobj_read_attr(gobj, "use_hash")) {
         priv.hash_handler = () => {
+            let p = gobj.priv;
+            if(p && p.expected_pops > 0 &&
+                    window.location.hash !== p.expected_pop_hash) {
+                drop_expected_pops(gobj);   // a back() of ours never landed
+            }
             let route = hash_to_route(window.location.hash);
             if(!empty_string(route)) {
                 navigate_to(gobj, route);
@@ -276,6 +287,12 @@ function mt_start(gobj)
             let p = gobj.priv;
             if(!p) {
                 return;
+            }
+            if(p.expected_pops > 0 &&
+                    window.location.hash !== p.expected_pop_hash) {
+                /*  Not the landing of ours: it was dropped. Whatever
+                 *  this traversal is, it is handled below as any other. */
+                drop_expected_pops(gobj);
             }
             if(p.expected_pops > 0) {
                 /*  A history.back() we issued to retire a dismissed
@@ -397,6 +414,10 @@ function mt_stop(gobj)
         window.removeEventListener("popstate", priv.popstate_handler);
         priv.popstate_handler = null;
     }
+    /*  Nothing listens for the landings any more.  */
+    priv.expected_pops = 0;
+    priv.expected_pop_hash = "";
+    priv.pending_markers = [];
     if(priv.keydown_handler) {
         window.removeEventListener("keydown", priv.keydown_handler);
         priv.keydown_handler = null;
@@ -1787,7 +1808,7 @@ function build_toolbar_action_item(gobj, it)
     }
     if(!empty_string(it.name)) {
         children.push(["span", {class: "yui-toolbar-item-label", i18n: it.name},
-            it.name]);
+            text_node(it.name)]);
     }
 
     let aria_key = it.aria_label || it.name || it.id || "";
@@ -2372,7 +2393,7 @@ function build_dropdown_row(gobj, sub, idx)
     }
     if(!empty_string(sub.name)) {
         children.push(["span", {class: "yui-toolbar-dropdown-label",
-                                i18n: sub.name}, sub.name]);
+                                i18n: sub.name}, text_node(sub.name)]);
     }
     /*  Trailing check for the ACTIVE option.  The element is always
      *  rendered and hidden by CSS when not selected, so every row keeps
@@ -2646,6 +2667,25 @@ function push_overlay_marker(gobj, entry)
     return true;
 }
 
+/*  A history.back() of ours that the browser dropped: nothing will land
+ *  for it, so it must not wait for a landing and swallow the reader's
+ *  next Back. The overlays that waited for it get their markers now, on
+ *  the hash they are on.  */
+function drop_expected_pops(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv || priv.expected_pops === 0) {
+        return;
+    }
+    log_warning(
+        `C_YUI_SHELL: ${priv.expected_pops} history.back() of ours did ` +
+        `not land on '${priv.expected_pop_hash}' (now '${window.location.hash}'), dropped`
+    );
+    priv.expected_pops = 0;
+    priv.expected_pop_hash = "";
+    push_pending_markers(gobj);
+}
+
 /*  The history.back() calls of ours have all landed: push the markers of
  *  the overlays registered meanwhile, in their order. One closed in the
  *  meantime (dismissed, drained, or no longer on the stack) has none.  */
@@ -2699,6 +2739,7 @@ function overlay_dismissed(gobj, entry)
     let st = window.history.state;
     if(st && st.__yui_overlay__ === entry.id) {
         priv.expected_pops++;
+        priv.expected_pop_hash = window.location.hash;
         try {
             window.history.back();
         } catch(e) {

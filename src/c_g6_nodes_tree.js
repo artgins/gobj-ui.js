@@ -229,7 +229,7 @@ class YuiToolbar extends Toolbar
             const is_text   = (item.text !== undefined);
             const kind_class = is_text ? ' g6-toolbar-item-text' : '';
             const body = is_text
-                ? `<span class="g6-toolbar-text">${item.text}</span>`
+                ? `<span class="g6-toolbar-text">${escapeHtml(String(item.text))}</span>`
                 : `<svg aria-hidden="true" focusable="false">` +
                   `<use xlink:href="#${item.id}"></use>` +
                   `</svg>`;
@@ -2301,6 +2301,8 @@ function topic_defaults_of(gobj, topic_name)
  *  It is written into a card's html (see yui_data_color.js): a
  *  refused value logs, and the node wears the topic's colour.
  ************************************************************/
+const refused_colors_logged = new Set();     // once per (gobj, value): every repaint asks again
+
 function data_color(gobj, value)
 {
     if(value === undefined || value === null || value === "") {
@@ -2308,7 +2310,11 @@ function data_color(gobj, value)
     }
     let color = css_color_or_null(value);
     if(!color) {
-        log_warning(`${gobj_short_name(gobj)}: colour refused, not a css colour: ${JSON.stringify(value)}`);
+        let key = `${gobj_short_name(gobj)}\u0000${String(value)}`;
+        if(!refused_colors_logged.has(key) && refused_colors_logged.size < 200) {
+            refused_colors_logged.add(key);
+            log_warning(`${gobj_short_name(gobj)}: colour refused, not a css colour: ${JSON.stringify(value)}`);
+        }
     }
     return color;
 }
@@ -9017,7 +9023,7 @@ function ctx_item(icon_id, label, value)
         `vertical-align:-0.125em;margin-right:8px;` +
         `pointer-events:none;fill:currentColor">` +
         `<use href="#${icon_id}"></use></svg>` +
-        `${label}`;
+        `${escapeHtml(String(label))}`;      // text: G6 innerHTMLs the name
     return { name: name, value: value };
 }
 

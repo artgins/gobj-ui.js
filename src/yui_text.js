@@ -41,3 +41,19 @@ export function text_title_formatter(cell)
 {
     return text_node(cell.getValue());
 }
+
+/************************************************************
+ *  A Tabulator `itemFormatter` for a `list` editor or header filter
+ *  that shows each item's label as text.
+ *
+ *  Tabulator appends what an itemFormatter returns only when it is an
+ *  HTMLElement (a Text node would be innerHTML'd as "[object Text]"),
+ *  and it puts a bare label in with innerHTML. A label taken from a
+ *  schema (`enum_list`) is data, so it goes in a span, as text.
+ ************************************************************/
+export function text_list_item_formatter(label)
+{
+    const span = document.createElement("span");
+    span.textContent = (label === null || label === undefined) ? "" : String(label);
+    return span;
+}

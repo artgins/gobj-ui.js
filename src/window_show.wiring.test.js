@@ -127,4 +127,52 @@ describe("EV_SHOW", () => {
             set_strings_are_text(false);
         }
     });
+
+    test("only the window speaks for itself: a name or a gobj that is not the src is refused", () => {
+        const dock = gobj_create_service("src_dock", "C_YUI_WINDOW_MANAGER", {}, yuno);
+        gobj_start(dock);
+        const w = gobj_create_service("src_w", "C_YUI_WINDOW",
+            {header: "w", body: ["div", {}, "w"], manager: dock}, yuno);
+        gobj_start(w);
+        const other = gobj_create_service("src_other", "C_YUI_WINDOW",
+            {header: "o", body: ["div", {}, "o"]}, yuno);
+        gobj_start(other);
+        const $w = gobj_read_attr(w, "$container");
+        const n_windows = dock.priv.windows.length;
+
+        for(const ev of ["EV_REGISTER_WINDOW", "EV_FOCUS_WINDOW", "EV_UNREGISTER_WINDOW", "EV_MINIMIZE_WINDOW"]) {
+            /*  w's name, sent by another gobj.  */
+            logged.length = 0;
+            gobj_send_event(dock, ev, {window: gobj_full_name(w)}, other);
+            expect(errors().some((m) => m.includes("is not the src"))).toBe(true);
+            /*  The OLD form (the gobj in the kw), sent by another gobj.  */
+            logged.length = 0;
+            gobj_send_event(dock, ev, {window: w}, other);
+            expect(errors().some((m) => m.includes("is not the src"))).toBe(true);
+        }
+        expect(dock.priv.windows.length).toBe(n_windows);     // nothing unregistered
+        expect(dock.priv.windows.some((e) => e.gobj === other)).toBe(false);  // nothing registered
+        expect($w.style.getPropertyValue("display")).toBe("");                // nothing minimized
+    });
+
+    test("an inline-svg icon is the app's markup, in strict mode too", async () => {
+        const {set_strings_are_text} = await import("@yuneta/gobj-js");
+        set_strings_are_text(true);
+        try {
+            logged.length = 0;
+            const dock = gobj_create_service("icon_dock", "C_YUI_WINDOW_MANAGER", {}, yuno);
+            gobj_start(dock);
+            const svg = '<svg viewBox="0 0 8 8"><rect width="8" height="8"/></svg>';
+            const w = gobj_create_service("icon_w", "C_YUI_WINDOW",
+                {title: "w", icon: svg, body: ["div", {}, "w"], manager: dock}, yuno);
+            gobj_start(w);
+            const $w = gobj_read_attr(w, "$container");
+            expect($w.querySelector(".icon svg")).not.toBe(null);
+            const $dock = gobj_read_attr(dock, "$container");
+            expect($dock.querySelector(".yui-dock-icon svg")).not.toBe(null);
+            expect(logged.filter((l) => l.msg.includes("html_markup"))).toEqual([]);
+        } finally {
+            set_strings_are_text(false);
+        }
+    });
 });
