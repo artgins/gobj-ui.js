@@ -3359,8 +3359,12 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
      children whose first item is a markup string (`list-head`: such a list is
      read as one description). A ternary, `||`/`&&`/`??` and a comma
      sequence (its last item) are checked branch by branch; a tag is matched
-     in any case. It CANNOT see: a variable or a function result that holds
-     a string (a helper that returns markup); a template whose head is an
+     in any case; a pure string method over a static string
+     (`'<b>s</b>'.toUpperCase()`) is still a `literal`. `.replace()` /
+     `.replaceAll()` are NOT taken as keeping the head (they can remove it),
+     so their result is not checked. It CANNOT see: a variable or a function
+     result that holds a string (a helper that returns markup); the result of
+     `.replace()`/`.replaceAll()`; a template whose head is an
      expression that is not a static string (`` `${prefix}<b>` ``); a
      description built piece by piece (`push()` into the content list); a
      computed tag with an attrs slot that is not an object literal; markup

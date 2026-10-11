@@ -164,6 +164,18 @@ let PRIVATE_DATA = {
     /*  Overlays registered while one of those history.back() calls is
      *  still in flight: their marker is pushed once it has landed.  */
     pending_markers: [],
+    /*  The hash the shell last saw, to tell a traversal that moved it
+     *  (a hashchange is queued behind its popstate) from one that did
+     *  not.  */
+    last_hash:       "",
+    /*  The waiting markers are pushed by the queued hashchange, after
+     *  its navigation, not by the popstate that dropped our back().  */
+    markers_after_hashchange: false,
+    /*  A position (hash) to put back when our back() lands under a
+     *  marker a replace navigation had moved, and the hashchange of
+     *  that landing, which must not navigate.  */
+    restore_hash:    "",
+    skip_hash:       "",
     popstate_handler: null,
     /*  Avatar item support — every toolbar item with type:"avatar"
      *  registers its <span> here so refresh_avatars() can repaint
@@ -265,19 +277,37 @@ function mt_start(gobj)
     preinstantiate_eager_views(gobj);
 
     if(gobj_read_attr(gobj, "use_hash")) {
+        priv.last_hash = window.location.hash;
         priv.hash_handler = () => {
             let p = gobj.priv;
-            let dropped = false;
-            if(p && p.expected_pops > 0 &&
+            if(!p) {
+                return;
+            }
+            let markers_now = p.markers_after_hashchange;
+            p.markers_after_hashchange = false;
+            if(p.skip_hash && window.location.hash === p.skip_hash) {
+                /*  The hashchange of an expected landing whose position
+                 *  was put back (see on_traversal): the route did not
+                 *  change, there is nothing to navigate to.  */
+                p.skip_hash = "";
+                p.last_hash = window.location.hash;
+                if(markers_now) {
+                    push_pending_markers(gobj);
+                }
+                return;
+            }
+            p.skip_hash = "";
+            if(p.expected_pops > 0 &&
                     window.location.hash !== p.expected_pop_hash) {
                 drop_expected_pops(gobj);   // a back() of ours never landed
-                dropped = true;
+                markers_now = true;
             }
             let route = hash_to_route(window.location.hash);
             if(!empty_string(route)) {
                 navigate_to(gobj, route);
             }
-            if(dropped) {
+            p.last_hash = window.location.hash;
+            if(markers_now) {
                 /*  After the navigation: an overlay it drained gets no
                  *  marker, a kept one gets it on the hash it now lives on. */
                 push_pending_markers(gobj);
@@ -295,6 +325,10 @@ function mt_start(gobj)
             if(!p) {
                 return;
             }
+            /*  A traversal that moved the hash is followed by a
+             *  hashchange, QUEUED: it runs after this handler, and it is
+             *  the one that navigates (and drains).  */
+            let hash_moved = window.location.hash !== p.last_hash;
             if(p.expected_pops > 0 &&
                     window.location.hash !== p.expected_pop_hash) {
                 /*  Not the landing of ours: it was dropped. Whatever
@@ -302,13 +336,24 @@ function mt_start(gobj)
                  *  the overlays that waited get their markers AFTER it:
                  *  pushed first, the waiting top had a marker the
                  *  traversal then took as "stepped off" -- it was closed
-                 *  and its marker left orphaned.  */
+                 *  and its marker left orphaned. When the hash moved,
+                 *  "after it" is after the hashchange's navigation: a
+                 *  marker pushed here for an overlay that navigation then
+                 *  drains is left orphaned too.  */
                 drop_expected_pops(gobj);
                 on_traversal(ev);
-                push_pending_markers(gobj);
+                if(hash_moved) {
+                    p.markers_after_hashchange = true;
+                } else {
+                    push_pending_markers(gobj);
+                }
+                p.last_hash = window.location.hash;
                 return;
             }
             on_traversal(ev);
+            if(!p.skip_hash) {
+                p.last_hash = window.location.hash;
+            }
         };
         let on_traversal = (ev) => {
             let p = gobj.priv;
@@ -317,6 +362,21 @@ function mt_start(gobj)
                  *  overlay — the teardown already happened. */
                 p.expected_pops--;
                 if(p.expected_pops === 0) {
+                    if(p.restore_hash && p.restore_hash !== window.location.hash) {
+                        /*  The marker had moved to another hash (a replace
+                         *  navigation wrote the view's position on it) and
+                         *  the back() landed on the entry under it, on the
+                         *  old one: put the position back, and let its
+                         *  hashchange pass -- re-navigating would lose it. */
+                        try {
+                            window.history.replaceState(window.history.state, "", p.restore_hash);
+                            p.skip_hash = p.restore_hash;
+                            p.last_hash = p.restore_hash;
+                        } catch(e) {
+                            log_warning(`C_YUI_SHELL: restoring '${p.restore_hash}' failed: ${e}`);
+                        }
+                    }
+                    p.restore_hash = "";
                     push_pending_markers(gobj);
                 }
                 return;
@@ -325,8 +385,8 @@ function mt_start(gobj)
                 return;
             }
             let top = p.overlay_stack[p.overlay_stack.length - 1];
-            if(top.marker_pending) {
-                /*  It has no marker yet: no traversal can step off it.  */
+            if(top.marker_pending || top.no_marker) {
+                /*  It has no marker (yet): no traversal can step off it.  */
                 return;
             }
             /*  Did this traversal step OFF the top overlay's marker?
@@ -346,7 +406,13 @@ function mt_start(gobj)
              *  a `stay` modal's marker legitimately lives on a hash that
              *  is NOT the resting one, and matching on the resting route
              *  left Back unable to close it. */
-            if(window.location.hash !== top.hash) {
+            if(window.location.hash !== top.hash &&
+                    window.location.hash !== top.below_hash) {
+                /*  Neither the marker's own hash nor the hash of the
+                 *  entry under it: a route traversal. (Under it: a
+                 *  replace navigation moved the marker's hash after it
+                 *  was pushed, and stepping off it lands on the entry
+                 *  below, on the hash it had.)  */
                 return;
             }
             /*  Which entry did it land ON?  Markers ({__yui_overlay__:
@@ -361,6 +427,13 @@ function mt_start(gobj)
              *      LIFO. */
             let st = ev && ev.state;
             if(st && st.__yui_overlay__ === top.id) {
+                return;
+            }
+            if(st && st.__yui_overlay__ > top.id &&
+                    !p.overlay_stack.some(e => e.id === st.__yui_overlay__)) {
+                /*  A dead marker NEWER than the top: only Forward reaches
+                 *  it (an overlay closed by its button above this one).
+                 *  It is not a step off the top's marker.  */
                 return;
             }
             p.overlay_stack.pop();
@@ -436,10 +509,19 @@ function mt_stop(gobj)
         window.removeEventListener("popstate", priv.popstate_handler);
         priv.popstate_handler = null;
     }
-    /*  Nothing listens for the landings any more.  */
+    /*  Nothing listens for the landings any more. An overlay that
+     *  waited for one gets no marker: it says so, so neither a later
+     *  dismissal retires one nor a traversal waits for it.  */
+    for(let entry of priv.pending_markers) {
+        entry.marker_pending = false;
+        entry.no_marker = true;
+    }
     priv.expected_pops = 0;
     priv.expected_pop_hash = "";
     priv.pending_markers = [];
+    priv.markers_after_hashchange = false;
+    priv.restore_hash = "";
+    priv.skip_hash = "";
     if(priv.keydown_handler) {
         window.removeEventListener("keydown", priv.keydown_handler);
         priv.keydown_handler = null;
@@ -1553,6 +1635,7 @@ function navigate_to(gobj, route, depth, no_drain)
              *  its Back/dismiss bookkeeping. */
             try {
                 window.history.replaceState(window.history.state, "", target_hash);
+                priv.last_hash = target_hash;
                 /*  This rewrote the hash of the CURRENT entry.  When that
                  *  entry is a live marker (a replace-navigation issued
                  *  with an overlay open), its recorded hash just went
@@ -2748,7 +2831,7 @@ function overlay_dismissed(gobj, entry)
         return;
     }
     priv.overlay_stack.splice(idx, 1);
-    if(entry.marker_pending) {
+    if(entry.marker_pending || entry.no_marker) {
         /*  Its marker was never pushed: there is nothing to retire.  */
         return;
     }
@@ -2768,6 +2851,10 @@ function overlay_dismissed(gobj, entry)
         priv.expected_pops++;
         priv.expected_pop_hash = (typeof entry.below_hash === "string")?
             entry.below_hash : window.location.hash;
+        /*  A position written on the marker by a replace navigation is
+         *  put back once the back() lands under it (on_traversal).  */
+        priv.restore_hash = (window.location.hash !== priv.expected_pop_hash)?
+            window.location.hash : "";
         try {
             window.history.back();
         } catch(e) {

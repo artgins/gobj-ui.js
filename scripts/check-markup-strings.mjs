@@ -92,10 +92,19 @@ function starts_with_markup(s)
 }
 
 /*  String methods that keep the head of their receiver (a markup head
- *  stays a markup head through them).  */
+ *  stays a markup head through them). Not replace()/replaceAll(): they
+ *  can take the head away ('<b>x</b>'.replace(/<[^>]+>/g, '') is text),
+ *  so what they give back is not known.  */
 const HEAD_KEEPING_METHODS = new Set([
     "trim", "trimStart", "trimEnd", "toString", "valueOf", "normalize",
-    "toLowerCase", "toUpperCase", "replace", "replaceAll", "padEnd", "concat"
+    "toLowerCase", "toUpperCase", "padEnd", "concat"
+]);
+
+/*  The ones with no argument that give a static value from a static
+ *  receiver: '<b>s</b>'.toUpperCase() is a literal, not built markup.  */
+const PURE_METHODS = new Set([
+    "trim", "trimStart", "trimEnd", "toString", "valueOf", "normalize",
+    "toLowerCase", "toUpperCase"
 ]);
 
 function concat_parts(parts)
@@ -189,6 +198,9 @@ function leading(n)
             }
             if(method === "concat") {
                 return concat_parts([head, ...n.arguments.map(leading)]);
+            }
+            if(head.complete && PURE_METHODS.has(method) && n.arguments.length === 0) {
+                return {text: String.prototype[method].call(head.text), complete: true};
             }
             /*  The head is kept; the whole is no longer known to be static.  */
             return {text: head.text, complete: false};

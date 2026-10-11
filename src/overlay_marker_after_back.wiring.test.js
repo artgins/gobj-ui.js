@@ -19,15 +19,15 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {describe, test, expect, beforeAll, beforeEach} from "vitest";
+import {describe, test, expect, beforeAll, beforeEach, afterEach} from "vitest";
 import {install_dom_double} from "../test/dom_double.js";
 
 install_dom_double();
 
 const {
-    SDATA_END, gclass_create,
+    SDATA, SDATA_END, data_type_t, gclass_create, gobj_write_attr,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
-    gobj_start, gobj_read_attr, gobj_is_destroying,
+    gobj_start, gobj_stop, gobj_is_running, gobj_read_attr, gobj_is_destroying,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_shell} = await import("./c_yui_shell.js");
@@ -37,6 +37,7 @@ const logged = [];
 let veto = true;
 let warning = null;
 let yuno = null;
+const shells = [];
 
 /*  The session history of one tab. Each entry carries its hash, as a
  *  browser's does: a traversal lands on the entry's hash, and fires a
@@ -97,15 +98,37 @@ function fire_popstate()
     window.dispatchEvent(ev);
 }
 
+/*  As a browser does: popstate is fired during the traversal, and a
+ *  hashchange -- when the fragment moved -- is QUEUED as a task of its own,
+ *  so it runs after popstate and after whatever popstate's handlers did.  */
+function queue_hashchange()
+{
+    setTimeout(() => {
+        window.dispatchEvent(new Event("hashchange"));
+    }, 0);
+}
+
 function traverse_to(index)
 {
     const left = window.location.hash;
     session.index = index;
     window.location.hash = session.entries[index].hash;
     fire_popstate();
-    if(window.location.hash !== left) {
-        window.dispatchEvent(new Event("hashchange"));
+    if(session.entries[index].hash !== left) {
+        queue_hashchange();
     }
+}
+
+/*  A click on a fragment link: a new entry, then popstate, then the
+ *  queued hashchange -- what Chromium and Firefox do.  */
+function link_to(hash)
+{
+    session.entries.splice(session.index + 1);
+    session.entries.push({state: null, hash: hash});
+    session.index++;
+    window.location.hash = hash;
+    fire_popstate();
+    queue_hashchange();
 }
 
 /*  The user's Back: the browser's own traversal.  */
@@ -141,6 +164,18 @@ beforeAll(async () => {
         ]]],
         {}, 0, [SDATA_END()], {}, 0, 0, 0, 0
     );
+    gclass_create(
+        "C_TEST_MARKER_VIEW", [], [["ST_IDLE", []]], {
+            mt_create: (gobj) => {
+                gobj_write_attr(gobj, "$container",
+                    document.createElement("div"));
+            }
+        }, 0, [
+            SDATA(data_type_t.DTP_POINTER, "$container", 0, null, "view root"),
+            SDATA(data_type_t.DTP_POINTER, "subscriber", 0, null, "subscriber"),
+            SDATA_END()
+        ], {}, 0, 0, 0, 0
+    );
     register_c_yui_shell();
     register_c_yui_window();
     yuno = gobj_create_yuno("marker_yuno", "C_TEST_MARKER_HOST", {});
@@ -152,6 +187,50 @@ beforeEach(() => {
     veto = true;
     warning = null;
     install_history_model();
+});
+
+
+/*  A shell WITH a route table, so a change of resting route drains the
+ *  overlays (navigate_to() -> drain_overlays()), as in an app.  */
+function routed_config()
+{
+    const target = (route) => ({stage: "main", gclass: "C_TEST_MARKER_VIEW", kw: {}});
+    return {
+        shell: {
+            zones: {center: {host: "stage.main"}},
+            stages: {main: {zone: "center", default_route: "/home"}}
+        },
+        menu: {
+            primary: {
+                items: [
+                    {id: "home", route: "/home", target: target("/home")},
+                    {id: "prev", route: "/prev", target: target("/prev")},
+                    {id: "other", route: "/other", target: target("/other")}
+                ]
+            }
+        }
+    };
+}
+
+function routed_shell(name, app)
+{
+    const shell = gobj_create(name, "C_YUI_SHELL",
+        {config: routed_config(), subscriber: app}, app);
+    gobj_start(shell);
+    shells.push(shell);
+    return shell;
+}
+
+/*  A test leaves no shell listening and no queued hashchange behind: the
+ *  next test's shell would otherwise hear the previous test's traversal.  */
+afterEach(async () => {
+    await next_task();
+    await next_task();
+    for(const sh of shells.splice(0)) {
+        if(gobj_is_running(sh)) {
+            gobj_stop(sh);
+        }
+    }
 });
 
 function errors()
@@ -166,6 +245,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         const shell = gobj_create("mshell", "C_YUI_SHELL",
             {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
         gobj_start(shell);
+        shells.push(shell);
         logged.length = 0;     /*  the shell's own start: no route table here  */
         install_history_model();
 
@@ -213,6 +293,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         const shell = gobj_create("mshell2", "C_YUI_SHELL",
             {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
         gobj_start(shell);
+        shells.push(shell);
         logged.length = 0;
         install_history_model();
 
@@ -241,6 +322,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         const shell = gobj_create("mshell3", "C_YUI_SHELL",
             {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
         gobj_start(shell);
+        shells.push(shell);
         logged.length = 0;
         install_history_model();
 
@@ -266,6 +348,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         const shell = gobj_create("mshell4", "C_YUI_SHELL",
             {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
         gobj_start(shell);
+        shells.push(shell);
         logged.length = 0;
         install_history_model();
         window.location.hash = "#/home";
@@ -281,10 +364,10 @@ describe("an overlay registered while a back() of ours is in flight", () => {
             {keep_on_navigate: true});
         expect(second.marker_pending).toBe(true);
 
-        /*  A navigation: the hash moves (a new entry, as a link does), our
-         *  back() will never land.  */
-        window.history.pushState(null, "", "#/other");
-        window.dispatchEvent(new Event("hashchange"));
+        /*  A click on a link: a new entry, popstate, then the queued
+         *  hashchange. Our back() will never land.  */
+        link_to("#/other");
+        await next_task();
         expect(shell.priv.expected_pops).toBe(0);
         expect(second.marker_pending).toBe(false);
         expect(window.history.state).toEqual({__yui_overlay__: second.id});
@@ -302,6 +385,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         const shell = gobj_create("mshell5", "C_YUI_SHELL",
             {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
         gobj_start(shell);
+        shells.push(shell);
         install_history_model();
         const {yui_shell_register_overlay, yui_shell_overlay_dismissed} =
             await import("./c_yui_shell.js");
@@ -321,6 +405,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         const shell = gobj_create("mshell6", "C_YUI_SHELL",
             {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
         gobj_start(shell);
+        shells.push(shell);
         window.location.hash = "#/prev";
         install_history_model();
         window.history.pushState(null, "", "#/home");    // a route entry
@@ -340,6 +425,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
          *  history.go(-2)): from the dead marker straight to #/prev, a hash
          *  that is not the landing ours expected.  */
         traverse_to(0);
+        await next_task();                            // the queued hashchange
         expect(window.location.hash).toBe("#/prev");
         expect(closed).toBe(0);
         expect(shell.priv.overlay_stack).toEqual([second]);
@@ -359,6 +445,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         const shell = gobj_create("mshell7", "C_YUI_SHELL",
             {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
         gobj_start(shell);
+        shells.push(shell);
         window.location.hash = "#/home";
         install_history_model();
 
@@ -374,8 +461,121 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         await next_task();
         await next_task();
         expect(shell.priv.expected_pops).toBe(0);
-        expect(window.location.hash).toBe("#/home");
-        expect(logged.some((l) => l.msg.includes("did not land"))).toBe(false);
+        /*  Since 7.26.13 the position written with replace is put back.  */
+        expect(window.location.hash).toBe("#/home/pos");
+        expect(logged.filter((l) => l.msg.includes("did not land")).map(l => l.msg)).toEqual([]);
+    });
+});
+
+describe("a routed shell, a realistic history (V5)", () => {
+    test("Back closes a keep_on_navigate panel after a replace navigation", async () => {
+        const app = gobj_create("vapp1", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("vshell1", app);
+        const {yui_shell_register_overlay, yui_shell_navigate} = await import("./c_yui_shell.js");
+        let closed = 0;
+        yui_shell_register_overlay(shell, () => { closed++; }, {keep_on_navigate: true});
+
+        /*  The view under the panel writes its position with replace.  */
+        yui_shell_navigate(shell, "/home/pos", {replace: true});
+        expect(window.location.hash).toBe("#/home/pos");
+
+        user_back();
+        await next_task();
+        expect(closed).toBe(1);
+        expect(shell.priv.overlay_stack).toEqual([]);
+    });
+
+    test("a button close after a replace navigation keeps the position", async () => {
+        const app = gobj_create("vapp2", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("vshell2", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed, yui_shell_navigate} =
+            await import("./c_yui_shell.js");
+        const entry = yui_shell_register_overlay(shell, () => {}, {keep_on_navigate: true});
+        yui_shell_navigate(shell, "/home/pos", {replace: true});
+        logged.length = 0;
+
+        yui_shell_overlay_dismissed(shell, entry);     // the close button
+        await next_task();
+        await next_task();
+        expect(shell.priv.expected_pops).toBe(0);
+        expect(window.location.hash).toBe("#/home/pos");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/home/pos");
+        expect(window.history.state).toBe(null);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a dropped back() and a real link: a drained overlay leaves no orphan marker", async () => {
+        const app = gobj_create("vapp3", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("vshell3", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} = await import("./c_yui_shell.js");
+        const first = yui_shell_register_overlay(shell, () => {});
+        window.history.back = () => {};                // the browser drops it
+        yui_shell_overlay_dismissed(shell, first);
+        let closed = 0;
+        const second = yui_shell_register_overlay(shell, () => { closed++; });   // drained by a navigation
+        expect(second.marker_pending).toBe(true);
+
+        link_to("#/other");                           // popstate, then the queued hashchange
+        await next_task();
+        await next_task();
+        expect(closed).toBe(1);
+        expect(shell.priv.overlay_stack).toEqual([]);
+        expect(window.history.state).toBe(null);      // no marker of the drained overlay
+        expect(session.entries.length).toBe(3);       // #/home, the dead first marker, #/other
+    });
+
+    test("Forward onto a dead marker does not close the overlay under it", async () => {
+        const app = gobj_create("vapp4", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("vshell4", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} = await import("./c_yui_shell.js");
+        let closed_a = 0;
+        const a = yui_shell_register_overlay(shell, () => { closed_a++; });
+        const b = yui_shell_register_overlay(shell, () => {});
+        yui_shell_overlay_dismissed(shell, b);        // its button: back() to A's marker
+        await next_task();
+        expect(window.history.state).toEqual({__yui_overlay__: a.id});
+
+        traverse_to(session.index + 1);               // Forward, onto B's dead marker
+        expect(closed_a).toBe(0);
+        expect(shell.priv.overlay_stack).toEqual([a]);
+
+        user_back();                                  // back on A's own marker: absorbed
+        expect(closed_a).toBe(0);
+        user_back();                                  // off it: closes A
+        expect(closed_a).toBe(1);
+    });
+
+    test("mt_stop leaves no overlay waiting for a marker that will never come", async () => {
+        const app = gobj_create("vapp5", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("vshell5", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} = await import("./c_yui_shell.js");
+        const first = yui_shell_register_overlay(shell, () => {});
+        let backs = 0;
+        window.history.back = () => { backs++; };
+        yui_shell_overlay_dismissed(shell, first);
+        expect(backs).toBe(1);
+        const second = yui_shell_register_overlay(shell, () => {});
+        expect(second.marker_pending).toBe(true);
+
+        gobj_stop(shell);
+        expect(second.marker_pending).toBe(false);
+        yui_shell_overlay_dismissed(shell, second);   // it has no marker: nothing to retire
+        expect(backs).toBe(1);
     });
 });
 

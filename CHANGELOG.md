@@ -5,6 +5,48 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.13
+
+The fifth check of the review (yunovatios `REV-CLOUD.md` §V5). All in the
+shell's Back/overlay bookkeeping, plus two false readings of the markup check.
+
+- **fix: after a replace navigation, Back no longer closed a panel.** A
+  replace navigation (the view writing its position into the URL) moves the
+  marker's hash; stepping off the marker with Back lands on the entry under
+  it, on the OLD hash, and the shell took that as a route traversal. A
+  `keep_on_navigate` panel (the site map, the Developer window) could not be
+  closed with Back any more. A landing on the hash under the marker
+  (`below_hash`) is a step off it now.
+- **fix: closing such a panel with its button lost the position.** The
+  shell's `back()` lands under the marker, on the old hash, and the hashchange
+  that follows re-navigated there. The position is put back (`replaceState`)
+  and that hashchange does not navigate.
+- **fix: a marker left orphaned by a real link.** With a `back()` of ours
+  dropped, the popstate of a link pushed the waiting overlay's marker, and the
+  QUEUED hashchange then navigated and drained that overlay: the marker stayed
+  current over an empty stack and swallowed the next Back. When the traversal
+  moved the hash, the waiting markers are pushed by the hashchange, after its
+  navigation.
+- **fix: Forward onto a dead marker closed the overlay under it.** A marker
+  newer than the top overlay that is not on the stack is one that its button
+  closed; only Forward reaches it, and it is not a step off the top's marker.
+- **fix: `mt_stop` left overlays waiting for a marker for ever.** They are
+  marked as having none (`no_marker`), so a later dismissal retires nothing
+  and a traversal does not wait for them.
+- **check-markup-strings:** `.replace()` / `.replaceAll()` are no longer taken
+  as keeping a markup head (`'<b>x</b>'.replace(/<[^>]+>/g, '')` is text), and
+  a pure string method over a static string (`'<b>s</b>'.toUpperCase()`) is a
+  `literal`, not `built`.
+- tests: the history model of `overlay_marker_after_back.wiring.test.js` is a
+  browser's now -- a hashchange is QUEUED after its popstate, a fragment link
+  fires popstate then hashchange, and a test shell has a route table, so a
+  navigation drains. Each test stops its shells and drains the queue. Two
+  tests changed verdict on it, both by design of this release: the button
+  close after a replace now keeps the position, and the markers of the go(-2)
+  case arrive after the queued hashchange. No tests for the treedb graph
+  legend or the G6 toolbar read-out: both are closures inside large gclasses
+  that need the graph mounted.
+
 ## 7.26.12
 
 Fourth check of the review (yunovatios `REV-CLOUD.md` §V4).

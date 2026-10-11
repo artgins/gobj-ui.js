@@ -48,6 +48,13 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, (log(), '<b>x</b>')]);`)).toEqual(["literal"]);
     });
 
+    test("the false readings of 7.26.12: replace, a static case change", () => {
+        expect(rules_of(`x(['span', {}, '<b>x</b>'.replace(/<[^>]+>/g, '')]);`)).toEqual([]);
+        expect(rules_of(`x(['span', {}, '<b>x</b>'.replaceAll('<b>', '')]);`)).toEqual([]);
+        expect(rules_of(`x(['span', {}, '<b>s</b>'.toUpperCase()]);`)).toEqual(["literal"]);
+        expect(rules_of(`x(['span', {}, ('<b>' + name).toUpperCase()]);`)).toEqual(["built"]);
+    });
+
     test("what is fine", () => {
         expect(rules_of(`x(['span', {}, 'plain text']);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, html_markup('<i class="yi-a"></i>')]);`)).toEqual([]);
