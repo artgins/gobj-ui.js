@@ -163,12 +163,34 @@ describe("data is text, not markup", () => {
             {id: EVIL, value: EVIL, title: EVIL},
             {text: EVIL, value: "v", title: "t"},
         ];
+        /*  The DOM double builds no element out of markup, so the html is
+         *  read here as a browser would: tags out, entities decoded. What
+         *  the reader sees and what each attribute holds must be the
+         *  value itself -- an unescaped value drops out of the text.  */
+        const decode = (v) => v.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+        const visible = (html) => decode(html.replace(/<[^>]*>/g, ""));
+        const attr = (html, name) => {
+            const m = html.match(new RegExp(` ${name}="([^"]*)"`));
+            return m ? decode(m[1]) : null;
+        };
+        const read = toolbar_item_html(items[0]);
+        expect(visible(read)).toBe(EVIL);
+        expect(attr(read, "title")).toBe(EVIL);
+        expect(attr(read, "aria-label")).toBe(EVIL);
+        expect(attr(read, "class")).toBe(`g6-toolbar-readout ${EVIL}`);
+
+        const icon = toolbar_item_html(items[1]);
+        expect(visible(icon)).toBe("");
+        expect(attr(icon, "value")).toBe(EVIL);
+        expect(attr(icon, "title")).toBe(EVIL);
+        expect(attr(icon, "xlink:href")).toBe(`#${EVIL}`);
+
+        const text = toolbar_item_html(items[2]);
+        expect(visible(text)).toBe(EVIL);
+
         for(const item of items) {
-            const html = toolbar_item_html(item);
-            expect(html.includes("<img")).toBe(false);
-            const $box = document.createElement("div");
-            $box.innerHTML = html;
-            expect($box.querySelector("img")).toBe(null);
+            expect(toolbar_item_html(item).includes("<img")).toBe(false);
         }
     });
 });

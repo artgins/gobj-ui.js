@@ -25,6 +25,21 @@
  *            survive the back() the shell issues to retire the panel's
  *            marker, no marker may be left orphaned, and the next Back
  *            goes to the chapter.
+ *        (d) panel open, a link away and a link BACK to the hash it was
+ *            opened on: a link is a push, not a Back -- the panel stays
+ *            and the chapter is the view on screen (REV-CLOUD V6.1, p10).
+ *        (e) the same after a position was written: the URL and the view
+ *            on screen agree (V6.1, p11).
+ *        (f) from the position, a link to the chapter's own hash: a push;
+ *            Back returns to the position with the panel up, the next
+ *            Back closes it keeping the position, and the next leaves
+ *            the chapter (V6.1, p8).
+ *        (g) as (c), by the other road: the panel closes and a menu
+ *            click (EV_NAV_CLICKED) navigates in the same turn (V6.2, p9).
+ *
+ *      Besides the cases, a warning of the shell (C_YUI_SHELL: ...) in
+ *      the console is a failure: the false "did not land ... dropped" of
+ *      7.26.13 was such a warning, and nothing failed on it.
  *
  *      It starts the test-app's vite dev server on its own port and stops
  *      it at the end. Exit 0 when every case passes, 1 otherwise.
@@ -90,11 +105,33 @@ function start_vite()
  */
 async function snap(page)
 {
-    return page.evaluate(() => ({
-        hash: location.hash,
-        panel: !!document.querySelector(".DEMO_HISTORY_PANEL"),
-        state: history.state,
-    }));
+    return page.evaluate(() => {
+        /*  The view on screen, not the one the URL names.  */
+        const shown = (sel) => {
+            const el = document.querySelector(sel);
+            return !!(el && el.offsetParent !== null);
+        };
+        return {
+            hash: location.hash,
+            panel: !!document.querySelector(".DEMO_HISTORY_PANEL"),
+            view: shown(".C_DEMO_HISTORY")? "history" :
+                  shown(".C_DEMO_TABLE")? "table" : "other",
+            state: history.state,
+        };
+    });
+}
+
+/*  A click on a real fragment link, as a reader's.  */
+async function link_to(page, hash)
+{
+    await page.evaluate((h) => {
+        const a = document.createElement("a");
+        a.href = h;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }, hash);
+    await settle(page);
 }
 
 async function settle(page)
@@ -199,6 +236,81 @@ async function case_c(page)
     return {ok, after_go, after_back, orphan};
 }
 
+async function case_d(page)
+{
+    await fresh(page);
+    await page.click(".DEMO_HISTORY_OPEN");
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await settle(page);
+    await link_to(page, "#/table");
+    const away = await snap(page);
+    await link_to(page, "#/history");
+    const back_by_link = await snap(page);
+
+    const ok =
+        away.panel && away.hash === "#/table" && away.view === "table" &&
+        back_by_link.panel && back_by_link.hash === "#/history" &&
+        back_by_link.view === "history";
+    return {ok, away, back_by_link};
+}
+
+async function case_e(page)
+{
+    await fresh(page);
+    await open_and_write(page);
+    await link_to(page, "#/table");
+    await link_to(page, "#/history");
+    const after = await snap(page);
+
+    const ok = after.panel && after.hash === "#/history" && after.view === "history";
+    return {ok, after};
+}
+
+async function case_f(page)
+{
+    await fresh(page);
+    await open_and_write(page);
+    await link_to(page, "#/history");
+    const pushed = await snap(page);
+    await page.goBack();
+    await settle(page);
+    const on_marker = await snap(page);
+    await page.goBack();
+    await settle(page);
+    const off_marker = await snap(page);
+    await page.goBack();
+    await settle(page);
+    const left = await snap(page);
+
+    const ok =
+        pushed.panel && pushed.hash === "#/history" && pushed.view === "history" &&
+        on_marker.panel && on_marker.hash === "#/history/pos-1" &&
+        !off_marker.panel && off_marker.hash === "#/history/pos-1" &&
+        left.hash === "#/windows";
+    return {ok, pushed, on_marker, off_marker, left};
+}
+
+async function case_g(page)
+{
+    await fresh(page);
+    await page.click(".DEMO_HISTORY_OPEN");
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await settle(page);
+    await page.click(".DEMO_HISTORY_CLOSE_AND_CLICK");
+    await page.waitForTimeout(800);
+    const after_click = await snap(page);
+    await page.goBack();
+    await settle(page);
+    const after_back = await snap(page);
+
+    const orphan = !!(after_click.state && after_click.state.__yui_overlay__);
+    const ok =
+        !after_click.panel && after_click.hash === "#/table" &&
+        after_click.view === "table" && !orphan &&
+        after_back.hash === "#/history";
+    return {ok, after_click, after_back, orphan};
+}
+
 /*
  *  Main
  */
@@ -214,14 +326,19 @@ try {
         const browser = await engine.launch({headless: !headed});
         try {
             for(const [label, fn] of [["a: Back", case_a], ["b: x", case_b],
-                                      ["c: close and go", case_c]]) {
+                                      ["c: close and go", case_c],
+                                      ["d: link back", case_d],
+                                      ["e: link back after a position", case_e],
+                                      ["f: link from the position", case_f],
+                                      ["g: close and click", case_g]]) {
                 const context = await browser.newContext({viewport: {width: 1250, height: 850}});
                 const page = await context.newPage();
                 page.on("pageerror", (e) => {
                     errors.push(`${name} ${label}: ${e.message || e}`);
                 });
                 page.on("console", (m) => {
-                    if(m.type() === "error") {
+                    if(m.type() === "error" ||
+                            (m.type() === "warning" && m.text().includes("C_YUI_SHELL"))) {
                         errors.push(`${name} ${label}: ${m.text()}`);
                     }
                 });

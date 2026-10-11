@@ -194,6 +194,21 @@ same hash) and an **overlay stack**:
   below it, so stepping off it always lands on that hash — while an action
   route (§7.1) can legitimately park the URL *off* the resting route, which
   is why matching on the resting route left `stay` modals unclosable by Back.
+- **A link is not a Back**, even to that hash. A fragment push (a link,
+  `location.hash = ...`) fires `popstate` too, on a fresh entry with no
+  state. So when the shell pushes a marker it stamps the entry under it
+  (`{__yui_below__: id}`, unless it already has a state), and only a landing
+  on a stamped entry or on a lower marker closes the top overlay. Before
+  7.26.15 a link back to the hash a panel was opened on closed the panel, and
+  after a replace navigation left the URL and the view on screen disagreeing.
+- **A navigation made while the shell retires a marker waits for it.** An
+  overlay closed by its button retires its marker with a `history.back()`,
+  which is asynchronous; a push made in the same turn (`yui_shell_navigate()`,
+  or a menu click: `EV_NAV_CLICKED`) would land first and be undone by it.
+  The route waits for the landing; a newer one replaces it with a warning; a
+  traversal of the user's in between drops it with a warning (the user's move
+  is the newer one); and a `back()` that has not landed in a second is given
+  up on, so the route runs.
 
 Use this for every modal/popup. Never encode an overlay as a route (a
 deep-linkable modal is an *action route* with `redirect:"stay"`, a deliberate,

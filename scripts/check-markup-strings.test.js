@@ -55,6 +55,15 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, ('<b>' + name).toUpperCase()]);`)).toEqual(["built"]);
     });
 
+    test("V6.4: replace on markup that carries data, or puts data in, is still built", () => {
+        expect(rules_of(`x(['span', {}, ('<b>' + name + '</b>').replaceAll('a', 'b')]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, '<b>NAME</b>'.replace('NAME', name)]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, \`<b>\${name}</b>\`.replace(/x/g, '')]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, '<b>x</b>'.replace('x', 'y')]);`)).toEqual(["literal"]);
+        expect(rules_of(`x(['span', {}, 'text'.replace('text', '<b>')]);`)).toEqual(["literal"]);
+        expect(rules_of(`x(['span', {}, name.replace(/a/g, '')]);`)).toEqual([]);   // not visible
+    });
+
     test("what is fine", () => {
         expect(rules_of(`x(['span', {}, 'plain text']);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, html_markup('<i class="yi-a"></i>')]);`)).toEqual([]);

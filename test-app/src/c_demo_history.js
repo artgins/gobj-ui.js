@@ -210,13 +210,17 @@ function ac_open_panel(gobj, event, kw, src)
             body: ['div', {class: 'DEMO_HISTORY_PANEL p-3'}, [
                 ['p', {i18n: "Back closes this panel; a route change does not."},
                     t("Back closes this panel; a route change does not.")],
-                action_button(gobj, "DEMO_HISTORY_CLOSE_AND_GO", "close and go to table",
-                    "yi-arrow-right", "EV_CLOSE_AND_GO")
+                ['div', {class: 'DEMO_HISTORY_PANEL_ACTIONS buttons'}, [
+                    action_button(gobj, "DEMO_HISTORY_CLOSE_AND_GO", "close and go to table",
+                        "yi-arrow-right", "EV_CLOSE_AND_GO"),
+                    action_button(gobj, "DEMO_HISTORY_CLOSE_AND_CLICK", "close and click the menu",
+                        "yi-arrow-right", "EV_CLOSE_AND_CLICK")
+                ]]
             ]],
             x: 760,
             y: 420,
             width: 320,
-            height: 180,
+            height: 230,
             center: false,
             showFooter: false,
             modal: false,
@@ -241,6 +245,20 @@ function ac_close_and_go(gobj, event, kw, src)
         gobj_send_event(win, "EV_CLOSE_WINDOW", {}, gobj);
     }
     yui_shell_navigate(yui_shell_of(gobj), "/table");
+    return 0;
+}
+
+/***************************************************************
+ *  The same, by the other road a navigation takes: a menu click
+ *  (EV_NAV_CLICKED, what C_YUI_NAV publishes to the shell).
+ ***************************************************************/
+function ac_close_and_click(gobj, event, kw, src)
+{
+    let win = gobj_find_child(gobj, {__gobj_name__: PANEL_NAME});
+    if(win) {
+        gobj_send_event(win, "EV_CLOSE_WINDOW", {}, gobj);
+    }
+    gobj_send_event(yui_shell_of(gobj), "EV_NAV_CLICKED", {route: "/table"}, gobj);
     return 0;
 }
 
@@ -286,14 +304,16 @@ function create_gclass(gclass_name)
         ["ST_IDLE", [
             ["EV_OPEN_PANEL",       ac_open_panel,      null],
             ["EV_WRITE_POSITION",   ac_write_position,  null],
-            ["EV_CLOSE_AND_GO",     ac_close_and_go,    null]
+            ["EV_CLOSE_AND_GO",     ac_close_and_go,    null],
+            ["EV_CLOSE_AND_CLICK",  ac_close_and_click, null]
         ]]
     ];
 
     const event_types = [
         ["EV_OPEN_PANEL",       0],
         ["EV_WRITE_POSITION",   0],
-        ["EV_CLOSE_AND_GO",     0]
+        ["EV_CLOSE_AND_GO",     0],
+        ["EV_CLOSE_AND_CLICK",  0]
     ];
 
     __gclass__ = gclass_create(

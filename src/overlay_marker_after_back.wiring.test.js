@@ -357,7 +357,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
         expect(shell.priv.expected_pops).toBe(0);
         expect(session.entries.length).toBe(2);           // the dead first marker, ahead
         expect(session.index).toBe(0);
-        expect(window.history.state).toBe(null);
+        expect(window.history.state).toEqual({__yui_below__: 1});    // stamped, no marker
         expect(errors()).toEqual([]);
     });
 
@@ -583,7 +583,7 @@ describe("a routed shell, a realistic history (V5)", () => {
         expect(shell.priv.expected_pops).toBe(0);
         expect(window.location.hash).toBe("#/home/pos");
         expect(gobj_read_attr(shell, "current_route")).toBe("/home/pos");
-        expect(window.history.state).toBe(null);
+        expect(window.history.state).toEqual({__yui_below__: entry.id});  // stamped, no marker
         expect(errors()).toEqual([]);
     });
 
@@ -656,3 +656,191 @@ describe("a routed shell, a realistic history (V5)", () => {
     });
 });
 
+/*
+ *  Sixth check of the review (V6).
+ */
+/*  The test app declares no route event: what the shell says is what
+ *  these tests read.  */
+function shell_warnings()
+{
+    return errors().filter((m) => m.includes("C_YUI_SHELL"));
+}
+
+describe("a link is not a Back (V6.1)", () => {
+    test("a link back to the hash a kept panel was opened on keeps it open", async () => {
+        const app = gobj_create("v6app1", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v6shell1", app);
+        const {yui_shell_register_overlay} = await import("./c_yui_shell.js");
+        let closed = 0;
+        yui_shell_register_overlay(shell, () => { closed++; }, {keep_on_navigate: true});
+
+        link_to("#/other");
+        await next_task();
+        link_to("#/home");                            // the panel's own hash
+        await next_task();
+        await next_task();
+        expect(closed).toBe(0);
+        expect(shell.priv.overlay_stack.length).toBe(1);
+        expect(window.location.hash).toBe("#/home");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/home");
+        expect(shell_warnings()).toEqual([]);
+    });
+
+    test("after a replace navigation, a link to the hash under the marker: URL and view agree", async () => {
+        const app = gobj_create("v6app2", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v6shell2", app);
+        const {yui_shell_register_overlay, yui_shell_navigate} = await import("./c_yui_shell.js");
+        let closed = 0;
+        yui_shell_register_overlay(shell, () => { closed++; }, {keep_on_navigate: true});
+        yui_shell_navigate(shell, "/home/pos", {replace: true});
+
+        link_to("#/other");
+        await next_task();
+        link_to("#/home");                            // the hash of the entry under the marker
+        await next_task();
+        await next_task();
+        expect(closed).toBe(0);
+        expect(window.location.hash).toBe("#/home");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/home");
+        expect(shell_warnings()).toEqual([]);
+    });
+
+    test("from the position, a link to the panel's hash is a push; Back walks it, then closes the panel", async () => {
+        const app = gobj_create("v6app3", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v6shell3", app);
+        const {yui_shell_register_overlay, yui_shell_navigate} = await import("./c_yui_shell.js");
+        let closed = 0;
+        yui_shell_register_overlay(shell, () => { closed++; }, {keep_on_navigate: true});
+        yui_shell_navigate(shell, "/home/pos", {replace: true});
+
+        link_to("#/home");
+        await next_task();
+        await next_task();
+        expect(closed).toBe(0);
+        expect(window.location.hash).toBe("#/home");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/home");
+
+        user_back();                                  // onto the marker: the panel is home
+        await next_task();
+        await next_task();
+        expect(closed).toBe(0);
+        expect(window.location.hash).toBe("#/home/pos");
+
+        user_back();                                  // off it: closes the panel
+        await next_task();
+        await next_task();
+        expect(closed).toBe(1);
+        expect(window.location.hash).toBe("#/home/pos");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/home/pos");
+        expect(shell_warnings()).toEqual([]);
+    });
+});
+
+describe("a route waiting for a back() of ours (V6.2)", () => {
+    test("a newer route replaces the waiting one, and says so", async () => {
+        const app = gobj_create("v6app4", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v6shell4", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed, yui_shell_navigate} =
+            await import("./c_yui_shell.js");
+        const entry = yui_shell_register_overlay(shell, () => {});
+        links_on_hash_assign();
+
+        yui_shell_overlay_dismissed(shell, entry);
+        yui_shell_navigate(shell, "/prev");
+        yui_shell_navigate(shell, "/other");
+        for(let i = 0; i < 4; i++) {
+            await next_task();
+        }
+        expect(window.location.hash).toBe("#/other");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/other");
+        expect(shell_warnings().filter(m => m.includes("is replaced by '/other'")).length).toBe(1);
+    });
+
+    test("a back() that never lands is given up on, and the waiting route runs", async () => {
+        const app = gobj_create("v6app5", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v6shell5", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed, yui_shell_navigate} =
+            await import("./c_yui_shell.js");
+        const entry = yui_shell_register_overlay(shell, () => {});
+        window.history.back = () => {};               // it never lands
+        links_on_hash_assign();
+
+        yui_shell_overlay_dismissed(shell, entry);
+        yui_shell_navigate(shell, "/prev");
+        await next_task();
+        expect(window.location.hash).toBe("#/home");  // still waiting
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        await next_task();
+        expect(shell.priv.expected_pops).toBe(0);
+        expect(window.location.hash).toBe("#/prev");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/prev");
+        expect(shell_warnings().filter(m => m.includes("given up")).length).toBe(1);
+    });
+
+    test("a user's link while a route waits: the link wins, the route is dropped out loud", async () => {
+        const app = gobj_create("v6app6", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v6shell6", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed, yui_shell_navigate} =
+            await import("./c_yui_shell.js");
+        const entry = yui_shell_register_overlay(shell, () => {});
+        window.history.back = () => {};               // the link cancels the traversal
+
+        yui_shell_overlay_dismissed(shell, entry);
+        yui_shell_navigate(shell, "/prev");
+        link_to("#/other");
+        for(let i = 0; i < 4; i++) {
+            await next_task();
+        }
+        expect(window.location.hash).toBe("#/other");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/other");
+        expect(shell.priv.deferred_route).toBe("");
+        expect(shell_warnings().filter(m => m.includes("'/prev' waited for that back() and is dropped")).length).toBe(1);
+    });
+
+    test("a menu click in the same turn as a close waits for the back() too", async () => {
+        const app = gobj_create("v6app7", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v6shell7", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed} = await import("./c_yui_shell.js");
+        const {gobj_send_event} = await import("@yuneta/gobj-js");
+        const entry = yui_shell_register_overlay(shell, () => {});
+        await next_task();
+        links_on_hash_assign();
+
+        yui_shell_overlay_dismissed(shell, entry);
+        gobj_send_event(shell, "EV_NAV_CLICKED", {route: "/prev"}, app);
+        for(let i = 0; i < 4; i++) {
+            await next_task();
+        }
+        expect(shell.priv.expected_pops).toBe(0);
+        expect(window.location.hash).toBe("#/prev");
+        expect(gobj_read_attr(shell, "current_route")).toBe("/prev");
+        expect(window.history.state).toBe(null);       // the pushed entry, no marker
+        expect(shell_warnings()).toEqual([]);
+
+        user_back();
+        await next_task();
+        await next_task();
+        expect(window.location.hash).toBe("#/home");  // not swallowed
+    });
+});

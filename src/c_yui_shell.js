@@ -180,6 +180,9 @@ let PRIVATE_DATA = {
      *  flight: it is navigated once the back() is over, or the traversal
      *  would run from it and undo it.  */
     deferred_route:  "",
+    /*  Bounds the wait for that back(): one that never lands must not
+     *  hold every later navigation for ever.  */
+    deferred_timer:  null,
     popstate_handler: null,
     /*  Avatar item support — every toolbar item with type:"avatar"
      *  registers its <span> here so refresh_avatars() can repaint
@@ -430,14 +433,25 @@ function mt_start(gobj)
              *      overlay's marker) closes the top overlay: strict
              *      LIFO. */
             let st = ev && ev.state;
-            if(st && st.__yui_overlay__ === top.id) {
+            if(!st) {
+                /*  An entry with no state is a FRESH one: a push (a
+                 *  link, `location.hash = ...`) fires popstate too, and a
+                 *  link to the hash the panel was opened on is not a
+                 *  Back. A step off a marker lands on the entry under it,
+                 *  which push_overlay_marker() stamped, or on a lower
+                 *  overlay's marker.  */
                 return;
             }
-            if(st && st.__yui_overlay__ > top.id &&
+            if(st.__yui_overlay__ === top.id) {
+                return;
+            }
+            if(st.__yui_overlay__ > top.id &&
                     !p.overlay_stack.some(e => e.id === st.__yui_overlay__)) {
-                /*  A dead marker NEWER than the top: only Forward reaches
-                 *  it (an overlay closed by its button above this one).
-                 *  It is not a step off the top's marker.  */
+                /*  A dead marker NEWER than the top: Forward reaches it
+                 *  (an overlay closed by its button above this one), and
+                 *  so does a Back onto the marker of an overlay a
+                 *  navigation drained under a panel that stayed. It is
+                 *  not a step off the top's marker.  */
                 return;
             }
             p.overlay_stack.pop();
@@ -542,6 +556,7 @@ function mt_stop(gobj)
     priv.restore_hash = "";
     priv.skip_hash = "";
     priv.deferred_route = "";
+    clear_deferred_timer(gobj);
     if(priv.keydown_handler) {
         window.removeEventListener("keydown", priv.keydown_handler);
         priv.keydown_handler = null;
@@ -2781,6 +2796,19 @@ function push_overlay_marker(gobj, entry)
      *  marker lands there -- even after a replace-navigation rewrote the
      *  marker's own hash (retag_overlay_hash()).  */
     entry.below_hash = window.location.hash;
+    /*  Stamp the entry under the marker: a step off the marker lands on
+     *  it, and a push (a link, `location.hash = ...`) lands on a fresh
+     *  entry with no state -- both fire popstate, on the same hash when
+     *  the link points where the overlay was opened, and the state is
+     *  the only thing that tells them apart. An entry with a state of
+     *  its own (a lower marker, an app's) keeps it.  */
+    if(window.history.state === null) {
+        try {
+            window.history.replaceState({ __yui_below__: entry.id }, "");
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: stamping the entry under an overlay failed: ${e}`);
+        }
+    }
     try {
         window.history.pushState({ __yui_overlay__: entry.id }, "");
     } catch(e) {
@@ -2812,8 +2840,66 @@ function drop_expected_pops(gobj)
     );
     priv.expected_pops = 0;
     priv.expected_pop_hash = "";
+    clear_deferred_timer(gobj);
+    if(priv.deferred_route) {
+        /*  The history moved on under it (a link, a Back): that move is
+         *  the newer one, and running the route after it would undo it.  */
+        log_warning(
+            `C_YUI_SHELL: route '${priv.deferred_route}' waited for that ` +
+            `back() and is dropped: the history moved on to '${window.location.hash}'`
+        );
+        priv.deferred_route = "";
+    }
     /*  The caller pushes the waiting markers, once it has handled the
      *  traversal that told it.  */
+}
+
+/*  A route pushed while a back() of ours is in flight waits for it to
+ *  land (push_pending_markers() navigates it), and a newer one takes
+ *  its place, said out loud. The wait is bounded: a back() that never
+ *  lands, with nothing else moving the history to say so, would hold
+ *  every later navigation.  */
+const DEFERRED_ROUTE_WAIT_MS = 1000;
+
+function defer_route(gobj, route)
+{
+    let priv = gobj.priv;
+    if(priv.deferred_route && priv.deferred_route !== route) {
+        log_warning(
+            `C_YUI_SHELL: route '${priv.deferred_route}' waiting for a back() ` +
+            `of ours is replaced by '${route}'`
+        );
+    }
+    priv.deferred_route = route;
+    if(!priv.deferred_timer) {
+        priv.deferred_timer = window.setTimeout(() => {
+            let p = gobj.priv;
+            if(!p) {
+                return;
+            }
+            p.deferred_timer = null;
+            if(p.expected_pops === 0) {
+                return;
+            }
+            log_warning(
+                `C_YUI_SHELL: ${p.expected_pops} history.back() of ours did not ` +
+                `land in ${DEFERRED_ROUTE_WAIT_MS} ms, given up`
+            );
+            p.expected_pops = 0;
+            p.expected_pop_hash = "";
+            p.restore_hash = "";
+            push_pending_markers(gobj);     // and navigates the deferred route
+        }, DEFERRED_ROUTE_WAIT_MS);
+    }
+}
+
+function clear_deferred_timer(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.deferred_timer) {
+        window.clearTimeout(priv.deferred_timer);
+        priv.deferred_timer = null;
+    }
 }
 
 /*  The history.back() calls of ours have all landed: push the markers of
@@ -2833,6 +2919,7 @@ function push_pending_markers(gobj)
         entry.hash = window.location.hash;
         push_overlay_marker(gobj, entry);     // Error already logged
     }
+    clear_deferred_timer(gobj);
     if(priv.deferred_route) {
         let route = priv.deferred_route;
         priv.deferred_route = "";
@@ -3110,6 +3197,13 @@ function ac_nav_clicked(gobj, event, kw, src)
      *  Exception: URL-restoring action routes skip the push — see
      *  route_restores_url. */
     if(gobj_read_attr(gobj, "use_hash") && !route_restores_url(gobj, route)) {
+        if(gobj.priv.expected_pops > 0) {
+            /*  A back() of ours is in flight (an overlay closed in this
+             *  same turn): a push now would be undone by it, as in
+             *  yui_shell_navigate().  */
+            defer_route(gobj, route);
+            return 0;
+        }
         let target_hash = route_to_hash(route);
         if(window.location.hash !== target_hash) {
             window.location.hash = target_hash;  /*  fires hashchange */
@@ -3706,7 +3800,7 @@ function yui_shell_navigate(shell_gobj, route, opts)
              *  navigates): a push now lands BEFORE the traversal, which
              *  then runs from it and undoes it (and in Firefox lands on
              *  the closed overlay's marker). Navigate once it is over.  */
-            priv.deferred_route = route;
+            defer_route(shell_gobj, route);
             return;
         }
         let target_hash = route_to_hash(route);

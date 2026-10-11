@@ -5,6 +5,52 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.15
+
+Sixth check of the review (yunovatios `REV-CLOUD.md` §V6), in a real browser.
+
+- **fix: a link was taken for a Back** (regression of 7.26.13, worse in
+  7.26.14). A fragment push -- a link, `location.hash = ...` -- fires
+  `popstate` too, and a link to the hash a panel was opened on (or, after a
+  replace navigation, to the hash of the entry under its marker) closed the
+  panel; in 7.26.14 it also put the old position back in the URL while the
+  view on screen stayed where the link left it. A push lands on a fresh entry
+  with NO state, so the shell now stamps the entry under a marker when it
+  pushes the marker (`{__yui_below__: id}`, an entry with a state of its own
+  keeps it), and only a landing on a state -- that stamp, or a lower marker --
+  can close the top overlay. A menu click back to the section (with its
+  remembered position) is that same link.
+- **fix: a route waiting for a `back()` of the shell had no way out.** A push
+  made while the shell retires an overlay's marker waits for that traversal
+  (7.26.14); one that never landed held every later navigation, a second
+  route replaced the first in silence, and the next traversal ran the stale
+  route after the user's own move. Now the wait is bounded (a second, then
+  the route runs, with a warning), a newer route replaces a waiting one with
+  a warning, and a traversal that tells the shell its `back()` was dropped
+  drops the waiting route with a warning -- the user's move is the newer one.
+- **fix: a menu click in the same turn as a close lost its navigation.**
+  `EV_NAV_CLICKED` pushed at once, the road `yui_shell_navigate()` stopped
+  taking in 7.26.14: it waits for the `back()` too.
+- **checker: markup built with data stays `built` through `replace()`.**
+  7.26.13 dropped the head of a `replace()`/`replaceAll()` receiver to stop a
+  false reading on a static tag strip, and with it every built string that
+  went through one (`('<b>' + name + '</b>').replaceAll(...)`,
+  `'<b>NAME</b>'.replace('NAME', name)`). A static receiver with static
+  arguments is now computed; anything else keeps its head.
+- **qa: `qa-history` has the gestures of V6** -- a link away and back to the
+  panel's hash (d), the same after a position (e), a link from the position
+  to the chapter's own hash and three Backs (f), and a close plus a menu
+  click in one turn (g, a new "close and click the menu" action in the
+  test-app's `/history` chapter) -- and **fails on a warning of the shell**
+  (`C_YUI_SHELL: ...`): the false "did not land ... dropped" of 7.26.13 was
+  one, and nothing failed on it. 14 of 14 in Chromium and Firefox; against
+  the shell of 7.26.14, 8 of 14 fail. The history model of the unit tests
+  gets the same cases, each failing on 7.26.14.
+- **tests:** the G6 toolbar case reads what a browser would show (tags out,
+  entities decoded) and each attribute's value, instead of an `innerHTML`
+  that the DOM double never parsed; it fails when the read-out's text is not
+  escaped.
+
 ## 7.26.14
 
 Closing what the review of 2026-10-10 left open (yunovatios `REV-CLOUD.md`

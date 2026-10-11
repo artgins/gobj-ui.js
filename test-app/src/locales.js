@@ -684,6 +684,7 @@ const es_translation = {
     "write position": "escribir posición",
     "history panel": "panel de historial",
     "close and go to table": "cerrar e ir a la tabla",
+    "close and click the menu": "cerrar y pulsar el menú",
     "Back closes this panel; a route change does not.": "Atrás cierra este panel; un cambio de ruta no.",
     "Dock (minimized windows land here):": "Dock (las ventanas minimizadas aterrizan aquí):",
     "A plain C_YUI_WINDOW. Drag the titlebar, resize the edges.": "Una C_YUI_WINDOW normal. Arrastra la barra de título, redimensiona los bordes.",

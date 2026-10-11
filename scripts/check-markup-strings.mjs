@@ -94,7 +94,7 @@ function starts_with_markup(s)
 /*  String methods that keep the head of their receiver (a markup head
  *  stays a markup head through them). Not replace()/replaceAll(): they
  *  can take the head away ('<b>x</b>'.replace(/<[^>]+>/g, '') is text),
- *  so what they give back is not known.  */
+ *  see replaced().  */
 const HEAD_KEEPING_METHODS = new Set([
     "trim", "trimStart", "trimEnd", "toString", "valueOf", "normalize",
     "toLowerCase", "toUpperCase", "padEnd", "concat"
@@ -106,6 +106,39 @@ const PURE_METHODS = new Set([
     "trim", "trimStart", "trimEnd", "toString", "valueOf", "normalize",
     "toLowerCase", "toUpperCase"
 ]);
+
+/*  replace()/replaceAll() on a receiver that is static and with static
+ *  arguments is computed, so a tag stripped away is seen as stripped.
+ *  Anything else keeps the receiver's head and is no longer static: a
+ *  receiver that carries data stays BUILT markup through them, and so
+ *  does a static one whose replacement is data
+ *  ('<b>NAME</b>'.replace('NAME', name)).  */
+function replaced(method, head, args)
+{
+    if(head.complete && args.length === 2) {
+        let pattern = null;
+        if(args[0].type === "Literal" && args[0].regex) {
+            try {
+                pattern = new RegExp(args[0].regex.pattern, args[0].regex.flags);
+            } catch(e) {
+                pattern = null;
+            }
+        } else if(is_string_literal(args[0])) {
+            pattern = args[0].value;
+        }
+        let replacement = leading(args[1]);
+        if(pattern !== null && replacement && replacement.complete) {
+            try {
+                return {text: String.prototype[method].call(head.text, pattern, replacement.text),
+                        complete: true};
+            } catch(e) {
+                /*  replaceAll() with a regex that is not global throws:
+                 *  so does the code, the check need not know what it gives. */
+            }
+        }
+    }
+    return {text: head.text, complete: false};
+}
 
 function concat_parts(parts)
 {
@@ -190,6 +223,13 @@ function leading(n)
                 parts.push(leading(el));
             });
             return concat_parts(parts);
+        }
+        if(method === "replace" || method === "replaceAll") {
+            let head = leading(receiver);
+            if(head === null) {
+                return null;
+            }
+            return replaced(method, head, n.arguments);
         }
         if(HEAD_KEEPING_METHODS.has(method)) {
             let head = leading(receiver);

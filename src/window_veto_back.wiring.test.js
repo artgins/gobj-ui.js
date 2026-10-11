@@ -69,10 +69,14 @@ function errors()
     return logged.filter((l) => l.level === "error").map((l) => l.msg);
 }
 
+/*  A Back off a marker lands on the entry under it, which the shell
+ *  stamped when it pushed the marker: a landing with NO state is a push
+ *  (a link), not a Back.  */
 function press_back()
 {
-    window.history.state = null;
-    window.dispatchEvent(new Event("popstate", {state: null}));
+    const ev = new Event("popstate");
+    ev.state = {__yui_below__: 0};
+    window.dispatchEvent(ev);
 }
 
 describe("a floating window that vetoes its close", () => {
