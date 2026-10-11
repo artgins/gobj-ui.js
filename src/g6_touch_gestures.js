@@ -461,7 +461,8 @@ export function install_long_press_contextmenu(graph, options)
         pending = {
             x:     x,
             y:     y,
-            t0:    Date.now(),
+            /*  A monotonic clock: the wall clock may step mid-press.  */
+            t0:    performance.now(),
             event: Object.assign({}, event),
             tick:  setTimeout(announce, LONG_PRESS_MS),
         };
@@ -505,7 +506,7 @@ export function install_long_press_contextmenu(graph, options)
         if(y === undefined) {
             y = press.y;
         }
-        if(classify_press(press, x, y, Date.now()) !== "long") {
+        if(classify_press(press, x, y, performance.now()) !== "long") {
             return;     /*  a drag, or a tap: both are already served  */
         }
         fire(press.event);

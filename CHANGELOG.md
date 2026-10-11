@@ -5,6 +5,12 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.20
+
+- **the long press of the G6 graphs is measured on `performance.now()`**, a
+  monotonic clock: a wall clock that stepped mid-press decided it wrong (the
+  same class as the window of 7.26.19). yunovatios `REV-CLOUD.md` §V11.4.
+
 ## 7.26.19
 
 Tenth check of the review (yunovatios `REV-CLOUD.md` §V10).
