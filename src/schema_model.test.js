@@ -256,3 +256,22 @@ describe("is_empty_value — what the store answers when a blob was never set", 
         expect(is_empty_value(false)).toBe(false);
     });
 });
+
+
+describe("the two name rules", async () => {
+    const { topic_name_breaks_the_rule, col_name_breaks_the_rule } = await import("./schema_model.js");
+    test("as C: topic = tranger2_name_is_identifier(), column = treedb_col_name_is_identifier()", () => {
+        for(let n of ["", ".", "..", "a/b", "a`b"]) {
+            expect(topic_name_breaks_the_rule(n)).toBe(true);
+        }
+        for(let n of ["users", ".hidden", "a.b"]) {
+            expect(topic_name_breaks_the_rule(n)).toBe(false);
+        }
+        for(let n of ["", "a`b"]) {
+            expect(col_name_breaks_the_rule(n)).toBe(true);
+        }
+        for(let n of ["id", "kids/all", "..", ".x"]) {
+            expect(col_name_breaks_the_rule(n)).toBe(false);
+        }
+    });
+});

@@ -32,6 +32,8 @@ import {
     col_hook,
     col_enum,
     topic_pkey2s,
+    topic_name_breaks_the_rule,
+    col_name_breaks_the_rule,
 } from "./schema_model.js";
 
 
@@ -100,6 +102,16 @@ function validate_schema(treedb, options)
     for(let topic of treedb.topics) {
         let col_names = topic.cols.map(c => c.name);
 
+        /*  A name the treedb refuses: the topic is left out when it opens.  */
+        if(topic_name_breaks_the_rule(topic.name)) {
+            add("error", "topic name breaks the name rule", topic.name, "", topic.name);
+        }
+        for(let col of topic.cols) {
+            if(col_name_breaks_the_rule(col.name)) {
+                add("error", "column name breaks the name rule", topic.name, col.name, col.name);
+            }
+        }
+
         if(topic.cols.length === 0) {
             add("error", "topic has no column", topic.name, "", "");
         }
@@ -143,6 +155,11 @@ function validate_schema(treedb, options)
                     add("error", "hook has no mapping", topic.name, col.name, "");
                 } else {
                     for(let [child_topic, fkey_col] of Object.entries(hook)) {
+                        if(col_name_breaks_the_rule(fkey_col)) {
+                            add("error", "column name breaks the name rule", topic.name, col.name,
+                                `${child_topic}.${fkey_col}`);
+                            continue;
+                        }
                         let child = topic_by_name[child_topic];
                         if(!child) {
                             add("error", "hook names no topic", topic.name, col.name,

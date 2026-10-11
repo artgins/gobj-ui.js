@@ -253,3 +253,32 @@ describe("the empty collections the store answers with", () => {
         expect(plan_import(stored, incoming).writes).toEqual([]);
     });
 });
+
+
+describe("names the treedb refuses stop the plan before any write (REV-CLOUD V14.2)", () => {
+    test("a topic a/b, a topic .., a column x`y: conflicts, no writes", () => {
+        let plan = plan_import(null, {
+            id: "db", schema_version: "1",
+            topics: [
+                {id: "a/b", pkey: "id", cols: {id: {id: "id", type: "string"}}},
+                {id: "..", pkey: "id", cols: {id: {id: "id", type: "string"}}},
+                {id: "ok", pkey: "id", cols: {"id": {id: "id", type: "string"},
+                                               "x`y": {id: "x`y", type: "string"}}},
+            ]
+        });
+        expect(plan.writes).toEqual([]);
+        let codes = plan.conflicts.map((c) => c.code);
+        expect(codes.filter((c) => c === "topic name breaks the name rule").length).toBe(2);
+        expect(codes).toContain("column name breaks the name rule");
+    });
+
+    test("a '/' in a column and a leading '.' in a topic are imported", () => {
+        let plan = plan_import(null, {
+            id: "db", schema_version: "1",
+            topics: [{id: ".hidden", pkey: "id",
+                      cols: {"id": {id: "id", type: "string"}, "kids/all": {id: "kids/all", type: "dict"}}}]
+        });
+        expect(plan.conflicts).toEqual([]);
+        expect(plan.writes.length).toBeGreaterThan(0);
+    });
+});

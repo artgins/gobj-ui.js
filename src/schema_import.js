@@ -31,6 +31,8 @@ import {
     as_json,
     is_empty_value,
     fkey_ref,
+    topic_name_breaks_the_rule,
+    col_name_breaks_the_rule,
 } from "./schema_model.js";
 
 
@@ -201,6 +203,26 @@ function plan_import(treedb, incoming, options)
     let treedb_id = (treedb && treedb.id) || incoming.id;
     if(!treedb_id) {
         conflicts.push({code: "schema has no id", topic: "", col: ""});
+        return {writes: writes, summary: summary, conflicts: conflicts};
+    }
+
+    /*
+     *  Names the treedb refuses (the two name rules of schema_model.js)
+     *  stop the plan BEFORE any write: run through, the backend refused
+     *  them half way, with the writes before them already done.
+     */
+    for(let in_topic of incoming.topics) {
+        let name = (in_topic || {}).id;
+        if(name && topic_name_breaks_the_rule(name)) {
+            conflicts.push({code: "topic name breaks the name rule", topic: name, col: ""});
+        }
+        for(let in_col of incoming_cols(in_topic || {})) {
+            if(col_name_breaks_the_rule(in_col.name)) {
+                conflicts.push({code: "column name breaks the name rule", topic: name || "", col: in_col.name});
+            }
+        }
+    }
+    if(conflicts.length > 0) {
         return {writes: writes, summary: summary, conflicts: conflicts};
     }
 

@@ -515,8 +515,32 @@ function moved_orders(list)
     return writes;
 }
 
+/***************************************************************
+ *  The TWO name rules of the treedb (SDK 7.26.9):
+ *
+ *      a TOPIC name is a directory and a key: not empty, not "."
+ *      or "..", no '/' and no '`' (tranger2_name_is_identifier());
+ *      a COLUMN name (a column id, a hook, an fkey) is only a key:
+ *      not empty and no '`' (treedb_col_name_is_identifier()).
+ *
+ *  Said here as in C, so the editor refuses what the treedb will.
+ ***************************************************************/
+function topic_name_breaks_the_rule(name)
+{
+    let s = String(name === undefined || name === null ? "" : name);
+    return s === "" || s === "." || s === ".." || s.includes("/") || s.includes("`");
+}
+
+function col_name_breaks_the_rule(name)
+{
+    let s = String(name === undefined || name === null ? "" : name);
+    return s === "" || s.includes("`");
+}
+
 
 export {
+    topic_name_breaks_the_rule,
+    col_name_breaks_the_rule,
     DEFAULT_ORDER,
     REF_SEP,
     parse_fkey_ref,

@@ -140,6 +140,8 @@ import {
     parse_fkey_ref,
     next_order,
     moved_orders,
+    topic_name_breaks_the_rule,
+    col_name_breaks_the_rule,
 } from "./schema_model.js";
 import {validate_schema, validate_model, has_errors} from "./schema_validate.js";
 import {topic_descs} from "./schema_descs.js";
@@ -250,6 +252,7 @@ let PRIVATE_DATA = {
     dialog:         null,
     dialog_gen:     0,      /*  the model_gen the open dialog was built on  */
     dialog_kind:    "",     /*  the logical class of the open dialog  */
+    dialog_content: null,   /*  the content of the open dialog (its name field is marked)  */
 
     /*  A write, or a plan of them, in flight  */
     save_queue:     null,
@@ -362,15 +365,21 @@ function mt_destroy(gobj)
 
 
 /************************************************************
- *  THE name rule of timeranger2 and treedb
- *  (tranger2_name_is_identifier(), SDK 7.26.9): a topic or a column
- *  name is a directory and a key, so it cannot be "." or "..", nor hold
- *  '/' or the path delimiter '`'. Said here, before the backend answers
- *  a generic "cannot create topic".
+ *  A name the treedb refuses (the two name rules of
+ *  schema_model.js), said at once: the error carries its key as
+ *  a LITERAL (so a consumer's validate-locales sees it), and the
+ *  name field is marked aria-invalid for a reader.
  ************************************************************/
-function name_breaks_the_rule(name)
+function refuse_bad_name(gobj, $message)
 {
-    return name === "." || name === ".." || name.includes("/") || name.includes("`");
+    let priv = gobj.priv;
+    let $value = priv.dialog_content?
+        priv.dialog_content.querySelector('[data-name="value"]') : null;
+    if($value) {
+        $value.setAttribute("aria-invalid", "true");
+    }
+    yui_shell_show_error(yui_shell_of(gobj), $message, {t: t});
+    return -1;
 }
 
 /***************************************************************
@@ -1870,6 +1879,7 @@ function close_dialog(gobj)
     let dialog = priv.dialog;
     priv.dialog = null;
     priv.dialog_kind = "";
+    priv.dialog_content = null;
     priv.export_view = null;
     try {
         dialog.close();
@@ -1885,6 +1895,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
     close_dialog(gobj);
     priv.dialog_gen = priv.model_gen;
     priv.dialog_kind = logical;
+    priv.dialog_content = $content;
     priv.dialog = yui_shell_show_modal(yui_shell_of(gobj), $content, {
         dialog:        true,
         title:         title,
@@ -1894,6 +1905,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
         on_close:      () => {
             priv.dialog = null;
             priv.dialog_kind = "";
+            priv.dialog_content = null;
             priv.export_view = null;
         }
     });
@@ -4038,9 +4050,9 @@ function ac_save_column(gobj, event, kw, src)
         yui_shell_show_error(yui_shell_of(gobj), "a column needs a name", {t: t});
         return -1;
     }
-    if(kw.creating && name_breaks_the_rule(String(values.value).trim())) {
-        yui_shell_show_error(yui_shell_of(gobj), "a name cannot be . or .., nor hold / or `", {t: t});
-        return -1;
+    if(kw.creating && col_name_breaks_the_rule(String(values.value).trim())) {
+        return refuse_bad_name(gobj, createElement2(
+            ["span", {i18n: "invalid column name"}, t("invalid column name")]));
     }
     if(kw.creating && find_col(priv.model, priv.treedb_id, kw.topic, String(values.value).trim())) {
         yui_shell_show_error(yui_shell_of(gobj), "that column is already there", {t: t});
@@ -4349,9 +4361,9 @@ function ac_save_topic(gobj, event, kw, src)
             yui_shell_show_error(yui_shell_of(gobj), "a topic needs a name", {t: t});
             return -1;
         }
-        if(name_breaks_the_rule(name)) {
-            yui_shell_show_error(yui_shell_of(gobj), "a name cannot be . or .., nor hold / or `", {t: t});
-            return -1;
+        if(topic_name_breaks_the_rule(name)) {
+            return refuse_bad_name(gobj, createElement2(
+                ["span", {i18n: "invalid topic name"}, t("invalid topic name")]));
         }
         if(find_topic(priv.model, priv.treedb_id, name)) {
             yui_shell_show_error(yui_shell_of(gobj), "that topic is already there", {t: t});

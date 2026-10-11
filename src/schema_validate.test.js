@@ -287,3 +287,36 @@ describe("only one hook may name a fkey column", () => {
         expect(dup[0].severity).toBe("error");
     });
 });
+
+
+describe("the two name rules (REV-CLOUD V14.2)", () => {
+    test("a column with the delimiter is an error; a '/' in a column is fine", () => {
+        let bad = validate_schema(schema({extra_col:
+            {id: "db.users.x`y", value: "x`y", order: 3, type: "string",
+             flag: ["persistent"], topics: ["topics^db.users^cols"]}}));
+        expect(codes(bad)).toContain("column name breaks the name rule");
+        let fine = validate_schema(schema({extra_col:
+            {id: "db.users.kids/all", value: "kids/all", order: 3, type: "string",
+             flag: ["persistent"], topics: ["topics^db.users^cols"]}}));
+        expect(codes(fine)).not.toContain("column name breaks the name rule");
+    });
+
+    test("a topic named with '/' or '..' is an error; a leading '.' is not", () => {
+        for(let [name, wanted] of [["a/b", true], ["..", true], [".hidden", false]]) {
+            let treedb = build_schema_model({
+                treedbs: [{id: "db", schema_version: 1}],
+                topics: [{id: `db.${name}`, value: name, order: 1, pkey: "id",
+                          topic_version: 1, treedbs: ["treedbs^db^topics"]}],
+                cols: [{id: `db.${name}.id`, value: "id", order: 1, type: "string",
+                        flag: ["persistent"], topics: [`topics^db.${name}^cols`]}],
+            }).treedbs[0];
+            expect(codes(validate_schema(treedb)).includes("topic name breaks the name rule"))
+                .toBe(wanted);
+        }
+    });
+
+    test("a hook mapping to an fkey column with the delimiter is an error", () => {
+        let found = validate_schema(schema({hook: {users: "dep`artments"}}));
+        expect(codes(found)).toContain("column name breaks the name rule");
+    });
+});

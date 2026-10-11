@@ -5,6 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.22
+
+Fourteenth check of the review (yunovatios `REV-CLOUD.md` §V14.2).
+
+- **TWO name rules, as the treedb of SDK 7.26.9 applies them**: a TOPIC name
+  is a directory (not empty, not `.` or `..`, no `/`, no `` ` ``), a COLUMN
+  name -- a column id, a hook, an fkey -- is only a key (not empty, no
+  `` ` ``; a `/` is fine). New in `schema_model.js`:
+  `topic_name_breaks_the_rule()` and `col_name_breaks_the_rule()`. 7.26.21
+  refused a `/` in a column, which the treedb accepts.
+- **The import is under the rules**: `plan_import()` stops with a conflict
+  (`topic name breaks the name rule`, `column name breaks the name rule`)
+  BEFORE any write; it planned them, and the backend refused them half way,
+  with the writes before already done. `validate_schema()` reports both as
+  errors, the fkey column a hook maps to included.
+- The editor's refusal carries its key as a literal (`invalid topic name`,
+  `invalid column name`), so a consumer's `validate-locales` sees it, and
+  marks the name field `aria-invalid`. **Consumer i18n keys**:
+  `invalid topic name`, `invalid column name`, `topic name breaks the name
+  rule`, `column name breaks the name rule`; the key of 7.26.21 (``a name
+  cannot be . or .., nor hold / or ` ``) is gone.
+
 ## 7.26.21
 
 - **the schema editor refuses a topic or column name that breaks THE name

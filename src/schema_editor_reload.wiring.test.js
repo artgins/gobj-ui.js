@@ -1716,3 +1716,35 @@ describe("the reason a load failed", () => {
         expect($detail.getAttribute("data-i18n")).toBe("cannot reach the treedb");
     });
 });
+
+
+/*
+ *  The two name rules (REV-CLOUD V14.2): a name the treedb refuses is
+ *  said at once, with its key, and nothing is written; a '/' in a column
+ *  is not refused (a column is a key, not a directory).
+ */
+describe("names the treedb refuses", () => {
+    test("a column x`y is refused with its key; kids/all is written", () => {
+        const {editor, host} = build("names_col", "db/users");
+        gobj_send_event(editor, "EV_SAVE_COLUMN", {
+            creating: true, topic: "users", values: {value: "x`y", type: "string"}
+        }, host);
+        expect(take("update-node").length).toBe(0);
+        expect(shown.length).toBe(1);
+        expect(shown[0].getAttribute("data-i18n")).toBe("invalid column name");
+        start_a_write(editor, host, "kids/all");
+    });
+
+    test("a topic a/b or .. is refused with its key", () => {
+        const {editor, host} = build("names_topic", "db");
+        for(const name of ["a/b", ".."]) {
+            shown.length = 0;
+            gobj_send_event(editor, "EV_SAVE_TOPIC", {
+                creating: true, topic: "", values: {value: name}
+            }, host);
+            expect(take("update-node").length).toBe(0);
+            expect(shown.length).toBe(1);
+            expect(shown[0].getAttribute("data-i18n")).toBe("invalid topic name");
+        }
+    });
+});
