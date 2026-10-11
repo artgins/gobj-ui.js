@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.24
+
+Sixteenth check of the review (yunovatios `REV-CLOUD.md` §V16.5).
+
+- **an import conflict names the bad name**: the child topic or the fkey a
+  hook map names (it recorded the hook column), and the import panel prints
+  it next to the code -- two bad entries of one hook map were two identical
+  lines. A dict column whose key is fine but whose own `id` breaks the rule
+  is a conflict too (it was imported under the key).
+
 ## 7.26.23
 
 Fifteenth check of the review (yunovatios `REV-CLOUD.md` §V15.4).

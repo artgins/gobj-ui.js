@@ -1768,6 +1768,8 @@ describe("aria-invalid of the name field", () => {
         };
         save("a/b");
         expect($value.getAttribute("aria-invalid")).toBe("true");
+        save("users");      // a duplicate: the topic is there
+        expect($value.getAttribute("aria-invalid")).toBe("true");
         save("ok_name");
         expect($value.getAttribute("aria-invalid")).toBe(null);
         take("update-node");

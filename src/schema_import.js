@@ -233,18 +233,28 @@ function plan_import(treedb, incoming, options)
             if(col_name_breaks_the_rule(in_col.name)) {
                 conflicts.push({code: "column name breaks the name rule", topic: name || "", col: in_col.name});
             }
+            /*  A dict column carries its id twice: the key (what is
+             *  imported) and its own `id`. One that breaks the rule is said
+             *  too, not imported under the key in silence.  */
+            let inner_id = (in_col.col || {}).id;
+            if(typeof inner_id === "string" && inner_id !== in_col.name &&
+                    col_name_breaks_the_rule(inner_id)) {
+                conflicts.push({code: "column name breaks the name rule", topic: name || "", col: inner_id});
+            }
             /*  The hook map names a child topic and its fkey column: names
              *  the treedb refuses too, even when no column declares them.  */
             let hook = (in_col.col || {}).hook;
             if(hook && typeof hook === "object" && !Array.isArray(hook)) {
                 for(let [child_topic, fkey_col] of Object.entries(hook)) {
+                    /*  The conflict names the BAD name (the child topic, its
+                     *  fkey), not the hook column that maps to it.  */
                     if(topic_name_breaks_the_rule(child_topic)) {
                         conflicts.push({code: "topic name breaks the name rule",
-                                        topic: name || "", col: in_col.name});
+                                        topic: child_topic, col: ""});
                     }
                     if(col_name_breaks_the_rule(fkey_col)) {
                         conflicts.push({code: "column name breaks the name rule",
-                                        topic: name || "", col: in_col.name});
+                                        topic: child_topic, col: String(fkey_col)});
                     }
                 }
             }

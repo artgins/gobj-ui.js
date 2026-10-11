@@ -310,3 +310,22 @@ describe("the import reads the hook map and the treedb id (REV-CLOUD V15.4)", ()
         expect(codes).toContain("column has no name");
     });
 });
+
+
+describe("a conflict names the bad name (REV-CLOUD V16.5)", () => {
+    test("the child topic and the fkey of a hook map, and a dict column's inner id", () => {
+        let plan = plan_import(null, {
+            id: "db", schema_version: "1",
+            topics: [{id: "p", pkey: "id", cols: {
+                "id": {id: "id", type: "string"},
+                "kids": {id: "kids", type: "dict", flag: ["hook"], hook: {"a/b": "x`y"}},
+                "good": {id: "go`od", type: "string"},
+            }}]
+        });
+        expect(plan.writes).toEqual([]);
+        let named = plan.conflicts.map((c) => `${c.code}|${c.topic}|${c.col}`);
+        expect(named).toContain("topic name breaks the name rule|a/b|");
+        expect(named).toContain("column name breaks the name rule|a/b|x`y");
+        expect(named).toContain("column name breaks the name rule|p|go`od");
+    });
+});

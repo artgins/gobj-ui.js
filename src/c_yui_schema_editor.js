@@ -2684,8 +2684,15 @@ function render_import_plan(gobj, plan)
         $pane.appendChild(createElement2(
             ["div", {class: "SCHEMA_IMPORT_CONFLICTS notification is-danger is-light p-3"},
                 plan.conflicts.map((conflict) => {
-                    return ["p", {class: "SCHEMA_IMPORT_CONFLICT is-size-7", i18n: conflict.code},
-                        t(conflict.code)];
+                    /*  What the conflict is about, said: two bad entries of
+                     *  one hook map were two identical lines.  */
+                    let where = conflict.col
+                        ? `${conflict.topic}.${conflict.col}`
+                        : conflict.topic;
+                    return ["p", {class: "SCHEMA_IMPORT_CONFLICT is-size-7"}, [
+                        ["span", {i18n: conflict.code}, t(conflict.code)],
+                        where ? ["code", {class: "SCHEMA_IMPORT_CONFLICT_NAME ml-2"}, text_node(where)] : null
+                    ].filter(Boolean)];
                 })]
         ));
         if(priv.import_run) {
