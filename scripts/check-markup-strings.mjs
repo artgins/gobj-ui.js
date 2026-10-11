@@ -34,8 +34,9 @@
  *      string (its type is not known before running); a description
  *      built piece by piece (push() into an array that is later the
  *      content); a computed tag with an attrs slot that is not an object
- *      literal; a replace() whose replacement is a function or whose
- *      pattern is a variable, and a method called on a function result
+ *      literal; a replace() whose replacement is a function, whose
+ *      pattern is a variable, or whose replacement starts with a special
+ *      pattern ('$`<i>', '$1'), and a method called on a function result
  *      (String(x).replace(...)); markup given to innerHTML, or to a
  *      widget (Tabulator, G6), which are other sinks. set_strings_are_text(true) logs, once
  *      at run time, every string that reaches createElement2() starting
@@ -169,7 +170,24 @@ function replaced(method, head, args)
             return {text: head.text, complete: false};
         }
     }
-    const rep_head = replacement ? replacement.text : "";
+    /*  What the replacement is known to start with. A `$` in it is a
+     *  special pattern ($&, $`, $', $1...): what it expands to is only
+     *  known at run time, so the known head stops there.  */
+    let rep_head = replacement ? replacement.text : "";
+    if(rep_head.includes("$")) {
+        rep_head = rep_head.slice(0, rep_head.indexOf("$"));
+    }
+    if(!head.complete && typeof pattern !== "string") {
+        /*  A regex on a receiver that carries data: alternatives and
+         *  lookaheads can make the data match before anything the known
+         *  text says, so no position is computed. Markup in the
+         *  replacement may be the head (the conservative reading); if not,
+         *  the receiver's head stands.  */
+        if(starts_with_markup(rep_head)) {
+            return {text: rep_head, complete: false};
+        }
+        return {text: head.text, complete: false};
+    }
     const idx = first_match(head.text, pattern);
     if(idx >= 0) {
         return {text: head.text.slice(0, idx) + rep_head, complete: false};
@@ -177,16 +195,17 @@ function replaced(method, head, args)
     if(head.complete) {
         return {text: head.text, complete: true};      // no match: the receiver as it is
     }
-    if(typeof pattern === "string") {
-        /*  The first match is in the data: no earlier than where the
-         *  pattern could start straddling the known text.  */
-        const keep = Math.max(0, head.text.length - pattern.length + 1);
-        if(keep === 0) {
-            return {text: rep_head, complete: false};
-        }
-        return {text: head.text.slice(0, keep), complete: false};
+    /*  A string pattern with no match in the known text: the first match
+     *  starts in the data, or straddles the end of the known text -- only
+     *  where what is left of the known text is a prefix of the pattern.  */
+    let keep = Math.max(0, head.text.length - pattern.length + 1);
+    while(keep < head.text.length && !pattern.startsWith(head.text.slice(keep))) {
+        keep++;
     }
-    return {text: head.text, complete: false};
+    if(keep === 0) {
+        return {text: rep_head, complete: false};
+    }
+    return {text: head.text.slice(0, keep), complete: false};
 }
 
 function concat_parts(parts)

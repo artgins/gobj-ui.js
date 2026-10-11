@@ -61,7 +61,9 @@ DEPLOYED DOM and switch language.**
   working tree with no publish. Try a change there — `npm run dev` — before
   spending a version on it. It deploys to `demo.yuneta.io` (the public demo
   linked from doc.yuneta.io) and to `niyamaka.com` (the mobile-test host) with
-  its own `deploy.sh`; both are the SAME bundle.
+  its own `deploy.sh`; both are the SAME bundle. Install it with npm 11: npm
+  10.9 fails on its `file:` dependencies (`Cannot read properties of null
+  (reading 'edgesOut')`, a bug of npm's peer resolution).
 - **A published version reaches an app only through the deploy round, and the
   round is a command**: `npm run deploy-round`. It waits for the registry to
   SERVE the version (a publish returning is not that — a consumer installed in

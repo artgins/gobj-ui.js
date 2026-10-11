@@ -678,13 +678,19 @@ Published events:
   it** (`mt_publication_pre_filter()`).
 - `EV_CONNECTION_STATE` — `{ connected }`.
   `yui_shell_set_connection_state()`: the app's backend went up or
-  down. **Delivered only to a subscriber that declares it**, as
-  `EV_ICONS_CHANGED`.
+  down. Published only on a CHANGE (the app calls the function on every
+  reconnect attempt too). **Delivered only to a subscriber that declares
+  it**, as `EV_ICONS_CHANGED`.
+- **The app's own events.** An action route's `target.event` (ROUTING.md
+  §7.1) and a toolbar item with `action: {type: "event", event}` (§3.4) are
+  published by the shell under the name the config gives them -- the gclass
+  is created with `gcflag_no_check_output_events` for exactly that. They are
+  the app's vocabulary, not the shell's, so they are not listed here.
 
 The shell is a SERVICE: every subscriber of it receives the events above
-that are not marked as delivered on declaration, so an app subscribed with
-`subscriber` declares them (or the FSM answers *"Event NOT DEFINED in
-state"*).
+that are not marked as delivered on declaration, plus the app's own events
+of its config, so an app subscribed with `subscriber` declares them (or the
+FSM answers *"Event NOT DEFINED in state"*).
 
 The pair *requested ↔ changed* is the canonical Yuneta way to
 audit a gobj's behaviour: every intent is recorded regardless of

@@ -2804,14 +2804,16 @@ function push_overlay_marker(gobj, entry)
      *  is added to them, and replaces an older stamp.  */
     let below = window.history.state;
     /*  A PLAIN object only: a Map or a Date is an object too (the state
-     *  is a structured clone), and Object.assign() copies none of it.  */
+     *  is a structured clone, so a plain object comes back with
+     *  Object.prototype), and Object.assign() copies none of it.  */
     let plain = below !== null && typeof below === "object" &&
-        (Object.getPrototypeOf(below) === Object.prototype ||
-         Object.getPrototypeOf(below) === null);
+        Object.getPrototypeOf(below) === Object.prototype;
+    let stamped = false;
     if(below === null || plain) {
         try {
             window.history.replaceState(
                 Object.assign({}, below, { __yui_below__: entry.id }), "");
+            stamped = true;
         } catch(e) {
             log_warning(`C_YUI_SHELL: stamping the entry under an overlay failed: ${e}`);
         }
@@ -2820,6 +2822,13 @@ function push_overlay_marker(gobj, entry)
             `C_YUI_SHELL: the entry under an overlay holds a history state that ` +
             `is not a plain object, it cannot be stamped: Back will not close the overlay`
         );
+    }
+    if(!stamped) {
+        /*  With no stamp under it, no Back can step off its marker: a
+         *  marker would only swallow one Back of the reader's. The overlay
+         *  goes without one, and closes by its own controls.  */
+        entry.no_marker = true;
+        return true;
     }
     try {
         window.history.pushState({ __yui_overlay__: entry.id }, "");
@@ -2874,6 +2883,11 @@ function drop_expected_pops(gobj)
  *  every later navigation.  */
 const DEFERRED_ROUTE_WAIT_MS = 1000;
 
+/*  How long after giving up a landing on one of those markers is still
+ *  said to be, perhaps, the late back(): after that it is a Back of the
+ *  reader's, and saying otherwise is a false alarm.  */
+const LATE_LANDING_WINDOW_MS = 5000;
+
 function defer_route(gobj, route)
 {
     let priv = gobj.priv;
@@ -2907,6 +2921,10 @@ function note_late_landing(gobj, ev)
     let priv = gobj.priv;
     let given_up = priv.given_up;
     let st = ev && ev.state;
+    if(given_up && Date.now() > given_up.until) {
+        priv.given_up = null;   // too late to be that back(): a Back of the reader's
+        return;
+    }
     if(!given_up || !st) {
         return;     // a push (the waiting route's own) lands on a fresh entry
     }
@@ -2945,7 +2963,7 @@ function push_pending_markers(gobj)
         /*  The traversal was same-hash, but a route may have moved
          *  meanwhile: the marker lives on the hash it is pushed on.  */
         entry.hash = window.location.hash;
-        if(push_overlay_marker(gobj, entry)) {
+        if(push_overlay_marker(gobj, entry) && !entry.no_marker) {
             pushed.push(entry.id);
         }
         // else: Error already logged
@@ -3269,7 +3287,11 @@ function ac_back_wait_timeout(gobj, event, kw, src)
         `C_YUI_SHELL: ${priv.expected_pops} history.back() of ours did not ` +
         `land in ${DEFERRED_ROUTE_WAIT_MS} ms, given up`
     );
-    let given_up = {ids: priv.expected_pop_ids.slice(), route: priv.deferred_route};
+    let given_up = {
+        ids:   priv.expected_pop_ids.slice(),
+        route: priv.deferred_route,
+        until: Date.now() + LATE_LANDING_WINDOW_MS
+    };
     priv.expected_pops = 0;
     priv.expected_pop_hash = "";
     priv.expected_pop_ids = [];

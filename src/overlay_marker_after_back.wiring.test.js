@@ -19,7 +19,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {describe, test, expect, beforeAll, beforeEach, afterEach} from "vitest";
+import {describe, test, expect, beforeAll, beforeEach, afterEach, vi} from "vitest";
 import {install_dom_double} from "../test/dom_double.js";
 
 install_dom_double();
@@ -1000,8 +1000,45 @@ describe("V8: the edges of the stamp and of the late landing", () => {
         const app_state = new Map([["k", 1]]);
         window.history.replaceState(app_state, "");
         logged.length = 0;
-        yui_shell_register_overlay(shell, () => {});
+        const entry = yui_shell_register_overlay(shell, () => {});
         expect(session.entries[0].state).toBe(app_state);
         expect(shell_warnings().filter(m => m.includes("not a plain object")).length).toBe(1);
+        /*  V9.3: no marker, so no Back of the reader's is spent on it.  */
+        expect(entry.no_marker).toBe(true);
+        expect(session.entries.length).toBe(1);
+    });
+});
+
+describe("V9: the warning of a late back() has a window", () => {
+    test("a landing on the dead marker long after giving up is the reader's Back: no warning", async () => {
+        const app = gobj_create("v9app1", "C_TEST_MARKER_APP", {}, yuno);
+        gobj_start(app);
+        window.location.hash = "#/home";
+        install_history_model();
+        const shell = routed_shell("v9shell1", app);
+        const {yui_shell_register_overlay, yui_shell_overlay_dismissed, yui_shell_navigate} =
+            await import("./c_yui_shell.js");
+        const x = yui_shell_register_overlay(shell, () => {});
+        let late = null;
+        window.history.back = () => { late = () => traverse_to(session.index - 1); };
+        links_on_hash_assign();
+
+        yui_shell_overlay_dismissed(shell, x);
+        yui_shell_navigate(shell, "/prev");
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        await next_task();
+        expect(shell_warnings().filter(m => m.includes("given up")).length).toBe(1);
+
+        const now = Date.now();
+        const spy = vi.spyOn(Date, "now").mockImplementation(() => now + 6000);
+        try {
+            late();                                   // the reader's Back, 6 s later
+            await next_task();
+            await next_task();
+        } finally {
+            spy.mockRestore();
+        }
+        expect(shell_warnings().filter(m => m.includes("arriving late")).length).toBe(0);
+        expect(shell.priv.given_up).toBe(null);
     });
 });

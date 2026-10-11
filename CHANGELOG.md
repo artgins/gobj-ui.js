@@ -5,6 +5,29 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.18
+
+Ninth check of the review (yunovatios `REV-CLOUD.md` §V9).
+
+- **checker: a regex `replace()` on a receiver that carries data was not seen**
+  (regression of 7.26.17): alternatives and lookaheads can make the data match
+  before anything the known text says, so no position is computed there --
+  markup in the replacement is taken as the head (the conservative reading),
+  else the receiver's head stands. A `$` in a replacement (`$&`, `` $` ``,
+  `$1`) ends what is known of it. A string pattern that cannot straddle the
+  end of the known text no longer gives a false positive
+  (`('z' + name).replace('abc', '<b>')`).
+- **the warning of a late `back()` has a window of 5 s**: after that a landing
+  on those markers is the reader's own Back, and saying otherwise was a false
+  alarm with no end. `ROUTING.md` says what the warning covers and what it
+  does not.
+- **an overlay over a state that cannot be stamped gets no marker**: it would
+  only swallow one Back of the reader's, since no Back can step off it. It
+  closes by its own controls.
+- docs: `SHELL.md` says the shell also publishes the app's own events of its
+  config, and that `EV_CONNECTION_STATE` goes out only on a change. The
+  test-app needs npm 11 to install (npm 10.9 fails on its `file:` deps).
+
 ## 7.26.17
 
 Eighth check of the review (yunovatios `REV-CLOUD.md` §V8).

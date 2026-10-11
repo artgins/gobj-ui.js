@@ -81,6 +81,17 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, '<b>x</b>'.replace(/x/, y)]);`)).toEqual(["built"]);
     });
 
+    test("V9.1: a regex on a receiver with data, the special patterns, a straddle", () => {
+        expect(rules_of(`x(['span', {}, ('a' + name).replace(/ab/, '<b>' + y)]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, ('ab' + name).replace(/abc|b/, '<i>')]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, ('a' + name).replace(/a(?=z)|$/, '<b>' + y)]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, ('<b>' + name).replace(/q/, 'z')]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, ('z' + name).replace(/q/, 'z')]);`)).toEqual([]);
+        expect(rules_of(`x(['span', {}, ('z' + name).replace('abc', '<b>')]);`)).toEqual([]);
+        expect(rules_of(`x(['span', {}, ('ab' + name).replace('abc', '<b>')]);`)).toEqual(["built"]);
+        expect(rules_of(`x(['span', {}, 'abc'.replace('abc', '$&<i>' + y)]);`)).toEqual([]);   // $& is 'abc': no markup head
+    });
+
     test("what is fine", () => {
         expect(rules_of(`x(['span', {}, 'plain text']);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, html_markup('<i class="yi-a"></i>')]);`)).toEqual([]);

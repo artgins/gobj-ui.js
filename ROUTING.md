@@ -200,7 +200,8 @@ same hash) and an **overlay stack**:
   the overlay's id (`{__yui_below__: id}`, added to the state the entry
   already holds when that is a plain object: a lower overlay's marker, an
   app's own; a state of any other kind -- a string, a `Map`, a `Date` -- cannot
-  be stamped, which is logged, and Back does not close that overlay), and **only a
+  be stamped, which is logged, and that overlay gets NO marker: it closes by
+  its own controls, and no Back of the reader's is spent on it), and **only a
   landing on the entry stamped with the TOP overlay's id closes it**. A fresh
   entry, the top's own marker, a dead marker, or an entry stamped for another
   overlay (stamps stay on their entries) keeps it open. Before 7.26.15 a link
@@ -225,7 +226,13 @@ same hash) and an **overlay stack**:
   still land, late, and undo the route that ran: on the dead marker of its
   overlay, or -- when overlays were opened during the wait, whose markers go
   on top of it before the route -- on the highest of those. The shell cannot
-  tell it from a Back of the reader's, so it says so with a warning.
+  tell it from a Back of the reader's, so it says so with a warning. The
+  warning covers what can be told: a landing on one of those markers within
+  5 s of giving up. A late `back()` that lands elsewhere (on the entry under
+  an overlay opened after the give-up, which it then closes; on the entry
+  under a link the reader followed meanwhile) is not told, and after 5 s a
+  landing is taken for the reader's own. A wait that is given up on is the
+  rare case: a `back()` lands in a frame.
 
 Use this for every modal/popup. Never encode an overlay as a route (a
 deep-linkable modal is an *action route* with `redirect:"stay"`, a deliberate,
