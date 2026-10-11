@@ -43,6 +43,7 @@ import {
     refresh_language,
     empty_string,
     gobj_full_name,
+    html_markup,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
@@ -554,7 +555,7 @@ function build_ui(gobj)
                         'aria-label': t('minimize'), 'data-i18n-aria-label': 'minimize',
                         style: (gobj_read_bool_attr(gobj, "showMin") &&
                                 gobj_read_pointer_attr(gobj, "manager")) ? '' : 'display:none;',
-                    }, WC_MIN, {
+                    }, html_markup(WC_MIN), {
                         click: (evt) => {
                             evt.stopPropagation();
                             do_minimize(gobj);
@@ -568,7 +569,7 @@ function build_ui(gobj)
                         title: t('maximize'), 'data-i18n-title': 'maximize',
                         'aria-label': t('maximize'), 'data-i18n-aria-label': 'maximize',
                         style: gobj_read_bool_attr(gobj, "showMax") ? '' : 'display:none;',
-                    }, WC_MAX, {
+                    }, html_markup(WC_MAX), {
                         click: (evt) => {
                             evt.stopPropagation();
                             toggle(gobj);
@@ -581,7 +582,7 @@ function build_ui(gobj)
                         class: 'WINDOW_CLOSE yui-wc wc-close', type: 'button',
                         title: t('close'), 'data-i18n-title': 'close',
                         'aria-label': t('close'), 'data-i18n-aria-label': 'close',
-                    }, WC_CLOSE, {
+                    }, html_markup(WC_CLOSE), {
                         click: (evt) => {
                             evt.stopPropagation();
                             gobj_send_event(gobj, "EV_CLOSE_WINDOW", {}, gobj);
@@ -673,7 +674,7 @@ function build_ui(gobj)
                                 "box-sizing": "border-box",
                            }
                         }, [
-                            ['span', {style: 'display:inline-block;height:1.4em; width:1.4em;'}, '<svg viewBox="0 0 500 500"><path d="m427.87 493.69a33.778 33.78 0 0 1-23.882-57.661l33.778-33.78a33.799 33.8 0 0 1 47.83 47.763l-33.778 33.78a33.778 33.78 0 0 1-23.882 9.8976zm-190.44 0a33.778 33.78 0 0 1-23.882-57.661l224.22-224.23a33.799 33.8 0 0 1 47.83 47.763l-224.22 224.23a33.778 33.78 0 0 1-23.882 9.8976zm-197.26 0a33.778 33.78 0 0 1-23.882-57.661l421.46-421.47a33.786 33.786 0 1 1 47.797 47.763l-421.49 421.47a33.778 33.78 0 0 1-23.882 9.8976z" fill="var(--bulma-text)" stroke-width="33.78"/></svg>']
+                            ['span', {style: 'display:inline-block;height:1.4em; width:1.4em;'}, html_markup('<svg viewBox="0 0 500 500"><path d="m427.87 493.69a33.778 33.78 0 0 1-23.882-57.661l33.778-33.78a33.799 33.8 0 0 1 47.83 47.763l-33.778 33.78a33.778 33.78 0 0 1-23.882 9.8976zm-190.44 0a33.778 33.78 0 0 1-23.882-57.661l224.22-224.23a33.799 33.8 0 0 1 47.83 47.763l-224.22 224.23a33.778 33.78 0 0 1-23.882 9.8976zm-197.26 0a33.778 33.78 0 0 1-23.882-57.661l421.46-421.47a33.786 33.786 0 1 1 47.797 47.763l-421.49 421.47a33.778 33.78 0 0 1-23.882 9.8976z" fill="var(--bulma-text)" stroke-width="33.78"/></svg>')]
 
                         ], {
                             pointerdown: (evt) => {
@@ -707,7 +708,7 @@ function build_ui(gobj)
                 {
                     style: 'display:inline-block;height:1.4em; width:1.4em;'
                 },
-                '<svg viewBox="0 0 500 500"><path d="m427.87 493.69a33.778 33.78 0 0 1-23.882-57.661l33.778-33.78a33.799 33.8 0 0 1 47.83 47.763l-33.778 33.78a33.778 33.78 0 0 1-23.882 9.8976zm-190.44 0a33.778 33.78 0 0 1-23.882-57.661l224.22-224.23a33.799 33.8 0 0 1 47.83 47.763l-224.22 224.23a33.778 33.78 0 0 1-23.882 9.8976zm-197.26 0a33.778 33.78 0 0 1-23.882-57.661l421.46-421.47a33.786 33.786 0 1 1 47.797 47.763l-421.49 421.47a33.778 33.78 0 0 1-23.882 9.8976z" fill="var(--bulma-text)" stroke-width="33.78"/></svg>'
+                html_markup('<svg viewBox="0 0 500 500"><path d="m427.87 493.69a33.778 33.78 0 0 1-23.882-57.661l33.778-33.78a33.799 33.8 0 0 1 47.83 47.763l-33.778 33.78a33.778 33.78 0 0 1-23.882 9.8976zm-190.44 0a33.778 33.78 0 0 1-23.882-57.661l224.22-224.23a33.799 33.8 0 0 1 47.83 47.763l-224.22 224.23a33.778 33.78 0 0 1-23.882 9.8976zm-197.26 0a33.778 33.78 0 0 1-23.882-57.661l421.46-421.47a33.786 33.786 0 1 1 47.797 47.763l-421.49 421.47a33.778 33.78 0 0 1-23.882 9.8976z" fill="var(--bulma-text)" stroke-width="33.78"/></svg>')
             ]
 
         ], {

@@ -48,6 +48,7 @@ import {
     treedb_decoder_fkey,
     gclass_find_by_name,
     gobj_is_destroying,
+    html_markup,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
@@ -384,7 +385,7 @@ function toolbar_button(gobj, name)
     switch(name) {
         case "save":
             return ['button', {class: 'button p-1 button-save', title: t('save'), 'data-i18n-title': 'save', 'aria-label': t('save'), 'data-i18n-aria-label': 'save', disabled: true}, [
-                ['span', {class: 'icon m-0'}, '<i class="yi-floppy-disk"></i>'],
+                ['span', {class: 'icon m-0'}, html_markup('<i class="yi-floppy-disk"></i>')],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'save'}, 'save']
             ], {
                 click: function(evt) {
@@ -394,7 +395,7 @@ function toolbar_button(gobj, name)
             }];
         case "undo":
             return ['button', {class: 'button p-1 button-undo', title: t('undo'), 'data-i18n-title': 'undo', 'aria-label': t('undo'), 'data-i18n-aria-label': 'undo', disabled: true}, [
-                ['span', {class: 'icon m-0'}, '<i class="yi-arrow-rotate-left"></i>'],
+                ['span', {class: 'icon m-0'}, html_markup('<i class="yi-arrow-rotate-left"></i>')],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'undo'}, 'undo']
             ], {
                 click: function(evt) {
@@ -404,7 +405,7 @@ function toolbar_button(gobj, name)
             }];
         case "clear":
             return ['button', {class: 'button p-1 button-clear', title: t('clear'), 'data-i18n-title': 'clear', 'aria-label': t('clear'), 'data-i18n-aria-label': 'clear'}, [
-                ['span', {class: 'icon m-0'}, '<i class="yi-broom-wide"></i>'],
+                ['span', {class: 'icon m-0'}, html_markup('<i class="yi-broom-wide"></i>')],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'clear'}, 'clear']
             ], {
                 click: function(evt) {
@@ -414,7 +415,7 @@ function toolbar_button(gobj, name)
             }];
         case "copy":
             return ['button', {class: 'button p-1 button-copy', title: t('copy'), 'data-i18n-title': 'copy', 'aria-label': t('copy'), 'data-i18n-aria-label': 'copy'}, [
-                ['span', {class: 'icon m-0'}, '<i class="yi-copy"></i>'],
+                ['span', {class: 'icon m-0'}, html_markup('<i class="yi-copy"></i>')],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'copy'}, 'copy']
             ], {click: function(evt) {
                     evt.stopPropagation();
@@ -423,7 +424,7 @@ function toolbar_button(gobj, name)
             }];
         case "paste":
             return ['button', {class: 'button p-1 button-paste', title: t('paste'), 'data-i18n-title': 'paste', 'aria-label': t('paste'), 'data-i18n-aria-label': 'paste'}, [
-                ['span', {class: 'icon m-0'}, '<i class="yi-paste"></i>'],
+                ['span', {class: 'icon m-0'}, html_markup('<i class="yi-paste"></i>')],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'paste'}, 'paste']
             ], {click: async function(evt) {
                     evt.stopPropagation();
@@ -1379,7 +1380,7 @@ function create_form_field(
                                 ['button', {class: 'button p-1',
                                             title: t('add'), 'data-i18n-title': 'add',
                                             'aria-label': t('add'), 'data-i18n-aria-label': 'add'}, [
-                                    ['span', {class: 'icon m-0'}, '<i class="yi-plus"></i>'],
+                                    ['span', {class: 'icon m-0'}, html_markup('<i class="yi-plus"></i>')],
                                     ['span', {class: 'p-1 pr-2 is-hidden-mobile', i18n: 'add'}, 'add'],
                                 ], {
                                     click: function(evt) {
@@ -2063,7 +2064,7 @@ function create_coordinates(gobj, attrs)
                 {
                     class: 'icon is-left is-clickable'
                 },
-                '<i class="yi-location-crosshairs"></i>',
+                html_markup('<i class="yi-location-crosshairs"></i>'),
                 {
                     'click': function (evt) {
                         evt.stopPropagation();

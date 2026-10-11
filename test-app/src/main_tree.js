@@ -29,6 +29,7 @@ import {
     gobj_play,
     register_c_yuno,
     register_c_timer,
+    set_strings_are_text,
 } from "@yuneta/gobj-js";
 
 import {register_c_yui_shell} from "@yuneta/gobj-ui/src/c_yui_shell.js";
@@ -65,6 +66,8 @@ function main()
     register_c_demo_tranger_link();
 
     setup_locale("en");
+
+    set_strings_are_text(true);     // as main.js: markup only via html_markup()
 
     gobj_start_up(
         null,   // jn_global_settings

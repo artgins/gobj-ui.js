@@ -24,6 +24,7 @@ import {
     gobj_play,
     register_c_yuno,
     register_c_timer,
+    set_strings_are_text,
 } from "@yuneta/gobj-js";
 
 import {register_c_yui_shell}        from "@yuneta/gobj-ui/src/c_yui_shell.js";
@@ -145,6 +146,15 @@ function main()
      *  source (keys = English strings), so t() returns labels verbatim in
      *  en and the es bundle translates them. */
     setup_locale("en");
+
+    /*
+     *  A plain string given to createElement2() is TEXT, never markup:
+     *  markup must come in html_markup(). This app is the reference
+     *  consumer of gobj-ui, so it runs in the mode every app is meant to
+     *  end in -- a string that starts with '<' is logged once here, and
+     *  that log is an unmigrated site of the library.
+     */
+    set_strings_are_text(true);
 
     /*  Start yuneta (no persistence backend: this demo keeps no state) */
     gobj_start_up(

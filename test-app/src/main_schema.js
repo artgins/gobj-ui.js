@@ -27,6 +27,7 @@ import {
     gobj_send_event,
     register_c_yuno,
     register_c_timer,
+    set_strings_are_text,
 } from "@yuneta/gobj-js";
 
 import {register_c_yui_treedb_schema} from "@yuneta/gobj-ui/src/c_yui_treedb_schema.js";
@@ -75,6 +76,8 @@ function main()
     register_c_yui_treedb_schema();
 
     setup_locale();
+
+    set_strings_are_text(true);     // as main.js: markup only via html_markup()
 
     gobj_start_up(null, null, null);
 

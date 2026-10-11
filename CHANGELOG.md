@@ -15,6 +15,25 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   event, which is where the manager takes the gobj from; a name that is not
   the src's is refused with an error. The old form (the gobj in the kw) is
   still taken for this release, with one warning.
+- **security: every markup the library builds is said out loud.**
+  `createElement2()` reads a plain string that starts with `<` as html, so
+  whether a string runs depends on its content. Every deliberate markup that
+  gobj-ui hands to `createElement2()` now goes in `html_markup()` (gobj-js
+  7.26.3): the form toolbar and row icons (7 `<i class="yi-…">`), the
+  window's maximize/minimize/close svgs (`WC_MIN`/`WC_MAX`/`WC_CLOSE` and the
+  two header svgs) and the dock chip's ✕ (`WC_X`). So the library renders the
+  same with `set_strings_are_text(true)`, the gobj-js mode in which a plain
+  string is always text; the test-app runs in that mode. The markup that goes
+  through `innerHTML` (G6 html nodes, Tom Select renders) is another sink and
+  is not touched here.
+- **build: `scripts/check-markup-strings.mjs`** (`npm run check-markup`, run
+  by `prebuild` and `pretest`): a static check of a description's content
+  and children list — a markup string literal, markup built with values, and
+  a markup string in a children list (text since gobj-js 7.26.2). A consumer
+  runs it on its own `src` (README, "Markup is said out loud"). `acorn` is a
+  devDependency for it.
+- **peer: `@yuneta/gobj-js` floor raised to `^7.26.3`**, because
+  `html_markup()` first ships there (devDependency 7.26.3 too).
 
 ## 7.26.9
 

@@ -23,7 +23,7 @@ const {
     SDATA_END, gclass_create,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
     gobj_start, gobj_read_attr, gobj_send_event, gobj_full_name,
-    set_log_callback,
+    set_log_callback, set_strings_are_text,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_window} = await import("./c_yui_window.js");
 const {register_c_yui_window_manager} = await import("./c_yui_window_manager.js");
@@ -104,5 +104,27 @@ describe("EV_SHOW", () => {
         expect($w.style.getPropertyValue("display")).toBe("none");
         expect(errors()).toEqual([]);
         expect(logged.some((l) => l.level === "warning" && l.msg.includes("gobj_full_name"))).toBe(true);
+    });
+
+    test("with plain strings as TEXT (set_strings_are_text) the controls are still svg", () => {
+        set_strings_are_text(true);
+        try {
+            logged.length = 0;
+            const dock = gobj_create_service("strict_dock", "C_YUI_WINDOW_MANAGER", {}, yuno);
+            gobj_start(dock);
+            const w = gobj_create_service("strict_w", "C_YUI_WINDOW",
+                {header: "w", body: ["div", {}, "w"], manager: dock}, yuno);
+            gobj_start(w);
+            const $w = gobj_read_attr(w, "$container");
+            for(const cls of ["wc-min", "wc-max", "wc-close"]) {
+                const $b = $w.querySelector(`.yui-wc.${cls}`);
+                expect($b, cls).not.toBe(null);
+                expect($b.textContent.includes("<svg"), cls).toBe(false);
+                expect($b.querySelector("svg"), cls).not.toBe(null);
+            }
+            expect(logged.some((l) => l.msg.includes("html_markup"))).toBe(false);
+        } finally {
+            set_strings_are_text(false);
+        }
     });
 });

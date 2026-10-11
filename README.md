@@ -3322,6 +3322,39 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
   columns.push({field: "x", title: header, titleFormatter: text_title_formatter});
   ```
 
+- **Markup is said out loud: `html_markup()`.** Deliberate markup (an icon,
+  an svg) goes into a description wrapped in `html_markup()` (gobj-js
+  7.26.3+), never as a bare string, in the content slot or in a list of
+  children:
+
+  ```js
+  import {html_markup} from "@yuneta/gobj-js";
+  createElement2(["span", {class: "icon"}, html_markup('<i class="yi-copy"></i>')]);
+  ```
+
+  This library passes every markup it builds through `html_markup()`, so it
+  renders the same with **`set_strings_are_text(true)`** (gobj-js), the mode in
+  which a plain string is ALWAYS text and a datum that starts with `<` can no
+  longer run. The test-app runs in that mode. An app turns it on at startup,
+  before it builds anything, once its own code is migrated:
+
+  1. Run the static check on the app's sources:
+     `node node_modules/@yuneta/gobj-ui/scripts/check-markup-strings.mjs src`
+     (it needs `acorn`). It lists a markup string literal in a description
+     (`literal`, wrap it in `html_markup()`), markup built with values
+     (`built`, build the element with `createElement2()` and pass the value
+     as text) and a markup string in a list of children (`in-list`, which is
+     text since gobj-js 7.26.2). It cannot see a variable that holds a
+     string.
+  2. Call `set_strings_are_text(true)` before the first `createElement2()`.
+  3. Walk the app and read the console: each string that starts with `<` is
+     logged once (*"use html_markup() if it is markup"*). A logged string is
+     either a deliberate markup not migrated yet (wrap it) or a datum that
+     used to run as html (keep it as text).
+
+  `npm run check-markup` runs the check here, and `prebuild` / `pretest` run
+  it, so a new markup literal fails the build.
+
 ### `index.html`: title, metadata and the Content-Security-Policy
 
 The vite plugin `yunetaHtmlPlugin` (`vite-plugin-yuneta-html.js`) fills
