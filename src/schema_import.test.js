@@ -323,9 +323,9 @@ describe("a conflict names the bad name (REV-CLOUD V16.5)", () => {
             }}]
         });
         expect(plan.writes).toEqual([]);
-        let named = plan.conflicts.map((c) => `${c.code}|${c.topic}|${c.col}`);
-        expect(named).toContain("topic name breaks the name rule|a/b|");
-        expect(named).toContain("column name breaks the name rule|a/b|x`y");
-        expect(named).toContain("column name breaks the name rule|p|go`od");
+        let named = plan.conflicts.map((c) => `${c.code}|${c.topic}|${c.col}|${c.hook || ""}`);
+        expect(named).toContain("topic name breaks the name rule|a/b||p.kids");
+        expect(named).toContain("column name breaks the name rule|a/b|x`y|p.kids");
+        expect(named).toContain("column name breaks the name rule|p|go`od|");
     });
 });

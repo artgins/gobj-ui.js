@@ -5,6 +5,30 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.25
+
+Seventeenth check of the review (yunovatios `REV-CLOUD.md` §V17.3.4-5).
+
+- **`scripts/validate-locales.mjs` is published here, and every app runs this
+  one** (`node node_modules/@yuneta/gobj-ui/scripts/validate-locales.mjs`
+  from its `prebuild`). Each app carried its own copy, and they had drifted
+  into three families with different rules: only yunos-js read the codes of
+  the schema editor (`code:`, `add("error", ...)`) and `data-i18n-placeholder`;
+  only wattyzer and yunovatios resolved the barrel imports, skipped the keys
+  built by concatenation and the interpolated ones. This one is their union,
+  and it scans the library it ships in. `--src` / `--locales` / `--config`
+  for code and catalogs shared by several apps. The concatenation guard of two
+  of them looked at the RESULT of `t()`: `t('topic') + ':'`
+  (`c_g6_nodes_tree.js`) was skipped as a built key, and the gobj tree's
+  *"topic:"* went untranslated in wattyzer and yunovatios. Test
+  `scripts/validate-locales.test.js`.
+- **an import conflict of a hook map names the hook column it is written
+  in**: `a/b.x`y` was said, but not that it came from `p.kids`. The conflict
+  carries `hook` and the panel prints it after the name.
+  **New consumer i18n key**: `in the hook map of` (in a SPA that mounts
+  `C_YUI_SCHEMA_EDITOR`). Tests: the plan, and the panel that paints
+  `SCHEMA_IMPORT_CONFLICT_NAME` (none painted it).
+
 ## 7.26.24
 
 Sixteenth check of the review (yunovatios `REV-CLOUD.md` §V16.5).

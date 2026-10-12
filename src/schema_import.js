@@ -245,16 +245,20 @@ function plan_import(treedb, incoming, options)
              *  the treedb refuses too, even when no column declares them.  */
             let hook = (in_col.col || {}).hook;
             if(hook && typeof hook === "object" && !Array.isArray(hook)) {
+                /*  The parent's hook column the bad name comes from: a
+                 *  conflict that said only `child.fkey` did not say where
+                 *  to fix it (REV-CLOUD V17.3.5).  */
+                let from_hook = `${name || ""}.${in_col.name}`;
                 for(let [child_topic, fkey_col] of Object.entries(hook)) {
                     /*  The conflict names the BAD name (the child topic, its
-                     *  fkey), not the hook column that maps to it.  */
+                     *  fkey), and `hook` the column that maps to it.  */
                     if(topic_name_breaks_the_rule(child_topic)) {
                         conflicts.push({code: "topic name breaks the name rule",
-                                        topic: child_topic, col: ""});
+                                        topic: child_topic, col: "", hook: from_hook});
                     }
                     if(col_name_breaks_the_rule(fkey_col)) {
                         conflicts.push({code: "column name breaks the name rule",
-                                        topic: child_topic, col: String(fkey_col)});
+                                        topic: child_topic, col: String(fkey_col), hook: from_hook});
                     }
                 }
             }

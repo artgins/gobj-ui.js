@@ -3589,9 +3589,30 @@ makes Tabulator re-run a title formatter on the EXISTING header cell, which
 **A missing key is invisible:** i18next answers an unknown key **with the key
 itself**, so it renders (lower-case English) and simply never changes language.
 A **duplicate** key in a locale file is silent too — an object literal keeps the
-last one. Both are caught by the apps' `scripts/validate-locales.mjs`, which
-also scans the gobj-ui modules the app mounts: **the library translates through
-the APP's i18next**, so every key it asks for must be defined by the app.
+last one. Both are caught by `validate-locales`, which this package publishes
+(since `7.26.25`) and every app runs from its `prebuild`, from its own
+directory:
+
+```json
+"scripts": {
+    "validate-locales": "node node_modules/@yuneta/gobj-ui/scripts/validate-locales.mjs",
+    "prebuild": "npm run validate-locales && npm run check-markup"
+}
+```
+
+It also scans the gobj-ui modules the app mounts, deep or through the barrel:
+**the library translates through the APP's i18next**, so every key it asks for
+must be defined by the app. The library it scans is the one it ships in, the
+package the app builds with. Code and catalogs shared by several apps are
+named with `--src <dir>` (repeatable) and `--locales <dir>` (yunovatios:
+`--src ../gui-common/src --locales ../gui-common/src/locales`); `--config`
+names a shell declaration other than `src/app_config.json`.
+
+Up to `7.26.24` each app carried its own copy, and the copies had drifted into
+three families: only one read the codes of the schema editor, only the other
+two the barrel imports, and two read `t('topic') + ':'` as a key built by
+concatenation and skipped it -- so the gobj tree's *"topic:"* went untranslated
+in wattyzer and yunovatios. An app keeps no copy now.
 
 ### Dates: never hand-roll them again
 

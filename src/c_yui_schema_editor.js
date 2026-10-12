@@ -2689,9 +2689,15 @@ function render_import_plan(gobj, plan)
                     let where = conflict.col
                         ? `${conflict.topic}.${conflict.col}`
                         : conflict.topic;
+                    /*  ...and, for a name of a hook map, the hook column it
+                     *  is written in: where to fix it.  */
                     return ["p", {class: "SCHEMA_IMPORT_CONFLICT is-size-7"}, [
                         ["span", {i18n: conflict.code}, t(conflict.code)],
-                        where ? ["code", {class: "SCHEMA_IMPORT_CONFLICT_NAME ml-2"}, text_node(where)] : null
+                        where ? ["code", {class: "SCHEMA_IMPORT_CONFLICT_NAME ml-2"}, text_node(where)] : null,
+                        conflict.hook ? ["span", {class: "SCHEMA_IMPORT_CONFLICT_HOOK ml-2",
+                                                  i18n: "in the hook map of"}, t("in the hook map of")] : null,
+                        conflict.hook ? ["code", {class: "SCHEMA_IMPORT_CONFLICT_HOOK_NAME ml-1"},
+                                         text_node(conflict.hook)] : null
                     ].filter(Boolean)];
                 })]
         ));

@@ -1056,6 +1056,39 @@ describe("the import plan", () => {
     });
 });
 
+describe("the import panel says what each conflict is about (REV-CLOUD V17.3.5)", () => {
+
+    test("the bad name of a hook map is printed, and the hook column it is written in", () => {
+        const {editor, host} = build("i3", "db");
+        gobj_send_event(editor, "EV_IMPORT", {}, host);
+        const dialog = modals[modals.length - 1];
+        gobj_send_event(editor, "EV_PREVIEW_IMPORT", {prune: false, model_gen: editor.priv.model_gen,
+            text: JSON.stringify({id: "db", topics: [{id: "p", pkey: "id", cols: {
+                "id": {id: "id", type: "string"},
+                "kids": {id: "kids", type: "dict", flag: ["hook"], hook: {"a/b": "x`y"}},
+                "good": {id: "go`od", type: "string"}
+            }}]})}, editor);
+
+        const lines = [...dialog.$content.querySelectorAll(".SCHEMA_IMPORT_CONFLICT")];
+        const said = lines.map((p) => {
+            const name = p.querySelector(".SCHEMA_IMPORT_CONFLICT_NAME");
+            const hook = p.querySelector(".SCHEMA_IMPORT_CONFLICT_HOOK_NAME");
+            return `${p.querySelector("span").textContent}|${name ? name.textContent : ""}|${hook ? hook.textContent : ""}`;
+        });
+        expect(said).toContain("topic name breaks the name rule|a/b|p.kids");
+        expect(said).toContain("column name breaks the name rule|a/b.x`y|p.kids");
+        /*  Not from a hook map: no hook column said  */
+        expect(said).toContain("column name breaks the name rule|p.go`od|");
+        /*  The names are DATA, text and not translated: no key on them  */
+        for(const code of dialog.$content.querySelectorAll(".SCHEMA_IMPORT_CONFLICT_NAME, .SCHEMA_IMPORT_CONFLICT_HOOK_NAME")) {
+            expect(code.getAttribute("i18n")).toBe(null);
+            expect(code.getAttribute("data-i18n")).toBe(null);
+        }
+        expect(dialog.$content.querySelector(".SCHEMA_IMPORT_RUN").disabled).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+});
+
 describe("a confirmation answered where no treedb is open", () => {
 
     test("after a reload that landed on zero treedbs: refused as stale, not NOT DEFINED", () => {
