@@ -565,7 +565,7 @@ function show_load_error(gobj, message)
         $container.insertBefore($err, $container.firstChild);
     }
     let treedb = gobj_read_attr(gobj, "treedb_name") || "";
-    $err.textContent = (treedb ? `${treedb}: ` : "") + (message || "cannot load treedb");
+    $err.textContent = (treedb ? `${treedb}: ` : "") + (message || t("cannot load treedb"));
 }
 
 /************************************************************
@@ -2075,7 +2075,7 @@ function open_json_viewer(gobj, opts)
             close_json_viewer(gobj);
             return;
         }
-        priv.json_modal = yui_shell_show_modal(shell, $box, {
+        priv.json_modal = yui_shell_show_modal(shell, /* i18n: data */ $box, {
             dialog:        true,
             logical_class: "TREEDB_JSON_SHEET",
             title_prefix: priv.treedb_name,
@@ -2224,7 +2224,7 @@ function answer_print_tranger_refused(gobj, path, answer)
             Object.assign({path: path}, answer), gobj);
     } else {
         yui_shell_show_error(yui_shell_of(gobj),
-            answer.i18n || answer.error, {t: t});
+            /* i18n: data */ answer.i18n || answer.error, {t: t});
     }
 }
 
@@ -2386,7 +2386,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                     {path: path, error: comment || "print-tranger failed"}, gobj);
             } else {
                 yui_shell_show_error(yui_shell_of(gobj),
-                    comment || "print-tranger failed", {t: t});
+                    /* i18n: data */ comment || "print-tranger failed", {t: t});
             }
             return 0;
         }
@@ -2411,7 +2411,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
         }
         if(result < 0) {
             yui_shell_show_error(yui_shell_of(gobj),
-                comment || "schema-file failed", {t: t});
+                /* i18n: data */ comment || "schema-file failed", {t: t});
             return 0;
         }
         gobj_send_event(jv, "EV_SET_JSON", {json: data}, gobj);
@@ -2461,7 +2461,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  app-modal that wedges the whole SPA behind an empty tab. */
             show_load_error(gobj, t(comment));
         } else {
-            yui_shell_show_error(yui_shell_of(gobj), comment, {t: t});
+            yui_shell_show_error(yui_shell_of(gobj), /* i18n: data */ comment, {t: t});
             /*  A refused write leaves the TABLE showing what the operator
              *  typed and the store holding what it had. That is tolerable
              *  for a form (it stays open on the values it failed with) and

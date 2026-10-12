@@ -237,7 +237,7 @@ function render_header(gobj)
      *  deeper pages show a back arrow.
      */
     let $back_icon = $back.querySelector('i');
-    let back_key = (model.back_kind === "close") ? 'close' : 'back';
+    const back_key = (model.back_kind === "close") ? 'close' : 'back';
     $back_icon.className = (back_key === 'close') ? 'yi-xmark' : 'yi-arrow-left';
     /*  The key moves with the glyph: a key left on "back" made the ✕ of
      *  the root page announce itself as Back after a language switch.  */

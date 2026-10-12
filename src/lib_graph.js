@@ -3,7 +3,7 @@
  *
  *          Utilities for graph, using Bulma
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
@@ -55,11 +55,38 @@ function removeChildElements($element)
 
 /************************************************************
  *  Disable/Enable elements
+ *
+ *  A disabled control says so to the keyboard and to a screen
+ *  reader too, not only to the pointer:
+ *    - `disabled`, what the stylesheets and the click guards
+ *      read (on a `div` drawn as a button it means nothing to
+ *      the browser itself);
+ *    - `aria-disabled="true"`, what a reader announces -- without
+ *      it a disabled toolbar item was heard as a button that
+ *      works;
+ *    - `tabindex="-1"`, so Tab does not stop on a control that
+ *      does nothing.
+ *
+ *  Enabled again, it gets back the tabindex it had, kept in
+ *  `data-enabled-tabindex` while it is disabled (empty: it had
+ *  none, and it gets none). Whoever BUILDS a control disabled
+ *  writes that attribute itself, with the tabindex the control
+ *  takes once enabled (see toolbar_item_html in
+ *  c_g6_nodes_tree.js). An element that keeps the focus while it
+ *  is disabled keeps it: tabindex -1 still takes a focus, it is
+ *  only left out of the Tab order.
  ************************************************************/
+const ENABLED_TABINDEX = 'data-enabled-tabindex';
+
 function disableElements($container, selector)
 {
     $container.querySelectorAll(selector).forEach(el => {
         el.setAttribute('disabled', '');
+        el.setAttribute('aria-disabled', 'true');
+        if(!el.hasAttribute(ENABLED_TABINDEX)) {
+            el.setAttribute(ENABLED_TABINDEX, el.getAttribute('tabindex') ?? '');
+        }
+        el.setAttribute('tabindex', '-1');
     });
 }
 
@@ -68,6 +95,16 @@ function enableElements($container, selector)
     $container.querySelectorAll(selector).forEach(el => {
         if(el.hasAttribute('disabled')) {
             el.removeAttribute('disabled');
+        }
+        el.removeAttribute('aria-disabled');
+        if(el.hasAttribute(ENABLED_TABINDEX)) {
+            let tabindex = el.getAttribute(ENABLED_TABINDEX);
+            el.removeAttribute(ENABLED_TABINDEX);
+            if(tabindex === '') {
+                el.removeAttribute('tabindex');
+            } else {
+                el.setAttribute('tabindex', tabindex);
+            }
         }
     });
 }

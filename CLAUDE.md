@@ -32,10 +32,36 @@ Two cases the rule reaches that no attribute can:
 - **An `<option>`** is text like any other: `data-i18n`, with `value` kept
   explicit.
 
-⚠️ **A key that arrives as a VARIABLE is invisible to every consumer's
-`validate-locales`** — a data table, a helper's argument, a local alias of
-`t()`. `yui_dev.js` is the worst case (51 keys, seven such sites); its list is
-written above `TRACE_DEFS` for a consumer to copy.
+⚠️ **A key that arrives as a VARIABLE is invisible to a scan of the source**
+— an unmarked `let`, a parameter, a computed string, a local alias of
+`t()`. A `const` is followed, and so is a const table: `t(LABELS[x])` asks
+the locales for every value of `LABELS`. Every consumer's
+`validate-locales` reads the modules the app mounts, so two things keep the
+keys of this library visible to it (since `7.26.28`):
+
+- **A key handed to a FUNCTION is read where it is handed.**
+  `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`) names every function that
+  receives a key, and at which argument or property. At those positions the
+  validator reads a string literal, or a `const` bound to one. A function that
+  hands one of its parameters to `t()`, `i18n` or a `data-i18n*` attribute
+  goes in the table, or what it is given is invisible again.
+- **A key handed by table or variable is PUBLISHED by its module**, in an
+  exported `<NAME>_I18N_KEYS` array of literals that the validator reads and
+  asks the locales for (only 17 of the 96 modules of `src/` publish one
+  today: `grep -n '^export const [A-Z0-9_]*_I18N_KEYS' src/*.js`), and the
+  call that hands it is MARKED `/* i18n: <NAME>_I18N_KEYS */`. What arrives
+  as data no locale can list (a topic name, a backend's comment) is marked
+  `/* i18n: data */`. A marked plain `let` is followed — every value it is
+  given is asked for, and must be in the lists the marker names — and one
+  that only ever holds literals fails (*"make it a const"*). Every key of
+  every list is PINNED: a `COVERAGE` entry of `src/i18n_key_functions.test.js`
+  derives the list from the module's source, or a marker check fails without
+  the key, or the module reads it anyway; a key that only its list holds
+  fails that test.
+
+`src/i18n_key_functions.test.js` fails on an unmarked call that gives a key
+position anything but a literal, a `const` bound to one, or a key position of
+the enclosing function handed on.
 
 The full rule, with what does NOT count as a name, is in the README
 ("Conventions"). The check is not a grep: **dump `title`/`aria-label` from the

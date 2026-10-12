@@ -53,6 +53,13 @@ const COL_FIELDS = [
 /*  Read as values whatever they were stored as.  */
 const JSON_FIELDS = ["enum", "hook", "default", "template", "properties", "pkey2s"];
 
+/*  The `op` of a planned write is an i18n key: the schema editor shows
+ *  each write of a plan by it (`t(write.op)`), as data, where no scan of
+ *  the source reads it. Published for a consumer's validate-locales,
+ *  which asks the app's locales for every key of an exported
+ *  `*_I18N_KEYS` array.  */
+export const SCHEMA_IMPORT_I18N_KEYS = ["create", "update", "delete"];
+
 
 /***************************************************************
  *  Two values, compared the way the store would see them: a flag

@@ -5,6 +5,73 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.28
+
+Twentieth check of the review (yunovatios `REV-CLOUD.md` §V20.5).
+
+- **A key handed to a FUNCTION is read where it is handed.**
+  `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`, exported) names every
+  function of the library that receives a key, and at which argument or
+  property (`yui_shell_show_error(…, 1)`, `icon_button(…, 3)`, the popover
+  rows' `i18n:`…). `validate-locales` reads the key there, in the app and in
+  every module it mounts: `expand loaded`, `click to load`, `please select
+  some row`, `other routes`, `accept` and a dozen more reached the deployed
+  apps raw, with the validator green. The rule is PER CALL, and a library
+  test enforces it: a key position takes a literal, a `const` (followed, as
+  is a const table, `t(LABELS[x])`, and the elements a `.map()` walks), a key
+  position of the enclosing function handed on, or a call MARKED
+  `/* i18n: <NAME>_I18N_KEYS */` (the module publishes those keys) or
+  `/* i18n: data */` (no locale can list them). A marked `let` is followed,
+  and one that only ever holds literals fails (*"make it a const"*). Every
+  key of a published list is pinned: derived from the module's own tables by
+  a coverage test (rows given by a const, or spread in, included), or caught
+  by the marker check -- a key only its list holds fails.
+- **`validate-locales` parses the source** (acorn) and never runs it: it
+  reads every branch of `?:`, `||`, `??`; a `*_I18N_KEYS` list in any shape
+  (`Object.freeze`, `export {X}`, `let`, templates, a `]` in a key), and
+  FAILS on one it cannot read or that is not exported; a locale with a
+  syntax error, or that fails to load while exporting its own language or a
+  default, fails (it was skipped, and one language less was checked); a
+  source it cannot parse fails. Plurals: a group is a plural only with its
+  bare base or an `_other` form (`step_one`/`step_two` is an enumeration).
+  It runs when invoked through a symlinked package under
+  `--preserve-symlinks-main` (it did nothing, rc 0).
+- **The shell's fallback names are keys**: `toolbar`, `user menu`, `menu`
+  (they were `"Toolbar"`, `"User menu"`, `"Menu"`, a key no validated locale
+  can hold, so English in every language). An app adds them to its locales;
+  its `validate-locales` names them. `C_YUI_NAV`'s backbar says `back`
+  through `t()`; the treedb views translate `cannot load treedb`.
+- **`C_G6_NODES_TREE`, keyboard and names**:
+  - the floating buttons (gear, trash, link, port gear) and the detail ✕ are
+    buttons: `role`, `tabindex`, a translated `title`/`aria-label` with their
+    `data-i18n-*` keys, Enter/Space; a pointer press does not take the focus,
+    and closing whatever holds the focus gives it back to the canvas (in
+    Firefox the graph stopped hearing the keyboard);
+  - G6 gives its canvases `tabIndex = 1`, which sent Tab to the top of the
+    page: the main canvas is `0` and the layers `-1`
+    (`set_canvas_tab_order()`, also in `C_YUI_JSON_GRAPH`,
+    `C_YUI_GOBJ_TREE_JS`, `C_YUI_FSM_GRAPH` and `C_YUI_TREEDB_SCHEMA`);
+  - toolbar items are buttons too (Enter/Space reach G6's own handler); a
+    disabled one carries `aria-disabled` and leaves the Tab order
+    (`disableElements()` / `enableElements()`), a toggle `aria-pressed`, and
+    an item keeps its state across a rebuild of the toolbar (zoom to
+    selection, Save, Undo, Redo: G6 reads `getItems()` again on every plugin
+    change); a clear or a refresh puts the Save out;
+  - every click crosses the FSM: new INPUT events `EV_TOGGLE_NODE_POPOVER`,
+    `EV_TOGGLE_EDGE_POPOVER`, `EV_TOGGLE_PORT_POPOVER`,
+    `EV_TOGGLE_CREATE_POPOVER`, `EV_CLOSE_CREATE_POPOVER`,
+    `EV_ENTER_LINKING_MODE`, `EV_START_LINK_DRAG`, `EV_LINK_DRAG_END`,
+    `EV_LINK_DRAG_CANCEL`, `EV_CLOSE_NODE_DETAIL`, `EV_APPLY_*_POPOVER`,
+    `EV_CANCEL_*_POPOVER`, `EV_CANCEL_CONFIRM` (each checks the identity it
+    carries against what is open, and refuses a stale one with an error). No
+    output event is new, so no host changes.
+- `yui_dev.js`: its 9 text and glyph buttons carry an `aria-label` with its
+  key. `G6_NODES_TREE_I18N_KEYS` gained the 7 keys that reach `t()` by
+  variable.
+- `test-app`'s own `validate-locales` (English is its source catalog) reads
+  through the published reader, and the demo's catalog has the keys it
+  lacked.
+
 ## 7.26.27
 
 Nineteenth check of the review (yunovatios `REV-CLOUD.md` §V19.4).
@@ -54,8 +121,8 @@ Eighteenth check of the review (yunovatios `REV-CLOUD.md` §V18.4).
     apostrophe), a locale of a region (`pt-br.js`) is found, and a file with
     a locale's name and no translation is said and skipped.
 - **Keys the scan could not see, now visible** -- new consumer i18n keys:
-  - `node id required`: the gobj tree's create popover said
-    `t('node id') + ' required'`, English fixed;
+  - `node id required`: the create popover of the treedb node graph
+    (`C_G6_NODES_TREE`) said `t('node id') + ' required'`, English fixed;
   - `apply`: the port, edge and node popovers handed it to
     `create_form_button_row()` as a VARIABLE; the rows take `i18n:` now, and
     every button carries its key, `title` and `aria-label`;
@@ -79,8 +146,9 @@ Seventeenth check of the review (yunovatios `REV-CLOUD.md` §V17.3.4-5).
   and it scans the library it ships in. `--src` / `--locales` / `--config`
   for code and catalogs shared by several apps. The concatenation guard of two
   of them looked at the RESULT of `t()`: `t('topic') + ':'`
-  (`c_g6_nodes_tree.js`) was skipped as a built key, and the gobj tree's
-  *"topic:"* went untranslated in wattyzer and yunovatios. Test
+  (`c_g6_nodes_tree.js`) was skipped as a built key, and the treedb node
+  graph's (`C_G6_NODES_TREE`) *"topic:"* went untranslated in wattyzer and
+  yunovatios. Test
   `scripts/validate-locales.test.js`.
 - **an import conflict of a hook map names the hook column it is written
   in**: `` a/b.x`y `` was said, but not that it came from `p.kids`. The conflict

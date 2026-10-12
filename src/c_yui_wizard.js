@@ -75,6 +75,12 @@ SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,       "HTMLElement roo
 SDATA_END()
 ];
 
+/*  The default keys of the three buttons, which reach t() through the
+ *  attrs: published for a consumer's validate-locales, which asks the
+ *  app's locales for every key of an exported `*_I18N_KEYS` array. A
+ *  host that names its own buttons asks for its own keys besides.  */
+export const C_YUI_WIZARD_I18N_KEYS = ["confirm", "next", "back"];
+
 let PRIVATE_DATA = {
     steps:    null,
     idx:      0,
@@ -267,7 +273,8 @@ function render_chrome(gobj)
 
     $back.classList.toggle('is-hidden', !model.show_back);
 
-    $plabel.setAttribute('data-i18n', model.primary_label);
+    $plabel.setAttribute('data-i18n',
+        /* i18n: WIZARD_HELPERS_I18N_KEYS, C_YUI_WIZARD_I18N_KEYS */ model.primary_label);
     $plabel.textContent = t(model.primary_label);
     $primary.setAttribute('title', t(model.primary_label));
     $primary.setAttribute('data-i18n-title', model.primary_label);

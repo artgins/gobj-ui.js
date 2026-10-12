@@ -71,6 +71,7 @@ import {
 import {yui_is_dark, yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
 import {ensure_pinch_zoom_patch} from "./g6_touch_gestures.js";
+import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
 
 import {t} from "i18next";
 
@@ -427,6 +428,10 @@ function build_graph(gobj)
             log_error(`${gobj_short_name(gobj)}: the theme was refused: ${e}`);
         }
     }
+
+    /*  Tab goes from the graph to its own buttons: the main canvas in
+     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, priv.graph);
 
     priv.graph.on('aftertransform', () => {
         yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);

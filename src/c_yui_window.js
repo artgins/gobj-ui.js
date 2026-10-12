@@ -836,7 +836,7 @@ function close_window(gobj)
         return {state: "vetoed"};
     }
     const answer = yui_shell_confirm_yesnocancel(
-        yui_shell_of(gobj), kw_close.warning,
+        yui_shell_of(gobj), /* i18n: data */ kw_close.warning,
         {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
     ).then(function(answer) {
         if(answer !== "yes") {
@@ -909,7 +909,7 @@ function set_max_icon(gobj, maximized)
     }
     let $btn = $container.querySelector('.wc-max');
     if($btn) {
-        let key = maximized ? 'restore' : 'maximize';
+        const key = maximized ? 'restore' : 'maximize';
         $btn.innerHTML = maximized ? WC_RESTORE : WC_MAX;
         $btn.setAttribute('title', t(key));
         $btn.setAttribute('data-i18n-title', key);

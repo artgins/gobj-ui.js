@@ -513,7 +513,7 @@ function show_load_error(gobj, message)
         $container.insertBefore($err, $container.firstChild);
     }
     let treedb = gobj_read_attr(gobj, "treedb_name") || "";
-    $err.textContent = (treedb ? `${treedb}: ` : "") + (message || "cannot load treedb");
+    $err.textContent = (treedb ? `${treedb}: ` : "") + (message || t("cannot load treedb"));
 }
 
 /************************************************************
@@ -670,6 +670,15 @@ const NODE_MODE_ICONS = {
     compact:  'yi-bars',
     shape:    'yi-hexagon-nodes',
 };
+
+/*  The keys that reach t() as data: the labels of NODE_MODE_LABELS.
+ *  Published for a consumer's validate-locales, which asks the app's
+ *  locales for every key of an exported `*_I18N_KEYS` array. A view
+ *  added to NODE_MODE_LABELS adds its label here
+ *  (i18n_key_functions.test.js checks it).  */
+export const C_YUI_TREEDB_GRAPH_I18N_KEYS = [
+    'full', 'compact', 'shape'
+];
 
 /*  The pressed view and the labels toggle, from the attrs. The
  *  toggle only means something on figures, so it is disabled
@@ -1219,7 +1228,7 @@ function open_json_viewer(gobj)
             close_json_viewer(gobj);
             return;
         }
-        priv.json_modal = yui_shell_show_modal(shell, $box, {
+        priv.json_modal = yui_shell_show_modal(shell, /* i18n: data */ $box, {
             dialog:        true,
             logical_class: "TREEDB_JSON_SHEET",
             title_prefix: priv.treedb_name,
@@ -1353,7 +1362,7 @@ function answer_print_tranger_refused(gobj, path, answer)
             Object.assign({path: path}, answer), gobj);
     } else {
         yui_shell_show_error(yui_shell_of(gobj),
-            answer.i18n || answer.error, {t: t});
+            /* i18n: data */ answer.i18n || answer.error, {t: t});
     }
 }
 
@@ -2167,7 +2176,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                     {path: path, error: comment || "print-tranger failed"}, gobj);
             } else {
                 yui_shell_show_error(yui_shell_of(gobj),
-                    comment || "print-tranger failed", {t: t});
+                    /* i18n: data */ comment || "print-tranger failed", {t: t});
             }
             return 0;
         }
@@ -2186,7 +2195,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
              *  app-modal that wedges the whole SPA behind an empty tab. */
             show_load_error(gobj, t(comment));
         } else {
-            yui_shell_show_error(yui_shell_of(gobj), comment, {t: t});
+            yui_shell_show_error(yui_shell_of(gobj), /* i18n: data */ comment, {t: t});
         }
         // HACK don't return for non-descs, pass errors when need it.
     }
@@ -3099,7 +3108,7 @@ function refresh_legend(gobj)
              hidden? `${entry.total}` : `${entry.visible}/${entry.total}`]
         );
 
-        let body_key = is_main? 'main topic' : (hidden? 'show topic' : 'hide topic');
+        const body_key = is_main? 'main topic' : (hidden? 'show topic' : 'hide topic');
 
         /*  Built as an object first: an attribute that is `undefined`
          *  is still SET by createElement2 (to the string "undefined"),

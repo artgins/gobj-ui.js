@@ -168,6 +168,16 @@ import {text_node} from "./yui_text.js";
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_SCHEMA_EDITOR";
 
+/*  The keys this editor hands to t() as DATA, where no scan of the
+ *  source reads them: the severity of a finding, which the checks of
+ *  schema_validate.js write (`add("error", ...)`) and the report
+ *  translates. Published for a consumer's validate-locales, which asks
+ *  the app's locales for every key of an exported `*_I18N_KEYS` array;
+ *  i18n_key_functions.test.js holds it to the severities those checks
+ *  write. The flags' words are schema_flags.js's, the plan's ops
+ *  schema_import.js's.  */
+export const C_YUI_SCHEMA_EDITOR_I18N_KEYS = ["error", "warning"];
+
 /*  The three topics a schema is stored in. Named once: everything
  *  below addresses them by these constants and nothing composes the
  *  strings again.  */
@@ -373,7 +383,7 @@ function mt_destroy(gobj)
 function refuse_bad_name(gobj, $message)
 {
     mark_name_field(gobj, true);
-    yui_shell_show_error(yui_shell_of(gobj), $message, {t: t});
+    yui_shell_show_error(yui_shell_of(gobj), /* i18n: data */ $message, {t: t});
     return -1;
 }
 
@@ -1911,7 +1921,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
     priv.dialog_gen = priv.model_gen;
     priv.dialog_kind = logical;
     priv.dialog_content = $content;
-    priv.dialog = yui_shell_show_modal(yui_shell_of(gobj), $content, {
+    priv.dialog = yui_shell_show_modal(yui_shell_of(gobj), /* i18n: data */ $content, {
         dialog:        true,
         title:         title,
         title_prefix:  title_prefix || "",
@@ -2425,7 +2435,8 @@ function open_report(gobj, findings, treedb_id)
         return ["tr", {class: `SCHEMA_REPORT_ROW SCHEMA_REPORT_${finding.severity.toUpperCase()}`}, [
             ["td", {class: "SCHEMA_REPORT_SEVERITY"}, [
                 ["span", {class: `tag ${finding.severity === "error" ? "is-danger" : "is-warning"}` +
-                                 " is-light", i18n: finding.severity}, t(finding.severity)]
+                                 " is-light", i18n: /* i18n: C_YUI_SCHEMA_EDITOR_I18N_KEYS */ finding.severity},
+                    t(/* i18n: C_YUI_SCHEMA_EDITOR_I18N_KEYS */ finding.severity)]
             ]],
             ["td", {class: "SCHEMA_REPORT_WHAT", i18n: finding.code}, t(finding.code)],
             ["td", {class: "SCHEMA_REPORT_TOPIC"}, text_node(finding.topic || "")],
@@ -3527,7 +3538,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
             return late_write_done(gobj, command, topic_name, data);
         }
         if(result < 0) {
-            return end_writes(gobj, comment || t("the treedb refused the write"));
+            return end_writes(gobj, /* i18n: data */ comment || "the treedb refused the write");
         }
         priv.save_wrote = true;
         let record = null;
@@ -4229,7 +4240,8 @@ function confirm_column_delete(gobj, verdict)
         capped:  "the records read hold no value in this column, but not all were read: the rest may hold values that no reader will show any more",
         unknown: "the records of this topic could not be read: if they hold values in this column, they keep them, but no reader shows them any more"
     };
-    let message = "delete this column?";
+    const message = "delete this column?";
+    let $warning = null;
     if(NOTES[verdict]) {
         let children = [
             ["p", {class: "CONFIRM_MSG yui-confirm-msg", i18n: message}, t(message)],
@@ -4242,9 +4254,9 @@ function confirm_column_delete(gobj, verdict)
                 ["span", {class: "ml-1"}, String(c.scanned)]
             ]]);
         }
-        message = createElement2(["div", {class: "SCHEMA_COLUMN_DATA_WARNING"}, children]);
+        $warning = createElement2(["div", {class: "SCHEMA_COLUMN_DATA_WARNING"}, children]);
     }
-    confirm_then(gobj, message, `${c.topic}.${c.col}`,
+    confirm_then(gobj, $warning? /* i18n: data */ $warning : message, `${c.topic}.${c.col}`,
         {what: "column", topic: c.topic, col: c.col});
     return 0;
 }

@@ -326,7 +326,7 @@ export function yui_graph_update_anchor($container, state)
     $btn.classList.toggle('color_pending_state', state === "arming");
     $btn.setAttribute("aria-pressed", (state === "on")? "true": "false");
 
-    let key = (state === "arming")? "click the element to centre on"
+    const key = (state === "arming")? "click the element to centre on"
             : (state === "on")? "centred: click to release"
             : "anchor view";
     $btn.setAttribute("title", t(key));

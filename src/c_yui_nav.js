@@ -268,7 +268,7 @@ function build_ui(gobj)
         if(!$container.hasAttribute("aria-label")) {
             /*  A key, translated by the shell's translator: the bare
              *  menu_id read out "secondary.main.system".  */
-            let label = gobj_read_attr(gobj, "nav_label") || "navigation";
+            const label = gobj_read_attr(gobj, "nav_label") || "navigation";
             $container.setAttribute("aria-label", t(label));
             $container.setAttribute("data-i18n-aria-label", label);
         }
@@ -527,16 +527,19 @@ function render_backbar(gobj)
     if(label) {
         label_attrs.i18n = label;
     }
+    /*  Named by the label when the nav has one, else by "back" -- through
+     *  t() and with its key, or it reads the raw key in every language.  */
+    const name_key = label || "back";
     let a_attrs = {
         class: "yui-nav-item yui-nav-back",
         href: back_route ? "#" + back_route : "#",
         "data-item-id": "__index__",
         "data-route": back_route,
-        "aria-label": label || "back"
+        title: t(name_key),
+        "data-i18n-title": name_key,
+        "aria-label": t(name_key),
+        "data-i18n-aria-label": name_key
     };
-    if(label) {
-        a_attrs["data-i18n-aria-label"] = label;
-    }
     return createElement2(
         ["div", {},
             ["a", a_attrs, [
@@ -558,7 +561,7 @@ function render_drawer(gobj, items)
     wrap.className = "yui-drawer";
     wrap.setAttribute("role", "dialog");
     wrap.setAttribute("aria-modal", "true");
-    let nav_label = gobj_read_attr(gobj, "nav_label") || "navigation";
+    const nav_label = gobj_read_attr(gobj, "nav_label") || "navigation";
     wrap.setAttribute("aria-label", t(nav_label));
     wrap.setAttribute("data-i18n-aria-label", nav_label);
 

@@ -178,11 +178,29 @@ import {yui_shell_of} from "./c_yui_shell.js";
 import {yui_shell_show_error} from "./shell_modals.js";
 import {g6_event_kw} from "./g6_event_kw.js";
 import {css_color_or_null} from "./yui_data_color.js";
+import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
 
 /***************************************************************
  *  The markup of one toolbar item. Everything that goes into it is
  *  escaped, the read-out branch too: its text, title and value are
  *  values (a zoom figure, a translated title), never markup.
+ *
+ *  An item is a BUTTON for the keyboard too: `role="button"` and
+ *  `tabindex="0"`, and YuiToolbar presses it on Enter or Space.
+ *  `title_key` is the i18n key of `title`: written as
+ *  `data-i18n-title` / `data-i18n-aria-label`, so the name carries
+ *  its key like every other control's.
+ *
+ *  A `disabled` item is born the way disableElements() (lib_graph.js)
+ *  leaves one: `aria-disabled`, out of the Tab order, and the
+ *  tabindex it takes once enabled kept in `data-enabled-tabindex`,
+ *  where enableElements() finds it. A toggle (`pressed` given, true
+ *  or false) says its state in `aria-pressed`, as its look says it
+ *  with `pressed_state`. `data-control` names the CONTROL the item
+ *  is, whatever state it shows: `control` when the item gives one
+ *  (full screen is `request-fullscreen` or `exit-fullscreen`, and
+ *  one control), its `value` otherwise -- it is what a rebuild puts
+ *  the focus back on.
  ***************************************************************/
 function toolbar_item_html(item)
 {
@@ -192,17 +210,28 @@ function toolbar_item_html(item)
 
     const extra_class = item.className ? ` ${escapeHtml(String(item.className))}` : '';
     const title       = escapeHtml(String(item.title ?? ''));
+    let i18n_attrs    = '';
+    if(item.title_key) {
+        const key = escapeHtml(String(item.title_key));
+        i18n_attrs = ` data-i18n-title="${key}" data-i18n-aria-label="${key}"`;
+    }
 
     if(item.readout) {
         return (
             `<div class="g6-toolbar-readout${extra_class}"` +
-            ` title="${title}" aria-label="${title}">` +
+            ` title="${title}" aria-label="${title}"${i18n_attrs}>` +
             `${escapeHtml(String(item.text ?? ''))}` +
             `</div>`
         );
     }
 
-    const disabled = item.disabled ? ' disabled' : '';
+    const state = item.disabled
+        ? ' tabindex="-1" aria-disabled="true" data-enabled-tabindex="0" disabled'
+        : ' tabindex="0"';
+    const pressed = (item.pressed === undefined)
+        ? ''
+        : ` aria-pressed="${item.pressed ? 'true' : 'false'}"`;
+    const control = escapeHtml(String(item.control ?? item.value));
     const is_text   = (item.text !== undefined);
     const kind_class = is_text ? ' g6-toolbar-item-text' : '';
     const body = is_text
@@ -213,8 +242,9 @@ function toolbar_item_html(item)
 
     return (
         `<div class="g6-toolbar-item${kind_class}${extra_class}"` +
-        ` value="${escapeHtml(String(item.value))}" title="${title}"` +
-        ` aria-label="${title}"${disabled}>` +
+        ` role="button"${state}${pressed}` +
+        ` value="${escapeHtml(String(item.value))}" data-control="${control}"` +
+        ` title="${title}" aria-label="${title}"${i18n_attrs}>` +
         `${body}` +
         `</div>`
     );
@@ -233,6 +263,11 @@ function toolbar_item_html(item)
  *    readout    — a text item that REPORTS instead of acting (the
  *                 zoom level); it is not a button
  *    separator  — a group divider, not an item
+ *    title_key  — the i18n key of `title` (see toolbar_item_html)
+ *    pressed    — boolean; the item is a TOGGLE, and this is its
+ *                 state (`aria-pressed`)
+ *    control    — the identity of the control when its `value`
+ *                 changes with its state (full screen enter/exit)
  *
  *  The base class fires onClick only for elements whose class list
  *  contains `g6-toolbar-item`, so a separator and a readout carry
@@ -243,15 +278,168 @@ function toolbar_item_html(item)
  *  functions (set_submit_state, disableElements, …) work on toolbar
  *  icons exactly like on regular Bulma/FA buttons — no special
  *  icon-specific helpers needed.
+ *
+ *  The items are buttons for the KEYBOARD as well:
+ *    - Enter or Space CLICKS the focused item, and the click bubbles
+ *      to the base class's own handler, so the key reaches the same
+ *      onClick a pointer does. A `disabled` item takes the key and
+ *      does nothing, as its `pointer-events: none` does for a press.
+ *    - A POINTER press does not move the focus to an item (it stays
+ *      on the canvas, where the graph's keys are heard), the way the
+ *      floating buttons keep it (see keep_focus_on_press).
+ *    - A disabled item is out of the Tab order and says it is
+ *      disabled (`aria-disabled`), from its first render
+ *      (toolbar_item_html) and on every change (disableElements /
+ *      enableElements in lib_graph.js).
+ *    - A rebuild (update) replaces the innerHTML, the focused item
+ *      with it: the focus goes back to the item of the same CONTROL
+ *      (`data-control`: Enter on "enter full screen" lands on "exit
+ *      full screen"), or to the canvas when there is none. And a
+ *      toolbar that goes away (destroy) hands it to the canvas
+ *      first. A removed element that held the focus leaves it on
+ *      <body> in Firefox, which fires no focusout for it, and the
+ *      graph goes deaf.
  ***************************************************************/
 class YuiToolbar extends Toolbar
 {
+    constructor(context, options)
+    {
+        super(context, options);
+        this.$element.addEventListener('pointerdown', keep_focus_on_toolbar_press);
+        this.$element.addEventListener('keydown', press_toolbar_item_on_key);
+    }
+
+    async update(options)
+    {
+        const control = focused_toolbar_item_control(this.$element);
+        await super.update(options);
+        if(control !== null) {
+            refocus_toolbar_item(this.$element, control);
+        }
+    }
+
+    destroy()
+    {
+        if(!this.destroyed && this.$element) {
+            this.$element.removeEventListener('pointerdown', keep_focus_on_toolbar_press);
+            this.$element.removeEventListener('keydown', press_toolbar_item_on_key);
+            if(this.$element.contains(document.activeElement)) {
+                focus_main_canvas(this.$element.parentNode);
+            }
+        }
+        super.destroy();
+    }
+
     async getDOMContent()
     {
         const items = await this.options.getItems();
         return items.map(toolbar_item_html).join('');
     }
 }
+
+/***************************************************************
+ *  A POINTER press on a button of this view does not take the
+ *  focus. The container's capture listener has just put it on the
+ *  canvas, where the graph's keys are heard; a press that moved it
+ *  on to the button would leave it on something this view removes
+ *  -- Escape deselects and takes the floating buttons away, the ✕
+ *  closes its popover, a rebuild replaces the toolbar -- and
+ *  Firefox fires no focusout for a removed element: the focus falls
+ *  to <body> and the graph hears nothing until it is clicked again.
+ *  Cancelling the pointerdown cancels the mousedown that moves the
+ *  focus; the click still comes, and Tab still reaches the button.
+ ***************************************************************/
+function keep_focus_on_press(el)
+{
+    el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+    });
+}
+
+/*  The same, for the items of a toolbar, which is rebuilt whole:
+ *  delegated from the toolbar element.  */
+function keep_focus_on_toolbar_press(e)
+{
+    let target = e.target;
+    if(target && typeof target.closest === 'function' &&
+            target.closest('.g6-toolbar-item')) {
+        e.preventDefault();
+    }
+}
+
+/***************************************************************
+ *  The keyboard to the graph: the focus on its main canvas.
+ ***************************************************************/
+function focus_main_canvas($container)
+{
+    if(!$container) {
+        return;
+    }
+    let $canvas = main_canvas_of($container);
+    if($canvas && $canvas.isConnected && typeof $canvas.focus === 'function') {
+        $canvas.focus({preventScroll: true});
+    }
+}
+
+/***************************************************************
+ *  Enter or Space on a toolbar item clicks it; the click bubbles
+ *  to G6's toolbar handler, which reads the item's `value`.
+ ***************************************************************/
+function press_toolbar_item_on_key(e)
+{
+    if(e.key !== 'Enter' && e.key !== ' ') {
+        return;
+    }
+    let target = e.target;
+    let item = (target && typeof target.closest === 'function')?
+        target.closest('.g6-toolbar-item') : null;
+    if(!item) {
+        return;
+    }
+    /*  The key pressed a button: it is not the graph's (the
+     *  container forwards every keydown to G6), and Space would
+     *  scroll the page.  */
+    e.preventDefault();
+    e.stopPropagation();
+    if(item.hasAttribute('disabled')) {
+        return;
+    }
+    item.click();
+}
+
+/***************************************************************
+ *  The control (`data-control`) of the toolbar item that has the
+ *  focus, or null.
+ ***************************************************************/
+function focused_toolbar_item_control($toolbar)
+{
+    let active = document.activeElement;
+    if(!$toolbar || !active || active === $toolbar || !$toolbar.contains(active)) {
+        return null;
+    }
+    if(!active.classList || !active.classList.contains('g6-toolbar-item')) {
+        return null;
+    }
+    return active.getAttribute('data-control');
+}
+
+/***************************************************************
+ *  After a rebuild: the focus on the item of that control, in
+ *  whatever state the rebuild shows it, or on the canvas when the
+ *  rebuild has none (a fold took it away).
+ ***************************************************************/
+function refocus_toolbar_item($toolbar, control)
+{
+    let items = $toolbar.querySelectorAll('.g6-toolbar-item');
+    for(let i = 0; i < items.length; i++) {
+        if(items[i].getAttribute('data-control') === control) {
+            items[i].focus({preventScroll: true});
+            return;
+        }
+    }
+    focus_main_canvas($toolbar.parentNode);
+}
+
 register(ExtensionCategory.PLUGIN, 'yui-toolbar', YuiToolbar);
 ensure_drag_canvas_patch();
 ensure_brush_select_owned();
@@ -343,15 +531,19 @@ const NODE_SHAPES = ['square', 'circle', 'diamond', 'triangle', 'hexagon', 'star
 
 /*  The keys of this view that reach t() as DATA or as an ARGUMENT -- the
  *  shape tables, the labels of the property popovers (create_form_label),
- *  the confirm button (show_confirm_popover): read by a consumer's
- *  validate-locales, which asks the locales for every key of an exported
- *  `*_I18N_KEYS` array of a module the app mounts. A shape added to
- *  NODE_SHAPES or PORT_SHAPES, or a new label, goes here too (a test checks
- *  the shapes).  */
+ *  the confirm button (show_confirm_popover), the names of the floating
+ *  buttons (create_floating_icon, show_dual_icons) and the shell's error
+ *  messages (yui_shell_show_error): read by a consumer's validate-locales,
+ *  which asks the locales for every key of an exported `*_I18N_KEYS` array
+ *  of a module the app mounts. A shape added to NODE_SHAPES or PORT_SHAPES,
+ *  or a new key handed to one of those helpers, goes here too
+ *  (g6_nodes_tree_i18n_keys.test.js checks every call).  */
 export const G6_NODES_TREE_I18N_KEYS = [
     'square', 'circle', 'diamond', 'triangle', 'hexagon', 'star',
     'shape', 'radius', 'apply to', 'line width', 'color', 'fill color', 'stroke color',
-    'delete'
+    'delete', 'unlink',
+    'node properties', 'delete node', 'edge properties', 'link to hook', 'port properties',
+    'some records were gone before the delete'
 ];
 const DEFAULT_NODE_SHAPE = 'circle';
 
@@ -519,6 +711,7 @@ let PRIVATE_DATA = {
     _saved_graph_properties: {},    // the same, as the BACKEND has it: what a Save compares against
     _graphs_writes_owed: {},        // topic_name → true: a __graphs__ write the host said did not land
     _graphs_load:       0,          // the LOAD a __graphs__ write belongs to: EV_CLEAR_DATA starts another
+    _save_lit:          false,      // what the Save was last told (light_save_button)
     yet_showed:         false,
     edit_mode:          false,
     operation_mode:     null,
@@ -553,6 +746,7 @@ let PRIVATE_DATA = {
     _detail_node_id:    null,       // node id the detail popover is showing
     _delete_confirm_el: null,       // delete confirmation popover
     _unlink_confirm_el: null,       // unlink confirmation popover
+    _confirm_questions: {},         // priv key of a confirm popover → the {what, id|ids} it asks
     _create_popover_el: null,       // create node popover element
     _context_node_id:   null,       // node id for context menu target
     _context_port_key:  null,       // port key for context menu target (null = node body)
@@ -561,6 +755,7 @@ let PRIVATE_DATA = {
     _link_source:       null,       // {node_id, port_key, col, topic_name} of fkey being linked
     _link_icon_el:      null,       // floating link icon on fkey port
     _link_drag_svg:     null,       // SVG overlay for drag line
+    _link_drag:         null,       // the link drag in flight: {left, top, unwire}
     _link_valid_hooks:  [],         // [{node_id, port_key}] compatible hook targets
     _link_saved_styles: [],         // saved port styles to restore on cancel
     _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
@@ -1047,6 +1242,10 @@ function build_graph(gobj)
      */
     graph.setTheme(priv.theme);
 
+    /*  Tab goes from the graph to its own buttons: the main canvas in
+     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, graph);
+
     /*  A card is an HTML node, and G6's HTML nodes do not pass the wheel
      *  on: over a card the graph neither scrolled nor zoomed. Only a wheel
      *  over a CARD is handed back to the canvas -- the toolbars and the
@@ -1423,10 +1622,13 @@ function update_toolbar(gobj)
         });
     }
 
-    /*  A re-render rebuilds the innerHTML, so a button whose enabled
-     *  state is not part of getItems() has to be told again.  */
-    update_zoom_selection_button(gobj);
-    update_selection_mode_button(gobj);
+    /*  Nothing to tell the items after this: what each one shows --
+     *  pressed, lit, disabled -- is computed in its getItems(). The
+     *  rebuild lands LATER (G6 reads the list now and writes the
+     *  innerHTML once its promise resolves), so an element told here
+     *  was the one being replaced: zoom to selection came back
+     *  disabled over a selection, and save, undo and redo over
+     *  history still pending.  */
 }
 
 /************************************************************
@@ -1490,12 +1692,12 @@ function toolbar_fold_item(gobj)
     if(toolbars_collapsed(gobj)) {
         return {
             id: 'g6-icon-toolbar-show', value: 'toolbar-toggle',
-            className: 'EV_TOGGLE_TOOLBARS', title: t('show toolbar')
+            className: 'EV_TOGGLE_TOOLBARS', title: t('show toolbar'), title_key: 'show toolbar'
         };
     }
     return {
         id: 'g6-icon-toolbar-hide', value: 'toolbar-toggle',
-        className: 'EV_TOGGLE_TOOLBARS', title: t('hide toolbar')
+        className: 'EV_TOGGLE_TOOLBARS', title: t('hide toolbar'), title_key: 'hide toolbar'
     };
 }
 
@@ -1592,15 +1794,15 @@ function configure_toolbar(gobj)
                 }
 
                 let items = [
-                    { id: 'g6-icon-zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',  title: t('zoom in')  },
-                    { id: 'g6-icon-zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT', title: t('zoom out') },
+                    { id: 'g6-icon-zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',  title: t('zoom in'), title_key: 'zoom in'  },
+                    { id: 'g6-icon-zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT', title: t('zoom out'), title_key: 'zoom out' },
                     /*  What the two buttons above change. Every editor
                      *  that offers a zoom shows the number; without it
                      *  `1:1` is a jump to a value nobody was told.  */
                     { readout: true, className: 'G6_ZOOM_LEVEL',
-                      text: zoom_percent_text(gobj), title: t('zoom level') },
+                      text: zoom_percent_text(gobj), title: t('zoom level'), title_key: 'zoom level' },
                     { separator: true },
-                    { id: 'g6-icon-fit',      value: 'auto-fit', className: 'EV_AUTO_FIT', title: t('auto fit') },
+                    { id: 'g6-icon-fit',      value: 'auto-fit', className: 'EV_AUTO_FIT', title: t('auto fit'), title_key: 'auto fit' },
                     /*  `1:1`, not a house. The action is `zoomTo(1)`: it
                      *  sets the SCALE and leaves the camera where it was,
                      *  which is neither of the two things a house means
@@ -1610,7 +1812,7 @@ function configure_toolbar(gobj)
                      *  answered with the same corner of it at 100%.
                      *  Actual size is WRITTEN in every editor that offers
                      *  it, never drawn: there is no glyph for it.  */
-                    { text: '1:1', value: 'reset', className: 'EV_ZOOM_RESET', title: t('actual size') },
+                    { text: '1:1', value: 'reset', className: 'EV_ZOOM_RESET', title: t('actual size'), title_key: 'actual size' },
                     /*  Pick one node and every zoom leaves it in the
                      *  middle. The pressed classes are baked in HERE and
                      *  not set afterwards, for the same reason the
@@ -1625,21 +1827,25 @@ function configure_toolbar(gobj)
                         className: 'EV_TOGGLE_ANCHOR' +
                             (priv.anchor_state === "on"? ' pressed_state' : '') +
                             (priv.anchor_state === "arming"? ' color_pending_state' : ''),
-                        title: anchor_title(priv.anchor_state)
+                        pressed: priv.anchor_state === "on",
+                        ...anchor_title(priv.anchor_state)
                     },
                 ];
 
                 /*  Only in edition, because that is where a selection
                  *  can exist: a button that is permanently disabled is
                  *  not a control, it is furniture. Disabled while the
-                 *  selection is empty -- `paint_selection` is the one
-                 *  funnel every change goes through, so it is the one
-                 *  place that has to say so.  */
+                 *  selection is empty, asked HERE as well as by
+                 *  `paint_selection` (the one funnel every change goes
+                 *  through, which tells the live item): a rebuild draws
+                 *  the item from this list, and an item born disabled
+                 *  came back that way over a selection.  */
                 if(priv.edit_mode) {
                     items.push({
                         id: 'g6-icon-fit-selection', value: 'fit-selection',
                         className: 'EV_ZOOM_SELECTION',
-                        title: t('zoom to selection'), disabled: true
+                        title: t('zoom to selection'), title_key: 'zoom to selection',
+                        disabled: !selection_is_painted(gobj)
                     });
                 }
 
@@ -1647,13 +1853,16 @@ function configure_toolbar(gobj)
                     /*  Full screen is a WINDOW control, not a camera one:
                      *  it goes in its own group.  */
                     items.push({ separator: true });
+                    /*  ONE control in two states (`control`): the
+                     *  focus a rebuild gives back lands on the other
+                     *  state's button.  */
                     if(priv.is_fullscreen) {
                         items.push(
-                            { id: 'g6-icon-fullscreen-exit', value: 'exit-fullscreen', className: 'EV_EXIT_FULLSCREEN', title: t('exit full screen') }
+                            { id: 'g6-icon-fullscreen-exit', value: 'exit-fullscreen', control: 'fullscreen', className: 'EV_EXIT_FULLSCREEN', title: t('exit full screen'), title_key: 'exit full screen' }
                         );
                     } else {
                         items.push(
-                            { id: 'g6-icon-fullscreen', value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: t('enter full screen') }
+                            { id: 'g6-icon-fullscreen', value: 'request-fullscreen', control: 'fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: t('enter full screen'), title_key: 'enter full screen' }
                         );
                     }
                 }
@@ -1744,8 +1953,14 @@ function configure_toolbar_edit(gobj)
             position: 'left-top',
             style: toolbar_style(),
             getItems: () => {
+                /*  Save, undo and redo bake their state for the same
+                 *  reason as the selection mode below: told only to
+                 *  the live element (update_history_buttons), they
+                 *  came back disabled from every rebuild while the
+                 *  history still had something to undo.  */
+                let lit = edit_buttons_lit(gobj);
                 return [
-                    { id: 'g6-icon-plus',  value: 'create-node', className: 'EV_CREATE_NODE_BTN color_create_state', title: t('create node') },
+                    { id: 'g6-icon-plus',  value: 'create-node', className: 'EV_CREATE_NODE_BTN color_create_state', title: t('create node'), title_key: 'create node' },
                     /*  The mode is carried in the class getItems()
                      *  returns, not only pushed onto the element after
                      *  the fact: this toolbar is rebuilt whole (a fold,
@@ -1757,17 +1972,30 @@ function configure_toolbar_edit(gobj)
                         id: 'g6-icon-select-mode', value: 'selection-mode',
                         className: 'EV_TOGGLE_SELECTION_MODE' +
                             (priv.selection_mode? ' pressed_state' : ''),
-                        title: t('selection mode')
+                        pressed: !!priv.selection_mode,
+                        title: t('selection mode'), title_key: 'selection mode'
                     },
-                    { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: t('save'), disabled: true },
-                    { id: 'g6-icon-undo', value: 'undo', className: 'EV_HISTORY_UNDO', title: t('undo'), disabled: true },
-                    { id: 'g6-icon-redo', value: 'redo', className: 'EV_HISTORY_REDO', title: t('redo'), disabled: true },
+                    {
+                        id: 'g6-icon-save', value: 'save',
+                        className: 'EV_SAVE_GRAPH' + (lit.save? ' color_submit_state' : ''),
+                        title: t('save'), title_key: 'save', disabled: !lit.save
+                    },
+                    {
+                        id: 'g6-icon-undo', value: 'undo',
+                        className: 'EV_HISTORY_UNDO' + (lit.undo? ' color_active_state' : ''),
+                        title: t('undo'), title_key: 'undo', disabled: !lit.undo
+                    },
+                    {
+                        id: 'g6-icon-redo', value: 'redo',
+                        className: 'EV_HISTORY_REDO' + (lit.redo? ' color_active_state' : ''),
+                        title: t('redo'), title_key: 'redo', disabled: !lit.redo
+                    },
                 ];
             },
             onClick: (value) => {
                 switch(value) {
                     case 'create-node':
-                        toggle_create_popover(gobj);
+                        gobj_send_event(gobj, "EV_TOGGLE_CREATE_POPOVER", {}, gobj);
                         break;
                     case 'selection-mode':
                         gobj_send_event(gobj, "EV_TOGGLE_SELECTION_MODE", {}, gobj);
@@ -3434,8 +3662,7 @@ function update_history_buttons(gobj)
                 set_active_state($container, ".EV_HISTORY_UNDO", true);
 
                 // Pending changes exist, enable save
-                enableElements($container, ".EV_SAVE_GRAPH");
-                set_submit_state($container, ".EV_SAVE_GRAPH", true);
+                light_save_button(gobj, true);
             } else {
                 disableElements($container, ".EV_HISTORY_UNDO");
                 set_active_state($container, ".EV_HISTORY_UNDO", false);
@@ -3443,13 +3670,7 @@ function update_history_buttons(gobj)
                 /*  No more undos: the graph is back to what was loaded
                  *  or saved -- unless a write of it did not land. That
                  *  one is still owed, and only a Save pays it.  */
-                if(graphs_write_is_owed(gobj)) {
-                    enableElements($container, ".EV_SAVE_GRAPH");
-                    set_submit_state($container, ".EV_SAVE_GRAPH", true);
-                } else {
-                    disableElements($container, ".EV_SAVE_GRAPH");
-                    set_submit_state($container, ".EV_SAVE_GRAPH", false);
-                }
+                light_save_button(gobj, graphs_write_is_owed(gobj));
             }
         } else {
             disableElements($container, ".EV_HISTORY_REDO");
@@ -3457,8 +3678,50 @@ function update_history_buttons(gobj)
 
             disableElements($container, ".EV_HISTORY_UNDO");
             set_active_state($container, ".EV_HISTORY_UNDO", false);
+
+            /*  No history (a clear, a refresh): nothing to save but a
+             *  write still owed -- and `_save_lit` is what the next
+             *  rebuild of the toolbar draws.  */
+            light_save_button(gobj, graphs_write_is_owed(gobj));
         }
     }
+}
+
+/************************************************************
+ *  What Save, Undo and Redo show when the edit toolbar is
+ *  built (its getItems): Undo and Redo what the history can do
+ *  now; Save what it was last told (`_save_lit`, see
+ *  light_save_button), because more than the history lights
+ *  it -- a change the history does not record
+ *  (mark_graph_dirty), a write owed -- and update_history_
+ *  buttons() is where those are weighed.
+ ************************************************************/
+function edit_buttons_lit(gobj)
+{
+    let history = graph_get_plugin(gobj, "history");
+
+    return {
+        undo: !!history && history.canUndo(),
+        redo: !!history && history.canRedo(),
+        save: !!gobj.priv._save_lit,
+    };
+}
+
+/************************************************************
+ *  Light the Save, or put it out: on the live element, and in
+ *  `_save_lit`, where the next rebuild of the toolbar reads it.
+ ************************************************************/
+function light_save_button(gobj, lit)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+
+    gobj.priv._save_lit = !!lit;
+    if(lit) {
+        enableElements($container, ".EV_SAVE_GRAPH");
+    } else {
+        disableElements($container, ".EV_SAVE_GRAPH");
+    }
+    set_submit_state($container, ".EV_SAVE_GRAPH", !!lit);
 }
 
 /************************************************************
@@ -4721,21 +4984,62 @@ function floating_popover_dx()
 }
 
 /************************************************************
+ *  A key press IS the click on an element drawn as a button.
+ *
+ *  Enter or Space clicks it, so the keyboard reaches the very
+ *  handler the pointer does, whatever that handler is. Stopped
+ *  here, as the click is: this view's container forwards every
+ *  keydown to G6 (its shortcuts, and EV_KEY_DOWN), and a key
+ *  that pressed a button is not the graph's. Space would scroll
+ *  the page as well. Any other key goes on to the graph, so
+ *  Escape and Delete keep doing there what they do.
+ ************************************************************/
+function click_on_enter_or_space(el)
+{
+    el.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            el.click();
+        }
+    });
+}
+
+/************************************************************
  *  Create a floating circular icon button.
- *  @param {string} svgKey   - key into SVG_ICONS
- *  @param {string} color    - border & text color (e.g. '#1890ff')
- *  @param {number} left     - CSS left in px
- *  @param {number} top      - CSS top in px
- *  @param {string} title    - tooltip text
- *  @param {Function} onClick
+ *
+ *  A button for the keyboard too: `role` and `tabindex`, and
+ *  Enter or Space click it (click_on_enter_or_space). Its name
+ *  carries its KEY, so refresh_language() renames it on a
+ *  language switch; a key handed in here goes in
+ *  G6_NODES_TREE_I18N_KEYS, because no scan sees it.
+ *
+ *  Its click does one thing: it sends `event` to `gobj`, with
+ *  `kw` -- the plain identity of what the button belongs to --
+ *  and the ACTION does the work, where the `machine` trace sees
+ *  it. A pointer press does not take the focus
+ *  (keep_focus_on_press).
+ *
+ *  @param {string} svgKey     - key into SVG_ICONS
+ *  @param {string} color      - border & text color (e.g. '#1890ff')
+ *  @param {number} left       - CSS left in px
+ *  @param {number} top        - CSS top in px
+ *  @param {string} title_key  - i18n key of its title and aria-label
+ *  @param {object} gobj       - who hears the click
+ *  @param {string} event      - an input event of this gclass
+ *  @param {object} kw         - plain JSON identity, copied per click
  *  @returns {HTMLElement}
  ************************************************************/
-function create_floating_icon(svgKey, color, left, top, title, onClick)
+function create_floating_icon(svgKey, color, left, top, title_key, gobj, event, kw)
 {
     const size = floating_icon_size();
     const el = document.createElement('div');
-    el.title = title;
-    el.setAttribute('aria-label', title);
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('title', t(title_key));
+    el.setAttribute('data-i18n-title', title_key);
+    el.setAttribute('aria-label', t(title_key));
+    el.setAttribute('data-i18n-aria-label', title_key);
     el.innerHTML = SVG_ICONS[svgKey] || '';
     el.style.cssText =
         'position:absolute;' +
@@ -4762,13 +5066,25 @@ function create_floating_icon(svgKey, color, left, top, title, onClick)
 
     el.addEventListener('click', (e) => {
         e.stopPropagation();
-        onClick();
+        gobj_send_event(gobj, event, json_deep_copy(kw || {}), gobj);
     });
+    keep_focus_on_press(el);
+    click_on_enter_or_space(el);
     return el;
 }
 
 /************************************************************
  *  Remove one or more overlay elements from priv and the DOM.
+ *
+ *  An overlay that holds the focus -- a floating button reached
+ *  with Tab, the ✕ of the detail popover, a field of a popover --
+ *  gives it back to the canvas BEFORE it goes. Removing the
+ *  focused element is a focus loss the browsers do not report
+ *  alike: Chromium fires a focusout, which _on_focusout_restore
+ *  answers; Firefox fires none and leaves the focus on <body>,
+ *  and the graph is deaf to Escape, Delete and ctrl+A until the
+ *  next click on it.
+ *
  *  @param {object} gobj
  *  @param {...string} keys  - priv property names to remove
  ************************************************************/
@@ -4777,7 +5093,11 @@ function hide_overlay(gobj, ...keys)
     let priv = gobj.priv;
     for(let key of keys) {
         if(priv[key]) {
-            priv[key].remove();
+            let el = priv[key];
+            if(el.contains(document.activeElement) && !gobj_is_destroying(gobj)) {
+                focus_main_canvas(priv.$container);
+            }
+            el.remove();
             priv[key] = null;
         }
     }
@@ -4835,9 +5155,7 @@ function graphs_write_is_owed(gobj)
 
 function mark_graph_dirty(gobj)
 {
-    let $container = gobj_read_attr(gobj, "$container");
-    enableElements($container, ".EV_SAVE_GRAPH");
-    set_submit_state($container, ".EV_SAVE_GRAPH", true);
+    light_save_button(gobj, true);
 }
 
 /************************************************************
@@ -4854,19 +5172,21 @@ function extract_size(style)
 
 /************************************************************
  *  Show a pair of floating icons (gear + trash) next to an
- *  element. Returns {icon_el, delete_el}.
+ *  element. The titles are i18n KEYS (see create_floating_icon);
+ *  each click sends its event to `gobj` with the same identity
+ *  `kw`. Returns {icon_el, delete_el}.
  ************************************************************/
-function show_dual_icons(gobj, x, y, gear_title, gear_click, trash_title, trash_click)
+function show_dual_icons(gobj, x, y, gear_key, gear_event, trash_key, trash_event, kw)
 {
     let priv = gobj.priv;
 
     const icon_el = create_floating_icon(
-        'gear', '#1890ff', x, y, gear_title, gear_click
+        'gear', '#1890ff', x, y, gear_key, gobj, gear_event, kw
     );
     priv.$container.appendChild(icon_el);
 
     const delete_el = create_floating_icon(
-        'trash', '#ff4d4f', x, y + floating_icon_step(), trash_title, trash_click
+        'trash', '#ff4d4f', x, y + floating_icon_step(), trash_key, gobj, trash_event, kw
     );
     priv.$container.appendChild(delete_el);
 
@@ -5052,11 +5372,23 @@ const BTN_STYLE_CANCEL =
     'border:1px solid var(--bulma-border-weak, #d9d9d9);' +
     'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
 
-function create_form_button_row(parent, buttons)
+/************************************************************
+ *  The buttons of a popover: each one SENDS an input event of
+ *  this gclass to `gobj`, and the action does the work, where
+ *  the `machine` trace sees it (V20.5 #4). A button is
+ *      {i18n, style, event, kw, form}
+ *  `kw` is the plain identity of what the popover is about
+ *  (copied per click); `form` names the controls whose `value`
+ *  goes in the kw too, as the control says it -- a string, the
+ *  action parses it. The kw says what was asked for, in the
+ *  trace: the identity and what the form held when it was
+ *  pressed.
+ ************************************************************/
+function create_form_button_row(parent, buttons, gobj)
 {
     let btnRow = document.createElement('div');
     btnRow.style.cssText = 'display:flex;gap:8px;';
-    for(let {i18n, style, onClick} of buttons) {
+    for(let {i18n, style, event, kw, form} of buttons) {
         /*  `i18n` is the key (named so that validate-locales sees a literal
          *  one): the button carries it, and its name  */
         let btn = document.createElement('button');
@@ -5069,7 +5401,7 @@ function create_form_button_row(parent, buttons)
         btn.style.cssText = style + touch_control_css();
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            onClick();
+            gobj_send_event(gobj, event, form_kw(kw, form), gobj);
         });
         btnRow.appendChild(btn);
     }
@@ -5077,11 +5409,27 @@ function create_form_button_row(parent, buttons)
     return btnRow;
 }
 
+/*  The kw a popover button sends: its identity, and the value of
+ *  each control of its form.  */
+function form_kw(kw, form)
+{
+    let out = json_deep_copy(kw || {});
+    for(let [name, control] of Object.entries(form || {})) {
+        out[name] = String(control.value);
+    }
+    return out;
+}
+
 /************************************************************
  *  Show a confirmation popover next to a target element.
- *  Returns the popover element.
+ *
+ *  `question` is the plain identity of what is asked, {what,
+ *  id|ids}: the confirm button sends it with EV_CONFIRMED and the
+ *  cancel button with EV_CANCEL_CONFIRM, and the actions answer.
+ *  `priv_key` is where the popover is kept, and it must be the
+ *  one CONFIRM_POPOVER_OF names for `question.what`.
  ************************************************************/
-function show_confirm_popover(gobj, target_el, message, confirm_text, confirm_color, onConfirm, priv_key)
+function show_confirm_popover(gobj, target_el, message, confirm_text, confirm_color, question, priv_key)
 {
     hide_overlay(gobj, priv_key);
 
@@ -5114,18 +5462,21 @@ function show_confirm_popover(gobj, target_el, message, confirm_text, confirm_co
         {
             i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
-            onClick: () => hide_overlay(gobj, priv_key),
+            event: "EV_CANCEL_CONFIRM",
+            kw: question,
         },
         {
             i18n: confirm_text,
             style: 'flex:1;padding:6px;background:' + confirm_color + ';color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
-            onClick: onConfirm,
+            event: "EV_CONFIRMED",
+            kw: question,
         },
-    ]);
+    ], gobj);
 
     priv.$container.appendChild(popover);
     priv[priv_key] = popover;
+    priv._confirm_questions[priv_key] = json_deep_copy(question);
     clamp_popover_position(gobj, popover);
 }
 
@@ -5237,13 +5588,17 @@ function paint_selection(gobj, ids)
  *  Zoom-to-selection can only act on a selection.
  *
  *  The attribute is toggled on the element instead of re-rendering
- *  the toolbar, which would rebuild its innerHTML -- and with it
- *  drop the disabled state of every OTHER button -- each time a
- *  card is ticked.
+ *  the toolbar, which would rebuild its whole innerHTML each time a
+ *  card is ticked. A rebuild asks the same question
+ *  (selection_is_painted) in the toolbar's getItems().
  ************************************************************/
+function selection_is_painted(gobj)
+{
+    return (gobj.priv._selected_paint_ids || []).length > 0;
+}
+
 function update_zoom_selection_button(gobj)
 {
-    let priv = gobj.priv;
     let $container = gobj_read_attr(gobj, "$container");
 
     if(!$container) {
@@ -5255,7 +5610,7 @@ function update_zoom_selection_button(gobj)
         return;     /* no toolbar, or not in edition: nothing to enable */
     }
 
-    if((priv._selected_paint_ids || []).length > 0) {
+    if(selection_is_painted(gobj)) {
         enableElements($container, ".EV_ZOOM_SELECTION");
     } else {
         disableElements($container, ".EV_ZOOM_SELECTION");
@@ -5265,12 +5620,13 @@ function update_zoom_selection_button(gobj)
 /************************************************************
  *  The selection mode is a state, so it has to LOOK like one:
  *  a PRESSED toggle, not a button wearing one of the palette's
- *  action colours (see `pressed_state` in lib_graph.css).
+ *  action colours (see `pressed_state` in lib_graph.css). And
+ *  it SAYS it, in `aria-pressed`, for whoever does not see it.
  *
  *  Toggled on the element rather than re-rendered with the
  *  toolbar, for the same reason as the button above: a
- *  re-render rebuilds the innerHTML and drops what every OTHER
- *  button was told.
+ *  re-render rebuilds the whole innerHTML. A rebuild draws the
+ *  same state, baked in the edit toolbar's getItems().
  ************************************************************/
 function update_selection_mode_button(gobj)
 {
@@ -5286,6 +5642,9 @@ function update_selection_mode_button(gobj)
     }
 
     set_pressed_state($container, ".EV_TOGGLE_SELECTION_MODE", priv.selection_mode);
+    $container.querySelectorAll(".EV_TOGGLE_SELECTION_MODE").forEach(($el) => {
+        $el.setAttribute("aria-pressed", priv.selection_mode? "true" : "false");
+    });
 }
 
 /************************************************************
@@ -5980,21 +6339,22 @@ function show_link_icon_if_fkey(gobj)
     }
     let vp = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
 
+    /*  A click (no drag) enters the linking mode; a press that drags
+     *  enters it on its own (start_link_drag, below).  */
+    let identity = {node_id: priv._selected_node_id, port_key: priv._selected_port_key};
     let icon = create_floating_icon(
         'link', '#52c41a',
         vp[0] + floating_icon_size() / 2 + 4, vp[1] + floating_icon_dy(),
-        t('link to hook'), () => {
-            // Click (no drag) toggles linking mode
-            if(!priv._linking_mode) {
-                enter_linking_mode(gobj);
-            }
-        }
+        'link to hook', gobj, "EV_ENTER_LINKING_MODE", identity
     );
-    // Add drag support: pointerdown starts drag-link
+    /*  The press may be a drag: EV_START_LINK_DRAG, with the port's
+     *  identity and where the pointer went down.  */
     icon.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        start_link_drag(gobj, e);
+        gobj_send_event(gobj, "EV_START_LINK_DRAG", Object.assign(
+            json_deep_copy(identity), {client_x: e.clientX, client_y: e.clientY}
+        ), gobj);
     });
     priv.$container.appendChild(icon);
     priv._link_icon_el = icon;
@@ -6070,7 +6430,8 @@ function show_port_icon(gobj)
     }
     let icon = create_floating_icon(
         'gear', '#1890ff', xy.x, xy.y,
-        t('port properties'), () => toggle_port_popover(gobj)
+        'port properties', gobj, "EV_TOGGLE_PORT_POPOVER",
+        {node_id: priv._selected_node_id, port_key: priv._selected_port_key}
     );
     priv.$container.appendChild(icon);
     priv._port_icon_el = icon;
@@ -6203,22 +6564,20 @@ function show_port_popover(gobj)
         {
             i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
-            onClick: () => {
-                hide_port_popover(gobj);    /*  which undoes the preview  */
-            },
+            event: "EV_CANCEL_PORT_POPOVER",
+            kw: {node_id: node_id, port_key: port_key},
         },
         {
             i18n: 'apply',
             style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
-            onClick: () => {
-                drop_preview_undo(gobj, '_port_preview_undo');
-                apply_port_properties(gobj, node_id, port_key,
-                    shapeSelect.value, parseInt(rInput.value) || orig_r, scopeSelect.value
-                );
-            },
+            event: "EV_APPLY_PORT_POPOVER",
+            /*  `r_before`: what an unreadable radius falls back to; the
+             *  preview has already written the field's on the port.  */
+            kw: {node_id: node_id, port_key: port_key, r_before: orig_r},
+            form: {shape: shapeSelect, r: rInput, scope: scopeSelect},
         },
-    ]);
+    ], gobj);
 
     priv.$container.appendChild(popover);
     priv._port_popover_el = popover;
@@ -6529,8 +6888,16 @@ function try_complete_link(gobj, clicked_node_id, clicked_port_key)
 /************************************************************
  *  Drag-link: drag from link icon to a hook port.
  *  Draws a temporary SVG line from the fkey port to the cursor.
+ *
+ *  Run by ac_start_link_drag. The pointer's MOVES only draw the
+ *  line and the cursor -- the drag's own picture, no action, and
+ *  one event per move would bury the machine trace -- while the
+ *  END of the gesture is an event: EV_LINK_DRAG_END {client_x,
+ *  client_y, dragged} on the release, EV_LINK_DRAG_CANCEL when
+ *  the browser takes the pointer. Their actions take the drag
+ *  down (end_link_drag) and link, or leave the linking mode.
  ************************************************************/
-function start_link_drag(gobj, e)
+function start_link_drag(gobj, client_x, client_y)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
@@ -6557,8 +6924,8 @@ function start_link_drag(gobj, e)
     let line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     line.setAttribute('x1', startX);
     line.setAttribute('y1', startY);
-    line.setAttribute('x2', e.clientX - containerRect.left);
-    line.setAttribute('y2', e.clientY - containerRect.top);
+    line.setAttribute('x2', client_x - containerRect.left);
+    line.setAttribute('y2', client_y - containerRect.top);
     line.setAttribute('stroke', '#52c41a');
     line.setAttribute('stroke-width', '2');
     line.setAttribute('stroke-dasharray', '6 3');
@@ -6582,60 +6949,61 @@ function start_link_drag(gobj, e)
     }
 
     function onPointerUp(ev) {
-        document.removeEventListener('pointermove', onPointerMove);
-        document.removeEventListener('pointerup', onPointerUp);
-        document.removeEventListener('pointercancel', onPointerCancel);
-        priv.$container.style.cursor = '';
-
-        // Remove drag line
-        if(priv._link_drag_svg) {
-            priv._link_drag_svg.remove();
-            priv._link_drag_svg = null;
-        }
-
-        if(!dragged) {
-            // It was a click, not a drag — let the click handler deal with it
-            return;
-        }
-
-        // Check if dropped on a valid hook port
-        let cx = ev.clientX - containerRect.left;
-        let cy = ev.clientY - containerRect.top;
-        let canvasPt = graph.getCanvasByViewport([cx, cy]);
-        let target = find_hook_at_point(gobj, canvasPt[0], canvasPt[1]);
-
-        if(target) {
-            try_complete_link(gobj, target.node_id, target.port_key);
-        } else {
-            exit_linking_mode(gobj);
-        }
+        gobj_send_event(gobj, "EV_LINK_DRAG_END", {
+            client_x: ev.clientX,
+            client_y: ev.clientY,
+            dragged:  dragged,
+        }, gobj);
     }
 
-    /*  A cancelled pointer (the browser took the touch) is no drop: the
-     *  listeners go, and what was there stays. Without it they stayed
-     *  on `document` until some later pointerup, which then dropped.  */
+    /*  A cancelled pointer (the browser took the touch) is no drop. */
     function onPointerCancel(ev) {
+        gobj_send_event(gobj, "EV_LINK_DRAG_CANCEL", {}, gobj);
+    }
+
+    function unwire() {
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', onPointerUp);
         document.removeEventListener('pointercancel', onPointerCancel);
-        priv.$container.style.cursor = '';
-        if(priv._link_drag_svg) {
-            priv._link_drag_svg.remove();
-            priv._link_drag_svg = null;
-        }
-        exit_linking_mode(gobj);
     }
 
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
     document.addEventListener('pointercancel', onPointerCancel);
-    /*  A view destroyed in the middle of the drag takes them off too
-     *  (mt_destroy): they are closures over this gobj, on `document`.  */
-    gobj.priv._drag_unwire = function() {
-        document.removeEventListener('pointermove', onPointerMove);
-        document.removeEventListener('pointerup', onPointerUp);
-        document.removeEventListener('pointercancel', onPointerCancel);
+
+    /*  Where the line is measured from, for the drop, and how to take
+     *  the listeners off. A view destroyed in the middle of the drag
+     *  takes them off too (mt_destroy, through `_drag_unwire`): they
+     *  are closures over this gobj, on `document`.  */
+    priv._link_drag = {
+        left:   containerRect.left,
+        top:    containerRect.top,
+        unwire: unwire,
     };
+    priv._drag_unwire = unwire;
+}
+
+/************************************************************
+ *  Take a link drag down: its listeners, its line, its cursor.
+ *  What was linked, or not, is the caller's.
+ ************************************************************/
+function end_link_drag(gobj)
+{
+    let priv = gobj.priv;
+    let drag = priv._link_drag;
+
+    priv._link_drag = null;
+    if(drag) {
+        drag.unwire();
+        if(priv._drag_unwire === drag.unwire) {
+            priv._drag_unwire = null;
+        }
+    }
+    priv.$container.style.cursor = '';
+    if(priv._link_drag_svg) {
+        priv._link_drag_svg.remove();
+        priv._link_drag_svg = null;
+    }
 }
 
 /************************************************************
@@ -7015,9 +7383,9 @@ function show_edge_icon(gobj)
     }
 
     let icons = show_dual_icons(gobj, mid.x + 4, mid.y + floating_icon_dy(),
-        t('edge properties'), () => toggle_edge_popover(gobj),
-        t('unlink'),
-        () => gobj_send_event(gobj, "EV_REQUEST_UNLINK_EDGE", {}, gobj)
+        'edge properties', "EV_TOGGLE_EDGE_POPOVER",
+        'unlink', "EV_REQUEST_UNLINK_EDGE",
+        {edge_id: priv._selected_edge_id}
     );
     priv._edge_icon_el = icons.icon_el;
     priv._edge_delete_el = icons.delete_el;
@@ -7155,24 +7523,18 @@ function show_edge_popover(gobj)
         {
             i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
-            onClick: () => {
-                deselect_edge(gobj);        /*  which undoes the preview  */
-            },
+            event: "EV_CANCEL_EDGE_POPOVER",
+            kw: {edge_id: edge_id},
         },
         {
             i18n: 'apply',
             style: 'flex:1;padding:6px;background:#52c41a;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
-            onClick: () => {
-                drop_preview_undo(gobj, '_edge_preview_undo');
-                apply_edge_properties(gobj, edge_id,
-                    parseInt(lwInput.value) || 2,
-                    colorInput.value,
-                    scopeSelect.value
-                );
-            },
+            event: "EV_APPLY_EDGE_POPOVER",
+            kw: {edge_id: edge_id},
+            form: {line_width: lwInput, color: colorInput, scope: scopeSelect},
         },
-    ]);
+    ], gobj);
 
     priv.$container.appendChild(popover);
     priv._edge_popover_el = popover;
@@ -7243,9 +7605,9 @@ function show_node_icon(gobj)
     }
 
     let icons = show_dual_icons(gobj, rect.right + 4, rect.top + floating_icon_dy(),
-        t('node properties'), () => toggle_node_popover(gobj),
-        t('delete node'),
-        () => gobj_send_event(gobj, "EV_REQUEST_DELETE_NODE", {}, gobj)
+        'node properties', "EV_TOGGLE_NODE_POPOVER",
+        'delete node', "EV_REQUEST_DELETE_NODE",
+        {node_id: priv._selected_node_id}
     );
     priv._node_icon_el = icons.icon_el;
     priv._node_delete_el = icons.delete_el;
@@ -7404,29 +7766,23 @@ function show_node_popover(gobj)
         {
             i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
-            onClick: () => {
-                hide_node_popover(gobj);    /*  which undoes the preview  */
-            },
+            event: "EV_CANCEL_NODE_POPOVER",
+            kw: {node_id: node_id},
         },
         {
             i18n: 'apply',
             style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
-            onClick: () => {
-                drop_preview_undo(gobj, '_node_preview_undo');
-                apply_node_properties(gobj, node_id,
-                    fillInput.value,
-                    strokeInput.value,
-                    parseInt(lwInput.value) || 1,
-                    scopeSelect.value,
-                    /*  Only a figure somebody CHOSE is written: the
-                     *  one the select opened on is today's default,
-                     *  and saving it would freeze it on the node.  */
-                    (shapeSelect.value !== orig_figure)? shapeSelect.value : ""
-                );
+            event: "EV_APPLY_NODE_POPOVER",
+            /*  `shape_before`: the figure the select opened on, which
+             *  the action does not write (see ac_apply_node_popover).  */
+            kw: {node_id: node_id, shape_before: orig_figure},
+            form: {
+                fill: fillInput, stroke: strokeInput, line_width: lwInput,
+                scope: scopeSelect, shape: shapeSelect
             },
         },
-    ]);
+    ], gobj);
 
     priv.$container.appendChild(popover);
     priv._node_popover_el = popover;
@@ -7452,6 +7808,49 @@ function hide_node_detail(gobj)
 {
     gobj.priv._detail_node_id = null;
     hide_overlay(gobj, '_node_detail_el');
+}
+
+/************************************************************
+ *  The ✕ of the detail popover. Built as an element and not in
+ *  the popover's markup, so that it is a whole button: named
+ *  with its key (a language switch renames it), reachable by
+ *  the keyboard and pressed by Enter or Space as by the pointer.
+ *  Its click sends EV_CLOSE_NODE_DETAIL {node_id} and nothing
+ *  else; a pointer press does not take the focus.
+ ************************************************************/
+function create_detail_close(gobj, color, node_id)
+{
+    let el = document.createElement('div');
+    el.className = 'g6-detail-close';
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('title', t('close'));
+    el.setAttribute('data-i18n-title', 'close');
+    el.setAttribute('aria-label', t('close'));
+    el.setAttribute('data-i18n-aria-label', 'close');
+    el.style.color = color;
+    el.textContent = '×';
+    el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        gobj_send_event(gobj, "EV_CLOSE_NODE_DETAIL", {node_id: node_id}, gobj);
+    });
+    keep_focus_on_press(el);
+    click_on_enter_or_space(el);
+    return el;
+}
+
+/*  A `div` of the detail popover: its class, and its text as a
+ *  text node.  */
+function detail_div(class_name, text)
+{
+    let el = document.createElement('div');
+    if(class_name) {
+        el.className = class_name;
+    }
+    if(text !== undefined) {
+        el.textContent = text;
+    }
+    return el;
 }
 
 function show_node_detail_popover(gobj, node_id)
@@ -7501,7 +7900,30 @@ function show_node_detail_popover(gobj, node_id)
         "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, " +
         "Helvetica, Arial, sans-serif";
 
-    let rows = '';
+    /*
+     *  Built as elements, every value a TEXT node: an id, a topic, a
+     *  field and its value are data, never markup.
+     *
+     *  The head is STICKY: the box scrolls, and with the head scrolling
+     *  away the ✕ left the screen -- on a phone, where the box is most
+     *  of the screen, that is a popover you cannot close without
+     *  scrolling back up for the button. Its background is the
+     *  popover's own, or the rows would show through it.
+     */
+    let head = detail_div('g6-detail-head');
+    head.style.background = bg;
+    let names = detail_div('');
+    names.style.flex = '1 1 auto';
+    names.style.minWidth = '0';
+    names.appendChild(detail_div('g6-detail-id', id));
+    let topic_el = detail_div('g6-detail-topic', topic);
+    topic_el.style.color = sub;
+    names.appendChild(topic_el);
+    head.appendChild(names);
+    head.appendChild(create_detail_close(gobj, sub, node_id));
+    popover.appendChild(head);
+
+    let n_rows = 0;
     for(let key of Object.keys(record)) {
         if(key.indexOf('__') === 0) {   // skip internal metadata
             continue;
@@ -7518,42 +7940,20 @@ function show_node_detail_popover(gobj, node_id)
         if(vs.length > 240) {
             vs = vs.slice(0, 240) + '…';
         }
-        rows +=
-            `<div class="g6-detail-row" style="border-top:1px solid ${rowbd};">` +
-            `<div class="g6-detail-key" style="color:${sub};">` +
-            `${escapeHtml(key)}</div>` +
-            `<div class="g6-detail-val">${escapeHtml(vs)}</div>` +
-            `</div>`;
+        let row = detail_div('g6-detail-row');
+        row.style.borderTop = `1px solid ${rowbd}`;
+        let key_el = detail_div('g6-detail-key', key);
+        key_el.style.color = sub;
+        row.appendChild(key_el);
+        row.appendChild(detail_div('g6-detail-val', vs));
+        popover.appendChild(row);
+        n_rows++;
     }
-
-    /*
-     *  The head is STICKY: the box scrolls, and with the head scrolling
-     *  away the ✕ left the screen -- on a phone, where the box is most
-     *  of the screen, that is a popover you cannot close without
-     *  scrolling back up for the button. Its background is the
-     *  popover's own, or the rows would show through it.
-     */
-    popover.innerHTML =
-        `<div class="g6-detail-head" style="background:${bg};">` +
-            `<div style="flex:1 1 auto;min-width:0;">` +
-                `<div class="g6-detail-id">${escapeHtml(id)}</div>` +
-                `<div class="g6-detail-topic" style="color:${sub};">` +
-                `${escapeHtml(topic)}</div>` +
-            `</div>` +
-            `<div class="g6-detail-close" role="button" tabindex="0"` +
-            ` aria-label="${escapeHtml(t('close'))}"` +
-            ` title="${escapeHtml(t('close'))}"` +
-            ` style="color:${sub};">×</div>` +
-        `</div>` +
-        (rows || `<div class="g6-detail-empty" style="color:${sub};">` +
-            `${escapeHtml(t('no fields'))}</div>`);
-
-    let close_el = popover.querySelector('.g6-detail-close');
-    if(close_el) {
-        close_el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            hide_node_detail(gobj);
-        });
+    if(!n_rows) {
+        let empty = detail_div('g6-detail-empty', t('no fields'));
+        empty.setAttribute('data-i18n', 'no fields');
+        empty.style.color = sub;
+        popover.appendChild(empty);
     }
 
     priv.$container.appendChild(popover);
@@ -8373,10 +8773,10 @@ function request_delete_selection(gobj)
     show_confirm_popover(gobj, null,
         delete_question(nodes),
         'delete', '#ff4d4f',
-        () => gobj_send_event(gobj, "EV_CONFIRMED", {
+        {
             what: "delete_selection",
             ids:  nodes.map((nd) => String(nd.id))
-        }, gobj),
+        },
         '_delete_confirm_el'
     );
 }
@@ -8413,10 +8813,10 @@ function show_delete_confirm(gobj, nodeData)
     show_confirm_popover(gobj, priv._node_delete_el,
         delete_question([nodeData]),
         'delete', '#ff4d4f',
-        () => gobj_send_event(gobj, "EV_CONFIRMED", {
+        {
             what: "delete_node",
             id:   String(nodeData.id)
-        }, gobj),
+        },
         '_delete_confirm_el'
     );
 }
@@ -8498,6 +8898,7 @@ function show_create_popover(gobj)
     popover.appendChild(topicLabel);
 
     let topicSelect = document.createElement('select');
+    topicSelect.className = 'G6_CREATE_TOPIC';
     topicSelect.setAttribute('title', t('topic'));
     topicSelect.setAttribute('data-i18n-title', 'topic');
     topicSelect.setAttribute('aria-label', t('topic'));
@@ -8547,6 +8948,7 @@ function show_create_popover(gobj)
     popover.appendChild(idLabel);
 
     let idInput = document.createElement('input');
+    idInput.className = 'G6_CREATE_ID';
     idInput.type = 'text';
     idInput.placeholder = t('node id');
     idInput.setAttribute('data-i18n-placeholder', 'node id');
@@ -8562,48 +8964,39 @@ function show_create_popover(gobj)
 
     // Error message area
     let errorEl = document.createElement('div');
+    errorEl.className = 'G6_CREATE_ERROR';
     errorEl.style.cssText =
         'color:#ff4d4f;font-size:12px;margin-bottom:8px;display:none;';
     popover.appendChild(errorEl);
 
-    // Button row
-    let createBtn;  // need reference for Enter key handler
-    create_form_button_row(popover, [
+    /*  Create sends what the form holds; an empty id is answered by
+     *  the action (ac_submit_new_node), in the popover.  */
+    let btnRow = create_form_button_row(popover, [
         {
             i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
-            onClick: () => hide_create_popover(gobj),
+            event: "EV_CLOSE_CREATE_POPOVER",
+            kw: {},
         },
         {
             i18n: 'create',
             style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
-            onClick: () => {
-                let node_id = idInput.value.trim();
-                if(!node_id) {
-                    errorEl.textContent = t('node id required');
-                    errorEl.setAttribute('data-i18n', 'node id required');
-                    errorEl.style.display = 'block';
-                    idInput.focus();
-                    return;
-                }
-                gobj_send_event(gobj, "EV_SUBMIT_NEW_NODE", {
-                    topic_name: String(topicSelect.value),
-                    id:         node_id
-                }, gobj);
-            },
+            event: "EV_SUBMIT_NEW_NODE",
+            kw: {},
+            form: {topic_name: topicSelect, id: idInput},
         },
-    ]);
-    createBtn = popover.querySelector('button:last-child');
+    ], gobj);
+    let createBtn = btnRow.lastElementChild;    // for the Enter key
 
-    // Enter key submits
+    // Enter key submits, Escape closes: the two buttons' events
     idInput.addEventListener('keydown', (e) => {
         if(e.key === 'Enter') {
             e.preventDefault();
             createBtn.click();
         } else if(e.key === 'Escape') {
             e.preventDefault();
-            hide_create_popover(gobj);
+            gobj_send_event(gobj, "EV_CLOSE_CREATE_POPOVER", {}, gobj);
         }
     });
 
@@ -8696,10 +9089,10 @@ function show_unlink_confirm(gobj, edgeData)
         t('unlink') + ' ' + d.child_id + ' → ' + d.parent_id + '?' +
         '\n' + t('neither record is deleted'),
         'unlink', '#ff4d4f',
-        () => gobj_send_event(gobj, "EV_CONFIRMED", {
+        {
             what: "unlink_edge",
             id:   String(edgeData.id)
-        }, gobj),
+        },
         '_unlink_confirm_el'
     );
 }
@@ -10696,10 +11089,7 @@ function ac_save_graph(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(priv.edit_mode) {
-        let $container = gobj_read_attr(gobj, "$container");
-
-        disableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", false);
+        light_save_button(gobj, false);
 
         let history = graph_get_plugin(gobj, "history");
         if(history) {
@@ -11161,17 +11551,27 @@ function ac_center_anchor(gobj, event, kw, src)
 }
 
 /************************************************************
- *  What the anchor button says it will do next.
+ *  What the anchor button says it will do next: its `title`,
+ *  and the `title_key` it is translated from.
  ************************************************************/
 function anchor_title(state)
 {
     if(state === "arming") {
-        return t('click the element to centre on');
+        return {
+            title: t('click the element to centre on'),
+            title_key: 'click the element to centre on'
+        };
     }
     if(state === "on") {
-        return t('centred: click to release');
+        return {
+            title: t('centred: click to release'),
+            title_key: 'centred: click to release'
+        };
     }
-    return t('anchor view');
+    return {
+        title: t('anchor view'),
+        title_key: 'anchor view'
+    };
 }
 
 /************************************************************
@@ -11702,11 +12102,15 @@ function ac_set_operation_mode(gobj, event, kw, src)
 {
     gobj_write_attr(gobj, "operation_mode", kw.operation_mode);
     configure_behaviour(gobj);
-    update_toolbar(gobj);
 
     /*  `configure_behaviour` is what decides `edit_mode`, and the
-     *  history plugin belongs to that decision.  */
+     *  history plugin belongs to that decision. BEFORE the toolbars:
+     *  the edit toolbar entering edition reads its Save from what
+     *  update_history_buttons() says of the new history -- after
+     *  it, the toolbar was made with what the Save was told in the
+     *  LAST edition.  */
     sync_history_plugin(gobj);
+    update_toolbar(gobj);
     return 0;
 }
 
@@ -11991,36 +12395,428 @@ function ac_context_menu_item(gobj, event, kw, src)
 }
 
 /************************************************************
- *  The delete icon floating beside the selected node.
+ *  Is the identity a floating button was drawn with still what
+ *  is selected?
+ *
+ *  The buttons are removed with their selection and drawn again
+ *  for the next one, so a click carrying another identity is a
+ *  broken invariant -- said loudly, never acted on: it would
+ *  delete, unlink or edit what the reader is not looking at.
+ ************************************************************/
+function floating_button_is_current(gobj, event, kw)
+{
+    let priv = gobj.priv;
+    let want = {
+        node_id:  priv._selected_node_id || "",
+        port_key: priv._selected_port_key || "",
+        edge_id:  priv._selected_edge_id || "",
+    };
+    let keys = Object.keys(kw || {});
+    let matches = keys.length > 0 && keys.every((k) => {
+        return Object.prototype.hasOwnProperty.call(want, k) &&
+            !!kw[k] && kw[k] === want[k];
+    });
+    if(!matches) {
+        log_error(`${gobj_short_name(gobj)}: ${event} for ${JSON.stringify(kw || {})}, ` +
+            `but the selection is ${JSON.stringify(want)}`);
+    }
+    return matches;
+}
+
+/************************************************************
+ *  {node_id} -- the delete icon floating beside the selected
+ *  node.
  ************************************************************/
 function ac_request_delete_node(gobj, event, kw, src)
 {
+    if(!floating_button_is_current(gobj, event, kw)) {
+        return -1;  // Error already logged
+    }
     request_delete_node(gobj);
     return 0;
 }
 
 /************************************************************
- *  The unlink icon floating beside the selected edge.
+ *  {edge_id} -- the unlink icon floating beside the selected
+ *  edge.
  ************************************************************/
 function ac_request_unlink_edge(gobj, event, kw, src)
 {
+    if(!floating_button_is_current(gobj, event, kw)) {
+        return -1;  // Error already logged
+    }
     request_unlink_edge(gobj);
     return 0;
 }
 
 /************************************************************
+ *  {node_id} -- the gear beside the selected node: its
+ *  properties popover, opened or closed.
+ ************************************************************/
+function ac_toggle_node_popover(gobj, event, kw, src)
+{
+    if(!floating_button_is_current(gobj, event, kw)) {
+        return -1;  // Error already logged
+    }
+    toggle_node_popover(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {edge_id} -- the gear beside the selected edge.
+ ************************************************************/
+function ac_toggle_edge_popover(gobj, event, kw, src)
+{
+    if(!floating_button_is_current(gobj, event, kw)) {
+        return -1;  // Error already logged
+    }
+    toggle_edge_popover(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {node_id, port_key} -- the gear beside the selected port.
+ ************************************************************/
+function ac_toggle_port_popover(gobj, event, kw, src)
+{
+    if(!floating_button_is_current(gobj, event, kw)) {
+        return -1;  // Error already logged
+    }
+    toggle_port_popover(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {node_id, port_key} -- the link icon of a selected fkey port,
+ *  CLICKED (a press that drags enters the mode on its own, from
+ *  start_link_drag): the compatible hooks light up, and the next
+ *  click on one of them links.
+ ************************************************************/
+function ac_enter_linking_mode(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(!floating_button_is_current(gobj, event, kw)) {
+        return -1;  // Error already logged
+    }
+    if(!priv._linking_mode) {
+        enter_linking_mode(gobj);
+    }
+    return 0;
+}
+
+/************************************************************
+ *  {node_id} -- the ✕ of the detail popover.
+ ************************************************************/
+function ac_close_node_detail(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let node_id = (kw && kw.node_id) || "";
+
+    if(!priv._node_detail_el || !node_id || node_id !== priv._detail_node_id) {
+        log_error(`${gobj_short_name(gobj)}: ${event} for '${node_id}', ` +
+            `but the detail popover shows '${priv._detail_node_id || ""}'`);
+        return -1;
+    }
+    hide_node_detail(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {} -- the create button of the edit toolbar: the create
+ *  popover, opened or closed. Only in edition, where that
+ *  toolbar is.
+ ************************************************************/
+function ac_toggle_create_popover(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(!priv.edit_mode) {
+        log_error(`${gobj_short_name(gobj)}: ${event} outside edition`);
+        return -1;
+    }
+    toggle_create_popover(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {} -- the cancel of the create popover, or Escape in its id.
+ ************************************************************/
+function ac_close_create_popover(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(!priv._create_popover_el) {
+        log_error(`${gobj_short_name(gobj)}: ${event} with no create popover open`);
+        return -1;
+    }
+    hide_create_popover(gobj);
+    return 0;
+}
+
+/************************************************************
  *  {topic_name, id} -- the create popover was filled in.
+ *
+ *  An empty id with the popover open is the person's to fix,
+ *  not a fault: it is said IN the popover, where they typed.
  ************************************************************/
 function ac_submit_new_node(gobj, event, kw, src)
 {
-    let topic_name = (kw && kw.topic_name)? kw.topic_name : "";
-    let node_id = (kw && kw.id)? kw.id : "";
+    let priv = gobj.priv;
+    let topic_name = (kw && kw.topic_name)? String(kw.topic_name) : "";
+    let node_id = (kw && kw.id)? String(kw.id).trim() : "";
 
+    if(topic_name && !node_id && priv._create_popover_el) {
+        say_node_id_required(gobj);
+        return 0;
+    }
     if(!topic_name || !node_id) {
         log_error(`${gobj_short_name(gobj)}: ${event} without topic or id`);
         return -1;
     }
     execute_create_node(gobj, topic_name, node_id);
+    return 0;
+}
+
+/*  "node id required", under the id of the create popover, and
+ *  the focus back on the id.  */
+function say_node_id_required(gobj)
+{
+    let $popover = gobj.priv._create_popover_el;
+    let $error = $popover.querySelector('.G6_CREATE_ERROR');
+    let $id = $popover.querySelector('.G6_CREATE_ID');
+
+    if(!$error || !$id) {
+        log_error(`${gobj_short_name(gobj)}: the create popover has no id or no error line`);
+        return;
+    }
+    $error.textContent = t('node id required');
+    $error.setAttribute('data-i18n', 'node id required');
+    $error.style.display = 'block';
+    $id.focus();
+}
+
+/************************************************************
+ *  Is `popover_key` open, and for the selection `kw` names?
+ *  `keys` are the identity in `kw` (the rest is what the form
+ *  held). A button of a popover that is not the one open is a
+ *  broken invariant -- said loudly, never acted on.
+ ************************************************************/
+function popover_is_current(gobj, event, kw, popover_key, keys)
+{
+    let priv = gobj.priv;
+
+    if(!priv[popover_key]) {
+        log_error(`${gobj_short_name(gobj)}: ${event} for ${JSON.stringify(kw || {})}, ` +
+            `but its popover is not open`);
+        return false;
+    }
+    let identity = {};
+    for(let k of keys) {
+        identity[k] = kw? kw[k] : undefined;
+    }
+    return floating_button_is_current(gobj, event, identity);
+}
+
+/************************************************************
+ *  {node_id, shape_before, fill, stroke, line_width, scope,
+ *  shape} -- apply of the node popover.
+ ************************************************************/
+function ac_apply_node_popover(gobj, event, kw, src)
+{
+    if(!popover_is_current(gobj, event, kw, '_node_popover_el', ['node_id'])) {
+        return -1;  // Error already logged
+    }
+    let shape = String(kw.shape || "");
+    drop_preview_undo(gobj, '_node_preview_undo');
+    apply_node_properties(gobj, kw.node_id,
+        kw.fill,
+        kw.stroke,
+        parseInt(kw.line_width) || 1,
+        kw.scope,
+        /*  Only a figure somebody CHOSE is written: the one the
+         *  select opened on is today's default, and saving it
+         *  would freeze it on the node.  */
+        (shape !== kw.shape_before)? shape : ""
+    );
+    return 0;
+}
+
+/************************************************************
+ *  {node_id} -- cancel of the node popover, which undoes the
+ *  preview.
+ ************************************************************/
+function ac_cancel_node_popover(gobj, event, kw, src)
+{
+    if(!popover_is_current(gobj, event, kw, '_node_popover_el', ['node_id'])) {
+        return -1;  // Error already logged
+    }
+    hide_node_popover(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {edge_id, line_width, color, scope} -- apply of the edge
+ *  popover.
+ ************************************************************/
+function ac_apply_edge_popover(gobj, event, kw, src)
+{
+    if(!popover_is_current(gobj, event, kw, '_edge_popover_el', ['edge_id'])) {
+        return -1;  // Error already logged
+    }
+    drop_preview_undo(gobj, '_edge_preview_undo');
+    apply_edge_properties(gobj, kw.edge_id,
+        parseInt(kw.line_width) || 2,
+        kw.color,
+        kw.scope
+    );
+    return 0;
+}
+
+/************************************************************
+ *  {edge_id} -- cancel of the edge popover: the edge is let go,
+ *  which undoes the preview.
+ ************************************************************/
+function ac_cancel_edge_popover(gobj, event, kw, src)
+{
+    if(!popover_is_current(gobj, event, kw, '_edge_popover_el', ['edge_id'])) {
+        return -1;  // Error already logged
+    }
+    deselect_edge(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  {node_id, port_key, r_before, shape, r, scope} -- apply of
+ *  the port popover.
+ ************************************************************/
+function ac_apply_port_popover(gobj, event, kw, src)
+{
+    if(!popover_is_current(gobj, event, kw, '_port_popover_el', ['node_id', 'port_key'])) {
+        return -1;  // Error already logged
+    }
+    drop_preview_undo(gobj, '_port_preview_undo');
+    apply_port_properties(gobj, kw.node_id, kw.port_key,
+        kw.shape, parseInt(kw.r) || kw.r_before, kw.scope
+    );
+    return 0;
+}
+
+/************************************************************
+ *  {node_id, port_key} -- cancel of the port popover, which
+ *  undoes the preview.
+ ************************************************************/
+function ac_cancel_port_popover(gobj, event, kw, src)
+{
+    if(!popover_is_current(gobj, event, kw, '_port_popover_el', ['node_id', 'port_key'])) {
+        return -1;  // Error already logged
+    }
+    hide_port_popover(gobj);
+    return 0;
+}
+
+/*  Where the confirm popover of each question is kept.  */
+const CONFIRM_POPOVER_OF = {
+    delete_selection:   '_delete_confirm_el',
+    delete_node:        '_delete_confirm_el',
+    unlink_edge:        '_unlink_confirm_el',
+};
+
+function same_question(a, b)
+{
+    return !!a && !!b && a.what === b.what &&
+        JSON.stringify(a.id ?? null) === JSON.stringify(b.id ?? null) &&
+        JSON.stringify(a.ids ?? null) === JSON.stringify(b.ids ?? null);
+}
+
+/************************************************************
+ *  {what, id|ids} -- the person said no in a confirm popover:
+ *  the question it carries must be the one open.
+ ************************************************************/
+function ac_cancel_confirm(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let key = CONFIRM_POPOVER_OF[(kw && kw.what) || ""];
+    let asked = key? priv._confirm_questions[key] : null;
+
+    if(!key || !priv[key] || !same_question(asked, kw)) {
+        log_error(`${gobj_short_name(gobj)}: ${event} for ${JSON.stringify(kw || {})}, ` +
+            `but the question open is ${JSON.stringify((priv[key] && asked) || {})}`);
+        return -1;
+    }
+    hide_overlay(gobj, key);
+    return 0;
+}
+
+/************************************************************
+ *  {node_id, port_key, client_x, client_y} -- a press on the
+ *  link icon of the selected fkey port, which may be a drag.
+ ************************************************************/
+function ac_start_link_drag(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(!floating_button_is_current(gobj, event,
+            {node_id: kw && kw.node_id, port_key: kw && kw.port_key})) {
+        return -1;  // Error already logged
+    }
+    if(priv._link_drag) {
+        /*  The release of the last one never came: it is dropped,
+         *  and this press starts over.  */
+        log_warning(`${gobj_short_name(gobj)}: ${event} with a link drag still in flight`);
+        end_link_drag(gobj);
+    }
+    start_link_drag(gobj, Number(kw.client_x) || 0, Number(kw.client_y) || 0);
+    return 0;
+}
+
+/************************************************************
+ *  {client_x, client_y, dragged} -- the pointer of a link drag
+ *  went up. Not dragged, it was a click: the click comes next
+ *  (EV_ENTER_LINKING_MODE). Dragged, it links to the hook it was
+ *  dropped on, or leaves the linking mode.
+ ************************************************************/
+function ac_link_drag_end(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let drag = priv._link_drag;
+
+    if(!drag) {
+        log_error(`${gobj_short_name(gobj)}: ${event} with no link drag in flight`);
+        return -1;
+    }
+    end_link_drag(gobj);
+    if(!kw || !kw.dragged) {
+        return 0;
+    }
+
+    let cx = Number(kw.client_x) - drag.left;
+    let cy = Number(kw.client_y) - drag.top;
+    let canvasPt = priv.graph.getCanvasByViewport([cx, cy]);
+    let target = find_hook_at_point(gobj, canvasPt[0], canvasPt[1]);
+
+    if(target) {
+        try_complete_link(gobj, target.node_id, target.port_key);
+    } else {
+        exit_linking_mode(gobj);
+    }
+    return 0;
+}
+
+/************************************************************
+ *  {} -- the browser took the pointer of a link drag: no drop,
+ *  and the linking mode goes.
+ ************************************************************/
+function ac_link_drag_cancel(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(!priv._link_drag) {
+        log_error(`${gobj_short_name(gobj)}: ${event} with no link drag in flight`);
+        return -1;
+    }
+    end_link_drag(gobj);
+    exit_linking_mode(gobj);
     return 0;
 }
 
@@ -12316,8 +13112,25 @@ function create_gclass(gclass_name)
             ["EV_CONTEXT_MENU_ITEM",        ac_context_menu_item,   null],
             ["EV_REQUEST_DELETE_NODE",      ac_request_delete_node, null],
             ["EV_REQUEST_UNLINK_EDGE",      ac_request_unlink_edge, null],
+            ["EV_TOGGLE_NODE_POPOVER",      ac_toggle_node_popover, null],
+            ["EV_TOGGLE_EDGE_POPOVER",      ac_toggle_edge_popover, null],
+            ["EV_TOGGLE_PORT_POPOVER",      ac_toggle_port_popover, null],
+            ["EV_ENTER_LINKING_MODE",       ac_enter_linking_mode,  null],
+            ["EV_CLOSE_NODE_DETAIL",        ac_close_node_detail,   null],
+            ["EV_TOGGLE_CREATE_POPOVER",    ac_toggle_create_popover, null],
+            ["EV_CLOSE_CREATE_POPOVER",     ac_close_create_popover, null],
             ["EV_SUBMIT_NEW_NODE",          ac_submit_new_node,     null],
+            ["EV_APPLY_NODE_POPOVER",       ac_apply_node_popover,  null],
+            ["EV_CANCEL_NODE_POPOVER",      ac_cancel_node_popover, null],
+            ["EV_APPLY_EDGE_POPOVER",       ac_apply_edge_popover,  null],
+            ["EV_CANCEL_EDGE_POPOVER",      ac_cancel_edge_popover, null],
+            ["EV_APPLY_PORT_POPOVER",       ac_apply_port_popover,  null],
+            ["EV_CANCEL_PORT_POPOVER",      ac_cancel_port_popover, null],
             ["EV_CONFIRMED",                ac_confirmed,           null],
+            ["EV_CANCEL_CONFIRM",           ac_cancel_confirm,      null],
+            ["EV_START_LINK_DRAG",          ac_start_link_drag,     null],
+            ["EV_LINK_DRAG_END",            ac_link_drag_end,       null],
+            ["EV_LINK_DRAG_CANCEL",         ac_link_drag_cancel,    null],
             ["EV_CANVAS_CLICK",             ac_canvas_click,        null],
             ["EV_NODE_DRAG_END",            ac_node_drag_end,       null],
             ["EV_BRUSH_SELECT",             ac_brush_select,        null],
@@ -12386,8 +13199,25 @@ function create_gclass(gclass_name)
         ["EV_CONTEXT_MENU_ITEM",        0],
         ["EV_REQUEST_DELETE_NODE",      0],
         ["EV_REQUEST_UNLINK_EDGE",      0],
+        ["EV_TOGGLE_NODE_POPOVER",      0],
+        ["EV_TOGGLE_EDGE_POPOVER",      0],
+        ["EV_TOGGLE_PORT_POPOVER",      0],
+        ["EV_ENTER_LINKING_MODE",       0],
+        ["EV_CLOSE_NODE_DETAIL",        0],
+        ["EV_TOGGLE_CREATE_POPOVER",    0],
+        ["EV_CLOSE_CREATE_POPOVER",     0],
         ["EV_SUBMIT_NEW_NODE",          0],
+        ["EV_APPLY_NODE_POPOVER",       0],
+        ["EV_CANCEL_NODE_POPOVER",      0],
+        ["EV_APPLY_EDGE_POPOVER",       0],
+        ["EV_CANCEL_EDGE_POPOVER",      0],
+        ["EV_APPLY_PORT_POPOVER",       0],
+        ["EV_CANCEL_PORT_POPOVER",      0],
         ["EV_CONFIRMED",                0],
+        ["EV_CANCEL_CONFIRM",           0],
+        ["EV_START_LINK_DRAG",          0],
+        ["EV_LINK_DRAG_END",            0],
+        ["EV_LINK_DRAG_CANCEL",         0],
         ["EV_CANVAS_CLICK",             0],
         ["EV_NODE_DRAG_END",            0],
         ["EV_BRUSH_SELECT",             0],
@@ -12511,4 +13341,7 @@ function register_c_g6_nodes_tree()
 export {
     register_c_g6_nodes_tree,
     toolbar_item_html,      // exported for its test
+    YuiToolbar,             // exported for its test
+    create_floating_icon,   // exported for its test
+    create_detail_close,    // exported for its test
 };

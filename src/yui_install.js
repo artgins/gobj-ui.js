@@ -197,13 +197,15 @@ function yui_install_start_watch()
 /*  The question and its answers when the app names none. They are i18n
  *  KEYS, lower-case, and the ones every consumer already defines; the
  *  question was "Install this app?" until 7.25.16, a key no locale
- *  carries. Written as `i18n:` entries so the validate-locales script of
- *  a consumer finds them when it scans this module.  */
+ *  carries. A consumer's validate-locales reads them where the dialog
+ *  gets them (`DEFAULT_ASK.message`, a const it follows), and in
+ *  YUI_INSTALL_I18N_KEYS, which a test holds to this table.  */
 const DEFAULT_ASK = Object.freeze({
-    message: Object.freeze({i18n: "install this app"}),
-    yes:     Object.freeze({i18n: "install"}),
-    no:      Object.freeze({i18n: "not now"})
+    message: "install this app",
+    yes:     "install",
+    no:      "not now"
 });
+export const YUI_INSTALL_I18N_KEYS = ["install this app", "install", "not now"];
 
 function yui_install_ask_once(shell, opts)
 {
@@ -224,10 +226,10 @@ function yui_install_ask_once(shell, opts)
         S.asking = true;
         kw_set_local_storage_value(ASKED_KEY, true);
 
-        yui_shell_confirm_yesno(shell, opts.message || DEFAULT_ASK.message.i18n, {
+        yui_shell_confirm_yesno(shell, opts.message || DEFAULT_ASK.message, {
             t:         opts.t,
-            yes_label: opts.yes_label || DEFAULT_ASK.yes.i18n,
-            no_label:  opts.no_label  || DEFAULT_ASK.no.i18n
+            yes_label: opts.yes_label || DEFAULT_ASK.yes,
+            no_label:  opts.no_label  || DEFAULT_ASK.no
         }).then(function(yes) {
             S.asking = false;
             if(yes) {

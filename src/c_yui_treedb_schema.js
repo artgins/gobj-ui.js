@@ -68,6 +68,7 @@ import {
     yui_graph_update_zoom,
 } from "./yui_graph_camera.js";
 import {ensure_pinch_zoom_patch} from "./g6_touch_gestures.js";
+import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
 import {col_key_roles} from "./treedb_topic_keys.js";
 
 import {getStrokeColor} from "./lib_graph.js";
@@ -658,6 +659,10 @@ function build_graph(gobj)
     priv.graph = graph;
 
     graph.setTheme(dark ? "dark" : "light");
+
+    /*  Tab goes from the graph to its own buttons: the main canvas in
+     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, graph);
 
     /*  The readout follows ANY camera change, the wheel included -- a
      *  wheel notch passes through no action of ours.  */

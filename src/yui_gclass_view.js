@@ -193,11 +193,11 @@ function open_gclass_view(host, gclass_name, opts)
             close_gclass_view(handle);
             return null;
         }
-        handle.modal = yui_shell_show_modal(shell, $box, {
+        handle.modal = yui_shell_show_modal(shell, /* i18n: data */ $box, {
             dialog:        true,
             logical_class: "GCLASS_VIEW_SHEET",
             title_prefix:  opts.title_prefix || "",
-            title:         gclass_name,
+            title:         /* i18n: data */ gclass_name,
             t:             t,
             on_close:      on_close,
         });

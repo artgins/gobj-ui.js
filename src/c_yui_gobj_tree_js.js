@@ -82,6 +82,7 @@ import { ensure_drag_canvas_patch } from "./g6_drag_canvas_touch.js";
 import { ensure_pinch_zoom_patch } from "./g6_touch_gestures.js";
 import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
 import {g6_event_kw} from "./g6_event_kw.js";
+import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
 
 /***************************************************************
  *              Constants
@@ -522,6 +523,18 @@ const LAYOUTS = {
         edge_type: 'polyline',
     },
 };
+
+/*  The `key` of every layout: the picker hands it to t() as data
+ *  (`LAYOUTS[key].key`), where no scan of the source reads it, so it is
+ *  published here for a consumer's validate-locales, which asks the
+ *  app's locales for every key of an exported `*_I18N_KEYS` array. A
+ *  layout added to LAYOUTS adds its key here.  */
+export const C_YUI_GOBJ_TREE_JS_I18N_KEYS = [
+    "vertical tree", "vertical tree compact",
+    "horizontal tree", "horizontal tree compact",
+    "lanes vertical", "lanes horizontal",
+    "dagre top-down", "dagre left-right"
+];
 
 function get_layout_cfg(layout_key)
 {
@@ -1149,6 +1162,10 @@ function build_graph(gobj)
     if(priv.theme) {
         graph.setTheme(priv.theme);
     }
+
+    /*  Tab goes from the graph to its own buttons: the main canvas in
+     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, graph);
 
     /*  The readout follows ANY camera change, the wheel included — a
      *  wheel notch passes through no action of ours.  */

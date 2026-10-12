@@ -1513,11 +1513,130 @@ clicked":
 | **Delete** / **Backspace** | deletes the selection, after a confirmation that counts what it takes |
 | **Esc**, or a click on the canvas | clears it |
 
-The keys reach the graph only while the **graph has focus** — G6 gives its
-canvas a `tabIndex` of its own — which is what keeps `ctrl+A` inside the find
-box a selection of the TEXT and not of every node: the focus is in the input,
-and the input is not inside the canvas. They arrive as `EV_KEY_DOWN` and the
-action decides, so a key is as visible in the `machine` trace as a click.
+The keys reach the graph only while the **graph has focus** — G6 hears a key
+inside its own container, and its main canvas can take the focus — which is
+what keeps `ctrl+A` inside the find box a selection of the TEXT and not of
+every node: the focus is in the input, and the input is not inside the graph.
+They arrive as `EV_KEY_DOWN` and the action decides, so a key is as visible in
+the `machine` trace as a click.
+
+**Tab goes from the canvas to the graph's own buttons** (since `7.26.28`). G6
+gives each of its four canvases `tabIndex = 1`, and a positive tabindex goes
+before every other control of the page: Tab from the graph went to the other
+three canvases, then to the top of the page and through every control there,
+and only then to the buttons beside the selection. Each time G6 writes that
+`1` — when it creates the canvases (`aftercanvasinit`) and after a renderer
+change (`afterrendererchange`) — the view gives the main canvas `0` and the
+other three `-1`. Tab now goes from the canvas to the toolbars and then to the
+round buttons, in DOM order. The same rule holds in every view of the library
+that draws a G6 graph (`C_G6_NODES_TREE`, `C_YUI_JSON_GRAPH`,
+`C_YUI_GOBJ_TREE_JS`, `C_YUI_FSM_GRAPH`, `C_YUI_TREEDB_SCHEMA`): each one calls
+the shared `keep_canvas_tab_order()` (`src/g6_canvas_tab_order.js`) right after
+`new Graph()`:
+
+```js
+import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
+
+const graph = priv.graph = new Graph({container: priv.$container /* ... */});
+keep_canvas_tab_order(gobj, graph);     // main canvas 0, the other layers -1
+```
+
+The buttons of the graph are buttons for the keyboard too: the items of both
+toolbars, the round buttons beside a selection — the gear and the trash of a
+node or an edge, the link and the gear of a port — and the ✕ of a node's
+detail popover. Each one has `role="button"`, `tabindex="0"`, and a `title`
+and an `aria-label` that carry their key (`data-i18n-title`,
+`data-i18n-aria-label`). **Enter** or **Space** presses the focused one,
+exactly as a click does, and that key stops at the button: it is not the
+graph's. Any other key goes on, so **Esc** and **Delete** still clear or
+delete the selection while one of those buttons has the focus.
+
+A toolbar item says its STATE as well as its name:
+
+- **A disabled item** (save, undo and redo with nothing to do, zoom to
+  selection with nothing selected) has `aria-disabled="true"` and is out of
+  the Tab order (`tabindex="-1"`), from its first render and on every change.
+  `disableElements()` / `enableElements()` (`lib_graph.js`) write the three
+  together, and keep the tabindex the item takes back in
+  `data-enabled-tabindex`. A disabled item that still has the focus takes the
+  key and does nothing.
+- **A toggle** — the anchor, the selection mode — has `aria-pressed`, `true`
+  only while it is ON, the same state its `pressed_state` look shows.
+- **A rebuild keeps the state** (since `7.26.28`). G6 rebuilds a toolbar
+  whole — on a fold, a language change, full screen, any plugin added or
+  removed — from its `getItems()`, read at that moment, and the new
+  `innerHTML` lands later, over anything told to the old items. So each
+  state is computed in `getItems()` as well as told to the live item. Before,
+  zoom to selection came back disabled over a selection, and save, undo and
+  redo came back disabled over history still pending.
+
+```js
+//  An item of a getItems() list, its state computed HERE: a rebuild
+//  draws the item from this list.
+{id: 'g6-icon-save', value: 'save',
+ className: 'EV_SAVE_GRAPH' + (lit.save ? ' color_submit_state' : ''),
+ title: t('save'), title_key: 'save', disabled: !lit.save},
+{id: 'g6-icon-select-mode', value: 'selection-mode',
+ className: 'EV_TOGGLE_SELECTION_MODE', pressed: priv.selection_mode,
+ title: t('selection mode'), title_key: 'selection mode'},
+
+//  Between two rebuilds, on the live toolbar:
+enableElements($container, ".EV_SAVE_GRAPH");   // tabindex 0, no aria-disabled
+```
+
+A press, from the pointer or from a key, does one thing: the button SENDS an
+input event to the view, with the identity of what it belongs to, and the
+action does the work. So every press is in the `machine` trace:
+
+| button | event | kw |
+|---|---|---|
+| gear of a node | `EV_TOGGLE_NODE_POPOVER` | `{node_id}` |
+| trash of a node | `EV_REQUEST_DELETE_NODE` | `{node_id}` |
+| gear of an edge | `EV_TOGGLE_EDGE_POPOVER` | `{edge_id}` |
+| trash of an edge | `EV_REQUEST_UNLINK_EDGE` | `{edge_id}` |
+| gear of a port | `EV_TOGGLE_PORT_POPOVER` | `{node_id, port_key}` |
+| link of an fkey port (a click; a drag starts the link itself) | `EV_ENTER_LINKING_MODE` | `{node_id, port_key}` |
+| a press on that link, which may be a drag | `EV_START_LINK_DRAG` | `{node_id, port_key, client_x, client_y}` |
+| ...its release, and a pointer the browser took | `EV_LINK_DRAG_END` / `EV_LINK_DRAG_CANCEL` | `{client_x, client_y, dragged}` / `{}` |
+| ✕ of the detail popover | `EV_CLOSE_NODE_DETAIL` | `{node_id}` |
+| create of the edit toolbar | `EV_TOGGLE_CREATE_POPOVER` | `{}` |
+| cancel of the create popover (or Escape in its id) / create | `EV_CLOSE_CREATE_POPOVER` / `EV_SUBMIT_NEW_NODE` | `{}` / `{topic_name, id}` |
+| cancel / apply of a node's popover | `EV_CANCEL_NODE_POPOVER` / `EV_APPLY_NODE_POPOVER` | `{node_id}` / `{node_id, shape_before, fill, stroke, line_width, scope, shape}` |
+| cancel / apply of an edge's popover | `EV_CANCEL_EDGE_POPOVER` / `EV_APPLY_EDGE_POPOVER` | `{edge_id}` / `{edge_id, line_width, color, scope}` |
+| cancel / apply of a port's popover | `EV_CANCEL_PORT_POPOVER` / `EV_APPLY_PORT_POPOVER` | `{node_id, port_key}` / `{node_id, port_key, r_before, shape, r, scope}` |
+| cancel / confirm of a delete or an unlink | `EV_CANCEL_CONFIRM` / `EV_CONFIRMED` | `{what, id}` or `{what, ids}` |
+
+A popover's apply carries what its form held when it was pressed, each value
+as the control gives it (a string: the action parses it), so the trace says
+what was applied, not only that something was:
+
+```
+EV_APPLY_EDGE_POPOVER {"edge_id": "e1", "line_width": "3", "color": "#52c41a", "scope": "this"}
+```
+
+The action refuses, with an error, an identity that is not the current
+selection (or, for the ✕, the node the popover shows; for a popover's
+buttons, a popover that is not open; for a cancel of a confirmation, a
+question that is not the one open). The buttons go away with their selection,
+so a mismatch is a defect, and to act on it would edit or delete something the
+reader does not look at. An empty id in the create popover is not a defect:
+the action says *node id required* in the popover, and puts the focus back in
+the id.
+
+Only the MOVES of a link drag are not events: they draw the line and the
+cursor, which is the gesture's own picture, and one event per move would bury
+the trace.
+
+**The keyboard stays with the graph.** A pointer press on one of these buttons
+does not take the focus: it cancels the `pointerdown`, the click still comes,
+and the focus stays on the canvas. And before the view removes an element that
+has the focus — a round button that Escape deselects, a popover that closes
+with its ✕ or a field in it, a toolbar it rebuilds or takes away — it gives
+the focus back: after a rebuild to the item of the same CONTROL (its
+`data-control`: Enter on *enter full screen* lands on *exit full screen*, the
+same control in its other state), in every other case to the main canvas. Firefox fires no `focusout` when the
+focused element is removed, so without this the focus fell to `<body>` and the
+graph heard no key until the next click on it.
 
 Three decisions are worth knowing, because each one is where this could have
 gone wrong:
@@ -2837,8 +2956,9 @@ Consumer i18n keys: `json viewer`, `paste json here`, `invalid json`,
 `collapsed in the source`, `first json`, `second json`, `compare`, `added`,
 `removed`, `changed`, `path`, `no differences`, `compare needs two json`,
 `cannot compare`, `json not kept` (plus `view` and `clear`, which every app
-has). `compare`, `view` and `clear` reach `t()` as variables, so a consumer's
-`validate-locales` does not see them.
+has). `compare`, `view` and `clear` reach `t()` through the pad's own button
+helper, which `I18N_KEY_FUNCTIONS` names, so a consumer's `validate-locales`
+asks for them (since `7.26.28`; it did not see them before).
 
 ### Frontend view — `setup_frontend_view`
 
@@ -3505,6 +3625,31 @@ A `<label>` that **wraps** its control is the one shape that needs no
 `aria-label` next to a visible `i18n` label is worse than none: it OVERRIDES
 the translated text for a reader.
 
+A control drawn as something other than a `<button>` — a `div` holding an
+icon or a glyph — is a button for the KEYBOARD too: `role="button"`,
+`tabindex="0"`, and Enter or Space **click** it, so the key runs the very
+handler the pointer does:
+
+```js
+el.setAttribute('role', 'button');
+el.setAttribute('tabindex', '0');
+el.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();     // Space would scroll the page
+        e.stopPropagation();    // a key that pressed a button is not the host's
+        el.click();
+    }
+});
+```
+
+`C_G6_NODES_TREE` builds its floating buttons and the ✕ of its detail popover
+this way, and the items of its G6 toolbars too (the listener is on the
+toolbar element, because G6 rebuilds the items). The `stopPropagation`
+matters there: the graph's container forwards every keydown to G6, so an
+Enter that pressed a button would also reach the graph's shortcuts and
+`EV_KEY_DOWN`. What else a button needs inside a graph is in
+[Selecting several nodes](#selecting-several-nodes-and-moving-them-together).
+
 Two things carry no attribute anyone can set, and are named after the render
 instead — and again on every rebuild, because a name written onto a widget's
 DOM is a race with the next one:
@@ -3522,8 +3667,9 @@ DOM is a race with the next one:
 DEPLOYED DOM, resolve each control's name the way a reader does (`aria-label`
 → `label[for]` → a wrapping `<label>` → the text → `title` → `placeholder`),
 then switch language and diff. A key that arrives as a VARIABLE — from a data
-table, a helper's argument, a local alias of `t()` — is invisible to
-`validate-locales` and shows up only there.
+table, a local alias of `t()`, a helper `I18N_KEY_FUNCTIONS` does not name — is
+invisible to `validate-locales` unless its module publishes it (below), and
+shows up only there.
 
 ### i18n: a string must be able to CHANGE language, not just be translated once
 
@@ -3628,34 +3774,321 @@ carry the categories of ITS language (`Intl.PluralRules`: English `one`,
 no suffix serves `other` and `many`; `zero`, `one`, `two` and `few` need their
 own form. That is a policy of GRAMMAR, not a need of i18next, which falls back
 to the bare key for any form that is missing: a Russian count of 3 rendered
-with the bare key reads wrong, and the check says so. A key that only ends
-like a form (`pick_one` alone) is a plain key; ordinals (`place_ordinal_one`)
-are checked with the ordinal categories of each language. A value of the shell
+with the bare key reads wrong, and the check says so. A group is a plural only
+when some locale carries its bare base (`songs`) or its `_other` form — every
+language has `other`, so a real plural always has one of the two. Keys that
+only END like forms are plain keys: `pick_one` alone, or `step_one` /
+`step_two` / `step_three`, an enumeration (up to `7.26.27` two forms were
+enough to make a plural, and that enumeration gave seven violations). A form
+asked for by its own name — `t("pick_one")` beside a bare `pick` — is a key
+like any other. Ordinals (`place_ordinal_one`) are checked with the ordinal
+categories of each language; the `_ordinal_` infix says they are forms. A value of the shell
 declaration is a literal when it is the endonym of one of the app's locales
 (the `name` its catalog exports: `"中文"`, `"español"`); any other lower-case
 text is a key, `"configuración"` included.
 
-**A key that reaches `t()` as data is PUBLISHED by its module** (since
+**The source is PARSED, never run** (since `7.26.28`, with `acorn`, which
+every app declares already for `check-markup-strings.mjs`). Comments are not
+code. A key is read where it is WRITTEN, and FOLLOWED where the source writes
+it out:
+
+- a string literal, a template with no `${}`, and every branch of `?:`, `||`
+  and `??` (the right one of `&&`), so
+  `"data-i18n": pending ? "loading" : "click to load"` asks for both, and
+  `comment || "print-tranger failed"` for its fallback;
+- a `const`, to its value, in the scope that declares it (a parameter or a
+  `let` of the same name hides it);
+- a property of a const object literal: `DEFAULT_LABEL.ok`, and for a
+  computed one, `NOTES[verdict]`, every value the object holds;
+- the element of a const array literal that a `.map()`, `.forEach()`, ...
+  callback or a `for...of` walks.
+
+```js
+const KEY = "save";
+t(KEY);                                             // asks for "save"
+const NOTES = {found: "values found", none: "no values"};
+t(NOTES[verdict]);                                  // asks for both
+for(const zone of ZONES) {
+    build_zone(gobj, zone);                         // ZONES[].key, at build_zone's key position
+}
+SHAPES.map((s) => ({value: s, i18n: s}));           // every element of SHAPES
+```
+
+What it cannot follow cannot be known: a `let`, a parameter, an import, a
+call, a concatenation, data from a backend. A key that arrives that way is
+PUBLISHED by its module (below), and the place it is read is MARKED; a marked
+`let` -- or a marked member or element of one -- is the one exception to "not
+followed" (below). A source file that cannot be parsed fails the build, because
+its keys would go unchecked.
+
+**A key handed to a FUNCTION is read where it is handed.**
+`yui_shell_show_error(shell, "some records were gone before the delete")` asks
+`t()` for its key INSIDE the function, where no scan of `t("...")` sees it, and
+up to `7.26.27` such keys shipped raw with the validator green (`expand
+loaded`, `click to load`, `please select some row`, `accept`, ...).
+`I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`) names every gobj-ui function
+that receives a key, and where it is:
+
+```js
+{module: "shell_modals.js", name: "yui_shell_confirm_danger", exported: true,
+    keys: ["1", "2.title", "2.confirm_label", "2.cancel_label"]},
+{module: "yui_table_select.js", name: "yui_selection_bar", exported: true,
+    keys: ["1.actions[].label"]},
+{module: "c_yui_json.js", name: "icon_button", exported: false, keys: ["3"]},
+```
+
+A position is an argument (`"1"`), a property of the object given there
+(`"2.title"`, also through `Object.assign()` or a spread of a const object),
+or a property of each object of an array (`"1.actions[].label"`). What is
+given at those positions is read like any other key (literals, consts,
+branches): in the app's own code, on a call bound to an import of that
+function from gobj-ui (an app function of the same name is not mistaken for
+it), and in every module the app mounts, where an entry with
+`exported: false` is a helper of its own module. The exported ones an app
+calls: `yui_shell_show_info` / `_warning` / `_error` (the message),
+`yui_shell_show_modal` (a string content, `title`),
+`yui_shell_confirm_ok` / `_yesno` / `_danger` / `_yesnocancel` (the message,
+`title`, the `*_label`s), `yui_install_ask_once` (`message`, `yes_label`,
+`no_label`), `yui_selection_bar` (each action's `label`), `yui_asset_missing`
+/ `yui_asset_element` (`key`), `hook_cell_spec` (the title key) and
+`period_name` (a granularity id). A function added to the library that hands
+one of its parameters to `t()`, to `i18n` or to a `data-i18n*` attribute goes
+in the table.
+
+**A key the reader cannot follow is PUBLISHED by its module** (since
 `7.26.27`): an exported `<NAME>_I18N_KEYS` array of string literals, which
 `validate-locales` reads in every module the app mounts and asks the locales
 for. `yui_dev.js` publishes the 51 keys of the Developer window
 (`YUI_DEV_I18N_KEYS`) -- they used to be a comment each consumer copied, and
-one consumer lacked 35 --, `c_g6_nodes_tree.js` those of its shape tables and
-popover labels (`G6_NODES_TREE_I18N_KEYS`). A module that hands a key to `t()`
-by variable adds it to such a list:
+one consumer lacked 35 --, `c_g6_nodes_tree.js` those of its shape tables,
+popover labels, floating buttons and error messages
+(`G6_NODES_TREE_I18N_KEYS`). Since `7.26.28` more modules publish one:
+`SCHEMA_FLAGS_I18N_KEYS` (the group and the description of every flag),
+`YUI_TIME_I18N_KEYS` (every granularity and rolling window of the catalog:
+which of them a period control offers is the HOST's data),
+`C_YUI_FORM_I18N_KEYS` (the message of an empty required field, and the
+warning a form hands its host when it vetoes a close),
+`C_YUI_SCHEMA_EDITOR_I18N_KEYS` (the severity of a finding, which the checks of
+`schema_validate.js` write), `SHELL_ROUTE_MAP_I18N_KEYS` (the labels of the
+route map's own nodes), and so on: `grep -n _I18N_KEYS src/*.js`.
+
+A list is for what the reader CANNOT follow. A key it can follow needs no list:
+write it as a literal or a `const` where it is read, and the reader sees it.
+`const key = maximized ? "restore" : "maximize"; t(key);` asks for both keys,
+and so do the pager's ✕, the camera's anchor button, the nav's landmark, the
+selection bar's clear button and the treedb form's title, which are written
+that way. The same code with a `let` asks for neither.
 
 ```js
 export const MY_VIEW_I18N_KEYS = ['shape', 'radius', 'apply to'];
 ```
 
+The list is read as DATA, never run: `export const` (or `let`, `var`),
+`const X = [...]; export {X}` (or `export {x as X_I18N_KEYS}`), wrapped in
+`Object.freeze()` or not, each element a string literal or a template with no
+`${}`. Anything named `*_I18N_KEYS` (in any case) that no consumer can read
+**fails the build**, naming the file and the list, in the app's own code too:
+an export that is not an array of literals (a variable, a spread, a call, a
+template with `${}`), a list that is not exported, one declared inside a
+function or a block, one declared by destructuring
+(`export const {X_I18N_KEYS} = tables`), one exported under a name that does
+not end in `_I18N_KEYS`. Up to `7.26.27` the regex that read the lists dropped
+such a list in silence, and a key holding `]` dropped the whole array.
+
+**A MARKER says where the keys of a place come from.** It is a comment that
+stands right before the node it marks (only whitespace between): an argument,
+a branch of one, a property value, or the whole call. Two kinds:
+
+```js
+yui_shell_show_error(shell, /* i18n: data */ comment || "print-tranger failed", {t: t});
+let name = mode_name(/* i18n: C_YUI_PERIOD_I18N_KEYS, YUI_TIME_I18N_KEYS */ mode);
+confirm_then(gobj, /* i18n: C_YUI_FORM_I18N_KEYS */ kw.warning || "all changes will be lost", ...);
+```
+
+- `i18n: data` -- what stands there is DATA, no key a list can hold: a
+  backend's comment, a topic or column name, a gclass name, a host's own key
+  in its config, a DOM node. The literals inside it (`"print-tranger failed"`
+  above) are still read.
+- `i18n: <NAME>_I18N_KEYS` (several by commas) -- the keys come from those
+  published lists. The keys of the marked expression that the reader CAN
+  follow must be in them: a marker is a claim, and it is checked.
+
+**A marked `let` (or `var`) is held to its marker.** A marker that names a list
+used to let a `let` pass unread, whatever it held: a new literal branch on it
+was neither asked for nor checked (REV-CLOUD V20). Now, when what a marker
+marks is a plain `let` / `var`, the reader collects everything the variable is
+GIVEN, in the scope that declares it -- its initializer and every `=` (`||=`,
+`??=`, `&&=` too) -- and reads each value like any other. Each literal it finds
+is a key the locales are asked for and, under a list marker, must be in the
+lists it names. A write it cannot read (`+=`, `++`, a destructuring, a
+`for...of` over the variable) keeps the variable unknown; a parameter or
+another variable of the same name is not a write to it. And a variable that is
+given nothing but literals is a const that was not written as one, so it
+fails:
+
+```js
+let key = maximized ? "restore" : "maximize";
+t(/* i18n: C_YUI_WINDOW_I18N_KEYS */ key);
+// c_yui_window.js:920: `key` is a let (line 918) that only ever holds literals
+// ("restore", "maximize"): make it a const, which the reader follows, and drop the marker
+```
+
+The rule is the same under `i18n: data`: the literals of a marked variable are
+read, and one that holds nothing else fails.
+
+**A `let` that holds a TABLE is held the same way** (since the same round:
+up to then a marked member of one passed unread). When what is marked is read
+FROM a `let` -- a property of it (`LABELS[k]`, `opts.title` at a key
+position), the element of a `.map()` / `.forEach()` / `for...of` over it, or
+another `let` given one of those (`let picked = LIST[0]`) -- the reader follows
+that `let` too: everything it is given, and along the same steps (a property,
+an element) inside each value. For such a member, what is WRITTEN into the
+table counts as given: `x.a = v`, `x[k] = v`, `x.push(v)` (also `unshift`,
+`splice`, `fill`, a spread), `Object.assign(x, v)`. A `+=` or `++` on that
+member keeps it unknown.
+
+```js
+let LABELS = {ok: "accept", no: "refuse"};
+t(/* i18n: MY_VIEW_I18N_KEYS */ LABELS[answer]);
+
+let LIST = ["accept"];
+let picked = LIST[0];
+t(/* i18n: MY_VIEW_I18N_KEYS */ picked);
+
+let EXTRA = [];
+EXTRA.push("accept");
+EXTRA.forEach((x) => t(/* i18n: MY_VIEW_I18N_KEYS */ x));
+```
+
+```
+main.js:2: `LABELS` is a let (line 1) that only ever holds literals ("accept", "refuse"):
+    make it a const, which the reader follows, and drop the marker
+main.js:6: `picked` is a let (line 5) that only ever holds literals ("accept"),
+    through the let `LIST` (line 4): make them consts, which the reader follows, and drop the marker
+```
+
+Line 10 is no violation: "accept" is asked for, and must be in
+`MY_VIEW_I18N_KEYS`. It does not fail with *"make it a const"*, because a const
+would not carry what is pushed into it to the reader.
+
+`validate-locales` checks every marker in what it scans, in an app's code too:
+a comment that starts with `i18n:` and is no marker, a marker that stands
+before no place a key is read (a key position, `t()`, an `i18n` or
+`data-i18n*` value), a marker that names a list no module the app mounts
+publishes, a marked key that is not in the lists it names, a marked variable
+that only ever holds literals -- each one fails, with the file and the line.
+
+**The library holds itself to it, per CALL.** `src/i18n_key_functions.test.js`
+reads every module with the validator's own reader, and every value a key
+position of a key function can take must be:
+
+1. a string literal, a `?:` / `||` / `??` of them, or nothing;
+2. a const the reader follows to one of those;
+3. a key position of the enclosing table function, handed on (`message`
+   where `message` is a key parameter of the function the call is in); or
+4. MARKED, `/* i18n: data */` or `/* i18n: <NAME>_I18N_KEYS */`.
+
+Anything else fails, naming the file, the line and the call:
+
+```
+c_yui_treedb_topics.js:860 (call at 859) card_action_anchor() [2]: table_key
+```
+
+Publishing a list does not exempt a module: the rule is per call, not per
+module. The same test fails when a marker is not one
+or stands nowhere; when a marker names a list that is not published by its
+module or by one it imports (a consumer would not read it); when a marked key
+the reader can follow is not in the list; when a marked variable only ever
+holds literals; when a list is not readable, holds a key that is not
+lower-case ASCII, holds one twice, or holds one written nowhere else in its
+module (stale); when an entry of the table names a function its module does
+not declare.
+
+**Every key of every list is PINNED**: dropping it from its list fails a test,
+or loses nothing. For each key, one of these holds, or the test fails with
+*"reaches a consumer only through this list, and dropping it from the list
+fails no check"*:
+
+- **its list is derived from the module's SOURCE** (`COVERAGE`): the test reads
+  that source from the syntax tree and fails on a key the list lacks -- a
+  table (`LAYOUTS` for `C_YUI_GOBJ_TREE_JS_I18N_KEYS`, `VIEWS` /
+  `MACHINE_VIEWS` / `ZONES` for `C_YUI_GCLASS_I18N_KEYS`, the period catalog,
+  the flag catalog, the graph's node views, the default labels of the dialogs
+  and of the install prompt), a default (the wizard's label attrs), a value
+  the module returns or assigns (`field_validation_key()` and `kw.warning` for
+  `C_YUI_FORM_I18N_KEYS`, every `primary_label` of `wizard_helpers.js`), a
+  property it writes (the `error` of `form_json_field.js`, the `label` of the
+  route map's own nodes, the `op` of a schema import), or the severities the
+  checks of `schema_validate.js` write (`C_YUI_SCHEMA_EDITOR_I18N_KEYS`).
+  The source is read with the validator's own reader, in the scope each value
+  is written in: a literal, every branch of `?:` / `||` / `??`, a `const` to
+  its value, a `let` into everything it is given. So a key added there through
+  a const or a let is seen, and fails without the list. A value it cannot
+  follow there (a parameter, a call, a `let` that holds one) FAILS the
+  coverage, naming the file and the line, unless the entry names it as data,
+  with why: the form's `$input.yui_json_error` (the json field's own error,
+  `FORM_JSON_FIELD_I18N_KEYS`), the route map's `map.brand.label` (the app's
+  shell declaration, which `validate-locales` reads), the wizard's
+  `opts.confirm_label` / `opts.next_label` (the host's own keys). An entry
+  named as data that the source no longer reads fails too;
+- **a marker follows it** -- a `const`, or a marked `let` -- and no other list
+  that marker names holds it, so the marker check fails without it;
+- **the module reads it anyway** (a literal or a `const` it follows): the list
+  entry is redundant, and dropping it loses no key for a consumer.
+
+The test proves itself: with the `COVERAGE` entries that pin them taken
+away, it reports each of the keys REV-CLOUD V20 found pinned by nothing.
+
+A list is also named by a marker or by `COVERAGE`: one that is neither is an
+ORPHAN, and fails. Two lists have a test of their own instead, and the pin
+check leaves them to it: `g6_nodes_tree_i18n_keys.test.js` reads every call of
+the node graph's key-taking helpers from its syntax tree, and
+`yui_dev_controls.test.js` builds the Developer window and compares every key
+it asks for or carries with the list.
+
+**What is NOT pinned.** `t()` is not a key function, and only the positions of
+`I18N_KEY_FUNCTIONS` are held to the per-call rule. So a key handed to `t()`,
+`i18n` or a `data-i18n*` value by an UNMARKED `let`, a parameter, a call or a
+concatenation is invisible to the validator and fails no test -- in the
+library and in an app alike. So is what is written INTO a `const` table after
+its declaration (`LIST.push("k")`, `TABLE.k = "k"`): the reader follows a const
+to its value, and only a marked `let` is followed into what is written into
+it. It is found only by reading the page in another language. In an app, so is a key it hands through a wrapper of its own, or to a
+function the table does not name.
+
+**What fails the build, besides a key no locale defines:**
+
+- a locale that cannot be parsed;
+- a locale that cannot be loaded when it LOOKS like one: it holds a
+  `translation` dict, it exports its own name (`es.js` exporting `es`), or it
+  has a default export -- however the `translation` is built;
+- a locale that looks like one and exports no `{<code>}` with a
+  `translation` dict;
+- a source file that cannot be parsed;
+- a published list no consumer can read (above);
+- a marker that is wrong (above).
+
+Up to `7.26.27` the locale cases were "skipped" with an OK: one language less
+validated, and nobody told. A file of the locales directory with a locale's
+name that does not look like one (`app.js`, a helper that needs a browser to
+load) is said and skipped, as before. The script runs the same when it is
+reached through a symlinked package with `--preserve-symlinks-main` (also from
+`NODE_OPTIONS`): both sides of its "am I the script?" test are resolved.
+
 Up to `7.26.24` each app carried its own copy, and the copies had drifted into
 three families: only one read the codes of the schema editor, only the other
 two the barrel imports, and two read `t('topic') + ':'` as a key built by
-concatenation and skipped it -- so the gobj tree's *"topic:"* went untranslated
-in wattyzer and yunovatios. No app keeps a copy now, but one: `test-app`, this
-library's own demo, whose catalog has English as the source (a key IS the
-English text, Title Case included) and so follows other rules, in its own
-`test-app/scripts/validate-locales.mjs`.
+concatenation and skipped it -- so the treedb node graph's (`C_G6_NODES_TREE`)
+*"topic:"* went untranslated in wattyzer and yunovatios. No app keeps a copy
+now. `test-app`, this library's own demo, has a catalog of another shape (one
+`src/locales.js`, English as the source: a key IS the English text, Title Case
+included), so its `test-app/scripts/validate-locales.mjs` loads that catalog
+itself and takes everything else from the published reader
+(`collect_used_keys()`, exported with the rest of the reader): it sees the key
+functions, the consts, the lists and the markers like every app. Its rules: no
+duplicate key in a bundle, every key the source asks for in `es`, and every key
+of the library in `en` as well (they are lower-case keys, not English display
+text).
 
 ### Dates: never hand-roll them again
 
@@ -3712,7 +4145,10 @@ The library asks the APP's i18next for its keys, so a consumer must define them
 `previous period`, …) — copy the block from `test-app/src/locales.js`, which is
 the complete one: it is the only consumer that declares every mode, `rolling`
 included (`last 24h`, `last 7 days`), and a missing key is **invisible** —
-i18next answers it with the key itself.
+i18next answers it with the key itself. Since `7.26.28` an app's
+`validate-locales` asks for the whole catalog, from `YUI_TIME_I18N_KEYS` and
+`C_YUI_PERIOD_I18N_KEYS`: which of it a control offers is the host's data, out
+of reach of a scan.
 The picker subscribes ITSELF to the shell's `EV_LANGUAGE_CHANGED` (its labels
 are composed at render time), so a host has nothing to forward — a host that
 forwards the event anyway just repaints it twice, harmlessly. All Intl

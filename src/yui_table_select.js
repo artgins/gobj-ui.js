@@ -234,7 +234,6 @@ function yui_selection_bar(t, opts)
             }
         }]
     );
-    $clear._yui_label = "clear selection";
 
     /*  NOT `is-flex` in the class list: Bulma's helpers all carry
      *  `!important`, so `is-flex` and `is-hidden` would fight as equals and
@@ -260,7 +259,8 @@ function yui_selection_bar(t, opts)
         $count.textContent = t("{{n}} selected", {n: count});
         for(let $b of $buttons.concat([$clear])) {
             let $label = label_of($b);
-            let key = $b._yui_label;
+            /*  A literal, where validate-locales reads it; an action's key is the HOST's  */
+            const key = ($b === $clear)? "clear selection" : $b._yui_label;
             if($label && key) {
                 $label.textContent = t(key);
             }

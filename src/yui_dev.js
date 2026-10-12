@@ -1544,7 +1544,15 @@ function dev_fallback_copy(text)
 }
 
 /*  The control bar: trace toggles, view selector, direction
- *  filters, free-text search, copy, clear. Returns an element. */
+ *  filters, free-text search, copy, clear. Returns an element.
+ *
+ *  Every button is NAMED by the key of the text it shows (`aria-label`)
+ *  and described by its `title`, each with its key. Not the other way
+ *  round: the title of the three Expand chips is one sentence for the
+ *  three, so as a name it would make them one control, and a name has
+ *  to hold the words a person sees on the button. A button that shows
+ *  only a glyph (the direction filters, the ✕ of the search) is named
+ *  by its title.  */
 function build_control_bar()
 {
     let trace_chips = TRACE_DEFS.map(([key, label_key, title_key, state, toggle]) => ['button', {
@@ -1566,6 +1574,7 @@ function build_control_bar()
         class: 'YDEV_CHIP', 'data-toggle': 'automata-simple', type: 'button',
         title: t('machine trace shape'), 'data-i18n-title': 'machine trace shape',
         'data-i18n': 'simple mach',
+        'aria-label': t('simple mach'), 'data-i18n-aria-label': 'simple mach',
     }, t('simple mach'), {
         click: (ev) => {
             ev.stopPropagation();
@@ -1631,6 +1640,7 @@ function build_control_bar()
         class: 'YDEV_SEG_BTN', 'data-output': v, type: 'button',
         title: t(OUT_TITLES[v]), 'data-i18n-title': OUT_TITLES[v],
         'data-i18n': label,
+        'aria-label': t(label), 'data-i18n-aria-label': label,
     }, t(label), {
         click: (ev) => {
             ev.stopPropagation();
@@ -1654,6 +1664,7 @@ function build_control_bar()
         title: t('show this section in the expanded view'),
         'data-i18n-title': 'show this section in the expanded view',
         'data-i18n': label,
+        'aria-label': t(label), 'data-i18n-aria-label': label,
     }, t(label), {
         click: (ev) => {
             ev.stopPropagation();
@@ -1720,7 +1731,8 @@ function build_control_bar()
     let copy = ['button', {class: 'YDEV_CHIP', type: 'button',
         title: t('copy visible traffic to clipboard'),
         'data-i18n-title': 'copy visible traffic to clipboard',
-        'data-i18n': 'copy'}, t('copy'), {
+        'data-i18n': 'copy',
+        'aria-label': t('copy'), 'data-i18n-aria-label': 'copy'}, t('copy'), {
         click: (ev) => {
             ev.stopPropagation();
             let btn = ev.currentTarget;
@@ -1735,7 +1747,8 @@ function build_control_bar()
     let clear = ['button', {class: 'YDEV_CHIP', type: 'button',
         title: t('clear captured traffic'),
         'data-i18n-title': 'clear captured traffic',
-        'data-i18n': 'clear'}, t('clear'), {
+        'data-i18n': 'clear',
+        'aria-label': t('clear'), 'data-i18n-aria-label': 'clear'}, t('clear'), {
         click: (ev) => {
             ev.stopPropagation();
             clear_traffic();

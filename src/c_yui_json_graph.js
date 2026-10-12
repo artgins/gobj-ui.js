@@ -83,6 +83,7 @@ import {
     count_branches,
 } from "./json_view_helpers.js";
 import {g6_event_kw} from "./g6_event_kw.js";
+import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
 
 /***************************************************************
  *              Constants
@@ -753,6 +754,10 @@ function build_graph(gobj)
     if(priv.theme) {
         graph.setTheme(priv.theme);
     }
+
+    /*  Tab goes from the graph to its own buttons: the main canvas in
+     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, graph);
 
     graph.on(NodeEvent.CLICK, (evt) => {
         /*  An identity, never the G6 event: a kw is plain json, and the

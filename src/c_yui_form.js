@@ -2547,10 +2547,20 @@ function field_validation_message($input)
 {
     let key = field_validation_key($input);
     if(key) {
-        return t(key);
+        return t(/* i18n: C_YUI_FORM_I18N_KEYS, FORM_JSON_FIELD_I18N_KEYS */ key);
     }
     return $input.validationMessage;
 }
+
+/*  The keys this form hands on as data: the one field_validation_key()
+ *  returns, which reaches t() by a variable, and the warning of a close
+ *  it vetoes (`kw.warning`), which its HOST shows. Published for a
+ *  consumer's validate-locales, which asks the app's locales for every
+ *  key of an exported `*_I18N_KEYS` array; i18n_key_functions.test.js
+ *  holds it to what field_validation_key() returns and to every
+ *  `.warning =` of this module. (The json editor's own key is published
+ *  by form_json_field.js.)  */
+export const C_YUI_FORM_I18N_KEYS = ["this field is required", "all changes will be lost"];
 
 /************************************************************
  *  The i18n key of the message, when the message is ours ("" when

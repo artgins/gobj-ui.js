@@ -90,6 +90,21 @@ const YUI_ROLLING = {
     "30d": {id: "30d", secs: 30 * 24 * 3600,     label: "last 30 days"}
 };
 
+/*  The keys that reach t() as data, where no scan of the source reads
+ *  them: the id of every granularity of YUI_PERIODS (period_name), the
+ *  label of every window of YUI_ROLLING (C_YUI_PERIOD), and the bucket
+ *  labels period_label() picks by variable. Published for a consumer's
+ *  validate-locales, which asks the app's locales for every key of an
+ *  exported `*_I18N_KEYS` array -- the whole catalog, because which of
+ *  it a period control offers is the HOST's data. A period or a window
+ *  added to the catalog adds its key here (a test checks it).  */
+export const YUI_TIME_I18N_KEYS = [
+    "minute", "5min", "15min", "hour", "day", "week", "fortnight",
+    "month", "bimester", "quarter", "semester", "year", "decade",
+    "last hour", "last 6h", "last 24h", "last 7 days", "last 30 days",
+    "quarter {{n}} {{y}}", "semester {{n}} {{y}}"
+];
+
 
                     /***************************
                      *      Locale / i18n
@@ -529,9 +544,9 @@ function period_name(period, t)
 {
     let spec = period_spec(period);
     if(!spec) {
-        return tr(t, String((period && period.id) || period || ""));
+        return tr(t, /* i18n: data */ String((period && period.id) || period || ""));
     }
-    return tr(t, spec.id);
+    return tr(t, /* i18n: YUI_TIME_I18N_KEYS */ spec.id);
 }
 
 /***************************************************************
@@ -610,7 +625,7 @@ function period_label(period, anchor_ms, t, locale)
 
     if(spec.unit === "month" && (spec.count === 3 || spec.count === 6)) {
         let n = Math.floor(start.getMonth() / spec.count) + 1;
-        let key = (spec.count === 3) ? "quarter {{n}} {{y}}" : "semester {{n}} {{y}}";
+        const key = (spec.count === 3) ? "quarter {{n}} {{y}}" : "semester {{n}} {{y}}";
         return tr(t, key, {n: n, y: start.getFullYear()});
     }
 

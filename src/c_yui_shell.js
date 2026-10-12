@@ -1807,7 +1807,7 @@ function build_toolbar(gobj, config)
      *  which createElement2 maps to `data-i18n` on the rendered
      *  element.  Apps swap languages by calling
      *  refresh_language(shell.$container, t) — no DOM rebuild here. */
-    let toolbar_aria = tb.aria_label || "Toolbar";
+    const toolbar_aria = tb.aria_label || "toolbar";
     let $bar = createElement2(
         ["nav", {class: "yui-toolbar navbar",
                  role: "navigation",
@@ -2060,8 +2060,8 @@ function build_toolbar_brand_item(gobj, it)
 function build_toolbar_avatar_item(gobj, it)
 {
     let priv = gobj.priv;
-    let aria_key = it.aria_label || it.name || it.id || "User menu";
-    let i18n_aria = it.aria_label || it.name || "User menu";
+    const aria_key = it.aria_label || it.name || it.id || "user menu";
+    const i18n_aria = it.aria_label || it.name || "user menu";
     let action_type = (it.action && it.action.type) || "";
     let attrs = {
         class: "navbar-item yui-toolbar-item yui-toolbar-avatar is-unselectable",
@@ -2151,8 +2151,8 @@ function attach_context_action(gobj, $item, it)
 function build_toolbar_connection_item(gobj, it)
 {
     let priv = gobj.priv;
-    let aria_key  = it.aria_label || it.name || it.id || "backend connection";
-    let i18n_aria = it.aria_label || it.name || "backend connection";
+    const aria_key  = it.aria_label || it.name || it.id || "backend connection";
+    const i18n_aria = it.aria_label || it.name || "backend connection";
     let attrs = {
         class: "navbar-item yui-toolbar-item yui-toolbar-conn " +
                "is-unselectable is-disconnected",
@@ -2328,8 +2328,8 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
      *  (yui_shell_set_translator), re-apply it to the freshly built
      *  $panel.  Rebuilt per open ⇒ a later language switch is picked
      *  up the next time the dropdown opens. */
-    let aria_key = item && (item.aria_label || item.name || item.id) || "Menu";
-    let i18n_aria = (item && (item.aria_label || item.name)) || "Menu";
+    const aria_key = item && (item.aria_label || item.name || item.id) || "menu";
+    const i18n_aria = (item && (item.aria_label || item.name)) || "menu";
     let $panel = createElement2(["div", {
         class: "yui-toolbar-dropdown-panel",
         role: "menu",

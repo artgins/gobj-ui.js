@@ -112,6 +112,13 @@ const GCLASS_NAME = "C_YUI_PERIOD";
 const MODE_SPAN = "span";
 const MODE_CUSTOM = "custom";
 
+/*  Their names: a mode is named by its id through a variable
+ *  (`t(mode.id)`), where no scan of the source reads it, so they are
+ *  published for a consumer's validate-locales, which asks the app's
+ *  locales for every key of an exported `*_I18N_KEYS` array. The names
+ *  of the granularities and of the rolling windows are yui_time.js's.  */
+export const C_YUI_PERIOD_I18N_KEYS = ["span", "custom"];
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -379,7 +386,7 @@ function mode_name(mode)
         return t(mode.roll.label || mode.id);
     }
     if(mode.kind === "bucket") {
-        return period_name(mode.spec, t);
+        return period_name(/* i18n: YUI_TIME_I18N_KEYS */ mode.spec, t);
     }
     return t(mode.id);                      /*  span / custom  */
 }
@@ -565,7 +572,7 @@ function build_mode_button(gobj, mode)
 {
     /*  The name is COMPOSED for a bucket (period_name), so it carries no
      *  key: ac_language_changed() rewrites the text and both names.  */
-    let name = mode_name(mode);
+    let name = mode_name(/* i18n: C_YUI_PERIOD_I18N_KEYS, YUI_TIME_I18N_KEYS */ mode);
     let $btn = createElement2(
         ["button", {class: `button YUI_PERIOD_MODE YUI_PERIOD_MODE_${mode.id.toUpperCase()}`,
                     type: "button", title: name, "aria-label": name},
@@ -591,7 +598,7 @@ function build_more_menu(gobj)
         if(!mode.overflow) {
             continue;
         }
-        let name = mode_name(mode);
+        let name = mode_name(/* i18n: C_YUI_PERIOD_I18N_KEYS, YUI_TIME_I18N_KEYS */ mode);
         let $item = createElement2(
             ["a", {class: `dropdown-item YUI_PERIOD_MODE ` +
                           `YUI_PERIOD_MODE_${mode.id.toUpperCase()}`, href: "#",
@@ -1364,7 +1371,7 @@ function ac_language_changed(gobj, event, kw, src)
         if(!mode.$btn) {
             continue;
         }
-        let name = mode_name(mode);
+        let name = mode_name(/* i18n: C_YUI_PERIOD_I18N_KEYS, YUI_TIME_I18N_KEYS */ mode);
         let $text = mode.$btn.querySelector(".YUI_PERIOD_MODE_TEXT");
         if($text) {
             $text.textContent = name;

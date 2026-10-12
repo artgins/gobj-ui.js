@@ -64,6 +64,13 @@ function value_fits(value, shape)
     }
 }
 
+/*  The key parse_json_field() returns as data (its `error`), which the
+ *  form hands to t(): published for a consumer's validate-locales, which
+ *  asks the app's locales for every key of an exported `*_I18N_KEYS`
+ *  array. i18n_key_functions.test.js holds it to every `error:` this
+ *  module writes.  */
+export const FORM_JSON_FIELD_I18N_KEYS = ["invalid json"];
+
 /************************************************************
  *  Parse what a json field holds.
  *

@@ -44,6 +44,14 @@ function wizard_prev_index(idx, count)
     return wizard_clamp_index(idx - 1, count);
 }
 
+/*  The keys of the primary button when the caller names none: they
+ *  reach t() as data, where no scan of the source reads them, so they
+ *  are published for a consumer's validate-locales, which asks the app's
+ *  locales for every key of an exported `*_I18N_KEYS` array.
+ *  i18n_key_functions.test.js holds it to every value given to
+ *  `primary_label`.  */
+export const WIZARD_HELPERS_I18N_KEYS = ["confirm", "next"];
+
 /***************************************************************
  *  Chrome model for the current step.
  *

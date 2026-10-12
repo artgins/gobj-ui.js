@@ -114,6 +114,53 @@ const FLAG_CATALOG = [
      desc: "drawn as a table"},
 ];
 
+/*  The keys the schema editor hands to t() as data: the name of every
+ *  group (`other` holds the flags the catalogue does not know) and the
+ *  description of every flag. No scan of the source reads them there, so
+ *  they are published for a consumer's validate-locales, which asks the
+ *  app's locales for every key of an exported `*_I18N_KEYS` array. A
+ *  flag or a group added to the catalogue adds its key here (a test
+ *  checks it).  */
+export const SCHEMA_FLAGS_I18N_KEYS = [
+    "storage", "validation", "access", "relation", "key", "stats", "format", "other",
+    "saved to disk; a column without it lives only while the yuno runs",
+    "convert a value of another type instead of refusing it",
+    "copied from the primary record to its other instances",
+    "the field must be present when the record is written",
+    "the field may be absent, but never null",
+    "the value must be one of the `enum` list",
+    "the value is built from the `template` field",
+    "may be changed after the record is created",
+    "may be read back",
+    "left out of listings",
+    "holds the children this record owns; needs a `hook` mapping",
+    "holds the reference to a parent; written by the parent's hook",
+    "key generated as a counter when none is given",
+    "key generated as a uuid when none is given",
+    "key composed as the parent's id plus this record's name",
+    "the value is an identifier of something else",
+    "a counter, reported in the yuno statistics",
+    "a counter read through mt_reading when it is asked for",
+    "a counter kept across restarts",
+    "the value is a timestamp",
+    "stamped with the current time when the record is created",
+    "a date",
+    "shown masked, and never echoed back",
+    "an email address",
+    "a url",
+    "a telephone number",
+    "a colour",
+    "an image",
+    "a geographic position",
+    "an amount of money",
+    "a percentage",
+    "written in hexadecimal",
+    "binary content",
+    "encoded in base64",
+    "carried as a gbuffer",
+    "drawn as a table"
+];
+
 /*  Flags that decide the SHAPE of the record and cannot both be on the
  *  same column: the treedb writes one half of a link, never both.  */
 const EXCLUSIVE = [["hook", "fkey"], ["rowid", "uuid", "qualified"]];

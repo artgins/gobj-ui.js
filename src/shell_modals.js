@@ -624,21 +624,25 @@ function build_dialog(shell, message, buttons, opts)
  *  "Delete" and "Cancel", keys that no locale carries, so a dialog
  *  that took the defaults read in English in every language.
  *
- *  Written as `i18n:` entries so the validate-locales script of a
- *  consumer finds them when it scans this module: an app that
- *  mounts these dialogs must define the five keys.
+ *  An app that mounts these dialogs must define the five keys. A
+ *  consumer's validate-locales reads them where build_dialog() gets
+ *  them (a const, `DEFAULT_LABEL.ok`, it follows), and in
+ *  SHELL_MODALS_I18N_KEYS, which a test holds to this table. (Up to
+ *  7.26.27 they were written as `i18n:` entries, which only a regex
+ *  scan of `i18n: "..."` happened to see.)
  ***************************************************************/
 const DEFAULT_LABEL = Object.freeze({
-    ok:     Object.freeze({i18n: "ok"}),
-    yes:    Object.freeze({i18n: "yes"}),
-    no:     Object.freeze({i18n: "no"}),
-    delete: Object.freeze({i18n: "delete"}),
-    cancel: Object.freeze({i18n: "cancel"})
+    ok:     "ok",
+    yes:    "yes",
+    no:     "no",
+    delete: "delete",
+    cancel: "cancel"
 });
+export const SHELL_MODALS_I18N_KEYS = ["ok", "yes", "no", "delete", "cancel"];
 
 export function yui_shell_confirm_ok(shell, message, opts)
 {
-    let label = (opts && opts.ok_label) || DEFAULT_LABEL.ok.i18n;
+    const label = (opts && opts.ok_label) || DEFAULT_LABEL.ok;
     if(!opts || !opts.type) {
         opts = Object.assign({}, opts, {type: "success"});
     }
@@ -649,8 +653,8 @@ export function yui_shell_confirm_ok(shell, message, opts)
 
 export function yui_shell_confirm_yesno(shell, message, opts)
 {
-    let yes_label = (opts && opts.yes_label) || DEFAULT_LABEL.yes.i18n;
-    let no_label  = (opts && opts.no_label)  || DEFAULT_LABEL.no.i18n;
+    const yes_label = (opts && opts.yes_label) || DEFAULT_LABEL.yes;
+    const no_label  = (opts && opts.no_label)  || DEFAULT_LABEL.no;
     return build_dialog(shell, message, [
         {label: yes_label, value: "yes", kind: "primary"},
         {label: no_label,  value: "no"}
@@ -673,8 +677,8 @@ export function yui_shell_confirm_yesno(shell, message, opts)
  ***************************************************************/
 export function yui_shell_confirm_danger(shell, message, opts)
 {
-    let confirm_label = (opts && opts.confirm_label) || DEFAULT_LABEL.delete.i18n;
-    let cancel_label  = (opts && opts.cancel_label)  || DEFAULT_LABEL.cancel.i18n;
+    const confirm_label = (opts && opts.confirm_label) || DEFAULT_LABEL.delete;
+    const cancel_label  = (opts && opts.cancel_label)  || DEFAULT_LABEL.cancel;
     if(!opts || !opts.type) {
         opts = Object.assign({}, opts, {type: "danger"});
     }
@@ -686,9 +690,9 @@ export function yui_shell_confirm_danger(shell, message, opts)
 
 export function yui_shell_confirm_yesnocancel(shell, message, opts)
 {
-    let yes_label    = (opts && opts.yes_label)    || DEFAULT_LABEL.yes.i18n;
-    let no_label     = (opts && opts.no_label)     || DEFAULT_LABEL.no.i18n;
-    let cancel_label = (opts && opts.cancel_label) || DEFAULT_LABEL.cancel.i18n;
+    const yes_label    = (opts && opts.yes_label)    || DEFAULT_LABEL.yes;
+    const no_label     = (opts && opts.no_label)     || DEFAULT_LABEL.no;
+    const cancel_label = (opts && opts.cancel_label) || DEFAULT_LABEL.cancel;
     return build_dialog(shell, message, [
         {label: yes_label,    value: "yes", kind: "primary"},
         {label: no_label,     value: "no"},

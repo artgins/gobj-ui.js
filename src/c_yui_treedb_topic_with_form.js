@@ -325,7 +325,7 @@ function present_json_popup(gobj, $box, opts)
 
     if(is_mobile()) {
         return {
-            modal: yui_shell_show_modal(shell, $box, {
+            modal: yui_shell_show_modal(shell, /* i18n: data */ $box, {
                 dialog:        true,
                 logical_class: opts.logical_class + "_SHEET",
                 title_prefix:  opts.title_prefix,
@@ -2428,7 +2428,7 @@ function open_form_dialog(gobj, mode, record)
      *  while "new"/"edit"/"view" is what only this header can tell you.
      *  All three are keys this library already uses.  */
     let pkey = desc.pkey || "id";
-    let title = (mode === "create")? "new" : ((mode === "view")? "view" : "edit");
+    const title = (mode === "create")? "new" : ((mode === "view")? "view" : "edit");
     let title_prefix = "";
     if(mode !== "create") {
         let rid = record ? String(record[pkey] ?? "") : "";
@@ -2496,7 +2496,7 @@ function open_form_dialog(gobj, mode, record)
      *  are wired by the shell. `before_close` preserves the unsaved-changes
      *  guard — it vetoes the dismiss and, on confirm, closes the modal
      *  itself. `on_close` tears the hosted form child down. */
-    priv.form_modal = yui_shell_show_modal(shell, $body, {
+    priv.form_modal = yui_shell_show_modal(shell, /* i18n: data */ $body, {
         dialog:        true,
         logical_class: "TREEDB_FORM_SHEET",
         title_prefix:  title_prefix,
@@ -2548,7 +2548,7 @@ function form_may_close(gobj)
              *  a second key to define — and the one that was here had never
              *  been defined in any locale, which renders as the English
              *  sentence itself, in every language, for ever. */
-            confirm_then(gobj, kw.warning || "all changes will be lost",
+            confirm_then(gobj, /* i18n: C_YUI_FORM_I18N_KEYS */ kw.warning || "all changes will be lost",
                 {what: "close_form"});
             return false;
         }
@@ -2807,7 +2807,7 @@ function open_cell_json_dialog(gobj, row_id, col_id)
         name:          "cellwin_" + clean_name(gobj_name(gobj)),
         logical_class: "TREEDB_CELL_JSON",
         title_prefix:  String(row_id),
-        title:         col_id,
+        title:         /* i18n: data */ col_id,
         icon:          "yi-js-square",
         forget_window: function() {
             priv.cell_json_win = null;
@@ -3019,7 +3019,7 @@ function open_cell_file_dialog(gobj, row_id, col_id)
         name:          "filewin_" + clean_name(gobj_name(gobj)),
         logical_class: "TREEDB_CELL_FILE",
         title_prefix:  String(row_id),
-        title:         col_id,
+        title:         /* i18n: data */ col_id,
         icon:          "yi-eye",
         forget_window: function() {
             priv.cell_file_win = null;
@@ -3167,7 +3167,7 @@ function open_hook_choice_dialog(gobj, targets, parent_id, hook)
             }];
         })]
     );
-    priv.hook_choice_modal = yui_shell_show_modal(shell, $body, {
+    priv.hook_choice_modal = yui_shell_show_modal(shell, /* i18n: data */ $body, {
         dialog:        true,
         logical_class: "TREEDB_HOOK_CHOICE_SHEET",
         title:         "choose a topic",
@@ -4132,7 +4132,7 @@ function ac_delete_rows(gobj, event, kw, src)
             return 0;
         }
 
-        confirm_then(gobj, build_delete_question(gobj, rows),
+        confirm_then(gobj, /* i18n: data */ build_delete_question(gobj, rows),
             {what: "delete_selection", ids: yui_row_ids(tabulator, rows)});
 
     } else {
@@ -4140,7 +4140,7 @@ function ac_delete_rows(gobj, event, kw, src)
          *  Delete one row
          *  {row: }
          *----------------------------*/
-        confirm_then(gobj, build_delete_question(gobj, kw.row),
+        confirm_then(gobj, /* i18n: data */ build_delete_question(gobj, kw.row),
             {what: "delete_row", ids: yui_row_ids(tabulator, [kw.row])});
     }
 
@@ -5078,7 +5078,7 @@ function ac_open_columns(gobj, event, kw, src)
         ));
     }
 
-    yui_shell_show_modal(shell, $list, {
+    yui_shell_show_modal(shell, /* i18n: data */ $list, {
         dialog:        true,
         logical_class: "TREEDB_COLUMNS_DIALOG",
         title_prefix:  gobj_read_str_attr(gobj, "topic_name"),

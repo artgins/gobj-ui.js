@@ -136,6 +136,17 @@ const ZONES = [
     {id: "machine",  key: "machine",          col: "right"},
 ];
 
+/*  The keys of VIEWS, MACHINE_VIEWS and ZONES: they reach t() as data
+ *  (`v.key`, `zone.key`), where no scan of the source reads them, so
+ *  they are published here for a consumer's validate-locales, which asks
+ *  the app's locales for every key of an exported `*_I18N_KEYS` array. A
+ *  view or a zone added to those tables adds its key here.  */
+export const C_YUI_GCLASS_I18N_KEYS = [
+    "zones view", "raw view",
+    "matrix view", "graph view",
+    "attributes", "commands", "methods", "trace levels", "machine"
+];
+
 /***************************************************************
  *              Data
  ***************************************************************/

@@ -41,6 +41,15 @@ import {text_node} from "./yui_text.js";
 
 const WIN_NAME = "shell-route-map-window";
 
+/*  The labels of the map's own nodes -- its two groups, and the root of
+ *  an app whose brand has no label -- which reach t() as data (a node's
+ *  `label`), where no scan of the source reads them. Published for a
+ *  consumer's validate-locales, which asks the app's locales for every
+ *  key of an exported `*_I18N_KEYS` array; i18n_key_functions.test.js
+ *  holds it to every `label:` this module writes. The other labels are
+ *  the app's: its shell declaration.  */
+export const SHELL_ROUTE_MAP_I18N_KEYS = ["toolbar", "other routes", "app"];
+
 /*  Reference rows — a route's second and third entry point: a drawer
  *  entry, a toolbar SHORTCUT.  Shown by default: they are one line
  *  each, and they are exactly what someone auditing the navigation
@@ -79,7 +88,8 @@ function render_node(node)
         row.push(["span", {class: "icon ROUTEMAP_ICON"},
             [["i", {class: node.icon}]]]);
     }
-    row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label}, text_node(node.label)]);
+    row.push(["span", {class: "ROUTEMAP_NAME", i18n: /* i18n: SHELL_ROUTE_MAP_I18N_KEYS */ node.label},
+        text_node(node.label)]);
     /*  Documentation columns: route + implementing gclass + action event. */
     if(node.route) {
         row.push(["code", {class: "ROUTEMAP_ROUTE"}, text_node(node.route)]);
@@ -527,7 +537,7 @@ export function yui_shell_show_route_map(shell, opts)
     /*  Fallback: a modal (no C_YUI_WINDOW registered). */
     let modal_ref = {modal: null};
     let $body = build_body(shell, t);
-    modal_ref.modal = yui_shell_show_modal(shell, $body, {
+    modal_ref.modal = yui_shell_show_modal(shell, /* i18n: data */ $body, {
         dialog:        true,
         logical_class: "ROUTEMAP_SHEET",
         /*  The KEY, not t(key): the modal renders `title` with
