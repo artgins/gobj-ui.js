@@ -23,7 +23,7 @@ Seventeenth check of the review (yunovatios `REV-CLOUD.md` §V17.3.4-5).
   *"topic:"* went untranslated in wattyzer and yunovatios. Test
   `scripts/validate-locales.test.js`.
 - **an import conflict of a hook map names the hook column it is written
-  in**: `a/b.x`y` was said, but not that it came from `p.kids`. The conflict
+  in**: `` a/b.x`y `` was said, but not that it came from `p.kids`. The conflict
   carries `hook` and the panel prints it after the name.
   **New consumer i18n key**: `in the hook map of` (in a SPA that mounts
   `C_YUI_SCHEMA_EDITOR`). Tests: the plan, and the panel that paints
