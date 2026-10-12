@@ -328,11 +328,11 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
         if(picked) {
             $state.classList.add("is-picked");
             $state.setAttribute("data-i18n", "not saved yet");
-            $state.textContent = "not saved yet";
+            $state.textContent = t("not saved yet");
         } else if(!kept) {
             $state.classList.add("is-empty");
             $state.setAttribute("data-i18n", "no file");
-            $state.textContent = "no file";
+            $state.textContent = t("no file");
         }
 
         $clear.hidden = readonly || (!picked && !kept);

@@ -5010,9 +5010,16 @@ function create_form_button_row(parent, buttons)
 {
     let btnRow = document.createElement('div');
     btnRow.style.cssText = 'display:flex;gap:8px;';
-    for(let {text, style, onClick} of buttons) {
+    for(let {i18n, style, onClick} of buttons) {
+        /*  `i18n` is the key (named so that validate-locales sees a literal
+         *  one): the button carries it, and its name  */
         let btn = document.createElement('button');
-        btn.textContent = t(text);
+        btn.textContent = t(i18n);
+        btn.setAttribute('data-i18n', i18n);
+        btn.setAttribute('title', t(i18n));
+        btn.setAttribute('data-i18n-title', i18n);
+        btn.setAttribute('aria-label', t(i18n));
+        btn.setAttribute('data-i18n-aria-label', i18n);
         btn.style.cssText = style + touch_control_css();
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -5059,12 +5066,12 @@ function show_confirm_popover(gobj, target_el, message, confirm_text, confirm_co
 
     create_form_button_row(popover, [
         {
-            text: 'cancel',
+            i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
             onClick: () => hide_overlay(gobj, priv_key),
         },
         {
-            text: confirm_text,
+            i18n: confirm_text,
             style: 'flex:1;padding:6px;background:' + confirm_color + ';color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
             onClick: onConfirm,
@@ -6148,14 +6155,14 @@ function show_port_popover(gobj)
 
     create_form_button_row(popover, [
         {
-            text: 'cancel',
+            i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
             onClick: () => {
                 hide_port_popover(gobj);    /*  which undoes the preview  */
             },
         },
         {
-            text: 'apply',
+            i18n: 'apply',
             style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
             onClick: () => {
@@ -7100,14 +7107,14 @@ function show_edge_popover(gobj)
 
     create_form_button_row(popover, [
         {
-            text: 'cancel',
+            i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
             onClick: () => {
                 deselect_edge(gobj);        /*  which undoes the preview  */
             },
         },
         {
-            text: 'apply',
+            i18n: 'apply',
             style: 'flex:1;padding:6px;background:#52c41a;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
             onClick: () => {
@@ -7349,14 +7356,14 @@ function show_node_popover(gobj)
 
     create_form_button_row(popover, [
         {
-            text: 'cancel',
+            i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
             onClick: () => {
                 hide_node_popover(gobj);    /*  which undoes the preview  */
             },
         },
         {
-            text: 'apply',
+            i18n: 'apply',
             style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
             onClick: () => {
@@ -8431,15 +8438,24 @@ function show_create_popover(gobj)
     let titleEl = document.createElement('div');
     titleEl.style.cssText = 'margin-bottom:10px;font-weight:600;font-size:14px;';
     titleEl.textContent = t('create node');
+    titleEl.setAttribute('data-i18n', 'create node');
     popover.appendChild(titleEl);
 
-    // Topic selector
+    // Topic selector: the word carries its key, the colon is not translated
     let topicLabel = document.createElement('div');
     topicLabel.style.cssText = 'margin-bottom:4px;font-weight:500;';
-    topicLabel.textContent = t('topic') + ':';
+    let topicWord = document.createElement('span');
+    topicWord.textContent = t('topic');
+    topicWord.setAttribute('data-i18n', 'topic');
+    topicLabel.appendChild(topicWord);
+    topicLabel.appendChild(document.createTextNode(':'));
     popover.appendChild(topicLabel);
 
     let topicSelect = document.createElement('select');
+    topicSelect.setAttribute('title', t('topic'));
+    topicSelect.setAttribute('data-i18n-title', 'topic');
+    topicSelect.setAttribute('aria-label', t('topic'));
+    topicSelect.setAttribute('data-i18n-aria-label', 'topic');
     topicSelect.style.cssText =
         'width:100%;padding:6px;border:1px solid #d9d9d9;border-radius:4px;' +
         'font-size:13px;margin-bottom:8px;' + touch_control_css();
@@ -8483,6 +8499,11 @@ function show_create_popover(gobj)
     let idInput = document.createElement('input');
     idInput.type = 'text';
     idInput.placeholder = t('node id');
+    idInput.setAttribute('data-i18n-placeholder', 'node id');
+    idInput.setAttribute('title', t('node id'));
+    idInput.setAttribute('data-i18n-title', 'node id');
+    idInput.setAttribute('aria-label', t('node id'));
+    idInput.setAttribute('data-i18n-aria-label', 'node id');
     idInput.style.cssText =
         'width:100%;padding:6px;border:1px solid #d9d9d9;border-radius:4px;' +
         'font-size:13px;margin-bottom:10px;box-sizing:border-box;' +
@@ -8499,18 +8520,19 @@ function show_create_popover(gobj)
     let createBtn;  // need reference for Enter key handler
     create_form_button_row(popover, [
         {
-            text: 'cancel',
+            i18n: 'cancel',
             style: BTN_STYLE_CANCEL,
             onClick: () => hide_create_popover(gobj),
         },
         {
-            text: 'create',
+            i18n: 'create',
             style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
                    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
             onClick: () => {
                 let node_id = idInput.value.trim();
                 if(!node_id) {
-                    errorEl.textContent = t('node id') + ' required';
+                    errorEl.textContent = t('node id required');
+                    errorEl.setAttribute('data-i18n', 'node id required');
                     errorEl.style.display = 'block';
                     idInput.focus();
                     return;

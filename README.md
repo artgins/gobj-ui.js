@@ -3600,19 +3600,44 @@ directory:
 }
 ```
 
-It also scans the gobj-ui modules the app mounts, deep or through the barrel:
-**the library translates through the APP's i18next**, so every key it asks for
-must be defined by the app. The library it scans is the one it ships in, the
-package the app builds with. Code and catalogs shared by several apps are
-named with `--src <dir>` (repeatable) and `--locales <dir>` (yunovatios:
+It also scans the gobj-ui modules the app mounts -- deep, through the barrel,
+or by a dynamic `import()`: **the library translates through the APP's
+i18next**, so every key it asks for must be defined by the app. The library it
+scans is the one it ships in, the package the app builds with. The app's own
+source is read recursively. Code and catalogs shared by several apps are named
+with `--src <dir>` (repeatable) and `--locales <dir>` (yunovatios:
 `--src ../gui-common/src --locales ../gui-common/src/locales`); `--config`
 names a shell declaration other than `src/app_config.json`.
+
+What is particular to an app goes in ITS `package.json`, not in the script:
+properties whose value is a key, and properties whose value is a list of keys
+(yunovatios hands its orchestrator `app_title: "central"` and
+`welcome_features: [...]`):
+
+```json
+"validate-locales": {
+    "attr_keys":  ["app_title", "app_subtitle", "welcome_title", "welcome_lead"],
+    "array_keys": ["welcome_features"]
+}
+```
+
+Plurals are compared by language (since `7.26.26`): `songs_one` /
+`songs_few` / `songs_many` / `songs_other` are one key, and each locale must
+carry the categories of ITS language (`Intl.PluralRules`: English `one`,
+`other`; Russian `one`, `few`, `many`, `other`; Chinese `other`). The key with
+no suffix serves `other` and `many`, as i18next falls back to it; `zero`,
+`one`, `two` and `few` need their own form. A value of the shell declaration
+that is not lower-case ASCII (an endonym, `"中文"`, in a language menu) is a
+literal, not a key.
 
 Up to `7.26.24` each app carried its own copy, and the copies had drifted into
 three families: only one read the codes of the schema editor, only the other
 two the barrel imports, and two read `t('topic') + ':'` as a key built by
 concatenation and skipped it -- so the gobj tree's *"topic:"* went untranslated
-in wattyzer and yunovatios. An app keeps no copy now.
+in wattyzer and yunovatios. No app keeps a copy now, but one: `test-app`, this
+library's own demo, whose catalog has English as the source (a key IS the
+English text, Title Case included) and so follows other rules, in its own
+`test-app/scripts/validate-locales.mjs`.
 
 ### Dates: never hand-roll them again
 

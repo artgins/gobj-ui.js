@@ -5,6 +5,38 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.26
+
+Eighteenth check of the review (yunovatios `REV-CLOUD.md` §V18.4).
+
+- **`validate-locales` knows plurals, endonyms, and the app's own names**:
+  - a plural (`songs_one`, `songs_few`, ...) is compared by its base, each
+    locale with the categories of ITS language (`Intl.PluralRules`); the key
+    with no suffix serves `other` and `many`. It is what let yunomusica, with
+    10 languages, run it at all (88 plural asymmetries before);
+  - a value of the shell declaration that is not lower-case ASCII (an
+    endonym in a language menu) is a literal, not a key;
+  - the orchestrator attributes of yunovatios (`app_title`, ...,
+    `welcome_features`) were written in the published script; an app declares
+    them now in its `package.json` (`"validate-locales": {"attr_keys": [...],
+    "array_keys": [...]}`);
+  - the source is read recursively, a dynamic `import()` of the library is
+    followed, `` t(`literal`) `` and `setAttribute("data-i18n...", "key")`
+    are read, a string is matched by its own quote (`"don't"` was cut at the
+    apostrophe), a locale of a region (`pt-br.js`) is found, and a file with
+    a locale's name and no translation is said and skipped.
+- **Keys the scan could not see, now visible** -- new consumer i18n keys:
+  - `node id required`: the gobj tree's create popover said
+    `t('node id') + ' required'`, English fixed;
+  - `apply`: the port, edge and node popovers handed it to
+    `create_form_button_row()` as a VARIABLE; the rows take `i18n:` now, and
+    every button carries its key, `title` and `aria-label`;
+  - `not saved yet`: `yui_file_field.js` set it with `setAttribute`, and wrote
+    the state text WITHOUT `t()` (it read English until a language switch);
+    `no file` too.
+- The create popover: `topic:` carries its key (the colon apart), and the
+  topic select and the id input carry `title` and `aria-label`.
+
 ## 7.26.25
 
 Seventeenth check of the review (yunovatios `REV-CLOUD.md` §V17.3.4-5).
