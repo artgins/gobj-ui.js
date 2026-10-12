@@ -5,6 +5,34 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.27
+
+Nineteenth check of the review (yunovatios `REV-CLOUD.md` §V19.4).
+
+- **A module publishes the keys it hands to `t()` as data**: an exported
+  `<NAME>_I18N_KEYS` array, which `validate-locales` reads in every module the
+  app mounts. `yui_dev.js` publishes `YUI_DEV_I18N_KEYS` (the 51 keys of the
+  Developer window: a comment to copy until now, and yunomusica lacked 35);
+  `c_g6_nodes_tree.js` publishes `G6_NODES_TREE_I18N_KEYS` (shapes, popover
+  labels, the confirm button), checked against its shape tables by a test.
+- **The 11 controls of the property popovers have a name**: the control
+  built after a `create_form_label()` gets its `for`, and a `title` and an
+  `aria-label` with the label's key; the label carries `data-i18n`, and every
+  `<option>` its key (the tables take `i18n:` instead of a translated
+  `label:`), so they change language. The create popover's `Id:` is the key
+  `node id`.
+- `validate-locales`:
+  - a key that only ENDS like a plural form (`pick_one` alone) is a plain key
+    again (7.26.26 read it as a plural and failed it); ordinals
+    (`x_ordinal_one`) are checked with the ordinal categories;
+  - an endonym is a literal only when it is the `name` of one of the app's
+    locales: `"configuración"` in `app_config.json` is reported again;
+  - an `attr_keys` / `array_keys` name no source uses fails (a typo turned
+    its check off);
+  - tests (`__tests__/`, `test/`, `*.spec.js`) and any `locales/` directory
+    are not read, `.mjs` is; a locale file that cannot be loaded here is said
+    and skipped; `pt-br.js` exporting `ptBR` is found.
+
 ## 7.26.26
 
 Eighteenth check of the review (yunovatios `REV-CLOUD.md` §V18.4).

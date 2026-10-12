@@ -340,6 +340,19 @@ const SHAPE_SIZE = {
  *  default: a figure is a POINT of the topology, and a circle is
  *  the one figure that says nothing more than that.  */
 const NODE_SHAPES = ['square', 'circle', 'diamond', 'triangle', 'hexagon', 'star'];
+
+/*  The keys of this view that reach t() as DATA or as an ARGUMENT -- the
+ *  shape tables, the labels of the property popovers (create_form_label),
+ *  the confirm button (show_confirm_popover): read by a consumer's
+ *  validate-locales, which asks the locales for every key of an exported
+ *  `*_I18N_KEYS` array of a module the app mounts. A shape added to
+ *  NODE_SHAPES or PORT_SHAPES, or a new label, goes here too (a test checks
+ *  the shapes).  */
+export const G6_NODES_TREE_I18N_KEYS = [
+    'square', 'circle', 'diamond', 'triangle', 'hexagon', 'star',
+    'shape', 'radius', 'apply to', 'line width', 'color', 'fill color', 'stroke color',
+    'delete'
+];
 const DEFAULT_NODE_SHAPE = 'circle';
 
 /***************************************************************
@@ -4931,13 +4944,41 @@ function touch_control_css()
  *  one id.
  */
 
+/*
+ *  A form of the property popovers is a LABEL followed by its control. The
+ *  label carries its key (`text` is one) and the control built next is
+ *  NAMED by it: a `<label>` beside a control names nothing, so the control
+ *  gets the label's `for`, and its own `title` and `aria-label`, with their
+ *  keys (REV-CLOUD V19.4.1: 11 controls without a name).
+ */
+let form_control_seq = 0;
+
 function create_form_label(parent, text)
 {
     let label = document.createElement('label');
     label.textContent = t(text);
+    label.setAttribute('data-i18n', text);
     label.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
     parent.appendChild(label);
     return label;
+}
+
+function name_form_control(parent, control)
+{
+    let label = parent.lastElementChild;
+    if(!label || label.tagName !== 'LABEL') {
+        return;
+    }
+    let key = label.getAttribute('data-i18n');
+    if(!key) {
+        return;
+    }
+    control.id = 'g6-form-control-' + (++form_control_seq);
+    label.htmlFor = control.id;
+    control.setAttribute('title', t(key));
+    control.setAttribute('data-i18n-title', key);
+    control.setAttribute('aria-label', t(key));
+    control.setAttribute('data-i18n-aria-label', key);
 }
 
 function create_form_color_input(parent, value, onInput)
@@ -4952,6 +4993,7 @@ function create_form_color_input(parent, value, onInput)
     if(onInput) {
         input.addEventListener('input', onInput);
     }
+    name_form_control(parent, input);
     parent.appendChild(input);
     return input;
 }
@@ -4976,6 +5018,7 @@ function create_form_number_input(parent, value, min, max, onInput)
     if(onInput) {
         input.addEventListener('input', onInput);
     }
+    name_form_control(parent, input);
     parent.appendChild(input);
     return input;
 }
@@ -4991,11 +5034,14 @@ function create_form_select(parent, options, marginBottom)
         'box-sizing:border-box;margin-bottom:' + (marginBottom || '12px') + ';' +
         touch_control_css();
     for(let opt of options) {
+        /*  `i18n` is the option's key: it carries it, and `value` stays explicit  */
         let o = document.createElement('option');
         o.value = opt.value;
-        o.textContent = opt.label;
+        o.textContent = t(opt.i18n);
+        o.setAttribute('data-i18n', opt.i18n);
         select.appendChild(o);
     }
+    name_form_control(parent, select);
     parent.appendChild(select);
     return select;
 }
@@ -6138,7 +6184,7 @@ function show_port_popover(gobj)
 
     create_form_label(popover, 'shape');
     let shapeSelect = create_form_select(popover, PORT_SHAPES.map((shape) => {
-        return {value: shape, label: t(shape)};
+        return {value: shape, i18n: shape};
     }));
     shapeSelect.value = orig_shape;
     shapeSelect.addEventListener('change', preview_port);
@@ -6148,9 +6194,9 @@ function show_port_popover(gobj)
 
     create_form_label(popover, 'apply to');
     let scopeSelect = create_form_select(popover, [
-        {value: 'this', label: t('this port')},
-        {value: 'same_topic', label: t('same port in topic')},
-        {value: 'all', label: t('all ports')},
+        {value: 'this', i18n: 'this port'},
+        {value: 'same_topic', i18n: 'same port in topic'},
+        {value: 'all', i18n: 'all ports'},
     ]);
 
     create_form_button_row(popover, [
@@ -7100,9 +7146,9 @@ function show_edge_popover(gobj)
     // Apply-to scope
     create_form_label(popover, 'apply to');
     let scopeSelect = create_form_select(popover, [
-        { value: 'this', label: t('this edge') },
-        { value: 'same_type', label: t('same type edges') },
-        { value: 'all', label: t('all edges') },
+        { value: 'this', i18n: 'this edge' },
+        { value: 'same_type', i18n: 'same type edges' },
+        { value: 'all', i18n: 'all edges' },
     ]);
 
     create_form_button_row(popover, [
@@ -7339,7 +7385,7 @@ function show_node_popover(gobj)
      *  reshape either way.  */
     create_form_label(popover, 'shape');
     let shapeSelect = create_form_select(popover, NODE_SHAPES.map((shape) => {
-        return {value: shape, label: t(shape)};
+        return {value: shape, i18n: shape};
     }));
     shapeSelect.value = nodeData.data && nodeData.data.desc
         ? node_figure_of(gobj, nodeData.data.desc, nodeData.data.graph_props || {})
@@ -7349,9 +7395,9 @@ function show_node_popover(gobj)
     // Apply-to scope
     create_form_label(popover, 'apply to');
     let scopeSelect = create_form_select(popover, [
-        { value: 'this', label: t('this node') },
-        { value: 'same_topic', label: t('same topic nodes') },
-        { value: 'all', label: t('all nodes') },
+        { value: 'this', i18n: 'this node' },
+        { value: 'same_topic', i18n: 'same topic nodes' },
+        { value: 'all', i18n: 'all nodes' },
     ]);
 
     create_form_button_row(popover, [
@@ -8493,7 +8539,11 @@ function show_create_popover(gobj)
     // Node ID input
     let idLabel = document.createElement('div');
     idLabel.style.cssText = 'margin-bottom:4px;font-weight:500;';
-    idLabel.textContent = 'Id:';
+    let idWord = document.createElement('span');
+    idWord.textContent = t('node id');
+    idWord.setAttribute('data-i18n', 'node id');
+    idLabel.appendChild(idWord);
+    idLabel.appendChild(document.createTextNode(':'));
     popover.appendChild(idLabel);
 
     let idInput = document.createElement('input');

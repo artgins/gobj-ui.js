@@ -125,13 +125,57 @@ describe("validate-locales", () => {
         expect(bad.out).toMatch(/\[zh\] plural "songs" has a form "one" its language never uses/);
     });
 
-    test("a language menu: an endonym is a literal, not a key", () => {
-        let r = run({...BOTH({}), "src/main.js": ``, "src/app_config.json": JSON.stringify({
-            languages: [{name: "中文"}, {name: "español"}, {name: "english key"}]})});
+    test("a language menu: the endonym of a locale is a literal, any other text a key", () => {
+        let named = (code, name) => locale(code, {}).replace(`translation:`, `name: ${JSON.stringify(name)}, translation:`);
+        let r = run({
+            "src/locales/en.js": named("en", "english"),
+            "src/locales/es.js": named("es", "español"),
+            "src/locales/zh.js": named("zh", "中文"),
+            "src/main.js": ``,
+            "src/app_config.json": JSON.stringify({
+                languages: [{name: "中文"}, {name: "español"}, {name: "configuración"}, {name: "english key"}]})});
         expect(r.status).toBe(1);
         expect(r.out).toContain(`defined in NO locale: "english key"`);
+        expect(r.out).toContain(`defined in NO locale: "configuración"`);   // a literal that forgot its key
         expect(r.out).not.toContain(`"中文"`);
-        expect(r.out).not.toContain(`"español"`);
+        expect(r.out).not.toContain(`NO locale: "español"`);
+    });
+
+    test("a key that only ends like a plural form is a key; ordinals by their own categories", () => {
+        let r = run({...BOTH({"pick_one": "Pick one", "place_ordinal_one": "1st", "place_ordinal_two": "2nd",
+                              "place_ordinal_few": "3rd", "place_ordinal_other": "th"}),
+            "src/main.js": `t("pick_one"); t("place", {count: n, ordinal: true});`});
+        expect(r.out).not.toMatch(/plural "pick"/);
+        expect(r.out).not.toContain(`NO locale: "pick_one"`);
+        /*  Spanish ordinals have "other" only: the English forms are extra there  */
+        expect(r.out).toMatch(/\[es\] ordinal "place" has a form "one" its language never uses/);
+    });
+
+    test("a module's published keys (*_I18N_KEYS) are asked for when it is mounted", () => {
+        let r = run({...BOTH({}), "src/main.js": `import {x} from "@yuneta/gobj-ui/src/yui_dev.js";`});
+        expect(r.status).toBe(1);
+        expect(r.out).toContain(`defined in NO locale: "trace the periodic timer event"`);
+    });
+
+    test("an attr_keys name no source uses is a typo, and fails", () => {
+        let r = run({...BOTH({}),
+            "package.json": JSON.stringify({"validate-locales": {attr_keys: ["app_tittle"]}}),
+            "src/main.js": `x = {app_title: "x"};`});
+        expect(r.status).toBe(1);
+        expect(r.out).toMatch(/names "app_tittle", which no source uses/);
+    });
+
+    test("tests, specs and other locales/ directories are not read; .mjs is", () => {
+        let r = run({...BOTH({}),
+            "src/main.js": ``,
+            "src/__tests__/a.js": `t("in a test dir");`,
+            "src/x.spec.js": `t("in a spec");`,
+            "src/other/locales/zz.js": `t("in another locales dir");`,
+            "src/tool.mjs": `t("in a module");`});
+        expect(r.out).toContain(`NO locale: "in a module"`);
+        for(let k of ["in a test dir", "in a spec", "in another locales dir"]) {
+            expect(r.out).not.toContain(JSON.stringify(k));
+        }
     });
 
     test("the source is read recursively, and a dynamic import of the library is followed", () => {
@@ -148,13 +192,15 @@ describe("validate-locales", () => {
     test("a locale of a region (pt-br.js), and a file that only looks like one", () => {
         let r = run({
             "src/locales/en.js": locale("en", {"save": "Save"}),
-            "src/locales/pt-br.js": locale("pt_br", {"save": "Salvar"}).replace("export {pt_br};", "export {pt_br};"),
+            "src/locales/pt-br.js": locale("ptBR", {"save": "Salvar"}),
             "src/locales/ui.js": `export const helper = 1;\n`,
+            "src/locales/app.js": `window.x = 1;\n`,     // needs a browser: said, not a crash
             "src/main.js": `t("save");`
         });
         expect(r.status).toBe(0);
         expect(r.out).toMatch(/OK \(2 locales/);
         expect(r.out).toMatch(/ui\.js exports no \{ui\}.*skipped/);
+        expect(r.out).toMatch(/app\.js cannot be loaded here.*skipped/);
     });
 
     test("the shell declaration: its lower-case fields are keys, a literal is not", () => {

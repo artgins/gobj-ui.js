@@ -22,7 +22,14 @@
  *               `zero`, `one`, `two` and `few` change the grammar and need
  *               their own form when the language has them. A form the
  *               language never uses is a violation; `_zero` is always
- *               allowed (i18next uses it for a count of 0).
+ *               allowed (i18next uses it for a count of 0). i18next itself
+ *               falls back to the bare key for ANY missing form: asking for
+ *               `one`/`few` is a policy of grammar, not of i18next. A key
+ *               that only ENDS like a form (`pick_one` alone) is a plain
+ *               key: a group is a plural when a locale has its bare base,
+ *               its `_other` or two of its forms. Ordinals
+ *               (`place_ordinal_one`) are checked with the ordinal
+ *               categories of each language.
  *            4. No duplicate key in a locale file (an object literal keeps
  *               the LAST one and says nothing -- a stale entry silently
  *               overrides a new one; it happened to "last" and "loading").
@@ -31,7 +38,10 @@
  *               fine and simply never changes language -- invisible by
  *               construction, and it shipped: a Settings `label` column).
  *
- *          Rule 5 reads the app's own source (recursively), the shell
+ *          Rule 5 reads the app's own source (recursively, .js and .mjs;
+ *          not tests, not a locales/ directory), the keys a module
+ *          PUBLISHES as data (an exported `<NAME>_I18N_KEYS` array: the
+ *          keys it hands to t() as variables, yui_dev.js's 51), the shell
  *          declaration (`src/app_config.json`) and the gobj-ui modules the
  *          app MOUNTS, transitively -- deep, through the barrel, or by a
  *          dynamic import(): the library translates through the APP's
@@ -59,7 +69,8 @@
  *          `attr_keys` names properties whose string value is an i18n key
  *          (`app_title: "central"`), `array_keys` properties whose value is
  *          an array of keys. A key the app hands over that way reaches no
- *          t() the scan can read.
+ *          t() the scan can read. A name declared that no source uses is a
+ *          violation (a typo would turn its check off).
  *
  *          A locale is a file <code>.js of the locales directory (en.js,
  *          es.js, pt-br.js; flags.js and locales.js are not) exporting
@@ -84,7 +95,7 @@ import {pathToFileURL} from "url";
 
 const ASCII_RE = /^[\x20-\x7e]+$/;
 const LOCALE_FILE_RE = /^([a-z]{2,3}(?:[-_][a-zA-Z]{2,4})?)\.js$/;
-const PLURAL_RE = /^(.+)_(zero|one|two|few|many|other)$/;
+const PLURAL_RE = /^(.+?)(_ordinal)?_(zero|one|two|few|many|other)$/;
 
 /*  This package: the library the app builds with.  */
 const LIB       = new URL("../", import.meta.url);
@@ -201,47 +212,64 @@ async function load_locales(locales_dir)
         codes = ["en", ...codes.filter((c) => c !== "en")];
     }
     let locales = {};
+    let names = new Set();
     for(let code of codes) {
-        let mod = await import(new URL(`${code}.js`, locales_dir).href);
-        let locale = mod[code] || mod[code.replace(/-/g, "_")] || mod.default;
+        let mod;
+        try {
+            mod = await import(new URL(`${code}.js`, locales_dir).href);
+        } catch(e) {
+            /*  A helper that happens to have a locale's name (app.js), and
+             *  needs a browser to load: said and skipped, not a crash  */
+            note(`${code}.js cannot be loaded here (${e.message}): not a locale, skipped`);
+            continue;
+        }
+        let camel = code.replace(/[-_]([a-z])/gi, (m, c) => c.toUpperCase());     // pt-br -> ptBr
+        let upper = code.replace(/[-_]([a-z]+)/gi, (m, c) => c.toUpperCase());    // pt-br -> ptBR
+        let locale = mod[code] || mod[code.replace(/-/g, "_")] || mod[camel] || mod[upper] || mod.default;
         if(!locale || !locale.translation || typeof locale.translation !== "object") {
             note(`${code}.js exports no {${code}} with a translation dict: not a locale, skipped`);
             continue;
         }
         locales[code] = locale.translation;
+        if(typeof locale.name === "string" && locale.name) {
+            names.add(locale.name);     // its endonym: a literal of a language menu
+        }
     }
     if(Object.keys(locales).length === 0) {
         abort(`no locale (<code>.js exporting {<code>: {translation}}) in ${locales_dir.pathname}`);
     }
-    return locales;
+    return {locales, names};
 }
 
 /***************************************************************
  *  The plural categories of a language (Intl.PluralRules)
  ***************************************************************/
-function plural_categories(code)
+function plural_categories(code, ordinal)
 {
     try {
-        return new Set(new Intl.PluralRules(code.replace(/_/g, "-")).resolvedOptions().pluralCategories);
+        return new Set(new Intl.PluralRules(code.replace(/_/g, "-"),
+            {type: ordinal? "ordinal" : "cardinal"}).resolvedOptions().pluralCategories);
     } catch(e) {
         return new Set(["one", "other"]);
     }
 }
 
 /***************************************************************
- *  A locale's keys split: plain ones, and {base: Set(categories)}
+ *  A locale's keys split: plain ones, and {group: Set(categories)}, a
+ *  group being a base, or "<base>#ordinal" for `<base>_ordinal_<cat>`
  ***************************************************************/
-function split_plurals(keys)
+function split_plurals(keys, plural_groups)
 {
     let plain = new Set();
     let plurals = new Map();
     for(let k of keys) {
         let m = k.match(PLURAL_RE);
-        if(m) {
-            if(!plurals.has(m[1])) {
-                plurals.set(m[1], new Set());
+        let group = m? m[1] + (m[2]? "#ordinal" : "") : null;
+        if(m && plural_groups.has(group)) {
+            if(!plurals.has(group)) {
+                plurals.set(group, new Set());
             }
-            plurals.get(m[1]).add(m[2]);
+            plurals.get(group).add(m[3]);
         } else {
             plain.add(k);
         }
@@ -250,19 +278,66 @@ function split_plurals(keys)
 }
 
 /***************************************************************
+ *  Which `<x>_<category>` keys ARE plurals: a key that only ends like one
+ *  (`pick_one`, `step_two`) is a key. A group is a plural when some locale
+ *  has its bare base, or its `_other` form, or two of its forms.
+ ***************************************************************/
+function find_plural_groups(locales)
+{
+    let forms = new Map();      // group -> Set of "code:cat"
+    let bare = new Set();
+    for(let [code, translation] of Object.entries(locales)) {
+        for(let k of Object.keys(translation)) {
+            bare.add(k);
+            let m = k.match(PLURAL_RE);
+            if(m) {
+                let group = m[1] + (m[2]? "#ordinal" : "");
+                if(!forms.has(group)) {
+                    forms.set(group, new Map());
+                }
+                let per = forms.get(group);
+                if(!per.has(code)) {
+                    per.set(code, new Set());
+                }
+                per.get(code).add(m[3]);
+            }
+        }
+    }
+    let groups = new Set();
+    for(let [group, per] of forms) {
+        let base = group.replace(/#ordinal$/, "");
+        let is_plural = bare.has(base) && !group.endsWith("#ordinal");
+        for(let cats of per.values()) {
+            if(cats.has("other") || cats.size >= 2) {
+                is_plural = true;
+            }
+        }
+        if(group.endsWith("#ordinal")) {
+            is_plural = true;   // `_ordinal_` says it
+        }
+        if(is_plural) {
+            groups.add(group);
+        }
+    }
+    return groups;
+}
+
+/***************************************************************
  *
  ***************************************************************/
 async function main()
 {
     let opts = parse_args(process.argv.slice(2));
-    let locales = await load_locales(opts.locales);
+    let {locales, names} = await load_locales(opts.locales);
+    opts.language_names = names;
     let codes = Object.keys(locales);
 
     /*  Per-locale key checks (ASCII + lower-case)  */
+    let plural_groups = find_plural_groups(locales);
     let split = {};
     for(let code of codes) {
         let keys = Object.keys(locales[code]);
-        split[code] = split_plurals(keys);
+        split[code] = split_plurals(keys, plural_groups);
         for(let k of keys) {
             if(!ASCII_RE.test(k)) {
                 fail(`[${code}] non-ASCII key: ${JSON.stringify(k)}`);
@@ -277,11 +352,9 @@ async function main()
      *  The plural bases, of any locale: a plain key that is one of them
      *  belongs to its plural, and is checked with it
      */
-    let bases = new Set();
-    for(let code of codes) {
-        for(let base of split[code].plurals.keys()) {
-            bases.add(base);
-        }
+    let bases = new Set();      // the plain base of each plural group
+    for(let group of plural_groups) {
+        bases.add(group.replace(/#ordinal$/, ""));
     }
 
     /*  Symmetry of the plain keys: every locale carries those of the first  */
@@ -309,19 +382,21 @@ async function main()
      */
     const SERVED_BY_THE_BASE = new Set(["other", "many"]);
     for(let code of codes) {
-        let wanted = plural_categories(code);
-        for(let base of bases) {
-            let have = split[code].plurals.get(base) || new Set();
+        for(let group of plural_groups) {
+            let ordinal = group.endsWith("#ordinal");
+            let base = group.replace(/#ordinal$/, "");
+            let wanted = plural_categories(code, ordinal);
+            let have = split[code].plurals.get(group) || new Set();
             let has_base = split[code].plain.has(base);
             for(let c of wanted) {
                 if(!have.has(c) && !(has_base && SERVED_BY_THE_BASE.has(c))) {
-                    fail(`[${code}] plural ${JSON.stringify(base)} lacks the form "${c}" of its language` +
+                    fail(`[${code}] ${ordinal? "ordinal" : "plural"} ${JSON.stringify(base)} lacks the form "${c}" of its language` +
                         (SERVED_BY_THE_BASE.has(c)? ` (or the key ${JSON.stringify(base)} itself)` : ""));
                 }
             }
             for(let c of have) {
                 if(!wanted.has(c) && c !== "zero") {
-                    fail(`[${code}] plural ${JSON.stringify(base)} has a form "${c}" its language never uses`);
+                    fail(`[${code}] ${ordinal? "ordinal" : "plural"} ${JSON.stringify(base)} has a form "${c}" its language never uses`);
                 }
             }
         }
@@ -424,6 +499,11 @@ function collect_used_keys(opts)
     }
     let array_re = opts.array_keys.length > 0?
         re(String.raw`\b(?:` + opts.array_keys.join("|") + String.raw`)\s*:\s*\[([^\]]*)\]`) : null;
+    /*  A module publishes the keys it hands to t() as DATA (yui_dev.js:
+     *  YUI_DEV_I18N_KEYS): every key of such an array is asked for  */
+    let published_re = /\bexport\s+const\s+[A-Z0-9_]+_I18N_KEYS\s*=\s*\[([^\]]*)\]/g;
+    let declared = new Set([...opts.attr_keys, ...opts.array_keys]);
+    let declared_seen = new Set();
 
     let scan = (url) => {
         /*  Comments are not code: the library documents the contract with
@@ -442,15 +522,29 @@ function collect_used_keys(opts)
                 keys.add(k);
             }
         }
+        let lists = [];
         if(array_re) {
             array_re.lastIndex = 0;
             let f;
             while((f = array_re.exec(code)) !== null) {
-                let lit_re = re(STR);
-                let l;
-                while((l = lit_re.exec(f[1])) !== null) {
-                    keys.add(literal_of(l));
-                }
+                lists.push(f[1]);
+            }
+        }
+        published_re.lastIndex = 0;
+        let pm;
+        while((pm = published_re.exec(code)) !== null) {
+            lists.push(pm[1]);
+        }
+        for(let list of lists) {
+            let lit_re = re(STR);
+            let l;
+            while((l = lit_re.exec(list)) !== null) {
+                keys.add(literal_of(l));
+            }
+        }
+        for(let name of declared) {
+            if(re(String.raw`\b` + name + String.raw`\s*:`).test(code)) {
+                declared_seen.add(name);
             }
         }
         return code;
@@ -470,7 +564,14 @@ function collect_used_keys(opts)
         }
     }
 
-    keys_from_shell_config(opts.config, keys);
+    /*  A name declared and found in no source is a typo that turns its check off  */
+    for(let name of declared) {
+        if(!declared_seen.has(name)) {
+            fail(`package.json "validate-locales" names ${JSON.stringify(name)}, which no source uses: a typo turns its check off`);
+        }
+    }
+
+    keys_from_shell_config(opts.config, keys, opts.language_names);
 
     /*
      *  ...and the gobj-ui views it MOUNTS. Only the modules actually
@@ -504,10 +605,13 @@ function collect_used_keys(opts)
 }
 
 /***************************************************************
- *  The .js files of a source directory, recursively: not the tests, not
- *  the locales (their keys are definitions, not uses), not node_modules
- *  or a build
+ *  The .js / .mjs files of a source directory, recursively: not the tests
+ *  (*.test.js, *.spec.js, __tests__/, test/, tests/), not a locales/
+ *  directory (its keys are definitions, not uses), not node_modules or a
+ *  build
  ***************************************************************/
+const SKIPPED_DIRS = new Set(["node_modules", "dist", "locales", "__tests__", "test", "tests"]);
+
 function source_files(dir, locales_dir)
 {
     let out = [];
@@ -519,11 +623,11 @@ function source_files(dir, locales_dir)
             let url = new URL(f, d);
             let st = statSync(url);
             if(st.isDirectory()) {
-                if(f === "node_modules" || f === "dist" || f.startsWith(".")) {
+                if(SKIPPED_DIRS.has(f) || f.startsWith(".")) {
                     continue;
                 }
                 walk(new URL(f + "/", d));
-            } else if(f.endsWith(".js") && !f.endsWith(".test.js")) {
+            } else if(/\.m?js$/.test(f) && !/\.(test|spec)\.m?js$/.test(f)) {
                 out.push(url);
             }
         }
@@ -540,15 +644,17 @@ function source_files(dir, locales_dir)
  *  ever -- which is how four toolbar buttons announced themselves as
  *  "toggle language" in Spanish.
  *
- *  A value that is not a KEY -- not lower-case ASCII -- is a literal the
- *  config carries on purpose: "ES/EN" on a language button, an endonym
- *  ("中文", "Español") in a language menu. `wordmark` and `alt` are
+ *  A value that is not lower-case is a literal the config carries on
+ *  purpose ("ES/EN" on a language button); so is the endonym of one of the
+ *  app's locales (its `name`: "中文", "español") in a language menu. Any
+ *  other value is a key -- "configuración" is a Spanish literal that forgot
+ *  its key, and it is reported, as an ASCII one would be. `wordmark` and `alt` are
  *  deliberately out: a brand name is not translated. A key starting with
  *  `_` is a comment.
  ***************************************************************/
 const CONFIG_I18N_FIELDS = ["name", "aria_label", "tooltip", "label", "title", "subtitle"];
 
-function keys_from_shell_config(url, keys)
+function keys_from_shell_config(url, keys, language_names)
 {
     if(!existsSync(url)) {
         note(`no ${url.pathname}: no shell keys checked`);
@@ -575,7 +681,7 @@ function keys_from_shell_config(url, keys)
                 continue;
             }
             if(CONFIG_I18N_FIELDS.includes(k) && typeof v === "string" && v
-                    && ASCII_RE.test(v) && v === v.toLowerCase()) {
+                    && v === v.toLowerCase() && !language_names.has(v)) {
                 keys.add(v);
             }
             walk(v);

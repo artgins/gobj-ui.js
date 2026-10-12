@@ -3625,10 +3625,28 @@ Plurals are compared by language (since `7.26.26`): `songs_one` /
 `songs_few` / `songs_many` / `songs_other` are one key, and each locale must
 carry the categories of ITS language (`Intl.PluralRules`: English `one`,
 `other`; Russian `one`, `few`, `many`, `other`; Chinese `other`). The key with
-no suffix serves `other` and `many`, as i18next falls back to it; `zero`,
-`one`, `two` and `few` need their own form. A value of the shell declaration
-that is not lower-case ASCII (an endonym, `"中文"`, in a language menu) is a
-literal, not a key.
+no suffix serves `other` and `many`; `zero`, `one`, `two` and `few` need their
+own form. That is a policy of GRAMMAR, not a need of i18next, which falls back
+to the bare key for any form that is missing: a Russian count of 3 rendered
+with the bare key reads wrong, and the check says so. A key that only ends
+like a form (`pick_one` alone) is a plain key; ordinals (`place_ordinal_one`)
+are checked with the ordinal categories of each language. A value of the shell
+declaration is a literal when it is the endonym of one of the app's locales
+(the `name` its catalog exports: `"中文"`, `"español"`); any other lower-case
+text is a key, `"configuración"` included.
+
+**A key that reaches `t()` as data is PUBLISHED by its module** (since
+`7.26.27`): an exported `<NAME>_I18N_KEYS` array of string literals, which
+`validate-locales` reads in every module the app mounts and asks the locales
+for. `yui_dev.js` publishes the 51 keys of the Developer window
+(`YUI_DEV_I18N_KEYS`) -- they used to be a comment each consumer copied, and
+one consumer lacked 35 --, `c_g6_nodes_tree.js` those of its shape tables and
+popover labels (`G6_NODES_TREE_I18N_KEYS`). A module that hands a key to `t()`
+by variable adds it to such a list:
+
+```js
+export const MY_VIEW_I18N_KEYS = ['shape', 'radius', 'apply to'];
+```
 
 Up to `7.26.24` each app carried its own copy, and the copies had drifted into
 three families: only one read the codes of the schema editor, only the other

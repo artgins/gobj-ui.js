@@ -71,36 +71,34 @@ const TRAFFIC_TS_FIELDS = {
  *  repainted from it by `refresh_dev_chrome()` on every toggle, so a
  *  label translated once at build time would come back in English at
  *  the first click.  */
-/*  ⚠️  The keys of this window are a BLIND SPOT for a consumer's
- *  `validate-locales`: the table below and the `grp` / `mk_view` /
- *  `mk_expand` / `mk_dir` / `mk_out` helpers pass their key as a
- *  VARIABLE, and `OUT_TITLES` holds three more in a lookup table --
- *  so a scan of `t("…")` sees none of them and reports OK with the
- *  whole window in English. The full set a consumer must define,
- *  kept here so it can be copied:
- *
- *      automata, both, browser console only, clear,
- *      clear captured traffic, collapsed, console, copied, copy,
- *      copy visible traffic to clipboard, creation, data,
- *      dev window and browser console, dev window only, developer,
- *      clear the filter, errors, expand, expanded, filter events / payload,
- *      find, i18n,
- *      i18next debug output, incoming, log, machine trace shape,
- *      metadata, outgoing, output, payload, periodic, schema, show,
- *      show the payload of the traces,
- *      show this section in the expanded view, simple mach,
- *      start / stop, subscriptions,
- *      trace every event of every automaton,
- *      trace subscriptions and publications,
- *      trace the creation and destruction of gobjs,
- *      trace the messages to and from the backend,
- *      trace the periodic timer event,
- *      trace the start and stop of gobjs,
- *      traces, traffic, traffic payload folded,
- *      traffic payload laid out, view, window, yuno monitor
- *
- *  wattyzer and the yunovatios GUIs carry them; check a new consumer
- *  against this list, and confirm it by DUMPING the window.  */
+/*  The keys of this window that reach t() as VARIABLES: the table below,
+ *  the `grp` / `mk_view` / `mk_expand` / `mk_dir` / `mk_out` helpers and
+ *  `OUT_TITLES` pass their key by name, so a scan of `t("...")` sees none of
+ *  them. They are published HERE, as data: a consumer's `validate-locales`
+ *  (gobj-ui 7.26.27+) reads an exported `*_I18N_KEYS` array of every module
+ *  the app mounts and asks the locales for each key -- it used to be a
+ *  comment each consumer copied by hand, and yunomusica lacked 35 of them
+ *  (REV-CLOUD V19.4.2). A key added to the window goes in this list.  */
+export const YUI_DEV_I18N_KEYS = [
+    "automata", "both", "browser console only", "clear",
+    "clear captured traffic", "collapsed", "console", "copied", "copy",
+    "copy visible traffic to clipboard", "creation", "data",
+    "dev window and browser console", "dev window only", "developer",
+    "clear the filter", "errors", "expand", "expanded",
+    "filter events / payload", "find", "i18n", "i18next debug output",
+    "incoming", "log", "machine trace shape", "metadata", "outgoing",
+    "output", "payload", "periodic", "schema", "show",
+    "show the payload of the traces",
+    "show this section in the expanded view", "simple mach", "start / stop",
+    "subscriptions", "trace every event of every automaton",
+    "trace subscriptions and publications",
+    "trace the creation and destruction of gobjs",
+    "trace the messages to and from the backend",
+    "trace the periodic timer event", "trace the start and stop of gobjs",
+    "traces", "traffic", "traffic payload folded",
+    "traffic payload laid out", "view", "window", "yuno monitor"
+];
+
 const TRACE_DEFS = [
     ["automata",      "automata",      "trace every event of every automaton",
         automata_state, toggle_automata],
