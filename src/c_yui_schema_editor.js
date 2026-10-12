@@ -383,7 +383,7 @@ function mt_destroy(gobj)
 function refuse_bad_name(gobj, $message)
 {
     mark_name_field(gobj, true);
-    yui_shell_show_error(yui_shell_of(gobj), /* i18n: data */ $message, {t: t});
+    yui_shell_show_error(yui_shell_of(gobj), $message, {t: t});
     return -1;
 }
 
@@ -1258,7 +1258,7 @@ function render(gobj)
     }
     if(state === "ST_IDLE") {
         show_notice(gobj, priv.load_error ? "cannot load the schemas" : "not connected",
-            priv.load_error, true);
+            /* i18n: data */ priv.load_error, true);
         destroy_diagram(gobj);
         clear($body);
         return;
@@ -1362,16 +1362,16 @@ function render_treedbs(gobj, $body)
     let $cards = [];
 
     for(let treedb of priv.model.treedbs) {
-        let tags = [
+        const from_c = treedb.c_schema_version !== undefined &&
+            String(treedb.c_schema_version) !== String(treedb.schema_version);
+        const tags = [
             {i18n: "topics", text: treedb.topics.length},
             {i18n: "version", text: treedb.schema_version === undefined
-                ? "?" : treedb.schema_version}
+                ? "?" : treedb.schema_version},
+            ...(from_c
+                ? [{i18n: "from c", text: treedb.c_schema_version, style: "is-warning is-light"}]
+                : [])
         ];
-        if(treedb.c_schema_version !== undefined &&
-            String(treedb.c_schema_version) !== String(treedb.schema_version)
-        ) {
-            tags.push({i18n: "from c", text: treedb.c_schema_version, style: "is-warning is-light"});
-        }
         $cards.push(open_card(gobj, "SCHEMA_TREEDB_CARD", treedb.id, "yi-database",
             tags, "EV_SELECT_TREEDB", {treedb: treedb.id}));
     }
@@ -1406,7 +1406,7 @@ function render_topics(gobj, $body)
     let treedb = current_treedb(gobj);
 
     if(!treedb) {
-        show_notice(gobj, "that treedb is not here any more", priv.treedb_id);
+        show_notice(gobj, "that treedb is not here any more", /* i18n: data */ priv.treedb_id);
         return;
     }
 
@@ -1554,7 +1554,7 @@ function render_columns(gobj, $body)
     let topic = current_topic(gobj);
 
     if(!topic) {
-        show_notice(gobj, "that topic is not here any more", priv.topic_name);
+        show_notice(gobj, "that topic is not here any more", /* i18n: data */ priv.topic_name);
         return;
     }
 
@@ -1815,7 +1815,7 @@ function render_diagram(gobj)
     if(!treedb) {
         destroy_diagram(gobj);
         clear($body);
-        show_notice(gobj, "that treedb is not here any more", priv.treedb_id);
+        show_notice(gobj, "that treedb is not here any more", /* i18n: data */ priv.treedb_id);
         return;
     }
     if(!gclass_find_by_name("C_YUI_TREEDB_SCHEMA")) {
@@ -1921,7 +1921,7 @@ function open_dialog(gobj, $content, title, logical, title_prefix)
     priv.dialog_gen = priv.model_gen;
     priv.dialog_kind = logical;
     priv.dialog_content = $content;
-    priv.dialog = yui_shell_show_modal(yui_shell_of(gobj), /* i18n: data */ $content, {
+    priv.dialog = yui_shell_show_modal(yui_shell_of(gobj), $content, {
         dialog:        true,
         title:         title,
         title_prefix:  title_prefix || "",
@@ -2435,8 +2435,8 @@ function open_report(gobj, findings, treedb_id)
         return ["tr", {class: `SCHEMA_REPORT_ROW SCHEMA_REPORT_${finding.severity.toUpperCase()}`}, [
             ["td", {class: "SCHEMA_REPORT_SEVERITY"}, [
                 ["span", {class: `tag ${finding.severity === "error" ? "is-danger" : "is-warning"}` +
-                                 " is-light", i18n: /* i18n: C_YUI_SCHEMA_EDITOR_I18N_KEYS */ finding.severity},
-                    t(/* i18n: C_YUI_SCHEMA_EDITOR_I18N_KEYS */ finding.severity)]
+                                 " is-light", i18n: finding.severity},
+                    t(finding.severity)]
             ]],
             ["td", {class: "SCHEMA_REPORT_WHAT", i18n: finding.code}, t(finding.code)],
             ["td", {class: "SCHEMA_REPORT_TOPIC"}, text_node(finding.topic || "")],
@@ -4256,7 +4256,7 @@ function confirm_column_delete(gobj, verdict)
         }
         $warning = createElement2(["div", {class: "SCHEMA_COLUMN_DATA_WARNING"}, children]);
     }
-    confirm_then(gobj, $warning? /* i18n: data */ $warning : message, `${c.topic}.${c.col}`,
+    confirm_then(gobj, $warning? $warning : message, `${c.topic}.${c.col}`,
         {what: "column", topic: c.topic, col: c.col});
     return 0;
 }
@@ -4494,7 +4494,9 @@ function ac_validate(gobj, event, kw, src)
         written_topics: Object.keys(priv.written),
         baseline:       priv.baseline
     });
-    open_report(gobj, findings, treedb.id);
+    /*  The severities are C_YUI_SCHEMA_EDITOR_I18N_KEYS; the codes are the
+     *  checks' own keys, read where schema_validate.js writes them.  */
+    open_report(gobj, /* i18n: C_YUI_SCHEMA_EDITOR_I18N_KEYS */ findings, treedb.id);
     if(has_errors(findings)) {
         log_warning(`${gobj_short_name(gobj)}: ${treedb.id} would be refused as it is`);
     }
@@ -4578,7 +4580,9 @@ function ac_preview_import(gobj, event, kw, src)
 
     let plan = plan_import(treedb, incoming, {prune: !!kw.prune});
     priv.import_plan = plan;
-    render_import_plan(gobj, plan);
+    /*  Its writes are SCHEMA_IMPORT_I18N_KEYS; its conflicts are keys of
+     *  their own, read where schema_import.js writes them.  */
+    render_import_plan(gobj, /* i18n: SCHEMA_IMPORT_I18N_KEYS */ plan);
     return 0;
 }
 

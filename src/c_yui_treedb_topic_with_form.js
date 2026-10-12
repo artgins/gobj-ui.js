@@ -325,7 +325,7 @@ function present_json_popup(gobj, $box, opts)
 
     if(is_mobile()) {
         return {
-            modal: yui_shell_show_modal(shell, /* i18n: data */ $box, {
+            modal: yui_shell_show_modal(shell, $box, {
                 dialog:        true,
                 logical_class: opts.logical_class + "_SHEET",
                 title_prefix:  opts.title_prefix,
@@ -1512,7 +1512,7 @@ function create_tabulator(gobj)
 
         let colDef = {
             title: col_label(col, gobj_read_str_attr(gobj, "topic_name")),
-            titleFormatter: col_title_formatter(gobj, col),
+            titleFormatter: col_title_formatter(gobj, /* i18n: data */ col),     // a column of the schema
             field: col.id,
             sorter: sorter,
             hozAlign: hozAlign,
@@ -2496,7 +2496,7 @@ function open_form_dialog(gobj, mode, record)
      *  are wired by the shell. `before_close` preserves the unsaved-changes
      *  guard — it vetoes the dismiss and, on confirm, closes the modal
      *  itself. `on_close` tears the hosted form child down. */
-    priv.form_modal = yui_shell_show_modal(shell, /* i18n: data */ $body, {
+    priv.form_modal = yui_shell_show_modal(shell, $body, {
         dialog:        true,
         logical_class: "TREEDB_FORM_SHEET",
         title_prefix:  title_prefix,
@@ -2676,7 +2676,7 @@ function open_schema_dialog(gobj)
     /*  Title split in two halves: the topic name is DATA (never
      *  translated) and "schema" is the kind (carries its i18n key), so
      *  the header re-translates on a language switch. */
-    let presented = present_json_popup(gobj, $box, {
+    let presented = present_json_popup(gobj, /* i18n: data */ $box, {     // the viewer's own DOM
         name:          "schemawin_" + clean_name(gobj_name(gobj)),
         logical_class: "TREEDB_SCHEMA",
         title_prefix:  gobj_read_str_attr(gobj, "topic_name"),
@@ -2803,11 +2803,11 @@ function open_cell_json_dialog(gobj, row_id, col_id)
      *  i18n key — the shared `col.id` one, so the header re-translates on a
      *  language switch and reads as the raw id where the app defines no key
      *  (exactly what an untranslated column header already shows). */
-    let presented = present_json_popup(gobj, $box, {
+    let presented = present_json_popup(gobj, /* i18n: data */ $box, {     // the viewer's own DOM
         name:          "cellwin_" + clean_name(gobj_name(gobj)),
         logical_class: "TREEDB_CELL_JSON",
         title_prefix:  String(row_id),
-        title:         /* i18n: data */ col_id,
+        title:         col_id,
         icon:          "yi-js-square",
         forget_window: function() {
             priv.cell_json_win = null;
@@ -3019,7 +3019,7 @@ function open_cell_file_dialog(gobj, row_id, col_id)
         name:          "filewin_" + clean_name(gobj_name(gobj)),
         logical_class: "TREEDB_CELL_FILE",
         title_prefix:  String(row_id),
-        title:         /* i18n: data */ col_id,
+        title:         col_id,
         icon:          "yi-eye",
         forget_window: function() {
             priv.cell_file_win = null;
@@ -3167,7 +3167,7 @@ function open_hook_choice_dialog(gobj, targets, parent_id, hook)
             }];
         })]
     );
-    priv.hook_choice_modal = yui_shell_show_modal(shell, /* i18n: data */ $body, {
+    priv.hook_choice_modal = yui_shell_show_modal(shell, $body, {
         dialog:        true,
         logical_class: "TREEDB_HOOK_CHOICE_SHEET",
         title:         "choose a topic",
@@ -4132,7 +4132,7 @@ function ac_delete_rows(gobj, event, kw, src)
             return 0;
         }
 
-        confirm_then(gobj, /* i18n: data */ build_delete_question(gobj, rows),
+        confirm_then(gobj, build_delete_question(gobj, rows),
             {what: "delete_selection", ids: yui_row_ids(tabulator, rows)});
 
     } else {
@@ -4140,7 +4140,7 @@ function ac_delete_rows(gobj, event, kw, src)
          *  Delete one row
          *  {row: }
          *----------------------------*/
-        confirm_then(gobj, /* i18n: data */ build_delete_question(gobj, kw.row),
+        confirm_then(gobj, build_delete_question(gobj, kw.row),
             {what: "delete_row", ids: yui_row_ids(tabulator, [kw.row])});
     }
 
@@ -4599,7 +4599,7 @@ function ac_show_hook_data(gobj, event, kw, src)
                             String(kw.row_id), kw.col_id);
         return 0;
     }
-    open_hook_choice_dialog(gobj, targets, String(kw.row_id), kw.col_id);
+    open_hook_choice_dialog(gobj, /* i18n: data */ targets, String(kw.row_id), kw.col_id);    // the schema's topics
     return 0;
 }
 
@@ -4681,7 +4681,7 @@ function ac_refresh(gobj, event, kw, src)
  ************************************************************/
 function ac_show_cell_json(gobj, event, kw, src)
 {
-    open_cell_json_dialog(gobj, kw.row_id, kw.col_id);
+    open_cell_json_dialog(gobj, kw.row_id, /* i18n: data */ kw.col_id);
 
     return 0;
 }
@@ -4695,7 +4695,7 @@ function ac_show_cell_json(gobj, event, kw, src)
  ************************************************************/
 function ac_show_cell_file(gobj, event, kw, src)
 {
-    open_cell_file_dialog(gobj, kw.row_id, kw.col_id);
+    open_cell_file_dialog(gobj, kw.row_id, /* i18n: data */ kw.col_id);
 
     return 0;
 }
@@ -5078,7 +5078,7 @@ function ac_open_columns(gobj, event, kw, src)
         ));
     }
 
-    yui_shell_show_modal(shell, /* i18n: data */ $list, {
+    yui_shell_show_modal(shell, $list, {
         dialog:        true,
         logical_class: "TREEDB_COLUMNS_DIALOG",
         title_prefix:  gobj_read_str_attr(gobj, "topic_name"),
@@ -5291,7 +5291,7 @@ function open_table_json_dialog(gobj, records)
     }
 
     /*  The topic is DATA (the prefix), the title carries its key.  */
-    let presented = present_json_popup(gobj, $box, {
+    let presented = present_json_popup(gobj, /* i18n: data */ $box, {     // the viewer's own DOM
         name:          "tablejsonwin_" + clean_name(gobj_name(gobj)),
         logical_class: "TREEDB_TABLE_JSON",
         title_prefix:  gobj_read_str_attr(gobj, "topic_name"),

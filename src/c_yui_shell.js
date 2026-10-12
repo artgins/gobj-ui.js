@@ -281,7 +281,8 @@ function mt_start(gobj)
 
     build_item_index(gobj, config);
     instantiate_menus(gobj, config);
-    build_toolbar(gobj, config);
+    /*  The app's shell declaration: its toolbar's keys are read there  */
+    build_toolbar(gobj, /* i18n: data */ config);
 
     /*  lifecycle: "eager" — preinstantiate views that must exist from boot. */
     preinstantiate_eager_views(gobj);
@@ -1781,7 +1782,7 @@ function safe_id(s)
  ************************************************************/
 function build_toolbar(gobj, config)
 {
-    let tb = config && config.toolbar;
+    const tb = config && config.toolbar;
     if(!tb || !is_array(tb.items)) {
         return;
     }
@@ -2341,7 +2342,7 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
     let raw_items = is_array(action.items) ? action.items : [];
     for(let i = 0; i < raw_items.length; i++) {
         let sub = raw_items[i];
-        let $row = build_dropdown_row(gobj, sub, i);
+        let $row = build_dropdown_row(gobj, /* i18n: data */ sub, i);    // the app's shell declaration
         if(!$row) {
             continue;
         }

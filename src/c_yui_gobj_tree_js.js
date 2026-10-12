@@ -2862,7 +2862,7 @@ function ac_open_gclass(gobj, event, kw, src)
     close_gclass_view(priv.gclass_view);
     priv.gclass_view = null;
 
-    priv.gclass_view = open_gclass_view(gobj, node_data.gclass, {
+    priv.gclass_view = open_gclass_view(gobj, /* i18n: data */ node_data.gclass, {
         title_prefix: gobj_yuno_name() || "",
         /*  Which state THIS gobj is in. The description describes the
          *  CLASS and cannot carry it, and the tree is the only party

@@ -42,9 +42,15 @@ keys of this library visible to it (since `7.26.28`):
 - **A key handed to a FUNCTION is read where it is handed.**
   `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`) names every function that
   receives a key, and at which argument or property. At those positions the
-  validator reads a string literal, or a `const` bound to one. A function that
-  hands one of its parameters to `t()`, `i18n` or a `data-i18n*` attribute
-  goes in the table, or what it is given is invisible again.
+  validator reads a string literal, or a `const` bound to one; DOM there (an
+  array spec, `createElement2()`, `text_node()`, a const or a `let` only ever
+  given one) is no key. A function that hands one of its parameters -- or what
+  it reads from one -- to `t()`, an `i18n` / `code` / `data-i18n*` value or a
+  key position of the table goes in the table, or what it is given is
+  invisible again. Since `7.26.29` the test FINDS every such function and
+  fails until it is there; one that nothing calls by name (an FSM action, a
+  callback) marks what it hands on instead, and a path through a gobj's
+  `priv` is no position.
 - **A key handed by table or variable is PUBLISHED by its module**, in an
   exported `<NAME>_I18N_KEYS` array of literals that the validator reads and
   asks the locales for (only 17 of the 96 modules of `src/` publish one
@@ -60,8 +66,16 @@ keys of this library visible to it (since `7.26.28`):
   fails that test.
 
 `src/i18n_key_functions.test.js` fails on an unmarked call that gives a key
-position anything but a literal, a `const` bound to one, or a key position of
-the enclosing function handed on.
+position anything but a literal (or DOM), a `const` bound to one, or a key
+position of the enclosing function handed on; on a translated text there,
+`t("k")`, even marked (it is translated again and never changes language:
+hand the key); and on a `data` marker over what the reader follows to keys
+(a literal, a const or branch that is one, a call of a module function that
+returns literals). Since `7.26.29` `validate-locales` holds an APP's own code
+to the same rule, with the file and the line. It parses the sources and never
+runs them; a locale is parsed and then imported, so its top-level code runs.
+`acorn` is a dependency of this package since `7.26.29`, not a
+devDependency: the published scripts need it at run time.
 
 The full rule, with what does NOT count as a name, is in the README
 ("Conventions"). The check is not a grep: **dump `title`/`aria-label` from the

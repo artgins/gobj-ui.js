@@ -544,7 +544,7 @@ function period_name(period, t)
 {
     let spec = period_spec(period);
     if(!spec) {
-        return tr(t, /* i18n: data */ String((period && period.id) || period || ""));
+        return tr(t, String((period && period.id) || period || ""));
     }
     return tr(t, /* i18n: YUI_TIME_I18N_KEYS */ spec.id);
 }

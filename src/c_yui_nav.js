@@ -230,17 +230,19 @@ function build_ui(gobj)
     let menu_id = gobj_read_attr(gobj, "menu_id") || "nav";
     let $container;
 
+    /*  The items are the app's nav declaration: the keys of their names
+     *  are read there (app_config.json), not here.  */
     switch(layout) {
-        case "vertical":   $container = render_vertical(gobj, items); break;
-        case "icon-bar":   $container = render_icon_bar(gobj, items); break;
-        case "tabs":       $container = render_tabs(gobj, items);     break;
-        case "drawer":     $container = render_drawer(gobj, items);   break;
-        case "submenu":    $container = render_submenu(gobj, items);  break;
-        case "accordion":  $container = render_accordion(gobj, items); break;
-        case "cards":      $container = render_cards(gobj, items);    break;
-        case "backbar":    $container = render_backbar(gobj);         break;
-        case "breadcrumb": $container = render_breadcrumb(gobj, items); break;
-        default:           $container = render_vertical(gobj, items);
+        case "vertical":   $container = render_vertical(gobj, /* i18n: data */ items); break;
+        case "icon-bar":   $container = render_icon_bar(gobj, /* i18n: data */ items); break;
+        case "tabs":       $container = render_tabs(gobj, /* i18n: data */ items);     break;
+        case "drawer":     $container = render_drawer(gobj, /* i18n: data */ items);   break;
+        case "submenu":    $container = render_submenu(gobj, /* i18n: data */ items);  break;
+        case "accordion":  $container = render_accordion(gobj, /* i18n: data */ items); break;
+        case "cards":      $container = render_cards(gobj, /* i18n: data */ items);    break;
+        case "backbar":    $container = render_backbar(gobj);                          break;
+        case "breadcrumb": $container = render_breadcrumb(gobj, /* i18n: data */ items); break;
+        default:           $container = render_vertical(gobj, /* i18n: data */ items);
     }
     $container.setAttribute("data-nav-zone", zone);
     $container.setAttribute("data-nav-layout", layout);

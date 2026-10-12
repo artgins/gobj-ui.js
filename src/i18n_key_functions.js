@@ -29,30 +29,53 @@
  *                                           `label` of each object literal
  *                                           of the array `actions`
  *                          A position may also hold DOM or nothing: only
- *                          a string there is a key.
+ *                          a string there is a key. DOM is an array (a
+ *                          createElement2 spec), a call of createElement2(),
+ *                          createOneHtml() or html_markup() of gobj-js, of
+ *                          text_node() of gobj-ui, of document.createElement()
+ *                          and the like, a const bound to one, a plain `let`
+ *                          only ever given one -- known by where it comes
+ *                          from, never by a variable's name.
  *
  *          What is read at a position: a string literal, a template with
  *          no `${}`, every branch of a `?:`, `||`, `??` (the right one of
  *          `&&`), and what the reader follows -- a const to its value, a
  *          property of a const object, the element of a const array a
- *          `.map()` or a for...of walks. A `let`, a parameter or data is
- *          not read: its keys are published in an exported
- *          `<NAME>_I18N_KEYS` array, and the call is MARKED with a comment
- *          right before what it hands over, `i18n: <NAME>_I18N_KEYS` (the
- *          list) or `i18n: data` (no key a list can hold). A marked `let`
- *          is held to its marker: every literal it is given is read and
- *          must be in the list, and one given nothing but literals fails
- *          (write it as a const, which the reader follows).
+ *          `.map()` or a for...of walks (and what a destructuring reads
+ *          from it), String(x) and `${x}` as x, the default of a parameter,
+ *          a call of a function of the same module whose every return is
+ *          one of these. A `let`, a parameter or data is not read: its keys
+ *          are published in an exported `<NAME>_I18N_KEYS` array, and the
+ *          call is MARKED with a comment right before what it hands over,
+ *          `i18n: <NAME>_I18N_KEYS` (the list) or `i18n: data` (no key a
+ *          list can hold). A marked `let` is held to its marker: every
+ *          literal it is given is read and must be in the list, and one
+ *          given nothing but literals fails (write it as a const, which the
+ *          reader follows). A `data` marker on what the reader follows to
+ *          keys and nothing else -- a literal, a const or a branch that is
+ *          one, a call that returns literals -- fails too: it claims data
+ *          where the reader reads a key.
  *
- *          A test (i18n_key_functions.test.js) holds the library to it,
- *          per CALL: a key position given anything else than a literal, a
- *          const the reader follows, a key position of the enclosing
- *          table function handed on, or a marked value fails, with the
- *          file and the line. Publishing a list exempts no module.
+ *          The rule, per CALL: a key position given anything else than a
+ *          literal (or DOM, or nothing), a const the reader follows, a key
+ *          position of the enclosing table function handed on, or a marked
+ *          value fails, with the file and the line; a TRANSLATED text,
+ *          t("..."), fails even marked (it would be translated again, and
+ *          never change language). A test (i18n_key_functions.test.js)
+ *          holds the library to it, and validate-locales an app's own code.
+ *          Publishing a list exempts no module.
  *
- *          A function added to the library that hands one of its
- *          parameters to t(), to `i18n`, or to a `data-i18n*` attribute
- *          goes in this table.
+ *          The table is COMPLETE, and the same test proves it: it finds
+ *          every function of the library that hands one of its parameters
+ *          -- or what it reads from one, `opts.title`, a destructured
+ *          `{label}`, each `items[].name` -- to t(), to an `i18n`, `code` or
+ *          `data-i18n*` value, or to a key position of a function of this
+ *          table (REV-CLOUD V21.4.1: up to 7.26.28 it lacked 39 such
+ *          functions, and 6 entries lacked positions).
+ *          One called by name goes here, with that position. One nothing
+ *          calls by name -- an FSM action, a callback, a method -- has no
+ *          call to read: it marks what it hands on, where it hands it. What
+ *          a gobj keeps in its `priv` is its own state, never a position.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -88,6 +111,13 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "table_cell_text.js", name: "hook_cell_spec", exported: true, keys: ["4"]},
     /*  yui_time.js -- a granularity names itself by its id  */
     {module: "yui_time.js", name: "period_name", exported: true, keys: ["0", "0.id"]},
+    /*  nav_cards_helpers.js -- a nav item's name, tooltip and aria label  */
+    {module: "nav_cards_helpers.js", name: "card_descriptor", exported: true,
+        keys: ["0.name", "0.tooltip", "0.aria_label"]},
+    {module: "nav_cards_helpers.js", name: "cards_grid_descriptor", exported: true,
+        keys: ["0[].name", "0[].tooltip", "0[].aria_label"]},
+    /*  yui_gclass_view.js -- the dialog's title is the gclass name  */
+    {module: "yui_gclass_view.js", name: "open_gclass_view", exported: true, keys: ["1"]},
 
     /*
      *  Helpers of their own module
@@ -106,21 +136,36 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "c_yui_gclass.js", name: "empty_line", exported: false, keys: ["0"]},
     {module: "c_yui_gclass.js", name: "build_zone", exported: false, keys: ["1.key"]},
     {module: "c_yui_period.js", name: "nav_button", exported: false, keys: ["3"]},
-    {module: "c_yui_period.js", name: "mode_name", exported: false, keys: ["0.id", "0.roll.label"]},
+    {module: "c_yui_period.js", name: "mode_name", exported: false,
+        keys: ["0.id", "0.roll.label", "0.spec", "0.spec.id"]},
+    {module: "c_yui_period.js", name: "build_mode_button", exported: false,
+        keys: ["1.id", "1.roll.label", "1.spec", "1.spec.id"]},
     {module: "c_yui_form.js", name: "cell_icon", exported: false, keys: ["1"]},
+    {module: "c_yui_form.js", name: "name_form_control", exported: false, keys: ["1.label_i18n", "1.label"]},
+    {module: "c_yui_form.js", name: "create_form_field", exported: false,
+        keys: ["4.label_i18n", "4.label", "4.options", "4.options[]"]},
     {module: "c_yui_treedb_graph.js", name: "step_button", exported: false, keys: ["2"]},
     {module: "c_yui_treedb_graph.js", name: "layout_step_button", exported: false, keys: ["3"]},
     {module: "c_yui_treedb_graph.js", name: "answer_print_tranger_refused", exported: false,
-        keys: ["2.i18n"]},
+        keys: ["2.i18n", "2.error"]},
     {module: "c_yui_treedb_topics.js", name: "answer_print_tranger_refused", exported: false,
-        keys: ["2.i18n"]},
+        keys: ["2.i18n", "2.error"]},
     {module: "c_yui_treedb_topics.js", name: "card_action_anchor", exported: false, keys: ["2"]},
     {module: "c_yui_treedb_topics.js", name: "push_meta", exported: false, keys: ["0"]},
     {module: "c_yui_treedb_topics.js", name: "relation", exported: false, keys: ["1"]},
+    {module: "c_yui_treedb_topics.js", name: "add_tab", exported: false, keys: ["3"]},
+    {module: "c_yui_treedb_topics.js", name: "add_topic_card", exported: false, keys: ["2"]},
+    {module: "c_yui_treedb_topics.js", name: "show_topic_info", exported: false, keys: ["1"]},
+    {module: "c_yui_treedb_topics.js", name: "build_topic_info_panel", exported: false, keys: ["2"]},
     {module: "c_yui_treedb_topic_with_form.js", name: "confirm_then", exported: false, keys: ["1"]},
     {module: "c_yui_treedb_topic_with_form.js", name: "present_json_popup", exported: false,
-        keys: ["2.title"]},
-    {module: "c_yui_schema_editor.js", name: "show_notice", exported: false, keys: ["1"]},
+        keys: ["1", "2.title"]},
+    {module: "c_yui_treedb_topic_with_form.js", name: "col_title_formatter", exported: false, keys: ["1.id"]},
+    {module: "c_yui_treedb_topic_with_form.js", name: "open_cell_json_dialog", exported: false, keys: ["2"]},
+    {module: "c_yui_treedb_topic_with_form.js", name: "open_cell_file_dialog", exported: false, keys: ["2"]},
+    {module: "c_yui_treedb_topic_with_form.js", name: "open_hook_choice_dialog", exported: false,
+        keys: ["1[].topic_name"]},
+    {module: "c_yui_schema_editor.js", name: "show_notice", exported: false, keys: ["1", "2"]},
     {module: "c_yui_schema_editor.js", name: "toolbar_button", exported: false, keys: ["2"]},
     {module: "c_yui_schema_editor.js", name: "row_icon", exported: false, keys: ["3"]},
     {module: "c_yui_schema_editor.js", name: "name_control", exported: false, keys: ["1"]},
@@ -130,7 +175,14 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "c_yui_schema_editor.js", name: "row", exported: false, keys: ["0"]},
     {module: "c_yui_schema_editor.js", name: "confirm_then", exported: false, keys: ["1"]},
     {module: "c_yui_schema_editor.js", name: "end_writes", exported: false, keys: ["1"]},
-    {module: "c_yui_schema_editor.js", name: "open_dialog", exported: false, keys: ["2"]},
+    {module: "c_yui_schema_editor.js", name: "open_dialog", exported: false, keys: ["1", "2"]},
+    {module: "c_yui_schema_editor.js", name: "refuse_bad_name", exported: false, keys: ["1"]},
+    {module: "c_yui_schema_editor.js", name: "open_card", exported: false, keys: ["4[].i18n"]},
+    {module: "c_yui_schema_editor.js", name: "open_report", exported: false,
+        keys: ["1[].severity", "1[].code"]},
+    {module: "c_yui_schema_editor.js", name: "render_import_plan", exported: false,
+        keys: ["1.conflicts[].code", "1.writes[].op"]},
+    {module: "schema_validate.js", name: "add", exported: false, keys: ["1"]},
     {module: "c_g6_nodes_tree.js", name: "create_floating_icon", exported: false, keys: ["4"]},
     {module: "c_g6_nodes_tree.js", name: "show_dual_icons", exported: false, keys: ["3", "5"]},
     {module: "c_g6_nodes_tree.js", name: "create_form_label", exported: false, keys: ["1"]},
@@ -143,4 +195,41 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "yui_dev.js", name: "mk_dir", exported: false, keys: ["3"]},
     {module: "yui_dev.js", name: "grp", exported: false, keys: ["0"]},
     {module: "yui_dev.js", name: "grp_scroll", exported: false, keys: ["0"]},
+    /*  c_yui_nav.js -- the items of a menu: the app's nav declaration  */
+    {module: "c_yui_nav.js", name: "item_li", exported: false, keys: ["1.name", "1.tooltip", "1.aria_label"]},
+    {module: "c_yui_nav.js", name: "item_iconbar", exported: false, keys: ["1.name", "1.tooltip", "1.aria_label"]},
+    {module: "c_yui_nav.js", name: "render_vertical", exported: false,
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+    {module: "c_yui_nav.js", name: "render_icon_bar", exported: false,
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+    {module: "c_yui_nav.js", name: "render_tabs", exported: false,
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+    {module: "c_yui_nav.js", name: "render_cards", exported: false,
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+    {module: "c_yui_nav.js", name: "render_submenu", exported: false,
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+    {module: "c_yui_nav.js", name: "render_drawer", exported: false,
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+    {module: "c_yui_nav.js", name: "render_breadcrumb", exported: false, keys: ["1[].name", "1[].id"]},
+    {module: "c_yui_nav.js", name: "render_accordion", exported: false,
+        keys: ["1[].name", "1[].submenu.items[].name", "1[].submenu.items[].tooltip",
+               "1[].submenu.items[].aria_label"]},
+    /*  c_yui_shell.js -- the toolbar items: the app's shell declaration  */
+    {module: "c_yui_shell.js", name: "build_toolbar", exported: false,
+        keys: ["1.toolbar.aria_label", "1.toolbar.items[].name", "1.toolbar.items[].aria_label",
+               "1.toolbar.items[].tooltip", "1.toolbar.items[].wordmark"]},
+    {module: "c_yui_shell.js", name: "build_toolbar_action_item", exported: false,
+        keys: ["1.name", "1.aria_label", "1.tooltip"]},
+    {module: "c_yui_shell.js", name: "build_toolbar_brand_item", exported: false,
+        keys: ["1.name", "1.aria_label", "1.tooltip", "1.wordmark"]},
+    {module: "c_yui_shell.js", name: "build_toolbar_avatar_item", exported: false,
+        keys: ["1.name", "1.aria_label", "1.tooltip"]},
+    {module: "c_yui_shell.js", name: "build_toolbar_connection_item", exported: false,
+        keys: ["1.name", "1.aria_label", "1.tooltip"]},
+    {module: "c_yui_shell.js", name: "handle_toolbar_action", exported: false, keys: ["1.name", "1.aria_label"]},
+    {module: "c_yui_shell.js", name: "toggle_toolbar_dropdown", exported: false, keys: ["1.name", "1.aria_label"]},
+    {module: "c_yui_shell.js", name: "open_toolbar_dropdown", exported: false, keys: ["1.name", "1.aria_label"]},
+    {module: "c_yui_shell.js", name: "build_dropdown_row", exported: false, keys: ["1.name", "1.aria_label"]},
+    /*  shell_route_map.js -- a node of the route map  */
+    {module: "shell_route_map.js", name: "render_node", exported: false, keys: ["0.label"]},
 ]);

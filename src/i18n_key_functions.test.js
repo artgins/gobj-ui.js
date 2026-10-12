@@ -16,19 +16,27 @@
  *
  *        - the table names functions that exist where it says, with
  *          positions it can follow;
+ *        - the table is COMPLETE (REV-CLOUD V21.4.1): every function that
+ *          hands one of its parameters -- or what it reads from one -- to a
+ *          place a key is read is in it, when something calls it by name;
+ *          one nothing calls by name (an FSM action, a callback) marks what
+ *          it hands on. The search runs to a fixpoint, and fails naming the
+ *          entry to add;
  *        - THE RULE, per call, in every module: each value a key position
- *          of a key function can take is a string literal (or nothing), a
- *          const the reader follows to one, a key position of the
+ *          of a key function can take is a string literal (or nothing, or
+ *          DOM), a const the reader follows to one, a key position of the
  *          enclosing table function handed on, or it is MARKED where it is
  *          handed -- a comment `i18n: <NAME>_I18N_KEYS` (the module
  *          publishes those keys) or `i18n: data` (no key a list can hold).
- *          Anything else fails, naming the file and the line;
+ *          Anything else fails, naming the file and the line; so does a
+ *          translated text, t("..."), marked or not;
  *        - every marker is one and stands where a key is read; the lists
  *          it names are published by its module or one it imports; the
  *          keys it marks that can be read are in them -- a marked `let`
  *          included (or a member or an element read from one), whose
  *          every literal is read, and which fails when it holds nothing
- *          but literals (a const not written as one);
+ *          but literals (a const not written as one); a `data` marker on
+ *          what the reader follows to keys fails (V21.4.2);
  *        - every published list is readable (exported, an array of
  *          literals), lower-case ASCII, has no duplicate and no stale key;
  *        - a list a module derives from its SOURCE (a table, a default, a
@@ -55,10 +63,15 @@ import {
     parse_source,
     walk,
     line_of,
+    binding_of,
     source_keys,
+    var_leaves,
     leaves_of,
     values_at,
+    markers_of,
+    marker_of,
     key_calls,
+    key_places,
     call_rule_violations,
     published_lists,
     scan_ast,
@@ -100,11 +113,12 @@ function all_lists()
     return out;
 }
 
-function rule_report(ast, module)
+function rule_report(ast, module, table)
 {
-    return call_rule_violations(ast, module).map((v) =>
+    return call_rule_violations(ast, module, table).map((v) =>
         `${module}:${v.line}${v.call_line !== v.line? ` (call at ${v.call_line})` : ""} ` +
-        `${v.name}() [${v.path}]: ${v.text.replace(/\s+/g, " ")}`);
+        `${v.name}() [${v.path}]: ${v.text.replace(/\s+/g, " ")}` +
+        (v.why === "translated"? " -- a TRANSLATED text where a key goes: hand the key" : ""));
 }
 
 function declares_function(ast, name)
@@ -579,6 +593,185 @@ function with_key_dropped(lists, name, key)
     return copy;
 }
 
+/*
+ *  The FORWARDERS: the functions of the library that hand one of their
+ *  parameters on to a place a key is read (key_places(): t() / tr(), an
+ *  `i18n`, `code` or `data-i18n*` value -- a property, setAttribute(),
+ *  `x.i18n = ...` --, a key position of a function of the table): the
+ *  parameter itself or what is read from it (`opts.title`, a
+ *  destructured `{label}`, each `items[].name`), directly or through a
+ *  `let` it is given to. What their callers give there is a key the
+ *  validator reads ONLY when the function is in I18N_KEY_FUNCTIONS: up
+ *  to 7.26.28 39 were not (the review named 17 of them), 6 entries
+ *  lacked positions, and a literal handed to one would have gone unasked
+ *  (REV-CLOUD V21.4.1).
+ *
+ *    - A forwarder called by NAME -- in its module, or exported -- goes
+ *      in the table, with that position.
+ *    - One that nothing calls by name -- an FSM action (the framework
+ *      calls it with an event's kw), a callback, a method -- has no call
+ *      a reader can read: what it hands on is MARKED where it hands it,
+ *      like any other value the reader cannot follow.
+ *    - What a gobj keeps in its `priv` is its own state: a caller hands
+ *      the gobj, never what its priv holds. A path through the priv of
+ *      a parameter is no position of the function.
+ *
+ *  The search runs to a fixpoint: a function that hands a parameter to
+ *  a key position of a forwarder it found is a forwarder too.
+ *
+ *      -> {missing: [{module, name, exported, keys, line}],
+ *          unmarked: [{module, name, how, pos, line}]}
+ *
+ *  `missing`: what the table lacks, each function with the positions it
+ *  lacks and the first line that hands one. `unmarked`: a forwarder
+ *  nothing calls by name that hands a parameter on unmarked.
+ */
+const PRIV_PATH_RE = /^\.priv(?:[.[]|$)/;
+
+function handed_params(leaf)
+{
+    if(leaf.kind === "param") {
+        return [leaf];
+    }
+    if(leaf.kind === "unknown" && leaf.var_root) {
+        return var_leaves(leaf.var_root).leaves.filter((l) => l.kind === "param");
+    }
+    return [];
+}
+
+/*  Is `fn` called by its name in the module (a call that resolves to it)?  */
+function is_called_by_name(ast, fn)
+{
+    let called = false;
+    walk(ast, (n, ancestors) => {
+        if(called || n.type !== "CallExpression" || n.callee.type !== "Identifier") {
+            return;
+        }
+        let b = binding_of(n.callee.name, [...ancestors, n]);
+        if(!b) {
+            return;
+        }
+        if((b.kind === "function" && b.fn === fn) || (b.kind === "const" && b.init === fn)
+                || (b.kind === "var" && b.declarators.some((d) => d.init === fn))) {
+            called = true;
+        }
+    });
+    return called;
+}
+
+/*  How a function is written: one the table can name ("declaration",
+ *  "variable": bound to a name), or what else it is  */
+function declared_as(ast, fn)
+{
+    if(fn.type === "FunctionDeclaration") {
+        return "declaration";
+    }
+    let how = "a function expression";
+    walk(ast, (n, ancestors) => {
+        if(n !== fn) {
+            return;
+        }
+        let parent = ancestors[ancestors.length - 1];
+        if(parent.type === "VariableDeclarator" && parent.init === fn && parent.id.type === "Identifier") {
+            how = "variable";
+        } else if(parent.type === "Property" || parent.type === "MethodDefinition") {
+            how = "a method";
+        } else if(parent.type === "CallExpression" || parent.type === "NewExpression") {
+            how = "a callback";
+        }
+    });
+    return how;
+}
+
+function find_forwarders(modules = MODULES, asts = ast_of, table = I18N_KEY_FUNCTIONS)
+{
+    let virtual = table.map((e) => Object.assign({}, e, {keys: [...e.keys]}));
+    let first_line = new Map();     // "<module> <name> <pos>" -> line
+    let unmarked = new Map();       // "<module>:<line> <pos>" -> {...}
+    let named = new Map();          // a function node -> is it called by name?
+    for(let round = 0; round < 32; round++) {
+        let grew = false;
+        let round_table = virtual.slice();      // a new array: the index is cached per table
+        for(let module of modules) {
+            let ast = asts(module);
+            let markers = markers_of(ast);
+            let exported = exported_names(ast);
+            for(let place of key_places(ast, {lib_module: module, table: round_table})) {
+                for(let leaf of place.leaves) {
+                    for(let p of handed_params(leaf)) {
+                        if(PRIV_PATH_RE.test(p.path)) {
+                            continue;
+                        }
+                        let b = p.binding;
+                        let pos = `${b.index}${p.path}`;
+                        let line = line_of(ast, leaf.node.start);    // the place it is handed to
+                        if(!named.has(b.fn)) {
+                            let how = declared_as(ast, b.fn);
+                            let by_name = !!b.name && (how === "declaration" || how === "variable")
+                                && (exported.has(b.name) || is_called_by_name(ast, b.fn));
+                            named.set(b.fn, {by_name, how});
+                        }
+                        let {by_name, how} = named.get(b.fn);
+                        if(!by_name) {
+                            if(!marker_of(leaf, markers)) {
+                                unmarked.set(`${module}:${line} ${pos}`,
+                                    {module, name: b.name, how, pos, line});
+                            }
+                            continue;
+                        }
+                        let id = `${module} ${b.name} ${pos}`;
+                        if(!first_line.has(id) || line < first_line.get(id)) {
+                            first_line.set(id, line);
+                        }
+                        let entry = virtual.find((e) => e.module === module && e.name === b.name);
+                        if(!entry) {
+                            entry = {module, name: b.name, exported: exported.has(b.name), keys: []};
+                            virtual.push(entry);
+                        }
+                        if(!entry.keys.includes(pos)) {
+                            entry.keys.push(pos);
+                            grew = true;
+                        }
+                    }
+                }
+            }
+        }
+        if(!grew) {
+            break;
+        }
+    }
+
+    let missing = [];
+    for(let entry of virtual) {
+        let real = table.find((e) => e.module === entry.module && e.name === entry.name);
+        let keys = entry.keys.filter((k) => !real || !real.keys.includes(k));
+        if(keys.length === 0) {
+            continue;
+        }
+        let lines = keys.map((k) => first_line.get(`${entry.module} ${entry.name} ${k}`) || 0);
+        missing.push({module: entry.module, name: entry.name, exported: entry.exported, keys,
+                      line: Math.min(...lines), in_table: !!real});
+    }
+    return {missing, unmarked: [...unmarked.values()]};
+}
+
+function forwarders_report(found)
+{
+    let out = [];
+    for(let m of found.missing) {
+        out.push(`${m.module}:${m.line} ${m.name}() hands [${m.keys.join(", ")}] to a place a key is read: ` +
+                 (m.in_table? `add the position(s) to its entry of I18N_KEY_FUNCTIONS` :
+                  `name it in I18N_KEY_FUNCTIONS -- {module: "${m.module}", name: "${m.name}", ` +
+                  `exported: ${m.exported}, keys: ${JSON.stringify(m.keys)}}`));
+    }
+    for(let u of found.unmarked) {
+        out.push(`${u.module}:${u.line} ${u.name || "a function"} (${u.how}, which nothing calls by name) ` +
+                 `hands its parameter [${u.pos}] to a place a key is read, unmarked: no caller can be ` +
+                 `read, so mark what it is where it hands it`);
+    }
+    return out;
+}
+
 
 describe("I18N_KEY_FUNCTIONS: the table", () => {
     test("every entry names a function of its module, at positions that can be followed", () => {
@@ -617,6 +810,63 @@ describe("I18N_KEY_FUNCTIONS: the table", () => {
             }
         }
         expect(wrong).toEqual([]);
+    });
+});
+
+describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
+    test("every function that hands a parameter to a place a key is read, in every module", () => {
+        expect(forwarders_report(find_forwarders())).toEqual([]);
+    });
+
+    test("the search finds what it should, and nothing else", () => {
+        let code = [
+            `import {yui_shell_show_error} from "./shell_modals.js";`,
+            `function say(gobj, key) { return ["p", {i18n: key}, t(key)]; }`,           // hands 1
+            `function told(gobj, opts) { yui_shell_show_error(shell, opts.message); }`, // hands 1.message
+            `function relay(gobj, k) { return say(gobj, k); }`,                         // through say: 1
+            `function own(gobj) { let priv = gobj.priv; return t(priv.label); }`,       // the gobj's own state
+            `function as_dom(gobj, $node) { yui_shell_show_error(shell, $node); }`,      // a string there is a key
+            `function by_let(gobj, it) { let label = it.name || ""; return {i18n: label}; }`,
+            `function by_pattern(gobj, {title, label = "fallback"}) { return t(title); }`,
+            `function ac_show(gobj, event, kw, src) { yui_shell_show_error(shell, kw.comment); }`,
+            `function ac_marked(gobj, event, kw, src) { return t(/* i18n: data */ kw.comment); }`,
+            `say(); told(); relay(); own(); as_dom(); by_let(); by_pattern();`
+        ].join("\n");
+        let ast = parse_as(code, "x.js");
+        let found = find_forwarders(["x.js"], () => ast);
+        let got = Object.fromEntries(found.missing.map((m) => [m.name, m.keys.sort()]));
+        expect(got).toEqual({
+            say: ["1"], told: ["1.message"], relay: ["1"], as_dom: ["1"],
+            by_let: ["1.name"], by_pattern: ["1.title"]
+        });
+        expect(found.unmarked.map((u) => `${u.name} ${u.pos}`)).toEqual(["ac_show 2.comment"]);
+
+        /*  ...and named in the table, they are found no more  */
+        let table = [...I18N_KEY_FUNCTIONS,
+                     ...found.missing.map((m) => ({module: "x.js", name: m.name, exported: false, keys: m.keys}))];
+        expect(find_forwarders(["x.js"], () => ast, table).missing).toEqual([]);
+    });
+
+    test("the functions the review named are found, with the table as it was", () => {
+        let names = ["name_form_control", "create_form_field", "item_li", "item_iconbar",
+                     "build_toolbar_action_item", "build_toolbar_brand_item", "build_toolbar_avatar_item",
+                     "build_toolbar_connection_item", "open_toolbar_dropdown", "build_dropdown_row",
+                     "col_title_formatter", "add_tab", "add_topic_card", "build_topic_info_panel",
+                     "card_descriptor", "render_node"];
+        let before = I18N_KEY_FUNCTIONS.filter((e) => !names.includes(e.name));
+        let found = find_forwarders(MODULES, ast_of, before);
+        let missing = new Set(found.missing.map((m) => m.name));
+        for(let name of names) {
+            expect(missing.has(name), name).toBe(true);
+        }
+        /*  The seventeenth, an FSM action, is not called by name: it is marked where it
+         *  hands its kw on, and without the marks it is reported  */
+        let module = "c_yui_window_manager.js";
+        let code = readFileSync(join(SRC, module), "utf8");
+        expect(find_forwarders([module], () => ast_of(module)).unmarked).toEqual([]);
+        let unmarked = parse_as(code.replace(/\/\* i18n: data \*\/ /g, ""), module);
+        expect(find_forwarders([module], () => unmarked).unmarked.map((u) => u.name))
+            .toContain("ac_register_window");
     });
 });
 
@@ -863,6 +1113,70 @@ describe("the reader the rule and the validator share", () => {
     });
 });
 
+describe("REV-CLOUD V21.4.2-3: the data marker is a claim; DOM is no key; a translated text is no key", () => {
+    let module = "x.js";
+    let head = [
+        `import {yui_shell_show_info, yui_shell_show_modal} from "./shell_modals.js";`,
+        `import {createElement2} from "@yuneta/gobj-js";`
+    ];
+    let scan = (lines) => scan_ast(parse_as([...head, ...lines].join("\n"), module), {lib_module: module});
+    let rule = (lines) => rule_report(parse_as([...head, ...lines].join("\n"), module), module);
+
+    test("the review's repro: a data marker on a call that returns a literal FAILS", () => {
+        let r = scan([
+            `function pick() { return "a literal behind a call"; }`,
+            `yui_shell_show_info(shell, /* i18n: data */ pick());`
+        ]);
+        expect(r.marker_errors.map((e) => `${e.line}: ${e.why}`)).toEqual([
+            '4: marked as data, but what it marks is the key "a literal behind a call", which the reader ' +
+                'follows: drop the marker (it is no data)'
+        ]);
+        /*  ...and the call is READ: unmarked, it passes the rule and its key is asked for  */
+        let unmarked = [`function pick() { return "a literal behind a call"; }`,
+                        `yui_shell_show_info(shell, pick());`];
+        expect(rule(unmarked)).toEqual([]);
+        expect(scan(unmarked).keys.has("a literal behind a call")).toBe(true);
+    });
+
+    test("a data marker on data, or on data with a literal fallback, is legal", () => {
+        let r = scan([
+            `function f(kw) { yui_shell_show_info(shell, /* i18n: data */ kw.comment || "fallback key"); }`,
+            `function g(kw) { return t(/* i18n: data */ kw.comment); }`,
+            `function h(x) { return x.label; }`,
+            `yui_shell_show_info(shell, /* i18n: data */ h(y));`          // returns a parameter: not followed
+        ]);
+        expect(r.marker_errors).toEqual([]);
+        expect(r.keys.has("fallback key")).toBe(true);
+    });
+
+    test("DOM at a key position passes the rule; a name proves nothing", () => {
+        expect(rule([
+            `const $box = createElement2(["div"]);`,
+            `yui_shell_show_modal(shell, $box);`,
+            `yui_shell_show_modal(shell, ["div", {}, "a spec"]);`,
+            `let $msg = null;`,
+            `if(x) { $msg = createElement2(["p"]); }`,
+            `yui_shell_show_info(shell, $msg);`
+        ])).toEqual([]);
+        expect(rule([
+            `yui_shell_show_modal(shell, $box);`,
+            `let $mixed = createElement2(["p"]);`,
+            `$mixed = "a key in the let";`,
+            `yui_shell_show_info(shell, $mixed);`
+        ])).toEqual([`${module}:3 yui_shell_show_modal() [1]: $box`, `${module}:6 yui_shell_show_info() [1]: $mixed`]);
+    });
+
+    test("a translated text at a key position FAILS, marked or not", () => {
+        expect(rule([
+            `yui_shell_show_info(shell, t("saved"));`,
+            `yui_shell_show_info(shell, /* i18n: data */ i18next.t("saved"));`
+        ])).toEqual([
+            `${module}:3 yui_shell_show_info() [1]: t("saved") -- a TRANSLATED text where a key goes: hand the key`,
+            `${module}:4 yui_shell_show_info() [1]: i18next.t("saved") -- a TRANSLATED text where a key goes: hand the key`
+        ]);
+    });
+});
+
 describe("REV-CLOUD V20.5 repro, on the real module", () => {
     let original = readFileSync(join(SRC, "c_yui_treedb_topics.js"), "utf8");
     let call = `actions.push(card_action_anchor(\n            "TREEDB_CARD_TABLE", "yi-table", "table", fill(routes.table)));`;
@@ -1066,7 +1380,6 @@ describe("the published *_I18N_KEYS lists", () => {
             ["FORM_JSON_FIELD_I18N_KEYS", "invalid json"],
             ["SHELL_ROUTE_MAP_I18N_KEYS", "toolbar"],
             ["SHELL_ROUTE_MAP_I18N_KEYS", "other routes"],
-            ["SHELL_ROUTE_MAP_I18N_KEYS", "app"],
             ["WIZARD_HELPERS_I18N_KEYS", "confirm"],
             ["WIZARD_HELPERS_I18N_KEYS", "next"],
             ["C_YUI_SCHEMA_EDITOR_I18N_KEYS", "error"],
@@ -1077,6 +1390,14 @@ describe("the published *_I18N_KEYS lists", () => {
 
         /*  ...and with it, the review's repro -- a key dropped from its
          *  list -- fails the coverage of that list  */
+        /*  "app" (the route map's root when the app names no brand) is pinned
+         *  twice since V21.4.1: the marker moved to the call of render_node()
+         *  follows the `let root` it marks, and the list must hold its label  */
+        expect(reported("SHELL_ROUTE_MAP_I18N_KEYS", "app")).toBe(false);
+        let route_map_refs = scan_of("shell_route_map.js").marker_refs
+            .filter((ref) => ref.lists.includes("SHELL_ROUTE_MAP_I18N_KEYS"));
+        expect(route_map_refs.flatMap((ref) => ref.keys)).toContain("app");
+
         for(let [name, key] of [
             ["C_YUI_FORM_I18N_KEYS", "this field is required"],
             ["C_YUI_SCHEMA_EDITOR_I18N_KEYS", "error"],

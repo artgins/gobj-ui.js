@@ -805,11 +805,13 @@ function build_html_form(gobj, $form, prefix, template)
         }
 
         /*
-         *  Build the html field and add to form, if <tag> is not-null
+         *  Build the html field and add to form, if <tag> is not-null.
+         *  Its label and options are the schema's: column names and
+         *  headers, data.
          */
         if(html_field_conf.tag) {
-            let $field = create_form_field(gobj, $form, prefix, field_desc, html_field_conf);
-            name_form_control($field, html_field_conf);
+            let $field = create_form_field(gobj, $form, prefix, field_desc, /* i18n: data */ html_field_conf);
+            name_form_control($field, /* i18n: data */ html_field_conf);
             $form.appendChild($field);
         }
     });

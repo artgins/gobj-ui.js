@@ -1361,8 +1361,7 @@ function answer_print_tranger_refused(gobj, path, answer)
         gobj_send_event(jv, "EV_SUBTREE_ERROR",
             Object.assign({path: path}, answer), gobj);
     } else {
-        yui_shell_show_error(yui_shell_of(gobj),
-            /* i18n: data */ answer.i18n || answer.error, {t: t});
+        yui_shell_show_error(yui_shell_of(gobj), answer.i18n || answer.error, {t: t});
     }
 }
 
@@ -1413,7 +1412,7 @@ function request_print_tranger(gobj, path)
         }, gobj);
     if(ret) {
         log_error(ret);
-        answer_print_tranger_refused(gobj, path, {error: refusal_text(ret)});
+        answer_print_tranger_refused(gobj, path, {error: /* i18n: data */ refusal_text(ret)});
         return;
     }
     if(path) {
@@ -2193,7 +2192,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
             /*  The schema couldn't load (not a treedb, no authz for it, backend
              *  down…). Show an inline banner in the view rather than a blocking
              *  app-modal that wedges the whole SPA behind an empty tab. */
-            show_load_error(gobj, t(comment));
+            show_load_error(gobj, t(/* i18n: data */ comment));
         } else {
             yui_shell_show_error(yui_shell_of(gobj), /* i18n: data */ comment, {t: t});
         }

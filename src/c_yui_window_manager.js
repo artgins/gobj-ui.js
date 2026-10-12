@@ -510,9 +510,12 @@ function ac_register_window(gobj, event, kw, src)
         label_items.push(['span', {class: 'yui-dock-label-prefix'},
             text_node(prefix)]);    // data, not markup
     }
+    /*  An FSM action: what it is given is the kw of EV_REGISTER_WINDOW,
+     *  which no reader can follow. `title_key` is the window's `title`,
+     *  a key its HOST chose when it created the window.  */
     if(title_key) {
         label_items.push(
-            ['span', {class: 'yui-dock-label-kind', i18n: title_key},
+            ['span', {class: 'yui-dock-label-kind', i18n: /* i18n: data */ title_key},
              kind_text || title_key]
         );
     }
@@ -532,7 +535,7 @@ function ac_register_window(gobj, event, kw, src)
     let $chip = createElement2(
         ['div', Object.assign(
             {class: 'yui-dock-chip', role: 'button', tabindex: '0', title: title},
-            (!prefix && title_key) ? {'data-i18n-title': title_key} : {}
+            (!prefix && title_key) ? {'data-i18n-title': /* i18n: data */ title_key} : {}
         ), [
             chip_lead(kw.icon),
             ['span', {class: 'yui-dock-label'}, label_items],

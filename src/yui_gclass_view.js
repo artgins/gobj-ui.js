@@ -197,7 +197,7 @@ function open_gclass_view(host, gclass_name, opts)
             dialog:        true,
             logical_class: "GCLASS_VIEW_SHEET",
             title_prefix:  opts.title_prefix || "",
-            title:         /* i18n: data */ gclass_name,
+            title:         gclass_name,
             t:             t,
             on_close:      on_close,
         });

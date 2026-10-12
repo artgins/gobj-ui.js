@@ -326,7 +326,7 @@ describe("validate-locales", () => {
         expect(helper.out).toMatch(/app\.js cannot be loaded here.*skipped/);
     });
 
-    test("a published list is read in every shape, never run", () => {
+    test("a published list is read as data, in the shapes the reader knows, never run", () => {
         let r = run({...BOTH({}), "src/main.js": [
             `export const A_I18N_KEYS = Object.freeze(["frozen key"]);`,
             `const B_I18N_KEYS = ["exported later"]; export {B_I18N_KEYS};`,
@@ -550,6 +550,139 @@ describe("validate-locales", () => {
         expect(r.status).toBe(1);
         expect(r.out).toContain(`defined in NO locale: "a brand new card key"`);
         expect(run(app).out).not.toContain(`"a brand new card key"`);
+    });
+
+    test("REV-CLOUD V21.4.3: the rule per call holds the app's own code, with the file and the line", () => {
+        let r = run({...BOTH({"install this app": "x", "k": "x", "t": "x", "saved": "x"}), "src/main.js": [
+            `import {yui_shell_show_error, yui_shell_show_modal} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `import {yui_install_ask_once} from "@yuneta/gobj-ui/src/yui_install.js";`,
+            `import {createElement2} from "@yuneta/gobj-js";`,
+            `import i18next from "i18next";`,
+            `let msg = "saved";`,
+            `yui_shell_show_error(shell, msg);`,                                     // 6: a let
+            `function warn(k) { yui_shell_show_error(shell, k); }`,                   // 7: a wrapper of its own
+            `yui_shell_show_error(shell, "save " + what);`,                          // 8: built
+            `let opts = {title: "t"};`,
+            `yui_shell_show_modal(shell, "k", opts);`,                                // 10: an options variable
+            `yui_install_ask_once(shell, {message: t("install this app")});`,         // 11: translated
+            `yui_install_ask_once(shell, {message: i18next.t("install this app")});`, // 12: translated
+            `yui_shell_show_error(shell, /* i18n: data */ t("k"));`,                  // 13: translated, marked
+            `yui_shell_show_error(shell, /* i18n: data */ comment);`,                 // fine
+            `yui_install_ask_once(shell, {message: "install this app"});`,           // fine: the key
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let lines = (re) => r.out.split("\n").filter((l) => re.test(l)).map((l) => Number(l.match(/main\.js:(\d+)/)[1]));
+        expect(lines(/which the reader cannot follow/)).toEqual([6, 7, 8, 10]);
+        expect(lines(/a TRANSLATED text where a KEY goes/)).toEqual([11, 12, 13]);
+        expect(r.out).toContain(`src/main.js:6: yui_shell_show_error() [1] is given msg, which the reader cannot follow`);
+        expect(r.out).toContain(`src/main.js:11: yui_install_ask_once() [1.message] is given t("install this app"): ` +
+            `a TRANSLATED text where a KEY goes`);
+    });
+
+    test("REV-CLOUD V21.4.3: DOM at a key position is no key -- known by where it comes from, not by a name", () => {
+        let ok = run({...BOTH({"title key": "x"}), "src/main.js": [
+            `import {yui_shell_show_modal, yui_shell_show_error} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `import {createElement2, html_markup} from "@yuneta/gobj-js";`,
+            `import {text_node} from "@yuneta/gobj-ui/src/yui_text.js";`,
+            `const $box = createElement2(["div", {}, "x"]);`,
+            `yui_shell_show_modal(shell, $box, {title: "title key"});`,
+            `yui_shell_show_modal(shell, createElement2(["p", {}, "x"]));`,
+            `yui_shell_show_error(shell, [["span", {}, "a spec"]]);`,
+            `yui_shell_show_error(shell, text_node(name));`,
+            `yui_shell_show_error(shell, html_markup("<b>x</b>"));`,
+            `yui_shell_show_error(shell, document.createElement("div"));`,
+            `let $msg = null;`,
+            `if(x) { $msg = createElement2(["div", {}, "x"]); }`,
+            `yui_shell_show_error(shell, $msg);`,
+            `function build() { return createElement2(["div"]); }`,
+            `yui_shell_show_error(shell, build());`
+        ].join("\n")});
+        expect(ok.out).not.toMatch(/cannot follow/);       // (its locales lack the library's keys: no OK)
+
+        let not_dom = run({...BOTH({}), "src/main.js": [
+            `import {yui_shell_show_error} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `function createElement2(x) { return x; }`,                   // the app's own, not gobj-js's
+            `yui_shell_show_error(shell, createElement2("a key?"));`,
+            `yui_shell_show_error(shell, $box);`,                          // a name says nothing
+            `let $mixed = createElement2(["div"]);`,
+            `$mixed = "a literal";`,
+            `yui_shell_show_error(shell, $mixed);`                         // a let not only given DOM
+        ].join("\n")});
+        expect(not_dom.status).toBe(1);
+        expect(not_dom.out).toMatch(/main\.js:3: yui_shell_show_error\(\) \[1\] is given createElement2\("a key\?"\)/);
+        expect(not_dom.out).toMatch(/main\.js:4: yui_shell_show_error\(\) \[1\] is given \$box/);
+        expect(not_dom.out).toMatch(/main\.js:7: yui_shell_show_error\(\) \[1\] is given \$mixed/);
+    });
+
+    test("REV-CLOUD V21.4.2: a data marker on what the reader follows to keys FAILS", () => {
+        let r = run({...BOTH({"accepted": "x", "x": "x", "k": "x", "fallback": "x"}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `function pick() { return ok? "accepted" : "x"; }`,
+            `const K = "k";`,
+            `yui_shell_show_info(shell, /* i18n: data */ pick());`,                 // 4: the review's repro
+            `yui_shell_show_info(shell, /* i18n: data */ "x");`,                    // 5: a literal
+            `yui_shell_show_info(shell, /* i18n: data */ K);`,                      // 6: a const
+            `yui_shell_show_info(shell, ok? /* i18n: data */ "x" : comment);`,      // 7: a branch that is one
+            "t(/* i18n: data */ `x`);",                                             // 8: at t() too
+            `yui_shell_show_info(shell, /* i18n: data */ comment || "fallback");`,  // fine: comment is data
+            `yui_shell_show_info(shell, /* i18n: data */ reply.comment);`           // fine
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let lines = r.out.split("\n").filter((l) => /marked as data, but/.test(l))
+            .map((l) => Number(l.match(/main\.js:(\d+)/)[1]));
+        expect(lines).toEqual([4, 5, 6, 7, 8]);
+        expect(r.out).toContain(`src/main.js:4: marked as data, but what it marks is the key "accepted", "x", ` +
+            `which the reader follows: drop the marker (it is no data)`);
+        /*  ...and without the marker, what pick() returns is asked for  */
+        let read = run({...BOTH({}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `function pick() { return ok? "picked a" : "picked b"; }`,
+            `yui_shell_show_info(shell, pick());`
+        ].join("\n")});
+        expect(read.out).toContain(`defined in NO locale: "picked a"`);
+        expect(read.out).toContain(`defined in NO locale: "picked b"`);
+        expect(read.out).not.toMatch(/cannot follow/);
+    });
+
+    test("REV-CLOUD V21.4.6: a published list may spread an array of its own module", () => {
+        let r = run({...BOTH({}), "src/lists.js": [
+            `const COMMON = ["common key"];`,
+            `export const A_I18N_KEYS = [...COMMON, "a key"];`,
+            `export const B_I18N_KEYS = Object.freeze([...A_I18N_KEYS, "b key"]);`,
+            `let MUTABLE = ["let key"];`,
+            `export const C_I18N_KEYS = [...MUTABLE];`,
+            `import {IMPORTED} from "./other.js";`,
+            `export const D_I18N_KEYS = [...IMPORTED, "d key"];`,
+            `export const E_I18N_KEYS = [...F_I18N_KEYS];`,
+            `export const F_I18N_KEYS = [...E_I18N_KEYS];`
+        ].join("\n"), "src/main.js": ``});
+        expect(r.status).toBe(1);
+        for(let k of ["common key", "a key", "b key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        expect(r.out).toMatch(/the published list C_I18N_KEYS: element 0 spreads MUTABLE, which is neither a const of the module nor a list it publishes/);
+        expect(r.out).toMatch(/the published list D_I18N_KEYS: element 0 spreads IMPORTED/);
+        expect(r.out).toMatch(/the published list E_I18N_KEYS: element 0 spreads F_I18N_KEYS, element 0 spreads E_I18N_KEYS/);
+        expect(r.out).not.toContain(`"let key"`);
+        expect(r.out).not.toContain(`"d key"`);
+    });
+
+    test("7.26.29: keys written as members, through String() and `${x}`, defaults, calls of module functions", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `attrs.i18n = "member key";`,
+            `attrs["data-i18n-title"] = "title member key";`,
+            `const K = "string key"; t(String(K));`,
+            "const K2 = \"template key\"; t(`${K2}`);",
+            `function f(msg = "default key") { return t(msg); }`,
+            `function pick() { return "returned key"; } t(pick());`,
+            `function data_of(x) { return x.label; } t(data_of(y));`,          // returns a parameter: not followed
+            `for(const {key} of [{key: "destructured key"}]) { t(key); }`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        for(let k of ["member key", "title member key", "string key", "template key", "default key",
+                      "returned key", "destructured key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
     });
 
     test("--src and --locales: code and catalogs shared by several apps", () => {

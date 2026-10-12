@@ -5,6 +5,73 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.29
+
+Twenty-first check of the review (yunovatios `REV-CLOUD.md` §V21.4).
+
+- **Every function that forwards a key is in `I18N_KEY_FUNCTIONS`, and a
+  test finds them.** The table said a function that hands a parameter to
+  `t()`, `i18n` or `data-i18n*` belongs in it, and nothing held it to that:
+  the review named 17 missing (`name_form_control`, `create_form_field`,
+  `item_li`, the four `build_toolbar_*_item`, `col_title_formatter`,
+  `add_topic_card`, `card_descriptor`, `render_node`...), so a literal handed
+  to one would have gone unasked. `src/i18n_key_functions.test.js` now finds,
+  with the validator's reader, every function that hands a parameter -- or
+  what it reads from one: `opts.title`, a destructured `{label}`, each
+  `items[].name`, through a `let` too -- to `t()`, an `i18n` / `code` /
+  `data-i18n*` value or a key position of the table, to a fixpoint (a
+  function handing its parameter to one it found is one too). A function
+  called by name must be in the table with that position; one nothing calls
+  by name (an FSM action, a callback) has no call to read and marks what it
+  hands on (`ac_register_window`, the `ac_mt_command_answer`s, the treedb
+  form's cell actions); a path through a gobj's `priv` is its own state, no
+  position. The table grew from 61 entries to 100 (39 functions, 6 entries
+  with new positions; `card_descriptor`, `cards_grid_descriptor` and
+  `open_gclass_view` are exported). The markers moved to where the value
+  ENTERS: the nav's items and the shell's toolbar where the library reads
+  its config, a schema's columns and topics, the backend's answers.
+- **A `data` marker is a claim too**: on what the reader follows to keys and
+  nothing else -- a literal, a const or a `?:` branch that is one, a call of
+  a function of the module that returns literals -- it fails (*"marked as
+  data, but what it marks is the key ..."*), in the library and in an app.
+  `yui_shell_show_info(shell, /* i18n: data */ pick())`, `pick()` returning a
+  literal, passed and its key was never read.
+- **The rule per call holds the APP's own code**: `validate-locales` fails a
+  key position of a key function, in the app's source, given what the reader
+  cannot follow and unmarked (a `let` with literals, an options variable, a
+  concatenation, a parameter of a wrapper of the app's own), with the file
+  and the line. Only the library was held to it, so those gave rc 0. A
+  TRANSLATED text there fails even marked: `t("k")` handed to
+  `yui_install_ask_once({message})` or `yui_shell_show_info()` is translated
+  again and marked `data-i18n` with the translation, and never changes
+  language -- hand it the key. DOM at a key position is no key: an array
+  spec, `createElement2()` / `createOneHtml()` / `html_markup()` of gobj-js,
+  `text_node()`, `document.createElement()`, a const or a `let` only ever
+  given one -- known by where it comes from, never by a variable's name.
+  Four consumers had violations to fix (gui_agent 13, gui_treedb 4,
+  wattyzer 4, gui-common 3); yunomusica and the js_gui scaffold had none.
+- **The reader reads more**: a key written as a member (`attrs.i18n = k`,
+  `attrs["data-i18n-title"] = k`); `String(x)` and a template that is only
+  `${x}`, as `x`; the default of a parameter; what a destructuring reads
+  from an element; a call of a function of the same module whose every
+  return is known (`t(pick())` asks for what `pick` returns). A call of a key
+  function of the table is read at its positions only: the `t` of
+  `tr(t, key)` is no key.
+- **A published list may spread an array of its module**:
+  `export const X_I18N_KEYS = [...BASE_I18N_KEYS, "k"]`, the spread a
+  top-level const or a list the module publishes, is read; a spread of an
+  import or of a `let` still fails, loudly. (7.26.28 said a list was read
+  "in any shape": a spread was refused.)
+- **`acorn` is a dependency**, not a devDependency: the two published scripts
+  import it at run time, so npm installs it with the package and an app need
+  not declare it.
+- Docs: the validator never RUNS a source, it parses it; a locale is parsed
+  and then imported, so its top-level code runs (the script said it "never
+  executes").
+- 16 markers the reader no longer needs are gone (DOM it now sees, positions
+  now forwarded); the schema editor's treedb cards build their tags as a
+  const array (the same tags) instead of a `let` pushed into.
+
 ## 7.26.28
 
 Twentieth check of the review (yunovatios `REV-CLOUD.md` §V20.5).

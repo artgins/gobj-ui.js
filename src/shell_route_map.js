@@ -88,7 +88,7 @@ function render_node(node)
         row.push(["span", {class: "icon ROUTEMAP_ICON"},
             [["i", {class: node.icon}]]]);
     }
-    row.push(["span", {class: "ROUTEMAP_NAME", i18n: /* i18n: SHELL_ROUTE_MAP_I18N_KEYS */ node.label},
+    row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label},
         text_node(node.label)]);
     /*  Documentation columns: route + implementing gclass + action event. */
     if(node.route) {
@@ -250,7 +250,7 @@ function build_body(shell, t)
     let $tree = createElement2(
         ["div", {class: "ROUTEMAP_TREE"}, [
             createElement2(["ul", {class: "ROUTEMAP_UL ROUTEMAP_ROOT"},
-                [render_node(root)]])
+                [render_node(/* i18n: SHELL_ROUTE_MAP_I18N_KEYS */ root)]])
         ]]
     );
 

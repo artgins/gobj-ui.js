@@ -386,7 +386,7 @@ function mode_name(mode)
         return t(mode.roll.label || mode.id);
     }
     if(mode.kind === "bucket") {
-        return period_name(/* i18n: YUI_TIME_I18N_KEYS */ mode.spec, t);
+        return period_name(mode.spec, t);
     }
     return t(mode.id);                      /*  span / custom  */
 }
@@ -482,7 +482,7 @@ function build_ui(gobj)
         if(mode.overflow || mode.hidden) {
             continue;
         }
-        priv.$modes.appendChild(build_mode_button(gobj, mode));
+        priv.$modes.appendChild(build_mode_button(gobj, /* i18n: C_YUI_PERIOD_I18N_KEYS, YUI_TIME_I18N_KEYS */ mode));
     }
 
     /*  Scroll plumbing, not an action: it changes nothing outside the strip.
@@ -572,7 +572,7 @@ function build_mode_button(gobj, mode)
 {
     /*  The name is COMPOSED for a bucket (period_name), so it carries no
      *  key: ac_language_changed() rewrites the text and both names.  */
-    let name = mode_name(/* i18n: C_YUI_PERIOD_I18N_KEYS, YUI_TIME_I18N_KEYS */ mode);
+    let name = mode_name(mode);
     let $btn = createElement2(
         ["button", {class: `button YUI_PERIOD_MODE YUI_PERIOD_MODE_${mode.id.toUpperCase()}`,
                     type: "button", title: name, "aria-label": name},

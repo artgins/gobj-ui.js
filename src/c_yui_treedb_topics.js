@@ -1368,8 +1368,9 @@ function process_treedb_descs(gobj)
         );
 
         // TODO get icon from remote config
-        add_tab(gobj, gobj_topic_form, id, key, "yi-table");
-        add_topic_card(gobj, id, key, "yi-table", desc);
+        /*  `key` is a topic of the backend's schema: data  */
+        add_tab(gobj, gobj_topic_form, id, /* i18n: data */ key, "yi-table");
+        add_topic_card(gobj, id, /* i18n: data */ key, "yi-table", desc);
 
         gobj_start(gobj_topic_form);
     }
@@ -1390,7 +1391,7 @@ function process_treedb_descs(gobj)
         if(gobj.priv._pending_info) {
             let ti = gobj.priv._pending_info;
             gobj.priv._pending_info = null;
-            show_topic_info(gobj, ti);
+            show_topic_info(gobj, /* i18n: data */ ti);     // a topic name
         } else if(href && href.indexOf("?") >= 0) {
             gobj_send_event(gobj, "EV_SHOW", {href: href}, gobj);
         } else {
@@ -2223,8 +2224,7 @@ function answer_print_tranger_refused(gobj, path, answer)
         gobj_send_event(jv, "EV_SUBTREE_ERROR",
             Object.assign({path: path}, answer), gobj);
     } else {
-        yui_shell_show_error(yui_shell_of(gobj),
-            /* i18n: data */ answer.i18n || answer.error, {t: t});
+        yui_shell_show_error(yui_shell_of(gobj), answer.i18n || answer.error, {t: t});
     }
 }
 
@@ -2274,7 +2274,7 @@ function request_print_tranger(gobj, path)
         }, gobj);
     if(ret) {
         log_error(ret);
-        answer_print_tranger_refused(gobj, path, {error: refusal_text(ret)});
+        answer_print_tranger_refused(gobj, path, {error: /* i18n: data */ refusal_text(ret)});
         return;
     }
     if(path) {
@@ -2459,7 +2459,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
             /*  The schema couldn't load (not a treedb, no authz for it, backend
              *  down…). Show an inline banner in the view rather than a blocking
              *  app-modal that wedges the whole SPA behind an empty tab. */
-            show_load_error(gobj, t(comment));
+            show_load_error(gobj, t(/* i18n: data */ comment));
         } else {
             yui_shell_show_error(yui_shell_of(gobj), /* i18n: data */ comment, {t: t});
             /*  A refused write leaves the TABLE showing what the operator
@@ -2737,7 +2737,7 @@ function ac_show(gobj, event, kw, src)
  ************************************************************/
 function ac_show_topic_info(gobj, event, kw, src)
 {
-    show_topic_info(gobj, kw && kw.topic);
+    show_topic_info(gobj, /* i18n: data */ kw && kw.topic);    // a topic name
     return 0;
 }
 
