@@ -5,6 +5,67 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.30
+
+- **feat(`C_YUI_NAV`, `C_YUI_SHELL`): a menu entry can carry a badge.**
+  `badge` on a nav item -- in `app_config.json`'s menus and submenus, and in
+  the items given to `yui_shell_set_submenu()` -- draws a count (or a short
+  text) with exactly the rules of the toolbar badge: `0` / `""` / `null` show
+  none, over 99 reads `99+`, a `role="status"` live region that a write of
+  the same value does not touch. The item contract had listed `badge` for a
+  long time while nothing rendered it; estadodelaire's "alarms" entry, coming
+  from v1, needs it.
+  ```json
+  { "id": "alarms", "name": "alarms", "icon": "yi-triangle-exclamation", "route": "/alarms",
+    "badge": 0, "badge_tone": "warning" }
+  ```
+  - **`yui_shell_set_nav_item_badge(shell, item_id, value, tone?)`**, the twin
+    of `yui_shell_set_toolbar_item_badge()`, moves it at runtime:
+    `yui_shell_set_nav_item_badge(shell, "alarms", 3)`. It reaches EVERY
+    instance of the id -- a menu hosted by two zones (a rail on desktop, an
+    icon bar on a phone) draws the entry twice, and a drawer may repeat it --
+    by sending the new input event `EV_SET_ITEM_BADGE {item_id, badge,
+    badge_tone}` to every `C_YUI_NAV` of the shell, which repaints it in
+    place. The value is KEPT: each nav holds it in its new `badges` attr, so
+    a rebuild (`yui_shell_set_submenu()`) draws it again, and the shell holds
+    it for the navs it creates later (a `submenu.index` landing mounted after
+    the call). Once set, it wins over the `badge` of any item with that id:
+    the field only seeds the paint. An id no menu declares is a silent no-op,
+    as the toolbar's.
+  - Where it sits: on the corner of the icon where the entry is an icon over
+    its label (`icon-bar`, `cards`, a stacked item) or an icon alone; after
+    the label in `vertical`, `drawer`, `submenu`, `tabs` (before a closable
+    tab's ✕) and an `accordion` head or leaf. `breadcrumb` draws none,
+    deliberately: a crumb names a step of the way in, and the count belongs
+    to the entry that leads there. Logical class `NAV_ITEM_BADGE`.
+- **feat: a badge takes a TONE.** `badge_tone` on a toolbar or menu item, and
+  an optional fourth argument to both setters --
+  `yui_shell_set_nav_item_badge(shell, "alarms", 3, "danger")` -- one of
+  `"danger"` (the default look), `"warning"`, `"info"`, `"success"`,
+  `"primary"`, `"link"`, drawn as Bulma's `is-<tone>` on the badge (the raw
+  token as a fill, its `-invert` as the ink, in both themes). It says how bad
+  the count is: estadodelaire's v1 badge was coloured by the worst state of
+  the alarms. An unknown tone is logged (`log_error`, never silent) and drawn
+  with the default look. Each call states the whole badge, so a call with
+  three arguments draws the default look, as it always did, and the tone is
+  kept across a nav's rebuilds like the value.
+- **refactor: one badge, `src/yui_badge.js`.** `badge_text()` /
+  `badge_node()` moved out of `c_yui_shell.js` into a module the toolbar and
+  the nav share (with `badge_tone()`, `paint_badge()`, `BADGE_TONES`), and
+  the stylesheet splits the toolbar badge's rule into the LOOK, `.yui-badge`,
+  and where each one sits (`.yui-toolbar-badge`, `.yui-nav-badge`,
+  `.yui-nav-badge-pinned`). The toolbar badge looks as it did and gains a
+  logical class, `TOOLBAR_ITEM_BADGE`. Its first paint is a Text node now: a
+  declared `badge` starting with `<` reached `createElement2()` as markup in
+  an app without `set_strings_are_text(true)` (the setter always wrote text).
+- `card_descriptor()` / `cards_grid_descriptor()` (`nav_cards_helpers.js`)
+  take an optional `badge_of(it, pinned)`; without it a card is drawn as
+  before.
+- test-app: the alerts button moves the toolbar badge AND the Modals menu
+  entry (rail, icon bar and drawer) through a count, `99+` and none, each in
+  a tone; Tab B, the Beta card and Tokens (side submenu, accordion) show a
+  declared badge in their layouts.
+
 ## 7.26.29
 
 Twenty-first check of the review (yunovatios `REV-CLOUD.md` §V21.4).

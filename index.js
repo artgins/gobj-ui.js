@@ -54,6 +54,7 @@ export {
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,
     yui_shell_set_toolbar_item_badge,
+    yui_shell_set_nav_item_badge,
     yui_shell_close_dropdown,
     yui_shell_register_event_handler,
     yui_shell_set_sub_routes,

@@ -108,7 +108,8 @@
                 "aria_label": "Alerts",
                 "tooltip": "Alerts — click to cycle the badge",
                 "badge": 3,
-                "_comment": "Toolbar badge demo: `badge` seeds the first paint and yui_shell_set_toolbar_item_badge() moves it at runtime, which is what actually matters -- a count is a runtime fact.",
+                "badge_tone": "info",
+                "_comment": "Toolbar badge demo: `badge` / `badge_tone` seed the first paint and yui_shell_set_toolbar_item_badge(shell, id, value, tone) moves them at runtime, which is what actually matters -- a count is a runtime fact. The same click moves the badge of the Modals MENU entry (yui_shell_set_nav_item_badge), drawn by the rail, the icon bar and the drawer.",
                 "action": {
                     "type": "event",
                     "event": "EV_CYCLE_BADGE"
@@ -308,6 +309,7 @@
                                 "name": "Tab B",
                                 "icon": "yi-cog",
                                 "route": "/tabs/b",
+                                "badge": 2,
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_TEST_VIEW",
@@ -410,6 +412,8 @@
                                 "name": "Tokens",
                                 "icon": "yi-lock",
                                 "route": "/submenu/tokens",
+                                "badge": 1,
+                                "badge_tone": "danger",
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_TEST_VIEW",
@@ -1020,6 +1024,8 @@
                                 "name": "Beta",
                                 "icon": "yi-cog",
                                 "route": "/sectionindex/beta",
+                                "badge": 5,
+                                "badge_tone": "warning",
                                 "target": {
                                     "stage": "main",
                                     "gclass": "C_TEST_VIEW",
@@ -1138,7 +1144,9 @@
                                             {
                                                 "id": "acc-tokens",
                                                 "name": "Tokens",
-                                                "route": "/submenu/tokens"
+                                                "route": "/submenu/tokens",
+                                                "badge": 1,
+                                                "badge_tone": "danger"
                                             }
                                         ]
                                     }
@@ -1349,6 +1357,9 @@
                     "icon": "yi-circle-info",
                     "tooltip": "Shell confirm/notification helpers",
                     "route": "/modals",
+                    "badge": 3,
+                    "badge_tone": "info",
+                    "_badge_comment": "Menu badge demo: after the label in the rail, on the icon in the icon bar, after the label in the drawer (whose Modals entry declares the same id). The toolbar's alerts button moves it with yui_shell_set_nav_item_badge(), which reaches every nav drawing the id. Tab B, the Beta card of the Section index and Tokens (side submenu, and the Accordion chapter's embedded nav) show a declared badge in the tabs, cards, submenu and accordion layouts.",
                     "target": {
                         "stage": "main",
                         "gclass": "C_DEMO_MODALS",
@@ -1521,7 +1532,9 @@
                     "id": "modals",
                     "name": "Modals",
                     "icon": "yi-circle-info",
-                    "route": "/modals"
+                    "route": "/modals",
+                    "badge": 3,
+                    "badge_tone": "info"
                 },
                 {
                     "id": "windows",

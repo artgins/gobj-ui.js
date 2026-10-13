@@ -3152,45 +3152,79 @@ at 38%, which is the whole graph and worth nothing.
 > `ResizeObserver`, and its canvas keeps its birth size for the life of the
 > window while everything resizes around it (fixed in 7.23.31).
 
-### Toolbar badge — a count pinned to an item's icon
+### Badges — a count on a toolbar item or a menu entry
 
 ```js
-/*  app_config.json — seeds the FIRST paint only  */
-{ "id": "alarms", "icon": "yi-triangle-exclamation", "align": "end",
-  "aria_label": "alarms", "badge": 0,
-  "action": {"type": "navigate", "route": "/alarms"} }
+/*  app_config.json — a toolbar item and a menu entry; the fields seed the
+ *  FIRST paint only  */
+"toolbar": {"items": [
+    { "id": "bell", "icon": "yi-triangle-exclamation", "align": "end",
+      "aria_label": "alarms", "badge": 0,
+      "action": {"type": "navigate", "route": "/alarms"} }
+]},
+"menu": {"primary": {"items": [
+    { "id": "alarms", "name": "alarms", "icon": "yi-triangle-exclamation", "route": "/alarms",
+      "badge": 0, "badge_tone": "warning",
+      "target": {"stage": "main", "gclass": "C_ALARMS"} }
+]}}
 
 /*  the interface that matters: a count is a RUNTIME fact  */
-yui_shell_set_toolbar_item_badge(shell, "alarms", 3);
-yui_shell_set_toolbar_item_badge(shell, "alarms", 0);   // clears it
+yui_shell_set_toolbar_item_badge(shell, "bell", 3);
+yui_shell_set_nav_item_badge(shell, "alarms", 3);
+yui_shell_set_nav_item_badge(shell, "alarms", 3, "danger");   // with a tone
+yui_shell_set_nav_item_badge(shell, "alarms", 0);             // clears it
 ```
 
 An icon-only toolbar button is a link; the badge is what makes it a
 **signal**. Without a number, an alarm bell cannot say whether anything needs
-you — which is the reason to look at it at all.
+you — which is the reason to look at it at all. The same goes for the menu
+entry that leads to the alarms.
 
-Rules baked in, all for the same reason (a badge that lies costs more than no
-badge):
+Rules baked in, the same for both (`src/yui_badge.js` draws and paints them),
+all for the same reason (a badge that lies costs more than no badge):
 
 - **`0`, `""`, `null` and `false` all clear it.** A badge reading "0" is worse
   than none: it draws the eye to say nothing.
-- **Over 99 renders `99+`.** The toolbar is a fixed-width row and a four-digit
-  pill pushes its neighbours off a phone screen.
+- **Over 99 renders `99+`.** The toolbar and an icon bar are fixed-width rows
+  and a four-digit pill pushes its neighbours off a phone screen.
 - **A string passes through** for the states that are not counts (`"!"`, `"…"`).
-- **Unknown item id is a silent no-op**, so an app whose toolbar has no such
-  item does not log an error on every tick of whatever feeds the number.
+- **A tone, optional:** `"danger"` (the default look), `"warning"`, `"info"`,
+  `"success"`, `"primary"` or `"link"` — Bulma's `is-<tone>` on the badge, to
+  say HOW BAD the count is (the alarms coloured by the worst state among
+  them). A fill: the raw Bulma token under its `-invert` ink, the same pair in
+  both themes. **An unknown tone is logged** (`log_error`) and drawn with the
+  default look. Each call states the WHOLE badge: a call without a tone draws
+  the default look, so a call with three arguments works as it always did.
+- **Unknown item id is a silent no-op**, so an app whose toolbar or menu has no
+  such item does not log an error on every tick of whatever feeds the number.
 - Writing the **same** value again touches no DOM: the badge is a
   `role="status"` live region, and rewriting it would have a screen reader
   announce the same number on every tick.
 
-`role="status"` and not `aria-hidden`, deliberately: the button carries an
-explicit `aria-label`, and an explicit label **replaces** an element's content
-for a screen reader — a badge inside it would otherwise be silent. As its own
-live region it is both read and announced when it changes.
+`role="status"` and not `aria-hidden`, deliberately: the button or link
+carries an explicit `aria-label`, and an explicit label **replaces** an
+element's content for a screen reader — a badge inside it would otherwise be
+silent. As its own live region it is both read and announced when it changes.
 
-> `C_YUI_NAV` items do **not** have this. Its item contract listed `badge` for a
-> long time and nothing ever rendered it; the claim is gone. Implement it there
-> the day a menu entry needs one.
+**The menu entry's badge reaches every instance of the id.** A menu hosted by
+two zones (a rail on desktop, an icon bar on a phone) draws the same entry
+twice, and a drawer may repeat it: one `yui_shell_set_nav_item_badge()` call
+paints them all (it sends `EV_SET_ITEM_BADGE` to every `C_YUI_NAV` of the
+shell). And the value is KEPT — by each nav, in its `badges` attr, and by the
+shell, for the navs it creates later — so a rebuild draws it again: a
+`yui_shell_set_submenu()` with new item objects, a `submenu.index` landing
+mounted after the call. Once the call has spoken for an id, its value wins
+over the `badge` of any item with that id. It covers the entries of
+`app_config.json`'s menus and submenus and the items given to
+`yui_shell_set_submenu()`; the nodes of a `C_YUI_NODE` tree are not menu
+items, and carry none.
+
+Where it sits: on the corner of the icon where the entry is an icon over its
+label (`icon-bar`, `cards`, a stacked item) or an icon alone; after the label
+elsewhere (`vertical`, `drawer`, `submenu`, `tabs`, an `accordion` head or
+leaf). A `breadcrumb` draws none, deliberately: a crumb names a step of the way
+in, and the count belongs to the entry that leads there. Logical class
+`NAV_ITEM_BADGE` (`TOOLBAR_ITEM_BADGE` in the toolbar), look `yui-badge`.
 
 ### Toasts — `yui_shell_show_info` / `_warning` / `_error`
 

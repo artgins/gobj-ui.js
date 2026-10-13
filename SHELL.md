@@ -467,6 +467,12 @@ menu label.
   alignment also drives the dropdown panel anchor (right-aligned for
   end items, left-aligned for start items).
 - `aria_label` per item is used as the `<button>`'s `aria-label`.
+- `items[].badge` / `items[].badge_tone` — a count on the corner of the
+  item's icon, with an optional tone; the same fields, rules and tones as
+  a menu item's (§3.5). They seed the first paint;
+  `yui_shell_set_toolbar_item_badge(shell, "alerts", 3, "warning")` moves
+  it at runtime (the tone is optional: a call with three arguments draws
+  the default look).
 
 ### 3.5 `items[]` — option structure
 
@@ -477,7 +483,8 @@ menu label.
   "icon": "icon-eye",
   "route": "/dash/ov",
   "disabled": false,
-  "badge": "3",
+  "badge": 3,
+  "badge_tone": "warning",
   "target": {
     "stage": "main",
     "gclass": "C_DASHBOARD_OVERVIEW",
@@ -493,6 +500,38 @@ menu label.
 ```
 
 - `route` — hash route to associate.
+- `badge` — a count (or a short text: `"!"`) carried by the entry, with
+  the rules of the toolbar badge: `0` / `""` / `null` show none, over 99
+  reads `99+`, a `role="status"` live region. Every layout that shows the
+  entry's label or icon draws it: on the corner of the icon where the
+  entry is an icon over its label (`icon-bar`, `cards`, a stacked item) or
+  an icon alone, after the label elsewhere (`vertical`, `drawer`,
+  `submenu`, `tabs`, an `accordion` head or leaf). Not `breadcrumb`: a
+  crumb names a step of the way in, and the count belongs to the entry
+  that leads there. The field only seeds the paint — a count is a runtime
+  fact:
+
+  ```json
+  { "id": "alarms", "name": "alarms", "icon": "yi-triangle-exclamation", "route": "/alarms",
+    "badge": 0, "badge_tone": "warning",
+    "target": { "stage": "main", "gclass": "C_ALARMS" } }
+  ```
+
+  ```js
+  yui_shell_set_nav_item_badge(shell, "alarms", 3);              // every nav drawing "alarms"
+  yui_shell_set_nav_item_badge(shell, "alarms", 3, "danger");    // with a tone
+  yui_shell_set_nav_item_badge(shell, "alarms", 0);              // cleared
+  ```
+
+  The call reaches every instance of the id (the rail on desktop, the
+  icon bar on a phone, a drawer that repeats it) and the shell keeps it:
+  a nav rebuilt by `yui_shell_set_submenu()`, or one built later (a
+  `submenu.index` landing), draws the value of the call, not the item's
+  `badge`. An id that no menu declares is a silent no-op.
+- `badge_tone` — `"danger"` (the default look) | `"warning"` | `"info"` |
+  `"success"` | `"primary"` | `"link"`: Bulma's `is-<tone>` on the badge,
+  to say how bad the count is. An unknown tone is logged
+  (`log_error`) and drawn with the default look.
 - `target` — what to show when the route is activated:
   - `gclass` — GClass to instantiate.
   - `kw` — initial attributes.
@@ -701,6 +740,13 @@ Public helpers (import from `@yuneta/gobj-ui`):
   `type:"connection"` toolbar dot connected/disconnected. Call from
   the app's transport handlers (`EV_ON_OPEN` → `true`, close/errors →
   `false`).
+- `yui_shell_set_toolbar_item_badge(shell, item_id, value, tone?)` and
+  `yui_shell_set_nav_item_badge(shell, item_id, value, tone?)` — the
+  badge of a toolbar item and of a menu entry (§3.4, §3.5), twins: the
+  same value rules, the same tones, a silent no-op for an id nobody
+  declares, a `log_error` for an unknown tone. Each call states the whole
+  badge: no tone is the default look. The menu one reaches every nav
+  drawing the id and is kept across their rebuilds.
 - `yui_shell_navigate(shell, route)` — programmatic navigation.
 - `yui_shell_last_route_under(shell, route)` — where the reader last was
   under `route`: the most recent route the shell landed on that is `route`
@@ -825,7 +871,13 @@ Notable attributes: `menu_items`, `zone`, `layout`, `icon_pos`,
 `show_label`, `level` (`primary` | `secondary`), `shell`,
 `nav_label` (human-readable label used by the secondary navs as
 their heading and `aria-label`; the shell fills it from the parent
-item's `name`).
+item's `name`), `badges` (item id → `{badge, badge_tone}` set at
+runtime; it wins over the items' own fields in every rebuild).
+
+Input events: `EV_SET_ITEMS {items}` (replace the items, rebuild in
+place) and `EV_SET_ITEM_BADGE {item_id, badge, badge_tone}` (one
+item's badge, painted in place and kept in `badges`) — the second is
+what `yui_shell_set_nav_item_badge()` sends to every nav of the shell.
 
 ### Secondary nav `menu_id`
 

@@ -65,6 +65,7 @@ import {
 
 import { resolve_route, normalize_route } from "./route_resolver.js";
 import { text_node } from "./yui_text.js";
+import { badge_node, badge_tone, paint_badge } from "./yui_badge.js";
 import { build_nav_map } from "./route_map_model.js";
 import {
     section_index_target,
@@ -118,6 +119,14 @@ let PRIVATE_DATA = {
     stages:          {},
     navs:            [],
     item_index:      {},
+    /*  Menu item id -> {badge, badge_tone}: what yui_shell_set_nav_item_badge()
+     *  said last for that id.  It wins over the item's own `badge`, and
+     *  every nav the shell creates is handed it (`badges`), so a nav built
+     *  or rebuilt after the call draws it too.  */
+    nav_badges:      {},
+    /*  Parent item id -> the items yui_shell_set_submenu() put in place:
+     *  menu items as much as the declared ones (nav_item_declared).  */
+    dynamic_items:   {},
     /*  Section route -> last position visited inside it.  Mirrors the
      *  url for the duration of the page; see remember_position(). */
     section_pos:     {},
@@ -1243,6 +1252,7 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level, nav_label)
             level:       level,
             show_on:     render_cfg.show_on || "",
             back_route:  render_cfg.back_route || "",
+            badges:      Object.assign({}, priv.nav_badges),
             shell:       gobj
         },
         gobj
@@ -1694,6 +1704,7 @@ function navigate_to(gobj, route, depth, no_drain)
 
 function build_view_gobj(gobj, entry, route, stage)
 {
+    let priv = gobj.priv;
     let target = entry.target;
     /*  The deep-link tail is NOT injected into kw: gobj_create2
      *  validates kw against the view's SDATA strictly, so an extra
@@ -1702,6 +1713,11 @@ function build_view_gobj(gobj, entry, route, stage)
      *  mount (and on every later subpath-only change) — that single
      *  mechanism is how a view owns its dynamic 3rd level.           */
     let kw = target.kw || {};
+    if(target.gclass === "C_YUI_NAV") {
+        /*  A section-index landing is a nav of the shell, mounted when
+         *  the user first walks into it: it draws the badges set before. */
+        kw = Object.assign({}, kw, {badges: Object.assign({}, priv.nav_badges)});
+    }
     let name = target.name || `view_${safe_id(route)}`;
 
     let view;
@@ -1849,51 +1865,6 @@ function build_toolbar(gobj, config)
 }
 
 /************************************************************
- *  The badge node of a toolbar item — the little count pinned to
- *  the corner of its icon (unread notifications, active alarms).
- *
- *  ALWAYS rendered, hidden when empty, so the runtime setter has a
- *  node to write into and does not have to rebuild the button.
- *
- *  EMPTY IS 0, "" AND null ALIKE: a badge reading "0" is worse than
- *  no badge — it draws the eye to say nothing.  A count is only
- *  worth a pixel when there IS something.
- *
- *  Capped at 99+: the toolbar is a fixed-width row, and a four
- *  digit pill pushes the items next to it off a phone screen.
- *
- *  role="status" and NOT aria-hidden, deliberately.  The button
- *  carries an explicit aria-label, and an explicit label REPLACES
- *  the element's content for a screen reader — so a badge inside
- *  it would be silent.  As its own live region it is both read and
- *  announced when the count changes, which is the whole point of a
- *  badge that means "something needs you".
- ************************************************************/
-function badge_text(value)
-{
-    if(value === null || value === undefined || value === false) {
-        return "";
-    }
-    if(typeof value === "number") {
-        if(!isFinite(value) || value <= 0) {
-            return "";
-        }
-        return (value > 99) ? "99+" : String(Math.floor(value));
-    }
-    return String(value).trim();
-}
-
-function badge_node(value)
-{
-    let text = badge_text(value);
-    let attrs = {class: "yui-toolbar-badge", role: "status"};
-    if(!text) {
-        attrs.hidden = "hidden";
-    }
-    return ["span", attrs, text];
-}
-
-/************************************************************
  *  The attributes that turn a toolbar item into a real link, or
  *  null when this item is not one.  Answering null is what keeps
  *  every caller's default (a <button> that dispatches an action)
@@ -1931,11 +1902,14 @@ function build_toolbar_action_item(gobj, it)
     if(!empty_string(it.icon)) {
         /*  The badge is anchored to the ICON, not to the button: with a
          *  label on (desktop) the button is wide, and a badge pinned to
-         *  its corner would float far from the glyph it counts. */
+         *  its corner would float far from the glyph it counts.  The
+         *  count, its tone and their rules: yui_badge.js. */
         children.push(["span", {class: "icon yui-toolbar-icon"},
             [
                 ["i", {class: it.icon, "aria-hidden": "true"}],
-                badge_node(it.badge)
+                badge_node(it.badge, it.badge_tone,
+                    "TOOLBAR_ITEM_BADGE yui-badge yui-toolbar-badge",
+                    `C_YUI_SHELL: toolbar item '${it.id || "?"}'`)
             ]
         ]);
     }
@@ -3220,6 +3194,60 @@ function update_secondary_nav_visibility(gobj, entry)
     }
 }
 
+/************************************************************
+ *  Does a menu of this shell declare an item `item_id`: an item
+ *  of a menu of app_config.json, of one of their submenus, or
+ *  one given to yui_shell_set_submenu() since.
+ ************************************************************/
+function nav_item_declared(gobj, item_id)
+{
+    let priv = gobj.priv;
+    let config = gobj_read_attr(gobj, "config") || {};
+    let menus = is_object(config.menu) ? config.menu : {};
+    let holds = (items) => is_array(items) && items.some((it) => it && it.id === item_id);
+
+    for(let menu_id in menus) {
+        let items = menus[menu_id] && menus[menu_id].items;
+        if(!is_array(items)) {
+            continue;
+        }
+        if(holds(items)) {
+            return true;
+        }
+        for(let it of items) {
+            if(it && it.submenu && holds(it.submenu.items)) {
+                return true;
+            }
+        }
+    }
+    for(let parent_item_id in priv.dynamic_items) {
+        if(holds(priv.dynamic_items[parent_item_id])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/************************************************************
+ *  Every C_YUI_NAV of this shell: the navs of its menus, and the
+ *  section-index landings mounted in a stage.
+ ************************************************************/
+function shell_navs(gobj)
+{
+    let priv = gobj.priv;
+    let navs = priv.navs.slice();
+    for(let stage_name in priv.stages) {
+        let views = priv.stages[stage_name].items || {};
+        for(let route in views) {
+            let view = views[route];
+            if(view && gobj_gclass_name(view) === "C_YUI_NAV") {
+                navs.push(view);
+            }
+        }
+    }
+    return navs;
+}
+
 
 
 
@@ -3349,8 +3377,11 @@ function ac_nav_item_close(gobj, event, kw, src)
  *  items of a primary item's submenu (its secondary nav) at runtime
  *  and re-registers their routes so navigation resolves.  Item
  *  descriptors may carry { id, name, icon, route, class, closable,
- *  target:{stage,gclass,kw,lifecycle} }.  Routes present before but
- *  absent now are pruned (index entry removed, mounted view destroyed).
+ *  badge, badge_tone, target:{stage,gclass,kw,lifecycle} }.  Routes
+ *  present before but absent now are pruned (index entry removed,
+ *  mounted view destroyed).  A badge set with
+ *  yui_shell_set_nav_item_badge() for an id stays on that id here too:
+ *  the rebuilt nav draws it, whatever the descriptor's own `badge`.
  ************************************************************/
 function find_secondary_nav(priv, parent_item_id)
 {
@@ -3471,6 +3502,7 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
         };
     }
     priv.dynamic_routes[parent_item_id] = new_routes;
+    priv.dynamic_items[parent_item_id] = items;
 
     /*  Push the new items into the nav (rebuilds its DOM in place), and
      *  re-apply the translator: the rebuilt labels carry their keys as
@@ -4233,22 +4265,31 @@ function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)
  *  its icon.
  *
  *      yui_shell_set_toolbar_item_badge(shell, "alarms", 3);
+ *      yui_shell_set_toolbar_item_badge(shell, "alarms", 3, "warning");
  *      yui_shell_set_toolbar_item_badge(shell, "alarms", 0);   // hidden
  *
  *  This is the API that matters: a count is a RUNTIME fact.  The
- *  `badge` field of a toolbar item only seeds the first paint, and
- *  an app whose number never changes did not need a badge.
+ *  `badge` / `badge_tone` fields of a toolbar item only seed the
+ *  first paint, and an app whose number never changes did not need
+ *  a badge.
  *
  *  0 / "" / null / false all clear it, and a number over 99 renders
- *  "99+" — see badge_node().  Accepts a string for the states that
- *  are not counts ("!", "…").
+ *  "99+" — see yui_badge.js.  Accepts a string for the states that
+ *  are not counts ("!", "…").  `tone`, optional, is one of
+ *  BADGE_TONES ("danger" | "warning" | "info" | "success" |
+ *  "primary" | "link"): Bulma's is-<tone> on the badge.  Each call
+ *  states the WHOLE badge: no tone is the default look, not the
+ *  tone it had.  The twin of yui_shell_set_nav_item_badge().
  *
  *  Silent no-op on an unknown item id: a toolbar that does not
  *  declare the item (an app without alarms) must not be an error
- *  at every tick of whatever feeds the number.
+ *  at every tick of whatever feeds the number.  An unknown TONE is
+ *  the caller's error: logged, and drawn with the default look.
  ************************************************************/
-function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value)
+function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value, tone)
 {
+    tone = badge_tone(tone, `C_YUI_SHELL: yui_shell_set_toolbar_item_badge('${item_id}')`);
+
     if(!shell_gobj || !is_gobj(shell_gobj) || empty_string(item_id)) {
         return;
     }
@@ -4262,21 +4303,59 @@ function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value)
     if(!$badge) {
         return;
     }
+    paint_badge($badge, value, tone);
+}
 
-    let text = badge_text(value);
-    if(!text) {
-        $badge.textContent = "";
-        $badge.setAttribute("hidden", "hidden");
+/************************************************************
+ *  Set (or clear) the badge of a MENU item — the twin of
+ *  yui_shell_set_toolbar_item_badge(), for an entry of a menu of
+ *  app_config.json, of one of their submenus, or one given to
+ *  yui_shell_set_submenu().
+ *
+ *      yui_shell_set_nav_item_badge(shell, "alarms", 3);
+ *      yui_shell_set_nav_item_badge(shell, "alarms", 3, "warning");
+ *      yui_shell_set_nav_item_badge(shell, "alarms", 0);   // hidden
+ *
+ *  The same value, tone and rules as the toolbar's (yui_badge.js),
+ *  each call stating the whole badge.
+ *
+ *  EVERY instance of the item gets it: the same entry is drawn by
+ *  as many navs as there are zones hosting its menu (a rail on
+ *  desktop, an icon bar on a phone), and by a drawer that repeats
+ *  it.  Each nav repaints it in place (EV_SET_ITEM_BADGE), and
+ *  KEEPS it: a rebuild of the nav (a yui_shell_set_submenu()) draws
+ *  it again.  The shell keeps it too, for the navs it creates
+ *  afterwards (a section-index landing, mounted when the user walks
+ *  into it).  From then on it is the badge of that id: the `badge`
+ *  field of an item only seeds the paint until this is called.
+ *
+ *  Silent no-op on an id no menu declares, as the toolbar's: a menu
+ *  without the entry (an app without alarms) must not be an error
+ *  at every tick of whatever feeds the number.  An unknown TONE is
+ *  the caller's error: logged, and drawn with the default look.
+ ************************************************************/
+function yui_shell_set_nav_item_badge(shell_gobj, item_id, value, tone)
+{
+    tone = badge_tone(tone, `C_YUI_SHELL: yui_shell_set_nav_item_badge('${item_id}')`);
+
+    /*  Silent, as the toolbar's: whatever feeds the number may tick
+     *  before the shell exists, after it is gone, and in an app whose
+     *  menus have no such entry.  */
+    if(!shell_gobj || !is_gobj(shell_gobj) || gobj_is_destroying(shell_gobj) ||
+            empty_string(item_id)) {
         return;
     }
-    /*  Do not touch the DOM when nothing changed: role="status" is a
-     *  live region, and rewriting the same number would have a screen
-     *  reader announce it again on every tick. */
-    if($badge.textContent === text && !$badge.hasAttribute("hidden")) {
+    let priv = shell_gobj.priv;
+    if(!priv || !nav_item_declared(shell_gobj, item_id)) {
         return;
     }
-    $badge.textContent = text;
-    $badge.removeAttribute("hidden");
+    let badge = (value === undefined) ? null : value;
+    priv.nav_badges[item_id] = {badge: badge, badge_tone: tone};
+
+    for(let nav of shell_navs(shell_gobj)) {
+        gobj_send_event(nav, "EV_SET_ITEM_BADGE",
+            {item_id: item_id, badge: badge, badge_tone: tone}, shell_gobj);
+    }
 }
 
 /************************************************************
@@ -4330,6 +4409,7 @@ export {
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,
     yui_shell_set_toolbar_item_badge,
+    yui_shell_set_nav_item_badge,
     yui_shell_close_dropdown,
     yui_shell_set_submenu
 };

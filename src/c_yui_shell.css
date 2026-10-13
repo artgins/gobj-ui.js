@@ -459,29 +459,30 @@
 }
 
 /*------------------------------------------------------------
- *      Toolbar badge — the count pinned to an item's icon
+ *      Badge — the count of a toolbar item or a menu item
+ *      (yui_badge.js)
  *
- *  Anchored to the ICON and not to the button: with its label on
- *  (desktop) the button is wide, and a badge in its corner would
- *  float away from the glyph it counts.
+ *  `.yui-badge` is the LOOK, one for both.  Where it SITS is the
+ *  host's: `.yui-toolbar-badge` on the corner of a toolbar icon,
+ *  `.yui-nav-badge` after a menu item's label, or on the corner
+ *  of its icon (`.yui-nav-badge-pinned`).
+ *
+ *  Anchored to the ICON and not to the control: with its label on
+ *  (desktop) a toolbar button is wide, and a badge in its corner
+ *  would float away from the glyph it counts.
  *
  *  `hidden` is honoured explicitly: the element is always in the
  *  DOM (so the runtime setter has somewhere to write) and
  *  [hidden] loses to `display:inline-flex` without this rule.
  *
- *  Danger colour on purpose — a badge exists to pull the eye.  It
- *  is its own colour pair in both schemes rather than a Bulma
- *  helper, so it keeps its contrast when the toolbar background
- *  changes with the theme.  No transition: house rule.
+ *  Danger colour by default, on purpose — a badge exists to pull
+ *  the eye.  A TONE (`is-warning`, `is-info`, …) is a FILL: the
+ *  raw Bulma token under its `-invert` ink, its own colour pair in
+ *  both schemes rather than a Bulma helper, so the badge keeps its
+ *  contrast when the bar under it changes with the theme (README,
+ *  "Colour").  No transition: house rule.
  *------------------------------------------------------------*/
-.yui-toolbar-icon {
-    position: relative;
-    overflow: visible;
-}
-.yui-toolbar-badge {
-    position: absolute;
-    top: -0.35em;
-    right: -0.55em;
+.yui-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -491,18 +492,83 @@
     height: 1.15em;
     padding: 0 0.3em;
     border-radius: 999px;
-    font-size: 0.62em;
     font-weight: 700;
     line-height: 1;
     font-family: inherit;
+    white-space: nowrap;
     background-color: var(--bulma-danger, #f14668);
     color: var(--bulma-danger-invert, #fff);
     /*  Separates the pill from the glyph when they overlap. */
     box-shadow: 0 0 0 0.12em var(--bulma-scheme-main, #fff);
     pointer-events: none;
 }
-.yui-toolbar-badge[hidden] {
+.yui-badge[hidden] {
     display: none;
+}
+.yui-badge.is-danger {
+    background-color: var(--bulma-danger, #f14668);
+    color: var(--bulma-danger-invert, #fff);
+}
+.yui-badge.is-warning {
+    background-color: var(--bulma-warning, #ffb70f);
+    color: var(--bulma-warning-invert, rgba(0, 0, 0, 0.7));
+}
+.yui-badge.is-info {
+    background-color: var(--bulma-info, #66d1ff);
+    color: var(--bulma-info-invert, rgba(0, 0, 0, 0.7));
+}
+.yui-badge.is-success {
+    background-color: var(--bulma-success, #48c78e);
+    color: var(--bulma-success-invert, rgba(0, 0, 0, 0.7));
+}
+.yui-badge.is-primary {
+    background-color: var(--bulma-primary, #00d1b2);
+    color: var(--bulma-primary-invert, rgba(0, 0, 0, 0.7));
+}
+.yui-badge.is-link {
+    background-color: var(--bulma-link, #485fc7);
+    color: var(--bulma-link-invert, #fff);
+}
+
+/*  Toolbar: on the corner of the icon, sized by the icon. */
+.yui-toolbar-icon {
+    position: relative;
+    overflow: visible;
+}
+.yui-toolbar-badge {
+    position: absolute;
+    top: -0.35em;
+    right: -0.55em;
+    font-size: 0.62em;
+}
+
+/*  Menu item: after the label.  Sized in rem, so it is the same
+ *  pill in every layout whatever the item's own font size.  */
+.yui-nav-badge {
+    flex: 0 0 auto;
+    margin-inline-start: 0.4rem;
+    font-size: 0.75rem;
+    vertical-align: middle;
+}
+/*  Where the item already spaces its children (a flex row or column
+ *  with a gap), the gap is the space.  */
+.yui-nav-vertical .menu-list a > .yui-nav-badge,
+.yui-nav-stacked > .yui-nav-badge,
+.yui-nav-cards .yui-nav-card > .yui-nav-badge {
+    margin-inline-start: 0;
+}
+/*  ...or on the corner of the icon, where the item is an icon over
+ *  its label (icon bar, cards, a stacked item) or an icon alone. */
+.yui-nav-icon {
+    position: relative;
+    overflow: visible;
+}
+.yui-nav-badge.yui-nav-badge-pinned {
+    position: absolute;
+    top: -0.35em;
+    inset-inline-end: -0.55em;
+    margin: 0;
+    font-size: 0.7rem;
 }
 
 /*============================================================

@@ -35,6 +35,7 @@ import {
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
     yui_shell_set_toolbar_item_badge,
+    yui_shell_set_nav_item_badge,
     yui_shell_language_changed,
     yui_shell_unpark_route,
 } from "@yuneta/gobj-ui/src/c_yui_shell.js";
@@ -71,10 +72,15 @@ SDATA_END()
 let PRIVATE_DATA = {
     shell: null,
     lead_handler: null,
-    /*  Demo of the toolbar badge: the values the "alerts" button walks
-     *  through.  The first one is what app_config seeds, so the first
-     *  click already MOVES it. */
-    badge_steps: [12, 150, 0, 3],
+    /*  Demo of the badges: the values and tones the "alerts" button walks
+     *  the toolbar badge and the Modals menu entry through.  The last one
+     *  is what app_config seeds, so the first click already MOVES them. */
+    badge_steps: [
+        {value: 12,  tone: "danger"},
+        {value: 150, tone: "warning"},
+        {value: 0,   tone: ""},
+        {value: 3,   tone: "info"}
+    ],
     badge_step: 0,
 };
 
@@ -310,18 +316,23 @@ function ac_toggle_language(gobj, event, kw, src)
 /***************************************************************
  *  Toolbar "alerts" button (action:event EV_CYCLE_BADGE) — walks
  *  the badge through a count, a capped count (150 renders "99+")
- *  and none at all, which is what an app's alarm feed would do.
+ *  and none at all, each in a tone, which is what an app's alarm
+ *  feed would do.  The same step goes to the Modals MENU entry:
+ *  one call, and the rail, the icon bar and the drawer that draw
+ *  it all move.
  *
- *  The declared `badge` in app_config only seeds the first paint:
- *  a count is a RUNTIME fact, so the API is the real interface.
+ *  The declared `badge` / `badge_tone` in app_config only seed the
+ *  first paint: a count is a RUNTIME fact, so the API is the real
+ *  interface.
  ***************************************************************/
 function ac_cycle_badge(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    const value = priv.badge_steps[priv.badge_step % priv.badge_steps.length];
+    const step = priv.badge_steps[priv.badge_step % priv.badge_steps.length];
     priv.badge_step++;
-    yui_shell_set_toolbar_item_badge(priv.shell, "alerts", value);
+    yui_shell_set_toolbar_item_badge(priv.shell, "alerts", step.value, step.tone);
+    yui_shell_set_nav_item_badge(priv.shell, "modals", step.value, step.tone);
     return 0;
 }
 

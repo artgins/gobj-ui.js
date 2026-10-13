@@ -18,18 +18,33 @@ import {text_node} from "./yui_text.js";
  *  contract as every other nav item (data-route/data-item-id/
  *  data-disabled), so C_YUI_NAV's delegated click handler and
  *  active-route highlight work unchanged.
+ *
+ *  `badge_of(it, pinned)`, optional, answers the description of
+ *  the card's badge (C_YUI_NAV's, which knows what was set at
+ *  runtime).  A card is an icon over its label, so the badge goes
+ *  on the corner of the icon (`pinned`), or after the label of a
+ *  card that has none.  Without it a card has no badge.
  ************************************************************/
-export function card_descriptor(it, show_label)
+export function card_descriptor(it, show_label, badge_of)
 {
     let children = [];
     let label = it.name || "";
+    let pinned = !!it.icon;
+    let badge = badge_of ? badge_of(it, pinned) : null;
 
     if(it.icon) {
-        children.push(["span", {class: "icon is-medium"},
-            ["i", {class: it.icon, "aria-hidden": "true"}]]);
+        let glyph = ["i", {class: it.icon, "aria-hidden": "true"}];
+        if(badge) {
+            children.push(["span", {class: "icon is-medium yui-nav-icon"}, [glyph, badge]]);
+        } else {
+            children.push(["span", {class: "icon is-medium"}, glyph]);
+        }
     }
     if(show_label && label) {
         children.push(["span", {class: "yui-nav-label", i18n: label}, text_node(label)]);
+    }
+    if(badge && !pinned) {
+        children.push(badge);
     }
 
     let a_attrs = {
@@ -58,15 +73,16 @@ export function card_descriptor(it, show_label)
 /************************************************************
  *  Descriptor of the whole grid.  Decorative items (`header`/
  *  `divider`) are dropped, same policy as the tabs layout.
+ *  `badge_of`: as card_descriptor().
  ************************************************************/
-export function cards_grid_descriptor(items, show_label)
+export function cards_grid_descriptor(items, show_label, badge_of)
 {
     let cards = [];
     for(let it of (items || [])) {
         if(!it || it.type === "header" || it.type === "divider") {
             continue;
         }
-        cards.push(card_descriptor(it, show_label));
+        cards.push(card_descriptor(it, show_label, badge_of));
     }
     return ["div", {}, cards];
 }

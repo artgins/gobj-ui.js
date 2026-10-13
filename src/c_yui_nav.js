@@ -33,11 +33,29 @@
  *
  *      Each item supports:
  *          id, name, icon (CSS class or svg id), route, disabled
- *          (`badge` was listed here for a long time and NOTHING ever
- *           rendered it — a menu item cannot carry a count today. The
- *           toolbar can: `badge` on a toolbar item plus
- *           yui_shell_set_toolbar_item_badge(). Implement it here the
- *           day a menu entry needs one, rather than re-listing it.)
+ *          badge      — a count, or a short text, carried by the item:
+ *                       the toolbar badge's rules, helper and live
+ *                       region (yui_badge.js) -- 0 / "" / null show
+ *                       none, over 99 reads "99+".  It sits on the
+ *                       corner of the icon where the item is an icon
+ *                       over its label (icon-bar, cards, a stacked
+ *                       item) or an icon alone, and after the label
+ *                       where the item reads as a line (vertical,
+ *                       drawer, submenu, tabs, an accordion head).
+ *                       The field only seeds the paint: a count is a
+ *                       RUNTIME fact, set by
+ *                       yui_shell_set_nav_item_badge(shell, id, value,
+ *                       tone), which reaches every nav drawing the id.
+ *                       Not drawn by "breadcrumb", deliberately: a
+ *                       crumb names a step of the way in, and the
+ *                       count belongs to the menu entry that leads
+ *                       there -- a trail with counts on it reads as a
+ *                       list of destinations, which is what a
+ *                       breadcrumb is not.  ("backbar" has no items.)
+ *          badge_tone — "danger" (the default look), "warning",
+ *                       "info", "success", "primary" or "link":
+ *                       Bulma's is-<tone> on the badge.  An unknown
+ *                       one is logged and drawn with the default look.
  *          class    — extra CSS class(es) on the item (tabs layout), e.g.
  *                     a per-item state colour like "yui-nav-disconnected"
  *          closable — render a trailing ✕ that emits EV_NAV_ITEM_CLOSE
@@ -47,6 +65,13 @@
  *      {items:[...]} to the nav; the DOM is rebuilt in place and the
  *      active highlight restored.  The app_config path is simply the
  *      first, startup caller of the same mechanism.
+ *
+ *      One item's badge is set at runtime by sending EV_SET_ITEM_BADGE
+ *      {item_id, badge, badge_tone}: painted in place, no rebuild, and
+ *      KEPT in the `badges` attr, which wins over the item's own fields
+ *      in every later rebuild.  The shell sends it to all its navs
+ *      (yui_shell_set_nav_item_badge) and hands `badges` to every nav
+ *      it creates.
  *
  *      In addition to navigable items, secondary navs accept two
  *      decorative item kinds for in-place visual grouping:
@@ -71,6 +96,7 @@ import {
     gobj_parent,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_publish_event,
+    gobj_short_name,
     createElement2, empty_string, is_array, is_object, is_string,
 } from "@yuneta/gobj-js";
 
@@ -83,6 +109,7 @@ import {
     bulma_hidden_class,
 } from "./shell_show_on.js";
 import {text_node} from "./yui_text.js";
+import {badge_node, badge_tone, paint_badge} from "./yui_badge.js";
 
 /***************************************************************
  *              Constants
@@ -118,6 +145,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "show_label",    0,  true,         "Show item la
 SDATA(data_type_t.DTP_STRING,   "level",         0,  "primary",    "primary|secondary"),
 SDATA(data_type_t.DTP_STRING,   "show_on",       0,  "",           "Breakpoint visibility expr (shell show_on syntax); empty = always"),
 SDATA(data_type_t.DTP_STRING,   "back_route",    0,  "",           "backbar layout: route of the section index the ← returns to"),
+SDATA(data_type_t.DTP_DICT,     "badges",        0,  "{}",         "Item id -> {badge, badge_tone} set at runtime (EV_SET_ITEM_BADGE); wins over the item's own fields"),
 
 SDATA(data_type_t.DTP_POINTER,  "shell",         0,  null,         "C_YUI_SHELL gobj (for navigation calls)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",    0,  null,         "Root HTMLElement of this nav"),
@@ -409,12 +437,19 @@ function render_tabs(gobj, items)
             continue;   /*  tab strips have no room for section labels  */
         }
         let children = [];
+        let has_label = show_label && !empty_string(it.name);
+        /*  An icon-only tab carries its badge on the icon; a labelled
+         *  one after the label, before the ✕.  */
+        let pinned = !empty_string(it.icon) && !has_label;
+        let badge_el = item_badge_node(gobj, it, pinned);
         if(!empty_string(it.icon)) {
-            children.push(["span", {class: "icon is-small"},
-                ["i", {class: it.icon, "aria-hidden":"true"}]]);
+            children.push(icon_span(it.icon, "icon is-small", pinned ? badge_el : null));
         }
-        if(show_label && !empty_string(it.name)) {
+        if(has_label) {
             children.push(["span", {i18n: it.name}, text_node(it.name)]);
+        }
+        if(!pinned) {
+            children.push(badge_el);
         }
         /*  Optional close affordance: a trailing ✕ that emits
          *  EV_NAV_ITEM_CLOSE instead of navigating (caught first in
@@ -462,7 +497,8 @@ function render_tabs(gobj, items)
 function render_cards(gobj, items)
 {
     let show_label = gobj_read_attr(gobj, "show_label");
-    return createElement2(cards_grid_descriptor(items, show_label));
+    return createElement2(cards_grid_descriptor(items, show_label,
+        (it, pinned) => item_badge_node(gobj, it, pinned)));
 }
 
 /************************************************************
@@ -481,6 +517,9 @@ function render_cards(gobj, items)
  *  other layout — so the delegated click handler and the active
  *  highlight work unchanged, and the last crumb marks itself through
  *  `active_route` like a tab does.
+ *
+ *  No badge, deliberately: a crumb names a step of the way in, and a
+ *  count belongs to the menu entry that leads there.
  ************************************************************/
 function render_breadcrumb(gobj, items)
 {
@@ -644,7 +683,9 @@ function render_accordion(gobj, items)
             head_attrs["aria-label"] = head_text;
             head_attrs["data-i18n-aria-label"] = head_text;
         }
-        let $hdr = createElement2(["button", head_attrs, text_node(head_text)]);
+        /*  A section head reads as a line: its badge follows the label  */
+        let $hdr = createElement2(["button", head_attrs,
+            [text_node(head_text), item_badge_node(gobj, it, false)]]);
         $container.appendChild($hdr);
 
         let $ul = createElement2(
@@ -696,22 +737,30 @@ function item_li(gobj, it, opts)
     let { icon_pos, show_label, stacked } = opts;
     let children = [];
     let label = it.name || "";
+    let is_stacked = !!(stacked || icon_pos === "top" || icon_pos === "bottom");
 
-    let icon_el = !empty_string(it.icon)
-        ? ["span", {class: "icon"}, ["i", {class: it.icon, "aria-hidden":"true"}]]
-        : null;
     let label_el = (show_label && !empty_string(label))
         ? ["span", {class: "yui-nav-label", i18n: label}, text_node(label)]
         : null;
+    /*  On the corner of the icon where the item is an icon over its
+     *  label or an icon alone; after the label where it reads as a line. */
+    let pinned = !empty_string(it.icon) && (is_stacked || !label_el);
+    let badge_el = item_badge_node(gobj, it, pinned);
+    let icon_el = !empty_string(it.icon)
+        ? icon_span(it.icon, "icon", pinned ? badge_el : null)
+        : null;
 
     let a_class = "yui-nav-item";
-    if(stacked || icon_pos === "top" || icon_pos === "bottom") {
+    if(is_stacked) {
         a_class += " yui-nav-stacked";
     }
 
     if(icon_pos === "right" || icon_pos === "bottom") {
         if(label_el) {
             children.push(label_el);
+        }
+        if(!pinned) {
+            children.push(badge_el);
         }
         if(icon_el) {
             children.push(icon_el);
@@ -722,6 +771,9 @@ function item_li(gobj, it, opts)
         }
         if(label_el) {
             children.push(label_el);
+        }
+        if(!pinned) {
+            children.push(badge_el);
         }
     }
 
@@ -765,9 +817,12 @@ function item_iconbar(gobj, it, opts)
 {
     let { icon_pos, show_label } = opts;
     let label = it.name || "";
-    let icon_el = !empty_string(it.icon)
-        ? ["span", {class: "icon is-medium"},
-           ["i", {class: it.icon, "aria-hidden":"true"}]]
+    /*  An icon bar item is an icon over its label: the badge goes on
+     *  the corner of the icon, or after the label of one that has none. */
+    let pinned = !empty_string(it.icon);
+    let badge_el = item_badge_node(gobj, it, pinned);
+    let icon_el = pinned
+        ? icon_span(it.icon, "icon is-medium", badge_el)
         : null;
     let label_el = (show_label && !empty_string(label))
         ? ["span", {class: "yui-nav-label is-size-7", i18n: label}, text_node(label)]
@@ -789,6 +844,9 @@ function item_iconbar(gobj, it, opts)
             children.push(label_el);
         }
     }
+    if(!pinned) {
+        children.push(badge_el);
+    }
 
     let a_attrs = {
         class: "yui-nav-item yui-nav-stacked",
@@ -808,6 +866,41 @@ function item_iconbar(gobj, it, opts)
     return ["div", {class: "level-item"},
         ["a", a_attrs, children]
     ];
+}
+
+/************************************************************
+ *  The badge of an item (yui_badge.js), always drawn -- hidden
+ *  when empty -- so EV_SET_ITEM_BADGE has a node to write into.
+ *  What was set at runtime for its id (`badges`) wins over the
+ *  item's own `badge` / `badge_tone`.  `pinned`: on the corner of
+ *  the icon instead of after the label.
+ ************************************************************/
+function item_badge_node(gobj, it, pinned)
+{
+    let badges = gobj_read_attr(gobj, "badges");
+    let state = it;
+    if(is_object(badges) && is_string(it.id) &&
+            Object.prototype.hasOwnProperty.call(badges, it.id)) {
+        state = badges[it.id] || {};
+    }
+    let classes = "NAV_ITEM_BADGE yui-badge yui-nav-badge";
+    if(pinned) {
+        classes += " yui-nav-badge-pinned";
+    }
+    return badge_node(state.badge, state.badge_tone, classes,
+        `C_YUI_NAV '${gobj_read_attr(gobj, "menu_id") || ""}': item '${it.id}'`);
+}
+
+/************************************************************
+ *  An item's icon, with its badge on the corner when given one.
+ ************************************************************/
+function icon_span(icon, classes, badge_el)
+{
+    let glyph = ["i", {class: icon, "aria-hidden": "true"}];
+    if(!badge_el) {
+        return ["span", {class: classes}, glyph];
+    }
+    return ["span", {class: `${classes} yui-nav-icon`}, [glyph, badge_el]];
 }
 
 function wire_clicks(gobj, $container)
@@ -933,6 +1026,44 @@ function ac_set_items(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  EV_SET_ITEM_BADGE {item_id, badge, badge_tone} — the badge of
+ *  one item, set at runtime (yui_shell_set_nav_item_badge).
+ *
+ *  Kept in `badges`, so every later rebuild draws it, and painted
+ *  in place: no rebuild for a count that moves on every tick.  An
+ *  id this nav does not draw is kept all the same — a later
+ *  EV_SET_ITEMS may bring the item.
+ ************************************************************/
+function ac_set_item_badge(gobj, event, kw, src)
+{
+    let item_id = kw.item_id;
+    if(empty_string(item_id)) {
+        log_error(`C_YUI_NAV: ${event} without item_id, from ${gobj_short_name(src)}`);
+        return -1;
+    }
+    let menu_id = gobj_read_attr(gobj, "menu_id") || "";
+    let tone = badge_tone(kw.badge_tone, `C_YUI_NAV '${menu_id}': item '${item_id}'`);
+    let badge = (kw.badge === undefined) ? null : kw.badge;
+
+    /*  A new dict: the one in the attr may be the creator's.  */
+    let badges = Object.assign({}, gobj_read_attr(gobj, "badges"));
+    badges[item_id] = {badge: badge, badge_tone: tone};
+    gobj_write_attr(gobj, "badges", badges);
+
+    let $c = gobj_read_attr(gobj, "$container");
+    if(!$c) {
+        return 0;
+    }
+    let $badges = $c.querySelectorAll(
+        `[data-item-id="${css_escape(item_id)}"] .NAV_ITEM_BADGE`
+    );
+    for(let $badge of $badges) {
+        paint_badge($badge, badge, tone);
+    }
+    return 0;
+}
+
+/************************************************************
  *  EV_ROUTE_CHANGED from the shell — refresh active highlight
  ************************************************************/
 function ac_route_changed(gobj, event, kw, src)
@@ -1043,14 +1174,16 @@ function create_gclass(gclass_name)
 
     const states = [
         ["ST_IDLE", [
-            ["EV_ROUTE_CHANGED", ac_route_changed, null],
-            ["EV_SET_ITEMS",     ac_set_items,     null]
+            ["EV_ROUTE_CHANGED",  ac_route_changed,  null],
+            ["EV_SET_ITEMS",      ac_set_items,      null],
+            ["EV_SET_ITEM_BADGE", ac_set_item_badge, null]
         ]]
     ];
 
     const event_types = [
         ["EV_ROUTE_CHANGED",          0],
         ["EV_SET_ITEMS",              0],
+        ["EV_SET_ITEM_BADGE",         0],
         ["EV_NAV_CLICKED",            event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_NAV_ITEM_CLOSE",         event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_DRAWER_CLOSE_REQUESTED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
