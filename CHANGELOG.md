@@ -5,6 +5,19 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.36
+
+- **fix(`C_YUI_WINDOW_MANAGER`): the title of a dock chip changes language.**
+  A window whose title has a DATA half (`title_prefix`, a device id) gives
+  its chip a COMPOSED title -- "BCM2835-… · Alarmas del dispositivo" -- and no
+  key can carry a composed text: the chip's `title` and `aria-label` stayed in
+  the language the window was opened in (a reader took the `aria-labelledby`
+  of 7.26.35, which changed; the tooltip did not). The dock now hears the
+  `EV_LANGUAGE_CHANGED` of the shell that holds it -- following the shells
+  across a logout, as it follows them for its place -- and composes them
+  again. Found by estadodelaire's QA, which switches the language and reads
+  every name again. Test: `src/window_layer.wiring.test.js`.
+
 ## 7.26.35
 
 Twenty-third check of the review (yunovatios `REV-CLOUD.md` §V23): the

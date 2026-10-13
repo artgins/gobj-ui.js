@@ -40,6 +40,8 @@ import {
     gobj_short_name,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
+    gobj_is_destroying,
     gobj_send_event,
     createElement2,
     gobj_write_attr,
@@ -92,9 +94,10 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
-    windows: null,      /*  [{gobj, $chip, minimized}]  */
+    windows: null,      /*  [{gobj, $chip, minimized, title, title_key, title_prefix}]  */
     mql: null,          /*  MediaQueryList when dock_mode is 'responsive'  */
     mql_handler: null,  /*  its change listener (kept for teardown)  */
+    lang_shell: null,   /*  the shell whose EV_LANGUAGE_CHANGED we hear  */
 };
 
 let __gclass__ = null;
@@ -139,6 +142,7 @@ function mt_create(gobj)
      *  a shell is built or destroyed, it places itself again
      *  (ac_shell_changed). Unwatched in mt_destroy.  */
     yui_shell_watch_changes(gobj);
+    follow_language(gobj);
 
     /*
      *  SERVICE subscription model
@@ -157,6 +161,12 @@ function mt_destroy(gobj)
     let priv = gobj.priv;
 
     yui_shell_unwatch_changes(gobj);
+    if(priv.lang_shell) {
+        if(!gobj_is_destroying(priv.lang_shell)) {
+            gobj_unsubscribe_event(priv.lang_shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+        }
+        priv.lang_shell = null;
+    }
 
     if(priv.mql && priv.mql_handler) {
         priv.mql.removeEventListener("change", priv.mql_handler);
@@ -173,6 +183,54 @@ function mt_destroy(gobj)
                     /***************************
                      *      Local Methods
                      ***************************/
+
+
+
+
+/************************************************************
+ *  Hear the language of the shell that holds the dock -- the
+ *  dock outlives a shell, so it follows them: the dying one's
+ *  subscription goes with it, the next one is heard. The
+ *  toggle of a chip whose window's title has a DATA half has a
+ *  composed title, which no key carries: it is written again in
+ *  the new language (ac_language_changed).
+ ************************************************************/
+function follow_language(gobj)
+{
+    let priv = gobj.priv;
+
+    let shell = yui_shell_of(gobj);
+    if(shell && gobj_is_destroying(shell)) {
+        shell = null;
+    }
+    if(shell === priv.lang_shell) {
+        return;
+    }
+    if(priv.lang_shell && !gobj_is_destroying(priv.lang_shell)) {
+        gobj_unsubscribe_event(priv.lang_shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+    priv.lang_shell = null;
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+        priv.lang_shell = shell;
+    }
+}
+
+/************************************************************
+ *  The toggle's title and aria-label, in the current language:
+ *  the same join as C_YUI_WINDOW's composed_title(), DATA half
+ *  first. The title the window registered with when it gave no
+ *  halves (a legacy caller).
+ ************************************************************/
+function chip_title(entry)
+{
+    /*  `title_key` is the window's title, a key its HOST chose.  */
+    let kind = entry.title_key ? t(/* i18n: data */ entry.title_key) : "";
+    if(entry.title_prefix && kind) {
+        return `${entry.title_prefix} · ${kind}`;
+    }
+    return entry.title_prefix || kind || entry.title;
+}
 
 
 
@@ -588,7 +646,8 @@ function ac_register_window(gobj, event, kw, src)
         return item[1].id;
     });
 
-    let entry = {gobj: win, $chip: null, minimized: false};
+    let entry = {gobj: win, $chip: null, minimized: false,
+                 title: title, title_key: title_key, title_prefix: prefix};
     /*  The chip is a CONTAINER of two sibling controls, and no control
      *  itself: the TOGGLE (minimise / bring back, the whole label) and
      *  the ✕ (EV_CLOSE_WINDOW → the window's own teardown →
@@ -735,11 +794,42 @@ function ac_toggle_window(gobj, event, kw, src)
  *   popup layer, or its zone when inline -- may have gone with
  *   it, or be in the new one: place it again. Up to 7.26.34 an
  *   inline dock stayed in the destroyed shell's zone after a
- *   logout, detached, until a window registered.
+ *   logout, detached, until a window registered. Its language
+ *   is the new shell's too.
  ************************************************************/
 function ac_shell_changed(gobj, event, kw, src)
 {
     apply_placement(gobj);
+    follow_language(gobj);
+    return 0;
+}
+
+/************************************************************
+ *   EV_LANGUAGE_CHANGED -- from the shell that holds the dock.
+ *   A chip's label re-translates by its key (refresh_language()
+ *   reaches its kind half); the toggle's title and aria-label
+ *   of a window with a DATA half are COMPOSED, so no key carries
+ *   them: written again here. Up to 7.26.35 they stayed in the
+ *   language the window was opened in (a reader took the
+ *   aria-labelledby, which changed; the tooltip did not).
+ ************************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    for(let entry of priv.windows) {
+        if(!entry.title_prefix || !entry.$chip) {
+            continue;   // a key alone: data-i18n-title / -aria-label re-translate it
+        }
+        let $toggle = entry.$chip.querySelector(".DOCK_CHIP_TOGGLE");
+        if(!$toggle) {
+            log_error(`${gobj_short_name(gobj)}: a chip without its toggle`);
+            continue;
+        }
+        let title = chip_title(entry);
+        $toggle.setAttribute("title", title);
+        $toggle.setAttribute("aria-label", title);
+    }
     return 0;
 }
 
@@ -782,6 +872,7 @@ function create_gclass(gclass_name)
             ["EV_FOCUS_WINDOW",         ac_focus_window,        null],
             ["EV_TOGGLE_WINDOW",        ac_toggle_window,       null],
             ["EV_SHELL_CHANGED",        ac_shell_changed,       null],
+            ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null],
         ]]
     ];
 
@@ -795,6 +886,7 @@ function create_gclass(gclass_name)
         ["EV_FOCUS_WINDOW",         0],
         ["EV_TOGGLE_WINDOW",        0],
         ["EV_SHELL_CHANGED",        0],
+        ["EV_LANGUAGE_CHANGED",     0],
     ];
 
     __gclass__ = gclass_create(

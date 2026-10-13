@@ -36,7 +36,7 @@ const {
     gobj_start, gobj_stop, gobj_destroy, gobj_read_attr, gobj_is_destroying,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
-const {register_c_yui_shell, yui_shell_window_layer} = await import("./c_yui_shell.js");
+const {register_c_yui_shell, yui_shell_window_layer, yui_shell_language_changed} = await import("./c_yui_shell.js");
 const {register_c_yui_nav} = await import("./c_yui_nav.js");
 const {register_c_yui_window} = await import("./c_yui_window.js");
 const {register_c_yui_window_manager} = await import("./c_yui_window_manager.js");
@@ -367,5 +367,45 @@ describe("the stacking of the windows", () => {
         expect(windows).toMatch(/position:\s*absolute/);
         expect(windows).toMatch(/pointer-events:\s*none/);
         expect(z_of(windows) < z_of(drawer)).toBe(true);
+    });
+});
+
+describe("the title of a dock chip changes language (REV-CLOUD V23, QA of estadodelaire)", () => {
+    /*  A window with a DATA half (a device id) and a KIND half (a key):
+     *  the toggle's title and aria-label are COMPOSED, so no key carries
+     *  them. Up to 7.26.35 they stayed in the language the window was
+     *  opened in; the dock composes them again on the shell's
+     *  EV_LANGUAGE_CHANGED -- of the shell that holds it now, across a
+     *  logout.  */
+    test("composed again in the new language, and after a logout by the next shell", async () => {
+        const i18next = (await import("i18next")).default;
+        i18next.addResourceBundle("en", "translation", {"device alarms": "Device alarms"}, true, true);
+        i18next.addResourceBundle("es", "translation", {"device alarms": "Alarmas del dispositivo"}, true, true);
+        await i18next.changeLanguage("en");
+
+        const shell = build_shell();
+        const dock = gobj_create_service(`lang_dock_${++seq}`, "C_YUI_WINDOW_MANAGER", {}, yuno);
+        gobj_start(dock);
+        const w = open_window(`lang_w_${seq}`,
+            {title: "device alarms", title_prefix: "DEV-1", manager: dock});
+        const $toggle = gobj_read_attr(dock, "$container").querySelector(".DOCK_CHIP_TOGGLE");
+        expect($toggle.getAttribute("title")).toBe("DEV-1 · Device alarms");
+
+        await i18next.changeLanguage("es");
+        yui_shell_language_changed(shell);
+        expect($toggle.getAttribute("title")).toBe("DEV-1 · Alarmas del dispositivo");
+        expect($toggle.getAttribute("aria-label")).toBe("DEV-1 · Alarmas del dispositivo");
+
+        logout(shell);
+        const shell2 = build_shell();
+        await i18next.changeLanguage("en");
+        yui_shell_language_changed(shell2);
+        expect($toggle.getAttribute("title")).toBe("DEV-1 · Device alarms");
+        expect($toggle.getAttribute("aria-label")).toBe("DEV-1 · Device alarms");
+        expect(errors()).toEqual([]);
+
+        close(w);
+        gobj_destroy(dock);
+        logout(shell2);
     });
 });
