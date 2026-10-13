@@ -688,6 +688,12 @@ function name_form_control($field, conf)
         $control.setAttribute("aria-label", t(key));
         $control.setAttribute("data-i18n-aria-label", key);
     }
+    /*  And its title, as every control carries: the label sits apart
+     *  from the box, and a narrow form takes it to another line.  */
+    if($control && !$control.getAttribute("title")) {
+        $control.setAttribute("title", t(key));
+        $control.setAttribute("data-i18n-title", key);
+    }
 
     /*  Tom Select HIDES the <select> it is given (`ts-hidden-accessible`)
      *  and draws its own text box in front of it. Naming the original
@@ -699,6 +705,10 @@ function name_form_control($field, conf)
     if($ts && !$ts.getAttribute("aria-label")) {
         $ts.setAttribute("aria-label", t(key));
         $ts.setAttribute("data-i18n-aria-label", key);
+    }
+    if($ts && !$ts.getAttribute("title")) {
+        $ts.setAttribute("title", t(key));
+        $ts.setAttribute("data-i18n-title", key);
     }
 
     /*  The ✕ of the clear_button plugin is drawn by Tom Select too, with a
@@ -2052,6 +2062,8 @@ function create_coordinates(gobj, attrs)
                   *  froze in the language it was built in.  */
                  placeholder: t('coordinates...'),
                  'data-i18n-placeholder': 'coordinates...',
+                 title: t('coordinates'),
+                 'data-i18n-title': 'coordinates',
                  'aria-label': t('coordinates'),
                  'data-i18n-aria-label': 'coordinates'},
                 '',

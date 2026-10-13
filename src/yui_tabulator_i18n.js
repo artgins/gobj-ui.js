@@ -134,8 +134,14 @@ function yui_tabulator_name_filters(table, t)
              *  already exists in two apps as the header filter's
              *  PLACEHOLDER ("filtrar columna...") and carries no
              *  interpolation, so reusing it named all five boxes the
-             *  same -- which is where this started.  */
-            $input.setAttribute("aria-label", t("filter by column", {column: title}));
+             *  same -- which is where this started.
+             *
+             *  The `title` too: every control carries both, and a filter
+             *  box shows only its placeholder, which goes as soon as
+             *  something is typed in it.  */
+            let name = t("filter by column", {column: title});
+            $input.setAttribute("aria-label", name);
+            $input.setAttribute("title", name);
         }
     } catch(e) {
         /*  a table between renders has no columns to name  */
@@ -181,6 +187,8 @@ function yui_tabulator_name_row_selects(table, t)
         for(let $box of boxes) {
             $box.setAttribute("aria-label", t("select row"));
             $box.setAttribute("data-i18n-aria-label", "select row");
+            $box.setAttribute("title", t("select row"));
+            $box.setAttribute("data-i18n-title", "select row");
         }
     } catch(e) {
         /*  a table between renders has no boxes to name  */

@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.31
+
+From the migration of estadodelaire to v2, QA'd on the deployed page.
+
+- **fix(`C_YUI_WINDOW`): a window lives in the shell's overlay layer.** With
+  no `$parent`, a window mounted on `document.body`, and `.yui-shell` is
+  `position: fixed` -- a stacking context of its own -- so a window at z-index
+  11 covered the WHOLE shell, its modal layer (99) and its toasts (120)
+  included. The confirmation a window's own close asks ("all changes will be
+  lost", the settings form of a device) opened UNDER the window that asked
+  it, where no click could reach it; any dialog, toast or toolbar dropdown
+  opened with a window on screen, the same. It mounts in the shell's
+  `overlay` layer now (above the content, below the dropdowns, the dialogs and
+  the toasts), the dock still ordering the windows among themselves; on the
+  body only when there is no shell, and a `$parent` the host names still wins.
+  Test: `window_layer.wiring.test.js`.
+- **fix: every control carries a `title` as well as its `aria-label`.** Three
+  kinds had the name and no title, all drawn or named after the render:
+  Tabulator's header filters and its row-selection boxes
+  (`yui_tabulator_name_filters()`, `yui_tabulator_name_row_selects()`, test
+  `yui_tabulator_i18n.test.js`), and the fields of `C_YUI_FORM` -- its
+  inputs, selects and Tom Select boxes (`name_form_control()`), and the
+  coordinates box. A filter box shows only its placeholder, which goes as
+  soon as something is typed in it.
+
 ## 7.26.30
 
 - **feat(`C_YUI_NAV`, `C_YUI_SHELL`): a menu entry can carry a badge.**

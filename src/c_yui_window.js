@@ -81,7 +81,7 @@ const MOBILE_MAX = 768;
  ***************************************************************/
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
-SDATA(data_type_t.DTP_POINTER,  "$parent",      0,  null,   "$container will be appended to $parent if not null, else to document.body"),
+SDATA(data_type_t.DTP_POINTER,  "$parent",      0,  null,   "$container will be appended to $parent if not null, else to the overlay layer of the shell (document.body when there is none)"),
 SDATA(data_type_t.DTP_INTEGER,  "x",            0,  "300",  "X position"),
 SDATA(data_type_t.DTP_INTEGER,  "y",            0,  "100",  "Y position"),
 SDATA(data_type_t.DTP_INTEGER,  "width",        0,  "700",  "Width of the window"),
@@ -724,11 +724,10 @@ function build_ui(gobj)
     refresh_language($container, t);
 
     let $parent = gobj_read_attr(gobj, "$parent");
-    if($parent) {
-        $parent.appendChild($container);
-    } else {
-        document.body.appendChild($container);
+    if(!$parent) {
+        $parent = default_parent(gobj);
     }
+    $parent.appendChild($container);
 
     if (gobj_read_bool_attr(gobj, "openMaximized")) {
         max(gobj);
@@ -858,6 +857,34 @@ function close_window(gobj)
         return answer;
     });
     return {state: "asking", answer: answer};
+}
+
+/************************************************************
+ *  Where a window lives when its host names no `$parent`: the
+ *  OVERLAY layer of the shell -- above the content, below the
+ *  toolbar's dropdowns, the dialogs and the toasts.
+ *
+ *  It used to be document.body, and that put every window above
+ *  the WHOLE shell: `.yui-shell` is position:fixed, a stacking
+ *  context of its own, so the z-index of its modal layer (99)
+ *  counted only inside it, and a window at z-index 11 on the body
+ *  covered it. The confirmation a window's own close asks ("all
+ *  changes will be lost") opened UNDER the window that asked it,
+ *  where no click could reach it; a toast, a dropdown of the
+ *  toolbar, any dialog opened with a window on screen, the same.
+ *
+ *  Inside the layer the dock's z-index still orders the windows
+ *  among themselves. No shell (a page with windows and no shell):
+ *  the body, as before.
+ ************************************************************/
+function default_parent(gobj)
+{
+    let shell = yui_shell_of(gobj);
+    let layers = shell && shell.priv && shell.priv.layers;
+    if(layers && layers.overlay) {
+        return layers.overlay;
+    }
+    return document.body;
 }
 
 /************************************************************

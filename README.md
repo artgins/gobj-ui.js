@@ -78,6 +78,15 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > maximize/restore + close. The self-contained **"shade"** fallback (roll up to
 > the title bar in place) and its `is-shaded` CSS are **removed**; an app that
 > relied on shading needs to register a manager.
+>
+> **Where a window lives (7.26.31):** a `C_YUI_WINDOW` whose host names no
+> `$parent` mounts in the **overlay layer of the shell** -- above the content,
+> below the toolbar's dropdowns, the dialogs and the toasts -- and on
+> `document.body` only when there is no shell. It used to be the body always,
+> and since `.yui-shell` is `position: fixed` (a stacking context of its own)
+> a window at z-index 11 covered the WHOLE shell, modal layer included: the
+> confirmation of a window's own close opened under it, out of reach. A
+> `$parent` the host names still wins.
 
 ## Two maintained lines
 
