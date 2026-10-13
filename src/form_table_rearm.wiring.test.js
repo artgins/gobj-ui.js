@@ -5,11 +5,13 @@
  *      a save or an undo -- which is what a dialog does: it closes the
  *      moment the record is saved.
  *
- *      set_changed_stated(false) re-wires the tables' `dataChanged` from
- *      a 200 ms timer. Since 7.26.7 destroy_ui() destroys the widgets and
- *      nulls `$table.tabulator`, and the timer, left running, called
- *      `.on()` on that null: an uncaught TypeError. The timer is kept and
- *      cancelled now, and it skips a table that is gone.
+ *      set_changed_stated(false) used to re-wire the tables' `dataChanged`
+ *      from a 200 ms timer. Since 7.26.7 destroy_ui() destroys the widgets
+ *      and nulls `$table.tabulator`, and the timer, left running, called
+ *      `.on()` on that null: an uncaught TypeError. Since 7.26.41 there is
+ *      no timer: each table is wired once, when it is built, and stays
+ *      wired (form_table_edits_ask.wiring.test.js says why). These cases
+ *      keep guarding the destroy right after a save or an undo.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -117,7 +119,7 @@ function build(rows)
 }
 
 describe("a form with a table, destroyed right after", () => {
-    test("an undo: the deferred re-wiring does not throw", async () => {
+    test("an undo, then the destroy: nothing left behind throws", async () => {
         const {form} = build();
         expect(tables.length).toBeGreaterThan(0);
         const errors = [];
@@ -135,7 +137,7 @@ describe("a form with a table, destroyed right after", () => {
         expect(errors).toEqual([]);
     });
 
-    test("a live form is still re-wired", async () => {
+    test("a live form's table stays wired, once", async () => {
         const {form} = build();
         const table = tables[tables.length - 1];
         gobj_send_event(form, "EV_UNDO_RECORD", {}, form);

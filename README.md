@@ -3422,6 +3422,15 @@ true. A record that lacks a defaulted field opens changed and closes without
 a question; until 7.26.39 it asked on every close, about nothing the reader
 would lose.
 
+What the reader does to a TABLE of the form -- edits a cell, adds a row,
+deletes one, in a nested table too -- is `edited` like anything typed, whatever
+the record the form opened with. Each table hears it from the moment it is
+built (a nested one is built by its row, whenever the row is drawn); the rows
+the form loads itself say nothing. In 7.26.39 and 7.26.40 a form that opened
+changed did not hear its tables at all, so closing it lost a table edit without
+a question. And the titles of those tables change language with the shell's
+`EV_LANGUAGE_CHANGED` (7.26.41+), like the rest of the form.
+
 ```js
 const kw = {abort_close: false};
 gobj_send_event(form, "EV_WINDOW_TO_CLOSE", kw, gobj);
@@ -3917,14 +3926,24 @@ loading/error notices) and it never went through i18n. Use:
 ```js
 new Tabulator($el, {...settings, ...yui_tabulator_lang(t)});   // at build
 yui_tabulator_relocalize(table, t);                            // on the event
+yui_tabulator_relocalize(table, t, {device_id: t("device id")});  // and the titles
 ```
 
 Every key falls back to the English string Tabulator used to render
 (`defaultValue`), so an app that defines none of them sees no change. Two traps
 the implementation already handles: `setLocale()` with the locale name already
 in force is a **no-op** (hence a fresh name per switch), and re-applying a locale
-makes Tabulator re-run a title formatter on the EXISTING header cell, which
-**appends** to it — rebuild the columns from their definitions.
+makes Tabulator run every title formatter again on the EXISTING header cell, and
+**append** what one returns when it is a Node. `text_title_formatter` empties
+the cell first (7.26.41; until then each change of language added one more copy
+of every title, *"Id dispositivoId dispositivo"*); a title formatter of your own
+that returns a Node must do the same (`cell.getElement().textContent = ""`).
+
+The column TITLES change language through the locale too: hand them, already
+translated, by field (the third argument). Tabulator binds each title to its
+locale, so they are drawn again and no column is rebuilt -- `updateDefinition()`
+re-renders every row, and a row formatter that builds something in its row (a
+nested table) builds it again, empty.
 
 **A missing key is invisible:** i18next answers an unknown key **with the key
 itself**, so it renders (lower-case English) and simply never changes language.

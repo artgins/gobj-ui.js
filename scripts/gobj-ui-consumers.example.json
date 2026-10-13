@@ -16,7 +16,17 @@
         "              and would install the version before behind the app",
         "  deploys     argv arrays, run from `path`",
         "  urls        what to read back afterwards; the entry bundle name of the",
-        "              live page must match the one just built"
+        "              live page must match the one just built",
+        "  test        optional: the argv that tests the app, run from `path`",
+        "              AFTER the build and BEFORE the deploys (a red test leaves",
+        "              it undeployed); default `npm test` when the app has one,",
+        "              false for none",
+        "  test_env    optional: environment for the test (e.g. CHROME_PATH)",
+        "",
+        "  A TEMPLATE (a scaffold apps are generated from) is a target with no",
+        "  host: `range_dirs: []`, `range_files` (raised without a version of",
+        "  their own), `install: false`, `build` (the check that generates an",
+        "  app and builds it), `test: false`, and empty `deploys` and `urls`."
     ],
     "consumers": [
         {
@@ -25,6 +35,17 @@
             "range_dirs": ["/path/to/the/spa", "/path/to/a/shared/lib"],
             "deploys": [["./deploy.sh"]],
             "urls": ["https://example.invalid/"]
+        },
+        {
+            "name": "example_template",
+            "path": "/path/to/a/template",
+            "range_dirs": [],
+            "range_files": ["package.json_tmpl"],
+            "install": false,
+            "build": ["./generate.sh", "--check"],
+            "test": false,
+            "deploys": [],
+            "urls": []
         }
     ]
 }

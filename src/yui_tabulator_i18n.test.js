@@ -15,6 +15,7 @@ import {
     yui_tabulator_name_filters,
     yui_tabulator_name_row_selects,
     yui_tabulator_name_editor,
+    yui_tabulator_relocalize,
 } from "./yui_tabulator_i18n.js";
 
 /*  An element double: attributes, and the one child a selector finds.  */
@@ -123,5 +124,43 @@ describe("yui_tabulator_name_editor", () => {
         const def = {editor: "input", editorParams: {a: 1}};
         yui_tabulator_name_editor(def, () => "");
         expect(def.editorParams({})).toEqual({a: 1});
+    });
+});
+
+describe("yui_tabulator_relocalize", () => {
+    /*  A table double: what the localize module is given, and the
+     *  locale it is set to.  */
+    function table()
+    {
+        const installed = {};
+        const tb = {
+            options: {},
+            installed,
+            locale: null,
+            modules: {localize: {installLang: (name, strings) => {
+                installed[name] = strings;
+            }}},
+            setLocale: (name) => {
+                tb.locale = name;
+            },
+            getColumns: () => [],
+            element: element(null),
+        };
+        return tb;
+    }
+
+    it("hands the column titles to the locale, where Tabulator binds them", () => {
+        const tb = table();
+        yui_tabulator_relocalize(tb, t, {device_id: "Id dispositivo", value: "Valor"});
+        expect(tb.locale).toBeTruthy();
+        expect(tb.installed[tb.locale].columns).toEqual(
+            {device_id: "Id dispositivo", value: "Valor"});
+        expect(tb.installed[tb.locale].pagination).toBeTruthy();
+    });
+
+    it("without titles, the locale carries none, as before", () => {
+        const tb = table();
+        yui_tabulator_relocalize(tb, t);
+        expect(tb.installed[tb.locale].columns).toBe(undefined);
     });
 });

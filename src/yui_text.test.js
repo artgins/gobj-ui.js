@@ -48,6 +48,19 @@ describe("text_node()", () => {
         expect($title.textContent).toBe(EVIL);
     });
 
+    test("a title formatted again (every setLocale) is not appended to the old one", () => {
+        /*  What Tabulator does: it appends the Node into the title's
+         *  holder, and on a change of locale runs the formatter again
+         *  on the same holder.  */
+        const $holder = document.createElement("div");
+        const cell = (title) => ({getValue: () => title, getElement: () => $holder});
+        $holder.appendChild(text_title_formatter(cell("Id dispositivo")));
+        $holder.appendChild(text_title_formatter(cell("Device id")));
+        $holder.appendChild(text_title_formatter(cell("Id dispositivo")));
+        expect($holder.textContent).toBe("Id dispositivo");
+        expect($holder.childNodes.length).toBe(1);
+    });
+
     test("the accordion nav shows a section named by a backend as text", async () => {
         const i18next = (await import("i18next")).default;
         await i18next.init({lng: "en", resources: {}});

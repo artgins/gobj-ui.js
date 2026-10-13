@@ -24,6 +24,29 @@
  *          built IN: it cannot be left out by editing a config, and
  *          `--check` reports it beside every other host.
  *
+ *          AN APP IS TESTED BEFORE IT IS DEPLOYED: after its build, its
+ *          `npm test` (or the command its manifest entry names in
+ *          `test`), and a red test leaves it undeployed. The round used to
+ *          build and deploy only, and yunomusica went out six times with
+ *          its catalogue check red. And EVERY STEP SHOWS WHAT IT SAYS: the
+ *          output of install, build, test and deploy goes to the console
+ *          as it comes -- a warning of a step that exits 0 (a backup that
+ *          ran out of disk) was swallowed whole, and of a failing step
+ *          only its last three lines were shown.
+ *
+ *          A TEMPLATE is a target too (the js_gui scaffold): its
+ *          `range_files` are raised without a version of their own (it
+ *          is a marker there), nothing is installed, its `build` is the
+ *          check that generates an app from it and builds that, and it
+ *          has no host to read back. A key the library adds and a
+ *          template lacks fails every app generated from it.
+ *
+ *          A range it cannot raise SAFELY is refused, never "already":
+ *          anything but a caret range of the version's major (an exact
+ *          version, a `~`, a `^1.x` that a v2 version would rewrite), and
+ *          a package version that is not x.y.z. The app is reported
+ *          FAILED and left as it was.
+ *
  *          The other consumers are private repositories on this machine,
  *          so they are read from `~/.yuneta/gobj-ui-consumers.json`
  *          (see `gobj-ui-consumers.example.json`) and nothing about them
@@ -129,6 +152,17 @@ function run(cmd, cmd_args, cwd)
     });
 }
 
+/*  A STEP of the round: what it says goes to the console as it comes,
+ *  and a failure throws with its status. Never to a pipe nobody reads:
+ *  a step that exits 0 can still say something that matters.  */
+function run_step(cmd, cmd_args, cwd, extra_env)
+{
+    execFileSync(cmd, cmd_args, {
+        cwd: cwd, env: Object.assign(child_env(), extra_env || {}),
+        stdio: ["ignore", "inherit", "inherit"]
+    });
+}
+
 function curl(url)
 {
     try {
@@ -212,19 +246,46 @@ function write_file(path, content)
 
 function raise_range(dir)
 {
-    const f = join(dir, "package.json");
+    return raise_range_in(join(dir, "package.json"), true);
+}
+
+/*  `bump`: raise the package's own version too. A template's file has
+ *  a marker for a version, and is raised without.  */
+function raise_range_in(f, bump)
+{
     if(!existsSync(f)) {
-        return false;
+        throw new Error(`${f}: not there`);
     }
     const before = readFileSync(f, "utf8");
-    /*  Every occurrence: gobj-ui declares the runtime TWICE, as a peer
-     *  and as a devDependency, and a consumer may too.  */
-    const re = new RegExp(`("${PKG_NAME.replace("/", "\\/")}":\\s*")\\^[0-9][^"]*(")`, "g");
+    const name = PKG_NAME.replace("/", "\\/");
+
+    /*  Every spec it carries for the package -- gobj-ui declares the
+     *  runtime TWICE, as a peer and as a devDependency, and a consumer
+     *  may too -- must be a caret range of the version's major: that is
+     *  the one shape this round can raise without changing what it
+     *  means. An exact or a `~` range used to be taken for "already"
+     *  and deployed unraised; a `^1.x` would be rewritten to v2.  */
+    const specs = [...before.matchAll(new RegExp(`"${name}":\\s*"([^"]*)"`, "g"))].map(m => m[1]);
+    if(!specs.length) {
+        throw new Error(`${f} does not depend on ${PKG_NAME}`);
+    }
+    const major = VERSION.split(".")[0];
+    const caret = new RegExp(`^\\^${major}\\.\\d+\\.\\d+$`);
+    for(const spec of specs) {
+        if(!caret.test(spec)) {
+            throw new Error(`${f}: ${PKG_NAME} "${spec}" is not a ^${major}.x.y range -- ` +
+                            `not raised, not deployed`);
+        }
+    }
+
+    const re = new RegExp(`("${name}":\\s*")\\^[0-9][^"]*(")`, "g");
     let after = before.replace(re, `$1^${VERSION}$2`);
     if(after === before) {
         return false;
     }
-    after = bump_patch_version(f, after);
+    if(bump) {
+        after = bump_patch_version(f, after);
+    }
     write_file(f, after);
     return true;
 }
@@ -232,24 +293,45 @@ function raise_range(dir)
 /************************************************************
  *  The third number of the package's own version, up by one, in
  *  the text of its package.json (its formatting kept). A version
- *  that is not x.y.z is left as it is, and said.
+ *  that is not x.y.z refuses the app: a new bundle under the old
+ *  number is what the bump exists to prevent (the js_gui template
+ *  leaves a literal "{{version}}").
  ************************************************************/
 function bump_patch_version(f, text)
 {
     const version = JSON.parse(text).version;
     const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(version || "");
     if(!m) {
-        console.log(`    version '${version}' of ${f} is not x.y.z -- not raised`);
-        return text;
+        throw new Error(`${f}: version '${version}' is not x.y.z -- not raised, not deployed`);
     }
     const next = `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
     const at = new RegExp(`("version":\\s*")${version.replace(/\./g, "\\.")}(")`);
     if(!at.test(text)) {
-        console.log(`    no "version": "${version}" in the text of ${f} -- not raised`);
-        return text;
+        throw new Error(`${f}: no "version": "${version}" in its text -- not raised, not deployed`);
     }
     console.log(`    version ${version} -> ${next}  (${f})`);
     return text.replace(at, `$1${next}$2`);
+}
+
+/************************************************************
+ *  The command that tests an app: what its manifest entry names
+ *  (`test`: an argv array, or false for none), else its own
+ *  `npm test` if it has one.
+ ************************************************************/
+function test_command(c)
+{
+    if(c.test === false) {
+        return null;
+    }
+    if(Array.isArray(c.test)) {
+        return c.test;
+    }
+    const f = join(c.path, "package.json");
+    if(!existsSync(f)) {
+        return null;
+    }
+    const scripts = JSON.parse(readFileSync(f, "utf8")).scripts || {};
+    return scripts.test? ["npm", "test"] : null;
 }
 
 /*  One target's failure does not end the round: the other seven
@@ -265,26 +347,43 @@ function do_round(c)
 
     try {
         if(!c.worktree) {
-            const dirs = (c.range_dirs && c.range_dirs.length)? c.range_dirs : [c.path];
+            const dirs = Array.isArray(c.range_dirs)? c.range_dirs : [c.path];
             for(const d of dirs) {
                 console.log(`    range  ${raise_range(d)? "raised" : "already"} ^${VERSION}  (${d})`);
             }
-            for(const d of dirs) {
-                console.log(`    install ${d}`);
-                run("npm", ["install"], d);
+            for(const rf of (c.range_files || [])) {
+                const f = rf.startsWith("/")? rf : join(c.path, rf);
+                console.log(`    range  ${raise_range_in(f, false)? "raised" : "already"} ^${VERSION}  (${f})`);
+            }
+            if(c.install !== false) {
+                for(const d of dirs) {
+                    console.log(`    install ${d}`);
+                    run_step("npm", ["install"], d);
+                }
             }
         }
 
-        console.log("    build");
-        run("npm", ["run", "build"], c.path);
+        const build = Array.isArray(c.build)? c.build : ["npm", "run", "build"];
+        console.log(`    build  ${build.join(" ")}`);
+        run_step(build[0], build.slice(1), c.path);
+
+        /*  After the build: a suite may test what the build produced
+         *  (yunomusica's runs against dist/).  */
+        const test = test_command(c);
+        if(test) {
+            console.log(`    test   ${test.join(" ")}`);
+            run_step(test[0], test.slice(1), c.path, c.test_env);
+        } else {
+            console.log("    test   none declared");
+        }
 
         for(const cmd of c.deploys) {
             console.log(`    deploy ${cmd.join(" ")}`);
-            run(cmd[0], cmd.slice(1), c.path);
+            run_step(cmd[0], cmd.slice(1), c.path);
         }
     } catch(e) {
-        let out = (e.stderr || e.stdout || "").toString().trim().split("\n").slice(-3).join(" | ");
-        console.log(`    FAILED: ${out || e.message}`);
+        /*  What the step said is above, whole; this names the step.  */
+        console.log(`    FAILED: ${String(e.message).split("\n")[0]}`);
         return {name: c.name, urls: c.urls || [], path: c.path, worktree: c.worktree, state: "failed"};
     }
     return {name: c.name, urls: c.urls || [], path: c.path, worktree: c.worktree, state: "deployed"};
@@ -342,6 +441,11 @@ function verify(entry)
     const problem = (entry.state === "failed")? "FAILED in this round" :
                                                 local_build_problem(entry);
     const rows = [];
+    if(!(entry.urls || []).length) {
+        /*  A template: built (its check), nothing to serve.  */
+        rows.push({name: entry.name, url: "(no host)", state: problem || "OK"});
+        return rows;
+    }
     for(const url of (entry.urls || [])) {
         const live = entry_bundle(curl(url));
         let state;

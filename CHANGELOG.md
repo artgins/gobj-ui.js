@@ -5,6 +5,59 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.41
+
+- **fix(`C_YUI_FORM`): what the reader does to a TABLE is `edited`, whatever
+  the record the form opened with.** A form opens CHANGED when its record lacks
+  a field the template fills with its default, and that also UNWIRED the
+  tables' `dataChanged`: it was wired again only by a save, an undo or a load
+  of what is stored, after a 200 ms timer. So in a form that opened changed,
+  adding a row, editing a cell, deleting a row or editing a nested table marked
+  nothing -- and since 7.26.39 the close asks only for `edited`: the window, or
+  the sheet with its ← and the browser's Back, closed without a question and
+  the edit was lost. In estadodelaire that is the settings of every device
+  without its alarm colours, whose alarms and triggers are tables (and the
+  same after a refused save, which loads what is stored). Each table is wired
+  ONCE now, when it is built -- a nested one too, which its row builds whenever
+  the row is drawn -- and never switched off; the rows the form loads itself
+  are muted where Tabulator says it, inside `addRow()`, so a table built after
+  the load returned (`tableBuilt`) does not count either. No timer is left.
+  Found by the twenty-fourth review (V24.2). Test:
+  `src/form_table_edits_ask.wiring.test.js` (its six cases of the defect red
+  before the fix; the three that are not, a form with a complete record among
+  them, pass on both).
+- **fix(`text_title_formatter`): a change of language no longer adds a copy of
+  every column title.** Tabulator APPENDS the Node a title formatter returns to
+  the title's holder, never emptying it, and runs the formatter again on every
+  `setLocale()` -- which `yui_tabulator_relocalize()` calls: each change of
+  language added one more copy (*"Id dispositivoId dispositivo"*, the alarms
+  and the history of estadodelaire since its 2.0.1). The formatter empties the
+  holder first. A title formatter of an app's own that returns a Node must do
+  the same; the README says how. Test: `src/yui_text.test.js` (red before).
+- **feat(`yui_tabulator_relocalize`): the column titles change language too.**
+  A third argument, `{field: title}` in the new language, goes into the
+  table's locale, where Tabulator binds each column's title: they are drawn
+  again and no column is rebuilt (`updateDefinition()` re-renders every row,
+  and a row formatter that builds a nested table builds it again, empty).
+  `C_YUI_FORM` uses it: the titles of its tables were drawn at build and never
+  again, so its labels changed language and its table headers did not (V24.5.5).
+  Tests: `src/yui_tabulator_i18n.test.js`, and the form's in
+  `src/form_table_edits_ask.wiring.test.js` (red before).
+- **fix(`deploy-round`): an app is tested before it is deployed, and every step
+  shows what it says.** After its build, the app's `npm test` (or the command
+  its manifest entry names in `test`, with `test_env`) runs, and a red test
+  leaves it undeployed: yunomusica went out six times with its catalogue check
+  red. The output of install, build, test and deploy goes to the console as it
+  comes: a warning of a step that exits 0 was swallowed, and of a failing step
+  only its last three lines were shown. A range the round cannot raise safely
+  -- not a caret range of the version's major (an exact one, a `~`, a `^1.x`
+  that a v2 would rewrite) -- and an app version that is not x.y.z refuse the
+  app, which used to be deployed unraised. And a TEMPLATE is a target: its
+  `range_files` are raised without a version, nothing is installed, its
+  `build` is the check that generates an app from it (wattyzer's
+  `templates/js_gui/generate.sh --check`), and it has no host to read back.
+  V24.6.1, V24.6.2 and V24.6.4.
+
 ## 7.26.40
 
 - **fix(`C_YUI_UPLOT`): the values of the Y axis can be read on the dark

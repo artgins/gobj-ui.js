@@ -151,11 +151,18 @@ DEPLOYED DOM and switch language.**
   that window silently keeps the version before), then per app raises the
   range -- and the app's own version, its third number, in the same edit (a
   new range is a new bundle, and an "About" that shows one number for five
-  bundles names none of them) --, installs, builds, deploys, and READS BACK
-  the entry bundle each host serves. `--check` only reads back; `--only
-  <name>` does one; `--no-wait` skips the registry. The round commits nothing:
-  each consumer's commit (and its CHANGELOG line, and a tag where the repo
-  tags its versions) is made after it.
+  bundles names none of them) --, installs, builds, TESTS (the app's `npm
+  test`, or the command its manifest entry names; red = not deployed),
+  deploys, and READS BACK the entry bundle each host serves. Every step's
+  output goes to the console as it comes (a warning of a step that exits 0
+  was swallowed). A range it cannot raise safely -- not a `^` of the version's
+  major, or an app version that is not x.y.z -- refuses the app instead of
+  deploying it unraised. A TEMPLATE (`wattyzer/templates/js_gui`) is a target
+  with no host: its ranges are raised and its `generate.sh --check` builds an
+  app from it. `--check` only reads back; `--only <name>` does one;
+  `--no-wait` skips the registry. The round commits nothing: each consumer's
+  commit (and its CHANGELOG line, and a tag where the repo tags its versions)
+  is made after it.
   **The demo is built into the runner, not a line of its manifest**, and that
   is deliberate: it is the one surface that needs no registry (it consumes the
   working tree), so it falls outside the rhythm of the others and was skipped

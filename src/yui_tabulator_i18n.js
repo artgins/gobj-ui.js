@@ -14,6 +14,12 @@
  *          new Tabulator($el, {..., ...yui_tabulator_lang(t)});
  *          yui_tabulator_relocalize(table, t);   // on a language change
  *
+ *      A view whose COLUMN TITLES change language hands them too, in the
+ *      new language, by field -- Tabulator binds each column's title to its
+ *      locale, so they change with it and no column is rebuilt:
+ *
+ *          yui_tabulator_relocalize(table, t, {device_id: t("device id")});
+ *
  *      Every key carries an English `defaultValue`, so an app that does not
  *      define it renders exactly what Tabulator rendered before — the
  *      keys are an OPPORTUNITY to translate, never a requirement.
@@ -236,7 +242,18 @@ function yui_tabulator_name_editor(column_def, name_of)
     };
 }
 
-function yui_tabulator_relocalize(table, t)
+/***************************************************************
+ *  yui_tabulator_relocalize() -- see "Put an EXISTING table in the
+ *  current language" above.
+ *
+ *  `titles`, optional: {field: title}, the titles of the columns in
+ *  the new language, already translated. They go in the locale
+ *  (`columns`), where Tabulator binds each column's title: setLocale()
+ *  draws them again without rebuilding a column -- updateDefinition()
+ *  re-renders every row, and a row whose formatter builds something (a
+ *  nested table) builds it anew. A field left out keeps its title.
+ ***************************************************************/
+function yui_tabulator_relocalize(table, t, titles)
 {
     if(!table) {
         return;
@@ -244,6 +261,9 @@ function yui_tabulator_relocalize(table, t)
     try {
         let name = next_lang_name();
         let strings = tabulator_strings(t);
+        if(titles && typeof titles === "object") {
+            strings.columns = Object.assign({}, titles);
+        }
 
         /*  Tabulator DEEP-CLONES options.langs into its localize module when
          *  the table is built, and never looks at the option again: writing a

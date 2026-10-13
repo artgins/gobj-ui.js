@@ -36,9 +36,19 @@ export function text_node(value)
  *  Tabulator puts a STRING title in with innerHTML, so a title taken
  *  from a schema (`header`, which the schema editor writes) is markup
  *  unless the column carries a formatter that returns a Node.
+ *
+ *  And it APPENDS that Node to the title's holder, which it never
+ *  empties -- while it runs the formatter again on every setLocale()
+ *  (yui_tabulator_relocalize()). Until 7.26.40 each change of language
+ *  added one more copy of every title ("Id dispositivoId dispositivo").
+ *  The holder (the mock cell's element) is emptied first.
  ************************************************************/
 export function text_title_formatter(cell)
 {
+    const $holder = (typeof cell.getElement === "function")? cell.getElement() : null;
+    if($holder) {
+        $holder.textContent = "";
+    }
     return text_node(cell.getValue());
 }
 

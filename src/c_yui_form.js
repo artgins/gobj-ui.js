@@ -55,7 +55,11 @@ import {
 
 import {t} from "i18next";
 
-import {yui_tabulator_name_row_selects, yui_tabulator_name_editor} from "./yui_tabulator_i18n.js";
+import {
+    yui_tabulator_name_row_selects,
+    yui_tabulator_name_editor,
+    yui_tabulator_relocalize
+} from "./yui_tabulator_i18n.js";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 import TomSelect from "tom-select"; // Import Tom-Select JS
 
@@ -172,9 +176,10 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
-    /*  The deferred re-wiring of the tables' dataChanged after a
-     *  save/undo (see set_changed_stated): cancelled in destroy_ui. */
-    rearm_timer: null,
+    /*  > 0 while the FORM adds rows (a record loaded, a nested table
+     *  filled): what a table says then is no change of the reader's
+     *  (see create_tabulator's dataChanged).  */
+    loading_rows: 0,
     /*  table_id -> WeakRef of its element: EV_ADD_TABLE_ROW names a
      *  table by id (a kw is plain json), see table_identity().  */
     tables: null,
@@ -281,17 +286,8 @@ function mt_stop(gobj)
 
 
 /************************************************************
- *
- ************************************************************/
-function isEventSet(table, event)
-{
-    // Access the event listeners directly from the Tabulator instance
-    let eventListeners = table.externalEvents.events;
-    return eventListeners && eventListeners[event] && eventListeners[event].length > 0;
-}
-
-/************************************************************
- *
+ *  `changes` and the save/undo buttons. What the tables say is
+ *  not switched here: they always say it (create_tabulator).
  ************************************************************/
 function set_changed_stated(gobj, changed)
 {
@@ -333,18 +329,6 @@ function set_changed_stated(gobj, changed)
         enable($button_save, true, "MediumSeaGreen");
         enable($button_undo, true, "Magenta");
 
-        $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
-            if($table.tabulator && isEventSet($table.tabulator, "dataChanged")) {
-                $table.tabulator.off("dataChanged");
-            }
-
-            $table.querySelectorAll('.yui-tabulator-table-nested').forEach($table_nested => {
-                if($table_nested.tabulator && isEventSet($table_nested.tabulator, "dataChanged")) {
-                    $table_nested.tabulator.off("dataChanged");
-                }
-            });
-        });
-
     } else {
         /*
          *  Data not changed, disable buttons to save/undo
@@ -354,41 +338,6 @@ function set_changed_stated(gobj, changed)
 
         enable($button_save, false, OFF_COLOR);
         enable($button_undo, false, OFF_COLOR);
-
-        /*
-         *  TODO improve. The tables are re-wired a moment later, once the
-         *  data just loaded has settled. The timer is kept so that
-         *  destroy_ui() cancels it: a form closed right after a save (what
-         *  a dialog does) destroyed its widgets first, and the timer then
-         *  called .on() on a null tabulator -- an uncaught TypeError.
-         */
-        if(gobj.priv.rearm_timer) {
-            clearTimeout(gobj.priv.rearm_timer);
-        }
-        gobj.priv.rearm_timer = setTimeout(function() {
-            gobj.priv.rearm_timer = null;
-            if(gobj_is_destroying(gobj)) {
-                return;     // destroy_ui() cancels it; this is the belt
-            }
-            const rearm = (tabulator) => {
-                if(!tabulator) {
-                    return;     // destroyed with its form
-                }
-                if(isEventSet(tabulator, "dataChanged")) {
-                    tabulator.off("dataChanged");
-                }
-                tabulator.on("dataChanged", function(data) {
-                    //data - the updated table data
-                    gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
-                });
-            };
-            $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
-                rearm($table.tabulator);
-                $table.querySelectorAll('.yui-tabulator-table-nested').forEach($table_nested => {
-                    rearm($table_nested.tabulator);
-                });
-            });
-        }, 200);
     }
 }
 
@@ -562,10 +511,6 @@ function build_ui(gobj)
  ************************************************************/
 function destroy_ui(gobj)
 {
-    if(gobj.priv && gobj.priv.rearm_timer) {
-        clearTimeout(gobj.priv.rearm_timer);
-        gobj.priv.rearm_timer = null;
-    }
     let $container = gobj_read_attr(gobj, "$container");
     if($container) {
         destroy_widgets(gobj, $container);
@@ -2332,6 +2277,22 @@ function create_tabulator(gobj, $extend, name, template)
         $extend,
         tabulator_settings
     );
+    /*  What the READER does to a table -- edits a cell, adds or deletes a
+     *  row -- reaches the form only through `dataChanged`. Wired here, on
+     *  every table, nested ones included (a row's formatter builds them
+     *  whenever the row is drawn), and never switched off: until 7.26.40
+     *  it was unwired whenever the form was CHANGED and re-wired only by a
+     *  save, an undo or a load of what is stored, so a form that opened
+     *  changed (a field its record lacks, filled with its default) never
+     *  heard its tables -- an edit there was not `edited`, and closing lost
+     *  it without a question. The rows the form adds itself say nothing
+     *  (`loading_rows`, ac_add_table_row).  */
+    tabulator.on("dataChanged", function() {
+        if(gobj.priv.loading_rows > 0) {
+            return;
+        }
+        gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+    });
     /*  Tabulator hard-codes `aria-label="Select Row"` on the box its
      *  rowSelection formatter draws, and it draws a fresh one on EVERY
      *  render -- so this hangs off `renderComplete`, not `tableBuilt`:
@@ -2370,6 +2331,28 @@ function create_tabulator(gobj, $extend, name, template)
 }
 
 /******************************************************************
+ *  The title of a table's column: the schema's header, or the
+ *  field's name, translated.
+ ******************************************************************/
+function column_title(field_desc)
+{
+    return t(/* i18n: data */ field_desc.header || field_desc.name);    // the host's schema
+}
+
+/******************************************************************
+ *  {field: title} of a table's template, in the current language.
+ ******************************************************************/
+function table_column_titles(template)
+{
+    let titles = {};
+    Object.entries(template || {}).forEach(([key, value]) => {
+        const field_desc = template_get_field_desc(key, value);
+        titles[field_desc.name] = column_title(field_desc);
+    });
+    return titles;
+}
+
+/******************************************************************
  *  Convert a template's items in tabulator columns
  ******************************************************************/
 function template2columns(gobj, columns, template, sub_elements)
@@ -2388,7 +2371,7 @@ function template2columns(gobj, columns, template, sub_elements)
         let validator = [];
         let column = {
             field: field_desc.name,
-            title: t(/* i18n: data */ field_desc.header || field_desc.name),    // the host's schema
+            title: column_title(field_desc),
             titleFormatter: text_title_formatter,
             editable: get_editable_state,
             editor: false,
@@ -3793,7 +3776,23 @@ function ac_add_table_row(gobj, event, kw, src)
     let record = kw.record;
     let loading = kw.loading;
 
-    tabulator.addRow(record)
+    /*  Tabulator says `dataChanged` INSIDE addRow(), synchronously: a row
+     *  loaded from the record is muted there, whenever it lands -- also
+     *  from a `tableBuilt` that comes after the load returned, which is
+     *  why no timer can tell the two apart.  */
+    let added;
+    if(loading) {
+        gobj.priv.loading_rows++;
+    }
+    try {
+        added = tabulator.addRow(record);
+    } finally {
+        if(loading) {
+            gobj.priv.loading_rows--;
+        }
+    }
+
+    added
         .then(function(row) {
             if(loading) {
                 /*
@@ -3953,6 +3952,19 @@ function ac_language_changed(gobj, event, kw, src)
         let editor = $editor.jsoneditor;
         if(editor && typeof editor.updateProps === "function") {
             editor.updateProps({onRenderMenu: json_editor_render_menu(gobj)});
+        }
+    }
+
+    /*  The titles of the columns of every table, nested ones included:
+     *  Tabulator draws them at build, so they stayed in the language the
+     *  form was built in. Through the table's LOCALE, never by
+     *  updateDefinition(): rebuilding a column re-renders every row, and
+     *  a row's formatter builds its nested tables anew -- empty. A table
+     *  not built yet is drawn in the current language when it is.  */
+    for(let $table of $container.querySelectorAll(".yui-tabulator-table, .yui-tabulator-table-nested")) {
+        let tabulator = $table.tabulator;
+        if(tabulator && tabulator.initialized && $table.template) {
+            yui_tabulator_relocalize(tabulator, t, table_column_titles($table.template));
         }
     }
     return 0;
