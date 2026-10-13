@@ -2767,10 +2767,13 @@ function get_form_values(gobj, $form)
                 break;
 
             case "fieldset":
-                /*
-                 *  HACK: really this is the path of the value.
-                 *  We are navigating by a tree data structure; this is one node, not a leaf.
-                 */
+                /*  A NODE of the template, not a leaf: its value is the
+                 *  dict its own fields fill, and they come after it in the
+                 *  document. No json anybody typed, so it skips the
+                 *  conversion below, which handed its null on (7.26.8 to
+                 *  7.26.32): the fields found no dict to write into and the
+                 *  save stored the node as null.  */
+                value = {};
                 break;
 
             case "table":
@@ -2811,7 +2814,9 @@ function get_form_values(gobj, $form)
                 break;
         }
 
-        value = form_value_2_treedb_value(gobj, field_desc, value);
+        if(tag !== "fieldset") {
+            value = form_value_2_treedb_value(gobj, field_desc, value);
+        }
         let path;
         if(empty_string(prefix)) {
             path = name;

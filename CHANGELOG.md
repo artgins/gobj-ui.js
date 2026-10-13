@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.33
+
+- **fix(`C_YUI_FORM`): a template field saved in 'exec' mode is the dict its
+  fields fill again, not `null`.** In 'exec' mode (the default) a `template`
+  field is a sub-form, a `<fieldset>`: a NODE of the record, whose value is
+  built by the fields inside it, which `get_form_values()` writes after it.
+  7.26.8 sent that node through the json conversion like a field somebody
+  typed, which handed its `null` on; `kw_set_dict_value()` then refused to
+  write the fields below a `null` (*"segment 'alarm_colors' is not a dict or
+  a list"*), and the save stored the node as `null`. Seen in estadodelaire:
+  every save of a device's settings wiped its alarm colours. The node is now
+  written as `{}` before its fields, as before 7.26.7, and skips the
+  conversion. 'edit' mode (a jsoneditor, the treedb topic form) was not
+  affected. Test: `src/form_template_field.wiring.test.js`.
+
 ## 7.26.32
 
 Twenty-second check of the review (yunovatios `REV-CLOUD.md` §V22), on the
