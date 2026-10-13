@@ -43,7 +43,7 @@ import {
 import {describe_local_gclass} from "./gclass_describe.js";
 import {register_c_yui_gclass} from "./c_yui_gclass.js";
 import {yui_shell_show_error, yui_shell_show_modal} from "./shell_modals.js";
-import {yui_shell_of} from "./c_yui_shell.js";
+import {yui_shell_of, yui_shell_window_layer} from "./c_yui_shell.js";
 
 import {t} from "i18next";
 
@@ -308,6 +308,17 @@ function close_gclass_view(handle)
  *  lands BEHIND its opener whatever number it is given, and
  *  the button reads as one that did nothing.
  *
+ *  An opener in the place the shell gives every window -- its
+ *  window layer, the body while there is none -- gives the
+ *  viewer no `$parent` at all: the viewer takes that place too,
+ *  and FOLLOWS the shell with its opener (C_YUI_WINDOW's
+ *  ac_shell_changed). Up to 7.26.41 it was handed that element
+ *  by name, and a name is a choice its host made: a viewer
+ *  opened from the developer window between a logout and the
+ *  next login was told "the body", and stayed there after the
+ *  login -- above the new shell's dialogs -- while its opener
+ *  moved into the shell.
+ *
  *  Opened from no window: null -- the window layer of the
  *  shell, where every window lives (the legacy '#top-layer'
  *  when a page has one). It was the shell's popup layer: above
@@ -319,6 +330,10 @@ function window_layer_of(host)
     if($c && typeof $c.closest === "function") {
         let $win = $c.closest(".C_YUI_WINDOW");
         if($win && $win.parentNode) {
+            let $shell_place = yui_shell_window_layer(yui_shell_of(host)) || document.body;
+            if($win.parentNode === $shell_place) {
+                return null;
+            }
             return $win.parentNode;
         }
     }

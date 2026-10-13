@@ -1243,8 +1243,9 @@ function build_graph(gobj)
     graph.setTheme(priv.theme);
 
     /*  Tab goes from the graph to its own buttons: the main canvas in
-     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
-    keep_canvas_tab_order(gobj, graph);
+     *  the Tab order, named for what it draws, the other layers out
+     *  (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, graph, "treedb graph");
 
     /*  A card is an HTML node, and G6's HTML nodes do not pass the wheel
      *  on: over a card the graph neither scrolled nor zoomed. Only a wheel

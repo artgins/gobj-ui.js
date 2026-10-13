@@ -411,12 +411,12 @@ function apply_placement(gobj)
  *   and it covered a toast where they met.
  *
  *   The popup layer, not the window layer: the dock has to stay
- *   above EVERY window, and windows live in two layers -- the
- *   window layer (no `$parent`) and the popup layer, where the
- *   site map and the JSON windows of the treedb views put theirs.
- *   Above both; below the dialogs, the toasts and the loading
- *   cover. No shell (before the first, between a logout and the
- *   next login): the body.
+ *   above EVERY window, and the windows live in the window layer
+ *   -- since 7.26.35 the site map and the JSON windows of the
+ *   treedb views too, which put theirs in the popup layer until
+ *   then. The popup layer is above it; below the dialogs, the
+ *   toasts and the loading cover. No shell (before the first,
+ *   between a logout and the next login): the body.
  ************************************************************/
 function dock_place(gobj)
 {

@@ -463,17 +463,17 @@ function render_tabs(gobj, items)
         }
         /*  A tab with show_label:false is a bare icon: the label is
          *  its only name (same contract as item_li).  */
-        let label = it.name || "";
+        let name_key = it.name || it.aria_label || it.id || "";
         let a_attrs = {
             href: it.route ? "#" + it.route : "#",
             "data-item-id": it.id,
             "data-route":   it.route || "",
-            "aria-label":   label || it.id
+            "aria-label":   name_key
         };
-        if(label) {
-            a_attrs["data-i18n-aria-label"] = label;
+        if(name_key) {
+            a_attrs["data-i18n-aria-label"] = name_key;
         }
-        let tip = it.tooltip || it.aria_label || label;
+        let tip = it.tooltip || it.aria_label || name_key;
         if(tip) {
             a_attrs.title = tip;
             a_attrs["data-i18n-title"] = tip;
@@ -543,19 +543,22 @@ function render_breadcrumb(gobj, items)
         }
         /*  Named and titled like every other item of the nav: up to
          *  7.26.34 a crumb had no title, and no name when it had no
-         *  `name` (an icon crumb read as nothing).  */
+         *  `name` (an icon crumb read as nothing), and from 7.26.35 to
+         *  7.26.41 it was named by its raw id, with no key: the id is
+         *  its key, as in item_li.  */
+        let name_key = it.name || it.aria_label || it.id || "";
         let a_attrs = {
             class: "yui-nav-item yui-nav-crumb",
             href: it.route ? "#" + it.route : "#",
             "data-item-id": it.id,
             "data-route": it.route || "",
             "data-disabled": it.disabled ? "1" : "0",
-            "aria-label": it.name || it.id
+            "aria-label": name_key
         };
-        if(it.name) {
-            a_attrs["data-i18n-aria-label"] = it.name;
+        if(name_key) {
+            a_attrs["data-i18n-aria-label"] = name_key;
         }
-        let tip = it.tooltip || it.aria_label || it.name;
+        let tip = it.tooltip || it.aria_label || name_key;
         if(tip) {
             a_attrs.title = tip;
             a_attrs["data-i18n-title"] = tip;
@@ -690,10 +693,17 @@ function render_accordion(gobj, items)
         let head_badge = item_badge_node(gobj, it, false);
         if(!empty_string(head_text)) {
             head_attrs.i18n = head_text;
-            head_attrs.title = head_text;
-            head_attrs["data-i18n-title"] = head_text;
-            head_attrs["aria-label"] = head_text;
-            head_attrs["data-i18n-aria-label"] = head_text;
+        }
+        /*  Named as every item (item_li): its `name`, else its
+         *  `aria_label`, else its id, a KEY in every case. Up to 7.26.41
+         *  a head without a `name` was a button with no name at all.  */
+        let name_key = it.name || it.aria_label || it.id || "";
+        if(!empty_string(name_key)) {
+            let tip = it.tooltip || it.aria_label || name_key;
+            head_attrs.title = tip;
+            head_attrs["data-i18n-title"] = tip;
+            head_attrs["aria-label"] = name_key;
+            head_attrs["data-i18n-aria-label"] = name_key;
             /*  The count is part of its name: inside a <button> the
              *  badge is no node of its own for a reader (yui_badge.js)  */
             name_control_with_badge(head_attrs, head_badge);
@@ -791,28 +801,32 @@ function item_li(gobj, it, opts)
         }
     }
 
-    let aria_key = label || it.id;
+    /*  The name of an item: its `name`, else its `aria_label`, else its
+     *  id -- a KEY in every case, translated by the pass that translates
+     *  the labels and reached by a language switch. Up to 7.26.41 an
+     *  item without a `name` was named by its raw id, with no key and no
+     *  title, and the `aria_label` it declared went only to the tooltip.  */
+    let name_key = it.name || it.aria_label || it.id || "";
     let a_attrs = {
         class: a_class,
         href: it.route ? "#" + it.route : "#",
         "data-item-id": it.id,
         "data-route":   it.route || "",
         "data-disabled": it.disabled ? "1" : "0",
-        "aria-label":   aria_key
+        "aria-label":   name_key
     };
     /*  Mirror the aria-label key in `data-i18n-aria-label` so
-     *  refresh_language() can re-translate it on language switch.
-     *  Only when sourced from a real label (skip the bare-id
-     *  fallback — ids aren't translation keys). */
-    if(label) {
-        a_attrs["data-i18n-aria-label"] = label;
+     *  refresh_language() can re-translate it on language switch.  */
+    if(name_key) {
+        a_attrs["data-i18n-aria-label"] = name_key;
     }
     /*  Hover tooltip: prefer explicit `tooltip`, fall back to
-     *  `aria_label` (typically equivalent, e.g. "Search (Ctrl+F)").
-     *  Skip when both empty so we don't emit `title=""` noise.
+     *  `aria_label` (typically equivalent, e.g. "Search (Ctrl+F)"),
+     *  then the name. Skip when all are empty so we don't emit
+     *  `title=""` noise.
      *  Mirror the value in `data-i18n-title` so refresh_language()
      *  can re-translate the tooltip on language switch. */
-    let tip = it.tooltip || it.aria_label || label;
+    let tip = it.tooltip || it.aria_label || name_key;
     if(tip) {
         a_attrs.title = tip;
         a_attrs["data-i18n-title"] = tip;
@@ -864,17 +878,18 @@ function item_iconbar(gobj, it, opts)
         children.push(badge_el);
     }
 
+    let name_key = it.name || it.aria_label || it.id || "";
     let a_attrs = {
         class: "yui-nav-item yui-nav-stacked",
         href: it.route ? "#" + it.route : "#",
         "data-item-id": it.id,
         "data-route":   it.route || "",
-        "aria-label":   label || it.id
+        "aria-label":   name_key
     };
-    if(label) {
-        a_attrs["data-i18n-aria-label"] = label;
+    if(name_key) {
+        a_attrs["data-i18n-aria-label"] = name_key;
     }
-    let tip = it.tooltip || it.aria_label || label;
+    let tip = it.tooltip || it.aria_label || name_key;
     if(tip) {
         a_attrs.title = tip;
         a_attrs["data-i18n-title"] = tip;

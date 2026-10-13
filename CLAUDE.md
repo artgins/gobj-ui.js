@@ -40,8 +40,12 @@ validator reads), and so is a const table: `t(LABELS[x])` asks the locales for
 every value of `LABELS`; and so is (since `7.26.35`) an unmarked plain `let`
 whose every value is written as a string literal, a const bound to one, `null`
 or a branch of those, where `t()` / an `i18n` / a `data-i18n*` value reads it
-(it can only hold those literals; at a key position of a key function a `let`
-still fails the rule per call). A
+(it can only hold those literals, and EVERY one it is given in its scope is
+asked for -- flow-insensitively, so a sentinel that is no key fails the build:
+write it `null`, or give the key its own `const`; since `7.26.42` every write
+counts, a destructuring and a loop head that writes it too, and one the reader
+cannot read leaves the `let` not followed; at a key position of a key function
+a `let` still fails the rule per call). A
 translator is t / tr by name, `.t`, i18next's `t` under any import name, or a
 const / `.bind()` / destructuring (`const {t: tt} = i18next`) alias of one,
 called also as `t?.()` or `t.call()`; an array handed to it is a list of keys,
@@ -103,8 +107,8 @@ position of the enclosing function handed on; on a translated text there --
 the value of any translator: `t("k")`, `tr()`, an alias, or a string built
 from one, `t("k") + ":"`, `t("k").toUpperCase()` -- even marked (it is
 translated again and never changes language: hand the key, not t(key);
-`validate-locales` fails a marker over one anywhere a key is read, since
-`7.26.35`); and
+`validate-locales` fails one anywhere a key is read, marked or not, since
+`7.26.42` -- a marked one since `7.26.35`); and
 on a `data` marker over what the reader follows to keys (a literal, a const or
 branch that is one, a call -- of the module or imported -- that returns
 literals) or over what it would hide (a call whose returns mix keys and data:

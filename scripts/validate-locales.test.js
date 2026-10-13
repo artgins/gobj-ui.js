@@ -1071,4 +1071,271 @@ describe("validate-locales", () => {
             [`export const ALL_I18N_KEYS = ["monitor start", "monitor stop", "monitor confirm start", "monitor confirm stop"];`]));
         expect(one.out).not.toMatch(/main\.js/);
     });
+
+    test("REV-CLOUD V24.5.1: every write to an unmarked let counts -- the review's probe asks for no sentinel", () => {
+        let r = run({...BOTH({"save": "x"}), "src/main.js": [
+            `export function rows_a(el, rows) {`,
+            `    let key = "-";`,
+            `    for([key, label] of rows) {`,                  // the review's probe
+            `        el.setAttribute("data-i18n", key);`,
+            `    }`,
+            `}`,
+            `export function rows_b(rows) {`,
+            `    let key = "-";`,
+            `    for({key} of rows) {`,
+            `        t(key);`,
+            `    }`,
+            `}`,
+            `export function rows_c(obj) {`,
+            `    let key = "-";`,
+            `    for([key] in obj) {`,
+            `        t(key);`,
+            `    }`,
+            `}`,
+            `export function rows_d(rows) {`,
+            `    var key = "-";`,
+            `    for(var key of rows) {`,
+            `    }`,
+            `    return t(key);`,
+            `}`,
+            `export function rows_e(rows, row) {`,
+            `    let key = "-";`,
+            `    [key, x] = rows;`,
+            `    ({key} = row);`,
+            `    return t(key);`,
+            `}`,
+            `var mod_key = "-";`,
+            `if(kw.c) {`,
+            `    var mod_key = kw.data;`,                      // a module var given more in a block
+            `}`,
+            `t(mod_key);`,
+            `var head_key = "-";`,
+            `for(var head_key of kw.rows) {`,
+            `}`,
+            `t(head_key);`,
+            `export function flow(c) {`,
+            `    let k = null;`,                               // the sentinel that is never asked for
+            `    if(c) {`,
+            `        k = "save";`,
+            `    }`,
+            `    return k? t(k) : "";`,
+            `}`
+        ].join("\n")});
+        expect(r.out).not.toContain(`"-"`);
+        expect(r.out).toMatch(/OK \(2 locales x 1 keys, 1 used in the source\)/);
+        expect(r.status).toBe(0);
+        /*  ...and the rule stays flow-INSENSITIVE: a literal an `if` excludes is asked for  */
+        let flow = run({...BOTH({"save": "x"}), "src/main.js": [
+            `export function flow(c) {`,
+            `    let k = "-";`,
+            `    if(c) {`,
+            `        k = "save";`,
+            `    }`,
+            `    return (k !== "-")? t(k) : "";`,
+            `}`
+        ].join("\n")});
+        expect(flow.status).toBe(1);
+        expect(flow.out).toContain(`key used in the source but defined in NO locale: "-"`);
+    });
+
+    test("REV-CLOUD V24.5.2: a TRANSLATED text where a key is read fails, marked or not, with the file and the line", () => {
+        let r = run({...BOTH({"saved": "x", "fallback": "x"}), "src/main.js": [
+            `import {createElement2} from "@yuneta/gobj-js";`,
+            `x = {i18n: t("saved")};`,                                       // 2
+            `el.setAttribute("data-i18n-title", t("saved"));`,               // 3
+            `t(t("saved") + "!");`,                                          // 4
+            `el.dataset.i18nAriaLabel = tr("saved");`,                       // 5
+            `x["data-i18n"] = t("saved");`,                                  // 6
+            `t([t("saved"), "fallback"]);`,                                  // 7
+            `const LABEL = t("saved");`,                                     // 8
+            `el.setAttribute("data-i18n", LABEL);`,                          // 9: read here
+            `x = {i18n: /* i18n: data */ t("saved")};`,                      // 10: marked, as before
+            `x = {i18n: createElement2(["p", {}, t("saved")])};`,            // DOM: fine
+            `let held = t("saved");`,
+            `x = {i18n: held};`                                              // a let: the documented limit
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let lines = r.out.split("\n").filter((l) => /is a TRANSLATED text/.test(l))
+            .map((l) => Number(l.match(/main\.js:(\d+)/)[1]));
+        expect(lines).toEqual([2, 3, 4, 5, 6, 7, 8, 10]);
+        expect(r.out).toContain("src/main.js:2: `t(\"saved\")` is a TRANSLATED text given to a property that holds a " +
+            "key (i18n, code, data-i18n*): the translation is kept as its key and never changes language: hand the " +
+            "key, not t(key)");
+        expect(r.out).toContain("src/main.js:3: `t(\"saved\")` is a TRANSLATED text given to a data-i18n* attribute:");
+        expect(r.out).toContain("src/main.js:8: `t(\"saved\")` is a TRANSLATED text given to a data-i18n* attribute " +
+            "(read at line 9):");
+        expect(r.out).toContain("src/main.js:10: marked as data, but `t(\"saved\")` is a TRANSLATED text:");
+        expect(r.out).not.toMatch(/main\.js:(11|12|13):/);
+    });
+
+    test("REV-CLOUD V24.5 Info: findIndex, findLastIndex, .call() / .apply(), Array.fromAsync(); a bound t's arguments are no keys", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `const K = ["a findindex key"];`,
+            `K.findIndex(t);`,
+            `["a findlastindex key"].findLastIndex(t);`,
+            `Array.prototype.map.call(["a call key"], t);`,
+            `[].forEach.apply(["an apply key"], [t]);`,
+            `Array.fromAsync(["a from async key"], t);`,
+            `Array.prototype.forEach.call(["a callback's key"], (k) => t(k));`,
+            `const tk = t.bind(null, "a bound key");`,
+            `tk("not a key: an option");`,
+            `["not a key: an element"].map(tk);`,
+            `const show = yui_shell_show_info.bind(null, shell);`,
+            `show("a bound function key");`,
+            `let rows = kw.rows;`,
+            `Array.prototype.map.call(rows, t);`,                            // 15: fails
+            `show(kw.message);`                                              // 16: fails
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        for(let k of ["a findindex key", "a findlastindex key", "a call key", "an apply key", "a from async key",
+                      "a callback's key", "a bound function key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        expect(r.out).not.toMatch(/not a key/);
+        expect(r.out).not.toContain(`"a bound key"`);                       // the bound key: a documented limit
+        expect(r.out).toContain("src/main.js:15: .map.call(..., t) hands t() each element it walks as a key, and " +
+            "the reader cannot follow rows: walk a const array (or a published list), or mark the call");
+        expect(r.out).toContain("src/main.js:16: yui_shell_show_info() [1] is given kw.message, which the reader " +
+            "cannot follow");
+    });
+
+    test("a menu item with no `name` is named by its key: the `id` the library falls back to is asked for", () => {
+        let config = {
+            shell: {zones: {left: {host: "menu.primary"}, top: {host: "menu.crumbs"},
+                            bottom: {host: "menu.quiet"}}},
+            menu: {
+                primary: {
+                    render: {left: "vertical"},
+                    items: [
+                        {id: "a nameless item", route: "/a", icon: "yi-house"},      // name || aria_label || id
+                        {id: "an aria item", aria_label: "an aria key", route: "/b"},
+                        {id: "a named item", name: "a name key", route: "/c"},
+                        {type: "header", id: "a header id"},
+                        {type: "divider", id: "a divider id"},
+                        {id: "a section", route: "/s", submenu: {index: true, items: [
+                            {id: "a nameless sub", route: "/s/x"},
+                            {id: "an aria sub", aria_label: "an aria sub key", route: "/s/y"}
+                        ]}},
+                        {id: "an indexed aria item", aria_label: "an indexed aria key", route: "/t",
+                         submenu: {index: true, items: [{id: "a named sub", name: "a sub name key", route: "/t/x"}]}},
+                        {id: "a targeted section", aria_label: "a targeted aria key", route: "/u", target: {},
+                         submenu: {index: true, items: []}},
+                        {id: "a crumbs section", name: "a crumbs section key", route: "/v", submenu: {
+                            render: {"top-sub": "breadcrumb"},
+                            items: [{id: "a sub crumb", aria_label: "a sub crumb aria key", route: "/v/x"}]
+                        }},
+                        {id: "a dropdown entry", name: "a dropdown entry key", route: "/w", action: {   // the site map
+                            type: "dropdown", items: [                                                // draws its rows
+                                {id: "a nameless dropdown row"},
+                                {id: "an aria dropdown row", aria_label: "an aria dropdown row key"}
+                            ]}},
+                        {id: "both", name: "both key", route: "/z", submenu: {items: [{id: "z1", name: "z1 key"}]},
+                         action: {type: "dropdown", items: [{id: "a shadowed row"}]}}   // the map walks the submenu
+                    ]
+                },
+                crumbs: {
+                    render: {"*": {layout: "breadcrumb"}},
+                    items: [{id: "a crumb", aria_label: "a crumb aria key", route: "/k"}]      // text: name || id
+                },
+                quiet: {
+                    render: {bottom: {layout: "breadcrumb", show_label: false}},
+                    items: [{id: "a quiet crumb", aria_label: "a quiet aria key", route: "/q"}]
+                }
+            }
+        };
+        let r = run({...BOTH({}), "src/main.js": ``, "src/app_config.json": JSON.stringify(config)});
+        expect(r.status).toBe(1);
+        for(let k of ["a nameless item", "a section", "a nameless sub", "an indexed aria item", "a crumb", "a sub crumb",
+                      "a nameless dropdown row", "an aria key", "a name key", "an aria sub key", "a crumb aria key",
+                      "a quiet aria key", "an aria dropdown row key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        for(let k of ["an aria item", "a named item", "a header id", "a divider id", "an aria sub", "a named sub",
+                      "a targeted section", "a quiet crumb", "a crumbs section", "a dropdown entry",
+                      "an aria dropdown row", "a shadowed row"]) {
+            expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+    });
+
+    test("a toolbar item with neither `aria_label` nor `name` is named by its key: its `id` is asked for", () => {
+        let config = {
+            toolbar: {items: [
+                {id: "a nameless action", icon: "yi-gear", action: {type: "event", event: "EV_X"}},  // aria_label || name || id
+                {id: "an aria action", aria_label: "an action aria key", action: {type: "event", event: "EV_X"}},
+                {id: "a named action", name: "an action name key", action: {type: "event", event: "EV_X"}},
+                {id: "a nameless menu", icon: "yi-bars", action: {type: "dropdown", items: [
+                    {id: "a nameless entry", icon: "yi-flag", action: {type: "event", event: "EV_Y"}},
+                    {id: "a named entry", name: "an entry name key", action: {type: "event", event: "EV_Y"}},
+                    {id: "a divider entry", type: "divider"},
+                    {id: "an entry with no action"},                     // not drawn; the site map labels it
+                    {id: "a parent entry", name: "a parent entry key", action: {type: "dropdown", items: [
+                        {id: "a nested entry"}                           // the site map walks every level
+                    ]}}
+                ]}},
+                {id: "a brand", type: "brand", logo: "/l.svg", wordmark: "Brand"},
+                {id: "a brand menu", type: "brand", logo: "/l.svg", wordmark: "Brand",
+                 action: {type: "dropdown", items: [                                                 // its menu: the id
+                     {id: "a brand entry", action: {type: "event", event: "EV_Z"}},
+                     {id: "a brand entry with no action"}                // drawn by neither
+                 ]}},
+                {id: "an avatar", type: "avatar", action: {type: "dropdown", items: [                // "user menu"
+                    {id: "an avatar entry", action: {type: "event", event: "EV_LOGOUT"}},
+                    {id: "an avatar-typed entry", type: "avatar"}        // the site map: "user menu"
+                ]}},
+                {id: "a connection", type: "connection"}                                             // "backend connection"
+            ]}
+        };
+        let r = run({...BOTH({}), "src/main.js": ``, "src/app_config.json": JSON.stringify(config)});
+        expect(r.status).toBe(1);
+        for(let k of ["a nameless action", "a nameless menu", "a nameless entry", "an entry with no action",
+                      "a nested entry", "a brand menu", "a brand entry", "an avatar entry",
+                      "an action aria key", "an action name key", "an entry name key", "a parent entry key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        for(let k of ["an aria action", "a named action", "a named entry", "a divider entry", "a parent entry",
+                      "a brand", "Brand", "a brand entry with no action", "an avatar", "an avatar-typed entry",
+                      "a connection"]) {
+            expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+    });
+
+    test("a C_YUI_NODE node with no `label` is named by its key: its `id` is asked for", () => {
+        let node = (kw) => ({stage: "main", gclass: "C_YUI_NODE", kw: kw});
+        let config = {
+            menu: {primary: {items: [
+                {id: "tree", name: "tree", route: "/tree", target: node({
+                    node_id: "a nameless root", base_route: "/tree",       // drawn: the label of its navs
+                    children: [
+                        {id: "a labelled node", label: "a node label key", children: [
+                            {id: "a nameless leaf", content: {gclass: "C_DEMO"}},   // label || id
+                            {id: "a/refused id"},                                   // normalize_spec refuses it
+                            {id: "an empty label", label: ""}
+                        ]},
+                        {id: "a nameless branch", children: [
+                            {id: "a deep labelled leaf", label: "a deep label key", content: {gclass: "C_DEMO"}}
+                        ]}
+                    ]
+                })},
+                {id: "labelled", name: "labelled", route: "/l", target: node({
+                    node_id: "a labelled root", label: "a root label key", base_route: "/l",
+                    children: [{id: "a labelled child", label: "a child label key", content: {gclass: "C_DEMO"}}]
+                })}
+            ]}},
+            shell: {routes: {
+                "/e": {target: node({node_id: "an empty root", base_route: "/e"})},           // draws no label
+                "/p": {target: node({node_id: "a path root", base_route: "/p", nav_mode: "path"})}
+            }}
+        };
+        let r = run({...BOTH({}), "src/main.js": ``, "src/app_config.json": JSON.stringify(config)});
+        expect(r.status).toBe(1);
+        for(let k of ["a nameless root", "a nameless leaf", "an empty label", "a nameless branch", "a path root",
+                      "a node label key", "a deep label key", "a root label key", "a child label key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        for(let k of ["a labelled node", "a/refused id", "a deep labelled leaf", "a labelled root", "a labelled child",
+                      "an empty root"]) {
+            expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+    });
 });

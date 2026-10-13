@@ -88,8 +88,16 @@ function render_node(node)
         row.push(["span", {class: "icon ROUTEMAP_ICON"},
             [["i", {class: node.icon, "aria-hidden": "true"}]]]);
     }
-    row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label},
-        text_node(node.label)]);
+    /*  The name is a KEY -- an item's, as its control is named
+     *  (route_map_model.js) -- except a label the model marks as DATA:
+     *  the id of a menu, which declares no name. A node no item names
+     *  has no name of its own; its route is in its column.  */
+    if(node.label && node.data_label) {
+        row.push(["span", {class: "ROUTEMAP_NAME"}, text_node(node.label)]);
+    } else if(node.label) {
+        row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label},
+            text_node(node.label)]);
+    }
     /*  Documentation columns: route + implementing gclass + action event. */
     if(node.route) {
         row.push(["code", {class: "ROUTEMAP_ROUTE"}, text_node(node.route)]);
@@ -131,9 +139,13 @@ function render_node(node)
         let a_attrs = {class: "ROUTEMAP_LINK ROUTEMAP_ROW" + row_class,
                        href: "#" + node.route,
                        title: node.route};
-        if(node.label) {
+        if(node.label && !node.data_label) {
             a_attrs["aria-label"] = node.label;
             a_attrs["data-i18n-aria-label"] = node.label;
+        } else {
+            /*  Data, as it is: a menu's id, or the route of a row that no
+             *  item names -- no key, so nothing to re-translate.  */
+            a_attrs["aria-label"] = node.label || node.route;
         }
         if(node.current) {
             a_attrs["aria-current"] = "page";

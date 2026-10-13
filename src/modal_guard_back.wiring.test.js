@@ -11,6 +11,12 @@
  *      promise, and the modal takes its entry back once the question
  *      is over.
  *
+ *      And what the promise SETTLES with is the answer (REV-CLOUD V24.5,
+ *      Info): `true` closes the modal; anything else -- what a question
+ *      that closed the modal itself on "yes" settles with, `false`, a
+ *      rejection -- is the veto it was. Up to 7.26.41 any promise was a
+ *      veto, so an `async () => true` left a modal nobody could close.
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -27,6 +33,7 @@ const {
 const {register_c_yui_shell} = await import("./c_yui_shell.js");
 const {
     yui_shell_show_modal,
+    yui_shell_confirm_yesno,
     yui_shell_confirm_yesnocancel,
 } = await import("./shell_modals.js");
 
@@ -187,6 +194,134 @@ describe("a modal whose guard asks before it closes", () => {
         expect(sheets()).toBe(0);
         expect(questions()).toBe(0);
         expect(state.asked).toBe(0);
+        expect(shell.priv.overlay_stack).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("what the guard's promise settles with is the answer", () => {
+    /*  A shell, and a sheet over it guarded by `guard`; `closes` counts
+     *  its on_close.  */
+    function open_sheet(guard)
+    {
+        seq++;
+        const app = gobj_create(`papp${seq}`, "C_TEST_GUARD_HOST", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create(`pshell${seq}`, "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        logged.length = 0;
+
+        const counts = {closes: 0, asked: 0};
+        const handle = yui_shell_show_modal(shell, "the sheet", {
+            dialog:        true,
+            logical_class: "TEST_SHEET",
+            title:         "settings",
+            before_close:  function() {
+                counts.asked++;
+                return guard(() => handle);
+            },
+            on_close:      function() {
+                counts.closes++;
+            }
+        });
+        return {shell, handle, counts};
+    }
+
+    function warnings()
+    {
+        return logged.filter((l) => l.level === "warning").map((l) => l.msg);
+    }
+
+    test("an async guard that settles with true closes it: by Back, and by its back arrow", async () => {
+        const back = open_sheet(async () => true);
+        press_back(back.shell);
+        expect(sheets()).toBe(1);               // the answer is not in yet
+        await settle();
+        expect(sheets()).toBe(0);
+        expect(back.counts.closes).toBe(1);
+        expect(back.shell.priv.overlay_stack).toEqual([]);
+
+        const arrow = open_sheet(async () => true);
+        document.querySelector(".TEST_SHEET .yui-dialog-back").click();
+        await settle();
+        expect(sheets()).toBe(0);
+        expect(arrow.counts.closes).toBe(1);
+        expect(arrow.shell.priv.overlay_stack).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("anything else it settles with is a veto, and Back gets its entry back", async () => {
+        for(const answer of [false, undefined, "yes", 1]) {
+            const {shell, handle, counts} = open_sheet(async () => answer);
+            press_back(shell);
+            await settle();
+            expect(sheets()).toBe(1);
+            expect(counts.closes).toBe(0);
+            expect(shell.priv.overlay_stack.length).toBe(1);
+
+            /*  And the next Back asks again: the entry is there.  */
+            press_back(shell);
+            expect(counts.asked).toBe(2);
+            await settle();
+            handle.close();
+            expect(sheets()).toBe(0);
+        }
+        expect(errors()).toEqual([]);
+    });
+
+    test("a promise that rejects is a veto, said, and Back gets its entry back", async () => {
+        const {shell, handle, counts} = open_sheet(() => Promise.reject(new Error("no answer")));
+        press_back(shell);
+        await settle();
+        expect(sheets()).toBe(1);
+        expect(counts.closes).toBe(0);
+        expect(shell.priv.overlay_stack.length).toBe(1);
+        expect(warnings().some((m) => m.includes("before_close") && m.includes("no answer"))).toBe(true);
+
+        handle.close();
+        expect(sheets()).toBe(0);
+    });
+
+    /*  The idiom the README shows: hand back the yes/no question as it
+     *  is -- it settles with true on "yes".  */
+    test("an async guard that answers yui_shell_confirm_yesno(): \"yes\" closes, \"no\" keeps it up", async () => {
+        for(const [button, stays] of [["no", 1], ["yes", 0]]) {
+            let shell_of = null;
+            const {shell, handle, counts} = open_sheet(async () => {
+                return yui_shell_confirm_yesno(shell_of, "all changes will be lost", {
+                    yes_label: "yes", no_label: "no"
+                });
+            });
+            shell_of = shell;
+            press_back(shell);
+            await settle();
+            expect(questions()).toBe(1);
+            document.querySelector(`.CONFIRM [data-modal-button-value="${button}"]`).click();
+            await settle();
+            await settle();
+            expect(questions()).toBe(0);
+            expect(sheets()).toBe(stays);
+            expect(counts.closes).toBe(stays ? 0 : 1);
+            if(stays) {
+                expect(shell.priv.overlay_stack.length).toBe(1);
+                handle.close();
+            }
+        }
+        expect(errors()).toEqual([]);
+    });
+
+    test("a guard that closed the modal itself and then settles with true: closed once", async () => {
+        const {shell, counts} = open_sheet((handle_of) => {
+            return Promise.resolve().then(() => {
+                handle_of().close();
+                return true;
+            });
+        });
+        press_back(shell);
+        await settle();
+        expect(sheets()).toBe(0);
+        expect(counts.closes).toBe(1);
         expect(shell.priv.overlay_stack).toEqual([]);
         expect(errors()).toEqual([]);
     });

@@ -15,6 +15,13 @@
  *      developer window of gui_agent, gui_treedb and wattyzer vanished
  *      after a logout and a login. The dock, the same.
  *
+ *      The gclass viewer opened from such a window follows it
+ *      (REV-CLOUD V24.5.6): up to 7.26.41 it was told the element its
+ *      opener hung from as its `$parent` -- the body, between a logout and
+ *      the next login -- and stayed there after the login, above the new
+ *      shell's dialogs. And with two shells alive, destroying the last one
+ *      gives the windows to the other (it gave them to the body).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -30,6 +37,18 @@ if(typeof globalThis.matchMedia === "undefined") {
     globalThis.matchMedia = () => ({matches: false, addEventListener() {}, removeEventListener() {}});
 }
 
+/*  The gclass viewer watches its container; nothing resizes here.  */
+if(typeof globalThis.ResizeObserver === "undefined") {
+    globalThis.ResizeObserver = class {
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
+    };
+}
+
 const {
     SDATA, SDATA_END, data_type_t, gclass_create, gobj_write_attr,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
@@ -40,6 +59,7 @@ const {register_c_yui_shell, yui_shell_window_layer, yui_shell_language_changed}
 const {register_c_yui_nav} = await import("./c_yui_nav.js");
 const {register_c_yui_window} = await import("./c_yui_window.js");
 const {register_c_yui_window_manager} = await import("./c_yui_window_manager.js");
+const {open_gclass_view, close_gclass_view} = await import("./yui_gclass_view.js");
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 
@@ -407,5 +427,99 @@ describe("the title of a dock chip changes language (REV-CLOUD V23, QA of estado
         close(w);
         gobj_destroy(dock);
         logout(shell2);
+    });
+});
+
+describe("REV-CLOUD V24.5.6: a gclass viewer opened from a window goes where its opener goes", () => {
+    /*  A view inside a window parented to the app: the frontend view in
+     *  the developer window, whose `gclass` button opens the viewer.  */
+    function window_with_a_view(name, kw)
+    {
+        const view = gobj_create(`${name}_view`, "C_TEST_LAYER_VIEW", {}, yuno);
+        const win = open_window(name, Object.assign({body: view}, kw || {}));
+        return {view, win};
+    }
+
+    test("opened between a logout and the next login: the next shell takes it in with its opener", () => {
+        const shell1 = build_shell();
+        const {view, win} = window_with_a_view(`gv_dev_${++seq}`);
+        logout(shell1);
+        expect(lives_in(win, document.body)).toBe(true);
+
+        const handle = open_gclass_view(view, "C_TEST_LAYER_VIEW", {});
+        expect(!!(handle && handle.win)).toBe(true);
+        expect(lives_in(handle.win, document.body)).toBe(true);
+
+        /*  Login: both in the new shell's window layer, under its
+         *  dialogs. Up to 7.26.41 the viewer stayed in the body.  */
+        const shell2 = build_shell();
+        expect(lives_in(win, yui_shell_window_layer(shell2))).toBe(true);
+        expect(lives_in(handle.win, yui_shell_window_layer(shell2))).toBe(true);
+
+        close_gclass_view(handle);
+        close(win);
+        gobj_destroy(view);
+        logout(shell2);
+        expect(errors()).toEqual([]);
+    });
+
+    test("opened in a shell: beside its opener, and with it through a logout and a login", () => {
+        const shell1 = build_shell();
+        const {view, win} = window_with_a_view(`gv_in_${++seq}`);
+        const handle = open_gclass_view(view, "C_TEST_LAYER_VIEW", {});
+        expect(lives_in(handle.win, yui_shell_window_layer(shell1))).toBe(true);
+
+        logout(shell1);
+        expect(lives_in(win, document.body)).toBe(true);
+        expect(lives_in(handle.win, document.body)).toBe(true);
+
+        const shell2 = build_shell();
+        expect(lives_in(handle.win, yui_shell_window_layer(shell2))).toBe(true);
+
+        close_gclass_view(handle);
+        close(win);
+        gobj_destroy(view);
+        logout(shell2);
+        expect(errors()).toEqual([]);
+    });
+
+    test("opened from a window its host placed in an element of the page: beside it, there for good", () => {
+        const shell = build_shell();
+        const $mine = document.createElement("div");
+        document.body.appendChild($mine);
+        const {view, win} = window_with_a_view(`gv_placed_${++seq}`, {$parent: $mine});
+
+        /*  Any other place is another stacking context: the viewer could
+         *  open BEHIND the window it was opened from.  */
+        const handle = open_gclass_view(view, "C_TEST_LAYER_VIEW", {});
+        expect(lives_in(handle.win, $mine)).toBe(true);
+        logout(shell);
+        const shell2 = build_shell();
+        expect(lives_in(handle.win, $mine)).toBe(true);
+
+        close_gclass_view(handle);
+        close(win);
+        gobj_destroy(view);
+        $mine.remove();
+        logout(shell2);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("two shells alive: destroying the last one gives the windows to the other", () => {
+    test("the windows go to the shell that remains, not to the body", () => {
+        const first = build_shell();
+        const second = build_shell();
+        const w = open_window(`two_shells_${++seq}`);
+        expect(lives_in(w, yui_shell_window_layer(second))).toBe(true);
+
+        logout(second);
+        expect(lives_in(w, yui_shell_window_layer(first))).toBe(true);
+
+        logout(first);
+        expect(lives_in(w, document.body)).toBe(true);
+
+        close(w);
+        expect(errors()).toEqual([]);
     });
 });

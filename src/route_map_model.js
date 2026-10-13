@@ -19,12 +19,49 @@
  ***********************************************************************/
 
 /************************************************************
+ *  The label of a row is the name of its CONTROL: one rule names
+ *  an item everywhere.
+ *
+ *    - A menu entry, as the nav names it (c_yui_nav.js item_li):
+ *      its `name`, else its `aria_label`, else its id.
+ *    - A toolbar item and a row of its dropdown, as the toolbar
+ *      names them (c_yui_shell.js build_toolbar_*): its
+ *      `aria_label` first -- the visible `name` of a toolbar
+ *      button is often a symbol ("ES/EN") --, then its `name`,
+ *      then, for an avatar or a connection dot, the library's own
+ *      key, else its id.
+ *
+ *  A route is no key: it has its own column, and an item with
+ *  none of these has no label. Up to 7.26.41 a row was labelled
+ *  `name || wordmark || id || route` -- an entry that declares
+ *  only an `aria_label` had its id here, the language button read
+ *  "ES/EN" where its control says "toggle language", and a route
+ *  was asked of the locales as a key.
+ ************************************************************/
+function menu_item_label(it)
+{
+    return it.name || it.aria_label || it.id || "";
+}
+
+function toolbar_item_label(it)
+{
+    let fallback = it.id || "";
+    if(it.type === "avatar") {
+        fallback = "user menu";
+    } else if(it.type === "connection") {
+        fallback = "backend connection";
+    }
+    return it.aria_label || it.name || fallback;
+}
+
+/************************************************************
  *  One node of the nav map from a declared config item, in
  *  DECLARATION ORDER (never sorted). Recurses into static submenus
  *  and toolbar dropdowns, and merges the LIVE dynamic submenu tabs
  *  (added at runtime via yui_shell_set_submenu) by parent id.
+ *  `label_of` names it: menu_item_label() or toolbar_item_label().
  ************************************************************/
-function nav_node_from_item(it, index)
+function nav_node_from_item(it, index, label_of)
 {
     if(!it || it.type === "divider" || it.type === "header") {
         return null;
@@ -45,7 +82,7 @@ function nav_node_from_item(it, index)
     }
     let node = {
         id:       it.id || "",
-        label:    it.name || it.wordmark || it.id || route || "",
+        label:    label_of(it),
         icon:     it.icon || "",
         route:    route,
         event:    event,
@@ -62,7 +99,7 @@ function nav_node_from_item(it, index)
             action.items : null);
     if(sub_items) {
         for(let s of sub_items) {
-            let n = nav_node_from_item(s, index);
+            let n = nav_node_from_item(s, index, label_of);
             if(n) {
                 node.children.push(n);
             }
@@ -79,7 +116,8 @@ function nav_node_from_item(it, index)
                     !node.children.some((c) => c.route === r)) {
                 node.children.push({
                     id:       (e.item && e.item.id) || "",
-                    label:    (e.item && e.item.name) || r,
+                    /*  A runtime tab is an entry of a nav  */
+                    label:    e.item ? menu_item_label(e.item) : "",
                     icon:     (e.item && e.item.icon) || "",
                     route:    r,
                     event:    "",
@@ -231,7 +269,10 @@ function mark_current(groups, current_route)
  *
  *  - `nav` walks EVERY declared menu in declaration order: the
  *    `primary` menu contributes its items flat (the common case);
- *    any other menu contributes a group node labelled by its key.
+ *    any other menu contributes a group node labelled by its key,
+ *    as data (`data_label: true`).
+ *  - a node is labelled as its control is named (menu_item_label(),
+ *    toolbar_item_label()); a node no item names has label "".
  *  - `other` lists the routes declared only in the route table
  *    (config.shell.routes) that no rendered node covers — root "/",
  *    URL-only action routes, toolbar-less forms.  Brand-covered
@@ -260,13 +301,16 @@ function build_nav_map(input)
     for(let it of tb) {
         if(it && it.type === "brand") {
             let a = it.action || {};
+            /*  The ROOT of the map is the app, and the wordmark is its
+             *  name -- not the brand BUTTON's `aria_label`, which says
+             *  what pressing it does ("go to home").  */
             brand = {
                 label: it.wordmark || it.alt || it.id || "",
                 route: it.route || (a.type === "navigate" ? a.route : "") || ""
             };
             continue;
         }
-        let n = nav_node_from_item(it, index);
+        let n = nav_node_from_item(it, index, toolbar_item_label);
         if(n) {
             toolbar.push(n);
         }
@@ -284,7 +328,7 @@ function build_nav_map(input)
         }
         let nodes = [];
         for(let it of m.items) {
-            let n = nav_node_from_item(it, index);
+            let n = nav_node_from_item(it, index, menu_item_label);
             if(n) {
                 nodes.push(n);
             }
@@ -292,9 +336,12 @@ function build_nav_map(input)
         if(menu_id === "primary") {
             nav = nav.concat(nodes);
         } else if(nodes.length) {
+            /*  A menu declares no name: its id is what the map can show,
+             *  and an id is DATA (`data_label`), drawn as it is and never
+             *  asked of the locales -- as a route is not.  */
             nav.push({
-                id: menu_id, label: menu_id, icon: "", route: "", event: "",
-                gclass: "", kind: "group", children: nodes
+                id: menu_id, label: menu_id, data_label: true, icon: "", route: "",
+                event: "", gclass: "", kind: "group", children: nodes
             });
         }
     }
@@ -336,7 +383,9 @@ function build_nav_map(input)
         let tgt = (e && e.target) || null;
         other.push({
             id:       (e && e.item && e.item.id) || "",
-            label:    (e && e.item && (e.item.name || e.item.id)) || r,
+            /*  A route is no key: one no item names has no label, and
+             *  its route is in its own column.  */
+            label:    (e && e.item) ? menu_item_label(e.item) : "",
             icon:     (e && e.item && e.item.icon) || "",
             route:    r,
             event:    (tgt && tgt.kind === "action" && tgt.event) || "",

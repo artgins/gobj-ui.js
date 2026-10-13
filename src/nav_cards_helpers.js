@@ -48,21 +48,26 @@ export function card_descriptor(it, show_label, badge_of)
         children.push(badge);
     }
 
+    /*  The name of the card: its `name`, else its `aria_label`, else its
+     *  id -- a KEY in every case, as in the other layouts of the nav. Up
+     *  to 7.26.41 a card without a `name` was named by its raw id, with
+     *  no key and no title.  */
+    let name_key = label || it.aria_label || it.id || "";
     let a_attrs = {
         class: "yui-nav-item yui-nav-card",
         href: it.route ? "#" + it.route : "#",
         "data-item-id": it.id,
         "data-route": it.route || "",
         "data-disabled": it.disabled ? "1" : "0",
-        "aria-label": label || it.id
+        "aria-label": name_key
     };
-    if(label) {
-        a_attrs["data-i18n-aria-label"] = label;
+    if(name_key) {
+        a_attrs["data-i18n-aria-label"] = name_key;
     }
     /*  Every control carries a title: the tooltip when one is declared,
      *  else its name -- as the other layouts of the nav do. Up to
      *  7.26.34 a card without a `tooltip` had none.  */
-    let tip = it.tooltip || it.aria_label || label;
+    let tip = it.tooltip || it.aria_label || name_key;
     if(tip) {
         a_attrs.title = tip;
         a_attrs["data-i18n-title"] = tip;

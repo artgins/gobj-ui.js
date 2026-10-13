@@ -58,6 +58,22 @@
     cursor: pointer;
 }
 
+/*  The opener of a topic row: a real button -- a key presses it, a
+ *  reader announces it -- that looks like the name it is. Not
+ *  `font: inherit`: it would undo the weight of the name.  */
+.C_YUI_SCHEMA_EDITOR .SCHEMA_TOPIC_OPEN {
+    background: none;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    text-align: inherit;
+    cursor: pointer;
+}
+
 .C_YUI_SCHEMA_EDITOR .SCHEMA_COL_FLAGS .tags {
     margin-bottom: 0;
 }

@@ -277,3 +277,93 @@ test("'you are here' lands on the owner, never on a reference", () => {
     expect(map.nav.find((n) => n.route === "/cards").current).toBe(true);
     expect(map.toolbar[0].children[0].current).toBeUndefined();
 });
+
+
+/***************************************************************
+ *      one rule names an item everywhere (REV-CLOUD V24.5.4)
+ *
+ *  A row of the map is labelled as its CONTROL is named: a menu
+ *  entry as the nav names it (c_yui_nav.js: `name`, else
+ *  `aria_label`, else id), a toolbar item and a row of its menu as
+ *  the toolbar does (c_yui_shell.js: `aria_label` first). Up to
+ *  7.26.41 it was `name || wordmark || id || route`: an entry that
+ *  declares only an `aria_label` had its id in the map, the lang
+ *  button read "ES/EN" where its control says "toggle language",
+ *  and a route -- which is no key -- was a label asked of the
+ *  locales.
+ ***************************************************************/
+describe("a row of the map is labelled as its control is named", () => {
+    function map_of(config, index)
+    {
+        return build_nav_map({config: config, item_index: index || {}});
+    }
+    const by_id = (nodes, id) => nodes.find((n) => n.id === id);
+
+    test("a menu entry: its `name`, else its `aria_label`, else its id -- never its route", () => {
+        const m = map_of({menu: {primary: {items: [
+            {id: "home", name: "home", aria_label: "go home", route: "/home"},
+            {id: "x9", aria_label: "active alarms", route: "/x9"},
+            {id: "events", route: "/events"},
+            {route: "/anonymous"},
+        ]}}});
+        expect(m.nav.map((n) => n.label)).toEqual(["home", "active alarms", "events", ""]);
+        expect(m.nav[3].route).toBe("/anonymous");     // the route has its own column
+    });
+
+    test("a submenu entry and a runtime tab: the same rule", () => {
+        const parent = {id: "devices", name: "devices", route: "/devices", submenu: {items: [
+            {id: "list", aria_label: "device list", route: "/devices/list"}
+        ]}};
+        const m = map_of({menu: {primary: {items: [parent]}}}, {
+            "/devices/tab1": {item: {id: "tab1", aria_label: "first device"},
+                              parent_item: parent, target: {gclass: "C_DEV"}},
+            "/devices/tab2": {item: {id: "tab2"}, parent_item: parent, target: {gclass: "C_DEV"}}
+        });
+        expect(m.nav[0].children.map((n) => n.label))
+            .toEqual(["device list", "first device", "tab2"]);
+    });
+
+    test("a toolbar item and a row of its menu: as the toolbar names them, `aria_label` first", () => {
+        const m = map_of({toolbar: {items: [
+            {id: "lang", name: "ES/EN", aria_label: "toggle language",
+                action: {type: "event", event: "EV_LANG"}},
+            {id: "help", icon: "yi-circle-question", action: {type: "event", event: "EV_HELP"}},
+            {id: "user", type: "avatar", action: {type: "dropdown", items: [
+                {id: "logout", action: {type: "event", event: "EV_LOGOUT"}},
+                {id: "prefs", name: "preferences", action: {type: "event", event: "EV_PREFS"}}
+            ]}},
+            {id: "conn", type: "connection"}
+        ]}});
+        expect(m.toolbar.map((n) => n.label))
+            .toEqual(["toggle language", "help", "user menu", "backend connection"]);
+        expect(by_id(m.toolbar, "user").children.map((n) => n.label)).toEqual(["logout", "preferences"]);
+    });
+
+    test("a route of the route table no item points at: no label, its route in its column", () => {
+        const m = map_of({menu: {primary: {items: []}}}, {
+            "/hidden": {item: null, target: {gclass: "C_HIDDEN"}},
+            "/kept":   {item: {id: "kept", aria_label: "kept route"}, target: {gclass: "C_KEPT"}}
+        });
+        expect(m.other.map((n) => [n.route, n.label]))
+            .toEqual([["/hidden", ""], ["/kept", "kept route"]]);
+    });
+
+    test("the brand, the ROOT of the map, keeps its wordmark: it names the app", () => {
+        const m = map_of({toolbar: {items: [
+            {type: "brand", id: "brand", wordmark: "demo", aria_label: "go to home",
+                action: {type: "navigate", route: "/"}}
+        ]}});
+        expect(m.brand.label).toBe("demo");
+    });
+
+    test("another menu is a group labelled by its id, as DATA: a menu declares no name", () => {
+        const m = map_of({menu: {
+            primary: {items: [{id: "a", name: "a", route: "/a"}]},
+            quick: {items: [{id: "b", name: "b", route: "/b"}]}
+        }});
+        const quick = by_id(m.nav, "quick");
+        expect(quick.kind).toBe("group");
+        expect(quick.label).toBe("quick");
+        expect(quick.data_label).toBe(true);
+    });
+});

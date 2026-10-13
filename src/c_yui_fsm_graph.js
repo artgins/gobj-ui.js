@@ -430,8 +430,9 @@ function build_graph(gobj)
     }
 
     /*  Tab goes from the graph to its own buttons: the main canvas in
-     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
-    keep_canvas_tab_order(gobj, priv.graph);
+     *  the Tab order, named for what it draws, the other layers out
+     *  (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, priv.graph, "fsm graph");
 
     priv.graph.on('aftertransform', () => {
         yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);

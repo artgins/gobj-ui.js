@@ -5,6 +5,164 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.42
+
+- **fix(`validate-locales`): an unmarked `let` is followed only when EVERY
+  write to it is read, and 7.26.35's "exact, so it fails nothing new" is
+  withdrawn.** Some writes did not count as writes: a destructuring loop head
+  (`for([k, label] of rows)`, `for({k} of rows)`, `for([k] in obj)`, `for
+  await`), a `var` declared again in a `for...of` / `for...in` head, and a
+  module `var` declared again outside its top level (a block, a `for(;;)`
+  init, a `switch` case, an array pattern). So `let key = "-"; for([key,
+  label] of rows) el.setAttribute("data-i18n", key)` asked for the key `"-"`
+  and failed the build, which 7.26.32 passed. Every write counts now, a direct
+  `eval()` and a member written by a loop head or a destructuring too; a write
+  the reader does not read leaves the `let` not followed, as a dynamic value
+  always did. A marked `let` written that way no longer gets a false *"make it
+  a const"*, and a `var` of a class `static {}` block is that block's own
+  (before, it was not seen, and an outer `let` of the same name was read in
+  its place). The rule stays flow-INSENSITIVE, by design: every literal the
+  `let` is given in its scope is asked for, also one an `if` keeps from the
+  read, so a sentinel that is no key fails -- the README says so, with the way
+  out: write the sentinel `null`, or give the key its own `const`. Found by the
+  twenty-fourth review (V24.5.1). Tests: `REV-CLOUD V24.5.1: every write to an
+  unmarked let counts` and its unit twins (red on 7.26.41).
+- **fix(`validate-locales`): a TRANSLATED text where a key is read fails,
+  marked or not.** A text given to `t()` (`t(t("k") + "!")`), to an `i18n` /
+  `code` / `data-i18n*` value (`{i18n: t("k")}`, `el.dataset.i18nTitle =
+  t("k")`) or to a `data-i18n*` attribute, and one held in a `const`: up to
+  7.26.41 only a marked one failed there. No consumer had one, and no module
+  of the library has (a test scans the 99 and proves itself on a mutated
+  one). `scan_ast()` reports them in a new `translated_errors` (V24.5.2).
+- **fix(`validate-locales`): the callbacks it reads, exactly, and `.bind()`.**
+  Read like `keys.map(t)` now: `.findIndex()`, `.findLastIndex()`, the
+  `.call()` / `.apply()` of an iteration method (`Array.prototype.map.call(keys,
+  t)`), `keys["map"](t)` and `Array.fromAsync(keys, t)`; in those forms, and in
+  `Array.from(keys, cb)` (never read before), the first parameter of a function
+  callback is an element. The README lists the forms; nothing else is read
+  (`reduce`, `sort`, an alias of a method, `Reflect.apply()`). A `.bind()` with
+  arguments is counted: what a call of `t.bind(null, k)` is handed is
+  i18next's options and is no longer asked for as a key, and a key function
+  bound with its first arguments (`yui_shell_show_info.bind(null, shell)`) is
+  read at the right positions -- before, its key was not asked for, and a data
+  argument passed the per-call rule unmarked. The consumers ask for the same
+  keys as with 7.26.41, in the same time.
+- **fix(`validate-locales`): the `id` a nameless menu or toolbar item is named
+  by is a key it asks for.** Since this version `C_YUI_NAV` names a menu item
+  with no `name` by its `aria_label`, else its `id`, and the shell names a
+  toolbar item, the menu of its dropdown and an entry of that menu `aria_label
+  || name || id` (below): each is a key, and the validator read only `name`,
+  `aria_label` and `tooltip`. `keys_from_shell_config()` asks for the `id` where
+  the library uses it: a menu item with neither a `name` nor an `aria_label`, in
+  every layout; one with no `name` in a breadcrumb that shows its labels, or one
+  that opens a section index (both are labelled `name || id`); and a toolbar
+  action item, the menu of a dropdown (not an avatar's, which is "user menu")
+  or a drawn entry of that menu, with neither. No consumer has such an item:
+  the nine trees ask for the same keys. Tests: `a menu item with no name is
+  named by its key…`, `a toolbar item with neither aria_label nor name…`.
+- **fix(`C_YUI_SHELL`): every change of a badge is said, and said as text.** A
+  reader hears the shell's live region as it stands when the turn of the loop
+  is over, and each change REPLACED its text: of two changes in one action
+  only the second was ever said -- the test-app's *alerts* button moves the
+  toolbar's count and the Modals entry's in one action, so the control pressed
+  was never announced. Every change of a turn is said now, in ONE message, a
+  line of the region each (`.SHELL_BADGE_NEWS`): a badge that moves twice in
+  the turn says its last count, one whose count goes away in the turn it came
+  is not said, two controls of one name with one count say it once. The turn
+  is closed by `EV_CLOSE_BADGE_NEWS`, an INPUT event the shell posts itself on
+  the first change (`gobj_post_event()`: a deferral through the machine, not a
+  time); no output event is added, so no host declares anything. And the
+  message is TEXT: i18next escapes an interpolated value for HTML by default,
+  so *"Événements d'alarme"* was read *"d&#39;alarme"* (V24.5.3). Test:
+  `src/nav_item_badge.wiring.test.js` (red before).
+- **fix(`g6_canvas_tab_order`): the canvas of a graph is named.** Since 7.26.28
+  the main canvas of every G6 graph is in the Tab order, and a reader landing
+  on it heard nothing. It carries a `title` and an `aria-label` through `t()`
+  with their keys, and `role="region"` (as maplibre names its canvas: ARIA
+  forbids a name on an element with no role), and it changes language with the
+  page. Each view says which graph it is: `json graph`, `gobj tree graph`,
+  `treedb graph`, `fsm graph`, `schema graph`; `keep_canvas_tab_order(gobj,
+  graph, name_key)` takes the key. **New consumer keys: `json graph`, `gobj
+  tree graph`, `treedb graph`, `fsm graph`** (an app that mounts a graph fails
+  its prebuild without them) (V24.5.4). Test:
+  `src/g6_canvas_tab_order.wiring.test.js` (red before).
+- **fix(`C_YUI_NAV`): an item without a `name` is named by a key.** Its raw id
+  was its `aria-label`, with no key and no title; an accordion head without one
+  was a button with no name at all; and a declared `aria_label` went only to the
+  tooltip. The name is now its `name`, else its `aria_label`, else its id, a KEY
+  in every layout, with a title (V24.5.4). Test:
+  `src/named_controls.wiring.test.js`.
+- **fix(`C_YUI_SCHEMA_EDITOR`): what opens a treedb or a topic is a named
+  control, and the topics table is a table.** A card had no `title` nor
+  `aria-label`; it has both now (the orphans card by its key, which it used to
+  be handed translated, for good), and its counts are its description. A topic
+  row was a `<tr role=button>` with no name, which a reader hears as a button
+  with no cells: the row is a row again, and the topic's name in it is a real
+  `<button>`, while the pointer still opens the topic from anywhere in the row.
+  Two topics of one name are told apart by the id that describes each opener.
+  The row's own keydown went too: it also took an Enter pressed on the row's
+  edit or delete button, and opened the topic instead (V24.5.4). Test:
+  `src/schema_editor_openers.wiring.test.js` (red before).
+- **fix(`yui_gclass_view`): a gclass viewer goes where the window it was opened
+  from goes.** It was given the element its opener hung from as a `$parent`
+  (the body, between a logout and the next login), and a named parent is the
+  host's choice, which no shell moves: after the login it stayed in the body,
+  above the new shell's dialogs, while its opener moved into the shell. Opened
+  from a window in the place the shell gives every window, it takes that place
+  with no `$parent` now, and follows the shell with it (V24.5.6). Test:
+  `src/window_layer.wiring.test.js` (red before).
+- **fix(`C_YUI_SHELL`): with two shells alive, destroying the last one gives its
+  windows to the other.** `yui_shell_of()` fell back to the last shell CREATED,
+  and that fallback went empty when it was destroyed: its windows and the dock
+  went to the body, above the remaining shell's dialogs. It falls back to the
+  last shell still alive now. Test: `src/window_layer.wiring.test.js` (red
+  before).
+- **fix(`yui_shell_show_modal`): what a guard's promise settles with is the
+  answer.** Since 7.26.38 any promise from `before_close` was a veto, so an
+  `async () => true` left a modal nobody could close. `true` closes the modal
+  now, as a `true` answered at once does. Anything else is the veto it was:
+  `undefined` (what the library's guard and estadodelaire's settle with: their
+  "yes" closes the modal itself, through an event), `false`, or a rejection
+  (now logged). A Back that asked gets its entry back when the promise settles.
+  Test: `src/modal_guard_back.wiring.test.js` (red before).
+- **fix(`C_YUI_SHELL`): a toolbar item, a row of its menu and the menu itself
+  are named by a key, with a title.** The rule is `aria_label`, else `name`,
+  else the id (the toolbar keeps `aria_label` first: its `name` is often a
+  symbol, `ES/EN`); the avatar and the connection dot fall back to the
+  library's `user menu` / `backend connection` from the start. Up to 7.26.41 an
+  item with neither was named by its raw id, with no key and no title, and an
+  avatar's menu said "user" while its button said "user menu". Test:
+  `src/named_controls.wiring.test.js` (red before).
+- **fix(`g6_canvas_tab_order`): the focused canvas of a graph can be seen.** G6
+  writes `outline: none` on its canvases inline, so the canvas the Tab order
+  reaches showed nothing. The main canvas takes `G6_MAIN_CANVAS`, and
+  `src/g6_canvas_tab_order.css`, imported by the module, draws the focus ring at
+  `:focus-visible` in the link colour's readable form, inset, with no
+  transition. Test: `src/g6_canvas_tab_order.wiring.test.js` (red before);
+  checked in Chromium on both schemes.
+- **fix: one rule names a menu entry everywhere** -- its badge announcement,
+  its row in the site map, and the tab strip or section-index landing it
+  opens: `name`, else `aria_label`, else the id. A toolbar row in the site map
+  follows the toolbar rule. In the site map a route is no longer a label (it
+  stays in its column), another menu's group shows its id as plain data, and
+  the root row keeps the brand's wordmark. Tests:
+  `src/nav_item_badge.wiring.test.js`, `src/route_map_model.test.js`,
+  `src/named_controls.wiring.test.js` (red before).
+- **fix(`validate-locales`): the `id` a `C_YUI_NODE` node with no `label` is
+  named by is a key it asks for, and so is every row the site map labels.** The
+  library names a node `label || id` as a key -- in its parent's navs, as the
+  label of its own navs, as its crumb and in the site map -- and the validator
+  read the `label` only. It asks for the `node_id` of a root that draws a label
+  (it has children or a path) and the `id` of every child spec without one,
+  down the whole tree; and, mirroring the site map, the id of a nameless row of
+  a menu entry's dropdown action and of every nameless row under a toolbar item
+  that is not the brand, at every level. No consumer has such a node or row: the
+  nine trees ask for the same keys.
+- **test-app / docs:** a demo window takes its number as `title_prefix` and its
+  kind as the key `demo window`, so its bar and its dock chip change language
+  (V24.5.7). `C_YUI_WINDOW_MANAGER` no longer says the site map and the json
+  windows live in the popup layer.
+
 ## 7.26.41
 
 - **fix(`C_YUI_FORM`): what the reader does to a TABLE is `edited`, whatever

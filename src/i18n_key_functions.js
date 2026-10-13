@@ -137,13 +137,18 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "table_cell_text.js", name: "hook_cell_spec", exported: true, keys: ["4"]},
     /*  yui_time.js -- a granularity names itself by its id  */
     {module: "yui_time.js", name: "period_name", exported: true, keys: ["0", "0.id"]},
-    /*  nav_cards_helpers.js -- a nav item's name, tooltip and aria label  */
+    /*  nav_cards_helpers.js -- a nav item's name, tooltip and aria label,
+     *  and its id: the key of an item with no `name`  */
     {module: "nav_cards_helpers.js", name: "card_descriptor", exported: true,
-        keys: ["0.name", "0.tooltip", "0.aria_label"]},
+        keys: ["0.name", "0.tooltip", "0.aria_label", "0.id"]},
     {module: "nav_cards_helpers.js", name: "cards_grid_descriptor", exported: true,
-        keys: ["0[].name", "0[].tooltip", "0[].aria_label"]},
+        keys: ["0[].name", "0[].tooltip", "0[].aria_label", "0[].id"]},
     /*  yui_gclass_view.js -- the dialog's title is the gclass name  */
     {module: "yui_gclass_view.js", name: "open_gclass_view", exported: true, keys: ["1"]},
+    /*  g6_canvas_tab_order.js -- the name of a graph's main canvas, the
+     *  one control of the graph in the Tab order  */
+    {module: "g6_canvas_tab_order.js", name: "set_canvas_tab_order", exported: true, keys: ["2"]},
+    {module: "g6_canvas_tab_order.js", name: "keep_canvas_tab_order", exported: true, keys: ["2"]},
 
     /*
      *  Helpers of their own module
@@ -204,7 +209,7 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "c_yui_schema_editor.js", name: "end_writes", exported: false, keys: ["1"]},
     {module: "c_yui_schema_editor.js", name: "open_dialog", exported: false, keys: ["1", "2"]},
     {module: "c_yui_schema_editor.js", name: "refuse_bad_name", exported: false, keys: ["1"]},
-    {module: "c_yui_schema_editor.js", name: "open_card", exported: false, keys: ["4[].i18n"]},
+    {module: "c_yui_schema_editor.js", name: "open_card", exported: false, keys: ["2.i18n", "4[].i18n"]},
     {module: "c_yui_schema_editor.js", name: "open_report", exported: false,
         keys: ["1[].severity", "1[].code"]},
     {module: "c_yui_schema_editor.js", name: "render_import_plan", exported: false,
@@ -222,42 +227,53 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "yui_dev.js", name: "mk_dir", exported: false, keys: ["3"]},
     {module: "yui_dev.js", name: "grp", exported: false, keys: ["0"]},
     {module: "yui_dev.js", name: "grp_scroll", exported: false, keys: ["0"]},
-    /*  c_yui_nav.js -- the items of a menu: the app's nav declaration  */
-    {module: "c_yui_nav.js", name: "item_li", exported: false, keys: ["1.name", "1.tooltip", "1.aria_label"]},
-    {module: "c_yui_nav.js", name: "item_iconbar", exported: false, keys: ["1.name", "1.tooltip", "1.aria_label"]},
+    /*  c_yui_nav.js -- the items of a menu: the app's nav declaration.
+     *  The id is the key of an item with no `name`.  */
+    {module: "c_yui_nav.js", name: "item_li", exported: false,
+        keys: ["1.name", "1.tooltip", "1.aria_label", "1.id"]},
+    {module: "c_yui_nav.js", name: "item_iconbar", exported: false,
+        keys: ["1.name", "1.tooltip", "1.aria_label", "1.id"]},
     {module: "c_yui_nav.js", name: "render_vertical", exported: false,
-        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label", "1[].id"]},
     {module: "c_yui_nav.js", name: "render_icon_bar", exported: false,
-        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label", "1[].id"]},
     {module: "c_yui_nav.js", name: "render_tabs", exported: false,
-        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label", "1[].id"]},
     {module: "c_yui_nav.js", name: "render_cards", exported: false,
-        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label", "1[].id"]},
     {module: "c_yui_nav.js", name: "render_submenu", exported: false,
-        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label", "1[].id"]},
     {module: "c_yui_nav.js", name: "render_drawer", exported: false,
-        keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label", "1[].id"]},
     {module: "c_yui_nav.js", name: "render_breadcrumb", exported: false,
         keys: ["1[].name", "1[].id", "1[].tooltip", "1[].aria_label"]},
     {module: "c_yui_nav.js", name: "render_accordion", exported: false,
-        keys: ["1[].name", "1[].submenu.items[].name", "1[].submenu.items[].tooltip",
-               "1[].submenu.items[].aria_label"]},
-    /*  c_yui_shell.js -- the toolbar items: the app's shell declaration  */
+        keys: ["1[].name", "1[].tooltip", "1[].aria_label", "1[].id",
+               "1[].submenu.items[].name", "1[].submenu.items[].tooltip",
+               "1[].submenu.items[].aria_label", "1[].submenu.items[].id"]},
+    /*  c_yui_shell.js -- the toolbar items: the app's shell declaration.
+     *  The id is the key of an item with no `aria_label` nor `name`, and
+     *  of the menu it opens.  */
     {module: "c_yui_shell.js", name: "build_toolbar", exported: false,
         keys: ["1.toolbar.aria_label", "1.toolbar.items[].name", "1.toolbar.items[].aria_label",
-               "1.toolbar.items[].tooltip", "1.toolbar.items[].wordmark"]},
+               "1.toolbar.items[].tooltip", "1.toolbar.items[].wordmark", "1.toolbar.items[].id"]},
     {module: "c_yui_shell.js", name: "build_toolbar_action_item", exported: false,
-        keys: ["1.name", "1.aria_label", "1.tooltip"]},
+        keys: ["1.name", "1.aria_label", "1.tooltip", "1.id"]},
     {module: "c_yui_shell.js", name: "build_toolbar_brand_item", exported: false,
-        keys: ["1.name", "1.aria_label", "1.tooltip", "1.wordmark"]},
+        keys: ["1.name", "1.aria_label", "1.tooltip", "1.wordmark", "1.id"]},
     {module: "c_yui_shell.js", name: "build_toolbar_avatar_item", exported: false,
-        keys: ["1.name", "1.aria_label", "1.tooltip"]},
+        keys: ["1.name", "1.aria_label", "1.tooltip", "1.id"]},
     {module: "c_yui_shell.js", name: "build_toolbar_connection_item", exported: false,
-        keys: ["1.name", "1.aria_label", "1.tooltip"]},
-    {module: "c_yui_shell.js", name: "handle_toolbar_action", exported: false, keys: ["1.name", "1.aria_label"]},
-    {module: "c_yui_shell.js", name: "toggle_toolbar_dropdown", exported: false, keys: ["1.name", "1.aria_label"]},
-    {module: "c_yui_shell.js", name: "open_toolbar_dropdown", exported: false, keys: ["1.name", "1.aria_label"]},
-    {module: "c_yui_shell.js", name: "build_dropdown_row", exported: false, keys: ["1.name", "1.aria_label"]},
+        keys: ["1.name", "1.aria_label", "1.tooltip", "1.id"]},
+    {module: "c_yui_shell.js", name: "attach_context_action", exported: false, keys: ["2.id"]},
+    {module: "c_yui_shell.js", name: "handle_toolbar_action", exported: false,
+        keys: ["1.name", "1.aria_label", "1.id"]},
+    {module: "c_yui_shell.js", name: "toggle_toolbar_dropdown", exported: false,
+        keys: ["1.name", "1.aria_label", "1.id"]},
+    {module: "c_yui_shell.js", name: "open_toolbar_dropdown", exported: false,
+        keys: ["1.name", "1.aria_label", "1.id"]},
+    {module: "c_yui_shell.js", name: "build_dropdown_row", exported: false,
+        keys: ["1.name", "1.aria_label", "1.id"]},
     /*  c_yui_shell.js -- the name of a badged item, said with its count:
      *  the app's shell declaration  */
     {module: "c_yui_shell.js", name: "announce_badge", exported: false, keys: ["1"]},

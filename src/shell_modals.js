@@ -396,7 +396,15 @@ export function yui_shell_show_modal(shell, content, opts)
      *  once, over the question's own, and the next Back -- the one meant
      *  for the question -- reached the modal, which asked again: every
      *  Back stacked one more question. Same contract as the `asking`
-     *  close of C_YUI_WINDOW. */
+     *  close of C_YUI_WINDOW.
+     *
+     *  What the promise SETTLES with is the answer: `true` closes the
+     *  modal, as a `true` returned at once does; anything else -- what a
+     *  question that closed the modal itself on "yes" settles with, a
+     *  `false`, a rejection (said) -- is the veto, and a Back that asked
+     *  gets its entry back then. Up to 7.26.41 any promise was a veto,
+     *  so an `async () => true` left a modal nobody could close. A
+     *  `true` that comes after the modal closed closes nothing twice. */
     let guarded_close = function(on_veto) {
         if(closed) {
             return;
@@ -411,9 +419,21 @@ export function yui_shell_show_modal(shell, content, opts)
             }
         }
         if(allow && typeof allow.then === "function") {
-            if(typeof on_veto === "function") {
-                allow.then(on_veto, on_veto);
-            }
+            let vetoed = function() {
+                if(typeof on_veto === "function") {
+                    on_veto();
+                }
+            };
+            allow.then(function(answer) {
+                if(answer === true) {
+                    do_close();
+                    return;
+                }
+                vetoed();
+            }, function(e) {
+                log_warning(`yui_shell_show_modal: before_close rejected: ${e}`);
+                vetoed();
+            });
             return;
         }
         if(allow === false) {

@@ -48,6 +48,7 @@ import {
     gobj_has_event,
     gobj_short_name,
     gobj_is_destroying,
+    gobj_post_event,
 } from "@yuneta/gobj-js";
 
 import {
@@ -81,11 +82,15 @@ import {
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_SHELL";
 
-/*  Last shell created on the page — fallback for yui_shell_of()
- *  when the caller is not a shell descendant (e.g. a floating
- *  C_YUI_WINDOW parented to the app gobj).  Real apps have exactly
- *  one shell; tests that create several get the most recent. */
-let __last_shell__ = null;
+/*  The shells alive on the page, in the order they were built. The
+ *  LAST one is the fallback of yui_shell_of() when the caller is not
+ *  a shell descendant (e.g. a floating C_YUI_WINDOW parented to the
+ *  app gobj). Real apps have exactly one shell; tests that create
+ *  several get the most recent. A list, not one pointer: with two
+ *  alive, destroying the last left the fallback EMPTY, and the
+ *  windows it held went to the body -- above the dialogs of the shell
+ *  that remained -- up to 7.26.41. They go to that shell now. */
+let __live_shells__ = [];
 
 /*  The gobjs that keep DOM in a shell's layers without being its
  *  children: a C_YUI_WINDOW parented to the app, the dock of
@@ -146,6 +151,11 @@ let PRIVATE_DATA = {
     nav_badges:      {},
     /*  The live region a changed badge is said in (announce_badge()).  */
     badge_status:    null,
+    /*  What this turn of the loop said in it: [{source, message}], in
+     *  the order the changes came, and whether the EV_CLOSE_BADGE_NEWS
+     *  that ends the turn is posted (announce_badge()).  */
+    badge_news:      [],
+    badge_news_closing: false,
     /*  Parent item id -> the items yui_shell_set_submenu() put in place:
      *  menu items as much as the declared ones (nav_item_of).  */
     dynamic_items:   {},
@@ -274,7 +284,7 @@ function mt_create(gobj)
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
 
-    __last_shell__ = gobj;
+    __live_shells__.push(gobj);
 
     build_ui(gobj);
 
@@ -634,8 +644,9 @@ function mt_destroy(gobj)
      *  when stop is skipped. */
     close_toolbar_dropdown(gobj);
 
-    if(__last_shell__ === gobj) {
-        __last_shell__ = null;
+    let live_idx = __live_shells__.indexOf(gobj);
+    if(live_idx >= 0) {
+        __live_shells__.splice(live_idx, 1);
     }
 
     let $container = gobj_read_attr(gobj, "$container");
@@ -649,9 +660,10 @@ function mt_destroy(gobj)
      *  shell, so a logout that destroyed the shell left such a window
      *  alive with its DOM detached, and the next shell never placed it
      *  again -- invisible, and the first click on its menu entry closed
-     *  the invisible one. Told now -- with `__last_shell__` cleared, so
-     *  the place they find is the body, and with the $container still
-     *  readable, so each can tell whether it was inside.  */
+     *  the invisible one. Told now -- with this shell out of
+     *  `__live_shells__`, so the place they find is the shell that
+     *  remains (the body when none does), and with the $container
+     *  still readable, so each can tell whether it was inside.  */
     tell_shell_watchers(gobj);
 
     gobj_write_attr(gobj, "$container", null);
@@ -1260,9 +1272,13 @@ function instantiate_menus(gobj, config)
                         items: sub.items,
                         render: { [zone_id]: render_cfg }
                     };
+                    /*  Named by the entry that opens it, as the nav names
+                     *  the entry (`name`, else `aria_label`, else id): a
+                     *  parent with only an `aria_label` gave a navigation
+                     *  called "navigation" up to 7.26.41.  */
                     let nav = instantiate_nav_in_zone(
                         gobj, submenu_def, sub_menu_id, zone_id, "secondary",
-                        item.name || ""
+                        item.name || item.aria_label || item.id || ""
                     );
                     /*  Hidden until owning primary is active. */
                     let $c = gobj_read_attr(nav, "$container");
@@ -1983,16 +1999,21 @@ function build_toolbar_action_item(gobj, it)
             text_node(it.name)]);
     }
 
-    let aria_key = it.aria_label || it.name || it.id || "";
-    let i18n_aria = it.aria_label || it.name;
+    /*  The name of an item: its `aria_label` -- the toolbar's explicit
+     *  name, which wins over a visible `name` that is often a symbol
+     *  ("ES/EN") --, else its `name`, else its id: a KEY in every case,
+     *  translated by the pass that translates the labels and reached by
+     *  a language switch, with a title. Up to 7.26.41 an item with
+     *  neither was named by its raw id, with no key and no title.  */
+    let name_key = it.aria_label || it.name || it.id || "";
     let btn_attrs = {
         class: "navbar-item yui-toolbar-item is-unselectable",
         type: "button",
         "data-toolbar-item-id": it.id || "",
-        "aria-label": aria_key
+        "aria-label": name_key
     };
-    if(i18n_aria) {
-        btn_attrs["data-i18n-aria-label"] = i18n_aria;
+    if(name_key) {
+        btn_attrs["data-i18n-aria-label"] = name_key;
     }
     let action_type = (it.action && it.action.type) || "";
     if(action_type === "dropdown") {
@@ -2001,16 +2022,16 @@ function build_toolbar_action_item(gobj, it)
     }
     /*  Hover tooltip: prefer explicit `tooltip`, then `aria_label`
      *  (usually the same intent — e.g. "Search (Ctrl+F)"), then the
-     *  name: every control carries a title. Skip only when all are
-     *  empty, so we don't emit `title=""` noise.
+     *  name, then the id: every control carries a title. Skip only
+     *  when all are empty, so we don't emit `title=""` noise.
      *  Mirror the value in `data-i18n-title` so refresh_language()
      *  can re-translate the tooltip on language switch. */
-    let tip = it.tooltip || i18n_aria;
+    let tip = it.tooltip || name_key;
     if(tip) {
         btn_attrs.title = tip;
         btn_attrs["data-i18n-title"] = tip;
     }
-    if(badge && !empty_string(aria_key)) {
+    if(badge && !empty_string(name_key)) {
         /*  The count is part of its name: inside a <button> the badge is
          *  no node of its own for a reader (yui_badge.js).  */
         name_control_with_badge(btn_attrs, badge);
@@ -2105,21 +2126,24 @@ function build_toolbar_brand_item(gobj, it)
 function build_toolbar_avatar_item(gobj, it)
 {
     let priv = gobj.priv;
-    const aria_key = it.aria_label || it.name || it.id || "user menu";
-    const i18n_aria = it.aria_label || it.name || "user menu";
+    /*  Named by its `aria_label`, else its `name`, else the library's
+     *  own "user menu" -- the KEY its aria-label shows from the start.
+     *  Up to 7.26.41 an avatar with neither showed its raw id until a
+     *  pass of translation replaced it with that key.  */
+    const name_key = it.aria_label || it.name || "user menu";
     let action_type = (it.action && it.action.type) || "";
     let attrs = {
         class: "navbar-item yui-toolbar-item yui-toolbar-avatar is-unselectable",
         type: "button",
         "data-toolbar-item-id": it.id || "",
-        "aria-label": aria_key,
-        "data-i18n-aria-label": i18n_aria
+        "aria-label": name_key,
+        "data-i18n-aria-label": name_key
     };
     if(action_type === "dropdown") {
         attrs["aria-haspopup"] = "menu";
         attrs["aria-expanded"] = "false";
     }
-    let tip = it.tooltip || i18n_aria;
+    let tip = it.tooltip || name_key;
     if(tip) {
         attrs.title = tip;
         attrs["data-i18n-title"] = tip;
@@ -2196,17 +2220,19 @@ function attach_context_action(gobj, $item, it)
 function build_toolbar_connection_item(gobj, it)
 {
     let priv = gobj.priv;
-    const aria_key  = it.aria_label || it.name || it.id || "backend connection";
-    const i18n_aria = it.aria_label || it.name || "backend connection";
+    /*  Named as the avatar is: its `aria_label`, else its `name`, else
+     *  the library's own "backend connection", the key its aria-label
+     *  shows from the start (it was the raw id until a pass).  */
+    const name_key = it.aria_label || it.name || "backend connection";
     let attrs = {
         class: "navbar-item yui-toolbar-item yui-toolbar-conn " +
                "is-unselectable is-disconnected",
         type: "button",
         "data-toolbar-item-id": it.id || "",
-        "aria-label": aria_key,
-        "data-i18n-aria-label": i18n_aria
+        "aria-label": name_key,
+        "data-i18n-aria-label": name_key
     };
-    let tip = it.tooltip || i18n_aria;
+    let tip = it.tooltip || name_key;
     if(tip) {
         attrs.title = tip;
         attrs["data-i18n-title"] = tip;
@@ -2372,14 +2398,22 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
      *  The fix is below: when the host has registered a translator
      *  (yui_shell_set_translator), re-apply it to the freshly built
      *  $panel.  Rebuilt per open ⇒ a later language switch is picked
-     *  up the next time the dropdown opens. */
-    const aria_key = item && (item.aria_label || item.name || item.id) || "menu";
-    const i18n_aria = (item && (item.aria_label || item.name)) || "menu";
+     *  up the next time the dropdown opens.
+     *
+     *  The menu is named as its trigger is (build_toolbar_*): its
+     *  `aria_label`, else its `name`, else -- an avatar -- the library's
+     *  "user menu", else its id; a KEY in every case. Up to 7.26.41 a
+     *  menu whose trigger had neither `aria_label` nor `name` was named
+     *  by the raw id, and an avatar's said "user" where its button said
+     *  "user menu". (A brand that opens a menu, which no app has, names
+     *  it by its `aria_label` or its id, not by its wordmark.)  */
+    const name_key = (item && (item.aria_label || item.name ||
+        (classify_toolbar_item(item) === "avatar" ? "user menu" : item.id))) || "menu";
     let $panel = createElement2(["div", {
         class: "yui-toolbar-dropdown-panel",
         role: "menu",
-        "aria-label": aria_key,
-        "data-i18n-aria-label": i18n_aria,
+        "aria-label": name_key,
+        "data-i18n-aria-label": name_key,
         "data-toolbar-dropdown-for": (item && item.id) || ""
     }]);
 
@@ -2578,20 +2612,22 @@ function build_dropdown_row(gobj, sub, idx)
     children.push(["span", {class: "yui-toolbar-dropdown-check"},
         ["i", {class: "yi-check", "aria-hidden": "true"}]]);
 
-    let aria_key = sub.aria_label || sub.name || sub.id || "";
-    let i18n_aria = sub.aria_label || sub.name;
+    /*  Named as a toolbar item is: its `aria_label`, else its `name`,
+     *  else its id -- a KEY in every case, with a title (an icon row
+     *  without a name was named by its raw id up to 7.26.41).  */
+    let name_key = sub.aria_label || sub.name || sub.id || "";
     let attrs = {
         class: "yui-toolbar-dropdown-item" + (sub.selected ? " is-selected" : ""),
         type: "button",
         role: "menuitemradio",
         "aria-checked": sub.selected ? "true" : "false",
         "data-dropdown-item-id": sub.id || "",
-        "aria-label": aria_key
+        "aria-label": name_key
     };
-    if(i18n_aria) {
-        attrs["data-i18n-aria-label"] = i18n_aria;
-        attrs.title = i18n_aria;
-        attrs["data-i18n-title"] = i18n_aria;
+    if(name_key) {
+        attrs["data-i18n-aria-label"] = name_key;
+        attrs.title = name_key;
+        attrs["data-i18n-title"] = name_key;
     }
     let $btn = createElement2(["button", attrs, children]);
     $btn.addEventListener("click", ev => {
@@ -3338,26 +3374,103 @@ function shell_navs(gobj)
  *  `name_key` is the key of the control's name; the phrase is a
  *  key of its own, so a language orders and punctuates it its
  *  way. Said once: a live region needs no re-translation.
+ *
+ *  `source` names the badge ("toolbar:<id>", "nav:<id>"). Every
+ *  change of ONE turn of the loop is said in ONE message, a line
+ *  of the region each, in the order they came; a badge that moves
+ *  twice in the turn says its last count. Up to 7.26.41 each
+ *  change replaced the region's text, and a reader hears the
+ *  region as it is when the turn is over: of two changes in one
+ *  action (a feed that updates the toolbar's count and the menu
+ *  entry's, which is what a count is for) only the second was
+ *  ever said. The turn is closed by EV_CLOSE_BADGE_NEWS, posted to
+ *  the shell by its first change: gobj_post_event() delivers it on
+ *  the next turn, through the machine -- a deferral, not a time.
  ************************************************************/
-function announce_badge(gobj, name_key, text)
+function announce_badge(gobj, name_key, text, source)
 {
     let priv = gobj.priv;
-    let $status = priv.badge_status;
-    if(!$status) {
+    if(gobj_is_destroying(gobj)) {
+        return;     /*  its live region goes with it: nobody is left to tell  */
+    }
+    if(!priv.badge_status) {
         log_error(`C_YUI_SHELL: no live region to say badge '${name_key}': ${text}`);
         return;
     }
     let message;
     if(typeof priv.translator === "function") {
         const tr = priv.translator;
-        message = tr("{{name}}, {{n}}", {name: tr(name_key), n: text});
+        /*  Not escaped: i18next escapes an interpolated value for HTML
+         *  by default, and the message is a text node -- a name such as
+         *  "Événements d'alarme" was read "d&#39;alarme".  */
+        message = tr("{{name}}, {{n}}", {
+            name: tr(name_key), n: text, interpolation: {escapeValue: false}
+        });
     } else {
         message = `${name_key}, ${text}`;
     }
-    /*  Written even when it reads the same: the callers filter what is
-     *  no news, and a count that went away and came back IS news -- a
-     *  new text node is a change a reader announces.  */
-    $status.textContent = message;
+
+    let news = priv.badge_news.find((n) => n.source === source);
+    if(news) {
+        news.message = message;
+    } else {
+        priv.badge_news.push({source: source, message: message});
+    }
+    write_badge_news(gobj);
+
+    if(priv.badge_news_closing) {
+        return;
+    }
+    if(gobj_post_event(gobj, "EV_CLOSE_BADGE_NEWS", {}, gobj) < 0) {
+        /*  Error already logged. Nothing will close this turn's message:
+         *  it is closed now, and the next change is said on its own.  */
+        priv.badge_news = [];
+        return;
+    }
+    priv.badge_news_closing = true;
+}
+
+/************************************************************
+ *  A badge whose count went away in the turn it changed: what
+ *  this turn said of it is no news any more -- the badge shows
+ *  nothing -- and is taken out of the message.
+ ************************************************************/
+function forget_badge_news(gobj, source)
+{
+    let priv = gobj.priv;
+    let idx = priv.badge_news.findIndex((n) => n.source === source);
+    if(idx < 0) {
+        return;
+    }
+    priv.badge_news.splice(idx, 1);
+    write_badge_news(gobj);
+}
+
+/************************************************************
+ *  The live region holds the message of this turn: a line per
+ *  change, so a reader separates them without a punctuation of
+ *  ours, and two controls of one name with one count say it once.
+ *
+ *  Written whole, and with new nodes, even when it reads the same:
+ *  the callers filter what is no news, and a count that went away
+ *  and came back IS news -- a new text node is a change a reader
+ *  announces.
+ ************************************************************/
+function write_badge_news(gobj)
+{
+    let priv = gobj.priv;
+    let said = [];
+    let $lines = [];
+    for(let news of priv.badge_news) {
+        if(said.includes(news.message)) {
+            continue;
+        }
+        said.push(news.message);
+        $lines.push(createElement2(
+            ["div", {class: "SHELL_BADGE_NEWS"}, text_node(news.message)]
+        ));
+    }
+    priv.badge_status.replaceChildren(...$lines);
 }
 
 /************************************************************
@@ -3476,6 +3589,21 @@ function ac_back_wait_timeout(gobj, event, kw, src)
     let pushed = push_pending_markers(gobj);    // and navigates the deferred route
     given_up.ids.push(...pushed);
     priv.given_up = given_up;
+    return 0;
+}
+
+/************************************************************
+ *  The turn in which badges changed is over (posted by the first
+ *  change, announce_badge()): the message in the live region is
+ *  complete, and a reader hears it as it stands. The next change
+ *  starts a message of its own -- added to this one, it would say
+ *  again what was already said.
+ ************************************************************/
+function ac_close_badge_news(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    priv.badge_news = [];
+    priv.badge_news_closing = false;
     return 0;
 }
 
@@ -3737,7 +3865,10 @@ function create_gclass(gclass_name)
             ["EV_NAV_ITEM_CLOSE",         ac_nav_item_close,         null],
             /*  The wait for a history.back() of the shell is over: the
              *  timer of defer_route() says so.  */
-            ["EV_BACK_WAIT_TIMEOUT",      ac_back_wait_timeout,      null]
+            ["EV_BACK_WAIT_TIMEOUT",      ac_back_wait_timeout,      null],
+            /*  The turn in which badges changed is over: posted to itself
+             *  by announce_badge().  */
+            ["EV_CLOSE_BADGE_NEWS",       ac_close_badge_news,       null]
         ]]
     ];
 
@@ -3745,6 +3876,7 @@ function create_gclass(gclass_name)
         ["EV_NAV_CLICKED",            0],
         ["EV_DRAWER_CLOSE_REQUESTED", 0],
         ["EV_BACK_WAIT_TIMEOUT",      0],
+        ["EV_CLOSE_BADGE_NEWS",       0],
         ["EV_NAV_ITEM_CLOSE",         event_flag_t.EVF_OUTPUT_EVENT
                                      |event_flag_t.EVF_PUBLIC_EVENT
                                      |event_flag_t.EVF_NO_WARN_SUBS],
@@ -4005,9 +4137,9 @@ function yui_shell_previous_route(shell_gobj)
 /************************************************************
  *  Resolve the shell that governs `gobj`: the nearest
  *  C_YUI_SHELL ancestor, else the last shell created on the
- *  page (apps have exactly one).  Null when no shell exists —
- *  callers must degrade loudly (shell_modals logs a warning
- *  and resolves the safe default).
+ *  page that is still alive (apps have exactly one).  Null when
+ *  no shell exists — callers must degrade loudly (shell_modals
+ *  logs a warning and resolves the safe default).
  ************************************************************/
 function yui_shell_of(gobj)
 {
@@ -4018,7 +4150,7 @@ function yui_shell_of(gobj)
         }
         g = gobj_parent(g);
     }
-    return __last_shell__;
+    return __live_shells__.length > 0 ? __live_shells__[__live_shells__.length - 1] : null;
 }
 
 /************************************************************
@@ -4542,7 +4674,9 @@ function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value, tone)
     if(now && now !== before) {
         let $item = $badge.closest("[data-toolbar-item-id]");
         const name_key = ($item && $item.getAttribute("data-i18n-aria-label")) || item_id;
-        announce_badge(shell_gobj, /* i18n: data */ name_key, now);
+        announce_badge(shell_gobj, /* i18n: data */ name_key, now, `toolbar:${item_id}`);
+    } else if(!now) {
+        forget_badge_news(shell_gobj, `toolbar:${item_id}`);
     }
 }
 
@@ -4603,10 +4737,16 @@ function yui_shell_set_nav_item_badge(shell_gobj, item_id, value, tone)
     }
 
     /*  Said ONCE, here, with the item's name -- not by each nav that
-     *  draws the item (a rail, an icon bar, a drawer).  */
+     *  draws the item (a rail, an icon bar, a drawer) -- and by the name
+     *  the nav gives it: its `name`, else its `aria_label`, else its id
+     *  (c_yui_nav.js item_li). Up to 7.26.41 an entry that declares only
+     *  an `aria_label` was said by its id.  */
     let now = badge_text(badge);
     if(now && now !== before) {
-        announce_badge(shell_gobj, /* i18n: data */ item.name || item_id, now);
+        announce_badge(shell_gobj, /* i18n: data */ item.name || item.aria_label || item_id,
+            now, `nav:${item_id}`);
+    } else if(!now) {
+        forget_badge_news(shell_gobj, `nav:${item_id}`);
     }
 }
 

@@ -11,6 +11,12 @@
  *      from a graph went through its other canvases and the whole page
  *      before it reached the graph's own buttons.
  *
+ *      And the main canvas, a control in the Tab order, is NAMED
+ *      (REV-CLOUD V24.5.4): a `title` and an `aria-label` through t(),
+ *      each with its key, saying which graph it is -- and changing
+ *      language with the page. From 7.26.28 to 7.26.41 Tab landed on it
+ *      and a reader announced nothing.
+ *
  *      The real gclasses, on a G6 Graph double that does what G6 does
  *      here: the FIRST render() builds the four canvases with
  *      `tabIndex = 1` and says so with `aftercanvasinit`; a renderer
@@ -20,9 +26,14 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {describe, test, expect, beforeAll, beforeEach, vi} from "vitest";
+import {readFileSync} from "node:fs";
+import {dirname, join} from "node:path";
+import {fileURLToPath} from "node:url";
 import {install_dom_double} from "../test/dom_double.js";
 
 install_dom_double();
+
+const SRC = dirname(fileURLToPath(import.meta.url));
 
 /*  The views watch their container; nothing resizes here.  */
 if(typeof globalThis.ResizeObserver === "undefined") {
@@ -132,7 +143,7 @@ vi.mock("@antv/g6", async (importOriginal) => {
 
 const {
     SDATA_END, gclass_create, gobj_start_up, gobj_create_yuno, gobj_create_pure_child,
-    gobj_start, gobj_read_attr, set_log_callback, register_c_timer,
+    gobj_start, gobj_read_attr, set_log_callback, register_c_timer, refresh_language,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_json_graph} = await import("./c_yui_json_graph.js");
 const {register_c_yui_gobj_tree_js} = await import("./c_yui_gobj_tree_js.js");
@@ -215,6 +226,28 @@ function tab_order(graph)
     return order;
 }
 
+/*  The name each view gives its main canvas: the key, and its text in
+ *  the two languages of this test.  */
+const NAMES = {
+    C_YUI_JSON_GRAPH:    {key: "json graph",      en: "JSON graph",          es: "Grafo del JSON"},
+    C_YUI_GOBJ_TREE_JS:  {key: "gobj tree graph", en: "Gobj tree graph",     es: "Grafo del árbol de gobjs"},
+    C_YUI_FSM_GRAPH:     {key: "fsm graph",       en: "State machine graph", es: "Grafo de la máquina de estados"},
+    C_YUI_TREEDB_SCHEMA: {key: "schema graph",    en: "Schema graph",        es: "Grafo del esquema"},
+    C_G6_NODES_TREE:     {key: "treedb graph",    en: "Treedb graph",        es: "Grafo de la treedb"},
+};
+
+function name_of_canvas(graph)
+{
+    const $main = graph.layers.main.el;
+    return {
+        role:  $main.getAttribute("role"),
+        title: $main.getAttribute("title"),
+        aria:  $main.getAttribute("aria-label"),
+        title_key: $main.getAttribute("data-i18n-title"),
+        aria_key:  $main.getAttribute("data-i18n-aria-label"),
+    };
+}
+
 describe("every G6 view: the main canvas in the Tab order, the other layers out", () => {
     for(const [gclass_name, attrs] of Object.entries(VIEWS)) {
         test(`${gclass_name}: after its first render, and after a renderer change`, async () => {
@@ -229,4 +262,77 @@ describe("every G6 view: the main canvas in the Tab order, the other layers out"
             expect(logged.filter((l) => l.level === "error").map((l) => l.msg)).toEqual([]);
         });
     }
+});
+
+describe("REV-CLOUD V24.5.4: the main canvas is named, says which graph it is, and changes language", () => {
+    for(const [gclass_name, attrs] of Object.entries(VIEWS)) {
+        test(`${gclass_name}: "${NAMES[gclass_name].key}", after its first render and a renderer change`, async () => {
+            const i18next = (await import("i18next")).default;
+            const name = NAMES[gclass_name];
+            i18next.addResourceBundle("en", "translation", {[name.key]: name.en}, true, true);
+            i18next.addResourceBundle("es", "translation", {[name.key]: name.es}, true, true);
+            await i18next.changeLanguage("en");
+
+            const {graph, $container} = await mount(gclass_name, attrs);
+            const named = {
+                role: "region", title: name.en, aria: name.en,
+                title_key: name.key, aria_key: name.key
+            };
+            expect(name_of_canvas(graph)).toEqual(named);
+
+            /*  The other layers are out of the Tab order: no control,
+             *  no name.  */
+            for(const layer of ["background", "label", "transient"]) {
+                expect(graph.layers[layer].el.getAttribute("aria-label")).toBe(null);
+            }
+
+            graph.setRenderer();
+            expect(name_of_canvas(graph)).toEqual(named);
+
+            /*  A language switch reaches it as it reaches every control:
+             *  by its keys (the shell's refresh over the page).  */
+            await i18next.changeLanguage("es");
+            refresh_language(document.body, i18next.t.bind(i18next));
+            expect(name_of_canvas(graph)).toEqual(Object.assign({}, named,
+                {title: name.es, aria: name.es}));
+            await i18next.changeLanguage("en");
+
+            expect($container).toBeTruthy();
+            expect(logged.filter((l) => l.level === "error").map((l) => l.msg)).toEqual([]);
+        });
+    }
+});
+
+/*  G6 writes `outline: none` on its canvases, INLINE, and the main one
+ *  is a control in the Tab order now: a keyboard that landed on the
+ *  graph saw no sign of where it was. CSS is read as text: the double
+ *  has no layout.  */
+describe("the focused canvas can be SEEN: a ring G6's inline outline does not erase", () => {
+    test("every view marks its main canvas, and only that one, with the class the ring hangs from", async () => {
+        for(const [gclass_name, attrs] of Object.entries(VIEWS)) {
+            const {graph} = await mount(gclass_name, attrs);
+            expect(graph.layers.main.el.classList.contains("G6_MAIN_CANVAS"), gclass_name).toBe(true);
+            for(const layer of ["background", "label", "transient"]) {
+                expect(graph.layers[layer].el.classList.contains("G6_MAIN_CANVAS"), layer).toBe(false);
+            }
+            graph.setRenderer();
+            expect(graph.layers.main.el.classList.contains("G6_MAIN_CANVAS"), gclass_name).toBe(true);
+        }
+        expect(logged.filter((l) => l.level === "error").map((l) => l.msg)).toEqual([]);
+    });
+
+    test("the ring: on :focus-visible, !important over the inline outline, the ink of the scheme, no transition", () => {
+        const css = readFileSync(join(SRC, "g6_canvas_tab_order.css"), "utf8");
+        const m = css.match(/\.G6_MAIN_CANVAS:focus-visible\s*\{([^}]*)\}/);
+        expect(!!m, "a .G6_MAIN_CANVAS:focus-visible rule").toBe(true);
+        const body = m[1];
+        expect(body).toMatch(/outline:\s*2px solid var\(--bulma-link-on-scheme,[^;]*\)\s*!important\s*;/);
+        expect(body).toMatch(/outline-offset:[^;]*!important\s*;/);
+        expect(body).not.toMatch(/transition/);
+
+        /*  The module brings it along: every view that draws a graph
+         *  imports the module.  */
+        const js = readFileSync(join(SRC, "g6_canvas_tab_order.js"), "utf8");
+        expect(js).toMatch(/import\s+"\.\/g6_canvas_tab_order\.css";/);
+    });
 });

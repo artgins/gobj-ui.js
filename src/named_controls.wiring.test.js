@@ -18,7 +18,11 @@
  *          named by all its content, "close" included): two sibling
  *          buttons now, each named;
  *        - the ✕ of an option of a Tom Select ("Remove", in English,
- *          title only, out of the keyboard's reach).
+ *          title only, out of the keyboard's reach);
+ *        - an item of C_YUI_NAV without a `name`, in every layout: its
+ *          raw id was its aria-label, with no key and no title
+ *          (REV-CLOUD V24.5.4). Its id is its KEY now, or its
+ *          `aria_label` when it declares one.
  *
  *      The real gclasses on a document double; G6 and Tom Select as
  *      doubles (what is checked is built before either draws).
@@ -136,9 +140,9 @@ const {
     SDATA, SDATA_END, data_type_t, gclass_create, gobj_write_attr,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_pure_child, gobj_create_service,
     gobj_start, gobj_read_attr, gobj_send_event, gobj_change_state, gobj_current_state,
-    gobj_is_destroying, set_log_callback, register_c_timer,
+    gobj_is_destroying, set_log_callback, register_c_timer, refresh_language,
 } = await import("@yuneta/gobj-js");
-const {register_c_yui_shell} = await import("./c_yui_shell.js");
+const {register_c_yui_shell, yui_shell_navigate} = await import("./c_yui_shell.js");
 const {register_c_yui_nav} = await import("./c_yui_nav.js");
 const {register_c_yui_window} = await import("./c_yui_window.js");
 const {register_c_yui_window_manager} = await import("./c_yui_window_manager.js");
@@ -214,6 +218,11 @@ beforeEach(() => {
     logged.length = 0;
     selects.length = 0;
 });
+
+function errors()
+{
+    return logged.filter((l) => l.level === "error" || l.level === "warning").map((l) => l.msg);
+}
 
 /*  title and aria-label, both, and the key of each when it is `key`.  */
 function expect_named($el, key)
@@ -327,6 +336,79 @@ describe("a link of the site map", () => {
         expect($here.getAttribute("aria-current")).toBe("page");
         expect($link.getAttribute("aria-current")).toBe(null);
     });
+
+    /*  One rule names an item everywhere (REV-CLOUD V24.5.4): up to
+     *  7.26.41 a row was labelled `name || wordmark || id || route`, so an
+     *  entry that declares only an `aria_label` read its id in the map, the
+     *  language button "ES/EN", a menu's id and a route were asked of the
+     *  locales as keys.  */
+    test("a row says the name its control says; a menu's id is data; a route is no name", () => {
+        const view = {stage: "main", gclass: "C_TEST_NAMED_VIEW", kw: {}};
+        const shell = gobj_create(`rshell${++seq}`, "C_YUI_SHELL", {
+            config: {
+                shell: {
+                    zones: {top: {host: "toolbar"}, left: {host: "menu.primary"},
+                            center: {host: "stage.main"}},
+                    stages: {main: {zone: "center", default_route: "/home"}},
+                    routes: {"/orphan": view}
+                },
+                toolbar: {zone: "top", items: [
+                    {id: "lang", icon: "yi-language", name: "ES/EN", aria_label: "toggle language",
+                        action: {type: "navigate", route: "/lang"}}
+                ]},
+                menu: {
+                    primary: {items: [
+                        {id: "home", name: "home", route: "/home", target: view},
+                        {id: "x9", aria_label: "active alarms", icon: "yi-eye", route: "/x9",
+                            target: view}
+                    ]},
+                    quick: {render: {overlay: "drawer"}, items: [
+                        {id: "q1", name: "first", route: "/q1", target: view}
+                    ]}
+                }
+            },
+            use_hash: false
+        }, yuno);
+        gobj_start(shell);
+        logged.length = 0;
+
+        /*  A map an earlier test left open is closed by the first call.  */
+        let win = yui_shell_show_route_map(shell);
+        if(!win) {
+            win = yui_shell_show_route_map(shell);
+        }
+        const $body = gobj_read_attr(win, "$container");
+
+        /*  The row of a menu entry, and the entry in the nav: one name.  */
+        const $x9 = $body.querySelector('.ROUTEMAP_LINK[href="#/x9"]');
+        expect($x9.getAttribute("aria-label")).toBe("active alarms");
+        expect($x9.getAttribute("data-i18n-aria-label")).toBe("active alarms");
+        expect($x9.querySelector(".ROUTEMAP_NAME").getAttribute("data-i18n")).toBe("active alarms");
+        const $entry = gobj_read_attr(shell, "$container").querySelector('a[data-item-id="x9"]');
+        expect($entry.getAttribute("data-i18n-aria-label")).toBe("active alarms");
+
+        /*  A toolbar button: as the toolbar names it.  */
+        const $lang = $body.querySelector('.ROUTEMAP_LINK[href="#/lang"]');
+        expect($lang.getAttribute("data-i18n-aria-label")).toBe("toggle language");
+
+        /*  Another menu is a group named by its id, drawn as data.  */
+        const $quick = Array.from($body.querySelectorAll(".ROUTEMAP_STRUCT .ROUTEMAP_NAME"))
+            .find(($n) => $n.textContent === "quick");
+        expect(!!$quick).toBe(true);
+        expect($quick.getAttribute("data-i18n")).toBe(null);
+
+        /*  A route of the route table that no item names: its route in
+         *  its column, and no name of its own.  */
+        const $orphan = $body.querySelector('.ROUTEMAP_LINK[href="#/orphan"]');
+        expect(!!$orphan).toBe(true);
+        expect($orphan.querySelector(".ROUTEMAP_NAME")).toBe(null);
+        expect($orphan.getAttribute("aria-label")).toBe("/orphan");     // data, as its title
+        expect($orphan.getAttribute("data-i18n-aria-label")).toBe(null);
+        expect($orphan.querySelector(".ROUTEMAP_ROUTE").textContent).toBe("/orphan");
+
+        yui_shell_show_route_map(shell);       // closes it
+        expect(errors()).toEqual([]);
+    });
 });
 
 describe("the links of a nav", () => {
@@ -344,14 +426,196 @@ describe("the links of a nav", () => {
             {id: "i", icon: "yi-eye", route: "/i"}
         ]);
         expect_named($c.querySelector('a[data-item-id="b"]'), "devices");
-        const $icon_only = $c.querySelector('a[data-item-id="i"]');
-        expect($icon_only.getAttribute("aria-label")).toBe("i");      // its id: no key
-        expect($icon_only.getAttribute("data-i18n-aria-label")).toBe(null);
+        /*  Its id, AS A KEY (REV-CLOUD V24.5.4): up to 7.26.41 the raw
+         *  id was its aria-label, with no key and no title.  */
+        expect_named($c.querySelector('a[data-item-id="i"]'), "i");
+    });
+
+    /*  The same in every layout that draws an item (REV-CLOUD V24.5.4:
+     *  c_yui_nav.js item_li, item_iconbar, the tabs, and the cards of
+     *  nav_cards_helpers.js).  */
+    for(const layout of ["vertical", "icon-bar", "tabs", "cards", "breadcrumb"]) {
+        test(`an item without a \`name\` (${layout}): named by its id as a key, or by its \`aria_label\``, () => {
+            const $c = nav({layout: layout, show_label: false}, [
+                {id: "alarms", icon: "yi-eye", route: "/alarms"},
+                {id: "x7", icon: "yi-eye", route: "/x7", aria_label: "active alarms"}
+            ]);
+            expect_named($c.querySelector('a[data-item-id="alarms"]'), "alarms");
+            expect_named($c.querySelector('a[data-item-id="x7"]'), "active alarms");
+            expect(errors()).toEqual([]);
+        });
+    }
+
+    test("an accordion head without a `name`: named by its id as a key, or by its `aria_label`", () => {
+        const $c = nav({layout: "accordion"}, [
+            {id: "alarms", submenu: {items: [{id: "open", name: "open", route: "/alarms/open"}]}},
+            {id: "s2", aria_label: "settings", submenu: {items: []}}
+        ]);
+        expect_named($c.querySelector('button[data-item-id="alarms"]'), "alarms");
+        expect_named($c.querySelector('button[data-item-id="s2"]'), "settings");
+        expect(errors()).toEqual([]);
+    });
+
+    test("a nameless item changes language with the page, by its key", async () => {
+        const i18next = (await import("i18next")).default;
+        i18next.addResourceBundle("es", "translation", {"alarms": "alarmas"}, true, true);
+        const $c = nav({layout: "vertical", show_label: false}, [
+            {id: "alarms", icon: "yi-eye", route: "/alarms"}
+        ]);
+        refresh_language($c, i18next.getFixedT("es"));
+        const $a = $c.querySelector('a[data-item-id="alarms"]');
+        expect($a.getAttribute("aria-label")).toBe("alarmas");
+        expect($a.getAttribute("title")).toBe("alarmas");
     });
 
     test("a card: a title without a tooltip", () => {
         const $c = nav({layout: "cards"}, [{id: "c", name: "reports", icon: "yi-eye", route: "/c"}]);
         expect_named($c.querySelector('a[data-item-id="c"]'), "reports");
+    });
+
+    /*  The navigation a parent entry opens -- its tab strip, its
+     *  section-index landing -- is named by that entry, by the same
+     *  rule. Up to 7.26.41 a tab strip took `name || ""` (a parent with
+     *  only an `aria_label` gave a navigation named "navigation"), and a
+     *  landing `name || id`.  */
+    test("the navigation an entry opens is named by the entry's name: `name`, else `aria_label`, else id", () => {
+        const view = {stage: "main", gclass: "C_TEST_NAMED_VIEW", kw: {}};
+        const shell = gobj_create(`sshell${++seq}`, "C_YUI_SHELL", {
+            config: {
+                shell: {
+                    zones: {left: {host: "menu.primary"}, "top-sub": {host: "menu.secondary"},
+                            center: {host: "stage.main"}},
+                    stages: {main: {zone: "center", default_route: "/home"}}
+                },
+                menu: {primary: {items: [
+                    {id: "home", name: "home", route: "/home", target: view},
+                    {id: "dev", aria_label: "device settings", icon: "yi-cog", route: "/dev",
+                        submenu: {render: {"top-sub": "tabs"}, items: [
+                            {id: "a", name: "a", route: "/dev/a", target: view}
+                        ]}},
+                    {id: "rep", aria_label: "reports", icon: "yi-table", route: "/rep",
+                        submenu: {index: true, items: [
+                            {id: "d", name: "daily", route: "/rep/d", target: view}
+                        ]}}
+                ]}}
+            },
+            use_hash: false
+        }, yuno);
+        gobj_start(shell);
+        const $root = gobj_read_attr(shell, "$container");
+
+        const $tabs = $root.querySelector('[data-zone="top-sub"] [role="navigation"]');
+        expect(!!$tabs).toBe(true);
+        expect($tabs.getAttribute("aria-label")).toBe("device settings");
+        expect($tabs.getAttribute("data-i18n-aria-label")).toBe("device settings");
+
+        yui_shell_navigate(shell, "/rep");
+        const $landing = $root.querySelector('[data-zone="center"] [role="navigation"]');
+        expect(!!$landing).toBe(true);
+        expect($landing.getAttribute("aria-label")).toBe("reports");
+        expect($landing.getAttribute("data-i18n-aria-label")).toBe("reports");
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("the items of the toolbar: what the nav got (REV-CLOUD V24.5.4)", () => {
+    /*  A shell whose toolbar is `items`, on the page.  */
+    function toolbar_shell(items)
+    {
+        const shell = gobj_create(`tshell${++seq}`, "C_YUI_SHELL", {
+            config: {
+                shell: {
+                    zones: {top: {host: "toolbar"}, center: {host: "stage.main"}},
+                    stages: {main: {zone: "center", default_route: "/home"}}
+                },
+                toolbar: {zone: "top", items: items},
+                menu: {primary: {items: [
+                    {id: "home", name: "home", route: "/home",
+                        target: {stage: "main", gclass: "C_TEST_NAMED_VIEW", kw: {}}}
+                ]}}
+            },
+            use_hash: false
+        }, yuno);
+        gobj_start(shell);
+        return shell;
+    }
+
+    function item_of(shell, id)
+    {
+        return gobj_read_attr(shell, "$container").querySelector(`[data-toolbar-item-id="${id}"]`);
+    }
+
+    test("an action item with no `aria_label` nor `name`: named by its id, as a key, with a title", () => {
+        const shell = toolbar_shell([
+            {id: "help", icon: "yi-circle-question", action: {type: "event", event: "EV_HELP"}},
+            /*  The toolbar's own order is kept: its explicit `aria_label`
+             *  names it, over a visible `name` that is a symbol.  */
+            {id: "lang", icon: "yi-language", name: "ES/EN", aria_label: "toggle language",
+                action: {type: "event", event: "EV_LANG"}}
+        ]);
+        /*  Up to 7.26.41: its raw id, with no key and no title.  */
+        expect_named(item_of(shell, "help"), "help");
+        expect_named(item_of(shell, "lang"), "toggle language");
+        expect(errors()).toEqual([]);
+    });
+
+    test("a row of a toolbar menu with neither: named by its id as a key; the menu as its trigger", () => {
+        const shell = toolbar_shell([
+            {id: "user", type: "avatar", action: {type: "dropdown", items: [
+                {id: "logout", icon: "yi-xmark", action: {type: "event", event: "EV_LOGOUT"}},
+                {id: "prefs", name: "preferences", action: {type: "event", event: "EV_PREFS"}}
+            ]}}
+        ]);
+        /*  An avatar that says nothing is the library's "user menu" from
+         *  the start: up to 7.26.41 it showed its raw id until a pass of
+         *  translation replaced it with that key.  */
+        const $avatar = item_of(shell, "user");
+        expect_named($avatar, "user menu");
+
+        $avatar.click();
+        const $panel = document.querySelector('[data-toolbar-dropdown-for="user"]');
+        expect(!!$panel).toBe(true);
+        expect($panel.getAttribute("aria-label")).toBe("user menu");
+        expect($panel.getAttribute("data-i18n-aria-label")).toBe("user menu");
+        expect_named($panel.querySelector('[data-dropdown-item-id="logout"]'), "logout");
+        expect_named($panel.querySelector('[data-dropdown-item-id="prefs"]'), "preferences");
+        $avatar.click();        // the trigger closes its menu
+        expect(document.querySelector('[data-toolbar-dropdown-for="user"]')).toBe(null);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a menu named by its trigger's id says its trigger's key", () => {
+        const shell = toolbar_shell([
+            {id: "more", icon: "yi-ellipsis", action: {type: "dropdown", items: [
+                {id: "about", name: "about", action: {type: "event", event: "EV_ABOUT"}}
+            ]}}
+        ]);
+        const $more = item_of(shell, "more");
+        expect_named($more, "more");
+        $more.click();
+        const $panel = document.querySelector('[data-toolbar-dropdown-for="more"]');
+        expect($panel.getAttribute("aria-label")).toBe("more");
+        expect($panel.getAttribute("data-i18n-aria-label")).toBe("more");
+        $more.click();
+        expect(errors()).toEqual([]);
+    });
+
+    test("a connection dot with neither: the library's own key, from the start", () => {
+        const shell = toolbar_shell([{id: "conn", type: "connection"}]);
+        expect_named(item_of(shell, "conn"), "backend connection");
+        expect(errors()).toEqual([]);
+    });
+
+    test("a nameless toolbar item changes language with the page, by its key", async () => {
+        const i18next = (await import("i18next")).default;
+        i18next.addResourceBundle("es", "translation", {"help": "ayuda"}, true, true);
+        const shell = toolbar_shell([
+            {id: "help", icon: "yi-circle-question", action: {type: "event", event: "EV_HELP"}}
+        ]);
+        refresh_language(gobj_read_attr(shell, "$container"), i18next.getFixedT("es"));
+        const $help = item_of(shell, "help");
+        expect($help.getAttribute("aria-label")).toBe("ayuda");
+        expect($help.getAttribute("title")).toBe("ayuda");
     });
 });
 

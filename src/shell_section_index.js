@@ -55,7 +55,9 @@ export function section_index_target(menu_id, item)
         gclass: "C_YUI_NAV",
         kw: {
             menu_id: `index.${menu_id}.${item.id}`,
-            nav_label: item.name || item.id || "",
+            /*  The landing is named by its entry, as the nav names the
+             *  entry: `name`, else `aria_label`, else id.  */
+            nav_label: item.name || item.aria_label || item.id || "",
             menu_items: sub.items,
             layout: "cards",
             level: "secondary"

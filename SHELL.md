@@ -471,7 +471,15 @@ menu label.
 - `items[].align`: `"start"` (default) or `"end"` (right-align). The
   alignment also drives the dropdown panel anchor (right-aligned for
   end items, left-aligned for start items).
-- `aria_label` per item is used as the `<button>`'s `aria-label`.
+- `aria_label` per item is used as the `<button>`'s `aria-label`: its
+  NAME, an i18n KEY, which wins over a visible `name` (that is often a
+  symbol: `"ES/EN"`). An item with neither is named by its `id`, a KEY
+  too, with a `title`, so it changes language: the `search` item above is
+  named `t("search")`. A row of a dropdown follows the same rule; an
+  avatar or a connection dot that says nothing is named by the library's
+  own `"user menu"` / `"backend connection"`, and a dropdown's menu by
+  the name of its trigger. Up to `7.26.41` such an item was named by its
+  raw id, with no key and no title.
 - `items[].badge` / `items[].badge_tone` — a count on the corner of the
   item's icon, with an optional tone; the same fields, rules and tones as
   a menu item's (§3.5). They seed the first paint;
@@ -505,9 +513,20 @@ menu label.
 ```
 
 - `route` — hash route to associate.
+- `name` — the entry's label, an i18n KEY (drawn with `data-i18n`), and its
+  name for a reader (`aria-label`, with its key). An entry with no `name` (an
+  icon alone) is named by its `aria_label`, else by its `id` -- a KEY too,
+  with a title, so it changes language: `{ "id": "alarms", "icon":
+  "yi-triangle-exclamation", "route": "/alarms" }` is named `t("alarms")`.
+  Up to `7.26.41` such an entry was named by its raw id, with no key and no
+  title. The same name is the entry's everywhere: the navigation it opens
+  (its tab strip, its `submenu.index` landing), the announcement of its
+  badge, its row in the site map. `tooltip` — its title, when it says more
+  than its name.
 - `badge` — a count (or a short text: `"!"`) carried by the entry, with
   the rules of the toolbar badge: `0` / `""` / `null` show none, over 99
-  reads `99+`, a `role="status"` live region. Every layout that shows the
+  reads `99+`, a change is said by the shell's live region with the
+  entry's name (README, "Badges"). Every layout that shows the
   entry's label or icon draws it: on the corner of the icon where the
   entry is an icon over its label (`icon-bar`, `cards`, a stacked item) or
   an icon alone, after the label elsewhere (`vertical`, `drawer`,
@@ -809,9 +828,15 @@ second.close();                           // gone
  *  the external floating Bulma `.modal-close` (for content that
  *  provides its own in-box close, e.g. a C_YUI_PAGER header); Escape
  *  and the backdrop still close.  before_close() may veto a close
- *  (false), or ask first and answer the question's promise: a veto
- *  that tells the modal when the question is over (a Back that asked
- *  gets its history entry back then, below the question);
+ *  (false), or ask first and answer the question's promise, which
+ *  tells the modal when the question is over: settled with `true`
+ *  it closes the modal, with anything else (or rejected) it is a
+ *  veto, and a Back that asked gets its history entry back then,
+ *  below the question -- so an `async` guard answers as a plain one
+ *  does:
+ *      before_close: async () => dirty
+ *          ? yui_shell_confirm_yesno(shell, "all changes will be lost")
+ *          : true,
  *  on_close() fires once after the modal is removed by ANY path
  *  (programmatic, Escape, backdrop, X) — use it to destroy a gobj you
  *  mounted inside.  dialog:true is the V2 adaptive dialog standard: a

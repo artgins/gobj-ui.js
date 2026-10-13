@@ -1,0 +1,29 @@
+/***********************************************************************
+ *          g6_canvas_tab_order.css
+ *
+ *      The focus ring of the main canvas of a G6 graph -- the one
+ *      control of the graph in the Tab order, and named for what it
+ *      draws (g6_canvas_tab_order.js gives it the `G6_MAIN_CANVAS`
+ *      class). Brought along by that module, which every view that
+ *      draws a G6 graph imports.
+ *
+ *      G6 writes `outline: none` on its canvases, INLINE (configCanvasDom,
+ *      when it builds them and on a renderer change), so a keyboard that
+ *      Tabbed onto the graph saw no sign of where it was. An inline style
+ *      is reached only by `!important`.
+ *
+ *      `:focus-visible`, so a pointer that presses the graph -- and the
+ *      views that give the canvas the keyboard on a press -- draw no
+ *      ring. The colour is the link token as INK (`-on-scheme`, see the
+ *      README's "Colour" convention), legible on the light and the dark
+ *      scheme; inset, so a container that clips the graph does not clip
+ *      the ring. No transition: a focus appears at once.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+
+.G6_MAIN_CANVAS:focus-visible {
+    outline: 2px solid var(--bulma-link-on-scheme, var(--bulma-link, #485fc7)) !important;
+    outline-offset: -2px !important;
+}

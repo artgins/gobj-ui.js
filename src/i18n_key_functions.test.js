@@ -40,6 +40,10 @@
  *          from one (`t("k") + ":"`) -- marked or not. A translator handed
  *          as a callback (V23.5: `keys.map(t)`, `promise.then(t)`) is held
  *          the same way, each element it walks a key position;
+ *        - no module hands a TRANSLATED text to any other place a key is
+ *          read -- t(), an i18n / code / data-i18n* value, a data-i18n*
+ *          attribute --, marked or not (V24.5.2: up to 7.26.41 only a
+ *          marked one failed);
  *        - every marker is one and stands where a key is read; the lists
  *          it names are published by its module or one it imports; the
  *          keys it marks that can be read are in them -- a marked `let`
@@ -2009,8 +2013,9 @@ describe("REV-CLOUD V23.5: a translator as a callback, by destructuring; setAttr
         let r = scan([`t(/* i18n: data */ t("k") + "!");`,
                       `x.i18n = /* i18n: data */ t("k").trim();`,
                       `t(/* i18n: data */ kw.comment + "!");`]);
-        expect(r.marker_errors.map((e) => e.line)).toEqual([3, 4]);
-        expect(r.marker_errors[0].why).toMatch(/^marked as data, but `t\("k"\) \+ "!"` is a TRANSLATED text: .*hand the key, not t\(key\)$/);
+        expect(r.translated_errors.map((e) => e.line)).toEqual([3, 4]);
+        expect(r.translated_errors[0].why).toMatch(/^marked as data, but `t\("k"\) \+ "!"` is a TRANSLATED text: .*hand the key, not t\(key\)$/);
+        expect(r.marker_errors).toEqual([]);
     });
 
     test("an UNMARKED let given nothing but literals is read where a key is read -- at a key position the rule still fails it", () => {
@@ -2055,5 +2060,176 @@ describe("REV-CLOUD V23.5: a translator as a callback, by destructuring; setAttr
             `X_I18N_KEYS = [];`                            // 18: the list itself given another value
         ].join("\n"));
         expect(list_mutations(ast, [{name: "X_I18N_KEYS", keys: ["x"]}]).map((e) => e.line)).toEqual([5, 7, 8, 10, 18]);
+    });
+});
+
+describe("REV-CLOUD V24.5: every write counts; a translated text fails unmarked too; the callbacks, exactly; .bind()", () => {
+    let module = "x.js";
+    let head = [`import {yui_shell_show_info} from "./shell_modals.js";`,
+                `import i18next from "i18next";`];
+    let scan = (lines) => scan_ast(parse_as([...head, ...lines].join("\n"), module), {lib_module: module});
+    let rule = (lines) => rule_report(parse_as([...head, ...lines].join("\n"), module), module);
+    let keys_of = (lines) => [...scan(lines).keys].sort();
+
+    test("every write to an unmarked let counts: one the reader cannot read leaves it unfollowed", () => {
+        /*  Each body gives `key` the sentinel "-" and then a value the reader
+         *  does not read: up to 7.26.41 the eight first asked for "-"  */
+        let writes = [
+            `for([key, label] of rows) { el.setAttribute("data-i18n", key); }`,      // the review's probe
+            `for({key} of rows) { t(key); }`,
+            `for({k: key = "d"} of rows) { t(key); }`,
+            `for([key] in obj) { t(key); }`,
+            `for await ([key] of rows) { t(key); }`,
+            `for(key of rows) { t(key); }`,
+            `for(key in obj) { t(key); }`,
+            `[key, x] = rows;`,
+            `({key} = row);`,
+            `[[key]] = rows;`,
+            `rows.forEach((r) => { ({key} = r); });`,
+            `key += "!";`,
+            `key = kw.label;`,
+            `eval(code);`
+        ];
+        for(let w of writes) {
+            expect(keys_of([`async function f(el, rows, obj, row, kw, code) {`, `    let key = "-";`,
+                            `    ${w}`, `    return t(key);`, `}`]), w).not.toContain("-");
+        }
+        /*  A `var` declared again: in a loop head (function and module), and
+         *  -- for one of the module -- in a block, a for(;;) init, a switch
+         *  case, or by an array pattern  */
+        let redeclared = [
+            [`function f(rows) {`, `    var key = "-";`, `    for(var key of rows) {`, `    }`, `    return t(key);`, `}`],
+            [`function f(obj) {`, `    var key = "-";`, `    for(var key in obj) {`, `    }`, `    return t(key);`, `}`],
+            [`var key = "-";`, `for(var key of rows) {`, `}`, `t(key);`],
+            [`var key = "-";`, `if(c) {`, `    var key = kw.data;`, `}`, `t(key);`],
+            [`var key = "-";`, `for(var key = kw.data; c; ) {`, `}`, `t(key);`],
+            [`var key = "-";`, `switch(c) {`, `    case 1:`, `        var key = kw.data;`, `}`, `t(key);`],
+            [`var key = "-";`, `var [key] = rows;`, `t(key);`]
+        ];
+        for(let lines of redeclared) {
+            expect(keys_of(lines), lines.join(" ")).not.toContain("-");
+        }
+        /*  ...and one whose every value is a literal still asks for them, a
+         *  module `var` given more in a block included  */
+        expect(keys_of([`var key = "a module key";`, `if(c) {`, `    var key = "a block key";`, `}`, `t(key);`]))
+            .toEqual(["a block key", "a module key"]);
+        /*  A `var` of a class's static block is the block's own: it hides an
+         *  outer `let` of the same name (up to 7.26.41 it was not seen)  */
+        expect(keys_of([`let key = "-";`, `class A {`, `    static {`, `        var key = kw.data;`, `        t(key);`,
+                        `    }`, `}`])).not.toContain("-");
+        expect(keys_of([`class A {`, `    static {`, `        var key = "a static key";`, `        t(key);`, `    }`, `}`]))
+            .toEqual(["a static key"]);
+        /*  A marked let written by a loop head is no "make it a const"  */
+        expect(scan([`export const X_I18N_KEYS = ["accept"];`, `let k = "accept";`, `for([k] of rows) {`, `}`,
+                     `t(/* i18n: X_I18N_KEYS */ k);`]).marker_errors).toEqual([]);
+        expect(scan([`export const X_I18N_KEYS = ["accept"];`, `let LABELS = {ok: "accept"};`,
+                     `for(LABELS.extra of rows) {`, `}`, `t(/* i18n: X_I18N_KEYS */ LABELS[k]);`]).marker_errors).toEqual([]);
+    });
+
+    test("the let rule is flow-INSENSITIVE: every literal the let is given in its scope is asked for; null is never", () => {
+        let body = (first) => [`function f(c) {`, `    let key = ${first};`, `    if(c) {`, `        key = "save";`, `    }`,
+                               `    if(key !== "-") {`, `        t(key);`, `    }`, `}`];
+        expect(keys_of(body(`"-"`))).toEqual(["-", "save"]);         // the `if` does not hide "-"
+        expect(keys_of(body(`null`))).toEqual(["save"]);             // the way out for a sentinel
+        expect(keys_of([`const NONE = "-";`, ...body(`NONE`)])).toEqual(["-", "save"]);    // a const IS its literal
+    });
+
+    test("a TRANSLATED text where a key is read fails, marked or not", () => {
+        let r = scan([`x = {i18n: t("k")};`,                                 // 3
+                      `el.setAttribute("data-i18n-title", t("k"));`,        // 4
+                      `t(t("k") + "!");`,                                   // 5
+                      `el.dataset.i18nTitle = tr("k");`,                    // 6
+                      `x = {code: i18next.t("k")};`,                        // 7
+                      `add("error", t("k"));`,                              // 8
+                      `t([t("k"), "fallback"]);`,                           // 9
+                      `const L = t("k");`,                                  // 10: the text, read at 11
+                      `x = {"data-i18n": L};`,
+                      `x = {i18n: /* i18n: data */ t("k")};`,               // 12: marked
+                      `x = {i18n: ["p", {}, t("k")]};`,                     // DOM is DOM
+                      `let held = t("k");`,
+                      `x = {i18n: held};`]);                                 // in a let: the documented limit
+        expect(r.translated_errors.map((e) => e.line)).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 12]);
+        expect(r.translated_errors[0].why).toBe('`t("k")` is a TRANSLATED text given to a property that holds a key ' +
+            '(i18n, code, data-i18n*): the translation is kept as its key and never changes language: hand the key, ' +
+            'not t(key)');
+        expect(r.translated_errors[1].why).toMatch(/^`t\("k"\)` is a TRANSLATED text given to a data-i18n\* attribute: /);
+        expect(r.translated_errors[2].why).toMatch(/^`t\("k"\) \+ "!"` is a TRANSLATED text handed to a translator as its key: /);
+        expect(r.translated_errors[7].why).toMatch(/^`t\("k"\)` is a TRANSLATED text given to a property .* \(read at line 11\): /);
+        expect(r.translated_errors[8].why).toMatch(/^marked as data, but `t\("k"\)` is a TRANSLATED text: .*no marker excuses it/);
+        expect(r.marker_errors).toEqual([]);
+    });
+
+    test("no module of the library hands a TRANSLATED text to a place a key is read", () => {
+        let wrong = [];
+        for(let m of MODULES) {
+            for(let e of scan_ast(ast_of(m), {lib_module: m}).translated_errors) {
+                wrong.push(`${m}:${e.line}: ${e.why}`);
+            }
+        }
+        expect(wrong).toEqual([]);
+        /*  ...and the check sees one: a module given one, unmarked  */
+        let code = readFileSync(join(SRC, "yui_text.js"), "utf8");
+        let lines = code.split("\n").length;
+        let mutated = parse_as(code + `\nexport function probe(el) { el.setAttribute("data-i18n", t("probe")); }\n`,
+                               "yui_text.js");
+        expect(scan_ast(mutated, {lib_module: "yui_text.js"}).translated_errors.map((e) => e.line)).toEqual([lines + 1]);
+    });
+
+    test("the callbacks read, exactly: findIndex, findLastIndex, .call(), .apply(), a literal name, Array.fromAsync()", () => {
+        expect(keys_of([`const K = ["k1", "k2"];`,
+                        `K.findIndex(t);`,
+                        `K.findLastIndex(i18next.t);`,
+                        `Array.prototype.map.call(["k3"], t);`,
+                        `[].forEach.call(["k4"], t);`,
+                        `Array.prototype.some.apply(["k5"], [t]);`,
+                        `["k6"]["every"](t);`,
+                        `Array.fromAsync(["k7"], t);`,
+                        `["k8"].reduce(t);`,                                          // no element is the key
+                        `Reflect.apply(Array.prototype.map, ["k9"], [t]);`])).toEqual(   // not read: documented
+            ["k1", "k2", "k3", "k4", "k5", "k6", "k7"]);
+        /*  A function callback's first parameter is an element in the same forms  */
+        expect(keys_of([`Array.prototype.forEach.call(["f1"], (k) => t(k));`,
+                        `[].map.apply(["f2"], [(k) => t(k)]);`,
+                        `Array.from(["f3"], (k) => t(k));`,
+                        `["f4"].findIndex((k) => t(k));`])).toEqual(["f1", "f2", "f3", "f4"]);
+        /*  ...and the rule holds them: an array the reader cannot follow fails unmarked  */
+        expect(rule([`function f(kw) {`,
+                     `    let rows = kw.rows;`,
+                     `    Array.prototype.map.call(rows, t);`,
+                     `    rows.findIndex(t);`,
+                     `    [].forEach.apply(rows, [t]);`,
+                     `    /* i18n: data */ Array.prototype.map.call(rows, t);`,
+                     `}`])).toEqual([
+            `${module}:5 t() [map callback]: rows`,
+            `${module}:6 t() [findIndex callback]: rows`,
+            `${module}:7 t() [forEach callback]: rows`
+        ]);
+        /*  The forwarder search sees a parameter walked through .call()  */
+        let ast = parse_as(`export function f_call(gobj, keys) { Array.prototype.forEach.call(keys, t); }`, module);
+        let found = find_forwarders([module], () => ast, []);
+        expect(found.opaque).toEqual([]);
+        expect(Object.fromEntries(found.found.map((f) => [f.name, f.keys]))).toEqual({f_call: ["1[]"]});
+    });
+
+    test("a bound translator: what a call of it is handed is i18next's options, no key; a bound key function counts them", () => {
+        expect(keys_of([`const tk = t.bind(null, "bound key");`,
+                        `tk("an option");`,
+                        `tk.call(null, "another option");`,
+                        `t.bind(i18next).bind(null, "bound key")("a third option");`,
+                        `["an element"].map(tk);`,
+                        `["another element"].map(t.bind(null, "bound key"));`,
+                        `const tt = t.bind(i18next);`,
+                        `tt("a key: nothing bound");`])).toEqual(["a key: nothing bound"]);
+        /*  Its text is translated text all the same  */
+        expect(scan([`const tk = t.bind(null, "bound key");`, `x = {i18n: tk()};`]).translated_errors.map((e) => e.line))
+            .toEqual([4]);
+        /*  A key function bound with its first argument: the key is the call's first one now  */
+        let r = scan([`const show = yui_shell_show_info.bind(null, shell);`, `show("a bound function key");`]);
+        expect(r.keys.has("a bound function key")).toBe(true);
+        expect(rule([`const show = yui_shell_show_info.bind(null, shell);`, `show(kw.message);`,
+                     `const more = yui_shell_show_info.bind(null, ...args);`, `more("k");`])).toEqual([
+            `${module}:4 yui_shell_show_info() [1]: kw.message`,
+            `${module}:6 yui_shell_show_info() [1]: more("k")`        // a spread hides the positions: loud
+        ]);
     });
 });

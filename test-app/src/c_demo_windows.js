@@ -156,10 +156,14 @@ function spawn_window(gobj)
         "C_YUI_WINDOW",
         {
             subscriber: null,
-            title: `${t("demo window")} ${n}`,
+            /*  The two halves of the title, as a window takes them: the
+             *  KIND is a key, the number is DATA. Composed into `title`
+             *  (`${t("demo window")} ${n}`) the bar and the dock chip
+             *  stayed in the language the window was opened in. With no
+             *  `header`, the bar draws the same two halves.  */
+            title: "demo window",
+            title_prefix: `#${n}`,
             icon: icon,
-            header: ['span', {class: 'px-2 has-text-weight-semibold'},
-                `${t("demo window")} ${n}`],
             body: ['div', {class: 'p-3'}, [
                 ['p', {class: 'mb-2'},
                     t("A plain C_YUI_WINDOW. Drag the titlebar, resize the edges.")],

@@ -24,7 +24,7 @@ const {
     SDATA, SDATA_END, data_type_t, gclass_create, gobj_write_attr,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_start, gobj_stop,
     gobj_destroy, gobj_is_running, gobj_read_attr, gobj_send_event,
-    set_log_callback,
+    gobj_has_event, gobj_posted_events_size, set_log_callback,
 } = await import("@yuneta/gobj-js");
 const {
     register_c_yui_shell,
@@ -239,6 +239,36 @@ function name_of($control)
 function said(shell)
 {
     return root(shell).querySelector(".SHELL_BADGE_STATUS").textContent;
+}
+
+/*  What the live region holds, one entry per change it says: a line
+ *  each (an element child), or the bare text up to 7.26.41.  */
+function said_lines(shell)
+{
+    const $status = root(shell).querySelector(".SHELL_BADGE_STATUS");
+    if($status.children.length > 0) {
+        return Array.from($status.children).map(($line) => $line.textContent);
+    }
+    return $status.textContent ? [$status.textContent] : [];
+}
+
+/*  The turn of the loop is over: what was posted in it is delivered
+ *  (gobj_post_event() drains on setTimeout(0), queued before this).  */
+function next_turn()
+{
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/*  Every write of the region's content, as the texts it held after it.  */
+function spy_writes($status)
+{
+    const writes = [];
+    const real = $status.replaceChildren;
+    $status.replaceChildren = function(...nodes) {
+        real.apply(this, nodes);
+        writes.push(Array.from(this.children).map(($line) => $line.textContent));
+    };
+    return writes;
 }
 
 
@@ -684,22 +714,11 @@ describe("a reader gets the count with the name of what it counts", () => {
         /*  "home" has no badge: its first count is a change from nothing  */
         yui_shell_set_nav_item_badge(shell, "home", 1);
         expect(said(shell)).toBe("Home, 1");
+        await next_turn();
 
-        const writes = [];
-        const $status = root(shell).querySelector(".SHELL_BADGE_STATUS");
-        const real = Object.getOwnPropertyDescriptor(Object.getPrototypeOf($status), "textContent");
-        Object.defineProperty($status, "textContent", {
-            get() {
-                return real.get.call(this);
-            },
-            set(v) {
-                writes.push(v);
-                real.set.call(this, v);
-            },
-            configurable: true
-        });
+        const writes = spy_writes(root(shell).querySelector(".SHELL_BADGE_STATUS"));
         yui_shell_set_nav_item_badge(shell, "alarms", 3);
-        expect(writes).toEqual(["Alarms, 3"]);
+        expect(writes).toEqual([["Alarms, 3"]]);
     });
 
     test("the same count is no news, a count going away is not either, one coming back is", async () => {
@@ -714,15 +733,21 @@ describe("a reader gets the count with the name of what it counts", () => {
         yui_shell_set_nav_item_badge(shell, "alarms", 2);
         expect(said(shell)).toBe("");
 
+        /*  Each change in a turn of its own, as a feed of counts sends
+         *  them: what one turn said stays in the region until the next
+         *  change is said.  */
         yui_shell_set_nav_item_badge(shell, "alarms", 3);
         expect(said(shell)).toBe("Alarms, 3");
         const node = $status.firstChild;
+        await next_turn();
 
         yui_shell_set_nav_item_badge(shell, "alarms", 3, "danger");     // only the tone
         expect($status.firstChild).toBe(node);
+        await next_turn();
 
         yui_shell_set_nav_item_badge(shell, "alarms", 0);
         expect($status.firstChild).toBe(node);                          // not said
+        await next_turn();
 
         yui_shell_set_nav_item_badge(shell, "alarms", 3);
         expect(said(shell)).toBe("Alarms, 3");
@@ -740,6 +765,129 @@ describe("a reader gets the count with the name of what it counts", () => {
         expect(said(shell)).toBe("");
         yui_shell_set_toolbar_item_badge(shell, "bell", 120);
         expect(said(shell)).toBe("Alarms, 99+");
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("REV-CLOUD V24.5.3: every change is said, as it reads", () => {
+    async function english(extra)
+    {
+        const i18next = (await import("i18next")).default;
+        i18next.addResourceBundle("en", "translation", Object.assign(
+            {"{{name}}, {{n}}": "{{name}}, {{n}}", "alarms": "Alarms", "home": "Home"},
+            extra || {}), true, true);
+        return i18next.getFixedT("en");
+    }
+
+    /*  The test-app's "alerts" button does exactly this: the toolbar
+     *  count and a menu entry's, in the same action. Up to 7.26.41 the
+     *  second overwrote the first in the region before a reader could
+     *  hear it, so the control pressed was never said.  */
+    test("two changes in one turn: both said, in ONE message, a line each", async () => {
+        const shell = new_shell();
+        yui_shell_set_translator(shell, await english());
+
+        yui_shell_set_toolbar_item_badge(shell, "bell", 7);
+        yui_shell_set_nav_item_badge(shell, "home", 1);
+        expect(said_lines(shell)).toEqual(["Alarms, 7", "Home, 1"]);
+
+        /*  The next turn starts a message of its own: what the last one
+         *  said is not said again.  */
+        await next_turn();
+        yui_shell_set_nav_item_badge(shell, "home", 2);
+        expect(said_lines(shell)).toEqual(["Home, 2"]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("the same badge twice in one turn says its last count", async () => {
+        const shell = new_shell();
+        yui_shell_set_translator(shell, await english());
+
+        yui_shell_set_nav_item_badge(shell, "alarms", 3);
+        yui_shell_set_toolbar_item_badge(shell, "bell", 6);
+        yui_shell_set_nav_item_badge(shell, "alarms", 5);
+        expect(said_lines(shell)).toEqual(["Alarms, 5", "Alarms, 6"]);
+    });
+
+    test("a count that goes away in the turn it came is not said: the badge shows nothing", async () => {
+        const shell = new_shell();
+        yui_shell_set_translator(shell, await english());
+
+        yui_shell_set_nav_item_badge(shell, "home", 4);
+        yui_shell_set_nav_item_badge(shell, "alarms", 3);
+        yui_shell_set_nav_item_badge(shell, "alarms", 0);
+        expect(said_lines(shell)).toEqual(["Home, 4"]);
+
+        yui_shell_set_nav_item_badge(shell, "home", 0);
+        expect(said_lines(shell)).toEqual([]);
+    });
+
+    test("one turn is closed once, though its message was emptied and opened again", async () => {
+        const shell = new_shell();
+        yui_shell_set_translator(shell, await english());
+
+        const before = gobj_posted_events_size();
+        yui_shell_set_nav_item_badge(shell, "alarms", 3);
+        yui_shell_set_nav_item_badge(shell, "alarms", 0);       // the message is empty again
+        yui_shell_set_nav_item_badge(shell, "home", 1);
+        expect(gobj_posted_events_size() - before).toBe(1);
+        expect(said_lines(shell)).toEqual(["Home, 1"]);
+
+        await next_turn();
+        yui_shell_set_nav_item_badge(shell, "alarms", 4);
+        expect(said_lines(shell)).toEqual(["Alarms, 4"]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("two controls of one name with one count: said once", async () => {
+        const shell = new_shell();
+        yui_shell_set_translator(shell, await english());
+
+        /*  The bell is named "alarms" too  */
+        yui_shell_set_toolbar_item_badge(shell, "bell", 9);
+        yui_shell_set_nav_item_badge(shell, "alarms", 9);
+        expect(said_lines(shell)).toEqual(["Alarms, 9"]);
+    });
+
+    /*  i18next escapes an interpolated value for HTML by default, and
+     *  the message goes to a text node: a reader would have read the
+     *  entities.  */
+    test("the message is text, not HTML: a name with an apostrophe or an ampersand reads as written", async () => {
+        const shell = new_shell();
+        yui_shell_set_translator(shell, await english({"alarms": "Événements d'alarme & co"}));
+
+        yui_shell_set_nav_item_badge(shell, "alarms", 3);
+        expect(said_lines(shell)).toEqual(["Événements d'alarme & co, 3"]);
+    });
+
+    test("the turn is closed through the machine, by an event of the shell", () => {
+        const shell = new_shell();
+        expect(gobj_has_event(shell, "EV_CLOSE_BADGE_NEWS")).toBe(true);
+        /*  Nothing to close: a second message is not opened by it.  */
+        gobj_send_event(shell, "EV_CLOSE_BADGE_NEWS", {}, shell);
+        expect(errors()).toEqual([]);
+    });
+
+    /*  One rule names an item everywhere: the nav names a menu entry by
+     *  its `name`, else its `aria_label`, else its id. Up to 7.26.41 the
+     *  announcement took `name || id`, so an entry that declares only an
+     *  `aria_label` was said by its id -- one name on the control,
+     *  another in the region.  */
+    test("an entry with no `name` is said by the name the nav gives it: its `aria_label`, else its id", async () => {
+        const cfg = config();
+        cfg.menu.primary.items.push(
+            {id: "x9", aria_label: "active alarms", icon: "yi-triangle-exclamation",
+                route: "/x9", target: view()},
+            {id: "events", icon: "yi-eye", route: "/events", target: view()}
+        );
+        const shell = new_shell(cfg);
+        yui_shell_set_translator(shell, await english({"active alarms": "Active alarms", "events": "Events"}));
+
+        const $a = zone(shell, "left").querySelector('a[data-item-id="x9"]');
+        expect($a.getAttribute("data-i18n-aria-label")).toBe("active alarms");
+        yui_shell_set_nav_item_badge(shell, "x9", 3);
+        yui_shell_set_nav_item_badge(shell, "events", 5);
+        expect(said_lines(shell)).toEqual(["Active alarms, 3", "Events, 5"]);
         expect(errors()).toEqual([]);
     });
 });

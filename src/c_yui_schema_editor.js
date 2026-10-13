@@ -291,6 +291,10 @@ let PRIVATE_DATA = {
 
 let __gclass__ = null;
 
+/*  The ids that tie an opener to what describes it (aria-describedby):
+ *  the counts of a card, the id of a topic row whose name is not unique.  */
+let __described_seq__ = 0;
+
 
 
 
@@ -1295,6 +1299,15 @@ function render(gobj)
  *  A card that opens something, with its own logical name. The
  *  cards grid is the shell's, so a schema card and a nav card
  *  look alike on purpose.
+ *
+ *  `title` is the card's name: `{i18n: key}`, or `{text: data}` for
+ *  a name no locale holds (a treedb's id). The card is a control --
+ *  a role=button that Enter and Space press -- and a control is
+ *  NAMED: a title and an aria-label, with their keys when the name
+ *  is one, and its tags (the counts) as its description, which an
+ *  aria-label alone would hide from a reader. Up to 7.26.41 it had
+ *  neither, and the orphans card was handed its name translated,
+ *  in the language it was drawn in for good.
  ***************************************************************/
 function open_card(gobj, logical, title, icon, tags, event, kw)
 {
@@ -1323,14 +1336,29 @@ function open_card(gobj, logical, title, icon, tags, event, kw)
                 : `${tag.text}`];
     });
 
-    return ["div", {class: `${logical} yui-nav-card card`, role: "button", tabindex: "0"}, [
+    let tags_id = `yui-schema-described-${++__described_seq__}`;
+    let card_attrs = {class: `${logical} yui-nav-card card`, role: "button", tabindex: "0",
+                      "aria-describedby": tags_id};
+    let $name;
+    if(title.i18n) {
+        Object.assign(card_attrs, name_attrs(title.i18n, {}));
+        $name = ["span", {class: `${logical}_NAME has-text-weight-semibold`, i18n: title.i18n},
+                 t(title.i18n)];
+    } else {
+        card_attrs.title = String(title.text);
+        card_attrs["aria-label"] = String(title.text);
+        $name = ["span", {class: `${logical}_NAME has-text-weight-semibold`},
+                 text_node(title.text)];
+    }
+
+    return ["div", card_attrs, [
         ["div", {class: `${logical}_BODY card-content p-3`}, [
             ["p", {class: `${logical}_TITLE is-flex is-align-items-center`,
                    style: "gap:.4rem;"}, [
-                ["span", {class: "icon"}, [["i", {class: icon}]]],
-                ["span", {class: `${logical}_NAME has-text-weight-semibold`}, text_node(title)]
+                ["span", {class: "icon"}, [["i", {class: icon, "aria-hidden": "true"}]]],
+                $name
             ]],
-            ["div", {class: `${logical}_TAGS tags mt-2`, style: "gap:.25rem;"}, $tags]
+            ["div", {class: `${logical}_TAGS tags mt-2`, id: tags_id, style: "gap:.25rem;"}, $tags]
         ]]
     ], {
         click: (evt) => {
@@ -1372,7 +1400,7 @@ function render_treedbs(gobj, $body)
                 ? [{i18n: "from c", text: treedb.c_schema_version, style: "is-warning is-light"}]
                 : [])
         ];
-        $cards.push(open_card(gobj, "SCHEMA_TREEDB_CARD", treedb.id, "yi-database",
+        $cards.push(open_card(gobj, "SCHEMA_TREEDB_CARD", {text: treedb.id}, "yi-database",
             tags, "EV_SELECT_TREEDB", {treedb: treedb.id}));
     }
 
@@ -1380,7 +1408,7 @@ function render_treedbs(gobj, $body)
         /*  A leftover of a deletion belongs to no treedb and would be
          *  invisible in a screen that only draws the tree. Saying it
          *  here is the only place it can be said.  */
-        $cards.push(open_card(gobj, "SCHEMA_ORPHAN_CARD", t("orphans"), "yi-triangle-exclamation",
+        $cards.push(open_card(gobj, "SCHEMA_ORPHAN_CARD", {i18n: "orphans"}, "yi-triangle-exclamation",
             [{i18n: "topics", text: priv.model.orphan_topics.length},
              {i18n: "columns", text: priv.model.orphan_cols.length}],
             "EV_SHOW_ORPHANS", {}));
@@ -1429,9 +1457,30 @@ function render_topics(gobj, $body)
                 "EV_DELETE_TOPIC", {topic: address}));
         }
 
-        $rows.push(["tr", {class: "SCHEMA_TOPIC_ROW", role: "button", tabindex: "0"}, [
+        /*  The row stays a ROW: a `<tr role=button>` -- what it was up to
+         *  7.26.41 -- is a button to a reader, with no cells, and it had
+         *  no name. The opener is a real button in the name cell, named
+         *  by the topic: a key presses it with no handler of ours, and a
+         *  reader reads the rest of the row as cells of a table. Two
+         *  topics of one name are told apart by the id under the name,
+         *  which describes the opener. The pointer opens the topic from
+         *  anywhere in the row, as before.  */
+        let open_attrs = {class: "SCHEMA_TOPIC_OPEN has-text-weight-semibold", type: "button",
+                          title: topic.name, "aria-label": topic.name};
+        let id_attrs = {class: "SCHEMA_TOPIC_ID is-size-7 yui-text-quiet"};
+        if(ambiguous) {
+            id_attrs.id = `yui-schema-described-${++__described_seq__}`;
+            open_attrs["aria-describedby"] = id_attrs.id;
+        }
+
+        $rows.push(["tr", {class: "SCHEMA_TOPIC_ROW"}, [
             ["td", {class: "SCHEMA_TOPIC_NAME"}, [
-                ["span", {class: "has-text-weight-semibold"}, text_node(topic.name)],
+                ["button", open_attrs, text_node(topic.name), {
+                    click: (evt) => {
+                        evt.stopPropagation();
+                        gobj_send_event(gobj, "EV_SELECT_TOPIC", {topic: address}, gobj);
+                    }
+                }],
                 topic.system_topic
                     ? ["span", {class: "SCHEMA_TOPIC_SYSTEM tag ml-2",
                                 i18n: "system"}, t("system")]
@@ -1444,8 +1493,7 @@ function render_topics(gobj, $body)
                                 title: t("main topic"), "data-i18n-title": "main topic"}, "★"]
                     : ["span", {}, ""],
                 ambiguous
-                    ? ["div", {class: "SCHEMA_TOPIC_ID is-size-7 yui-text-quiet"},
-                        [["code", {}, text_node(topic.id)]]]
+                    ? ["div", id_attrs, [["code", {}, text_node(topic.id)]]]
                     : ["span", {}, ""]
             ]],
             ["td", {class: "SCHEMA_TOPIC_PKEY"}, [["code", {}, text_node(topic.pkey || "id")]]],
@@ -1456,17 +1504,13 @@ function render_topics(gobj, $body)
             ]],
             ["td", {class: "SCHEMA_TOPIC_ACTIONS has-text-right"}, $actions]
         ], {
+            /*  The pointer's way in. The keyboard's is the opener: the
+             *  row's own keydown also took an Enter meant for a row
+             *  action, which then opened the topic instead.  */
             click: (evt) => {
                 if(evt.target.closest(".SCHEMA_TOPIC_ACTIONS")) {
                     return;     /*  a row action, not the row  */
                 }
-                gobj_send_event(gobj, "EV_SELECT_TOPIC", {topic: address}, gobj);
-            },
-            keydown: (evt) => {
-                if(evt.key !== "Enter" && evt.key !== " ") {
-                    return;
-                }
-                evt.preventDefault();
                 gobj_send_event(gobj, "EV_SELECT_TOPIC", {topic: address}, gobj);
             }
         }]);

@@ -758,8 +758,9 @@ function build_graph(gobj)
     }
 
     /*  Tab goes from the graph to its own buttons: the main canvas in
-     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
-    keep_canvas_tab_order(gobj, graph);
+     *  the Tab order, named for what it draws, the other layers out
+     *  (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, graph, "json graph");
 
     graph.on(NodeEvent.CLICK, (evt) => {
         /*  An identity, never the G6 event: a kw is plain json, and the

@@ -661,8 +661,9 @@ function build_graph(gobj)
     graph.setTheme(dark ? "dark" : "light");
 
     /*  Tab goes from the graph to its own buttons: the main canvas in
-     *  the Tab order, the other layers out (g6_canvas_tab_order.js).  */
-    keep_canvas_tab_order(gobj, graph);
+     *  the Tab order, named for what it draws, the other layers out
+     *  (g6_canvas_tab_order.js).  */
+    keep_canvas_tab_order(gobj, graph, "schema graph");
 
     /*  The readout follows ANY camera change, the wheel included -- a
      *  wheel notch passes through no action of ours.  */
