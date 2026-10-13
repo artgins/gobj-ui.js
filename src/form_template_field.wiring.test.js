@@ -143,6 +143,27 @@ describe("a template field in exec mode (a sub-form)", () => {
         expect(errors()).toEqual([]);
     });
 
+    test("a colour cleared is black, and its readout says so", () => {
+        const form = build({
+            template_version: 7,
+            alarm_colors: {
+                active_not_validated: "#ff0000",
+                active_validated: "#e5a50a",
+                not_active_not_validated: "#ff00ff"
+            }
+        });
+        const $c = gobj_read_attr(form, "$container");
+        const $colors = $c.querySelectorAll("fieldset input");
+        expect($colors.length).toBe(3);
+        gobj_send_event(form, "EV_CLEAR_RECORD", {}, form);
+        for(const $input of $colors) {
+            /*  Never "": a colour input refuses it (Chrome warns).  */
+            expect($input.value).toBe("#000000");
+            expect($input.yui_color_value.textContent).toBe("#000000");
+        }
+        expect(errors()).toEqual([]);
+    });
+
     test("left null by a save before the fix, comes back with its defaults", () => {
         const form = build({
             template_version: 7,

@@ -2851,6 +2851,18 @@ function clear_data(gobj, $form)
             } else if($input.type === 'datetime-local') { /* time */
                 $input.value = null;
 
+            } else if($input.type === 'color') {
+                /*  A colour input holds a colour: the "" a null is written
+                 *  as is refused, the browser keeps its black, and Chrome
+                 *  says so on the console, one line per field each time
+                 *  the form is filled. Black, then, and the readout beside
+                 *  the swatch told (writing `.value` fires nothing).  */
+                $input.value = "#000000";
+                if($input.yui_color_value) {
+                    $input.yui_color_value.textContent = $input.value;
+                    $input.yui_color_value.title = $input.value;
+                }
+
             } else if($input.type === 'select-multiple') {
                 $input.tom_select.clear();
             } else {

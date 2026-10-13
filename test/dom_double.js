@@ -195,6 +195,26 @@ class FakeElement extends FakeNode {
     hasAttribute(k) {
         return this.getAttribute(k) !== null;
     }
+    /*  `type` reflects the attribute, as in a browser: the code asks
+     *  `$input.type === 'color'`, never the attribute.  */
+    get type() {
+        const t = this.getAttribute("type");
+        switch(this.tagName) {
+            case "INPUT":
+                return t? t.toLowerCase() : "text";
+            case "SELECT":
+                return this.hasAttribute("multiple")? "select-multiple" : "select-one";
+            case "TEXTAREA":
+                return "textarea";
+            case "BUTTON":
+                return t? t.toLowerCase() : "submit";
+            default:
+                return t || "";
+        }
+    }
+    set type(v) {
+        this.setAttribute("type", v);
+    }
     removeAttribute(k) {
         if(k === "class") {
             this.classList = new FakeClassList();

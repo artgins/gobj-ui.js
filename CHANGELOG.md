@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.34
+
+- **fix(`C_YUI_FORM`): filling a form with colour fields no longer warns on
+  Chrome's console.** `clear_data()` -- which runs before every record is
+  written into the form -- set every input to `null`, and a colour input
+  refuses the `""` that `null` is written as: the browser keeps its black,
+  and Chrome logs *"The specified value "" does not conform to the required
+  format"*, one line per colour field each time the form is filled (three
+  per opening of an estadodelaire device's settings). A colour input is
+  cleared to `#000000` now -- what it showed anyway -- and the readout
+  beside its swatch is told, so a Clear no longer leaves the old value
+  written next to a black swatch. The test double reflects an element's
+  `type` as a browser does (`test/dom_double.js`). Test:
+  `src/form_template_field.wiring.test.js`.
+
 ## 7.26.33
 
 - **fix(`C_YUI_FORM`): a template field saved in 'exec' mode is the dict its
