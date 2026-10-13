@@ -3325,6 +3325,38 @@ keeps working afterwards. With no guard a modal closes exactly as it always
 did, and the returned `close()` always closes **unconditionally** — the veto is
 for the user's dismiss, not for the code's.
 
+**A guard that ASKS returns the question's promise** (7.26.38+). It is a veto
+too, and it tells the modal when the question is over: a browser Back that
+asked gets its history entry back THEN, below nothing. Opening the question and
+returning `false` put the entry back at once, above the question's own -- so the
+next Back, the one meant for the question, reached the modal, which asked
+again, and on a phone (where Back is a gesture) every Back stacked one more
+question.
+
+```js
+const sheet = yui_shell_show_modal(shell, $body, {
+    dialog:       true,
+    title:        "device settings",
+    t:            t,
+    before_close: () => {
+        const kw = {};
+        gobj_send_event(form, "EV_WINDOW_TO_CLOSE", kw, gobj);
+        if(!kw.abort_close) {
+            return true;
+        }
+        return yui_shell_confirm_yesnocancel(shell, "all changes will be lost", {t})
+            .then((answer) => {
+                if(answer === "yes") {
+                    gobj_send_event(gobj, "EV_CLOSE_SHEET", {}, gobj);  // its action: sheet.close()
+                }
+            });
+    },
+    on_close:     () => {
+        gobj_send_event(gobj, "EV_SHEET_CLOSED", {}, gobj);  // its action: destroy the form
+    }
+});
+```
+
 ### Confirmations — and the red one, `yui_shell_confirm_danger`
 
 `yui_shell_confirm_yesno(shell, message, opts)` asks a question and resolves to

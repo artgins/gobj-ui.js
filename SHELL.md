@@ -808,7 +808,10 @@ second.close();                           // gone
  *  title_prefix, t, logical_class }.  with_close_button:false omits
  *  the external floating Bulma `.modal-close` (for content that
  *  provides its own in-box close, e.g. a C_YUI_PAGER header); Escape
- *  and the backdrop still close.  before_close() may veto a close;
+ *  and the backdrop still close.  before_close() may veto a close
+ *  (false), or ask first and answer the question's promise: a veto
+ *  that tells the modal when the question is over (a Back that asked
+ *  gets its history entry back then, below the question);
  *  on_close() fires once after the modal is removed by ANY path
  *  (programmatic, Escape, backdrop, X) — use it to destroy a gobj you
  *  mounted inside.  dialog:true is the V2 adaptive dialog standard: a

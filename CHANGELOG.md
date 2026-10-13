@@ -5,6 +5,22 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.38
+
+- **fix(`yui_shell_show_modal`): a guard that ASKS before a modal closes asks
+  once.** The browser Back takes the modal's history entry before its
+  `before_close` runs; a guard with unsaved changes opened its question and
+  answered `false`, and the modal took its entry back at once -- ABOVE the
+  question's own. The next Back, the one meant for the question, reached the
+  modal instead, which asked again: every Back stacked one more question, and
+  on a phone Back is a gesture. A guard that asks now answers the question's
+  PROMISE: a veto, and the modal takes its entry back once the question is
+  over (or not at all, when the answer closed it). Same contract as the
+  `asking` close of `C_YUI_WINDOW`. `C_YUI_TREEDB_TOPIC_WITH_FORM`'s record
+  form, the library's own sheet with an unsaved-changes guard, answers its
+  confirm's promise. Found making estadodelaire's device views sheets on a
+  phone. Test: `src/modal_guard_back.wiring.test.js` (red before the fix).
+
 ## 7.26.37
 
 - **fix(`tabulator.css`): the editor of a boolean cell is a box to tick, not

@@ -386,7 +386,17 @@ export function yui_shell_show_modal(shell, content, opts)
      *  VETO — the modal stays up and the caller takes over (e.g. an
      *  unsaved-changes prompt that calls close() itself on confirm). Return
      *  true/undefined to let it close. Absent guard ⇒ always closes, so
-     *  existing callers are unaffected. */
+     *  existing callers are unaffected.
+     *
+     *  A guard that ASKS first returns the question's PROMISE: a veto, and
+     *  the modal is told when the question is over. It matters on browser
+     *  Back, which took the modal's history entry before the guard ran:
+     *  the entry goes back once the question is gone, never above it.
+     *  Returned false after opening the question, the entry went back at
+     *  once, over the question's own, and the next Back -- the one meant
+     *  for the question -- reached the modal, which asked again: every
+     *  Back stacked one more question. Same contract as the `asking`
+     *  close of C_YUI_WINDOW. */
     let guarded_close = function(on_veto) {
         if(closed) {
             return;
@@ -400,6 +410,12 @@ export function yui_shell_show_modal(shell, content, opts)
                 allow = true;
             }
         }
+        if(allow && typeof allow.then === "function") {
+            if(typeof on_veto === "function") {
+                allow.then(on_veto, on_veto);
+            }
+            return;
+        }
         if(allow === false) {
             if(typeof on_veto === "function") {
                 on_veto();
@@ -412,10 +428,13 @@ export function yui_shell_show_modal(shell, content, opts)
         guarded_close(null);
     };
     /*  Browser Back already consumed the history entry; if the guard vetoes,
-     *  re-arm a fresh entry so a later Back still targets this modal. */
+     *  re-arm a fresh entry so a later Back still targets this modal --
+     *  unless the answer to its question closed it.  */
     let on_back = function() {
         guarded_close(function() {
-            overlay = yui_shell_register_overlay(shell, on_back);
+            if(!closed) {
+                overlay = yui_shell_register_overlay(shell, on_back);
+            }
         });
     };
 

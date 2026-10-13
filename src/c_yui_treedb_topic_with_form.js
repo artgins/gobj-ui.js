@@ -2554,9 +2554,12 @@ function open_form_dialog(gobj, mode, record)
 
 /************************************************************
  *  Unsaved-changes guard for the dialog's `before_close` hook.
- *  Returns true to allow the dismiss; false to VETO it (the form
- *  has pending edits) and pop the confirm — which, on "yes",
- *  closes the modal itself (EV_WINDOW_TO_CLOSE contract).
+ *  Returns true to allow the dismiss; otherwise the form has
+ *  pending edits, and it asks: the confirm's promise is a VETO
+ *  that tells the dialog when the question is over (a Back that
+ *  asked gets its history entry back then, below nothing). On
+ *  "yes" the confirm closes the modal itself (EV_WINDOW_TO_CLOSE
+ *  contract).
  ************************************************************/
 function form_may_close(gobj)
 {
@@ -2570,9 +2573,8 @@ function form_may_close(gobj)
              *  a second key to define — and the one that was here had never
              *  been defined in any locale, which renders as the English
              *  sentence itself, in every language, for ever. */
-            confirm_then(gobj, /* i18n: C_YUI_FORM_I18N_KEYS */ kw.warning || "all changes will be lost",
+            return confirm_then(gobj, /* i18n: C_YUI_FORM_I18N_KEYS */ kw.warning || "all changes will be lost",
                 {what: "close_form"});
-            return false;
         }
     }
     return true;
@@ -2612,11 +2614,12 @@ function teardown_form_child(gobj)
  *  it, and a gobj, a Tabulator row or a DOM node in there is a
  *  circular structure that breaks the very trace the FSM feeds.
  *
- *  Same shape as C_YUI_SCHEMA_EDITOR's confirm_then().
+ *  Same shape as C_YUI_SCHEMA_EDITOR's confirm_then(). Answers
+ *  the promise of the question, settled once it is over.
  ************************************************************/
 function confirm_then(gobj, message, kw)
 {
-    yui_shell_confirm_yesnocancel(
+    return yui_shell_confirm_yesnocancel(
         yui_shell_of(gobj), message,
         {t: t, yes_label: "yes", no_label: "no", cancel_label: "cancel"}
     ).then(function(answer) {
