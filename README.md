@@ -3394,6 +3394,26 @@ the middle, and **a toolbar left with a single group is centred**. An unknown
 name is reported, not silently dropped: a typo would otherwise remove the save
 button with no trace of why.
 
+### `C_YUI_FORM` — what closing it asks about
+
+`changes` says the form is not what is stored: the reader changed it, or the
+record lacks a field that has a default, and the form shows the default. The
+save lights with it. **`edited`** (7.26.39+) says the READER changed it --
+typed, cleared, pasted -- since it was loaded, saved or undone, and it is the
+only thing a close asks about: the form answers `EV_WINDOW_TO_CLOSE` with
+`abort_close` and the warning *"all changes will be lost"* when `edited` is
+true. A record that lacks a defaulted field opens changed and closes without
+a question; until 7.26.39 it asked on every close, about nothing the reader
+would lose.
+
+```js
+const kw = {abort_close: false};
+gobj_send_event(form, "EV_WINDOW_TO_CLOSE", kw, gobj);
+if(kw.abort_close) {
+    // the reader changed it: ask kw.warning before closing
+}
+```
+
 ### `C_YUI_FORM` — which field is editable, and the one `writable` does not govern
 
 A form opened to LOOK at a record has no editable field: that is a property of

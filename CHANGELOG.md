@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.39
+
+- **fix(`C_YUI_FORM`): closing asks only for what the reader changed.** A
+  record that lacks a field with a default opens CHANGED -- the default fills
+  the field, and the save lights to store it -- and the close of its window or
+  sheet asked *"all changes will be lost"* every time, about nothing the reader
+  would lose: in estadodelaire, 16 of 19 devices (a save before 7.26.33 had
+  wiped their alarm colours), on every close of their settings. A new attr,
+  `edited`, says the READER changed the form since it was loaded, saved or
+  undone, and it is what `EV_WINDOW_TO_CLOSE` asks about; `changes` keeps
+  meaning that the form is not what is stored. Clearing and pasting are
+  changes of the reader now: they wrote their values and marked nothing, so a
+  form cleared or pasted into kept its save off. Test:
+  `src/form_close_asks_for_edits.wiring.test.js` (red before the fix).
+
 ## 7.26.38
 
 - **fix(`yui_shell_show_modal`): a guard that ASKS before a modal closes asks

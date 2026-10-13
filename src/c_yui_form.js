@@ -167,6 +167,7 @@ SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Container eleme
 SDATA(data_type_t.DTP_STRING,   "form_id",          0,  "",     "Form identifier"),
 SDATA(data_type_t.DTP_BOOLEAN,  "initialized",      0,  false,  "Indicates if it is initialized"),
 SDATA(data_type_t.DTP_BOOLEAN,  "changes",          0,  false,  "Indicates if changes have been made"),
+SDATA(data_type_t.DTP_BOOLEAN,  "edited",           0,  false,  "The reader changed the form (typed, cleared, pasted) since it was loaded, saved or undone: what closing it would lose. A field the record lacks, filled with its default, is a change of the form (`changes`) and not of the reader"),
 SDATA_END()
 ];
 
@@ -349,6 +350,7 @@ function set_changed_stated(gobj, changed)
          *  Data not changed, disable buttons to save/undo
          */
         gobj_write_bool_attr(gobj, "changes", false);
+        gobj_write_bool_attr(gobj, "edited", false);
 
         enable($button_save, false, OFF_COLOR);
         enable($button_undo, false, OFF_COLOR);
@@ -388,6 +390,18 @@ function set_changed_stated(gobj, changed)
             });
         }, 200);
     }
+}
+
+/************************************************************
+ *  A change the READER made -- typed, cleared, pasted: what
+ *  closing the form would lose (ac_window_to_close). Clearing
+ *  and pasting wrote their values and marked nothing, so a form
+ *  cleared or pasted into kept its save off.
+ ************************************************************/
+function set_edited_by_reader(gobj)
+{
+    set_changed_stated(gobj, true);
+    gobj_write_bool_attr(gobj, "edited", true);
 }
 
 /************************************************************
@@ -3606,11 +3620,17 @@ function form_value_2_treedb_value(gobj, field_desc, value)
 
 
 /************************************************************
- *  From Window parent, is going to close
+ *  From Window parent, is going to close.
+ *
+ *  It asks only for what the READER changed (`edited`). A record
+ *  that lacks a field opens CHANGED -- the default fills it, and
+ *  the save lights to store it -- but the reader did nothing, and
+ *  the question asked of every such record, on every close, was
+ *  about nothing they would lose.
  ************************************************************/
 function ac_window_to_close(gobj, event, kw, src)
 {
-    if(gobj_read_bool_attr(gobj, "changes")) {
+    if(gobj_read_bool_attr(gobj, "edited")) {
         kw.abort_close = true; // Don't close the window until fields repaired
         /*  An i18n KEY, not a sentence: the dialog renders its message with
          *  `i18n: message`. The English sentence that was here was a key
@@ -3634,6 +3654,7 @@ function ac_load_record(gobj, event, kw, src)
     let modified = set_form_values(gobj, gobj_read_attr(gobj, "template"), $form, kw);
     apply_form_mode(gobj, $form);
     set_changed_stated(gobj, modified);
+    gobj_write_bool_attr(gobj, "edited", false);
     gobj_write_bool_attr(gobj, "initialized", true);
 
     return 0;
@@ -3707,6 +3728,7 @@ function ac_clear_record(gobj, event, kw, src)
     let $form = $container.querySelector('form');
     clear_validation(gobj, $form);
     clear_data(gobj, $form);
+    set_edited_by_reader(gobj);
     return 0;
 }
 
@@ -3820,7 +3842,7 @@ function ac_add_table_row(gobj, event, kw, src)
 function ac_record_changed(gobj, event, kw, src)
 {
     if(gobj_read_bool_attr(gobj, "initialized")) {
-        set_changed_stated(gobj, true);
+        set_edited_by_reader(gobj);
     }
     return 0;
 }
@@ -3854,6 +3876,7 @@ function ac_paste_record(gobj, event, kw, src)
     if(is_object(record)) {
         gobj_write_bool_attr(gobj, "initialized", true);
         set_form_values(gobj, gobj_read_attr(gobj, "template"), $form, record);
+        set_edited_by_reader(gobj);
     }
     return 0;
 }
