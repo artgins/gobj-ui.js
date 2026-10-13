@@ -7,6 +7,23 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## 7.26.34
 
+- **fix(`C_YUI_FORM`): a table that does not validate refuses the save.**
+  Tabulator's `validate()` answers `true`, or the LIST of the cells that
+  failed, and `validate_form()` asked `!validate()` -- which a list never
+  is: a cell left empty in a `required` column of a table field (an
+  estadodelaire alarm without its id, a trigger without its measure) was
+  saved as it was. It asks `validate() !== true` now, for every table and
+  every table nested in its rows; Tabulator marks each bad cell, and the
+  first one is brought into view. Test:
+  `src/form_table_validator.wiring.test.js`.
+- **feat(`C_YUI_FORM`): a template item may carry its own Tabulator
+  validators.** What a host knows and a schema cannot say: an item of a
+  table's template with `validator` (a validator's name, a function of
+  `(cell, value, parameters)`, or a list of them) has its column run them
+  besides `required`. A template that comes as json carries none; the host
+  adds them to its copy before handing it on -- estadodelaire refuses a
+  trigger whose value its measure can never match (a text for a number).
+  Same test.
 - **fix(`C_YUI_FORM`): filling a form with colour fields no longer warns on
   Chrome's console.** `clear_data()` -- which runs before every record is
   written into the form -- set every input to `null`, and a colour input

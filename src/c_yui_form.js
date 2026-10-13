@@ -2273,6 +2273,15 @@ function template2columns(gobj, columns, template, sub_elements)
             validator.push("required");
         }
 
+        /*  What a host knows and a schema cannot say: a template item may
+         *  carry Tabulator validators of its own -- a validator's name, or
+         *  a function of (cell, value, parameters) -- that its column runs
+         *  besides `required`. A template that comes as json carries none;
+         *  the host adds them to its copy before handing it on.  */
+        if(is_object(value) && value.validator) {
+            validator.push(...(Array.isArray(value.validator)? value.validator : [value.validator]));
+        }
+
         // TODO add the validators needed, like validator.push("integer");
 
         switch(field_desc.type) {
@@ -2658,17 +2667,37 @@ function validate_form(gobj, $form)
         }
     });
 
+    /*  Tabulator's validate() answers `true`, or the LIST of the cells that
+     *  failed -- and a list is truthy, so `!validate()` never refused a
+     *  table: a cell left empty in a `required` column was saved. Tabulator
+     *  marks every bad cell; the first one is brought into view.  */
+    let $first_bad = null;
+    function table_valid(tabulator) {
+        let r = tabulator.validate();
+        if(r === true) {
+            return true;
+        }
+        if(!$first_bad && Array.isArray(r) && r.length > 0) {
+            $first_bad = r[0].getElement();
+        }
+        return false;
+    }
+
     $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
-        if(!$table.tabulator.validate()) {
+        if(!table_valid($table.tabulator)) {
             validated = false;
         }
 
         $table.querySelectorAll('.yui-tabulator-table-nested').forEach($table_nested => {
-            if(!$table_nested.tabulator.validate()) {
+            if(!table_valid($table_nested.tabulator)) {
                 validated = false;
             }
         });
     });
+
+    if($first_bad) {
+        $first_bad.scrollIntoView({block: "nearest"});
+    }
 
     return validated;
 }
