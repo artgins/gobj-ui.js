@@ -3533,6 +3533,16 @@ changed did not hear its tables at all, so closing it lost a table edit without
 a question. And the titles of those tables change language with the shell's
 `EV_LANGUAGE_CHANGED` (7.26.41+), like the rest of the form.
 
+A host marks the form edited again with `EV_RECORD_CHANGED`, when what the
+reader changed is unsaved once more: a save the form published but the host
+could not send (the transport was down). The form keeps its values, lights
+its save, and the next close asks.
+
+```js
+// the save never left: what the reader typed is still theirs to lose
+gobj_send_event(form, "EV_RECORD_CHANGED", {}, gobj);
+```
+
 ```js
 const kw = {abort_close: false};
 gobj_send_event(form, "EV_WINDOW_TO_CLOSE", kw, gobj);
