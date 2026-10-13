@@ -803,11 +803,12 @@ function build_html_form(gobj, $form, prefix, template)
             : [field_desc.name];
         const NO_I18N = "\x00";
         html_field_conf.label = t(label_keys, {defaultValue: field_desc.header});
+        /*  A column of the template: the host's schema, data  */
         html_field_conf.label_i18n =
-            (t(field_desc.name, {defaultValue: NO_I18N}) !== NO_I18N)
+            (t(/* i18n: data */ field_desc.name, {defaultValue: NO_I18N}) !== NO_I18N)
                 ? field_desc.name
                 : null;
-        html_field_conf.placeholder = field_desc.placeholder?t(field_desc.placeholder):'';
+        html_field_conf.placeholder = field_desc.placeholder?t(/* i18n: data */ field_desc.placeholder):'';
 
         let placeholders = gobj_read_attr(gobj, "placeholders");
         if(placeholders[key]) {
@@ -2249,7 +2250,7 @@ function template2columns(gobj, columns, template, sub_elements)
         let validator = [];
         let column = {
             field: field_desc.name,
-            title: t(field_desc.header || field_desc.name),
+            title: t(/* i18n: data */ field_desc.header || field_desc.name),    // the host's schema
             titleFormatter: text_title_formatter,
             editable: get_editable_state,
             editor: false,
@@ -2626,7 +2627,7 @@ function mark_field_validity($input)
     if($h) {
         let key = field_validation_key($input);
         if(key) {
-            $h.setAttribute('data-i18n', key);
+            $h.setAttribute('data-i18n', /* i18n: C_YUI_FORM_I18N_KEYS, FORM_JSON_FIELD_I18N_KEYS */ key);
         } else {
             $h.removeAttribute('data-i18n');    // the browser's own sentence
         }

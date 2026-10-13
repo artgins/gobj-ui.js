@@ -5,6 +5,127 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.32
+
+Twenty-second check of the review (yunovatios `REV-CLOUD.md` §V22), on the
+i18n key validator.
+
+- **fix(`validate-locales`): a recursive helper no longer hangs the build.**
+  7.26.29's reader of a call (`t(pick())` reads what `pick` returns) read the
+  function again at every call of it, recursively and with no cache: `MAX_DEPTH`
+  bounded the depth, not the width. A helper that calls itself in two branches
+  (`label_of(n)` walking up a tree, `return label_of(n.parent)`) took more than
+  two minutes (7.26.28: 12 ms), and in three it never ended. What a function
+  returns is now read ONCE and cached, its values kept unique (a value is its
+  node), and a recursion is not followed: a call of a function being read is a
+  value the reader cannot follow -- so `n.name` stays data, "cannot follow"
+  unmarked at a key position and legal marked `/* i18n: data */`. The review's
+  case runs in ~40 ms (whole script), three branches in ~0.1 s, a chain of 200
+  helpers in 14 ms. Tests: `REV-CLOUD V22.1` (both test files).
+- **The search for forwarders sees how a function hands a parameter on, and
+  FAILS on what no position can name** (`src/i18n_key_functions.test.js`).
+  It followed `opts.title` and a destructured parameter; it now also follows
+  `opts?.title`, `arguments[1]`, `rest[0]`, a destructuring in the BODY
+  (`const {title} = opts`), a copy (`{...opts}`, `Object.assign({}, opts)`),
+  and every translator below. A parameter handed on through what no position
+  can name -- `t(k.toLowerCase())`, a concatenation, a template,
+  `Object.entries(opts).forEach(([k, v]) => t(v))`, a rest parameter walked,
+  `arguments[i]`, an array pattern -- fails, naming the function, the
+  parameter and the line, until it is restructured or marked (new export of
+  the reader: `param_flows()`). It found four in the library, all marked
+  where they are handed: the column labels of a form's template
+  (`build_html_form`, `template2columns`: the host's schema, data), a label's
+  key read back from its DOM (`c_g6_nodes_tree.js` `name_form_control`), and
+  `mark_field_validity`'s message (`C_YUI_FORM_I18N_KEYS`). A gobj's own
+  state -- a `priv` anywhere on the path, what is read from a parameter
+  `gobj` -- is no caller's key.
+- **The table is CORRECT, not only complete.** The same search started from
+  NO table must find every entry at every position, with the same
+  `exported`; an entry nothing forwards to fails (up to 7.26.31 an extra entry
+  passed all 34 tests). It found two: `create_floating_icon` is exported by
+  its module and the table said `exported: false` (calls from another module
+  were not read: fixed), and `yui_selection_bar`'s `1.actions[].label` was
+  true but unprovable -- the label travelled through a DOM property
+  (`$b._yui_label`) no reader follows. `yui_selection_bar()` now paints each
+  action's label from the actions themselves through a `paint_label()`
+  helper (new entry `yui_table_select.js paint_label [1]`), with the same
+  behaviour. The rounds of the search are recomputed from the table of the
+  round before, so a `tr` of the library is not read as a translator once it
+  is in the table. Test: `REV-CLOUD V22: the table is CORRECT`.
+- **One notion of a TRANSLATOR, used everywhere.** Up to 7.26.31 a translator
+  was a call NAMED `t` or `tr`. It is now also i18next's `t` imported under any
+  name (`import {t as tt}`), a const alias (`const translate = t`), a
+  `.bind()` (`i18next.t.bind(i18next)`), a re-export of a file the reader
+  reads, called as `t?.(k)`, `t.call(x, k)`, `t.apply(x, [k])`. An ARRAY given
+  to it is i18next's list of fallback keys, each one asked for
+  (`t([k, "fallback"])`; every array counted as DOM). A translated text at a
+  key position fails whatever the translator is called, MARKED too, with
+  *"hand the key, not t(key)"*: a marked `tr("save")` passed, and an unmarked
+  one failed with *"cannot follow"*, whose advice -- the marker -- then let it
+  pass. Tests: `REV-CLOUD V22.3-4`, and V22.4 in `validate-locales.test.js`.
+- **A key function is read however a call reaches it**: an import under any
+  name, a re-export from a file of the app (`export {yui_shell_show_info as
+  say} from ...`), a const alias, a map in a const (local or imported:
+  `API.info(...)`), `.call()`, `.apply()` (new exports: `call_kind()`,
+  `is_translator_call()`). No consumer does it today; the call sets the
+  validator finds in the library and in every consumer are identical to
+  7.26.31's.
+- **New places a key is read**: `el.dataset.i18nTitle = k` (`dataset.i18nX`
+  IS the attribute `data-i18n-x`; it was not even a place), and an attribute
+  or property NAMED by a const: `el.setAttribute(ATTR, k)`, `{[ATTR]: k}`,
+  `x[ATTR] = k`.
+- **The reader follows an IMPORT** of a const or a function into the module it
+  names, when that module is one it reads (a file of the app, a module of the
+  library), re-exports included; and a destructuring of a const
+  (`const {title} = OPTS`). The consumers ask for keys they handed to `t()` and
+  nobody read: yunovatios' `NAV_MODES` (gui-common, imported by
+  `yv_dialogs.js`: "stacked strips", "back to parent", "breadcrumb") and
+  `VALID_THEMES` (gui-common and wattyzer: "light", "dark"). All were defined;
+  no other key set of any consumer changed.
+- **A `data` marker hides no key.** It failed on a literal, a const or a call
+  of the module returning literals; it now also fails on a call of an
+  IMPORTED function (or an imported const) that is one -- the V21 hole moved
+  to another module --, on a call whose returns MIX keys with data (the reader
+  does not read such a call, so the marker hid the key: *"split the
+  branches"*), and on an array of string literals (no `createElement2` spec:
+  its second slot is the attrs; it counted as DOM). The library had the mixed
+  case twice: `refusal_text()` of `C_YUI_TREEDB_GRAPH` and
+  `C_YUI_TREEDB_TOPICS` returned the backend's words or "print-tranger
+  failed"; it returns the words only, and the call writes the fallback. Under
+  a list marker such a call is checked instead: its keys are asked for and
+  must be in the lists (it pins "this field is required" of
+  `C_YUI_FORM_I18N_KEYS` now).
+- **A marker attaches through a parenthesis** (`/* i18n: data */ (a || b)`
+  marked nothing, and the error claimed it stood before no place a key is
+  read), and one that attaches nowhere says what it stands before and why
+  that is no place: *"the value a variable is DECLARED with"*, *"a value
+  ASSIGNED"*, *"RETURNED"*, *"inside a concatenation"*.
+- **A list marker on a template checks its shape**:
+  `` /* i18n: X_I18N_KEYS */ `monitor ${control}` `` (directly, or through
+  the `let` it marks) needs a key of `X_I18N_KEYS` that matches
+  `^monitor .*$`, or it fails. gui_agent marked as data the keys its monitor
+  BUILDS, `monitor ${control}`; it publishes the six now
+  (`C_AGENT_MONITOR_I18N_KEYS`) and its three calls name that list, so every
+  one of them is asked for (none was). Test: `REV-CLOUD V22.6`.
+- **A published list is an `export const`, and is never mutated.** A list
+  declared with `let` or `var` fails (it was read, and a `.push()` on it hid
+  keys: the 7.26.29 entry said a spread of a `let` failed, which was true only
+  of an unpublished one), and so does a mutation of a published list --
+  `.push()`, `.splice()`, `.unshift()`, `.fill()`, `X[i] = k`, `X.length = n`,
+  `Object.assign(X, ...)`, `delete X[i]` -- in its module and wherever it is
+  imported (new export: `list_mutations()`). Tests: `REV-CLOUD V22: a
+  published list is an export const, and one that is MUTATED fails`, `V22.5`.
+- Speed: the reader resolves every callee by what binds it (to find the
+  aliases, the imports, the re-exports), and that costs: gui_agent, the
+  largest consumer, runs in ~0.60 s (7.26.31: ~0.43 s). A file is parsed once,
+  shared by the scan and by the reader that follows an import into it.
+- Docs: the README ("Conventions → i18n") and `CLAUDE.md` say what the test
+  and the validator find, and list what stays INVISIBLE (a key reaching a
+  translator through an unmarked `let`, a translator or a key function
+  reached through a parameter or a `let`, a key stored in a heap object and
+  read back elsewhere, ...). The `CLAUDE.md` claim that the test *"FINDS
+  every such function"* was more than it did.
+
 ## 7.26.31
 
 From the migration of estadodelaire to v2, QA'd on the deployed page.

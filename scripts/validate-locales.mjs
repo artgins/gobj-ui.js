@@ -56,66 +56,100 @@
  *          parsed and then imported, and its top-level code runs; see
  *          below.) In each file it reads as keys:
  *
- *            - the string given to t() / tr(), to an `i18n` or `code`
- *              property, to a `data-i18n*` attribute (as a property, as a
- *              member written, `x.i18n = k` / `x["data-i18n-title"] = k`,
- *              by setAttribute(), or written in markup), and the codes of
+ *            - the key given to a TRANSLATOR: t() or tr() -- whatever binds
+ *              the name --, `i18next.t()`, i18next's t imported under any
+ *              name, an alias of one (`const translate = t`, a `.bind()`,
+ *              a re-export), called `t?.(k)`, `t.call(x, k)` or
+ *              `t.apply(x, [k])`; an array there is i18next's list of
+ *              fallback keys, each one a key (`t([k, "fallback"])`);
+ *            - the string given to an `i18n` or `code` property, to a
+ *              `data-i18n*` attribute (as a property, also computed by a
+ *              const, `{[ATTR]: k}`; as a member written, `x.i18n = k`,
+ *              `x["data-i18n-title"] = k`, `x[ATTR] = k`,
+ *              `el.dataset.i18nTitle = k`; by setAttribute(), the name a
+ *              literal or a const; or written in markup), and the codes of
  *              the schema checks (`add("error", "<code>")`);
  *            - the strings given to a gobj-ui function that RECEIVES a key
  *              as an argument (`yui_shell_show_error(shell, "<key>")`,
  *              `icon_button(..., "<key>")`), at the positions its table
- *              names: I18N_KEY_FUNCTIONS, src/i18n_key_functions.js. A
- *              position may hold DOM as well, which is no key: an array
- *              (a createElement2 spec), createElement2(), createOneHtml()
- *              or html_markup() of gobj-js, text_node() of gobj-ui,
+ *              names: I18N_KEY_FUNCTIONS, src/i18n_key_functions.js --
+ *              however the call reaches it: its name, an import under any
+ *              name, a re-export, a const alias, a map
+ *              (`API.info(...)`), `.call()`, `.apply()`. A position may
+ *              hold DOM as well, which is no key: an array (a
+ *              createElement2 spec; not an array of string literals,
+ *              which is none), createElement2(), createOneHtml() or
+ *              html_markup() of gobj-js, text_node() of gobj-ui,
  *              document.createElement() and the like -- known by where
  *              they come from, never by the name of a variable;
  *            - the keys a module PUBLISHES as data: an exported
  *              `<NAME>_I18N_KEYS` array of string literals (the keys it
  *              hands to t() as variables, yui_dev.js's 51). Read as data
- *              -- `export const`, `let` or `var`, `export {X}`, wrapped in
- *              Object.freeze(), spreading another array of the module read
- *              the same way (`[...BASE_I18N_KEYS, "k"]`: a top-level const,
- *              or a list it publishes) --; anything so named that cannot be
- *              read so is a violation, never skipped (a list not exported,
- *              declared in a function, by destructuring, or exported under
- *              another name; an element that is a variable, a call, a spread
- *              of an import or of a `let`).
+ *              -- `export const`, `const X = [...]; export {X}`, wrapped
+ *              in Object.freeze(), spreading another array of the module
+ *              read the same way (`[...BASE_I18N_KEYS, "k"]`: a top-level
+ *              const) --; anything so named that cannot be read so is a
+ *              violation, never skipped (a list declared with `let` or
+ *              `var`, not exported, declared in a function, by
+ *              destructuring, or exported under another name; an element
+ *              that is a variable, a call, a spread of an import or of a
+ *              `let`). So is a list MUTATED, here or where it is imported
+ *              (`.push()`, `.splice()`, `.unshift()`, `X[i] = k`,
+ *              `X.length = n`, Object.assign()): what it is given there is
+ *              asked for by nobody.
  *
  *          A string is read where it is written, and FOLLOWED where the
  *          source writes it out: a literal, a template with no `${}`,
  *          every branch of `?:`, `||` and `??`, the right one of `&&`; a
  *          `const` to its value (`const KEY = "save"; t(KEY)` asks for
- *          "save"); a property of a const object literal (`DEFAULTS.ok`;
- *          every value of it for `NOTES[verdict]`); the element of a const
- *          array literal its `.map()`, `.forEach()`, ... callback or a
- *          for...of iterates, and what a destructuring reads from it;
- *          `String(x)`, and a template that is only `${x}`, as x; the
- *          default of a parameter; a call of a function of the same module
- *          whose every `return` is one of these (`t(pick())`, `pick`
- *          returning "a" or "b", asks for both). A key built by
- *          concatenation, held in a `let`, or arriving as data cannot be
- *          known: its module publishes it in a `<NAME>_I18N_KEYS` list.
+ *          "save"), and what a destructuring reads from one (`const
+ *          {title} = OPTS`); an import of a const or a function, into the
+ *          module it names, when that module is one this script reads (a
+ *          file of the app, a module of the library); a property of a
+ *          const object literal (`DEFAULTS.ok`; every value of it for
+ *          `NOTES[verdict]`), or of a copy of one (`{...o}`,
+ *          `Object.assign({}, o)`); the element of a const array literal
+ *          its `.map()`, `.forEach()`, ... callback or a for...of
+ *          iterates, and what a destructuring reads from it;
+ *          `String(x)`, and a template that is only `${x}`, as x; a
+ *          parameter however it is read (`opts?.title`, `arguments[1]`,
+ *          `rest[0]`) and its default; a call of a function the script
+ *          reads -- of the module, or imported -- whose every `return`
+ *          is one of these (`t(pick())`, `pick` returning "a" or "b",
+ *          asks for both). What a function returns is read ONCE, and a
+ *          recursion is not followed (a call of a function being read is
+ *          a value it cannot follow): up to 7.26.31 a recursive helper
+ *          was read again at every call, and three recursive branches
+ *          hung the build. A key built by concatenation, held in a `let`,
+ *          or arriving as data cannot be known: its module publishes it
+ *          in a `<NAME>_I18N_KEYS` list.
  *
  *          A MARKER at the place a key is read says where the keys of what
  *          follows it come from: `/\* i18n: <NAME>_I18N_KEYS *\/` (that
  *          published list; several by commas) or `/\* i18n: data *\/` (data,
- *          no key a list can hold). This script checks the markers it
- *          reads: each one must be a marker and stand before a place a key
- *          is read, the lists it names must be published by a module the
- *          app mounts (the app's own included), and the keys it marks that
- *          can be read must be in them. A `data` marker on what the reader
- *          follows to keys and nothing else -- a literal, a const that is
- *          one, a `?:` branch that is one, a call of a function of the
- *          module that returns literals -- is a violation: it claims data
- *          where the reader reads a key. A marked `let` / `var` is READ,
- *          and so is one a marked member or element is read from (`LABELS[k]`,
- *          `picked = LIST[0]`, the `x` of `LIST.forEach((x) => ...)`):
- *          everything it is given in its scope (its value, every `=` to
- *          it; for a member, also what is written into it: `x.a = v`,
- *          `x.push(v)`, Object.assign()) is followed, each literal is a key
- *          asked for and must be in the lists named, and one given nothing
- *          but literals is a violation: it is a const.
+ *          no key a list can hold). It marks what stands right after it,
+ *          through a parenthesis (`/\* i18n: data *\/ (a || b)`). This
+ *          script checks the markers it reads: each one must be a marker
+ *          and stand before a place a key is read (one that does not is
+ *          told what it stands before), the lists it names must be
+ *          published by a module the app mounts (the app's own included),
+ *          and the keys it marks that can be read must be in them; a
+ *          template with `${}` it marks must have the shape of some key of
+ *          them (`monitor ${control}`: "monitor start"). A `data` marker
+ *          is a claim too: on what the reader follows to keys and nothing
+ *          else -- a literal, a const that is one, a `?:` branch that is
+ *          one, a call that returns literals, imported or not -- it is a
+ *          violation, and so is one that would HIDE a key the reader does
+ *          not read -- a call whose returns mix keys with data (split the
+ *          branches), an array of string literals. A marked `let` / `var`
+ *          is READ, and so is one a marked member or element is read from
+ *          (`LABELS[k]`, `picked = LIST[0]`, the `x` of
+ *          `LIST.forEach((x) => ...)`): everything it is given in its
+ *          scope (its value, every `=` to it; for a member, also what is
+ *          written into it: `x.a = v`, `x.push(v)`, Object.assign()) is
+ *          followed, each literal is a key asked for and must be in the
+ *          lists named, and one given nothing but literals is a
+ *          violation: it is a const.
  *
  *          THE RULE PER CALL holds the app's own code, as a test holds the
  *          library (i18n_key_functions.test.js): every value a key position
@@ -125,13 +159,29 @@
  *          else -- a `let` given literals, an options variable, a
  *          concatenation, a parameter of a wrapper of the app's own -- is a
  *          violation, with the file and the line. So is a TRANSLATED text
- *          handed there, `t("k")`, even marked: the function translates it
- *          again and marks it data-i18n with the translation, so it never
- *          changes language; hand it the key. A function of the app is in
- *          no table, so what a wrapper of its own hands on is marked where
- *          it hands it -- and what its callers give it is read only if the
- *          module publishes it.
+ *          handed there -- `t("k")`, or any translator above --, even
+ *          marked: the function translates it again and marks it data-i18n
+ *          with the translation, so it never changes language; hand the
+ *          key, not t(key). A function of the app is in no table, so what a
+ *          wrapper of its own hands on is marked where it hands it -- and
+ *          what its callers give it is read only if the module publishes
+ *          it.
  *
+ *          What stays INVISIBLE, and fails nothing: a key handed to t(),
+ *          an i18n or a data-i18n* value by an unmarked `let`, by a call
+ *          the reader does not follow or by a computed string (only the
+ *          key positions of the table are held to the rule per call); a
+ *          translator under another name than t / tr that no const or
+ *          import makes an alias of (a parameter `translate`, a `let`
+ *          alias, `i18next.getFixedT()`); a key function reached through a
+ *          parameter, a `let` given more than one value, a computed
+ *          member (`API[name](...)`); a data-i18n* attribute written
+ *          through an alias of `dataset`, by Object.assign() into it, or
+ *          named by a `let`; an export of a `let`; a module of a package
+ *          (gobj-js, i18next); what is written into a const table after its
+ *          declaration; a window's `title` given as an attr at
+ *          gobj_create().
+
  *          Options (paths relative to the app's directory):
  *
  *              --src <dir>       a source directory to scan, besides src/
@@ -194,6 +244,8 @@ const PLURAL_RE = /^(.+?)(_ordinal)?_(zero|one|two|few|many|other)$/;
 const PUBLISHED_LIST_RE = /_I18N_KEYS$/i;
 const DATA_I18N_ATTR_RE = /^data-i18n(?:-title|-aria-label|-placeholder)?$/;
 const DATA_I18N_MARKUP_RE = /data-i18n(?:-title|-aria-label|-placeholder)?=["']([^"']+)["']/g;
+/*  `el.dataset.i18nTitle` is the attribute data-i18n-title  */
+const DATASET_I18N_RE = /^i18n(?:Title|AriaLabel|Placeholder)?$/;
 
 /*  This package: the library the app builds with.  */
 const LIB       = new URL("../", import.meta.url);
@@ -658,9 +710,13 @@ async function main()
  *  A source file as an ESTree (acorn). Throws on a syntax error.
  *  Its comments (the i18n markers live there) and its text ride
  *  along as `ast.comments` and `ast.code`, not enumerable, so
- *  walk() never visits them.
+ *  walk() never visits them. `url` is the file it was read from
+ *  (a URL or its href): with it, an import of the file is followed
+ *  into the module it names (module_url()).
  ***************************************************************/
-function parse_source(code)
+const PROGRAM_URL = new WeakMap();      // a parsed file -> the URL it was read from
+
+function parse_source(code, url = null)
 {
     let comments = [];
     let ast = acorn_parse(code, {
@@ -671,6 +727,44 @@ function parse_source(code)
     });
     Object.defineProperty(ast, "comments", {value: comments, enumerable: false});
     Object.defineProperty(ast, "code", {value: code, enumerable: false});
+    if(url) {
+        PROGRAM_URL.set(ast, (url instanceof URL)? url : new URL(url));
+    }
+    return ast;
+}
+
+/***************************************************************
+ *  The URL of a parsed file. One parsed without it (a test's
+ *  fixture) is a module of the library when `lib_module` names it:
+ *  its imports of siblings resolve there.
+ ***************************************************************/
+function program_url(ast, lib_module = null)
+{
+    if(!PROGRAM_URL.has(ast) && lib_module) {
+        PROGRAM_URL.set(ast, new URL(lib_module, LIB_SRC));
+    }
+    return PROGRAM_URL.get(ast) || null;
+}
+
+/***************************************************************
+ *  A module of the disk, parsed once: the scan and the reader that
+ *  follows an import share it. null when it cannot be read or
+ *  parsed (the scan reports that itself).
+ ***************************************************************/
+const AST_CACHE = new Map();        // url.href -> ast | null
+
+function load_ast(url)
+{
+    if(AST_CACHE.has(url.href)) {
+        return AST_CACHE.get(url.href);
+    }
+    let ast = null;
+    try {
+        ast = parse_source(readFileSync(url, "utf8"), url);
+    } catch(e) {
+        ast = null;
+    }
+    AST_CACHE.set(url.href, ast);
     return ast;
 }
 
@@ -803,11 +897,14 @@ function pattern_names(p, out = [])
  *  The `var`s a function body declares, hoisted to it (not those
  *  of a function nested in it), and its own name for a function
  *  expression: the names it binds besides its parameters, each
- *  with the declarators of a `var` (null when it is not a plain
- *  `var <name>`). Cached: a module asks for them once per name it
- *  reads.
+ *  with the declarators of a `var` and, for one declared by a
+ *  destructuring, what the pattern reads (`var {title} = opts`:
+ *  the pick of `title`, param_path()); null when a pattern the
+ *  reader cannot follow declares it (an array pattern). Cached: a
+ *  module asks for them once per name it reads.
  *
- *      -> Map(name -> [VariableDeclarator] | null)
+ *      -> Map(name -> {declarators: [VariableDeclarator],
+ *                      picks: Map(declarator -> {steps, default})} | null)
  ***************************************************************/
 const FN_NAMES = new WeakMap();
 
@@ -828,8 +925,16 @@ function function_scope_names(fn)
             for(let d of n.declarations) {
                 for(let name of pattern_names(d.id)) {
                     let plain = (d.id.type === "Identifier");
-                    let had = names.has(name)? names.get(name) : [];
-                    names.set(name, (plain && had)? [...had, d] : null);
+                    let at = plain? null : param_path(d.id, name);
+                    let had = names.has(name)? names.get(name) : {declarators: [], picks: new Map()};
+                    if(!had || (!plain && !at)) {
+                        names.set(name, null);
+                        continue;
+                    }
+                    if(at) {
+                        had.picks.set(d, {steps: at.steps, default: at.default});
+                    }
+                    names.set(name, {declarators: [...had.declarators, d], picks: had.picks});
                 }
             }
         }
@@ -873,10 +978,16 @@ function function_name(fn, parent)
 
 /***************************************************************
  *  The names a node that is not a function binds for what is inside
- *  it: name -> {kind: "const", init} | {kind: "each", of} |
- *  {kind: "var", declarators} (a plain `let <name>`; a `var` belongs
- *  to its function, or here to the module) | {kind: "other"}.
- *  Cached, like function_scope_names().
+ *  it: name -> {kind: "const", init, steps, default} |
+ *  {kind: "each", of} | {kind: "each_part", of} | {kind: "var",
+ *  declarators, picks} (a `let`; a `var` belongs to its function, or
+ *  here to the module) | {kind: "other", init}. A name declared by a
+ *  destructuring reads `steps` from the value (`const {title} =
+ *  opts`: `.title`; `picks` per declarator for a `let`); one an
+ *  array pattern declares is "other" (its `init`, for
+ *  param_flows()), and an element of a for...of that an array
+ *  pattern destructures is "each_part". Cached, like
+ *  function_scope_names().
  ***************************************************************/
 const SCOPE_NAMES = new WeakMap();
 
@@ -892,7 +1003,8 @@ function scope_names(a)
             names.set(name, what);
         } else if(had.kind === "var" && what.kind === "var") {
             /*  `var x = 1; ... var x = 2;`: one binding, two values  */
-            names.set(name, {kind: "var", decl: "var", declarators: [...had.declarators, ...what.declarators]});
+            names.set(name, {kind: "var", decl: "var", declarators: [...had.declarators, ...what.declarators],
+                             picks: new Map([...had.picks, ...what.picks])});
         }
     };
     let statements = [];
@@ -914,7 +1026,8 @@ function scope_names(a)
                 for(let d of a.left.declarations) {
                     for(let name of pattern_names(d.id)) {
                         let at = (a.type === "ForOfStatement")? param_path(d.id, name) : null;
-                        declare(name, at? {kind: "each", of: a.right, steps: at.steps} : {kind: "other"});
+                        declare(name, at? {kind: "each", of: a.right, steps: at.steps} :
+                                      {kind: "each_part", of: a.right});
                     }
                 }
             }
@@ -944,13 +1057,18 @@ function scope_names(a)
             }
             for(let v of d.declarations) {
                 let plain = (v.id.type === "Identifier");
-                let what = {kind: "other"};
-                if(plain && d.kind === "const" && v.init) {
-                    what = {kind: "const", init: v.init};
-                } else if(plain && d.kind !== "const") {
-                    what = {kind: "var", decl: d.kind, declarators: [v]};
-                }
                 for(let name of pattern_names(v.id)) {
+                    let at = plain? {steps: [], default: null} : param_path(v.id, name);
+                    let what = {kind: "other", init: v.init || null};
+                    if(at && d.kind === "const" && v.init) {
+                        what = {kind: "const", init: v.init, steps: at.steps, default: at.default, name};
+                    } else if(at && d.kind !== "const") {
+                        let picks = new Map();
+                        if(!plain) {
+                            picks.set(v, {steps: at.steps, default: at.default});
+                        }
+                        what = {kind: "var", decl: d.kind, declarators: [v], picks};
+                    }
                     declare(name, what);
                 }
             }
@@ -975,11 +1093,14 @@ function scope_names(a)
  *  it: {steps, path, default}. `steps` are the properties read from
  *  the value bound to reach it (none for a plain name; member_step()
  *  form), `path` the same as text (".opts.title"), `default` the
- *  value written for it when there is none. null when an array
- *  pattern, a rest element or a computed key stands on the way.
+ *  value written for it when there is none. A rest element of an
+ *  object pattern holds the other properties of the object: it
+ *  reads what the object does. null when an array pattern, the rest
+ *  of an array or a computed key stands on the way.
  *
  *      function f(msg = "fallback")        msg: {path: "", default: "fallback"}
  *      function f({title, opts: {label}})  title: ".title", label: ".opts.label"
+ *      const {id, ...rest} = opts          rest: "" (rest.title is opts.title)
  ***************************************************************/
 function param_path(p, name, steps = [], dflt = null)
 {
@@ -996,8 +1117,15 @@ function param_path(p, name, steps = [], dflt = null)
             return param_path(p.left, name, steps, p.right);
         case "ObjectPattern":
             for(let q of p.properties) {
-                let key = (q.type === "RestElement")? null : prop_name(q);
-                let target = (q.type === "RestElement")? q : q.value;
+                if(q.type === "RestElement") {
+                    let r = param_path(q.argument, name, steps, null);
+                    if(r) {
+                        return r;
+                    }
+                    continue;
+                }
+                let key = prop_name(q);
+                let target = q.value;
                 if(key === null) {
                     if(pattern_names(target).includes(name)) {
                         return null;
@@ -1019,10 +1147,15 @@ function param_path(p, name, steps = [], dflt = null)
  *  What a name used in `scope` (the chain of ancestors of the use,
  *  outermost first) is bound to:
  *
- *      {kind: "const", init, scope}    a `const` with a value; `scope`
+ *      {kind: "const", init, steps, default, name, scope}
+ *                                      a `const` with a value; `scope`
  *                                      is the chain down to the block
  *                                      that declares it, where its
- *                                      value is read
+ *                                      value is read; `steps` what a
+ *                                      destructuring reads from the
+ *                                      value (`const {title} = opts`),
+ *                                      `default` the value written for
+ *                                      it there
  *      {kind: "each", of, steps, scope}
  *                                      an ELEMENT of `of`: the first
  *                                      parameter of a callback of
@@ -1030,60 +1163,123 @@ function param_path(p, name, steps = [], dflt = null)
  *                                      or the variable of a for...of;
  *                                      `steps`, the properties read
  *                                      from it by a destructuring
- *      {kind: "param", fn, name, index, path, default, scope}
+ *      {kind: "each_part", of, scope}  part of an element of `of`
+ *                                      that an array pattern
+ *                                      destructures:
+ *                                      `Object.entries(o).forEach(([k, v]) => ...)`
+ *      {kind: "param", fn, name, index, path, default, rest, scope}
  *                                      parameter `index` of the
  *                                      function `fn`, called `name`;
  *                                      `path` what a destructuring
  *                                      reads from it ("" or
  *                                      ".title"), `default` the
  *                                      value written for it when the
- *                                      caller gives none
- *      {kind: "var", decl, name, declarators, scope}
- *                                      a plain `let` or `var` (`decl`
- *                                      says which): what it
- *                                      holds is never followed, except
- *                                      where a marker says what it
- *                                      holds (var_leaves()); `scope`
- *                                      is the chain down to the node
- *                                      that declares it
+ *                                      caller gives none; `rest`: a
+ *                                      rest parameter, the array of
+ *                                      the arguments from `index` on
+ *      {kind: "param_part", fn, name, index, scope}
+ *                                      part of parameter `index` that
+ *                                      an array pattern destructures:
+ *                                      no position can name it
+ *      {kind: "var", decl, name, declarators, picks, scope}
+ *                                      a `let` or `var` (`decl` says
+ *                                      which): what it holds is never
+ *                                      followed, except where a marker
+ *                                      says what it holds
+ *                                      (var_leaves()); `scope` is the
+ *                                      chain down to the node that
+ *                                      declares it; `picks`, what a
+ *                                      destructuring declarator reads
  *      {kind: "function", fn, scope}   a function declaration
- *      {kind: "import", source, imported}
+ *      {kind: "import", source, imported, scope}
  *                                      an import: from module
  *                                      `source`, its name there
  *                                      (or "default", "*")
- *      {kind: "other"}                 anything else: a class, a
- *                                      name an array pattern or a
- *                                      rest element declares
+ *      {kind: "other", init, scope}    anything else: a class, a
+ *                                      name an array pattern declares
+ *                                      (`init`, what it destructures),
+ *                                      a catch parameter
  *      null                            declared nowhere: a global
  ***************************************************************/
+const FN_PARAMS = new WeakMap();     // a function -> Map(name -> index of the parameter that declares it)
+
+function params_of(fn)
+{
+    let m = FN_PARAMS.get(fn);
+    if(!m) {
+        m = new Map();
+        for(let j = 0; j < fn.params.length; j++) {
+            for(let n of pattern_names(fn.params[j])) {
+                if(!m.has(n)) {
+                    m.set(n, j);
+                }
+            }
+        }
+        FN_PARAMS.set(fn, m);
+    }
+    return m;
+}
+
+/*  Does a parsed file declare a `var` anywhere? Most declare none, and
+ *  then no function body has to be searched for one  */
+const HAS_VAR = new WeakMap();
+
+function has_var(program)
+{
+    if(!program || program.type !== "Program" || typeof program.code !== "string") {
+        return true;
+    }
+    if(!HAS_VAR.has(program)) {
+        HAS_VAR.set(program, /\bvar\b/.test(program.code));
+    }
+    return HAS_VAR.get(program);
+}
+
+/*  The nodes that bind names for what is inside them (scope_names())  */
+const SCOPE_TYPES = new Set(["Program", "BlockStatement", "StaticBlock", "SwitchStatement", "ForStatement",
+                             "ForOfStatement", "ForInStatement", "CatchClause", "ClassExpression"]);
+const FUNCTION_TYPES = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"]);
+
 function binding_of(name, scope)
 {
+    let vars = has_var(scope[0]);
     for(let i = scope.length - 1; i >= 0; i--) {
         let a = scope[i];
-        if(FUNCTION_RE.test(a.type)) {
+        if(!FUNCTION_TYPES.has(a.type)) {
+            if(!SCOPE_TYPES.has(a.type)) {
+                continue;       // an expression, a call, a property: it binds nothing
+            }
+        } else {
             let parent = scope[i - 1];
-            for(let j = 0; j < a.params.length; j++) {
-                if(!pattern_names(a.params[j]).includes(name)) {
-                    continue;
-                }
-                let at = param_path(a.params[j], name);
-                if(!at) {
-                    return {kind: "other"};
-                }
+            let j = params_of(a).get(name);
+            if(j !== undefined) {
+                let p = a.params[j];
+                let at = param_path(p, name);
                 if(j === 0 && parent && parent.type === "CallExpression" && parent.arguments[0] === a
                         && parent.callee.type === "MemberExpression" && !parent.callee.computed
                         && ITERATION_METHODS.has(parent.callee.property.name)) {
-                    return {kind: "each", of: parent.callee.object, steps: at.steps,
-                            scope: scope.slice(0, i - 1)};
+                    return at? {kind: "each", of: parent.callee.object, steps: at.steps,
+                                scope: scope.slice(0, i - 1)}
+                             : {kind: "each_part", of: parent.callee.object, scope: scope.slice(0, i - 1)};
                 }
-                return {kind: "param", fn: a, name: function_name(a, parent), index: j,
-                        path: at.path, default: at.default, scope: scope.slice(0, i + 1)};
+                let base = {fn: a, name: function_name(a, parent), index: j, scope: scope.slice(0, i + 1)};
+                if(at) {
+                    return Object.assign({kind: "param", path: at.path, default: at.default, rest: false}, base);
+                }
+                if(p.type === "RestElement" && p.argument.type === "Identifier") {
+                    return Object.assign({kind: "param", path: "", default: null, rest: true}, base);
+                }
+                return Object.assign({kind: "param_part"}, base);
+            }
+            if(!vars && !(a.type === "FunctionExpression" && a.id && a.id.name === name)) {
+                continue;
             }
             let hoisted = function_scope_names(a);
             if(hoisted.has(name)) {
-                let declarators = hoisted.get(name);
-                return declarators? {kind: "var", decl: "var", name, declarators, scope: scope.slice(0, i + 1)}
-                                  : {kind: "other"};
+                let h = hoisted.get(name);
+                return h? {kind: "var", decl: "var", name, declarators: h.declarators, picks: h.picks,
+                           scope: scope.slice(0, i + 1)}
+                        : {kind: "other", init: null, scope: scope.slice(0, i + 1)};
             }
             continue;
         }
@@ -1092,20 +1288,535 @@ function binding_of(name, scope)
             continue;
         }
         if(d.kind === "const") {
-            return {kind: "const", init: d.init, scope: scope.slice(0, i + 1)};
+            return {kind: "const", init: d.init, steps: d.steps || [], default: d.default || null,
+                    name: d.name || name, scope: scope.slice(0, i + 1)};
         }
         if(d.kind === "each") {
             return {kind: "each", of: d.of, steps: d.steps || [], scope: scope.slice(0, i)};
         }
+        if(d.kind === "each_part") {
+            return {kind: "each_part", of: d.of, scope: scope.slice(0, i)};
+        }
         if(d.kind === "var") {
-            return {kind: "var", decl: d.decl, name, declarators: d.declarators, scope: scope.slice(0, i + 1)};
+            return {kind: "var", decl: d.decl, name, declarators: d.declarators, picks: d.picks || new Map(),
+                    scope: scope.slice(0, i + 1)};
         }
         if(d.kind === "function") {
             return {kind: "function", fn: d.fn, scope: scope.slice(0, i + 1)};
         }
-        return d;
+        if(d.kind === "import") {
+            return Object.assign({}, d, {scope: scope.slice(0, i + 1)});
+        }
+        return {kind: "other", init: d.init || null, scope: scope.slice(0, i + 1)};
     }
     return null;
+}
+
+/***************************************************************
+ *  The `arguments` of the function a use is in (the nearest one
+ *  that is not an arrow: an arrow has none of its own), as a
+ *  binding: {kind: "arguments", fn, name, scope}. null outside one.
+ ***************************************************************/
+function arguments_binding(scope)
+{
+    for(let i = scope.length - 1; i >= 0; i--) {
+        let a = scope[i];
+        if(a.type === "FunctionDeclaration" || a.type === "FunctionExpression") {
+            return {kind: "arguments", fn: a, name: function_name(a, scope[i - 1]), scope: scope.slice(0, i + 1)};
+        }
+    }
+    return null;
+}
+
+
+                    /***************************
+                     *      Modules
+                     ***************************/
+
+
+/***************************************************************
+ *  The file an import source names, seen from the file `from` (a
+ *  URL): a relative path to a JavaScript file (`./x.js`, `../y.mjs`;
+ *  `.js` and `/index.js` tried when it names no file), a module of
+ *  this library (`@yuneta/gobj-ui/src/x.js`) or its barrel
+ *  (`@yuneta/gobj-ui`). null for anything else -- a package
+ *  (i18next, gobj-js), a stylesheet, a json --: the reader does not
+ *  read it.
+ ***************************************************************/
+const MODULE_URLS = new Map();      // "<from>\n<source>" -> URL | null
+
+function module_url(from, source)
+{
+    if(typeof source !== "string") {
+        return null;
+    }
+    let m = source.match(/^@yuneta\/gobj-ui\/src\/([\w.-]+\.js)$/);
+    if(m) {
+        return new URL(m[1], LIB_SRC);
+    }
+    if(/^@yuneta\/gobj-ui(?:\/index\.js)?$/.test(source)) {
+        return LIB_INDEX;
+    }
+    if(!from || !/^\.\.?\//.test(source)) {
+        return null;
+    }
+    let id = `${from.href}\n${source}`;
+    if(MODULE_URLS.has(id)) {
+        return MODULE_URLS.get(id);
+    }
+    let found = null;
+    for(let candidate of [source, source + ".js", source + "/index.js"]) {
+        if(!/\.m?js$/.test(candidate)) {
+            continue;       // a stylesheet, a json: no module the reader reads
+        }
+        let u = new URL(candidate, from);
+        try {
+            if(statSync(u).isFile()) {
+                found = u;
+                break;
+            }
+        } catch(e) {
+            continue;
+        }
+    }
+    MODULE_URLS.set(id, found);
+    return found;
+}
+
+/***************************************************************
+ *  What a module exports as `name`, followed through re-exports
+ *  (`export {a as b} from "./x.js"`, `export * from`, a local
+ *  `export {x}` of an import) into the module that declares it:
+ *
+ *      {kind: "fn", fn, scope, name, url}
+ *                                  a function: a declaration, or a
+ *                                  const bound to one (`name`, the
+ *                                  one it is declared with)
+ *      {kind: "const", init, steps, default, scope, url}
+ *                                  a const bound to anything else
+ *      {kind: "external", source, imported}
+ *                                  an import of a package the
+ *                                  reader does not read (i18next's
+ *                                  t, a builder of gobj-js)
+ *      null                        anything else: a `let`, a class,
+ *                                  a name it does not export, a
+ *                                  module that cannot be read
+ *
+ *  `scope` is the chain down to the declaration (the module).
+ ***************************************************************/
+const EXPORTS = new Map();          // "<url>#<name>" -> what it is
+
+function module_export(url, name, seen = new Set())
+{
+    let id = `${url.href}#${name}`;
+    if(EXPORTS.has(id)) {
+        return EXPORTS.get(id);
+    }
+    if(seen.has(id)) {
+        return null;            // a cycle of re-exports
+    }
+    seen.add(id);
+    let ast = load_ast(url);
+    let found = ast? find_export(ast, url, name, seen) : null;
+    EXPORTS.set(id, found);
+    return found;
+}
+
+function find_export(ast, url, name, seen)
+{
+    let local = (local_name) => {
+        let b = binding_of(local_name, [ast]);
+        return b? declared_value(b, url, seen) : null;
+    };
+    for(let node of ast.body) {
+        if(node.type === "ExportDefaultDeclaration") {
+            if(name !== "default") {
+                continue;
+            }
+            let d = node.declaration;
+            if(FUNCTION_RE.test(d.type)) {
+                return {kind: "fn", fn: d, scope: [ast], name: d.id? d.id.name : "default", url};
+            }
+            if(d.type === "Identifier") {
+                return local(d.name);
+            }
+            return {kind: "const", init: d, steps: [], default: null, scope: [ast], url};
+        }
+        if(node.type === "ExportAllDeclaration") {
+            if(node.exported) {
+                continue;       // `export * as ns from`: a namespace, not a value the reader reads
+            }
+            let target = module_url(url, node.source.value);
+            let r = target? module_export(target, name, seen) : null;
+            if(r) {
+                return r;
+            }
+            continue;
+        }
+        if(node.type !== "ExportNamedDeclaration") {
+            continue;
+        }
+        if(node.declaration) {
+            let decl = node.declaration;
+            if(decl.type === "FunctionDeclaration" && decl.id && decl.id.name === name) {
+                return local(name);
+            }
+            if(decl.type === "VariableDeclaration" && decl.declarations.some((d) => pattern_names(d.id).includes(name))) {
+                return local(name);
+            }
+            continue;
+        }
+        for(let spec of node.specifiers) {
+            let exported = spec.exported.name || spec.exported.value;
+            if(exported !== name) {
+                continue;
+            }
+            let inner = spec.local.name || spec.local.value;
+            if(!node.source) {
+                return local(inner);
+            }
+            let target = module_url(url, node.source.value);
+            if(!target) {
+                return {kind: "external", source: node.source.value, imported: inner};
+            }
+            return module_export(target, inner, seen);
+        }
+    }
+    return null;
+}
+
+/***************************************************************
+ *  What a binding of a module's top level holds, for
+ *  module_export(): a function, a const, or an import followed
+ *  into its own module
+ ***************************************************************/
+function declared_value(b, url, seen)
+{
+    if(b.kind === "function") {
+        return {kind: "fn", fn: b.fn, scope: b.scope, name: b.fn.id.name, url};
+    }
+    if(b.kind === "const") {
+        if(b.steps.length === 0 && FUNCTION_RE.test(b.init.type)) {
+            return {kind: "fn", fn: b.init, scope: b.scope, name: b.name, url};
+        }
+        return {kind: "const", init: b.init, steps: b.steps, default: b.default, scope: b.scope, url};
+    }
+    if(b.kind === "import") {
+        return import_target(b, seen);
+    }
+    return null;
+}
+
+/***************************************************************
+ *  What an import binding names (binding_of(): {kind: "import"}),
+ *  as module_export() says it; a namespace (`import * as ns`) is
+ *  {kind: "namespace", url}
+ ***************************************************************/
+function import_target(b, seen = new Set())
+{
+    let from = (b.scope && b.scope.length > 0)? (PROGRAM_URL.get(b.scope[0]) || null) : null;
+    let url = module_url(from, b.source);
+    if(!url) {
+        return {kind: "external", source: b.source, imported: b.imported};
+    }
+    if(b.imported === "*") {
+        return {kind: "namespace", url};
+    }
+    return module_export(url, b.imported, seen);
+}
+
+/***************************************************************
+ *  The module of this library a URL is (its name in src/), or null
+ ***************************************************************/
+function lib_module_of(url)
+{
+    if(!url || !url.href.startsWith(LIB_SRC.href)) {
+        return null;
+    }
+    let rest = url.href.slice(LIB_SRC.href.length);
+    return /^[\w.-]+\.js$/.test(rest)? rest : null;
+}
+
+/*  The file a chain of ancestors is in (its first node, the module)  */
+function url_of(scope)
+{
+    return (scope && scope.length > 0)? (PROGRAM_URL.get(scope[0]) || null) : null;
+}
+
+
+                    /***************************
+                     *      What a call calls
+                     ***************************/
+
+
+/*  The names a translator goes by: i18next's t(), and the tr() an
+ *  app or a module wraps it in  */
+const TRANSLATOR_NAMES = new Set(["t", "tr"]);
+const TRANSLATOR = Object.freeze({kind: "t", name: "t"});
+
+/***************************************************************
+ *  What a callee IS, as far as the source says it:
+ *
+ *      {kind: "t"}                 a TRANSLATOR: a name `t` or `tr`
+ *                                  that binds no function the reader
+ *                                  reads (a parameter, a `let`, a
+ *                                  global), a member `.t` / `.tr`
+ *                                  (`i18next.t`, `opts.t`), i18next's
+ *                                  `t` imported under any name
+ *                                  (`import {t as tt} from "i18next"`),
+ *                                  or an alias of one of those: a
+ *                                  const (`const translate = t`), a
+ *                                  `.bind()` (`i18next.t.bind(i18next)`),
+ *                                  a re-export of a module the reader
+ *                                  reads
+ *      {kind: "fn", fn, scope, name, url}
+ *                                  a FUNCTION the reader reads: a
+ *                                  declaration, a const bound to one
+ *                                  (or a `let` given nothing else), an
+ *                                  import of one followed into the
+ *                                  module that declares it, a member of
+ *                                  a namespace import, a property of a
+ *                                  const object literal holding one, or
+ *                                  an alias of one of those. `name` is
+ *                                  the one it is DECLARED with (the
+ *                                  table's), `url` the file that
+ *                                  declares it
+ *      null                        anything else: a parameter or a
+ *                                  `let` of another name, a method of
+ *                                  an object, a function of a package
+ *                                  the reader does not read
+ ***************************************************************/
+function callee_of(node, scope, depth = 0)
+{
+    if(!node || depth > MAX_DEPTH) {
+        return null;
+    }
+    switch(node.type) {
+        case "ChainExpression":
+            return callee_of(node.expression, scope, depth + 1);
+
+        case "Identifier": {
+            let named = TRANSLATOR_NAMES.has(node.name)? TRANSLATOR : null;
+            let b = binding_of(node.name, scope);
+            if(!b) {
+                return named;
+            }
+            switch(b.kind) {
+                case "function":
+                    return {kind: "fn", fn: b.fn, scope: b.scope, name: b.fn.id.name, url: url_of(b.scope)};
+                case "const":
+                    if(b.steps.length > 0) {
+                        return named;
+                    }
+                    if(FUNCTION_RE.test(b.init.type)) {
+                        return {kind: "fn", fn: b.init, scope: b.scope, name: b.name, url: url_of(b.scope)};
+                    }
+                    return callee_of(b.init, b.scope, depth + 1) || named;
+                case "var": {
+                    let fn = var_function(b);
+                    return fn? {kind: "fn", fn, scope: b.scope, name: b.name, url: url_of(b.scope)} : named;
+                }
+                case "import":
+                    return exported_callee(import_target(b), depth) || named;
+                default:
+                    return named;
+            }
+        }
+
+        case "MemberExpression": {
+            let step = member_step(node);
+            if(step.prop === null) {
+                return null;
+            }
+            if(node.object.type === "Identifier") {
+                let b = binding_of(node.object.name, scope);
+                let map = null;     // a const object literal the object is: {init, scope}
+                if(b && b.kind === "import" && b.imported === "*") {
+                    let ns = import_target(b);
+                    if(ns && ns.kind === "namespace") {
+                        let r = exported_callee(module_export(ns.url, step.prop), depth);
+                        if(r) {
+                            return r;
+                        }
+                    }
+                } else if(b && b.kind === "import") {
+                    let x = import_target(b);
+                    if(x && x.kind === "const" && x.steps.length === 0 && x.init.type === "ObjectExpression") {
+                        map = {init: x.init, scope: x.scope};
+                    }
+                } else if(b && b.kind === "const" && b.steps.length === 0 && b.init.type === "ObjectExpression") {
+                    map = {init: b.init, scope: b.scope};
+                }
+                if(map) {
+                    /*  A map: `const API = {info: yui_shell_show_info}; API.info(...)`  */
+                    let p = map.init.properties.find((q) => q.type === "Property" && prop_name(q) === step.prop
+                                                         && q.kind === "init" && !q.computed);
+                    if(p) {
+                        let r = callee_of(p.value, [...map.scope, map.init, p], depth + 1);
+                        if(r) {
+                            return r;
+                        }
+                    }
+                }
+            }
+            return TRANSLATOR_NAMES.has(step.prop)? TRANSLATOR : null;
+        }
+
+        case "CallExpression":
+            /*  f.bind(x) is f  */
+            if(node.callee.type === "MemberExpression" && !node.callee.computed
+                    && node.callee.property.type === "Identifier" && node.callee.property.name === "bind") {
+                return callee_of(node.callee.object, scope, depth + 1);
+            }
+            return null;
+
+        default:
+            return null;
+    }
+}
+
+/***************************************************************
+ *  What an export (module_export()) is as a callee: a function, the
+ *  i18next `t`, or a const that is an alias of one
+ ***************************************************************/
+function exported_callee(x, depth)
+{
+    if(!x) {
+        return null;
+    }
+    if(x.kind === "fn") {
+        return x;
+    }
+    if(x.kind === "external") {
+        return (x.source === "i18next" && x.imported === "t")? TRANSLATOR : null;
+    }
+    if(x.kind === "const" && x.steps.length === 0) {
+        return callee_of(x.init, x.scope, depth + 1);
+    }
+    return null;
+}
+
+/***************************************************************
+ *  The function a `let` / `var` holds when it is given one and
+ *  nothing else (`let tr = (key) => ...`), or null
+ ***************************************************************/
+const VAR_FUNCTIONS = new WeakMap();    // a declarator -> the function it holds, or null
+
+function var_function(b)
+{
+    if(b.declarators.length !== 1 || b.picks.size > 0) {
+        return null;
+    }
+    let d = b.declarators[0];
+    if(!d.init || !FUNCTION_RE.test(d.init.type)) {
+        return null;
+    }
+    if(!VAR_FUNCTIONS.has(d)) {
+        let {values, unknown} = assigned_values(b);
+        VAR_FUNCTIONS.set(d, (values.length === 1 && unknown.length === 0)? d.init : null);
+    }
+    return VAR_FUNCTIONS.get(d);
+}
+
+/***************************************************************
+ *  What a call calls (callee_of()), and the arguments the callee
+ *  receives: `f(a)` a; `f.call(x, a)` a; `f.apply(x, [a, b])` a and
+ *  b (null when `.apply()` hands an array the source does not write
+ *  out). Cached per call: what it calls does not change.
+ *
+ *      -> {target, args} | null
+ ***************************************************************/
+const CALL_TARGETS = new WeakMap();
+
+function call_target(call, scope)
+{
+    if(CALL_TARGETS.has(call)) {
+        return CALL_TARGETS.get(call);
+    }
+    let r = null;
+    let callee = call.callee;
+    let method = (callee.type === "MemberExpression" && !callee.computed && callee.property.type === "Identifier")?
+        callee.property.name : null;
+    if(method === "call" || method === "apply") {
+        let inner = callee_of(callee.object, scope);
+        if(inner) {
+            let args = call.arguments.slice(1);
+            if(method === "apply") {
+                let list = call.arguments[1];
+                args = !list? [] : (list.type === "ArrayExpression")? list.elements : null;
+            }
+            r = {target: inner, args};
+        }
+    }
+    if(!r) {
+        let target = callee_of(callee, scope);
+        r = target? {target, args: call.arguments} : null;
+    }
+    CALL_TARGETS.set(call, r);
+    return r;
+}
+
+/***************************************************************
+ *  What kind of call a call is, for the reader:
+ *
+ *      {kind: "key", entry, target, args}
+ *                                  a call of a KEY FUNCTION of `table`
+ *                                  (I18N_KEY_FUNCTIONS by default): a
+ *                                  function the table names in its
+ *                                  module, however the call reaches it
+ *                                  -- its name, an import under any
+ *                                  name, a re-export, an alias, a map,
+ *                                  `.call()`, `.apply()`
+ *      {kind: "t", target, args}   a call of a TRANSLATOR (callee_of()),
+ *                                  or of a function called t or tr that
+ *                                  the table does not name
+ *      {kind: "fn", target, args}  a call of another function the
+ *                                  reader reads
+ *      null                        anything else
+ ***************************************************************/
+function call_kind(call, scope, table = I18N_KEY_FUNCTIONS)
+{
+    let r = call_target(call, scope);
+    if(!r) {
+        /*  A name a module of the library does not bind, called in it: its
+         *  function of the table (a fixture of a test; real code declares it)  */
+        let module = lib_module_of(url_of(scope));
+        let fns = module? key_fn_index(table).by_module.get(module) : null;
+        let entry = (fns && call.callee.type === "Identifier" && !binding_of(call.callee.name, scope))?
+            (fns.get(call.callee.name) || null) : null;
+        return entry? {kind: "key", entry, target: {kind: "unbound", name: entry.name}, args: call.arguments} : null;
+    }
+    let {target, args} = r;
+    if(target.kind === "t") {
+        return {kind: "t", target, args};
+    }
+    let module = lib_module_of(target.url);
+    let fns = module? key_fn_index(table).by_module.get(module) : null;
+    let entry = fns? (fns.get(target.name) || null) : null;
+    if(entry) {
+        return {kind: "key", entry, target, args};
+    }
+    if(TRANSLATOR_NAMES.has(target.name)) {
+        return {kind: "t", target, args};
+    }
+    return {kind: "fn", target, args};
+}
+
+/***************************************************************
+ *  Is a call one of a translator -- t(), or a function called t or
+ *  tr (the library's tr() translate too)? Its value is a
+ *  TRANSLATED text, never a key.
+ ***************************************************************/
+function is_translator_call(n, scope)
+{
+    while(n && n.type === "ChainExpression") {
+        n = n.expression;
+    }
+    if(!n || n.type !== "CallExpression") {
+        return false;
+    }
+    let c = call_kind(n, scope || []);
+    return !!c && (c.kind === "t" || TRANSLATOR_NAMES.has(c.target.name));
 }
 
 
@@ -1123,7 +1834,11 @@ const MAX_DEPTH = 24;
  *
  *      {kind: "value", node}           an expression it cannot follow
  *                                      further: a literal, an object
- *                                      or array literal, a call
+ *                                      or array literal, a call (one
+ *                                      whose returns mix keys and
+ *                                      what the reader cannot follow
+ *                                      carries those keys in
+ *                                      `partial`: local_call_values())
  *      {kind: "nothing", node}         `undefined`, or the property of
  *                                      an object that has none
  *      {kind: "param", node, binding, path}
@@ -1132,7 +1847,8 @@ const MAX_DEPTH = 24;
  *                                      from it (".title", "[].label",
  *                                      a destructuring included)
  *      {kind: "unknown", node}         a `let`, a `var` (with its
- *                                      `binding`), an import, a
+ *                                      `binding`), an import of what
+ *                                      the reader does not read, a
  *                                      property of something unknown
  *
  *  with `scope` (the ancestors of `node`, to read it further) and
@@ -1147,18 +1863,27 @@ const MAX_DEPTH = 24;
  *    - every branch of `?:`, of `||` and `??`, the right one of `&&`
  *      (the left one is a condition: when it is the value, it is
  *      falsy, not a key);
- *    - a `const`, to its value, read in the scope that declares it;
+ *    - a `const`, to its value, read in the scope that declares it,
+ *      and what a destructuring reads from it (`const {title} =
+ *      opts`, with its default);
+ *    - an import of a const, into the module it names, when the
+ *      reader reads that module -- a file of the app, a module of
+ *      this library (module_export());
  *    - a property of an object literal it reached (`DEFAULTS.ok`; for
- *      a computed one, `NOTES[verdict]`, every value it holds), and an
+ *      a computed one, `NOTES[verdict]`, every value it holds), of a
+ *      copy of one (`{...opts}`, `Object.assign({}, opts)`), and an
  *      element of an array literal (`LIST[i]`);
  *    - an ELEMENT of an array literal it reached: the parameter of a
  *      `.map()`, `.forEach()`, ... callback over it, the variable of a
  *      for...of over it (and what a destructuring there reads from
  *      it: `for(const {key} of ROWS)`);
- *    - the default of a parameter (`function f(msg = "fallback")`),
- *      besides the parameter itself;
- *    - a call of a function of the same module whose every return is
- *      known (local_call_values());
+ *    - a parameter, however it is read: optional chaining
+ *      (`opts?.title`), `arguments[1]`, an element of a rest
+ *      parameter by its index (`rest[0]`); and its default
+ *      (`function f(msg = "fallback")`), besides the parameter itself;
+ *    - a call of a function the reader reads -- of the module, or
+ *      imported from a module it reads, by `.call()` / `.apply()` too
+ *      -- whose every return is known (local_call_values());
  *    - Object.freeze(), String(x) and `${x}` (a template that is only
  *      that), which change nothing it reads.
  *
@@ -1186,16 +1911,26 @@ function expand(node, ctx, depth = 0)
             return [...(node.operator !== "&&"? expand(node.left, here, depth + 1) : []),
                     ...expand(node.right, here, depth + 1)];
 
+        case "ChainExpression":
+            /*  opts?.title, f?.(x): what the expression inside is (or nothing)  */
+            return expand(node.expression, here, depth + 1);
+
         case "Identifier": {
             if(node.name === "undefined") {
                 return [item("nothing")];
+            }
+            if(node.name === "arguments") {
+                let a = arguments_binding(ctx.scope);
+                if(a) {
+                    return [item("unknown", {binding: a})];
+                }
             }
             let b = binding_of(node.name, ctx.scope);
             if(!b) {
                 return [item("unknown")];
             }
             if(b.kind === "const") {
-                return expand(b.init, {scope: b.scope, via: via, off: true}, depth + 1);
+                return const_values(b, node, via, depth);
             }
             if(b.kind === "each") {
                 let out = elements_of(b.of, {scope: b.scope, via: via, off: true}, depth + 1);
@@ -1214,11 +1949,21 @@ function expand(node, ctx, depth = 0)
             if(b.kind === "var") {
                 return [item("unknown", {binding: b, var_root: {binding: b, steps: []}})];
             }
-            return [item("unknown")];
+            if(b.kind === "import") {
+                let x = import_target(b);
+                if(x && x.kind === "const") {
+                    return const_values(x, node, via, depth);
+                }
+            }
+            return [item("unknown", {binding: b})];
         }
 
         case "MemberExpression": {
             let step = member_step(node);
+            let special = member_values(node, step, ctx, via, item, depth);
+            if(special) {
+                return special;
+            }
             let out = [];
             for(let o of expand(node.object, here, depth + 1)) {
                 out.push(...step_values(o, step, node, depth + 1));
@@ -1226,7 +1971,7 @@ function expand(node, ctx, depth = 0)
             return out;
         }
 
-        case "CallExpression":
+        case "CallExpression": {
             if(is_object_call(node, "freeze") && node.arguments.length === 1) {
                 return expand(node.arguments[0], here, depth + 1);
             }
@@ -1234,7 +1979,12 @@ function expand(node, ctx, depth = 0)
                     && node.arguments.length === 1 && binding_of("String", ctx.scope) === null) {
                 return expand(node.arguments[0], here, depth + 1);
             }
-            return local_call_values(node, ctx, via, depth) || [item("value")];
+            let r = local_call_values(node, ctx, via);
+            if(r && r.items) {
+                return r.items;
+            }
+            return [item("value", (r && r.partial)? {partial: r.partial} : {})];
+        }
 
         case "TemplateLiteral":
             /*  `${x}` and nothing else: x as a string  */
@@ -1248,40 +1998,178 @@ function expand(node, ctx, depth = 0)
     }
 }
 
+/***************************************************************
+ *  The values of a const (a binding of binding_of(), or a const
+ *  module_export() found in another module): its value read where it
+ *  is declared, the steps a destructuring reads from it, its default
+ ***************************************************************/
+function const_values(b, node, via, depth)
+{
+    let ctx = {scope: b.scope, via: via, off: true};
+    let out = expand(b.init, ctx, depth + 1);
+    for(let step of b.steps || []) {
+        out = out.flatMap((o) => step_values(o, step, node, depth + 1));
+    }
+    if(b.default) {
+        out.push(...expand(b.default, ctx, depth + 1));
+    }
+    return out;
+}
+
+/***************************************************************
+ *  The members expand() reads by what their object IS, not by what
+ *  it holds: `arguments[1]` (that parameter of the function) and
+ *  `ns.NAME` of `import * as ns` (what the module exports as NAME).
+ *  null for any other member.
+ ***************************************************************/
+function member_values(node, step, ctx, via, item, depth)
+{
+    if(node.object.type !== "Identifier") {
+        return null;
+    }
+    if(node.object.name === "arguments" && node.computed && node.property.type === "Literal"
+            && Number.isInteger(node.property.value) && node.property.value >= 0) {
+        let a = arguments_binding(ctx.scope);
+        if(!a) {
+            return null;
+        }
+        let binding = {kind: "param", fn: a.fn, name: a.name, index: node.property.value, path: "",
+                       default: null, rest: false, scope: a.scope};
+        return [item("param", {binding, path: ""})];
+    }
+    if(step.prop === null) {
+        return null;
+    }
+    let b = binding_of(node.object.name, ctx.scope);
+    if(!b || b.kind !== "import" || b.imported !== "*") {
+        return null;
+    }
+    let ns = import_target(b);
+    let x = (ns && ns.kind === "namespace")? module_export(ns.url, step.prop) : null;
+    if(x && x.kind === "const") {
+        return const_values(x, node, via, depth);
+    }
+    return [item("unknown")];
+}
+
 /*  The leaves the reader KNOWS: no key hides behind them  */
 const KNOWN = new Set(["key", "nothing", "dom"]);
 
 /***************************************************************
- *  What a call of a function of the same module returns, when every
- *  value it returns is known (classify(): a key, nothing, DOM): the
- *  call is read as those values -- `t(pick())`, `pick` returning
- *  "a" or "b", asks for both. null otherwise (a return the reader
- *  cannot follow, a parameter of the callee, none at all): the call
- *  stays a value it cannot follow. Only a plain call of a name bound
- *  to a function declaration or to a const function; not an async
- *  function, not a generator.
+ *  What a call of a function the reader reads (call_kind(): a
+ *  function of the module, or one imported from a module the reader
+ *  reads, by `.call()` / `.apply()` too) returns:
+ *
+ *      {items}     every value it returns is known (classify(): a
+ *                  key, nothing, DOM): the call is read as those
+ *                  values -- `t(pick())`, `pick` returning "a" or
+ *                  "b", asks for both
+ *      {partial}   some are not (a parameter, a call, data): the
+ *                  call stays a value the reader cannot follow, and
+ *                  `partial` holds the keys it also returns, for the
+ *                  check of a marker that stands on it
+ *      null        anything else: a call of something the reader
+ *                  does not read, an async function, a generator, a
+ *                  function being read already (a recursion)
  ***************************************************************/
-function local_call_values(call, ctx, via, depth)
+function local_call_values(call, ctx, via)
 {
-    if(call.callee.type !== "Identifier") {
+    let c = call_kind(call, ctx.scope);
+    if(!c || !c.target || c.target.kind !== "fn") {
         return null;
     }
-    let b = binding_of(call.callee.name, ctx.scope);
-    let fn = null;
-    if(b && b.kind === "function") {
-        fn = b.fn;
-    } else if(b && b.kind === "const" && FUNCTION_RE.test(b.init.type)) {
-        fn = b.init;
-    }
-    if(!fn || fn.async || fn.generator) {
+    let r = fn_returns(c.target);
+    if(!r) {
         return null;
     }
+    if(r.complete) {
+        return {items: r.items.map((it) => Object.assign({}, it, {via}))};
+    }
+    return (r.keys.length > 0)? {partial: r.keys} : null;
+}
+
+/***************************************************************
+ *  What a function returns, read ONCE: every `return` expanded in
+ *  the scope that declares the function -- never in that of a call
+ *  of it, which is what makes the answer a property of the function
+ *  -- and cached:
+ *
+ *      -> {items, complete, keys} | null
+ *
+ *  `complete`: every value is known; `keys`, the keys among them
+ *  (those of a call it returns that mixes keys and data included).
+ *  A function that is being read already answers null, and a call
+ *  of it is a value the reader cannot follow: the reader does not
+ *  follow a recursion. So a recursive helper costs one read, not one
+ *  per path through it: 7.26.29 read a function again at every call
+ *  of it, `label_of(n)` calling itself in two branches took more
+ *  than two minutes, and in three it never ended (REV-CLOUD V22).
+ *  A function that is not a plain one (async, a generator) is not
+ *  followed.
+ ***************************************************************/
+const FN_RETURNS = new WeakMap();
+const FN_READING = new Set();
+
+function fn_returns(target)
+{
+    let fn = target.fn;
+    if(FN_RETURNS.has(fn)) {
+        return FN_RETURNS.get(fn);
+    }
+    if(FN_READING.has(fn) || fn.async || fn.generator) {
+        return null;
+    }
+    FN_READING.add(fn);
+    let items = [];
+    try {
+        for(let r of returned_values(fn)) {
+            let values = expand(r.node, {scope: [...target.scope, fn, ...r.path], via: [], off: true}, 0);
+            items = unique_values(items.concat(values));
+        }
+    } finally {
+        FN_READING.delete(fn);
+    }
+    let leaves = items.map(classify);
+    let keys = new Set();
+    for(let l of leaves) {
+        if(l.kind === "key") {
+            keys.add(l.value);
+        }
+        for(let k of l.partial || []) {
+            keys.add(k);
+        }
+    }
+    let result = {
+        items: items,
+        complete: leaves.length > 0 && leaves.every((l) => KNOWN.has(l.kind)),
+        keys: [...keys]
+    };
+    FN_RETURNS.set(fn, result);
+    return result;
+}
+
+/***************************************************************
+ *  The values of expand() without repeats: a value is its node, read
+ *  as the same kind along the same path. A function that returns the
+ *  call of another three times returns ITS values once, not three
+ *  copies of them -- copies multiply along a chain of helpers, and
+ *  16 of them made 86 million values.
+ ***************************************************************/
+function unique_values(values)
+{
+    let seen = new Map();       // node -> Set("<kind> <path>")
     let out = [];
-    for(let r of returned_values(fn)) {
-        out.push(...expand(r.node, {scope: [...b.scope, fn, ...r.path], via: via, off: true}, depth + 1));
-    }
-    if(out.length === 0 || !out.every((v) => KNOWN.has(classify(v).kind))) {
-        return null;
+    for(let v of values) {
+        let id = `${v.kind} ${v.path || ""} ${v.var_root? JSON.stringify(v.var_root.steps) : ""}`;
+        let ids = seen.get(v.node);
+        if(!ids) {
+            ids = new Set();
+            seen.set(v.node, ids);
+        }
+        if(!ids.has(id)) {
+            ids.add(id);
+            out.push(v);
+        }
     }
     return out;
 }
@@ -1321,7 +2209,9 @@ function extend_root(root, step)
 /***************************************************************
  *  The values one step (member_step()) reads from a value of expand():
  *  a property, or an element. `node` is the node that reads it (null:
- *  the value's own)
+ *  the value's own). An element of a rest parameter read by its index
+ *  is the parameter at that index (`rest[0]`); any other step of one
+ *  is no position a table can name, and the reader cannot follow it.
  ***************************************************************/
 function step_values(o, step, node, depth)
 {
@@ -1329,12 +2219,22 @@ function step_values(o, step, node, depth)
     if(step.each) {
         return element_values(o, depth);
     }
+    if(o.kind === "param" && o.binding.rest) {
+        if(step.computed && step.prop !== null && /^\d+$/.test(step.prop)) {
+            let binding = Object.assign({}, o.binding, {index: o.binding.index + Number(step.prop), rest: false});
+            return [Object.assign({}, o, {binding, path: "", node: at})];
+        }
+        return [Object.assign({}, o, {kind: "unknown", var_root: null, node: at})];
+    }
     if(o.kind === "param") {
         return [step.prop !== null? Object.assign({}, o, {path: o.path + "." + step.prop, node: at}) :
             Object.assign({}, o, {kind: "unknown", binding: null, var_root: null, node: at})];
     }
     if(o.kind === "value" && o.node.type === "ObjectExpression") {
         return property_values(o, step.prop, depth + 1);
+    }
+    if(o.kind === "value" && is_object_call(o.node, "assign")) {
+        return assigned_properties(o, step, depth + 1);
     }
     if(o.kind === "value" && o.node.type === "ArrayExpression" && step.computed) {
         return element_values(o, depth + 1);
@@ -1347,8 +2247,42 @@ function step_values(o, step, node, depth)
 }
 
 /***************************************************************
+ *  The values one step reads from `Object.assign(target, ...sources)`:
+ *  what each argument holds there (a later one wins, so any of them
+ *  may be it); an argument that has no such property is no value of
+ *  it
+ ***************************************************************/
+function assigned_properties(o, step, depth)
+{
+    let out = [];
+    let scope = [...o.scope, o.node];
+    for(let a of o.node.arguments) {
+        if(a.type === "SpreadElement") {
+            out.push(Object.assign({}, o, {kind: "unknown", binding: null, var_root: null, node: a}));
+            continue;
+        }
+        for(let v of expand(a, {scope, via: o.via, off: o.off}, depth + 1)) {
+            if(v.kind === "nothing" || (v.kind === "value" && v.node.type === "Literal")) {
+                continue;
+            }
+            let r = step_values(v, step, null, depth + 1);
+            if(v.kind === "value" && v.node.type === "ObjectExpression") {
+                r = r.filter((x) => x.kind !== "nothing");
+            }
+            out.push(...r);
+        }
+    }
+    if(out.length === 0) {
+        out.push(Object.assign({}, o, {kind: "nothing"}));
+    }
+    return out;
+}
+
+/***************************************************************
  *  The values of property `name` of an object literal (`name` null:
- *  of every property), each followed with expand()
+ *  of every property), each followed with expand(). A spread is read
+ *  for it: an object literal, or a parameter (`{...opts}` holds
+ *  opts.title as its title)
  ***************************************************************/
 function property_values(o, name, depth)
 {
@@ -1362,6 +2296,9 @@ function property_values(o, name, depth)
                     let r = property_values(s, name, depth + 1).filter((x) => x.kind !== "nothing");
                     found = found || r.length > 0;
                     out.push(...r);
+                } else if(s.kind === "param" && name !== null) {
+                    found = true;
+                    out.push(...step_values(s, {prop: name, computed: false}, null, depth + 1));
                 } else if(s.kind !== "nothing") {
                     found = true;
                     out.push(Object.assign({}, s, {kind: "unknown", binding: null,
@@ -1408,12 +2345,16 @@ function elements_of(node, ctx, depth)
 }
 
 /***************************************************************
- *  The elements of one value of expand(): see elements_of()
+ *  The elements of one value of expand(): see elements_of(). Each
+ *  element of a rest parameter is another parameter: no position can
+ *  name one, and the reader cannot follow it.
  ***************************************************************/
 function element_values(v, depth)
 {
     let out = [];
-    if(v.kind === "param") {
+    if(v.kind === "param" && v.binding.rest) {
+        out.push(Object.assign({}, v, {kind: "unknown", var_root: null}));
+    } else if(v.kind === "param") {
         out.push(Object.assign({}, v, {path: v.path + "[]"}));
     } else if(v.kind === "nothing" || (v.kind === "value" && v.node.type === "Literal")) {
         return out;
@@ -1525,6 +2466,10 @@ function leaves_of(node, scope = [], root = null)
 
 function classify(v)
 {
+    if(v.kind === "param" && v.binding && v.binding.rest) {
+        /*  A rest parameter itself: every argument from there on, no position  */
+        return Object.assign({}, v, {kind: "unknown", var_root: null});
+    }
     if(v.kind !== "value") {
         return v;
     }
@@ -1537,10 +2482,51 @@ function classify(v)
         let s = n.quasis[0].value.cooked;
         return Object.assign({}, v, {kind: s? "key" : "nothing", value: s});
     }
+    let strings = string_list(n);
+    if(strings) {
+        return Object.assign({}, v, {kind: "unknown", strings});
+    }
     if(is_dom(n, v.scope)) {
         return Object.assign({}, v, {kind: "dom"});
     }
     return Object.assign({}, v, {kind: "unknown"});
+}
+
+/***************************************************************
+ *  The text of a string literal or of a template with no `${}`,
+ *  or null
+ ***************************************************************/
+function static_string(n)
+{
+    if(n && n.type === "Literal" && typeof n.value === "string") {
+        return n.value;
+    }
+    if(n && n.type === "TemplateLiteral" && n.expressions.length === 0) {
+        return n.quasis[0].value.cooked;
+    }
+    return null;
+}
+
+/***************************************************************
+ *  The strings of an array literal of two or more string literals,
+ *  or null. Such an array is no createElement2 spec -- a spec holds
+ *  its ATTRS in its second slot, an object -- but a list of strings:
+ *  given to t(), the keys it tries in turn (i18next's fallbacks).
+ ***************************************************************/
+function string_list(n)
+{
+    if(!n || n.type !== "ArrayExpression" || n.elements.length < 2) {
+        return null;
+    }
+    let out = [];
+    for(let el of n.elements) {
+        let s = static_string(el);
+        if(s === null) {
+            return null;
+        }
+        out.push(s);
+    }
+    return out;
 }
 
 /*
@@ -1559,16 +2545,17 @@ const DOCUMENT_BUILDERS = new Set([
 ]);
 
 /***************************************************************
- *  Is a value DOM? An array literal (a createElement2 spec), or a
- *  call of a DOM builder: createElement2(), createOneHtml(),
- *  html_markup() imported from gobj-js, text_node() from gobj-ui,
+ *  Is a value DOM? An array literal (a createElement2 spec; not a
+ *  list of string literals, string_list()), or a call of a DOM
+ *  builder: createElement2(), createOneHtml(), html_markup()
+ *  imported from gobj-js, text_node() from gobj-ui,
  *  document.createElement() and the like. `scope` is the chain of
  *  ancestors of the node, where its names are resolved.
  ***************************************************************/
 function is_dom(n, scope = [])
 {
     if(n.type === "ArrayExpression") {
-        return true;
+        return !string_list(n);
     }
     if(n.type !== "CallExpression") {
         return false;
@@ -1610,29 +2597,31 @@ function static_keys(node, scope = [])
 /***************************************************************
  *  The leaves at a key position of I18N_KEY_FUNCTIONS in one call:
  *  "1", "2.title", "1.actions[].label", "2[].label". `scope` is the
- *  chain of ancestors of the call. Each leaf is one of leaves_of(),
- *  its `via` starting at the call.
+ *  chain of ancestors of the call; `args` the arguments as the
+ *  callee receives them (call_kind(): those of `.call()` /
+ *  `.apply()`; null, an array the source does not write out). Each
+ *  leaf is one of leaves_of(), its `via` starting at the call.
  *
  *  A position the call does not reach (an argument not given) has no
  *  leaf: its default applies. An options object held in a variable,
- *  a spread, a parameter: followed like any value.
+ *  a spread, a parameter, a copy: followed like any value.
  ***************************************************************/
-function values_at(call, path, scope = [])
+function values_at(call, path, scope = [], args = call.arguments)
 {
     let segs = String(path).split(".");
     let first = segs.shift().match(/^(\d+)(\[\])?$/);
     let at_call = {kind: "unknown", node: call, scope, via: [call], off: false};
-    if(!first) {
+    if(!first || !args) {
         return [at_call];
     }
     let idx = Number(first[1]);
     let call_scope = [...scope, call];
-    for(let i = 0; i <= idx && i < call.arguments.length; i++) {
-        if(call.arguments[i].type === "SpreadElement") {
-            return [Object.assign({}, at_call, {node: call.arguments[i]})];
+    for(let i = 0; i <= idx && i < args.length; i++) {
+        if(args[i] && args[i].type === "SpreadElement") {
+            return [Object.assign({}, at_call, {node: args[i]})];
         }
     }
-    let arg = call.arguments[idx];
+    let arg = args[idx];
     if(!arg) {
         return [];
     }
@@ -1646,43 +2635,13 @@ function values_at(call, path, scope = [])
         }
         let next = [];
         for(let v of cur) {
-            if(v.kind === "param") {
-                next.push(Object.assign({}, v, {path: v.path + "." + m[1]}));
-            } else if(v.kind === "value" && v.node.type === "ObjectExpression") {
-                next.push(...property_values(v, m[1], 0));
-            } else if(v.kind === "value" && is_object_call(v.node, "assign")) {
-                let assigned = v.node.arguments.flatMap((a) =>
-                    expand(a, {scope: [...v.scope, v.node], via: v.via, off: v.off}));
-                for(let a of assigned) {
-                    if(a.kind === "value" && a.node.type === "ObjectExpression") {
-                        next.push(...property_values(a, m[1], 0)
-                            .filter((x) => x.kind !== "nothing"));
-                    } else if(a.kind === "param") {
-                        next.push(Object.assign({}, a, {path: a.path + "." + m[1]}));
-                    } else if(a.kind !== "nothing") {
-                        next.push(Object.assign({}, a, {kind: "unknown", binding: null,
-                            var_root: extend_root(a.var_root, {prop: m[1], computed: false})}));
-                    }
-                }
-            } else if(v.kind === "nothing" || (v.kind === "value" && v.node.type === "Literal")) {
-                continue;
-            } else {
-                next.push(Object.assign({}, v, {kind: "unknown", binding: null,
-                    var_root: extend_root(v.var_root, {prop: m[1], computed: false})}));
+            if(v.kind === "nothing" || (v.kind === "value" && v.node.type === "Literal")) {
+                continue;       // the position is not reached: its default applies
             }
+            next.push(...step_values(v, {prop: m[1], computed: false}, null, 0));
         }
         if(m[2]) {
-            let els = [];
-            for(let v of next) {
-                if(v.kind === "param") {
-                    els.push(Object.assign({}, v, {path: v.path + "[]"}));
-                } else if(v.kind === "value") {
-                    els.push(...elements_of(v.node, v, 0));
-                } else if(v.kind !== "nothing") {
-                    els.push(Object.assign({}, v, {var_root: extend_root(v.var_root, {each: true})}));
-                }
-            }
-            next = els;
+            next = next.flatMap((v) => (v.kind === "nothing")? [] : element_values(v, 0));
         }
         cur = next;
     }
@@ -1757,9 +2716,12 @@ const ELEMENT_WRITERS = new Map([["push", 0], ["unshift", 0], ["splice", 2], ["f
  *  and `Object.assign(x, v)` (v written over x). A `+=` or `++` on a
  *  member is unknown at that member.
  *
- *      -> {values: [{node, scope, steps, spread, into}], unknown: [{node, steps}]}
+ *      -> {values: [{node, scope, steps, spread, into, pick}],
+ *          unknown: [{node, steps, scope}]}
  *          `node` null: nothing (a declarator with no value); `into`:
- *          written into the variable, not given to it
+ *          written into the variable, not given to it; `pick`: what a
+ *          destructuring declarator reads from its value ({steps,
+ *          default}, `let {title} = opts`)
  ***************************************************************/
 function assigned_values(binding, members = false)
 {
@@ -1780,7 +2742,9 @@ function assigned_values(binding, members = false)
         switch(n.type) {
             case "VariableDeclarator":
                 if(binding.declarators.includes(n)) {
-                    values.push(n.init? {node: n.init, scope: chain, steps: []} : {node: null, steps: []});
+                    values.push(n.init? {node: n.init, scope: chain, steps: [],
+                                         pick: (binding.picks && binding.picks.get(n)) || null}
+                                       : {node: null, steps: []});
                 }
                 break;
             case "AssignmentExpression": {
@@ -1790,7 +2754,7 @@ function assigned_values(binding, members = false)
                         if(readable) {
                             values.push({node: n.right, scope: chain, steps: []});
                         } else {
-                            unknown.push({node: n, steps: []});
+                            unknown.push({node: n, steps: [], scope: chain});
                         }
                     }
                 } else if(n.left.type === "MemberExpression") {
@@ -1798,21 +2762,21 @@ function assigned_values(binding, members = false)
                     if(steps && readable) {
                         values.push({node: n.right, scope: chain, steps, into: true});
                     } else if(steps) {
-                        unknown.push({node: n, steps});
+                        unknown.push({node: n, steps, scope: chain});
                     }
                 } else if(pattern_names(n.left).includes(binding.name)
                         && is_it({type: "Identifier", name: binding.name}, chain)) {
-                    unknown.push({node: n, steps: []});
+                    unknown.push({node: n, steps: [], scope: chain});
                 }
                 break;
             }
             case "UpdateExpression":
                 if(is_it(n.argument, chain)) {
-                    unknown.push({node: n, steps: []});
+                    unknown.push({node: n, steps: [], scope: chain});
                 } else if(n.argument.type === "MemberExpression") {
                     let steps = into(n.argument);
                     if(steps) {
-                        unknown.push({node: n, steps});
+                        unknown.push({node: n, steps, scope: chain});
                     }
                 }
                 break;
@@ -1841,7 +2805,7 @@ function assigned_values(binding, members = false)
                     }
                     for(let a of n.arguments.slice(1)) {
                         if(a.type === "SpreadElement") {
-                            unknown.push({node: a, steps});
+                            unknown.push({node: a, steps, scope: chain});
                         } else {
                             values.push({node: a, scope: chain, steps, into: true});
                         }
@@ -1852,7 +2816,7 @@ function assigned_values(binding, members = false)
             case "ForOfStatement":
             case "ForInStatement":
                 if(is_it(n.left, chain)) {
-                    unknown.push({node: n, steps: []});
+                    unknown.push({node: n, steps: [], scope: chain});
                 }
                 break;
             default:
@@ -1869,21 +2833,23 @@ function assigned_values(binding, members = false)
  *  with expand() and then along the steps of `root`, a `let` met on
  *  the way followed into it.
  *
- *      -> {leaves: [leaf], complete, written, unread: [node], lets: [binding]}
+ *      -> {leaves: [leaf], complete, written, unread: [node],
+ *          opaque: [{node, scope}], lets: [binding]}
  *
  *  `complete`: every leaf is known (a literal, a const that is one,
  *  nothing, DOM) and every write was read. `written`: some leaf was
  *  written INTO the variable (`x.a = "k"`, `x.push("k")`), which a
  *  const would not carry to the reader. `unread`: the node of each
- *  value it could not read. `lets`: the variables it went through,
- *  the first one first.
+ *  value it could not read; `opaque`, each write it could not read
+ *  (`k += x`, a for...of over it), where it is (param_flows()).
+ *  `lets`: the variables it went through, the first one first.
  ***************************************************************/
 function var_leaves(root, seen = new Set(), depth = 0)
 {
     let b = root.binding;
     let steps = root.steps;
-    let out = {leaves: [], complete: true, written: false, unread: [], lets: [b]};
-    let id = `${b.declarators[0].start}:${JSON.stringify(steps)}`;
+    let out = {leaves: [], complete: true, written: false, unread: [], opaque: [], lets: [b]};
+    let id = `${b.declarators[0].start}:${b.name}:${JSON.stringify(steps)}`;
     if(seen.has(id)) {
         return out;
     }
@@ -1898,6 +2864,7 @@ function var_leaves(root, seen = new Set(), depth = 0)
         if(paths_meet(u.steps, steps)) {
             out.complete = false;
             out.unread.push(u.node);
+            out.opaque.push({node: u.node, scope: u.scope});
         }
     }
     for(let v of values) {
@@ -1915,6 +2882,15 @@ function var_leaves(root, seen = new Set(), depth = 0)
         }
         let ctx = {scope: v.scope, via: [], off: false};
         let cur = v.spread? elements_of(v.node, ctx, 0) : expand(v.node, ctx);
+        if(v.pick) {
+            /*  `let {title = "x"} = opts`: what the pattern reads from the value  */
+            for(let step of v.pick.steps) {
+                cur = cur.flatMap((o) => step_values(o, step, null, 0));
+            }
+            if(v.pick.default) {
+                cur.push(...expand(v.pick.default, ctx));
+            }
+        }
         for(let step of steps.slice(v.steps.length)) {
             cur = cur.flatMap((o) => step_values(o, step, null, 0));
         }
@@ -1924,6 +2900,7 @@ function var_leaves(root, seen = new Set(), depth = 0)
                 let r = var_leaves(leaf.var_root, seen, depth + 1);
                 out.leaves.push(...r.leaves);
                 out.unread.push(...r.unread);
+                out.opaque.push(...r.opaque);
                 out.lets.push(...r.lets);
                 out.complete = out.complete && r.complete;
                 out.written = out.written || r.written;
@@ -1978,6 +2955,163 @@ function source_keys(node, scope = [])
     return {keys, unread};
 }
 
+/***************************************************************
+ *  The PARAMETERS a value is built from, through what the reader
+ *  does not follow: a call (`k.toLowerCase()`, `fmt(k)`), a
+ *  concatenation, a template with `${}`, an iteration of
+ *  Object.entries(), a rest parameter read by a computed index,
+ *  `arguments`, a part of a parameter an array pattern
+ *  destructures. Each name the value is built from is followed to
+ *  what binds it: a const to its value, a `let` / `var` into
+ *  everything it is given or written, the element of what a
+ *  for...of or a callback walks; a parameter of a function around
+ *  it is an answer. The property a computed member reads
+ *  (`TABLE[k]`) is a lookup, not the value: it is not followed, nor
+ *  is the body of a function, nor a number or a boolean (`!k`,
+ *  `k++`).
+ *
+ *      -> [{binding, path, priv}]
+ *
+ *  `binding` is a parameter (binding_of(): "param", "param_part"),
+ *  or an `arguments` (arguments_binding()); `path`, what is read from
+ *  it (".title", "[]" an element of it), null when it cannot be said
+ *  (through a call, a destructuring, an iteration of entries); `priv`,
+ *  read through a gobj's `priv` (`gobj.priv.label`): the gobj's own
+ *  state, never a key its caller hands. A METHOD's value comes from
+ *  its object when the object comes from somewhere -- `k.trim()` from
+ *  k, `priv.errors.get(path)` from the priv (`path` is the key of a
+ *  lookup) -- and from its arguments otherwise (`fmt(k)`,
+ *  `JSON.stringify(p)`). What a `let` is given and the elements put
+ *  in it (`x.push(v)`) are what it holds; a property written into it
+ *  (`x.title = v`) is not.
+ *
+ *  i18n_key_functions.test.js uses it on what the reader stops at,
+ *  at the places a key is read: a function that hands a parameter on
+ *  that way hands a key no position can name, and the test fails.
+ ***************************************************************/
+function param_flows(node, scope, seen = new Set(), depth = 0)
+{
+    /*  Through a call or an iteration a path names no position any more  */
+    let unnamed = (flows) => flows.map((f) => (f.path === null)? f : {binding: f.binding, path: null, priv: f.priv});
+    if(!node || typeof node.type !== "string" || depth > MAX_DEPTH) {
+        return [];
+    }
+    let sub = (n, s = scope) => param_flows(n, s, seen, depth + 1);
+    switch(node.type) {
+        case "Identifier": {
+            if(node.name === "arguments") {
+                let a = arguments_binding(scope);
+                return a? [{binding: a, path: null, priv: false}] : [];
+            }
+            let b = binding_of(node.name, scope);
+            if(!b) {
+                return [];
+            }
+            switch(b.kind) {
+                case "param":
+                    return [{binding: b, path: b.rest? null : b.path, priv: false}];
+                case "param_part":
+                    return [{binding: b, path: null, priv: false}];
+                case "const":
+                    if(FUNCTION_RE.test(b.init.type)) {
+                        return [];
+                    }
+                    return (b.steps.length > 0)? unnamed(sub(b.init, b.scope)) : sub(b.init, b.scope);
+                case "each":
+                    return sub(b.of, b.scope).map((f) => ({binding: f.binding, priv: f.priv,
+                        path: (f.path !== null && b.steps.length === 0)? f.path + "[]" : null}));
+                case "each_part":
+                    return unnamed(sub(b.of, b.scope));
+                case "other":
+                    return b.init? unnamed(sub(b.init, b.scope)) : [];
+                case "var": {
+                    let id = `${b.declarators[0].start}:${b.name}`;
+                    if(seen.has(id)) {
+                        return [];
+                    }
+                    seen.add(id);
+                    let {values, unknown} = assigned_values(b, true);
+                    let out = [];
+                    for(let v of values) {
+                        /*  What it is given, and the elements put in it (`x.push(v)`); a
+                         *  property written into it (`x.title = v`) is not what it is  */
+                        if(v.node && (!v.into || (v.steps.length > 0 && v.steps[v.steps.length - 1].each))) {
+                            out.push(...(v.into || v.pick? unnamed(sub(v.node, v.scope)) : sub(v.node, v.scope)));
+                        }
+                    }
+                    for(let u of unknown) {
+                        if(u.steps.length === 0) {
+                            out.push(...unnamed(sub(u.node, u.scope)));
+                        }
+                    }
+                    return out;
+                }
+                default:
+                    return [];
+            }
+        }
+        case "MemberExpression": {
+            let step = member_step(node);
+            return sub(node.object).map((f) => {
+                let priv = f.priv || step.prop === "priv";
+                if(f.path === null || step.prop === null || node.computed) {
+                    return {binding: f.binding, path: null, priv};
+                }
+                return {binding: f.binding, path: f.path + "." + step.prop, priv};
+            });
+        }
+        case "CallExpression":
+        case "NewExpression": {
+            /*  A method's value comes from its object when the object comes
+             *  from somewhere (`k.toLowerCase()`; `priv.errors.get(path)` is a
+             *  lookup in the gobj's state, `path` only its key); otherwise from
+             *  the arguments (`fmt(k)`, `JSON.stringify(p)`, `"x".concat(k)`)  */
+            let c = (node.callee.type === "ChainExpression")? node.callee.expression : node.callee;
+            if(c.type === "MemberExpression") {
+                let from_object = sub(c.object);
+                if(from_object.length > 0) {
+                    return unnamed(from_object);
+                }
+            } else if(!FUNCTION_RE.test(c.type) && c.type !== "Identifier") {
+                let r = sub(c);
+                if(r.length > 0) {
+                    return unnamed(r);
+                }
+            }
+            return unnamed(node.arguments.flatMap((a) => sub(a)));
+        }
+        case "ChainExpression":
+            return sub(node.expression);
+        case "TemplateLiteral":
+            return node.expressions.flatMap((e) => sub(e));
+        case "TaggedTemplateExpression":
+            return node.quasi.expressions.flatMap((e) => sub(e));
+        case "BinaryExpression":
+        case "LogicalExpression":
+            return [...sub(node.left), ...sub(node.right)];
+        case "ConditionalExpression":
+            return [...sub(node.consequent), ...sub(node.alternate)];
+        case "AssignmentExpression":
+            return sub(node.right);
+        case "SequenceExpression":
+            return sub(node.expressions[node.expressions.length - 1]);
+        case "AwaitExpression":
+        case "YieldExpression":
+        case "SpreadElement":
+            return sub(node.argument);
+        case "ForOfStatement":
+        case "ForInStatement":
+            return sub(node.right);
+        case "ArrayExpression":
+            return node.elements.flatMap((e) => (e? sub(e) : []));
+        case "ObjectExpression":
+            return node.properties.flatMap((p) => (p.type === "SpreadElement")? sub(p.argument) :
+                (p.kind === "init" && !p.method)? sub(p.value) : []);
+        default:
+            return [];
+    }
+}
+
 
                     /***************************
                      *      Markers
@@ -2010,6 +3144,12 @@ const MARKER_LIST_RE = /^[A-Za-z_$][\w$]*_I18N_KEYS$/;
  *          all: [marker], errors: [{line, why}]}
  *
  *  marker: {kind: "data" | "lists", lists: [name], line, used: false}
+ *
+ *  It marks the node that starts right after it, through any
+ *  parenthesis: `/\* i18n: data *\/ (a || b)` marks `a || b` (acorn
+ *  keeps no node for the parenthesis, so the expression starts after
+ *  it), and `/\* i18n: data *\/ (a || b).trim()` the call, which starts
+ *  at it.
  ***************************************************************/
 function markers_of(ast)
 {
@@ -2042,9 +3182,51 @@ function markers_of(ast)
         }
         marker.next = next;
         at.set(next, marker);
+        while(next < ast.code.length && /[\s(]/.test(ast.code[next])) {
+            next++;
+            if(ast.code[next - 1] === "(") {
+                at.set(next, marker);
+            }
+        }
         all.push(marker);
     }
     return {at, all, errors};
+}
+
+/***************************************************************
+ *  What an unused marker stands before, said to whoever has to move
+ *  it: the code that follows it, and what holds it when that tells
+ *  why no key is read there (a declaration, an assignment)
+ ***************************************************************/
+function marker_misplaced(ast, m)
+{
+    let found = null;
+    walk(ast, (n, ancestors) => {
+        if(!found && n.start === m.next && n.type !== "Program") {
+            found = {node: n, parent: ancestors[ancestors.length - 1] || null};
+        }
+    });
+    let text = ast.code.slice(m.next, m.next + 60).split("\n")[0].trim();
+    let before = text? `\`${text}${text.length >= 60? "..." : ""}\`` : "the end of the file";
+    let where = "";
+    if(found && found.parent) {
+        let p = found.parent;
+        if(p.type === "VariableDeclarator" && p.init === found.node) {
+            where = ", the value a variable is DECLARED with: mark it where the variable is handed to a place " +
+                    "a key is read";
+        } else if(p.type === "AssignmentExpression" && p.right === found.node) {
+            where = ", a value ASSIGNED: mark it where it is handed to a place a key is read";
+        } else if(p.type === "ReturnStatement") {
+            where = ", a value RETURNED: mark the call where it is handed to a place a key is read";
+        } else if(/^(BinaryExpression|TemplateLiteral)$/.test(p.type)) {
+            where = ", inside a concatenation or a template, which the reader does not read into: " +
+                    "mark the whole value";
+        }
+    }
+    return `the i18n marker stands before ${before}${where}. A marker marks the value it stands right ` +
+           `before, where a key is read: what is handed to t(), an i18n / code / data-i18n* value, or ` +
+           `a key position of a key function (an argument, a branch of one, a property value, or the ` +
+           `whole call)`;
 }
 
 /***************************************************************
@@ -2098,72 +3280,51 @@ function key_fn_index(table = I18N_KEY_FUNCTIONS)
 }
 
 /***************************************************************
- *  Does an import source name a gobj-ui module (the barrel, a deep
- *  `src/` module, or, inside the library, a sibling)?
+ *  The calls of a file to a key function, however the call reaches
+ *  it (call_kind(): an import of a gobj-ui function under any name, a
+ *  re-export, an alias, a map, `.call()` / `.apply()`; in the library
+ *  module that defines it, the function itself). `table` is
+ *  I18N_KEY_FUNCTIONS by default.
+ *
+ *      -> [{entry, call, scope, args}], `scope` the ancestors of the
+ *         call, `args` the arguments the function receives
  ***************************************************************/
-function is_gobj_ui_source(src, lib_module)
+const KEY_CALLS = new WeakMap();    // a parsed file -> Map(table -> its key calls)
+
+function key_calls_cached(ast, table)
 {
-    if(/^@yuneta\/gobj-ui(?:\/index\.js|\/src\/[\w.-]+\.js)?$/.test(src)) {
-        return true;
-    }
-    return !!lib_module && /^\.\/[\w.-]+\.js$/.test(src);
+    let per_table = KEY_CALLS.get(ast);
+    return (per_table && per_table.has(table))? per_table.get(table) : null;
 }
 
-/***************************************************************
- *  The calls of a file to a key function, each with what the file
- *  bound the callee to: an import of a gobj-ui function (by its
- *  exported name), or, in the library module that defines it, the
- *  function itself. `table` is I18N_KEY_FUNCTIONS by default.
- *
- *      -> [{entry, call, scope}], `scope` the ancestors of the call
- ***************************************************************/
-function key_calls(ast, lib_module, table)
+function set_key_calls(ast, table, calls)
 {
-    let index = key_fn_index(table);
-    let direct = new Map();         // local name -> entry
-    let namespaces = new Set();     // `import * as ns` of a gobj-ui module
-    for(let node of ast.body) {
-        if(node.type !== "ImportDeclaration" || !is_gobj_ui_source(node.source.value, lib_module)) {
-            continue;
-        }
-        for(let spec of node.specifiers) {
-            if(spec.type === "ImportSpecifier") {
-                let name = spec.imported.name || spec.imported.value;
-                let entry = index.exported.get(name);
-                if(entry) {
-                    direct.set(spec.local.name, entry);
-                }
-            } else if(spec.type === "ImportNamespaceSpecifier") {
-                namespaces.add(spec.local.name);
-            }
-        }
+    if(!KEY_CALLS.has(ast)) {
+        KEY_CALLS.set(ast, new Map());
     }
-    if(lib_module && index.by_module.has(lib_module)) {
-        for(let [name, entry] of index.by_module.get(lib_module)) {
-            direct.set(name, entry);
-        }
-    }
-    if(direct.size === 0 && namespaces.size === 0) {
-        return [];
-    }
+    KEY_CALLS.get(ast).set(table, calls);
+}
 
+function key_calls(ast, lib_module, table = I18N_KEY_FUNCTIONS)
+{
+    program_url(ast, lib_module);
+    let known = key_calls_cached(ast, table);
+    if(known) {
+        return known;
+    }
     let out = [];
     walk(ast, (n, ancestors) => {
         if(n.type !== "CallExpression") {
             return;
         }
-        let entry = null;
-        let c = n.callee;
-        if(c.type === "Identifier") {
-            entry = direct.get(c.name) || null;
-        } else if(c.type === "MemberExpression" && !c.computed
-                && c.object.type === "Identifier" && namespaces.has(c.object.name)) {
-            entry = index.exported.get(c.property.name) || null;
-        }
-        if(entry) {
-            out.push({entry, call: n, scope: ancestors.slice()});
+        ancestors.push(n);
+        let c = call_kind(n, ancestors, table);
+        ancestors.pop();
+        if(c && c.kind === "key") {
+            out.push({entry: c.entry, call: n, scope: ancestors.slice(), args: c.args});
         }
     });
+    set_key_calls(ast, table, out);
     return out;
 }
 
@@ -2188,14 +3349,16 @@ function is_forwarded(leaf, lib_module, table)
 }
 
 /***************************************************************
- *  Is a leaf a TRANSLATED text, `t("...")` / `i18next.t("...")`?
- *  At a key position it is a bug of its own: the function translates
- *  it again and marks it data-i18n with the translation, so it never
- *  changes language. What goes there is the key.
+ *  Is a leaf a TRANSLATED text -- a call of a translator
+ *  (is_translator_call(): `t("...")`, `i18next.t("...")`, `tr()`, an
+ *  alias, `t?.()`, `t.call()`)? At a key position it is a bug of its
+ *  own: the function translates it again and marks it data-i18n with
+ *  the translation, so it never changes language. What goes there is
+ *  the key.
  ***************************************************************/
 function is_translation(leaf)
 {
-    return !!leaf.node && leaf.node.type === "CallExpression" && callee_name(leaf.node.callee) === "t";
+    return !!leaf.node && is_translator_call(leaf.node, leaf.scope);
 }
 
 /***************************************************************
@@ -2223,17 +3386,19 @@ function holds_only_dom(leaf)
  *       or DOM (an array spec, createElement2(), ...: is_dom());
  *    b) a `const` the reader follows to one of those (also through a
  *       const object or array, the element of a const array its
- *       `.map()` / for...of iterates, a call of a function of the
- *       module whose every return is one), or a plain `let` that is
- *       only ever given DOM;
+ *       `.map()` / for...of iterates, an import of one, a call of a
+ *       function -- of the module or imported -- whose every return
+ *       is one), or a plain `let` that is only ever given DOM;
  *    c) a key position of the enclosing table function, handed on
  *       (only in the library: an app's functions are in no table);
  *    d) MARKED where it is handed: `/\* i18n: <NAME>_I18N_KEYS *\/`
  *       (a module publishes those keys) or `/\* i18n: data *\/`.
  *
- *  A TRANSLATED text, `t("...")`, fails even when marked: what goes
- *  there is the key (`why: "translated"`). `table` is
- *  I18N_KEY_FUNCTIONS by default.
+ *  A TRANSLATED text -- a call of any translator, is_translator_call():
+ *  `t("...")`, `tr()`, an alias, `t?.()`, `t.call()` -- fails even when
+ *  marked: what goes there is the key (`why: "translated"`). The calls
+ *  are found however they reach a key function (key_calls()). `table`
+ *  is I18N_KEY_FUNCTIONS by default.
  *
  *      -> [{line, call_line, name, path, text, why}]
  ***************************************************************/
@@ -2241,9 +3406,9 @@ function call_rule_violations(ast, lib_module, table)
 {
     let markers = markers_of(ast);
     let out = [];
-    for(let {entry, call, scope} of key_calls(ast, lib_module, table)) {
+    for(let {entry, call, scope, args} of key_calls(ast, lib_module, table)) {
         for(let path of entry.keys) {
-            for(let leaf of values_at(call, path, scope)) {
+            for(let leaf of values_at(call, path, scope, args)) {
                 let why = null;
                 if(is_translation(leaf)) {
                     why = "translated";
@@ -2275,7 +3440,8 @@ function call_rule_message(label, v)
     let what = `${v.name}() [${v.path}] is given ${v.text.replace(/\s+/g, " ")}`;
     if(v.why === "translated") {
         return `${where}: ${what}: a TRANSLATED text where a KEY goes (translated again and ` +
-               `marked data-i18n with the translation, it never changes language): hand it the key`;
+               `marked data-i18n with the translation, it never changes language, and no marker ` +
+               `excuses it): hand the key, not t(key)`;
     }
     return `${where}: ${what}, which the reader cannot follow: hand it a literal or a const, ` +
            `or mark it /* i18n: data */ or /* i18n: <NAME>_I18N_KEYS */`;
@@ -2289,9 +3455,9 @@ function call_rule_message(label, v)
 
 /***************************************************************
  *  The `<NAME>_I18N_KEYS` arrays a module exports, READ, never run:
- *  `export const|let|var X = [...]`, `const X = [...]; export {X}`,
- *  either wrapped in Object.freeze(). Each element is a string literal,
- *  a template with no `${}`, or a spread of another array of the same
+ *  `export const X = [...]`, `const X = [...]; export {X}`, either
+ *  wrapped in Object.freeze(). Each element is a string literal, a
+ *  template with no `${}`, or a spread of another array of the same
  *  module read the same way -- a top-level `const`, or a list it
  *  publishes: `[...BASE_I18N_KEYS, "k"]`.
  *
@@ -2300,11 +3466,14 @@ function call_rule_message(label, v)
  *  Anything else so named is an ERROR, never skipped: the keys it
  *  holds would go unasked, and the build say OK. That covers an
  *  export that is not an array of literals (a spread of anything else
- *  included: an import, a `let`, a call), and a list nobody can
- *  read: one declared and not exported, one declared inside a
- *  function or a block, one declared by destructuring, one exported
- *  under a name that does not end in _I18N_KEYS. A re-export
- *  (`export {X} from "./y.js"`) is read in its own module.
+ *  included: an import, a `let`, a call), a list declared with `let`
+ *  or `var` (it can be given other keys, which nobody reads: up to
+ *  7.26.31 it was read, and a `.push()` on it hid keys), and a list
+ *  nobody can read: one declared and not exported, one declared
+ *  inside a function or a block, one declared by destructuring, one
+ *  exported under a name that does not end in _I18N_KEYS. A
+ *  re-export (`export {X} from "./y.js"`) is read in its own module.
+ *  A list that is MUTATED fails too (list_mutations()).
  ***************************************************************/
 function published_lists(ast)
 {
@@ -2325,13 +3494,13 @@ function published_lists(ast)
         }
     }
 
-    /*  What a list may spread: a const of the module, or a list it publishes  */
+    /*  What a list may spread: a const of the module (a list it publishes is one)  */
     let base_of = (name) => {
         let d = top.get(name);
-        if(!d || !d.init || !d.kind) {
+        if(!d || !d.init || d.kind !== "const") {
             return null;
         }
-        return (d.kind === "const" || PUBLISHED_LIST_RE.test(name))? d.init : null;
+        return d.init;
     };
 
     let lists = [];
@@ -2346,6 +3515,11 @@ function published_lists(ast)
         }
         if(!d.init) {
             errors.push(`${exported}: ${d.what? "a " + d.what : "declared with no value"}, not an array`);
+            return;
+        }
+        if(d.kind !== "const") {
+            errors.push(`${exported}: declared with ${d.kind}, which can be given other keys no reader ` +
+                        `sees: a published list is an \`export const\` array of literals`);
             return;
         }
         let r = read_string_array(d.init, base_of, new Set([local]));
@@ -2461,6 +3635,95 @@ function read_string_array(init, base_of = () => null, seen = new Set())
     return {keys};
 }
 
+/*  What changes the elements of an array in place  */
+const ARRAY_MUTATORS = new Set(["push", "unshift", "splice", "fill", "copyWithin"]);
+const OBJECT_MUTATORS = new Set(["assign", "defineProperty", "defineProperties"]);
+
+/***************************************************************
+ *  The places a file MUTATES a published list: one of its own
+ *  (`lists`, published_lists()) or one it imports (an import whose
+ *  name ends in _I18N_KEYS). A list is read as it is WRITTEN, so a
+ *  key it is given later -- `.push()`, `.splice()`, `.unshift()`,
+ *  `.fill()`, `X[i] = k`, `X.length = n`, `Object.assign(X, ...)`,
+ *  `delete X[i]`, a reassignment -- is asked for by nobody.
+ *
+ *      -> [{line, why}]
+ ***************************************************************/
+function list_mutations(ast, lists = [])
+{
+    let names = new Set();
+    for(let node of ast.body) {
+        let decl = (node.type === "ExportNamedDeclaration")? node.declaration : node;
+        if(decl && decl.type === "VariableDeclaration") {
+            for(let d of decl.declarations) {
+                if(d.id.type === "Identifier" && PUBLISHED_LIST_RE.test(d.id.name)) {
+                    names.add(d.id.name);
+                }
+            }
+        }
+        if(node.type === "ExportNamedDeclaration" && !node.source) {
+            for(let spec of node.specifiers) {
+                if(lists.some((l) => l.name === (spec.exported.name || spec.exported.value))) {
+                    names.add(spec.local.name);
+                }
+            }
+        }
+        if(node.type === "ImportDeclaration") {
+            for(let spec of node.specifiers) {
+                if(spec.type === "ImportSpecifier" && PUBLISHED_LIST_RE.test(spec.imported.name || spec.imported.value)) {
+                    names.add(spec.local.name);
+                }
+            }
+        }
+    }
+    if(names.size === 0) {
+        return [];
+    }
+    /*  A use of one of them: the name, bound at the top of the module  */
+    let is_list = (n, chain) => {
+        if(!n || n.type !== "Identifier" || !names.has(n.name)) {
+            return false;
+        }
+        let b = binding_of(n.name, chain);
+        return !!b && !!b.scope && b.scope.length === 1;
+    };
+    let out = [];
+    let say = (n, name) => {
+        out.push({line: line_of(ast, n.start),
+                  why: `the published list ${name} is MUTATED (\`${ast.code.slice(n.start, n.end).slice(0, 80)}\`): ` +
+                       `it is read as it is written, so what it is given here is asked for by nobody -- ` +
+                       `write every key in its array literal`});
+    };
+    walk(ast, (n, ancestors) => {
+        let chain = [...ancestors, n];
+        if(n.type === "CallExpression") {
+            let c = n.callee;
+            if(c.type === "MemberExpression" && !c.computed && ARRAY_MUTATORS.has(c.property.name)
+                    && is_list(c.object, chain)) {
+                say(n, c.object.name);
+            } else if(c.type === "MemberExpression" && !c.computed && c.object.type === "Identifier"
+                    && (c.object.name === "Object" || c.object.name === "Reflect")
+                    && (OBJECT_MUTATORS.has(c.property.name) || c.property.name === "set")
+                    && is_list(n.arguments[0], chain)) {
+                say(n, n.arguments[0].name);
+            }
+        } else if(n.type === "AssignmentExpression") {
+            if(is_list(n.left, chain)) {
+                say(n, n.left.name);
+            } else if(n.left.type === "MemberExpression" && is_list(n.left.object, chain)) {
+                say(n, n.left.object.name);
+            }
+        } else if(n.type === "UpdateExpression" && n.argument.type === "MemberExpression"
+                && is_list(n.argument.object, chain)) {
+            say(n, n.argument.object.name);
+        } else if(n.type === "UnaryExpression" && n.operator === "delete"
+                && n.argument.type === "MemberExpression" && is_list(n.argument.object, chain)) {
+            say(n, n.argument.object.name);
+        }
+    });
+    return out;
+}
+
 
                     /***************************
                      *      The scan
@@ -2475,13 +3738,20 @@ function read_string_array(init, base_of = () => null, seen = new Set())
  *
  *  `what` says which place it is:
  *
- *      "t"           the first argument of t() / tr()
+ *      "t"           the key of a TRANSLATOR call (call_kind(): t(),
+ *                    tr(), `i18next.t()`, an alias, `t?.()`,
+ *                    `t.call(x, key)`); an array there is the list of
+ *                    keys i18next tries in turn, each one a key
  *      "code"        the code of a schema check, add("error", <code>)
- *      "attribute"   setAttribute("data-i18n*", <key>)
+ *      "attribute"   setAttribute("data-i18n*", <key>), the name a
+ *                    literal or a const the reader follows to one
  *      "property"    an `i18n`, `code` or `data-i18n*` property of an
- *                    object literal, or one of ctx.attr_keys
+ *                    object literal (`{[ATTR]: k}` with ATTR a const
+ *                    bound to one), or one of ctx.attr_keys
  *      "array"       an element of one of ctx.array_keys
- *      "assignment"  `x.i18n = <key>`, `x["data-i18n-title"] = <key>`
+ *      "assignment"  `x.i18n = <key>`, `x["data-i18n-title"] = <key>`,
+ *                    `x[ATTR] = <key>`, `el.dataset.i18nTitle = <key>`
+ *                    (`dataset.i18nX` IS the attribute data-i18n-x)
  *      "call"        a key position of a key function: `entry` and
  *                    `path` say which
  *
@@ -2494,42 +3764,78 @@ function key_places(ast, ctx = {})
 {
     let attr_keys = ctx.attr_keys || new Set();
     let array_keys = ctx.array_keys || new Set();
-    let calls = key_calls(ast, ctx.lib_module || null, ctx.table);
-    let of_the_table = new Set(calls.map((c) => c.call));
+    let table = ctx.table || I18N_KEY_FUNCTIONS;
+    program_url(ast, ctx.lib_module || null);
+    /*  One walk: the key calls are found on the way (key_calls() gets them)  */
+    let known_calls = key_calls_cached(ast, table);
+    let calls = known_calls || [];
     let out = [];
     let read = (what, node, scope, root) => {
         if(node) {
             out.push({what, node: root, leaves: leaves_of(node, scope, root)});
         }
     };
+    let read_t = (node, scope, root) => {
+        if(node) {
+            out.push({what: "t", node: root, leaves: key_list_leaves(node, scope, root)});
+        }
+    };
+    /*  The names a property or an attribute is given: a literal, or a
+     *  const (a branch of them) the reader follows  */
+    let names_of = (node, scope) => {
+        let s = static_string(node);
+        return (s !== null)? [s] : static_keys(node, scope).keys;
+    };
+    let is_i18n_name = (name) => name === "i18n" || DATA_I18N_ATTR_RE.test(name);
+    let is_property_key = (x) => is_i18n_name(x) || x === "code" || attr_keys.has(x);
     walk(ast, (n, ancestors) => {
         switch(n.type) {
             case "CallExpression": {
-                let name = callee_name(n.callee);
-                let scope = [...ancestors, n];
-                if(of_the_table.has(n)) {
-                    break;      // a key function (a `tr` of the library too): read where its table says
+                ancestors.push(n);
+                let c = call_kind(n, ancestors, table);
+                ancestors.pop();
+                if(c && c.kind === "key") {
+                    /*  A key function (a `tr` of the library too): read where its table says  */
+                    if(!known_calls) {
+                        calls.push({entry: c.entry, call: n, scope: ancestors.slice(), args: c.args});
+                    }
+                    break;
                 }
-                if(name === "t" || name === "tr") {
-                    read("t", n.arguments[0], scope, n);
+                let name = callee_name(n.callee);
+                if(c && c.kind === "t") {
+                    read_t(c.args? c.args[0] : null, [...ancestors, n], n);
                 } else if(name === "add" && is_string_literal(n.arguments[0], /^(error|warning)$/)) {
                     /*  The codes the schema checks hand to `t(finding.code)`  */
-                    read("code", n.arguments[1], scope, n);
-                } else if(name === "setAttribute" && is_string_literal(n.arguments[0], DATA_I18N_ATTR_RE)) {
-                    read("attribute", n.arguments[1], scope, n);
+                    read("code", n.arguments[1], [...ancestors, n], n);
+                } else if(name === "setAttribute" && n.arguments.length >= 2) {
+                    let scope = [...ancestors, n];
+                    if(names_of(n.arguments[0], scope).some((x) => DATA_I18N_ATTR_RE.test(x))) {
+                        read("attribute", n.arguments[1], scope, n);
+                    }
                 }
                 break;
             }
             case "Property": {
+                if(ancestors[ancestors.length - 1].type !== "ObjectExpression") {
+                    break;      // a destructuring pattern
+                }
                 let name = prop_name(n);
-                if(name === null || ancestors[ancestors.length - 1].type !== "ObjectExpression") {
-                    break;      // computed, or a destructuring pattern
+                let names = null;
+                if(name !== null) {
+                    if(!is_property_key(name) && !array_keys.has(name)) {
+                        break;
+                    }
+                    names = [name];
+                }
+                if(!names && !n.computed) {
+                    break;
                 }
                 let scope = [...ancestors, n];
-                if(name === "i18n" || name === "code" || DATA_I18N_ATTR_RE.test(name) || attr_keys.has(name)) {
+                names = names || names_of(n.key, scope);
+                if(names.some(is_property_key)) {
                     read("property", n.value, scope, n);
                 }
-                if(array_keys.has(name) && n.value.type === "ArrayExpression") {
+                if(names.some((x) => array_keys.has(x)) && n.value.type === "ArrayExpression") {
                     for(let el of n.value.elements) {
                         read("array", el, [...scope, n.value], n);
                     }
@@ -2541,8 +3847,18 @@ function key_places(ast, ctx = {})
                     break;
                 }
                 let name = member_step(n.left).prop;
-                if(name === "i18n" || (name !== null && DATA_I18N_ATTR_RE.test(name))) {
-                    read("assignment", n.right, [...ancestors, n], n);
+                let o = n.left.object;
+                let dataset = (o.type === "MemberExpression" && member_step(o).prop === "dataset");
+                let fits = (x) => is_i18n_name(x) || (dataset && DATASET_I18N_RE.test(x));
+                if(name !== null && !fits(name)) {
+                    break;
+                }
+                if(name === null && !n.left.computed) {
+                    break;
+                }
+                let scope = [...ancestors, n];
+                if(name !== null || names_of(n.left.property, scope).some(fits)) {
+                    read("assignment", n.right, scope, n);
                 }
                 break;
             }
@@ -2550,9 +3866,30 @@ function key_places(ast, ctx = {})
                 break;
         }
     });
-    for(let {entry, call, scope} of calls) {
+    if(!known_calls) {
+        set_key_calls(ast, table, calls);
+    }
+    for(let {entry, call, scope, args} of calls) {
         for(let path of entry.keys) {
-            out.push({what: "call", node: call, entry, path, leaves: values_at(call, path, scope)});
+            out.push({what: "call", node: call, entry, path, leaves: values_at(call, path, scope, args)});
+        }
+    }
+    return out;
+}
+
+/***************************************************************
+ *  The leaves of the key of a translator call: leaves_of(), but an
+ *  array of keys is read as the keys it holds -- `t([k, "fallback"])`,
+ *  i18next's list of fallback keys, asks for each
+ ***************************************************************/
+function key_list_leaves(node, scope, root)
+{
+    let out = [];
+    for(let v of expand(node, {scope, via: [root], off: false})) {
+        if(v.kind === "value" && v.node.type === "ArrayExpression") {
+            out.push(...element_values(v, 0).map(classify));
+        } else {
+            out.push(classify(v));
         }
     }
     return out;
@@ -2566,24 +3903,61 @@ function key_places(ast, ctx = {})
  *      -> {keys: Set, read_keys: Set (those READ, not published by a
  *          list), declared_seen: Set,
  *          lists: [{name, keys}], list_errors: [why],
- *          marker_refs: [{lists, keys, line}], marker_errors: [{line, why}]}
+ *          list_mutations: [{line, why}] (list_mutations()),
+ *          marker_refs: [{lists, keys, line, shapes}],
+ *          marker_errors: [{line, why}]}
  *
  *  Every place a key is read (key_places()) goes through leaves_of(),
  *  so a marker standing there is found: one that marks no such place,
- *  or that is not a marker at all, is an error. So is a DATA marker
- *  on what the reader follows to keys and nothing else (a literal, a
- *  const that is one, a `?:` branch that is one, a call of a function
- *  of the module that returns literals): it claims data where the
- *  reader reads a key.
+ *  or that is not a marker at all, is an error, which says what it
+ *  stands before. So is a DATA marker on what the reader follows to
+ *  keys and nothing else (a literal, a const that is one, a `?:`
+ *  branch that is one, a call of a function -- of the module, or
+ *  imported -- that returns literals): it claims data where the
+ *  reader reads a key; and one that would HIDE keys the reader does
+ *  not read: a call whose returns mix keys and data, an array of
+ *  string literals. Under a LIST marker those keys are asked for and
+ *  must be in the lists, and a template with `${}` must have the
+ *  shape of a key of them (`shapes`, checked where the lists are
+ *  known).
  ***************************************************************/
 function scan_ast(ast, ctx)
 {
+    program_url(ast, ctx.lib_module || null);
     let keys = new Set();
     let declared_seen = new Set();
     let declared = ctx.declared || new Set();
     let markers = markers_of(ast);
     let var_errors = [];
     let vars_checked = new Set();
+    let text_of = (n) => ast.code.slice(n.start, n.end).replace(/\s+/g, " ").slice(0, 80);
+
+    /*
+     *  What a leaf holds that the reader does not READ, and a marker
+     *  standing on it must answer for: the keys of a call whose
+     *  returns mix keys and data (`partial`), the strings of an array
+     *  of string literals (`strings`), the shape of a template with
+     *  `${}`. Under a list marker the keys are asked for and must be
+     *  in the lists, and a template must have the shape of some key of
+     *  them; under a data marker, keys the marker would hide fail.
+     */
+    let answer = (leaf, m) => {
+        let held = leaf.partial || leaf.strings || null;
+        if(held && held.length > 0) {
+            if(m.kind === "lists") {
+                for(let k of held) {
+                    keys.add(k);
+                    m.keys.add(k);
+                }
+            } else {
+                m.hidden.push({leaf, keys: held});
+            }
+        }
+        if(m.kind === "lists" && leaf.kind === "unknown" && leaf.node && leaf.node.type === "TemplateLiteral"
+                && leaf.node.expressions.length > 0) {
+            m.shapes.push({text: text_of(leaf.node), source: template_shape(leaf.node)});
+        }
+    };
 
     /*
      *  A marker says where the keys of what it marks come from, and a
@@ -2598,7 +3972,7 @@ function scan_ast(ast, ctx)
     let check_marked_var = (leaf, m) => {
         let root = leaf.var_root;
         let b = root.binding;
-        let id = `${m.line}:${b.declarators[0].start}:${JSON.stringify(root.steps)}`;
+        let id = `${m.line}:${b.declarators[0].start}:${b.name}:${JSON.stringify(root.steps)}`;
         if(vars_checked.has(id)) {
             return;
         }
@@ -2630,6 +4004,9 @@ function scan_ast(ast, ctx)
                 m.keys.add(k);
             }
         }
+        for(let l of r.leaves) {
+            answer(l, m);
+        }
     };
 
     let take = (leaves) => {
@@ -2642,9 +4019,9 @@ function scan_ast(ast, ctx)
                 m.used = true;
                 if(!m.keys) {
                     m.keys = new Set();
-                }
-                if(!m.leaves) {
                     m.leaves = [];
+                    m.hidden = [];
+                    m.shapes = [];
                 }
                 m.leaves.push(leaf);
                 if(leaf.kind === "key") {
@@ -2653,6 +4030,7 @@ function scan_ast(ast, ctx)
                 if(leaf.kind === "unknown" && leaf.var_root) {
                     check_marked_var(leaf, m);
                 }
+                answer(leaf, m);
             }
         }
     };
@@ -2699,14 +4077,30 @@ function scan_ast(ast, ctx)
     let marker_refs = [];
     for(let m of markers.all) {
         if(!m.used) {
-            marker_errors.push({line: m.line, why: `the i18n marker stands before no place a key is read ` +
-                `(a key position of a key function, t(), an i18n or data-i18n* value)`});
-        } else if(m.kind === "lists") {
-            marker_refs.push({lists: m.lists, keys: [...(m.keys || [])], line: m.line});
-        } else if(m.kind === "data" && m.leaves.every((l) => KNOWN.has(l.kind)) && m.keys.size > 0) {
+            marker_errors.push({line: m.line, why: marker_misplaced(ast, m)});
+            continue;
+        }
+        if(m.kind === "lists") {
+            marker_refs.push({lists: m.lists, keys: [...m.keys], line: m.line, shapes: m.shapes});
+            continue;
+        }
+        if(m.leaves.every((l) => KNOWN.has(l.kind)) && m.keys.size > 0) {
             let held = [...m.keys].map((k) => JSON.stringify(k)).join(", ");
             marker_errors.push({line: m.line, why: `marked as data, but what it marks is the key ` +
                 `${held}, which the reader follows: drop the marker (it is no data)`});
+            continue;
+        }
+        for(let h of m.hidden) {
+            let held = h.keys.map((k) => JSON.stringify(k)).join(", ");
+            let what = text_of(h.leaf.node);
+            marker_errors.push({line: m.line, why: h.leaf.strings?
+                `marked as data, but what it marks is an array of string literals (${held}), which is no ` +
+                `DOM -- a createElement2 spec carries its attrs, an object, in its second slot --: the marker ` +
+                `would hide those strings. Hand each key where it is read, or build the DOM` :
+                `marked as data, but \`${what}\` can also return the key ${held}: the reader does not read ` +
+                `a call whose returns mix keys with what it cannot follow, and the marker would hide that ` +
+                `key. Split the branches: hand the key where it is read (a literal, a const) and mark ` +
+                `only the data`});
         }
     }
 
@@ -2716,9 +4110,20 @@ function scan_ast(ast, ctx)
         declared_seen,
         lists: published.lists,
         list_errors: published.errors,
+        list_mutations: list_mutations(ast, published.lists),
         marker_refs,
         marker_errors
     };
+}
+
+/***************************************************************
+ *  The shape of a template with `${}`: a regex source every string
+ *  it can build matches (`monitor ${control}` -> ^monitor [\s\S]*$)
+ ***************************************************************/
+function template_shape(node)
+{
+    let esc = (q) => q.value.cooked.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return "^" + node.quasis.map(esc).join("[\\s\\S]*") + "$";
 }
 
 /***************************************************************
@@ -2757,12 +4162,18 @@ function collect_used_keys(opts)
 
     let scan = (url, lib_module) => {
         let label = lib_module? `gobj-ui/src/${lib_module}` : relative(process.cwd(), fileURLToPath(url));
-        let ast;
-        try {
-            ast = parse_source(readFileSync(url, "utf8"));
-        } catch(e) {
-            fail(`${label} cannot be parsed (${e.message}): the keys it asks for are NOT checked`);
-            return [];
+        /*  Parsed once: the reader that follows an import into a module
+         *  reads the same tree the scan reads  */
+        let ast = AST_CACHE.get(url.href) || null;
+        if(!ast) {
+            try {
+                ast = parse_source(readFileSync(url, "utf8"), url);
+            } catch(e) {
+                AST_CACHE.set(url.href, null);
+                fail(`${label} cannot be parsed (${e.message}): the keys it asks for are NOT checked`);
+                return [];
+            }
+            AST_CACHE.set(url.href, ast);
         }
         let r = scan_ast(ast, {...ctx, lib_module});
         for(let k of r.keys) {
@@ -2776,6 +4187,9 @@ function collect_used_keys(opts)
         }
         for(let why of r.list_errors) {
             fail(`${label}: the published list ${why}: its keys are NOT asked for`);
+        }
+        for(let e of r.list_mutations) {
+            fail(`${label}:${e.line}: ${e.why}`);
         }
         for(let list of r.lists) {
             if(!published.has(list.name)) {
@@ -2870,6 +4284,14 @@ function collect_used_keys(opts)
             if(!names.some((name) => published.get(name).has(k))) {
                 fail(`${ref.label}:${ref.line}: ${JSON.stringify(k)} is marked as a key of ` +
                      `${ref.lists.join(", ")}, and is not in it`);
+            }
+        }
+        for(let shape of ref.shapes || []) {
+            let re = new RegExp(shape.source);
+            if(!names.some((name) => [...published.get(name)].some((k) => re.test(k)))) {
+                fail(`${ref.label}:${ref.line}: the i18n marker names ${ref.lists.join(", ")} for ` +
+                     `${shape.text}, and no key of ${ref.lists.length > 1? "them" : "it"} has that shape: ` +
+                     `publish the keys the template builds`);
             }
         }
     }
@@ -3083,10 +4505,15 @@ export {
     marker_of,
     key_calls,
     key_places,
+    call_kind,
+    is_translator_call,
+    is_translation,
     is_forwarded,
     call_rule_violations,
     call_rule_message,
+    param_flows,
     published_lists,
+    list_mutations,
     scan_ast,
     collect_used_keys,
     keys_from_shell_config,

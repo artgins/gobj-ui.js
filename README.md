@@ -3836,28 +3836,57 @@ text is a key, `"configuración"` included.
 dependency of this package since `7.26.29`: an app need not declare it). A
 LOCALE is not a source: it is parsed, and then imported, so its top-level code
 runs -- the app's own code, but code. Comments are not code. A key is read
-where it is WRITTEN -- given to `t()`, as an `i18n` or `data-i18n*` value of
-an object literal, by `setAttribute()`, or (since `7.26.29`) written as a
-member, `attrs.i18n = "save"`, `attrs["data-i18n-title"] = "save"` -- and
-FOLLOWED where the source writes it out:
+where it is WRITTEN -- given to a translator, as an `i18n` or `data-i18n*`
+value of an object literal, by `setAttribute()`, or (since `7.26.29`) written
+as a member, `attrs.i18n = "save"`, `attrs["data-i18n-title"] = "save"` -- and
+FOLLOWED where the source writes it out.
+
+A **translator** is one notion, the same everywhere the reader asks "is this a
+call of t()?" (since `7.26.32`; up to `7.26.31` it was a call NAMED `t` or
+`tr`): a name `t` or `tr` (whatever binds it), a member `.t` / `.tr`
+(`i18next.t`), i18next's `t` imported under any name (`import {t as tt} from
+"i18next"`), or an alias of one -- a const (`const translate = t`), a
+`.bind()` (`i18next.t.bind(i18next)`), a re-export of a module the reader
+reads --, called as `t(k)`, `t?.(k)`, `t.call(x, k)` or `t.apply(x, [k])`. An
+ARRAY given to it is i18next's list of fallback keys, and each one is a key:
+`t([specific, "generic"])` asks for "generic". The places, since `7.26.32`, also
+include `el.dataset.i18nTitle = k` (`dataset.i18nX` IS the attribute
+`data-i18n-x`), and an attribute or property NAMED by a const:
+`el.setAttribute(ATTR, k)`, `{[ATTR]: k}`, `x[ATTR] = k`, with `const ATTR =
+"data-i18n-title"`. What is followed:
 
 - a string literal, a template with no `${}`, and every branch of `?:`, `||`
   and `??` (the right one of `&&`), so
   `"data-i18n": pending ? "loading" : "click to load"` asks for both, and
   `comment || "print-tranger failed"` for its fallback;
 - a `const`, to its value, in the scope that declares it (a parameter or a
-  `let` of the same name hides it);
+  `let` of the same name hides it), and what a destructuring reads from it
+  (since `7.26.32`: `const {title = "untitled"} = LABELS`);
+- an IMPORT of a const or of a function, into the module it names, when the
+  reader reads that module -- a file of the app, a module of this library;
+  re-exports are followed (since `7.26.32`). A package (gobj-js, i18next) is
+  not read, and neither is the export of a `let`;
 - a property of a const object literal: `DEFAULT_LABEL.ok`, and for a
-  computed one, `NOTES[verdict]`, every value the object holds;
+  computed one, `NOTES[verdict]`, every value the object holds; also of a
+  COPY of one (since `7.26.32`): `{...BASE, title: "t"}`,
+  `Object.assign({}, BASE)`;
 - the element of a const array literal that a `.map()`, `.forEach()`, ...
   callback or a `for...of` walks, and what a destructuring reads from it
   (`for(const {key} of ROWS)`);
 - `String(x)`, and a template that is only `${x}`, as `x` (since `7.26.29`);
-- the default of a parameter, `function f(msg = "fallback")`, besides the
-  parameter (since `7.26.29`);
-- a call of a function of the same module whose every `return` is one of
-  these (since `7.26.29`). One that returns anything else -- a parameter, a
-  variable, a concatenation -- is not followed.
+- a parameter, however it is read (since `7.26.32`): `opts.title`,
+  `opts?.title`, `arguments[1]`, `rest[0]` of a rest parameter, a destructuring
+  in the parameter or in the body; and its default, `function f(msg =
+  "fallback")`, besides the parameter (since `7.26.29`);
+- a call of a function whose every `return` is one of these (since
+  `7.26.29`): of the same module, or (since `7.26.32`) imported from a module
+  the reader reads, called by `.call()` / `.apply()` too. One that returns
+  anything else -- a parameter, a variable, a concatenation -- is not
+  followed. What a function returns is read ONCE, and a RECURSION is not
+  followed: a call of a function that is being read is a value the reader
+  cannot follow. Up to `7.26.31` a function was read again at every call of
+  it, so a helper that calls itself in two branches (`label_of(n)` walking
+  up a tree) took more than two minutes, and in three it never ended.
 
 ```js
 const KEY = "save";
@@ -3874,12 +3903,12 @@ function pick(ok) {
 t(pick(answer));                                    // asks for both
 ```
 
-What it cannot follow cannot be known: a `let`, a parameter, an import, a
-call, a concatenation, data from a backend. A key that arrives that way is
-PUBLISHED by its module (below), and the place it is read is MARKED; a marked
-`let` -- or a marked member or element of one -- is the one exception to "not
-followed" (below). A source file that cannot be parsed fails the build, because
-its keys would go unchecked.
+What it cannot follow cannot be known: a `let`, a parameter of an app's
+function, a call it does not read, a concatenation, data from a backend. A key
+that arrives that way is PUBLISHED by its module (below), and the place it is
+read is MARKED; a marked `let` -- or a marked member or element of one -- is the
+one exception to "not followed" (below). A source file that cannot be parsed
+fails the build, because its keys would go unchecked.
 
 **A key handed to a FUNCTION is read where it is handed.**
 `yui_shell_show_error(shell, "some records were gone before the delete")` asks
@@ -3901,10 +3930,16 @@ A position is an argument (`"1"`), a property of the object given there
 (`"2.title"`, also through `Object.assign()` or a spread of a const object),
 or a property of each object of an array (`"1.actions[].label"`). What is
 given at those positions is read like any other key (literals, consts,
-branches): in the app's own code, on a call bound to an import of that
-function from gobj-ui (an app function of the same name is not mistaken for
-it), and in every module the app mounts, where an entry with
-`exported: false` is a helper of its own module. A position may also hold
+branches): in the app's own code, on a call that reaches that function of
+gobj-ui (an app function of the same name is not mistaken for it), and in
+every module the app mounts, where an entry with `exported: false` is a
+helper of its own module. A call reaches it however it names it (since
+`7.26.32`; up to `7.26.31` only an import by its own name, or a namespace
+member): an import under any name, a re-export from a file of the app
+(`export {yui_shell_show_info as say} from "@yuneta/gobj-ui/src/shell_modals.js"`),
+a const alias (`const show = yui_shell_show_info`), a map in a const
+(`const API = {info: yui_shell_show_info}; API.info(...)`, imported too),
+`.call(x, ...)` and `.apply(x, [...])`. A position may also hold
 DOM, which is no key (since `7.26.29`): an array (a `createElement2` spec), a
 call of `createElement2()`, `createOneHtml()` or `html_markup()` imported
 from gobj-js, of `text_node()` from gobj-ui, of `document.createElement()`
@@ -3925,12 +3960,14 @@ gclass name, which titles it).
 (since `7.26.29`: up to `7.26.28` the table lacked 39 of them, and 6 entries
 lacked positions, so a literal handed to one went unasked -- REV-CLOUD
 V21.4.1). `src/i18n_key_functions.test.js` reads every module and finds each
-function that hands one of its PARAMETERS on to a place a key is read --
-`t()`, an `i18n`, `code` or `data-i18n*` value, a key position of a function
-of the table -- the parameter itself or what is read from it (`opts.title`, a
-destructured `{label}`, each `items[].name`), directly or through a `let` it is
-given to. The search runs to a fixpoint: a function that hands its parameter
-to one it found is one too.
+function that hands one of its PARAMETERS on to a place a key is read -- a
+translator (any of the forms above), an `i18n`, `code` or `data-i18n*` value
+(`el.dataset.i18nTitle` included), a key position of a function of the table
+-- the parameter itself or what is read from it: `opts.title`, `opts?.title`,
+a destructured `{label}` in the parameter or in the body, each `items[].name`,
+`arguments[1]`, `rest[0]`, a copy (`{...opts}`, `Object.assign({}, opts)`),
+directly or through a `let` it is given to. The search runs to a fixpoint: a
+function that hands its parameter to one it found is one too.
 
 - A function called by NAME -- in its module, or exported -- must be in the
   table with that position, or the test fails, naming the entry to add:
@@ -3947,7 +3984,47 @@ to one it found is one too.
   writes `i18n: /* i18n: data */ title_key`: the window's title is a key its
   host chose.
 - What a gobj keeps in its `priv` is its own state, not what a caller hands:
-  a path through the `priv` of a parameter is no position.
+  a path through the `priv` of a parameter is no position. So is what is
+  read from a parameter `gobj` (the convention of every gclass function):
+  its attrs, `gobj_read_attr(gobj, "title")`, were set by whoever created it.
+- A parameter handed on through what NO position can name fails too (since
+  `7.26.32`), unless it is marked where it is handed: a key transformed
+  (`t(k.toLowerCase())`, `"prefix " + k`, a template with `${}`, a call of a
+  helper that does not return it as it is), an iteration of
+  `Object.entries(opts)`, a rest parameter walked (`rest.forEach(...)`),
+  `arguments[i]` by a computed index, a part of a parameter that an array
+  pattern destructures. Its callers' keys reach no reader, so either the key
+  is handed on as it arrives -- and the function goes in the table -- or the
+  hand-off is marked `/* i18n: data */` (or a list). The test names the
+  function, the parameter and the line:
+
+  ```js
+  function caption(gobj, k) { return t(k.toLowerCase()); }
+  ```
+
+  ```
+  x.js:1 caption() hands its parameter [1] to a place a key is read through `k.toLowerCase()`,
+      which no position can name: hand the key on as it arrives (the function then goes in
+      the table), or mark it where it hands it
+  ```
+
+  It found four in the library itself: the column labels of a form's
+  template in `build_html_form()` and `template2columns()`
+  (`Object.entries(template)`: the host's schema, marked data), a label's key
+  read back from its DOM (`name_form_control()` of `c_g6_nodes_tree.js`,
+  marked data), and the message of `mark_field_validity()`, which mixes a key
+  with the json field's own error (marked with its lists).
+- **The table is CORRECT, not only complete** (since `7.26.32`): the same
+  search, started from NO table, must find every entry, at every position,
+  with the same `exported`. An entry nothing forwards to -- a wrong position,
+  a function that no longer hands it on -- fails, and so does an `exported`
+  that disagrees with the module (it hides the calls of other modules). Up to
+  `7.26.31` an extra entry passed every test. The check found two: an
+  `exported: false` on a function its module exports (`create_floating_icon`),
+  and `yui_selection_bar`'s `1.actions[].label`, true but invisible to the
+  search, because the label travelled through a DOM property
+  (`$b._yui_label`); the function now paints each label from the actions
+  themselves, where the reader follows it.
 
 Naming a function moves the marker to where the value ENTERS: its callers give
 it a literal, a const, a position of their own, or a marker. The nav's items
@@ -3983,11 +4060,11 @@ that way. The same code with a `let` asks for neither.
 export const MY_VIEW_I18N_KEYS = ['shape', 'radius', 'apply to'];
 ```
 
-The list is read as DATA, never run: `export const` (or `let`, `var`),
-`const X = [...]; export {X}` (or `export {x as X_I18N_KEYS}`), wrapped in
-`Object.freeze()` or not, each element a string literal, a template with no
-`${}`, or (since `7.26.29`) a SPREAD of another array of the same module read
-the same way -- a top-level `const`, or a list the module publishes:
+The list is read as DATA, never run: `export const`, or `const X = [...];
+export {X}` (or `export {x as X_I18N_KEYS}`), wrapped in `Object.freeze()` or
+not, each element a string literal, a template with no `${}`, or (since
+`7.26.29`) a SPREAD of another array of the same module read the same way -- a
+top-level `const`, which a list the module publishes is:
 
 ```js
 const COMMON_KEYS = ['shape', 'radius'];
@@ -3999,16 +4076,31 @@ Anything named `*_I18N_KEYS` (the name in any letter case) that no consumer
 can read **fails the build**, naming the file and the list, in the app's own
 code too: an export that is not such an array (an element that is a variable,
 a call, a template with `${}`, a spread of an import or of a `let`), a list
-that is not exported, one declared inside a function or a block, one declared
-by destructuring (`export const {X_I18N_KEYS} = tables`), one exported under a
-name that does not end in `_I18N_KEYS`. Up to `7.26.27` the regex that read
-the lists dropped such a list in silence, and a key holding `]` dropped the
-whole array; up to `7.26.28` a spread of a const of the module was refused
-too.
+declared with `let` or `var` (since `7.26.32`: it can be given other keys,
+which nobody reads), a list that is not exported, one declared inside a
+function or a block, one declared by destructuring (`export const
+{X_I18N_KEYS} = tables`), one exported under a name that does not end in
+`_I18N_KEYS`. Up to `7.26.27` the regex that read the lists dropped such a
+list in silence, and a key holding `]` dropped the whole array; up to
+`7.26.28` a spread of a const of the module was refused too.
+
+**A published list is never MUTATED** (since `7.26.32`): it is read as it is
+WRITTEN, so a key it is given later is asked for by nobody. `X.push(k)`,
+`X.splice(i, 0, k)`, `X.unshift(k)`, `X.fill(k)`, `X[i] = k`, `X.length = n`,
+`Object.assign(X, ...)` and `delete X[i]` fail the build, in the module that
+publishes the list and in every module that imports it (under any name). Up
+to `7.26.31` an `export let` list was read and could be pushed into, and the
+pushed keys went unasked:
+
+```js
+export let MY_VIEW_I18N_KEYS = ["shape"];     // fails: a published list is an export const
+MY_VIEW_I18N_KEYS.push("radius");             // fails: "radius" would be asked for by nobody
+```
 
 **A MARKER says where the keys of a place come from.** It is a comment that
-stands right before the node it marks (only whitespace between): an argument,
-a branch of one, a property value, or the whole call. Two kinds:
+stands right before the node it marks (only whitespace between, and since
+`7.26.32` a parenthesis: `/* i18n: data */ (a || b)` marks `a || b`): an
+argument, a branch of one, a property value, or the whole call. Two kinds:
 
 ```js
 yui_shell_show_error(shell, /* i18n: data */ comment || "print-tranger failed", {t: t});
@@ -4022,7 +4114,15 @@ confirm_then(gobj, /* i18n: C_YUI_FORM_I18N_KEYS */ kw.warning || "all changes w
   above) are still read.
 - `i18n: <NAME>_I18N_KEYS` (several by commas) -- the keys come from those
   published lists. The keys of the marked expression that the reader CAN
-  follow must be in them: a marker is a claim, and it is checked.
+  follow must be in them: a marker is a claim, and it is checked. A key BUILT
+  at run time is published that way and marked with its list -- gui_agent's
+  monitor names a control's label `monitor ${control}`, and publishes the six
+  keys that template builds in `C_AGENT_MONITOR_I18N_KEYS`. A template with
+  `${}` under a list marker must have the SHAPE of some key of the lists
+  (since `7.26.32`): `monitor ${control}` is checked against `^monitor .*$`,
+  so a marker naming the wrong list fails. Every key of a published list is
+  asked for, so a control whose key the list lacks is the one thing no check
+  sees: the list sits next to the template, and a comment says so.
 
 **A `data` marker is a claim too** (since `7.26.29`). On what the reader
 follows to keys and nothing else -- a literal, a template with no `${}`, a
@@ -4042,6 +4142,31 @@ yui_shell_show_info(shell, /* i18n: data */ pick());
 
 `/* i18n: data */ comment || "print-tranger failed"` stays legal: `comment` is
 data, and the fallback is read anyway.
+
+Since `7.26.32` the claim is checked further:
+
+- the call may be of a function IMPORTED from a module the reader reads (a
+  file of the app, a module of the library), and the const may be imported:
+  both are followed into their module, so `/* i18n: data */ pick()` fails
+  there too;
+- a data marker on a call whose returns MIX keys with data fails: the reader
+  does not read such a call (it reads a call only when it knows every
+  return), so the marker would hide the key. Split the branches, so the key is
+  handed where it is read and only the data is marked:
+
+  ```js
+  function label(kw) { return kw.ok? "accepted" : kw.comment; }
+  yui_shell_show_info(shell, /* i18n: data */ label(kw));            // fails
+  yui_shell_show_info(shell, /* i18n: data */ kw.comment || "accepted");  // the same, split
+  ```
+
+  The library had it twice: `refusal_text()` of the treedb views returned the
+  backend's words or "print-tranger failed". It returns the words only now,
+  and the call writes the fallback. Under a LIST marker such a call is
+  checked, not refused: its keys are asked for and must be in the lists;
+- a data marker on an ARRAY OF STRING LITERALS fails: it is no DOM (a
+  `createElement2` spec carries its attrs, an object, in its second slot), so
+  the strings would be hidden.
 
 **A marked `let` (or `var`) is held to its marker.** A marker that names a list
 used to let a `let` pass unread, whatever it held: a new literal branch on it
@@ -4103,10 +4228,19 @@ would not carry what is pushed into it to the reader.
 
 `validate-locales` checks every marker in what it scans, in an app's code too:
 a comment that starts with `i18n:` and is no marker, a marker that stands
-before no place a key is read (a key position, `t()`, an `i18n` or
+before no place a key is read (a key position, a translator, an `i18n` or
 `data-i18n*` value), a marker that names a list no module the app mounts
-publishes, a marked key that is not in the lists it names, a marked variable
-that only ever holds literals -- each one fails, with the file and the line.
+publishes, a marked key that is not in the lists it names, a marked template
+with no key of its shape in them, a marked variable that only ever holds
+literals -- each one fails, with the file and the line. A marker that stands
+before no place says what it stands before, and why that is none (since
+`7.26.32`; it used to say only *"stands before no place a key is read"*):
+
+```
+main.js:8: the i18n marker stands before `1;`, the value a variable is DECLARED with: mark it
+    where the variable is handed to a place a key is read. A marker marks the value it stands
+    right before, where a key is read: ...
+```
 
 **The rule is per CALL, in the library and in the app.**
 `src/i18n_key_functions.test.js` reads every module of the library with the
@@ -4133,7 +4267,11 @@ src/main.js:12: yui_shell_confirm_yesno() [2.title] is given opts, which the rea
 
 A TRANSLATED text handed to a key position fails even when it is marked: the
 function translates it again and marks it `data-i18n` with the translation,
-so it never changes language. Hand it the key:
+so it never changes language. Hand it the key. A translated text is the value
+of any TRANSLATOR (since `7.26.32`; up to `7.26.31` only a call named `t`, so
+`tr("save")`, an alias of t, `t?.()` or `t.call()` passed marked -- and an
+unmarked `tr()` failed with *"cannot follow"*, whose advice was the marker that
+then let it pass):
 
 ```js
 yui_install_ask_once(shell, {t: t, message: t("install this app")});   // fails
@@ -4143,7 +4281,7 @@ yui_install_ask_once(shell, {t: t, message: "install this app"});      // the ke
 ```
 src/c_app.js:734 (call at line 732): yui_install_ask_once() [1.message] is given t("install this app"):
     a TRANSLATED text where a KEY goes (translated again and marked data-i18n with the translation,
-    it never changes language): hand it the key
+    it never changes language, and no marker excuses it): hand the key, not t(key)
 ```
 
 In an app, what a wrapper of its own hands on is marked where it hands it:
@@ -4164,10 +4302,11 @@ module. The same test fails when a marker is not one
 or stands nowhere; when a marker names a list that is not published by its
 module or by one it imports (a consumer would not read it); when a marked key
 the reader can follow is not in the list; when a marked variable only ever
-holds literals; when a list is not readable, holds a key that is not
-lower-case ASCII, holds one twice, or holds one written nowhere else in its
-module (stale); when an entry of the table names a function its module does
-not declare.
+holds literals; when a list is not readable, is mutated, holds a key that is
+not lower-case ASCII, holds one twice, or holds one written nowhere else in
+its module (stale); when an entry of the table names a function its module
+does not declare, or (since `7.26.32`) a position the search for forwarders
+does not find.
 
 **Every key of every list is PINNED**: dropping it from its list fails a test,
 or loses nothing. For each key, one of these holds, or the test fails with
@@ -4211,19 +4350,41 @@ the node graph's key-taking helpers from its syntax tree, and
 `yui_dev_controls.test.js` builds the Developer window and compares every key
 it asks for or carries with the list.
 
-**What is NOT pinned.** `t()` is not a key function, and only the positions of
-`I18N_KEY_FUNCTIONS` are held to the per-call rule. So a key handed to `t()`,
-`i18n` or a `data-i18n*` value by an UNMARKED `let`, a call the reader does not
-follow or a concatenation is invisible to the validator and fails no test --
-in the library and in an app alike. (A PARAMETER is not, in the library: the
-forwarder test puts its function in the table, or demands a marker.) So is
-what is written INTO a `const` table after its declaration (`LIST.push("k")`,
-`TABLE.k = "k"`): the reader follows a const to its value, and only a marked
-`let` is followed into what is written into it. It is found only by reading
-the page in another language. In an app, a key its callers hand a wrapper of
-its own reaches the locales only through a list the module publishes: the
-wrapper's hand-off must be marked (the rule per call), and nothing ties its
-callers' literals to the list.
+**What stays INVISIBLE** -- read by no check, failing nothing; found only by
+reading the page in another language:
+
+- a key handed to a translator, an `i18n` or a `data-i18n*` value by an
+  UNMARKED `let`, a call the reader does not follow (a recursion, one whose
+  returns mix keys and data, a function of a package) or a computed string:
+  a translator is not a key function, and only the positions of
+  `I18N_KEY_FUNCTIONS` are held to the per-call rule -- in the library and in
+  an app alike. (A PARAMETER is not, in the library: the forwarder test puts
+  its function in the table, or demands a marker, also when no position can
+  name it.);
+- a translator the reader does not know as one: a name other than `t` / `tr`
+  that no const or import makes an alias of -- a parameter `translate`, a
+  `let` alias, `opts.translate(k)`, `i18next.getFixedT()`;
+- a key function reached through a parameter (`apply(fn)` calling
+  `fn(shell, "k")`), a `let` given more than one function, a map in a `let`,
+  a computed member (`API[name](...)`), or `.apply()` of an array the source
+  does not write out;
+- a `data-i18n*` attribute written through an alias of `dataset`
+  (`const ds = el.dataset; ds.i18nTitle = k`), by `Object.assign()` into it,
+  or named by a `let`;
+- what is written INTO a `const` table after its declaration
+  (`TABLE.k = "k"`): the reader follows a const to its value, and only a
+  marked `let` is followed into what is written into it (a published list
+  that is written into fails: above);
+- what a module of a package exports (gobj-js, i18next), and an exported
+  `let`;
+- in the library's forwarder search, a key stored in a heap object or a DOM
+  node and read back somewhere else (`$b._yui_label` was one), and what a
+  caller puts in a gobj's attrs (a window's `title` given at `gobj_create()`);
+- in an app, a key its callers hand a wrapper of its own reaches the locales
+  only through a list the module publishes: the wrapper's hand-off must be
+  marked (the rule per call), and nothing ties its callers' literals to the
+  list -- nor a key built at run time (a template) to the list its marker
+  names, beyond the shape of the template.
 
 **What fails the build, besides a key no locale defines:**
 
@@ -4234,9 +4395,12 @@ callers' literals to the list.
 - a locale that looks like one and exports no `{<code>}` with a
   `translation` dict;
 - a source file that cannot be parsed;
-- a published list no consumer can read (above);
-- a marker that is wrong (above), a `data` marker on what the reader follows
-  to keys included;
+- a published list no consumer can read (above), declared with `let` or
+  `var`, or mutated;
+- a marker that is wrong (above): a `data` marker on what the reader follows
+  to keys, or on what would hide a key (a call mixing keys and data, an array
+  of string literals), a list marker on a template whose shape no key of the
+  list has;
 - a key position of a key function, in the app's own code, given what the
   reader cannot follow and unmarked, or given a translated text (the rule per
   call, above).

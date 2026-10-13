@@ -331,19 +331,46 @@ describe("validate-locales", () => {
             `export const A_I18N_KEYS = Object.freeze(["frozen key"]);`,
             `const B_I18N_KEYS = ["exported later"]; export {B_I18N_KEYS};`,
             `const local_list = ["renamed on export"]; export {local_list as C_I18N_KEYS};`,
-            `export let D_I18N_KEYS = ["let key"];`,
-            `export var E_I18N_KEYS = ["var key"];`,
             "export const F_I18N_KEYS = [`template key`];",
             `export const G_I18N_KEYS = ["a ] bracket", "after the bracket"];`,
             `export const lower_i18n_keys = ["lower-case name"];`,
             `throw new Error("never run");`
         ].join("\n")});
         expect(r.status).toBe(1);
-        for(let k of ["frozen key", "exported later", "renamed on export", "let key", "var key",
+        for(let k of ["frozen key", "exported later", "renamed on export",
                       "template key", "a ] bracket", "after the bracket", "lower-case name"]) {
             expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
         }
         expect(r.out).not.toMatch(/never run/);
+    });
+
+    test("REV-CLOUD V22: a published list is an export const, and one that is MUTATED fails", () => {
+        let r = run({...BOTH({"let key": "L", "var key": "V", "in it": "I"}), "src/main.js": [
+            `export let D_I18N_KEYS = ["let key"];`,
+            `export var E_I18N_KEYS = ["var key"];`,
+            `let late = ["in it"]; export {late as H_I18N_KEYS};`,
+            `export const X_I18N_KEYS = ["in it"];`,
+            `X_I18N_KEYS.push("pushed key");`,
+            `X_I18N_KEYS.splice(0, 0, "spliced key");`,
+            `X_I18N_KEYS.unshift("unshifted key");`,
+            `X_I18N_KEYS[3] = "indexed key";`,
+            `X_I18N_KEYS.length = 0;`,
+            `Object.assign(X_I18N_KEYS, ["assigned key"]);`,
+            `function f(X_I18N_KEYS) { X_I18N_KEYS.push("a parameter, not the list"); }`
+        ].join("\n"), "src/other.js": [
+            `import {X_I18N_KEYS as LIST} from "./main.js";`,
+            `LIST.push("pushed elsewhere");`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        expect(r.out).toMatch(/src\/main\.js: the published list D_I18N_KEYS: declared with let, which can be given other keys no reader sees: a published list is an `export const` array of literals/);
+        expect(r.out).toMatch(/E_I18N_KEYS: declared with var/);
+        expect(r.out).toMatch(/H_I18N_KEYS: declared with let/);
+        for(let [line, what] of [[5, "X_I18N_KEYS.push"], [6, "X_I18N_KEYS.splice"], [7, "X_I18N_KEYS.unshift"],
+                                 [8, "X_I18N_KEYS\\[3\\] ="], [9, "X_I18N_KEYS.length ="], [10, "Object.assign\\(X_I18N_KEYS"]]) {
+            expect(r.out).toMatch(new RegExp(`src/main\\.js:${line}: the published list X_I18N_KEYS is MUTATED \\(\`${what}`));
+        }
+        expect(r.out).toMatch(/src\/other\.js:2: the published list LIST is MUTATED \(`LIST\.push\("pushed elsewhere"\)`\)/);
+        expect(r.out).not.toMatch(/main\.js:11:/);
     });
 
     test("a list no consumer can read FAILS, naming the file and the list (app code too)", () => {
@@ -437,7 +464,7 @@ describe("validate-locales", () => {
         expect(r.out).toMatch(/src\/main\.js:5: "own key" is marked as a key of MY_VIEW_I18N_KEYS, and is not in it/);
         expect(r.out).toMatch(/src\/main\.js:6: the i18n marker names NO_SUCH_I18N_KEYS, a list no module the app mounts publishes/);
         expect(r.out).toMatch(/src\/main\.js:7: "i18n: dato" is no i18n marker/);
-        expect(r.out).toMatch(/src\/main\.js:8: the i18n marker stands before no place a key is read/);
+        expect(r.out).toMatch(/src\/main\.js:8: the i18n marker stands before `1;`, the value a variable is DECLARED with: mark it where the variable is handed to a place a key is read/);
         expect(r.out).not.toMatch(/main\.js:3:|main\.js:4:/);
     });
 
@@ -697,5 +724,161 @@ describe("validate-locales", () => {
         expect(r.out).not.toContain(`"shared"`);
         expect(r.out).not.toContain(`"own"`);
         expect(r.out).toMatch(/no .*app_config\.json: no shell keys checked/);
+    });
+
+    test("REV-CLOUD V22.1: a recursive helper does not hang the build, and its data is data", () => {
+        let label_of = (branches) => [
+            `function label_of(n) {`,
+            `    if(n.alias) { return label_of(n.alias); }`,
+            `    if(n.parent) { return label_of(n.parent); }`,
+            ...(branches > 2? [`    if(n.other) { return label_of(n.other); }`] : []),
+            `    return n.name;`,
+            `}`
+        ];
+        for(let branches of [2, 3]) {
+            let lines = [`import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+                         ...label_of(branches),
+                         `$el.textContent = t(label_of(node));`,
+                         `yui_shell_show_info(shell, label_of(node));`];
+            let t0 = Date.now();
+            let r = run({...BOTH({}), "src/main.js": lines.join("\n")});
+            expect(Date.now() - t0).toBeLessThan(10000);
+            expect(r.out).toContain(`src/main.js:${lines.length}: yui_shell_show_info() [1] is given label_of(node), ` +
+                                    `which the reader cannot follow`);
+            let marked = lines.slice(0, -1).concat([`yui_shell_show_info(shell, /* i18n: data */ label_of(node));`]);
+            let m = run({...BOTH({}), "src/main.js": marked.join("\n")});
+            expect(m.out).not.toMatch(/main\.js/);
+        }
+    });
+
+    test("REV-CLOUD V22.3: an import is followed into the module it names -- the data marker on it too", () => {
+        let r = run({...BOTH({"accepted": "x", "an imported const": "x", "renamed": "x"}),
+            "src/labels.js": [
+                `export function pick() { return "accepted"; }`,
+                `export const KEY = "an imported const";`,
+                `function chosen() { return "renamed"; }`,
+                `export {chosen as choose};`
+            ].join("\n"),
+            "src/again.js": `export {pick as pick_again} from "./labels.js";`,
+            "src/main.js": [
+                `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+                `import {pick, KEY, choose} from "./labels.js";`,
+                `import {pick_again} from "./again.js";`,
+                `yui_shell_show_info(shell, /* i18n: data */ pick());`,           // 4
+                `t(/* i18n: data */ KEY);`,                                       // 5
+                `yui_shell_show_info(shell, /* i18n: data */ choose());`,         // 6
+                `yui_shell_show_info(shell, /* i18n: data */ pick_again());`      // 7
+            ].join("\n")});
+        expect(r.status).toBe(1);
+        let lines = r.out.split("\n").filter((l) => /marked as data, but/.test(l))
+            .map((l) => Number(l.match(/main\.js:(\d+)/)[1]));
+        expect(lines).toEqual([4, 5, 6, 7]);
+        expect(r.out).toContain(`src/main.js:4: marked as data, but what it marks is the key "accepted"`);
+        /*  ...and read unmarked: the keys are asked for, and the rule passes  */
+        let read = run({...BOTH({}), "src/labels.js": `export function pick() { return "picked elsewhere"; }`,
+            "src/main.js": [`import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+                            `import {pick} from "./labels.js";`,
+                            `yui_shell_show_info(shell, pick());`].join("\n")});
+        expect(read.out).toContain(`defined in NO locale: "picked elsewhere"`);
+        expect(read.out).not.toMatch(/cannot follow/);
+    });
+
+    test("REV-CLOUD V22.3: a data marker hides no key -- a mixed call, an array of strings -- and attaches through ( )", () => {
+        let r = run({...BOTH({"a mixed key": "x", "a fallback": "x"}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `function label(kw) { return kw.ok? "a mixed key" : kw.comment; }`,
+            `yui_shell_show_info(shell, /* i18n: data */ label(kw));`,                 // 3
+            `yui_shell_show_info(shell, /* i18n: data */ ["a mixed key", "x"]);`,      // 4
+            `yui_shell_show_info(shell, /* i18n: data */ (kw.comment || "a fallback"));`,
+            `t(/* i18n: data */ (kw.a || kw.b));`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        expect(r.out).toMatch(/src\/main\.js:3: marked as data, but `label\(kw\)` can also return the key "a mixed key": .*Split the branches/);
+        expect(r.out).toMatch(/src\/main\.js:4: marked as data, but what it marks is an array of string literals \("a mixed key", "x"\), which is no DOM/);
+        expect(r.out).not.toMatch(/main\.js:[56]:/);
+    });
+
+    test("REV-CLOUD V22.4: a translated text fails at a key position, marked too, whatever the translator is called", () => {
+        let r = run({...BOTH({"saved": "x"}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `import {t as tt} from "i18next";`,
+            `const translate = tt;`,
+            `function tr(k) { return tt(k); }`,
+            `yui_shell_show_info(shell, tr("saved"));`,                               // 5: unmarked
+            `yui_shell_show_info(shell, /* i18n: data */ tr("saved"));`,              // 6
+            `yui_shell_show_info(shell, /* i18n: data */ translate("saved"));`,       // 7
+            `yui_shell_show_info(shell, /* i18n: data */ tt("saved"));`,              // 8
+            `yui_shell_show_info(shell, /* i18n: data */ tt?.("saved"));`,            // 9
+            `yui_shell_show_info(shell, /* i18n: data */ tt.call(null, "saved"));`    // 10
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let lines = r.out.split("\n").filter((l) => /a TRANSLATED text where a KEY goes/.test(l))
+            .map((l) => Number(l.match(/main\.js:(\d+)/)[1]));
+        expect(lines).toEqual([5, 6, 7, 8, 9, 10]);
+        expect(r.out).toContain("no marker excuses it): hand the key, not t(key)");
+        expect(r.out).not.toMatch(/cannot follow/);       // a translated text is no value "it cannot follow"
+    });
+
+    test("REV-CLOUD V22.2/4: what is read now -- a key function however it is called, the new places, the new forms", () => {
+        let r = run({...BOTH({}),
+            "src/say.js": `export {yui_shell_show_info as say} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            "src/api.js": [`import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+                           `export const API2 = {info: yui_shell_show_info};`].join("\n"),
+            "src/main.js": [
+                `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+                `import {say} from "./say.js";`,
+                `import {API2} from "./api.js";`,
+                `API2.info(shell, "an imported map key");`,
+                `const show = yui_shell_show_info;`,
+                `const API = {info: yui_shell_show_info};`,
+                `const ATTR = "data-i18n-title";`,
+                `const PROP = "data-i18n";`,
+                `const OPTS = {title: "an optional key"};`,
+                `const {label} = {label: "a destructured key"};`,
+                `show(shell, "an alias key");`,
+                `API.info(shell, "a map key");`,
+                `yui_shell_show_info.call(null, shell, "a call key");`,
+                `say(shell, "a re-exported key");`,
+                `t(["a first key", "a fallback key"]);`,
+                `el.dataset.i18nTitle = "a dataset key";`,
+                `el.setAttribute(ATTR, "a const attribute key");`,
+                `let attrs = {[PROP]: "a computed property key"};`,
+                `t(OPTS?.title);`,
+                `t(label);`
+            ].join("\n")});
+        for(let k of ["an alias key", "a map key", "an imported map key", "a call key", "a re-exported key", "a first key",
+                      "a fallback key", "a dataset key", "a const attribute key", "a computed property key",
+                      "an optional key", "a destructured key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        /*  ...and the per-call rule holds them: an alias given a let  */
+        let rule = run({...BOTH({"k": "x"}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `const show = yui_shell_show_info;`,
+            `let k = "k";`,
+            `show(shell, k);`
+        ].join("\n")});
+        expect(rule.out).toContain(`src/main.js:4: yui_shell_show_info() [1] is given k, which the reader cannot follow`);
+    });
+
+    test("REV-CLOUD V22.6: a list marker over a template: the list is asked for, and must hold a key of its shape", () => {
+        let files = (list) => ({...BOTH({"monitor start": "x", "monitor stop": "x", "other": "x"}), "src/main.js": [
+            `import {yui_shell_confirm_yesno} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `export const MONITOR_I18N_KEYS = ${JSON.stringify(list)};`,
+            `function confirm(control) {`,
+            `    let label = \`monitor \${control}\`;`,
+            `    yui_shell_confirm_yesno(shell, "other", {yes_label: /* i18n: MONITOR_I18N_KEYS */ label});`,
+            `    t(/* i18n: MONITOR_I18N_KEYS */ \`monitor \${control}\`);`,
+            `}`
+        ].join("\n")});
+        let ok = run(files(["monitor start", "monitor stop"]));
+        expect(ok.out).not.toMatch(/main\.js/);
+        let wrong = run(files(["other"]));
+        expect(wrong.status).toBe(1);
+        expect(wrong.out).toContain("src/main.js:5: the i18n marker names MONITOR_I18N_KEYS for `monitor ${control}`, " +
+                                    "and no key of it has that shape: publish the keys the template builds");
+        expect(wrong.out).toContain("src/main.js:6: the i18n marker names MONITOR_I18N_KEYS for `monitor ${control}`");
+        let missing = run({...files(["monitor start", "monitor gone"])});
+        expect(missing.out).toContain(`defined in NO locale: "monitor gone"`);     // every key of the list is asked for
     });
 });

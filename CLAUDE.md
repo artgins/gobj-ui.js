@@ -33,48 +33,74 @@ Two cases the rule reaches that no attribute can:
   explicit.
 
 ⚠️ **A key that arrives as a VARIABLE is invisible to a scan of the source**
-— an unmarked `let`, a parameter, a computed string, a local alias of
-`t()`. A `const` is followed, and so is a const table: `t(LABELS[x])` asks
-the locales for every value of `LABELS`. Every consumer's
-`validate-locales` reads the modules the app mounts, so two things keep the
-keys of this library visible to it (since `7.26.28`):
+-- an unmarked `let`, a parameter, a computed string, a translator under a
+name the reader does not know. A `const` is followed (and a destructuring of
+one, and an import of one from a file the validator reads), and so is a const
+table: `t(LABELS[x])` asks the locales for every value of `LABELS`. A
+translator is t / tr by name, `.t`, i18next's `t` under any import name, or a
+const / `.bind()` alias of one, called also as `t?.()` or `t.call()`; an array
+handed to it is a list of keys. Every consumer's `validate-locales` reads the
+modules the app mounts, so two things keep the keys of this library visible to
+it (since `7.26.28`):
 
 - **A key handed to a FUNCTION is read where it is handed.**
   `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`) names every function that
-  receives a key, and at which argument or property. At those positions the
-  validator reads a string literal, or a `const` bound to one; DOM there (an
-  array spec, `createElement2()`, `text_node()`, a const or a `let` only ever
-  given one) is no key. A function that hands one of its parameters -- or what
-  it reads from one -- to `t()`, an `i18n` / `code` / `data-i18n*` value or a
-  key position of the table goes in the table, or what it is given is
-  invisible again. Since `7.26.29` the test FINDS every such function and
-  fails until it is there; one that nothing calls by name (an FSM action, a
-  callback) marks what it hands on instead, and a path through a gobj's
-  `priv` is no position.
+  receives a key, and at which argument or property -- read however a call
+  reaches it (an import under any name, a re-export, a const alias, a map,
+  `.call()`, `.apply()`). At those positions the validator reads a string
+  literal, or a `const` bound to one; DOM there (an array spec, but no array
+  of string literals; `createElement2()`, `text_node()`, a const or a `let`
+  only ever given one) is no key. A function that hands one of its
+  parameters -- or what it reads from one: `opts.title`, `opts?.title`, a
+  destructuring in the parameter or the body, `arguments[1]`, `rest[0]`, a
+  copy `{...opts}` -- to a translator, an `i18n` / `code` / `data-i18n*` value
+  (`el.dataset.i18nTitle` too) or a key position of the table goes in the
+  table, or what it is given is invisible again. The test FINDS those
+  functions (since `7.26.29`) and fails until they are there; it fails on a
+  function that hands a parameter on through what no position can name (since
+  `7.26.32`: a key transformed, `k.toLowerCase()` or a concatenation, an
+  iteration of `Object.entries(opts)`, a rest parameter walked, `arguments[i]`,
+  an array pattern) until it is restructured or marked; and the same search,
+  started from NO table, must find every entry at every position with the
+  same `exported` (the table is CORRECT, not only complete: an extra entry
+  fails). One nothing calls by name (an FSM action, a callback) marks what it
+  hands on instead; a path through a gobj's `priv`, or what is read from a
+  parameter `gobj`, is its own state and no position. What the search does
+  NOT see: a key stored in a heap object or a DOM node and read back elsewhere
+  (`yui_selection_bar` had one: the label went through `$b._yui_label`), a
+  translator or a key function reached through a parameter or a `let`.
 - **A key handed by table or variable is PUBLISHED by its module**, in an
-  exported `<NAME>_I18N_KEYS` array of literals that the validator reads and
-  asks the locales for (only 17 of the 96 modules of `src/` publish one
-  today: `grep -n '^export const [A-Z0-9_]*_I18N_KEYS' src/*.js`), and the
-  call that hands it is MARKED `/* i18n: <NAME>_I18N_KEYS */`. What arrives
-  as data no locale can list (a topic name, a backend's comment) is marked
-  `/* i18n: data */`. A marked plain `let` is followed — every value it is
-  given is asked for, and must be in the lists the marker names — and one
-  that only ever holds literals fails (*"make it a const"*). Every key of
-  every list is PINNED: a `COVERAGE` entry of `src/i18n_key_functions.test.js`
-  derives the list from the module's source, or a marker check fails without
-  the key, or the module reads it anyway; a key that only its list holds
-  fails that test.
+  exported `<NAME>_I18N_KEYS` array of literals -- an `export const`, never a
+  `let`, never mutated (`.push()` and the like fail, since `7.26.32`) -- that
+  the validator reads and asks the locales for (only 17 of the 97 modules of
+  `src/` publish one today: `grep -n '^export const [A-Z0-9_]*_I18N_KEYS'
+  src/*.js`), and the call that hands it is MARKED `/* i18n: <NAME>_I18N_KEYS
+  */`. What arrives as data no locale can list (a topic name, a backend's
+  comment) is marked `/* i18n: data */`. A marker attaches through a
+  parenthesis. A marked plain `let` is followed — every value it is given is
+  asked for, and must be in the lists the marker names — and one that only
+  ever holds literals fails (*"make it a const"*); a marked template with
+  `${}` must have the shape of some key of the lists. Every key of every list
+  is PINNED: a `COVERAGE` entry of `src/i18n_key_functions.test.js` derives
+  the list from the module's source, or a marker check fails without the key,
+  or the module reads it anyway; a key that only its list holds fails that
+  test.
 
 `src/i18n_key_functions.test.js` fails on an unmarked call that gives a key
 position anything but a literal (or DOM), a `const` bound to one, or a key
-position of the enclosing function handed on; on a translated text there,
-`t("k")`, even marked (it is translated again and never changes language:
-hand the key); and on a `data` marker over what the reader follows to keys
-(a literal, a const or branch that is one, a call of a module function that
-returns literals). Since `7.26.29` `validate-locales` holds an APP's own code
-to the same rule, with the file and the line. It parses the sources and never
-runs them; a locale is parsed and then imported, so its top-level code runs.
-`acorn` is a dependency of this package since `7.26.29`, not a
+position of the enclosing function handed on; on a translated text there --
+the value of any translator: `t("k")`, `tr()`, an alias -- even marked (it is
+translated again and never changes language: hand the key, not t(key)); and
+on a `data` marker over what the reader follows to keys (a literal, a const or
+branch that is one, a call -- of the module or imported -- that returns
+literals) or over what it would hide (a call whose returns mix keys and data:
+split the branches; an array of string literals). Since `7.26.29`
+`validate-locales` holds an APP's own code to the same rule, with the file and
+the line. It parses the sources and never runs them; a locale is parsed and
+then imported, so its top-level code runs. What a function returns is read
+once, and a recursion is not followed (`7.26.29` read a function again at
+every call of it, and a helper calling itself in three branches hung the
+build). `acorn` is a dependency of this package since `7.26.29`, not a
 devDependency: the published scripts need it at run time.
 
 The full rule, with what does NOT count as a name, is in the README

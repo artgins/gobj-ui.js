@@ -5295,10 +5295,12 @@ function name_form_control(parent, control)
     }
     control.id = 'g6-form-control-' + (++form_control_seq);
     label.htmlFor = control.id;
-    control.setAttribute('title', t(key));
-    control.setAttribute('data-i18n-title', key);
-    control.setAttribute('aria-label', t(key));
-    control.setAttribute('data-i18n-aria-label', key);
+    /*  The label's own key, read back from its DOM: it was read where the
+     *  label was built  */
+    control.setAttribute('title', t(/* i18n: data */ key));
+    control.setAttribute('data-i18n-title', /* i18n: data */ key);
+    control.setAttribute('aria-label', t(/* i18n: data */ key));
+    control.setAttribute('data-i18n-aria-label', /* i18n: data */ key);
 }
 
 function create_form_color_input(parent, value, onInput)

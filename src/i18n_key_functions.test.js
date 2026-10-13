@@ -22,6 +22,13 @@
  *          one nothing calls by name (an FSM action, a callback) marks what
  *          it hands on. The search runs to a fixpoint, and fails naming the
  *          entry to add;
+ *        - the table is CORRECT (V22): the same search started from no
+ *          table finds every entry, at every position, with the same
+ *          `exported` -- an entry nothing forwards to fails;
+ *        - a parameter handed on through what no position can name (V22:
+ *          `k.toLowerCase()`, a concatenation, `Object.entries(opts)`, a
+ *          rest parameter walked, `arguments[i]`, an array pattern) fails,
+ *          unless it is marked where it is handed;
  *        - THE RULE, per call, in every module: each value a key position
  *          of a key function can take is a string literal (or nothing, or
  *          DOM), a const the reader follows to one, a key position of the
@@ -29,16 +36,20 @@
  *          handed -- a comment `i18n: <NAME>_I18N_KEYS` (the module
  *          publishes those keys) or `i18n: data` (no key a list can hold).
  *          Anything else fails, naming the file and the line; so does a
- *          translated text, t("..."), marked or not;
+ *          translated text -- t("..."), tr(), an alias of t -- marked or
+ *          not;
  *        - every marker is one and stands where a key is read; the lists
  *          it names are published by its module or one it imports; the
  *          keys it marks that can be read are in them -- a marked `let`
  *          included (or a member or an element read from one), whose
  *          every literal is read, and which fails when it holds nothing
  *          but literals (a const not written as one); a `data` marker on
- *          what the reader follows to keys fails (V21.4.2);
- *        - every published list is readable (exported, an array of
- *          literals), lower-case ASCII, has no duplicate and no stale key;
+ *          what the reader follows to keys fails (V21.4.2), and so does
+ *          one that would hide a key (V22: a call mixing keys and data, an
+ *          array of string literals);
+ *        - every published list is readable (an `export const` array of
+ *          literals), never mutated, lower-case ASCII, has no duplicate
+ *          and no stale key;
  *        - a list a module derives from its SOURCE (a table, a default, a
  *          value it returns or assigns) covers it (COVERAGE), the source
  *          read with the validator's reader -- a const followed, a `let`
@@ -56,7 +67,7 @@
 import {describe, test, expect} from "vitest";
 import {readFileSync, readdirSync, existsSync} from "node:fs";
 import {dirname, join} from "node:path";
-import {fileURLToPath} from "node:url";
+import {fileURLToPath, pathToFileURL} from "node:url";
 
 import {I18N_KEY_FUNCTIONS} from "./i18n_key_functions.js";
 import {
@@ -72,8 +83,12 @@ import {
     marker_of,
     key_calls,
     key_places,
+    call_kind,
+    is_translation,
     call_rule_violations,
+    param_flows,
     published_lists,
+    list_mutations,
     scan_ast,
     lib_imports
 } from "../scripts/validate-locales.mjs";
@@ -84,10 +99,11 @@ const MODULES = readdirSync(SRC)
     .filter((f) => f.endsWith(".js") && !f.endsWith(".test.js"))
     .sort();
 
-/*  A module's code parsed, knowing its name (for the messages)  */
+/*  A module's code parsed, knowing its name (for the messages) and its
+ *  file (an import of a sibling is followed there)  */
 function parse_as(code, module)
 {
-    let ast = parse_source(code);
+    let ast = parse_source(code, pathToFileURL(join(SRC, module)));
     Object.defineProperty(ast, "module", {value: module, enumerable: false});
     return ast;
 }
@@ -595,16 +611,18 @@ function with_key_dropped(lists, name, key)
 
 /*
  *  The FORWARDERS: the functions of the library that hand one of their
- *  parameters on to a place a key is read (key_places(): t() / tr(), an
- *  `i18n`, `code` or `data-i18n*` value -- a property, setAttribute(),
- *  `x.i18n = ...` --, a key position of a function of the table): the
- *  parameter itself or what is read from it (`opts.title`, a
- *  destructured `{label}`, each `items[].name`), directly or through a
- *  `let` it is given to. What their callers give there is a key the
- *  validator reads ONLY when the function is in I18N_KEY_FUNCTIONS: up
- *  to 7.26.28 39 were not (the review named 17 of them), 6 entries
- *  lacked positions, and a literal handed to one would have gone unasked
- *  (REV-CLOUD V21.4.1).
+ *  parameters on to a place a key is read (key_places(): a translator
+ *  call -- t(), tr(), an alias, `.call()` --, an `i18n`, `code` or
+ *  `data-i18n*` value -- a property, setAttribute(), `x.i18n = ...`,
+ *  `el.dataset.i18nTitle = ...` --, a key position of a function of the
+ *  table): the parameter itself or what is read from it (`opts.title`,
+ *  `opts?.title`, a destructured `{label}` -- in the parameter or in the
+ *  body --, each `items[].name`, `arguments[1]`, `rest[0]`, a copy
+ *  `{...opts}`), directly or through a `let` it is given to. What their
+ *  callers give there is a key the validator reads ONLY when the
+ *  function is in I18N_KEY_FUNCTIONS: up to 7.26.28 39 were not (the
+ *  review named 17 of them), 6 entries lacked positions, and a literal
+ *  handed to one would have gone unasked (REV-CLOUD V21.4.1).
  *
  *    - A forwarder called by NAME -- in its module, or exported -- goes
  *      in the table, with that position.
@@ -615,16 +633,32 @@ function with_key_dropped(lists, name, key)
  *    - What a gobj keeps in its `priv` is its own state: a caller hands
  *      the gobj, never what its priv holds. A path through the priv of
  *      a parameter is no position of the function.
+ *    - A parameter handed on through what NO position can name (V22) --
+ *      a key transformed (`k.toLowerCase()`, a concatenation, a template),
+ *      an iteration of `Object.entries(opts)`, a rest parameter walked or
+ *      read by a computed index, `arguments` --, unmarked, is OPAQUE: the
+ *      callers' keys reach no reader. It is restructured (the key handed
+ *      on as it arrives, the function then in the table) or marked.
  *
  *  The search runs to a fixpoint: a function that hands a parameter to
- *  a key position of a forwarder it found is a forwarder too.
+ *  a key position of a forwarder it found is a forwarder too. Each round
+ *  reads the library again with the table of the round before (a `tr`
+ *  of the table is a key function, read at its positions, and not a
+ *  translator); `table` is where it starts: the real table, to find what
+ *  it lacks, or none at all, to find what the library ALONE says
+ *  (correctness).
  *
  *      -> {missing: [{module, name, exported, keys, line}],
- *          unmarked: [{module, name, how, pos, line}]}
+ *          unmarked: [{module, name, how, pos, line}],
+ *          opaque: [{module, name, pos, line, text}],
+ *          found: [{module, name, exported, keys}]}
  *
  *  `missing`: what the table lacks, each function with the positions it
  *  lacks and the first line that hands one. `unmarked`: a forwarder
- *  nothing calls by name that hands a parameter on unmarked.
+ *  nothing calls by name that hands a parameter on unmarked. `opaque`:
+ *  a function that hands a parameter on unmarked through what no
+ *  position can name. `found`: every forwarder and position the last
+ *  round found, the table aside.
  */
 const PRIV_PATH_RE = /^\.priv(?:[.[]|$)/;
 
@@ -637,6 +671,29 @@ function handed_params(leaf)
         return var_leaves(leaf.var_root).leaves.filter((l) => l.kind === "param");
     }
     return [];
+}
+
+/*  The parameters a leaf hands on through what no position can name
+ *  (param_flows()), a `let` it holds followed into what it is given  */
+function opaque_params(leaf)
+{
+    if(leaf.kind !== "unknown") {
+        return [];
+    }
+    if(!leaf.var_root) {
+        return param_flows(leaf.node, leaf.scope || []);
+    }
+    let r = var_leaves(leaf.var_root);
+    let out = [];
+    for(let l of r.leaves) {
+        if(l.kind === "unknown" && !l.var_root) {
+            out.push(...param_flows(l.node, l.scope || []));
+        }
+    }
+    for(let o of r.opaque) {
+        out.push(...param_flows(o.node, o.scope || []));
+    }
+    return out;
 }
 
 /*  Is `fn` called by its name in the module (a call that resolves to it)?  */
@@ -683,21 +740,70 @@ function declared_as(ast, fn)
     return how;
 }
 
+/*  A flow of param_flows() out of a gobj's OWN state: the parameter
+ *  `gobj` of a gclass function (what is read from it, through a call
+ *  too -- gobj_read_attr(gobj, "title") -- is its attrs, set by whoever
+ *  created it), or a path through a `priv`. No caller hands a key that
+ *  way.  */
+function is_gobj_state(f)
+{
+    if(f.priv || (f.path !== null && /\.priv(?:[.[]|$)/.test(f.path))) {
+        return true;
+    }
+    let b = f.binding;
+    let p = (b.kind === "arguments")? null : b.fn.params[b.index];
+    if(p && p.type === "AssignmentPattern") {
+        p = p.left;
+    }
+    return !!p && p.type === "Identifier" && p.name === "gobj";
+}
+
+/*  The parameter a flow of param_flows() comes from, and what is read
+ *  from it when that can be said  */
+function flow_position(f)
+{
+    let b = f.binding;
+    if(b.kind === "arguments") {
+        return "arguments";
+    }
+    return `${b.index}${f.path || ""}`;
+}
+
 function find_forwarders(modules = MODULES, asts = ast_of, table = I18N_KEY_FUNCTIONS)
 {
-    let virtual = table.map((e) => Object.assign({}, e, {keys: [...e.keys]}));
+    let start = table.map((e) => Object.assign({}, e, {keys: [...e.keys]}));
+    let named = new Map();          // a function node -> {by_name, how}
+    let round_table = start;
+    let found = new Map();          // "<module> <name>" -> {module, name, exported, keys}
     let first_line = new Map();     // "<module> <name> <pos>" -> line
     let unmarked = new Map();       // "<module>:<line> <pos>" -> {...}
-    let named = new Map();          // a function node -> is it called by name?
+    let opaque = new Map();         // "<module>:<line> <pos>" -> {...}
+    let signature = (entries) => entries.map((e) => `${e.module} ${e.name} [${[...e.keys].sort()}]`).sort().join("\n");
+    let seen = new Set();
     for(let round = 0; round < 32; round++) {
-        let grew = false;
-        let round_table = virtual.slice();      // a new array: the index is cached per table
+        found = new Map();
+        first_line = new Map();
+        unmarked = new Map();
+        opaque = new Map();
         for(let module of modules) {
             let ast = asts(module);
             let markers = markers_of(ast);
             let exported = exported_names(ast);
+            let by_name_of = (b) => {
+                if(!named.has(b.fn)) {
+                    let how = declared_as(ast, b.fn);
+                    let by_name = !!b.name && (how === "declaration" || how === "variable")
+                        && (exported.has(b.name) || is_called_by_name(ast, b.fn));
+                    named.set(b.fn, {by_name, how});
+                }
+                return named.get(b.fn);
+            };
             for(let place of key_places(ast, {lib_module: module, table: round_table})) {
+                let place_line = line_of(ast, place.node.start);
                 for(let leaf of place.leaves) {
+                    if(marker_of(leaf, markers)) {
+                        continue;
+                    }
                     for(let p of handed_params(leaf)) {
                         if(PRIV_PATH_RE.test(p.path)) {
                             continue;
@@ -705,44 +811,64 @@ function find_forwarders(modules = MODULES, asts = ast_of, table = I18N_KEY_FUNC
                         let b = p.binding;
                         let pos = `${b.index}${p.path}`;
                         let line = line_of(ast, leaf.node.start);    // the place it is handed to
-                        if(!named.has(b.fn)) {
-                            let how = declared_as(ast, b.fn);
-                            let by_name = !!b.name && (how === "declaration" || how === "variable")
-                                && (exported.has(b.name) || is_called_by_name(ast, b.fn));
-                            named.set(b.fn, {by_name, how});
-                        }
-                        let {by_name, how} = named.get(b.fn);
+                        let {by_name, how} = by_name_of(b);
                         if(!by_name) {
-                            if(!marker_of(leaf, markers)) {
-                                unmarked.set(`${module}:${line} ${pos}`,
-                                    {module, name: b.name, how, pos, line});
-                            }
+                            unmarked.set(`${module}:${line} ${pos}`, {module, name: b.name, how, pos, line});
                             continue;
                         }
                         let id = `${module} ${b.name} ${pos}`;
                         if(!first_line.has(id) || line < first_line.get(id)) {
                             first_line.set(id, line);
                         }
-                        let entry = virtual.find((e) => e.module === module && e.name === b.name);
-                        if(!entry) {
-                            entry = {module, name: b.name, exported: exported.has(b.name), keys: []};
-                            virtual.push(entry);
+                        let key = `${module} ${b.name}`;
+                        if(!found.has(key)) {
+                            found.set(key, {module, name: b.name, exported: exported.has(b.name), keys: []});
                         }
-                        if(!entry.keys.includes(pos)) {
-                            entry.keys.push(pos);
-                            grew = true;
+                        if(!found.get(key).keys.includes(pos)) {
+                            found.get(key).keys.push(pos);
                         }
+                    }
+                    if(is_translation(leaf)) {
+                        continue;       // the rule test says what is wrong with it
+                    }
+                    for(let f of opaque_params(leaf)) {
+                        if(is_gobj_state(f)) {
+                            continue;
+                        }
+                        let pos = flow_position(f);
+                        opaque.set(`${module}:${place_line} ${pos}`, {
+                            module, name: f.binding.name, pos, line: place_line,
+                            text: ast.code.slice(leaf.node.start, leaf.node.end).replace(/\s+/g, " ").slice(0, 80)
+                        });
                     }
                 }
             }
         }
-        if(!grew) {
+        /*  The next round's table: where it started, and what this one found  */
+        let next = start.map((e) => Object.assign({}, e, {keys: [...e.keys]}));
+        for(let f of found.values()) {
+            let e = next.find((x) => x.module === f.module && x.name === f.name);
+            if(!e) {
+                next.push({module: f.module, name: f.name, exported: f.exported, keys: [...f.keys]});
+            } else {
+                for(let k of f.keys) {
+                    if(!e.keys.includes(k)) {
+                        e.keys.push(k);
+                    }
+                }
+            }
+        }
+        let sig = signature(next);
+        if(sig === signature(round_table) || seen.has(sig)) {
+            round_table = next;
             break;
         }
+        seen.add(sig);
+        round_table = next;
     }
 
     let missing = [];
-    for(let entry of virtual) {
+    for(let entry of round_table) {
         let real = table.find((e) => e.module === entry.module && e.name === entry.name);
         let keys = entry.keys.filter((k) => !real || !real.keys.includes(k));
         if(keys.length === 0) {
@@ -752,7 +878,7 @@ function find_forwarders(modules = MODULES, asts = ast_of, table = I18N_KEY_FUNC
         missing.push({module: entry.module, name: entry.name, exported: entry.exported, keys,
                       line: Math.min(...lines), in_table: !!real});
     }
-    return {missing, unmarked: [...unmarked.values()]};
+    return {missing, unmarked: [...unmarked.values()], opaque: [...opaque.values()], found: [...found.values()]};
 }
 
 function forwarders_report(found)
@@ -768,6 +894,39 @@ function forwarders_report(found)
         out.push(`${u.module}:${u.line} ${u.name || "a function"} (${u.how}, which nothing calls by name) ` +
                  `hands its parameter [${u.pos}] to a place a key is read, unmarked: no caller can be ` +
                  `read, so mark what it is where it hands it`);
+    }
+    for(let o of found.opaque || []) {
+        out.push(`${o.module}:${o.line} ${o.name || "a function"}() hands its parameter [${o.pos}] to a place ` +
+                 `a key is read through \`${o.text}\`, which no position can name: hand the key on as it ` +
+                 `arrives (the function then goes in the table), or mark it where it hands it`);
+    }
+    return out;
+}
+
+/*
+ *  The table is CORRECT: every entry, at every position, is a hand-off
+ *  the library itself shows -- the search started from NO table finds
+ *  it, with the same `exported`. An entry nothing forwards to would make
+ *  the validator read keys where no key goes, and a wrong `exported`
+ *  hides the calls of another module. (Up to 7.26.31 the test proved
+ *  only that the table was complete: an extra entry passed it.)
+ */
+function table_errors(found, table = I18N_KEY_FUNCTIONS)
+{
+    let out = [];
+    for(let e of table) {
+        let f = found.find((x) => x.module === e.module && x.name === e.name);
+        for(let k of e.keys) {
+            if(!f || !f.keys.includes(k)) {
+                out.push(`${e.module} ${e.name} [${k}]: no hand-off the search finds -- the function does not ` +
+                         `hand that position to a place a key is read: drop it from I18N_KEY_FUNCTIONS, or ` +
+                         `write the hand-off in a form the reader follows`);
+            }
+        }
+        if(f && f.exported !== e.exported) {
+            out.push(`${e.module} ${e.name}: \`exported: ${e.exported}\`, and the module ` +
+                     `${f.exported? "exports" : "does not export"} it`);
+        }
     }
     return out;
 }
@@ -816,6 +975,10 @@ describe("I18N_KEY_FUNCTIONS: the table", () => {
 describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
     test("every function that hands a parameter to a place a key is read, in every module", () => {
         expect(forwarders_report(find_forwarders())).toEqual([]);
+    });
+
+    test("REV-CLOUD V22: the table is CORRECT -- every entry is a hand-off the library shows", () => {
+        expect(table_errors(find_forwarders(MODULES, ast_of, []).found)).toEqual([]);
     });
 
     test("the search finds what it should, and nothing else", () => {
@@ -975,8 +1138,8 @@ describe("the reader the rule and the validator share", () => {
         ].join("\n")), {lib_module: module});
         expect(r.marker_errors.map((e) => e.line)).toEqual([1, 2]);
         expect(r.marker_errors[0].why).toMatch(/is no i18n marker/);
-        expect(r.marker_errors[1].why).toMatch(/stands before no place a key is read/);
-        expect(r.marker_refs).toEqual([{lists: ["C_YUI_FOO_I18N_KEYS"], keys: ["listed"], line: 3}]);
+        expect(r.marker_errors[1].why).toMatch(/^the i18n marker stands before `1;`, the value a variable is DECLARED with/);
+        expect(r.marker_refs).toEqual([{lists: ["C_YUI_FOO_I18N_KEYS"], keys: ["listed"], line: 3, shapes: []}]);
     });
 
     test("a let or var a marker stands before is HELD to it: everything it is given is read", () => {
@@ -1376,7 +1539,6 @@ describe("the published *_I18N_KEYS lists", () => {
         let report = unpinned_keys(lists, COVERAGE.filter((e) => !added.includes(e.list)));
         let reported = (name, key) => report.some((line) => line.includes(`${name}: ${JSON.stringify(key)} `));
         for(let [name, key] of [
-            ["C_YUI_FORM_I18N_KEYS", "this field is required"],
             ["FORM_JSON_FIELD_I18N_KEYS", "invalid json"],
             ["SHELL_ROUTE_MAP_I18N_KEYS", "toolbar"],
             ["SHELL_ROUTE_MAP_I18N_KEYS", "other routes"],
@@ -1397,6 +1559,13 @@ describe("the published *_I18N_KEYS lists", () => {
         let route_map_refs = scan_of("shell_route_map.js").marker_refs
             .filter((ref) => ref.lists.includes("SHELL_ROUTE_MAP_I18N_KEYS"));
         expect(route_map_refs.flatMap((ref) => ref.keys)).toContain("app");
+        /*  ...and "this field is required" since V22: field_validation_key()
+         *  returns it OR the json field's own error, and the list marker on
+         *  the `let key` that holds the call holds that key to its lists  */
+        expect(reported("C_YUI_FORM_I18N_KEYS", "this field is required")).toBe(false);
+        let form_refs = scan_of("c_yui_form.js").marker_refs
+            .filter((ref) => ref.lists.includes("C_YUI_FORM_I18N_KEYS"));
+        expect(form_refs.flatMap((ref) => ref.keys)).toContain("this field is required");
 
         for(let [name, key] of [
             ["C_YUI_FORM_I18N_KEYS", "this field is required"],
@@ -1446,7 +1615,7 @@ describe("the published *_I18N_KEYS lists", () => {
             `const K = "not in it";`,
             `t(/* i18n: X_I18N_KEYS */ K);`
         ].join("\n")), {lib_module: "x.js"});
-        expect(r.marker_refs).toEqual([{lists: ["X_I18N_KEYS"], keys: ["not in it"], line: 3}]);
+        expect(r.marker_refs).toEqual([{lists: ["X_I18N_KEYS"], keys: ["not in it"], line: 3, shapes: []}]);
     });
 });
 
@@ -1521,5 +1690,248 @@ describe("REV-CLOUD V20 (js3_v lists #2): a COVERAGE source is read the way the 
         let none = Object.assign({}, form, {data: {}});
         expect(missing_from_list(none, lists)).toEqual([expect.stringMatching(
             /^c_yui_form\.js:\d+: C_YUI_FORM_I18N_KEYS is derived from this source, and the reader cannot follow \$input\.yui_json_error:/)]);
+    });
+});
+
+describe("REV-CLOUD V22.1: a recursive helper is read once, and never hangs the reader", () => {
+    let module = "x.js";
+    let head = [`import {yui_shell_show_info} from "./shell_modals.js";`];
+    let rule = (lines) => rule_report(parse_as([...head, ...lines].join("\n"), module), module);
+    let scan = (lines) => scan_ast(parse_as([...head, ...lines].join("\n"), module), {lib_module: module});
+
+    /*  The review's case, verbatim: 7.26.28 read it in 12 ms, 7.26.29 in
+     *  more than two minutes (x3 per level of MAX_DEPTH), and with three
+     *  recursive ifs it never ended  */
+    let label_of = (branches) => [
+        `function label_of(n) {`,
+        `    if(n.alias) { return label_of(n.alias); }`,
+        `    if(n.parent) { return label_of(n.parent); }`,
+        ...(branches > 2? [`    if(n.other) { return label_of(n.other); }`] : []),
+        `    return n.name;`,
+        `}`
+    ];
+
+    test("the review's case (two and three recursive branches): fast, and `n.name` is data", () => {
+        for(let branches of [2, 3]) {
+            let t0 = Date.now();
+            let lines = [...label_of(branches),
+                         `export function f($el, node, shell) {`,
+                         `    $el.textContent = t(label_of(node));`,
+                         `    yui_shell_show_info(shell, label_of(node));`,
+                         `}`];
+            let at = 1 + lines.indexOf(`    yui_shell_show_info(shell, label_of(node));`) + 1;
+            expect(rule(lines)).toEqual([`${module}:${at} yui_shell_show_info() [1]: label_of(node)`]);
+            let marked = lines.map((l) => l.replace("yui_shell_show_info(shell, label_of(node))",
+                                                    "yui_shell_show_info(shell, /* i18n: data */ label_of(node))"));
+            expect(rule(marked)).toEqual([]);
+            expect(scan(marked).marker_errors).toEqual([]);
+            expect(Date.now() - t0).toBeLessThan(2000);
+        }
+    });
+
+    test("a recursion is not followed, whatever it returns; a helper called on many paths is read once", () => {
+        /*  Returns only literals, through itself: the reader does not follow
+         *  a recursion, so the call is a value it cannot follow  */
+        expect(rule([`function up(n) { if(n.parent) { return up(n.parent); } return "root"; }`,
+                     `yui_shell_show_info(shell, up(node));`]))
+            .toEqual([`${module}:3 yui_shell_show_info() [1]: up(node)`]);
+        /*  Mutual recursion, the same  */
+        expect(rule([`function a(n) { return n? b(n.x) : "from a"; }`,
+                     `function b(n) { return n? a(n.y) : "from b"; }`,
+                     `yui_shell_show_info(shell, a(node));`]).length).toBe(1);
+
+        /*  A fan: 16 helpers, each calling the next in three branches. Read
+         *  at every call, as 7.26.29 did, it is 3^16 reads  */
+        let fan = [];
+        for(let i = 0; i < 16; i++) {
+            fan.push(`function h${i}(c) { if(c === 1) { return h${i + 1}(c); } ` +
+                     `if(c === 2) { return h${i + 1}(c); } return h${i + 1}(c); }`);
+        }
+        fan.push(`function h16(c) { return c? "deep key" : "other deep key"; }`);
+        let t0 = Date.now();
+        let r = scan([...fan, `t(h0(1));`]);
+        expect(Date.now() - t0).toBeLessThan(2000);
+        expect(r.keys.has("deep key") && r.keys.has("other deep key")).toBe(true);
+    });
+});
+
+describe("REV-CLOUD V22.2: what the search for forwarders sees, and what fails it", () => {
+    let module = "x.js";
+    let found_in = (lines) => {
+        let ast = parse_as(lines.join("\n"), module);
+        return find_forwarders([module], () => ast, []);
+    };
+    let keys_of = (found) => Object.fromEntries(found.found.map((f) => [f.name, f.keys.slice().sort()]));
+
+    test("the forms it follows: each one is a position of the function", () => {
+        let found = found_in([
+            `import i18next from "i18next";`,
+            `import {t as tt} from "i18next";`,
+            `const ATTR = "data-i18n-title";`,
+            `const PROP = "data-i18n";`,
+            `export function f_opt(gobj, opts) { return t(opts?.title); }`,
+            `export function f_args(gobj) { return t(arguments[1]); }`,
+            `export function f_alias(gobj, k) { const translate = t; return translate(k); }`,
+            `export function f_import(gobj, k) { return tt(k); }`,
+            `export function f_optcall(gobj, k) { return t?.(k); }`,
+            `export function f_call(gobj, k) { return t.call(null, k); }`,
+            `export function f_bind(gobj, k) { const tb = i18next.t.bind(i18next); return tb(k); }`,
+            `export function f_destr(gobj, opts) { const {title} = opts; let {label} = opts; return [t(title), t(label)]; }`,
+            `export function f_copy(gobj, opts) { const o = {...opts}; const p = Object.assign({}, opts); return [t(o.title), t(p.label)]; }`,
+            `export function f_rest(gobj, ...rest) { return t(rest[0]); }`,
+            `export function f_list(gobj, k) { return t([k, "a fallback key"]); }`,
+            `export function f_dataset(gobj, el, k) { el.dataset.i18nTitle = k; }`,
+            `export function f_attr(gobj, el, k) { el.setAttribute(ATTR, k); }`,
+            `export function f_prop(gobj, k) { return {[PROP]: k}; }`,
+        ]);
+        expect(found.opaque).toEqual([]);
+        expect(keys_of(found)).toEqual({
+            f_opt: ["1.title"], f_args: ["1"], f_alias: ["1"], f_import: ["1"], f_optcall: ["1"],
+            f_call: ["1"], f_bind: ["1"], f_destr: ["1.label", "1.title"], f_copy: ["1.label", "1.title"],
+            f_rest: ["1"], f_list: ["1"], f_dataset: ["2"], f_attr: ["2"], f_prop: ["1"]
+        });
+        let r = scan_ast(parse_as(`export function f(gobj, k) { return t([k, "a fallback key"]); }`, module),
+                         {lib_module: module});
+        expect(r.keys.has("a fallback key")).toBe(true);     // an array given to t() is a list of KEYS
+    });
+
+    test("what no position can name FAILS, named, with the file and the line -- unless it is marked", () => {
+        let lines = [
+            `export function o_lower(gobj, k) { return t(k.toLowerCase()); }`,
+            `export function o_entries(gobj, opts) { Object.entries(opts).forEach(([k, v]) => t(v)); }`,
+            `export function o_rest(gobj, ...rest) { rest.forEach((x) => t(x)); }`,
+            `export function o_concat(gobj, k) { return {i18n: "prefix " + k}; }`,
+            `export function o_index(gobj, i) { return t(arguments[i]); }`,
+            `export function o_array(gobj, [a, b]) { return t(a); }`,
+            `export function o_let(gobj, k) { let x = "a"; x += k; return t(x); }`,
+            `export function o_own(gobj) { return t(gobj_read_attr(gobj, "title").trim()); }`,  // the gobj's own state
+            `export function o_priv(gobj, ctx) { return t(ctx.gobj.priv.label.trim()); }`,      // a priv
+        ];
+        let found = found_in(lines);
+        expect(found.opaque.map((o) => `${o.name} ${o.line} ${o.pos}`)).toEqual([
+            "o_lower 1 1", "o_entries 2 1", "o_rest 3 1", "o_concat 4 1", "o_index 5 arguments",
+            "o_array 6 1", "o_let 7 1"
+        ]);
+        expect(forwarders_report(found)[0]).toBe("x.js:1 o_lower() hands its parameter [1] to a place a key " +
+            "is read through `k.toLowerCase()`, which no position can name: hand the key on as it arrives (the " +
+            "function then goes in the table), or mark it where it hands it");
+        /*  ...and marked where it hands it, it passes  */
+        let marked = found_in([
+            `export function o_lower(gobj, k) { return t(/* i18n: data */ k.toLowerCase()); }`,
+            `export function o_entries(gobj, opts) { Object.entries(opts).forEach(([k, v]) => t(/* i18n: data */ v)); }`
+        ]);
+        expect(marked.opaque).toEqual([]);
+    });
+
+    test("the table is checked for CORRECTNESS, not only for completeness: an extra entry fails", () => {
+        let found = find_forwarders(MODULES, ast_of, []).found;
+        let extra = [...I18N_KEY_FUNCTIONS.filter((e) => e.name !== "yui_shell_show_info"),
+            {module: "shell_modals.js", name: "yui_shell_show_info", exported: true, keys: ["1", "2.extra"]},
+            {module: "shell_modals.js", name: "yui_shell_show_warning", exported: false, keys: ["1"]},
+            {module: "c_yui_nav.js", name: "no_such_forwarder", exported: false, keys: ["0"]}];
+        let errors = table_errors(found, extra);
+        expect(errors).toEqual(expect.arrayContaining([
+            expect.stringMatching(/^shell_modals\.js yui_shell_show_info \[2\.extra\]: no hand-off the search finds/),
+            "shell_modals.js yui_shell_show_warning: `exported: false`, and the module exports it",
+            expect.stringMatching(/^c_yui_nav\.js no_such_forwarder \[0\]: no hand-off the search finds/)
+        ]));
+        /*  ...as the real table was, before V22: an action label that went
+         *  through a DOM property, a flag that hid an export  */
+        expect(table_errors(found)).toEqual([]);
+    });
+});
+
+describe("REV-CLOUD V22.3-4: the data marker hides no key; one notion of a translator", () => {
+    let module = "x.js";
+    let head = [`import {yui_shell_show_info} from "./shell_modals.js";`,
+                `import {t as tt} from "i18next";`];
+    let scan = (lines) => scan_ast(parse_as([...head, ...lines].join("\n"), module), {lib_module: module});
+    let rule = (lines) => rule_report(parse_as([...head, ...lines].join("\n"), module), module);
+    let whys = (r) => r.marker_errors.map((e) => `${e.line}: ${e.why}`);
+
+    test("a data marker on a call that MIXES a key with data fails: split the branches", () => {
+        let r = scan([`function label(kw) { return kw.ok? "a mixed key" : kw.comment; }`,
+                      `yui_shell_show_info(shell, /* i18n: data */ label(kw));`,
+                      `yui_shell_show_info(shell, /* i18n: data */ kw.comment || "a split key");`]);
+        expect(whys(r)).toEqual([expect.stringMatching(
+            /^4: marked as data, but `label\(kw\)` can also return the key "a mixed key": .* Split the branches/)]);
+        expect(r.keys.has("a split key")).toBe(true);
+        /*  Under a list marker, that key is asked for and must be in the list  */
+        let l = scan([`export const X_I18N_KEYS = ["in it"];`,
+                      `function label(kw) { return kw.ok? "a mixed key" : kw.comment; }`,
+                      `yui_shell_show_info(shell, /* i18n: X_I18N_KEYS */ label(kw));`]);
+        expect(l.marker_refs).toEqual([{lists: ["X_I18N_KEYS"], keys: ["a mixed key"], line: 5, shapes: []}]);
+    });
+
+    test("a data marker on an array of strings fails: it is no DOM", () => {
+        let r = scan([`yui_shell_show_info(shell, /* i18n: data */ ["a key", "another key"]);`,
+                      `yui_shell_show_info(shell, /* i18n: data */ ["div", {}, "a spec is DOM"]);`]);
+        expect(whys(r)).toEqual([expect.stringMatching(
+            /^3: marked as data, but what it marks is an array of string literals \("a key", "another key"\), which is no DOM/)]);
+        expect(rule([`yui_shell_show_info(shell, ["a key", "another key"]);`]))
+            .toEqual([`${module}:3 yui_shell_show_info() [1]: ["a key", "another key"]`]);
+    });
+
+    test("a marker attaches through a parenthesis, and one that attaches nowhere says what it stands before", () => {
+        let r = scan([`yui_shell_show_info(shell, /* i18n: data */ (kw.comment || "a fallback in parens"));`,
+                      `function f(kw) { return t(/* i18n: data */ (kw.a || kw.b)); }`,
+                      `let x = /* i18n: data */ kw.comment;`,
+                      `x = /* i18n: data */ kw.other;`,
+                      `function g() { return /* i18n: data */ kw.third; }`,
+                      `t("a" + /* i18n: data */ kw.fourth);`]);
+        expect(r.keys.has("a fallback in parens")).toBe(true);
+        expect(whys(r)).toEqual([
+            expect.stringMatching(/^5: the i18n marker stands before `kw\.comment;`, the value a variable is DECLARED with/),
+            expect.stringMatching(/^6: the i18n marker stands before `kw\.other;`, a value ASSIGNED/),
+            expect.stringMatching(/^7: the i18n marker stands before `kw\.third; }`, a value RETURNED/),
+            expect.stringMatching(/^8: the i18n marker stands before `kw\.fourth\);`, inside a concatenation/)
+        ]);
+    });
+
+    test("a translated text at a key position fails, MARKED too, whatever the translator is called", () => {
+        let lines = [
+            `const translate = t;`,
+            `function tr(k) { return t(k); }`,
+            `yui_shell_show_info(shell, /* i18n: data */ tr("saved"));`,
+            `yui_shell_show_info(shell, /* i18n: data */ translate("saved"));`,
+            `yui_shell_show_info(shell, /* i18n: data */ tt("saved"));`,
+            `yui_shell_show_info(shell, /* i18n: data */ t?.("saved"));`,
+            `yui_shell_show_info(shell, /* i18n: data */ t.call(null, "saved"));`,
+            `yui_shell_show_info(shell, tr("saved"));`
+        ];
+        expect(rule(lines)).toEqual([
+            [5, `tr("saved")`], [6, `translate("saved")`], [7, `tt("saved")`], [8, `t?.("saved")`],
+            [9, `t.call(null, "saved")`], [10, `tr("saved")`]
+        ].map(([n, text]) => `${module}:${n} yui_shell_show_info() [1]: ${text} -- a TRANSLATED text where a key goes: hand the key`));
+    });
+
+    test("a key function is read however it is called: an alias, a map, .call(), .apply()", () => {
+        let r = scan([`const show = yui_shell_show_info;`,
+                      `const API = {info: yui_shell_show_info};`,
+                      `show(shell, "an alias key");`,
+                      `API.info(shell, "a map key");`,
+                      `yui_shell_show_info.call(null, shell, "a call key");`,
+                      `yui_shell_show_info.apply(null, [shell, "an apply key"]);`]);
+        for(let k of ["an alias key", "a map key", "a call key", "an apply key"]) {
+            expect(r.keys.has(k), k).toBe(true);
+        }
+        expect(rule([`const show = yui_shell_show_info;`, `let k = "a let key";`, `show(shell, k);`]))
+            .toEqual([`${module}:5 yui_shell_show_info() [1]: k`]);
+    });
+
+    test("REV-CLOUD V22.5: no published list of the library is a let, and none is mutated", () => {
+        let wrong = [];
+        for(let module of MODULES) {
+            let ast = ast_of(module);
+            for(let e of list_mutations(ast, published_lists(ast).lists)) {
+                wrong.push(`${module}:${e.line}: ${e.why}`);
+            }
+        }
+        expect(wrong).toEqual([]);
+        let r = published_lists(parse_source(`export let A_I18N_KEYS = ["a"];`));
+        expect(r.errors).toEqual(["A_I18N_KEYS: declared with let, which can be given other keys no reader sees: " +
+                                  "a published list is an `export const` array of literals"]);
+        expect(list_mutations(parse_source(`export const B_I18N_KEYS = ["b"];\nB_I18N_KEYS.push("c");`),
+                              [{name: "B_I18N_KEYS", keys: ["b"]}]).map((e) => e.line)).toEqual([2]);
     });
 });

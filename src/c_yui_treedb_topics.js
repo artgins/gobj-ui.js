@@ -2230,7 +2230,9 @@ function answer_print_tranger_refused(gobj, path, answer)
 
 /************************************************************
  *  The text of a transport's refusal: gobj_command() answers a string,
- *  a command response or a number.
+ *  a command response or a number. Data only ("" when it says
+ *  nothing): the caller writes its own key as the fallback, where
+ *  validate-locales reads it.
  ************************************************************/
 function refusal_text(ret)
 {
@@ -2240,7 +2242,7 @@ function refusal_text(ret)
     if(ret && typeof ret === "object" && typeof ret.comment === "string" && ret.comment) {
         return ret.comment;
     }
-    return "print-tranger failed";
+    return "";
 }
 
 /************************************************************
@@ -2274,7 +2276,8 @@ function request_print_tranger(gobj, path)
         }, gobj);
     if(ret) {
         log_error(ret);
-        answer_print_tranger_refused(gobj, path, {error: /* i18n: data */ refusal_text(ret)});
+        answer_print_tranger_refused(gobj, path,
+            {error: /* i18n: data */ refusal_text(ret) || "print-tranger failed"});
         return;
     }
     if(path) {

@@ -199,8 +199,8 @@ function yui_wire_selection(tabulator, on_change)
  ***************************************************************/
 function yui_selection_bar(t, opts)
 {
-    let o = opts || {};
-    let actions = Array.isArray(o.actions) ? o.actions : [];
+    const o = opts || {};
+    const actions = Array.isArray(o.actions) ? o.actions : [];
     let name = o.name || "TABLE";
     let count = 0;
 
@@ -218,7 +218,6 @@ function yui_selection_bar(t, opts)
                 click: action.on_click
             }]
         );
-        $b._yui_label = action.label || "";
         $buttons.push($b);
     }
 
@@ -254,19 +253,27 @@ function yui_selection_bar(t, opts)
         return $b.querySelector("span.icon ~ span");
     }
 
+    /*  A button's label and its name, in the current language  */
+    function paint_label($b, key)
+    {
+        let $label = label_of($b);
+        if($label && key) {
+            $label.textContent = t(key);
+        }
+        $b.title = key ? t(key) : "";
+        $b.setAttribute("aria-label", $b.title);
+    }
+
     function refresh()
     {
         $count.textContent = t("{{n}} selected", {n: count});
-        for(let $b of $buttons.concat([$clear])) {
-            let $label = label_of($b);
-            /*  A literal, where validate-locales reads it; an action's key is the HOST's  */
-            const key = ($b === $clear)? "clear selection" : $b._yui_label;
-            if($label && key) {
-                $label.textContent = t(key);
-            }
-            $b.title = key ? t(key) : "";
-            $b.setAttribute("aria-label", $b.title);
-        }
+        /*  An action's label is the HOST's key, read where the host calls
+         *  yui_selection_bar() (I18N_KEY_FUNCTIONS); the clear button's, a
+         *  literal read here  */
+        actions.forEach((action, i) => {
+            paint_label($buttons[i], action.label || "");
+        });
+        paint_label($clear, "clear selection");
         /*  Bulma's `is-hidden` carries `!important`: the class is what
          *  toggles, an inline display would lose to it. */
         $el.classList.toggle("is-hidden", count <= 0);
