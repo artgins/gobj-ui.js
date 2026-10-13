@@ -30,61 +30,11 @@ import {
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 
-import {yui_is_dark, yui_watch_theme} from "./yui_theme.js";
+import {yui_watch_theme} from "./yui_theme.js";
+/*  The ink of the axes -- the X and the Y -- and the palette of the
+ *  series, on both schemes: see yui_uplot_ink.js.  */
+import {yui_uplot_axes, YUI_UPLOT_PALETTE} from "./yui_uplot_ink.js";
 
-
-/***************************************************************
- *  The ink of a chart, and its palette.
- *
- *  uPlot is built for a white page: its axis labels are `#000`
- *  and its grid `rgba(0,0,0,0.07)`, which on the dark scheme are
- *  1.16:1 and 1.04 -- an axis nobody can read and a grid that is
- *  not there. And the series were CSS colour names: `blue` is
- *  2.11:1 on the dark ground, `orange` 1.97 on the light one, so
- *  whichever scheme you were in, one of the lines was a rumour.
- *
- *  These are given to uPlot as FUNCTIONS: it calls them when it
- *  draws, so the value can never be stale -- what goes stale is
- *  the canvas, and that is what EV_THEME redraws.
- *
- *  The palette is six colours that clear 3:1 on BOTH grounds
- *  (worst 3.39 on white, 3.71 on near-black), ordered so the
- *  first two are the pair that survives colour blindness -- blue
- *  and orange, never red and green as the opening pair.
- ***************************************************************/
-function axis_ink()
-{
-    return yui_is_dark()? "#c7cdd8" : "#2e333d";
-}
-
-function grid_ink()
-{
-    return yui_is_dark()? "rgba(199,205,216,0.16)" : "rgba(46,51,61,0.12)";
-}
-
-const CHART_PALETTE = [
-    {stroke: "#2f6fd0", fill: "rgba(47,111,208,0.10)"},     /*  4.88 / 3.71  */
-    {stroke: "#b8620a", fill: "rgba(184,98,10,0.10)"},      /*  4.38 / 4.13  */
-    {stroke: "#2f8f4e", fill: "rgba(47,143,78,0.10)"},      /*  4.07 / 4.45  */
-    {stroke: "#8b5cf6", fill: "rgba(139,92,246,0.10)"},     /*  4.23 / 4.28  */
-    {stroke: "#0e9aa7", fill: "rgba(14,154,167,0.10)"},     /*  3.39 / 5.35  */
-    {stroke: "#d1344b", fill: "rgba(209,52,75,0.10)"},      /*  4.88 / 3.71  */
-];
-
-/*  The axes the host asked for, with the ink it did not ask about.  */
-function themed_axes(axes)
-{
-    let list = Array.isArray(axes)? axes : [axes || {}];
-    return list.map((ax) => {
-        let a = Object.assign({}, ax || {});
-        if(a.stroke === undefined) {
-            a.stroke = axis_ink;
-        }
-        a.grid = Object.assign({stroke: grid_ink}, a.grid || {});
-        a.ticks = Object.assign({stroke: grid_ink}, a.ticks || {});
-        return a;
-    });
-}
 
 /***************************************************************
  *              Constants
@@ -104,7 +54,7 @@ SDATA(data_type_t.DTP_JSON,     "series",           0,  [{}],   "Data series"),
 SDATA(data_type_t.DTP_JSON,     "axes",             0,  [{}],   "Chart axes"),
 SDATA(data_type_t.DTP_JSON,     "scales",           0,  {},     "Chart scales"),
 SDATA(data_type_t.DTP_JSON,     "data",             0,  [[]],   "Chart data"),
-SDATA(data_type_t.DTP_JSON,     "colors",           0,  CHART_PALETTE,
+SDATA(data_type_t.DTP_JSON,     "colors",           0,  YUI_UPLOT_PALETTE,
     "Series colours, in order. The default palette clears 3:1 on both schemes and opens with the colour-blind-safe pair (blue, orange)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "HTML container for the chart"),
 SDATA(data_type_t.DTP_BOOLEAN,  "own_container",    0,  false,  "If true, container is gobj-managed"),
@@ -138,7 +88,7 @@ function mt_create(gobj)
     build_ui(gobj);
 
     /*  A canvas does not restyle itself: the ink is read when uPlot
-     *  DRAWS (see axis_ink), so a theme change only has to reach the
+     *  DRAWS (yui_uplot_ink.js), so a theme change only has to reach the
      *  machine and ask for a redraw. Same wiring as the graphs.  */
     gobj.priv.theme_observer = yui_watch_theme(gobj);
 
@@ -220,7 +170,7 @@ function build_ui(gobj)
         width: gobj_read_attr(gobj, "width"),
         height: gobj_read_attr(gobj, "height"),
         series: gobj_read_attr(gobj, "series"),
-        axes: themed_axes(gobj_read_attr(gobj, "axes")),
+        axes: yui_uplot_axes(gobj_read_attr(gobj, "axes")),
         scales: gobj_read_attr(gobj, "scales"),
     };
     let uplot = new uPlot(
@@ -444,7 +394,7 @@ function ac_add_serie(gobj, event, kw, src)
     }
     let colors = gobj_read_attr(gobj, "colors");
     if(!Array.isArray(colors) || !colors.length) {
-        colors = CHART_PALETTE;
+        colors = YUI_UPLOT_PALETTE;
     }
     /*  `idx` counts uPlot's series, and series[0] is the X AXIS -- so
      *  the first line drawn was taking colours[1] and the palette's

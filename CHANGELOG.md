@@ -5,6 +5,21 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.40
+
+- **fix(`C_YUI_UPLOT`): the values of the Y axis can be read on the dark
+  scheme.** uPlot always draws a Y axis -- its `setDefaults()` makes `axes[1]`
+  whether it is given or not, with its own black -- and the chart inked only
+  the axes the host handed it: by default ONE, the X. Every chart of the
+  library had a Y axis black on near-black in the dark (a user's report, the
+  cards of estadodelaire; wattyzer and gui_agent alike). The ink of the axes
+  and the palette move to a module of their own, `src/yui_uplot_ink.js`:
+  `yui_uplot_axes(axes)` pads the axes to the X and the Y and gives each the
+  ink of the theme, read when uPlot draws, keeping what the host gave -- so an
+  app that builds a uPlot of its own gets the same axes (estadodelaire's
+  history chart). Test: `src/uplot_ink.test.js` (the chart's half red before
+  the fix).
+
 ## 7.26.39
 
 - **fix(`C_YUI_FORM`): closing asks only for what the reader changed.** A

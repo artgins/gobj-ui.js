@@ -3394,6 +3394,22 @@ the middle, and **a toolbar left with a single group is centred**. An unknown
 name is reported, not silently dropped: a typo would otherwise remove the save
 button with no trace of why.
 
+### Charts — the ink of the axes, on both schemes
+
+uPlot is built for a white page: its axis labels are black, its grid 7% black.
+`C_YUI_UPLOT` gives its axes the ink of the theme -- both of them: uPlot always
+draws an X and a Y axis, and until 7.26.40 the Y axis kept uPlot's black, which
+no one could read on the dark scheme. A uPlot built by the app itself takes the
+same axes from `yui_uplot_axes()`, and redraws on a change of the theme
+(`yui_watch_theme(gobj)` sends `EV_THEME`; its action calls `chart.redraw()`):
+
+```js
+import {yui_uplot_axes} from "@yuneta/gobj-ui/src/yui_uplot_ink.js";
+
+new uPlot({width: 600, height: 300, series: [{}, {label: "temperature"}],
+           axes: yui_uplot_axes([{}])}, data, $el);
+```
+
 ### `C_YUI_FORM` — what closing it asks about
 
 `changes` says the form is not what is stored: the reader changed it, or the
