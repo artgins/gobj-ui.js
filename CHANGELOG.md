@@ -5,6 +5,18 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.37
+
+- **fix(`tabulator.css`): the editor of a boolean cell is a box to tick, not
+  the whole cell.** The rule that makes a cell's editor fill it (`width` and
+  `height` 100%, so a text box does not shrink when the cell enters edit
+  mode) reached EVERY `input` of the cell -- the checkbox of Tabulator's
+  `tickCross` editor too, drawn as a square the size of the cell: on a phone,
+  validating an alarm in estadodelaire opened a huge empty box. Checkboxes and
+  radios keep their own size now, and on a touch screen (`pointer: coarse`)
+  take 1.5rem, a size a finger can hit. Header filters, the same. Test:
+  `src/tabulator_css.test.js`.
+
 ## 7.26.36
 
 - **fix(`C_YUI_WINDOW_MANAGER`): the title of a dock chip changes language.**

@@ -186,11 +186,16 @@
  *  (`.tabulator-editing {padding: 0}`) and the control brings its own, so
  *  the text jumps sideways too. Inherit the font and restore the cell's 4px
  *  so entering edit mode changes nothing but the caret.
+ *
+ *  A box to type in, never a box to TICK: a checkbox or a radio given the
+ *  whole cell is drawn as a square the size of the cell -- the tickCross
+ *  editor of a boolean (estadodelaire's "validated") opened as a huge empty
+ *  box on a phone, which read as broken. Those keep their own size.
  * ==================================================================== */
-.tabulator-row .tabulator-cell.tabulator-editing input,
+.tabulator-row .tabulator-cell.tabulator-editing input:not([type=checkbox]):not([type=radio]),
 .tabulator-row .tabulator-cell.tabulator-editing select,
 .tabulator-row .tabulator-cell.tabulator-editing textarea,
-.tabulator .tabulator-header .tabulator-header-filter input,
+.tabulator .tabulator-header .tabulator-header-filter input:not([type=checkbox]):not([type=radio]),
 .tabulator .tabulator-header .tabulator-header-filter select {
     font-family: inherit;
     font-size: inherit;
@@ -199,9 +204,20 @@
     padding: 0 4px;
 }
 
-.tabulator-row .tabulator-cell.tabulator-editing input,
+.tabulator-row .tabulator-cell.tabulator-editing input:not([type=checkbox]):not([type=radio]),
 .tabulator-row .tabulator-cell.tabulator-editing select {
     height: 100%;
+}
+
+/*  The box to tick, sized for a finger where there is one: the browser's
+ *  own checkbox is ~13px, too small to hit on a phone -- and the cell
+ *  is no size for it either (above).  */
+@media (pointer: coarse) {
+    .tabulator-row .tabulator-cell.tabulator-editing input[type=checkbox],
+    .tabulator-row .tabulator-cell.tabulator-editing input[type=radio] {
+        width: 1.5rem;
+        height: 1.5rem;
+    }
 }
 
 /*
