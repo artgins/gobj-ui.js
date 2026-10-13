@@ -14,7 +14,7 @@ on npmjs.com.
 ## 1. Migrate legacy GUIs off `C_YUI_MAIN` / `C_YUI_ROUTING` — CLOSED
 
 > **Status: CLOSED in `3.0.0`.**  §1.1 obsolete, §1.2 done in
-> `2.6.0`, §1.3 superseded (estadodelaire lives on npm v1), §1.4
+> `2.6.0`, §1.3 done on 2026-10-13 (estadodelaire on v2), §1.4
 > executed in `3.0.0` with the user's go-ahead (2026-07-11).
 
 ### 1.1. ~~Migrate `C_YUI_TABS` off `EV_ROUTING_CHANGED`~~ — obsolete
@@ -43,13 +43,17 @@ helpers only).
 `c_g6_nodes_tree.js`, `c_yui_form.js` and `yui_dev.js` (listed as
 "likely" in the original checklist) were already clean.
 
-### 1.3. Migrate `estadodelaire/gui` to the shell — first real-world test
+### 1.3. ~~Migrate `estadodelaire/gui` to the shell~~ — done on 2026-10-13
 
-> **Superseded in practice**: estadodelaire consumes the **published
-> npm v1 line** (`@yuneta/gobj-ui@^1.x`, frozen), not this `main`
-> checkout — migrating it means moving it to v2, a project decision
-> of its own.  The checklist below is kept as the reference plan for
-> that migration if it is ever decided.
+> **Done**: the v1 freeze was lifted and estadodelaire moved to v2
+> (`^7.26.31`), with its own plan in `estadodelaire/gui/MIGRACION_V2.md`.
+> The gaps it found were fixed here, not patched around in `gui/`:
+> a menu entry carries a badge with a tone (`7.26.30`,
+> `yui_shell_set_nav_item_badge()`); a window lives in the shell's
+> overlay layer, not on the body above the whole shell (`7.26.31`);
+> Tabulator's filters and boxes and the fields of `C_YUI_FORM` carry a
+> title (`7.26.31`). hidraulia, the last v1 consumer, is next. The
+> original checklist is kept below as it was written.
 
 The companion repo `artgins/estadodelaire` is the canonical app on
 top of `gobj-ui`.  Replace its bootstrap:

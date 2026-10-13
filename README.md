@@ -95,8 +95,8 @@ consumers. They are independent snapshots (no shared git ancestry):
 
 | Line | Branch | Latest tag | Layout | Consumed by | How | Status |
 |------|--------|------------|--------|-------------|-----|--------|
-| **v2** | `main` | `7.26.x` | `src/` subdir | **gui_agent**, **gui_treedb**, **wattyzer**, the **yunovatios** GUIs | published npm `@yuneta/gobj-ui` (dist-tag `latest`) | active development |
-| **v1** | `v1` | `1.0.4` | `src/` subdir | **estadodelaire**, **hidraulia** | published npm `@yuneta/gobj-ui@^1.0.4` (dist-tag `legacy`) | frozen, maintenance-only |
+| **v2** | `main` | `7.26.x` | `src/` subdir | **gui_agent**, **gui_treedb**, **wattyzer**, the **yunovatios** GUIs, **estadodelaire** (since 2026-10-13) | published npm `@yuneta/gobj-ui` (dist-tag `latest`) | active development |
+| **v1** | `v1` | `1.0.4` | `src/` subdir | **hidraulia** | published npm `@yuneta/gobj-ui@^1.0.4` (dist-tag `legacy`) | frozen, maintenance-only |
 
 - **v2 / `main`** is the active development line: the declarative shell
   (legacy-stack-free since `3.0.0`). It is embedded as a git submodule in
@@ -109,9 +109,10 @@ consumers. They are independent snapshots (no shared git ancestry):
   (`npm run deploy-round` does the round). `test-app/` is the one exception:
   it consumes the working tree (`file:..`), which is what it is for.
 - **v1 / `v1`** is the frozen legacy-only stack (the declarative shell is not on
-  this line). It is **published to npm**; estadodelaire and hidraulia depend on
-  `@yuneta/gobj-ui@^1.0.4` from the registry. Land only maintenance fixes here,
-  then `npm publish` a new `1.x`.
+  this line). It is **published to npm**; hidraulia depends on
+  `@yuneta/gobj-ui@^1.0.4` from the registry (estadodelaire left it for v2 on
+  2026-10-13, and hidraulia is next). Land only maintenance fixes here, then
+  `npm publish` a new `1.x`.
 
 All new feature work lands on `main`/v2.
 
