@@ -5,6 +5,8 @@
  *
  *      Parses a JSON config to build:
  *          - Layers (z-stacked): base, overlay, popup, modal, notification, loading
+ *            (the overlay holds the WINDOW layer, where the windows live,
+ *            under the drawer: yui_shell_window_layer())
  *          - Zones (inside base layer): top, top-sub, left, center, right,
  *            bottom-sub, bottom
  *          - Menus (primary + submenus) rendered via C_YUI_NAV — one nav
@@ -65,7 +67,9 @@ import {
 
 import { resolve_route, normalize_route } from "./route_resolver.js";
 import { text_node } from "./yui_text.js";
-import { badge_node, badge_tone, paint_badge } from "./yui_badge.js";
+import {
+    badge_node, badge_tone, badge_text, paint_badge, name_control_with_badge,
+} from "./yui_badge.js";
 import { build_nav_map } from "./route_map_model.js";
 import {
     section_index_target,
@@ -82,6 +86,19 @@ const GCLASS_NAME = "C_YUI_SHELL";
  *  C_YUI_WINDOW parented to the app gobj).  Real apps have exactly
  *  one shell; tests that create several get the most recent. */
 let __last_shell__ = null;
+
+/*  The gobjs that keep DOM in a shell's layers without being its
+ *  children: a C_YUI_WINDOW parented to the app, the dock of
+ *  C_YUI_WINDOW_MANAGER. Each is sent EV_SHELL_CHANGED when a shell is
+ *  built or destroyed (yui_shell_watch_changes()), because the place
+ *  it lives in belongs to a shell that it outlives. A list of the
+ *  module, not of a shell: the gobj is there BEFORE the next shell
+ *  exists, and it has to be told when that one is built.  */
+let __shell_watchers__ = [];
+
+/*  The z-order of the windows (yui_shell_raise_window()): ONE counter
+ *  for every window of the page, docked or not.  */
+let __window_z__ = 10;
 
 /*  Zones rendered inside the base layer. */
 const ZONE_IDS = ["top", "top-sub", "left", "center", "right", "bottom-sub", "bottom"];
@@ -116,6 +133,9 @@ SDATA_END()
 let PRIVATE_DATA = {
     zones:           {},
     layers:          {},
+    /*  The windows' stacking context, inside the overlay layer: see
+     *  build_ui() and yui_shell_window_layer().  */
+    window_layer:    null,
     stages:          {},
     navs:            [],
     item_index:      {},
@@ -124,8 +144,10 @@ let PRIVATE_DATA = {
      *  every nav the shell creates is handed it (`badges`), so a nav built
      *  or rebuilt after the call draws it too.  */
     nav_badges:      {},
+    /*  The live region a changed badge is said in (announce_badge()).  */
+    badge_status:    null,
     /*  Parent item id -> the items yui_shell_set_submenu() put in place:
-     *  menu items as much as the declared ones (nav_item_declared).  */
+     *  menu items as much as the declared ones (nav_item_of).  */
     dynamic_items:   {},
     /*  Section route -> last position visited inside it.  Mirrors the
      *  url for the duration of the page; see remember_position(). */
@@ -255,6 +277,11 @@ function mt_create(gobj)
     __last_shell__ = gobj;
 
     build_ui(gobj);
+
+    /*  A window left in the body by a shell that went (a logout), or
+     *  created while there was none, lives in THIS shell from now on:
+     *  in its window layer, under its dialogs and toasts again.  */
+    tell_shell_watchers(gobj);
 }
 
 /***************************************************************
@@ -607,15 +634,27 @@ function mt_destroy(gobj)
      *  when stop is skipped. */
     close_toolbar_dropdown(gobj);
 
+    if(__last_shell__ === gobj) {
+        __last_shell__ = null;
+    }
+
     let $container = gobj_read_attr(gobj, "$container");
     if($container && $container.parentNode) {
         $container.parentNode.removeChild($container);
     }
-    gobj_write_attr(gobj, "$container", null);
 
-    if(__last_shell__ === gobj) {
-        __last_shell__ = null;
-    }
+    /*  Its layers go with it, and what lives there without being its
+     *  child does not: the developer window, a window of the app, the
+     *  dock. Since 7.26.31 a window with no `$parent` lives in this
+     *  shell, so a logout that destroyed the shell left such a window
+     *  alive with its DOM detached, and the next shell never placed it
+     *  again -- invisible, and the first click on its menu entry closed
+     *  the invisible one. Told now -- with `__last_shell__` cleared, so
+     *  the place they find is the body, and with the $container still
+     *  readable, so each can tell whether it was inside.  */
+    tell_shell_watchers(gobj);
+
+    gobj_write_attr(gobj, "$container", null);
 }
 
 
@@ -815,6 +854,30 @@ function build_ui(gobj)
         $container.appendChild($layer);
         priv.layers[id] = $layer;
     }
+
+    /*  The windows' own stacking context, inside the overlay layer
+     *  (yui_shell_window_layer()). A window takes its z-index from the
+     *  dock -- a counter that grows on every focus -- or 3, and in the
+     *  overlay layer itself that number competed with the drawer (18):
+     *  after a few focus changes a drawer opened UNDER the windows.
+     *  Here no number a window takes reaches the drawer, nor the
+     *  layers above.  */
+    let $windows = createElement2(
+        ["div", {class: "SHELL_WINDOW_LAYER yui-window-layer"}]
+    );
+    priv.layers.overlay.appendChild($windows);
+    priv.window_layer = $windows;
+
+    /*  Where the shell SAYS that a badge changed (announce_badge()): one
+     *  live region, always in the tree -- never hidden, never inside a
+     *  control -- so the first count is said as well as the next, and
+     *  with the name of what it counts.  */
+    let $status = createElement2(
+        ["div", {class: "SHELL_BADGE_STATUS is-sr-only", role: "status",
+                 "aria-live": "polite", "aria-atomic": "true"}]
+    );
+    $container.appendChild($status);
+    priv.badge_status = $status;
 
     /*  Base layer holds the grid of zones */
     let $base = priv.layers.base;
@@ -1899,17 +1962,19 @@ function toolbar_link_attrs(it)
 function build_toolbar_action_item(gobj, it)
 {
     let children = [];
+    let badge = null;
     if(!empty_string(it.icon)) {
         /*  The badge is anchored to the ICON, not to the button: with a
          *  label on (desktop) the button is wide, and a badge pinned to
          *  its corner would float far from the glyph it counts.  The
          *  count, its tone and their rules: yui_badge.js. */
+        badge = badge_node(it.badge, it.badge_tone,
+            "TOOLBAR_ITEM_BADGE yui-badge yui-toolbar-badge",
+            `C_YUI_SHELL: toolbar item '${it.id || "?"}'`);
         children.push(["span", {class: "icon yui-toolbar-icon"},
             [
                 ["i", {class: it.icon, "aria-hidden": "true"}],
-                badge_node(it.badge, it.badge_tone,
-                    "TOOLBAR_ITEM_BADGE yui-badge yui-toolbar-badge",
-                    `C_YUI_SHELL: toolbar item '${it.id || "?"}'`)
+                badge
             ]
         ]);
     }
@@ -1944,6 +2009,11 @@ function build_toolbar_action_item(gobj, it)
     if(tip) {
         btn_attrs.title = tip;
         btn_attrs["data-i18n-title"] = tip;
+    }
+    if(badge && !empty_string(aria_key)) {
+        /*  The count is part of its name: inside a <button> the badge is
+         *  no node of its own for a reader (yui_badge.js).  */
+        name_control_with_badge(btn_attrs, badge);
     }
     let link = toolbar_link_attrs(it);
     if(link) {
@@ -3195,37 +3265,43 @@ function update_secondary_nav_visibility(gobj, entry)
 }
 
 /************************************************************
- *  Does a menu of this shell declare an item `item_id`: an item
- *  of a menu of app_config.json, of one of their submenus, or
- *  one given to yui_shell_set_submenu() since.
+ *  The item `item_id` a menu of this shell declares, null when
+ *  none does: an item of a menu of app_config.json, of one of
+ *  their submenus, or one given to yui_shell_set_submenu() since
+ *  -- which comes first, because it replaced what the submenu
+ *  declared and is what the navs draw.
  ************************************************************/
-function nav_item_declared(gobj, item_id)
+function nav_item_of(gobj, item_id)
 {
     let priv = gobj.priv;
     let config = gobj_read_attr(gobj, "config") || {};
     let menus = is_object(config.menu) ? config.menu : {};
-    let holds = (items) => is_array(items) && items.some((it) => it && it.id === item_id);
+    let find = (items) => (is_array(items) &&
+        items.find((it) => it && it.id === item_id)) || null;
 
+    for(let parent_item_id in priv.dynamic_items) {
+        let it = find(priv.dynamic_items[parent_item_id]);
+        if(it) {
+            return it;
+        }
+    }
     for(let menu_id in menus) {
         let items = menus[menu_id] && menus[menu_id].items;
         if(!is_array(items)) {
             continue;
         }
-        if(holds(items)) {
-            return true;
+        let it = find(items);
+        if(it) {
+            return it;
         }
-        for(let it of items) {
-            if(it && it.submenu && holds(it.submenu.items)) {
-                return true;
+        for(let parent of items) {
+            let sub = parent && parent.submenu && find(parent.submenu.items);
+            if(sub) {
+                return sub;
             }
         }
     }
-    for(let parent_item_id in priv.dynamic_items) {
-        if(holds(priv.dynamic_items[parent_item_id])) {
-            return true;
-        }
-    }
-    return false;
+    return null;
 }
 
 /************************************************************
@@ -3246,6 +3322,71 @@ function shell_navs(gobj)
         }
     }
     return navs;
+}
+
+/************************************************************
+ *  Say a badge that changed, with the name of what it counts:
+ *  "Alarms, 3", in the shell's live region (build_ui()).
+ *
+ *  The badge itself is no live region (yui_badge.js): its number
+ *  alone said nothing, hidden while empty it missed the first
+ *  count, and inside a <button> it was not there at all. The
+ *  setters call this only when the text a reader would see
+ *  changes and is not empty: a count going away is not news, and
+ *  the same count again is not either.
+ *
+ *  `name_key` is the key of the control's name; the phrase is a
+ *  key of its own, so a language orders and punctuates it its
+ *  way. Said once: a live region needs no re-translation.
+ ************************************************************/
+function announce_badge(gobj, name_key, text)
+{
+    let priv = gobj.priv;
+    let $status = priv.badge_status;
+    if(!$status) {
+        log_error(`C_YUI_SHELL: no live region to say badge '${name_key}': ${text}`);
+        return;
+    }
+    let message;
+    if(typeof priv.translator === "function") {
+        const tr = priv.translator;
+        message = tr("{{name}}, {{n}}", {name: tr(name_key), n: text});
+    } else {
+        message = `${name_key}, ${text}`;
+    }
+    /*  Written even when it reads the same: the callers filter what is
+     *  no news, and a count that went away and came back IS news -- a
+     *  new text node is a change a reader announces.  */
+    $status.textContent = message;
+}
+
+/************************************************************
+ *  A shell was built (mt_create) or is being destroyed
+ *  (mt_destroy): tell every gobj that keeps DOM in a shell's
+ *  layers without being its child (yui_shell_watch_changes()).
+ *  Each one decides in its own action what it means for it --
+ *  the trace shows EV_SHELL_CHANGED arriving, from a `!!` shell
+ *  when it is the one going.
+ *
+ *  An event, not a call into the window's module: the shell does
+ *  not import its watchers, and the move is work, so it crosses
+ *  their FSM.  A watcher that is being destroyed is one whose
+ *  mt_destroy did not unwatch: it is dropped, and said.
+ ************************************************************/
+function tell_shell_watchers(gobj)
+{
+    for(let watcher of __shell_watchers__.slice()) {
+        if(gobj_is_destroying(watcher)) {
+            log_error(
+                `C_YUI_SHELL: a destroyed gobj still watches the shell ` +
+                `(${gobj_short_name(watcher)}): it must call ` +
+                `yui_shell_unwatch_changes() in its mt_destroy`
+            );
+            yui_shell_unwatch_changes(watcher);
+            continue;
+        }
+        gobj_send_event(watcher, "EV_SHELL_CHANGED", {}, gobj);
+    }
 }
 
 
@@ -3904,6 +4045,95 @@ function yui_shell_zone(shell_gobj, zone_id)
 }
 
 /************************************************************
+ *  The DOM where a C_YUI_WINDOW lives when its host names no
+ *  `$parent`: the WINDOW layer, a stacking context of its own
+ *  inside the overlay layer -- above the content, below the
+ *  drawer, the toolbar's dropdowns, the dialogs and the toasts,
+ *  whatever z-index a window takes there. Null with no shell (the
+ *  window then lives in document.body).
+ ************************************************************/
+function yui_shell_window_layer(shell_gobj)
+{
+    if(!shell_gobj || !shell_gobj.priv) {
+        return null;
+    }
+    let priv = shell_gobj.priv;
+    return priv.window_layer || (priv.layers && priv.layers.overlay) || null;
+}
+
+/************************************************************
+ *  Put a window on top of the others: the next number of ONE
+ *  counter, the same for a window of the dock and for a floating
+ *  one.
+ *
+ *  Up to 7.26.34 there were two orders: the dock raised its windows
+ *  to a counter of its own (11, 12, ...), and a window without a
+ *  dock sat at 3 and was raised by being moved to the end of its
+ *  parent -- so a window opened LATER without a dock (a treedb's
+ *  raw json) opened UNDER any docked one, and no click could bring
+ *  it up. They share the window layer, and this one number orders
+ *  them all. It grows for ever, and it can: nothing else lives in
+ *  the window layer's stacking context.
+ *
+ *  A number, not a move in the DOM: moving an element takes its
+ *  focus, its scroll positions and the pointer press that started
+ *  on it.
+ ************************************************************/
+function yui_shell_raise_window($el)
+{
+    if(!$el || !$el.style) {
+        log_error("C_YUI_SHELL: yui_shell_raise_window() needs an element");
+        return;
+    }
+    __window_z__ += 1;
+    $el.style.zIndex = String(__window_z__);
+}
+
+/************************************************************
+ *  Ask to be told (EV_SHELL_CHANGED, an INPUT event the gclass of
+ *  `gobj` must take in its FSM) when a shell is built or
+ *  destroyed.
+ *
+ *  For a gobj that keeps DOM in a shell's layers without being
+ *  its child -- a window parented to the app, the dock. A shell's
+ *  children are destroyed with it; such a gobj is not, and its
+ *  place goes with the shell: a logout destroys the shell, the
+ *  login builds another. Told, it takes its place again in the
+ *  action.
+ *
+ *  Idempotent. Pair it with yui_shell_unwatch_changes() in
+ *  mt_destroy, or the next shell sends the event to a destroyed
+ *  gobj.
+ *
+ *      function mt_create(gobj) {
+ *          ...
+ *          yui_shell_watch_changes(gobj);
+ *      }
+ *      function mt_destroy(gobj) {
+ *          yui_shell_unwatch_changes(gobj);
+ *          ...
+ *      }
+ ************************************************************/
+function yui_shell_watch_changes(gobj)
+{
+    if(!is_gobj(gobj)) {
+        log_error("C_YUI_SHELL: yui_shell_watch_changes() needs a gobj");
+        return;
+    }
+    if(__shell_watchers__.indexOf(gobj) < 0) {
+        __shell_watchers__.push(gobj);
+    }
+}
+
+function yui_shell_unwatch_changes(gobj)
+{
+    let idx = __shell_watchers__.indexOf(gobj);
+    if(idx >= 0) {
+        __shell_watchers__.splice(idx, 1);
+    }
+}
+
+/************************************************************
  *  Programmatic navigation.
  *
  *  Default — PUSH: the user MOVED somewhere new, so change the URL via
@@ -4303,7 +4533,17 @@ function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value, tone)
     if(!$badge) {
         return;
     }
+    let before = $badge.hasAttribute("hidden") ? "" : $badge.textContent;
     paint_badge($badge, value, tone);
+
+    /*  Said with the item's name when what a reader sees changed: the
+     *  badge is in the button's name, but nobody is told it moved.  */
+    let now = badge_text(value);
+    if(now && now !== before) {
+        let $item = $badge.closest("[data-toolbar-item-id]");
+        const name_key = ($item && $item.getAttribute("data-i18n-aria-label")) || item_id;
+        announce_badge(shell_gobj, /* i18n: data */ name_key, now);
+    }
 }
 
 /************************************************************
@@ -4346,15 +4586,27 @@ function yui_shell_set_nav_item_badge(shell_gobj, item_id, value, tone)
         return;
     }
     let priv = shell_gobj.priv;
-    if(!priv || !nav_item_declared(shell_gobj, item_id)) {
+    let item = priv ? nav_item_of(shell_gobj, item_id) : null;
+    if(!item) {
         return;
     }
     let badge = (value === undefined) ? null : value;
+    /*  What a reader saw before: the last value set for the id, or the
+     *  badge its declaration seeds.  */
+    let was = priv.nav_badges[item_id];
+    let before = badge_text(was ? was.badge : item.badge);
     priv.nav_badges[item_id] = {badge: badge, badge_tone: tone};
 
     for(let nav of shell_navs(shell_gobj)) {
         gobj_send_event(nav, "EV_SET_ITEM_BADGE",
             {item_id: item_id, badge: badge, badge_tone: tone}, shell_gobj);
+    }
+
+    /*  Said ONCE, here, with the item's name -- not by each nav that
+     *  draws the item (a rail, an icon bar, a drawer).  */
+    let now = badge_text(badge);
+    if(now && now !== before) {
+        announce_badge(shell_gobj, /* i18n: data */ item.name || item_id, now);
     }
 }
 
@@ -4385,6 +4637,10 @@ export {
     register_c_yui_shell,
     yui_shell_of,
     yui_shell_zone,
+    yui_shell_window_layer,
+    yui_shell_raise_window,
+    yui_shell_watch_changes,
+    yui_shell_unwatch_changes,
     yui_shell_navigate,
     yui_shell_last_route_under,
     yui_shell_last_route_outside,

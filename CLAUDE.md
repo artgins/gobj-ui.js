@@ -16,7 +16,7 @@ gobj-ui-specific layer on top.
 
 ## A control without a name is a bug: `title` + `aria-label`, always
 
-This library draws controls for six apps, so a control it leaves unnamed is
+This library draws controls for seven apps, so a control it leaves unnamed is
 unnamed in all of them. Every `input`, `select`, `textarea`, `button` — or
 anything that behaves as one — carries BOTH attributes, each through `t()` and
 each with its key (`data-i18n-title`, `data-i18n-aria-label`), written where
@@ -33,13 +33,22 @@ Two cases the rule reaches that no attribute can:
   explicit.
 
 ⚠️ **A key that arrives as a VARIABLE is invisible to a scan of the source**
--- an unmarked `let`, a parameter, a computed string, a translator under a
-name the reader does not know. A `const` is followed (and a destructuring of
-one, and an import of one from a file the validator reads), and so is a const
-table: `t(LABELS[x])` asks the locales for every value of `LABELS`. A
+-- an unmarked `let` given anything but literals, a parameter, a computed
+string, a translator under a name the reader does not know. A `const` is
+followed (and a destructuring of one, and an import of one from a file the
+validator reads), and so is a const table: `t(LABELS[x])` asks the locales for
+every value of `LABELS`; and so is (since `7.26.35`) an unmarked plain `let`
+whose every value is written as a string literal, a const bound to one, `null`
+or a branch of those, where `t()` / an `i18n` / a `data-i18n*` value reads it
+(it can only hold those literals; at a key position of a key function a `let`
+still fails the rule per call). A
 translator is t / tr by name, `.t`, i18next's `t` under any import name, or a
-const / `.bind()` alias of one, called also as `t?.()` or `t.call()`; an array
-handed to it is a list of keys. Every consumer's `validate-locales` reads the
+const / `.bind()` / destructuring (`const {t: tt} = i18next`) alias of one,
+called also as `t?.()` or `t.call()`; an array handed to it is a list of keys,
+and so is every element one handed as a CALLBACK walks (`keys.map(t)`,
+`.forEach(t)`, `Array.from(keys, t)`: an array the reader cannot follow fails
+unless the call is marked), while what `.then(t)` settles with is a key no
+source writes (marked, or it fails). Every consumer's `validate-locales` reads the
 modules the app mounts, so two things keep the keys of this library visible to
 it (since `7.26.28`):
 
@@ -68,10 +77,12 @@ it (since `7.26.28`):
   parameter `gobj`, is its own state and no position. What the search does
   NOT see: a key stored in a heap object or a DOM node and read back elsewhere
   (`yui_selection_bar` had one: the label went through `$b._yui_label`), a
-  translator or a key function reached through a parameter or a `let`.
+  translator or a key function reached through a parameter or a `let`, a
+  parameter a closure returns (`const inner = () => key; t(inner())`).
 - **A key handed by table or variable is PUBLISHED by its module**, in an
   exported `<NAME>_I18N_KEYS` array of literals -- an `export const`, never a
-  `let`, never mutated (`.push()` and the like fail, since `7.26.32`) -- that
+  `let`, never mutated (`.push()` and the like fail, since `7.26.32`; through
+  a const alias or a namespace member too, since `7.26.35`) -- that
   the validator reads and asks the locales for (only 17 of the 97 modules of
   `src/` publish one today: `grep -n '^export const [A-Z0-9_]*_I18N_KEYS'
   src/*.js`), and the call that hands it is MARKED `/* i18n: <NAME>_I18N_KEYS
@@ -89,8 +100,11 @@ it (since `7.26.28`):
 `src/i18n_key_functions.test.js` fails on an unmarked call that gives a key
 position anything but a literal (or DOM), a `const` bound to one, or a key
 position of the enclosing function handed on; on a translated text there --
-the value of any translator: `t("k")`, `tr()`, an alias -- even marked (it is
-translated again and never changes language: hand the key, not t(key)); and
+the value of any translator: `t("k")`, `tr()`, an alias, or a string built
+from one, `t("k") + ":"`, `t("k").toUpperCase()` -- even marked (it is
+translated again and never changes language: hand the key, not t(key);
+`validate-locales` fails a marker over one anywhere a key is read, since
+`7.26.35`); and
 on a `data` marker over what the reader follows to keys (a literal, a const or
 branch that is one, a call -- of the module or imported -- that returns
 literals) or over what it would hide (a call whose returns mix keys and data:
@@ -135,9 +149,13 @@ DEPLOYED DOM and switch language.**
   round is a command**: `npm run deploy-round`. It waits for the registry to
   SERVE the version (a publish returning is not that — a consumer installed in
   that window silently keeps the version before), then per app raises the
-  range, installs, builds, deploys, and READS BACK the entry bundle each host
-  serves. `--check` only reads back; `--only <name>` does one; `--no-wait`
-  skips the registry.
+  range -- and the app's own version, its third number, in the same edit (a
+  new range is a new bundle, and an "About" that shows one number for five
+  bundles names none of them) --, installs, builds, deploys, and READS BACK
+  the entry bundle each host serves. `--check` only reads back; `--only
+  <name>` does one; `--no-wait` skips the registry. The round commits nothing:
+  each consumer's commit (and its CHANGELOG line, and a tag where the repo
+  tags its versions) is made after it.
   **The demo is built into the runner, not a line of its manifest**, and that
   is deliberate: it is the one surface that needs no registry (it consumes the
   working tree), so it falls outside the rhythm of the others and was skipped

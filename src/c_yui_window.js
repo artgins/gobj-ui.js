@@ -53,6 +53,10 @@ import {
     yui_shell_of,
     yui_shell_register_overlay,
     yui_shell_overlay_dismissed,
+    yui_shell_window_layer,
+    yui_shell_raise_window,
+    yui_shell_watch_changes,
+    yui_shell_unwatch_changes,
 } from "./c_yui_shell.js";
 
 import "./c_yui_window.css";
@@ -81,7 +85,7 @@ const MOBILE_MAX = 768;
  ***************************************************************/
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
-SDATA(data_type_t.DTP_POINTER,  "$parent",      0,  null,   "$container will be appended to $parent if not null, else to the overlay layer of the shell (document.body when there is none)"),
+SDATA(data_type_t.DTP_POINTER,  "$parent",      0,  null,   "$container will be appended to $parent if not null, else to the window layer of the shell (document.body while there is none), following the shell when it is destroyed or another is built"),
 SDATA(data_type_t.DTP_INTEGER,  "x",            0,  "300",  "X position"),
 SDATA(data_type_t.DTP_INTEGER,  "y",            0,  "100",  "Y position"),
 SDATA(data_type_t.DTP_INTEGER,  "width",        0,  "700",  "Width of the window"),
@@ -121,6 +125,12 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     prevSize: 0,
+    /*  The window lives in the place the shell gives it (its host
+     *  named no `$parent`, or the one it named went with a shell):
+     *  it follows the shell, see ac_shell_changed().  */
+    placed_by_shell: false,
+    /*  The shell that holds this window's Back entry (`back_overlay`).  */
+    back_shell: null,
 };
 
 let __gclass__ = null;
@@ -159,6 +169,12 @@ function mt_create(gobj)
 
     build_ui(gobj);
 
+    /*  Its place belongs to a shell, and the window may outlive it (a
+     *  window parented to the app, across a logout): told when a shell
+     *  is built or destroyed, it takes its place again
+     *  (ac_shell_changed). Unwatched in mt_destroy.  */
+    yui_shell_watch_changes(gobj);
+
     if(manager) {
         let $c = gobj_read_attr(gobj, "$container");
         if($c) {
@@ -185,14 +201,31 @@ function mt_create(gobj)
             title_prefix: gobj_read_str_attr(gobj, "title_prefix") || "",
             icon: gobj_read_attr(gobj, "icon") || "",
         }, gobj);
-    } else if(gobj_read_bool_attr(gobj, "back_dismissable")) {
-        /*  Floating overlay window (no dock manager): the browser Back
-         *  button closes it, like a modal/popup.  Dock-managed windows
-         *  are persistent workspace surfaces and are left out — which
-         *  is also why a navigation panel prefers a manager, and falls
-         *  back to `keep_on_navigate` when the app has no dock.
-         *  Retired in mt_destroy (covers every teardown path). */
-        register_back_overlay(gobj);
+    } else {
+        /*  No dock: the window orders itself, on the SAME counter the
+         *  dock raises its windows to (yui_shell_raise_window). Opened on
+         *  top of every window, docked or not -- it opened under any
+         *  docked one -- and brought up again by any press on it, which
+         *  crosses the FSM as EV_SHOW, as a docked window's crosses it as
+         *  the dock's EV_FOCUS_WINDOW.  */
+        let $c = gobj_read_attr(gobj, "$container");
+        if($c) {
+            yui_shell_raise_window($c);
+            $c.addEventListener("pointerdown", function() {
+                if(!gobj_is_destroying(gobj)) {
+                    gobj_send_event(gobj, "EV_SHOW", {}, gobj);
+                }
+            }, true);
+        }
+        if(gobj_read_bool_attr(gobj, "back_dismissable")) {
+            /*  Floating overlay window (no dock manager): the browser Back
+             *  button closes it, like a modal/popup.  Dock-managed windows
+             *  are persistent workspace surfaces and are left out — which
+             *  is also why a navigation panel prefers a manager, and falls
+             *  back to `keep_on_navigate` when the app has no dock.
+             *  Retired in mt_destroy (covers every teardown path). */
+            register_back_overlay(gobj);
+        }
     }
 
     /*  Keep the window inside the viewport on a breakpoint change.
@@ -215,20 +248,26 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    let priv = gobj.priv;
+
+    yui_shell_unwatch_changes(gobj);
+
     let manager = gobj_read_pointer_attr(gobj, "manager");
     if(manager) {
         gobj_send_event(manager, "EV_UNREGISTER_WINDOW", {window: gobj_full_name(gobj)}, gobj);
     }
 
     /*  Retire the overlay-history entry, if this was a Back-dismissable
-     *  floating window (no-op when Back itself triggered the teardown). */
+     *  floating window (no-op when Back itself triggered the teardown),
+     *  in the shell that HOLDS it: the one this window governs now may
+     *  be another (ac_shell_changed).  */
     let back_overlay = gobj_read_attr(gobj, "back_overlay");
     if(back_overlay) {
-        let shell = yui_shell_of(gobj);
-        if(shell) {
-            yui_shell_overlay_dismissed(shell, back_overlay);
+        if(priv.back_shell) {
+            yui_shell_overlay_dismissed(priv.back_shell, back_overlay);
         }
         gobj_write_attr(gobj, "back_overlay", null);
+        priv.back_shell = null;
     }
 
     let on_win_resize = gobj_read_attr(gobj, "win_resize_handler");
@@ -724,8 +763,9 @@ function build_ui(gobj)
     refresh_language($container, t);
 
     let $parent = gobj_read_attr(gobj, "$parent");
+    gobj.priv.placed_by_shell = !$parent;
     if(!$parent) {
-        $parent = default_parent(gobj);
+        $parent = window_place(gobj);
     }
     $parent.appendChild($container);
 
@@ -789,6 +829,7 @@ function register_back_overlay(gobj)
         shell,
         function() {
             gobj_write_attr(gobj, "back_overlay", null);
+            gobj.priv.back_shell = null;
             const closing = close_window(gobj);
             if(closing.state === "vetoed") {
                 rearm();
@@ -799,6 +840,7 @@ function register_back_overlay(gobj)
         {keep_on_navigate: gobj_read_bool_attr(gobj, "keep_on_navigate")}
     );
     gobj_write_attr(gobj, "back_overlay", overlay);
+    gobj.priv.back_shell = overlay? shell : null;
 }
 
 /************************************************************
@@ -861,7 +903,8 @@ function close_window(gobj)
 
 /************************************************************
  *  Where a window lives when its host names no `$parent`: the
- *  OVERLAY layer of the shell -- above the content, below the
+ *  WINDOW layer of its shell (yui_shell_window_layer()), inside
+ *  the overlay layer -- above the content, below the drawer, the
  *  toolbar's dropdowns, the dialogs and the toasts.
  *
  *  It used to be document.body, and that put every window above
@@ -874,17 +917,18 @@ function close_window(gobj)
  *  toolbar, any dialog opened with a window on screen, the same.
  *
  *  Inside the layer the dock's z-index still orders the windows
- *  among themselves. No shell (a page with windows and no shell):
- *  the body, as before.
+ *  among themselves, and no number it gives them reaches the
+ *  drawer (7.26.31 put them in the overlay layer itself, beside
+ *  it). No shell (a page with windows and no shell, or the time
+ *  between a logout and the next login): the body.
+ *
+ *  The place is the shell's, and a window parented to the app
+ *  outlives it: ac_shell_changed() moves it when a shell goes or
+ *  comes.
  ************************************************************/
-function default_parent(gobj)
+function window_place(gobj)
 {
-    let shell = yui_shell_of(gobj);
-    let layers = shell && shell.priv && shell.priv.layers;
-    if(layers && layers.overlay) {
-        return layers.overlay;
-    }
-    return document.body;
+    return yui_shell_window_layer(yui_shell_of(gobj)) || document.body;
 }
 
 /************************************************************
@@ -1266,8 +1310,12 @@ function ac_show(gobj, event, kw, src)
 {
     /*  Bring the window back in front of the reader: out of the dock if
      *  it was minimized, above the others. The manager owns both when
-     *  there is one; without one the window is just made visible and
-     *  moved to the top of its layer.  */
+     *  there is one; without one the window is made visible and given
+     *  the next number of the windows' one z-order -- the same counter
+     *  the dock raises its windows to. It used to be MOVED to the end of
+     *  its parent, an order the dock's numbers always beat; and a move
+     *  takes the focus, the scroll positions and the press that started
+     *  on the window.  */
     let manager = gobj_read_pointer_attr(gobj, "manager");
     if(manager) {
         gobj_send_event(manager, "EV_FOCUS_WINDOW", {window: gobj_full_name(gobj)}, gobj);
@@ -1279,10 +1327,7 @@ function ac_show(gobj, event, kw, src)
         return -1;
     }
     $container.style.removeProperty('display');
-    let $parent = $container.parentNode;
-    if($parent && $parent.lastChild !== $container) {
-        $parent.appendChild($container);
-    }
+    yui_shell_raise_window($container);
     return 0;
 }
 
@@ -1301,6 +1346,59 @@ function ac_hide(gobj, event, kw, src)
 function ac_close(gobj, event, kw, src)
 {
     close_window(gobj);
+    return 0;
+}
+
+/************************************************************
+ *   EV_SHELL_CHANGED -- a shell was built, or is being destroyed
+ *   (`src`, then destroying): the place this window lives in may
+ *   have gone with it, or be in the new one
+ *   (yui_shell_watch_changes()).
+ *
+ *   - A window whose host named no `$parent` takes the window place
+ *     again: the window layer of the shell that governs it NOW,
+ *     document.body while there is none. So the developer window
+ *     outlives a logout in the body, and the login's shell takes it
+ *     in -- above its content, under its dialogs. From 7.26.31 to
+ *     7.26.34 it stayed in the destroyed shell's layer: alive,
+ *     detached, invisible.
+ *   - A window its host placed stays where it was put, unless that
+ *     element was inside the shell being destroyed: then no place
+ *     is left, and it takes the window place from now on.
+ *   - Its Back entry, when the shell being destroyed held it, went
+ *     with that shell's history and is forgotten. The next shell
+ *     does not get one: a history entry pushed while a shell is
+ *     still being built would sit under its first route. Back no
+ *     longer closes such a window; its ✕ does, as before 7.26.31.
+ ************************************************************/
+function ac_shell_changed(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let going = gobj_is_destroying(src);
+
+    if(going && priv.back_shell === src) {
+        gobj_write_attr(gobj, "back_overlay", null);
+        priv.back_shell = null;
+    }
+
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        log_error(`${gobj_short_name(gobj)}: EV_SHELL_CHANGED without a container`);
+        return -1;
+    }
+
+    if(!priv.placed_by_shell) {
+        let $shell = going? gobj_read_attr(src, "$container") : null;
+        if(!$shell || !$shell.contains($container)) {
+            return 0;   // the place its host chose is still there
+        }
+        priv.placed_by_shell = true;
+    }
+
+    let $place = window_place(gobj);
+    if($container.parentNode !== $place) {
+        $place.appendChild($container);
+    }
     return 0;
 }
 
@@ -1340,7 +1438,8 @@ function create_gclass(gclass_name)
             ["EV_REFRESH",      ac_refresh,     null],
             ["EV_SHOW",         ac_show,        null],
             ["EV_HIDE",         ac_hide,        null],
-            ["EV_CLOSE_WINDOW", ac_close,       null]
+            ["EV_CLOSE_WINDOW", ac_close,       null],
+            ["EV_SHELL_CHANGED",ac_shell_changed, null]
         ]]
     ];
 
@@ -1354,7 +1453,8 @@ function create_gclass(gclass_name)
         ["EV_REFRESH",          0],
         ["EV_SHOW",             0],
         ["EV_HIDE",             0],
-        ["EV_CLOSE_WINDOW",     0]
+        ["EV_CLOSE_WINDOW",     0],
+        ["EV_SHELL_CHANGED",    0]
     ];
 
     __gclass__ = gclass_create(

@@ -51,17 +51,21 @@ function errors()
 }
 
 describe("EV_SHOW", () => {
-    test("without a dock: a hidden window is shown, and goes on top of its layer", () => {
+    test("without a dock: a hidden window is shown, and goes on top of the others", () => {
         const a = gobj_create_service("show_a", "C_YUI_WINDOW", {header: "a", body: ["div", {}, "a"]}, yuno);
         gobj_start(a);
         const b = gobj_create_service("show_b", "C_YUI_WINDOW", {header: "b", body: ["div", {}, "b"]}, yuno);
         gobj_start(b);
         const $a = gobj_read_attr(a, "$container");
+        const $b = gobj_read_attr(b, "$container");
         $a.style.setProperty("display", "none", "important");
 
         gobj_send_event(a, "EV_SHOW", {}, yuno);
         expect($a.style.getPropertyValue("display")).toBe("");
-        expect($a.parentNode.lastChild).toBe($a);
+        /*  On top by the windows' one z-order (yui_shell_raise_window),
+         *  not by being moved in the DOM: a move takes its focus and the
+         *  press that started on it.  */
+        expect(Number($a.style.zIndex) > Number($b.style.zIndex)).toBe(true);
         expect(errors()).toEqual([]);
     });
 

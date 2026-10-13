@@ -32,7 +32,7 @@ import {
     log_error,
 } from "@yuneta/gobj-js";
 
-import {yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
+import {yui_shell_show_modal} from "./shell_modals.js";
 import {yui_shell_nav_map} from "./c_yui_shell.js";
 import {attach_clear} from "./yui_inputs.js";
 
@@ -86,7 +86,7 @@ function render_node(node)
     let row = [];
     if(node.icon && /^yi-[a-z0-9-]+$/.test(node.icon)) {
         row.push(["span", {class: "icon ROUTEMAP_ICON"},
-            [["i", {class: node.icon}]]]);
+            [["i", {class: node.icon, "aria-hidden": "true"}]]]);
     }
     row.push(["span", {class: "ROUTEMAP_NAME", i18n: node.label},
         text_node(node.label)]);
@@ -123,10 +123,22 @@ function render_node(node)
                     (node.ref ? " ROUTEMAP_IS_REF" : "");
     let $row;
     if(node.route) {
-        $row = createElement2(
-            ["a", {class: "ROUTEMAP_LINK ROUTEMAP_ROW" + row_class,
-                   href: "#" + node.route,
-                   title: node.route}, row]);
+        /*  Its NAME is the node's label, with its key (build_body()
+         *  translates it with the rest): taken from its content, a link
+         *  read the label, the route, the gclass, the event and "shown
+         *  above" as one name. The title stays the route, data shown
+         *  where the reader points; "you are here" is aria-current.  */
+        let a_attrs = {class: "ROUTEMAP_LINK ROUTEMAP_ROW" + row_class,
+                       href: "#" + node.route,
+                       title: node.route};
+        if(node.label) {
+            a_attrs["aria-label"] = node.label;
+            a_attrs["data-i18n-aria-label"] = node.label;
+        }
+        if(node.current) {
+            a_attrs["aria-current"] = "page";
+        }
+        $row = createElement2(["a", a_attrs, row]);
     } else {
         $row = createElement2(
             ["span", {class: "ROUTEMAP_ROW ROUTEMAP_STRUCT" + row_class}, row]);
@@ -497,8 +509,13 @@ export function yui_shell_show_route_map(shell, opts)
          *  `keep_on_navigate` gives it the same survives-navigation
          *  behaviour there. */
         let $body = build_body(shell, t);
-        let $parent = yui_shell_popup_layer(shell) ||
-            (typeof document !== "undefined" &&
+        /*  The WINDOW layer, where every window lives (the legacy
+         *  '#top-layer' when a page has one): no `$parent` takes it. It was
+         *  the popup layer, above the drawer and in the way of the
+         *  toolbar's dropdowns, which opened BEHIND the map where they
+         *  met it, and in an order of its own that no other window could
+         *  rise above.  */
+        let $parent = (typeof document !== "undefined" &&
                 document.getElementById("top-layer")) || null;
         let win = gobj_create_service(WIN_NAME, "C_YUI_WINDOW", {
             $parent:    $parent,

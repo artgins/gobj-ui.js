@@ -5,7 +5,15 @@
  *
  *          A published version reaches an app only through this loop:
  *          wait for the registry, raise the range, install, build,
- *          deploy, then read back what the host actually serves. Run by
+ *          deploy, then read back what the host actually serves.
+ *
+ *          RAISING THE RANGE RAISES THE APP'S VERSION too, its third
+ *          number, in the same edit of each package.json: a new range is
+ *          a new bundle, and an app whose "About" shows one number for
+ *          five different bundles cannot tell anybody which one is in
+ *          front of them (yunovatios stayed at one version through four
+ *          rounds). A package.json whose range was already raised is not
+ *          touched again, so running the round twice bumps once. Run by
  *          hand it has been skipped twice in the same place -- the DEMO,
  *          which is the only surface that does NOT wait for the registry
  *          (it consumes the working tree through `file:..`), so it falls
@@ -191,7 +199,8 @@ function wait_for_registry()
 }
 
 /************************************************************
- *  Raise the range and rewrite the package.json.
+ *  Raise the range and rewrite the package.json -- and with it
+ *  the version of the package, its third number (see the header).
  *
  *  `write_file` and not `run()`: that helper cannot write stdin,
  *  and this is the one place that needs it.
@@ -211,12 +220,36 @@ function raise_range(dir)
     /*  Every occurrence: gobj-ui declares the runtime TWICE, as a peer
      *  and as a devDependency, and a consumer may too.  */
     const re = new RegExp(`("${PKG_NAME.replace("/", "\\/")}":\\s*")\\^[0-9][^"]*(")`, "g");
-    const after = before.replace(re, `$1^${VERSION}$2`);
+    let after = before.replace(re, `$1^${VERSION}$2`);
     if(after === before) {
         return false;
     }
+    after = bump_patch_version(f, after);
     write_file(f, after);
     return true;
+}
+
+/************************************************************
+ *  The third number of the package's own version, up by one, in
+ *  the text of its package.json (its formatting kept). A version
+ *  that is not x.y.z is left as it is, and said.
+ ************************************************************/
+function bump_patch_version(f, text)
+{
+    const version = JSON.parse(text).version;
+    const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(version || "");
+    if(!m) {
+        console.log(`    version '${version}' of ${f} is not x.y.z -- not raised`);
+        return text;
+    }
+    const next = `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
+    const at = new RegExp(`("version":\\s*")${version.replace(/\./g, "\\.")}(")`);
+    if(!at.test(text)) {
+        console.log(`    no "version": "${version}" in the text of ${f} -- not raised`);
+        return text;
+    }
+    console.log(`    version ${version} -> ${next}  (${f})`);
+    return text.replace(at, `$1${next}$2`);
 }
 
 /*  One target's failure does not end the round: the other seven

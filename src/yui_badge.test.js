@@ -16,7 +16,7 @@ install_dom_double();
 
 const {createElement2, set_log_callback} = await import("@yuneta/gobj-js");
 const {
-    BADGE_TONES, badge_text, badge_tone, badge_node, paint_badge,
+    BADGE_TONES, badge_text, badge_tone, badge_node, paint_badge, name_control_with_badge,
 } = await import("./yui_badge.js");
 
 const logged = [];
@@ -83,10 +83,14 @@ describe("badge_tone", () => {
 });
 
 describe("badge_node", () => {
-    test("a live region with the host's classes, its tone and its text as text", () => {
+    test("the host's classes, its tone and its text as text; no live region of its own", () => {
+        /*  It said "3" with no context, missed the first count while
+         *  hidden, and was not in the tree inside a <button>: the shell
+         *  says the change now (REV-CLOUD V23.5.5).  */
         let $b = createElement2(badge_node(3, "warning", "X_BADGE yui-badge", "who"));
         expect($b.tagName).toBe("SPAN");
-        expect($b.getAttribute("role")).toBe("status");
+        expect($b.getAttribute("role")).toBe(null);
+        expect($b.getAttribute("aria-live")).toBe(null);
         expect($b.hasAttribute("hidden")).toBe(false);
         expect([...$b.classList]).toEqual(["X_BADGE", "yui-badge", "is-warning"]);
         expect($b.textContent).toBe("3");
@@ -144,5 +148,38 @@ describe("paint_badge", () => {
         paint_badge($b, 6, "warning");
         expect($b.firstChild).not.toBe(text);
         expect($b.textContent).toBe("6");
+    });
+});
+
+describe("name_control_with_badge", () => {
+    /*  The count is part of the control's NAME: it is labelled by itself
+     *  (its aria-label, re-translated by refresh_language) and by the
+     *  badge -- "alarms 3" -- with nothing composed in javascript.  */
+    test("the control is labelled by itself and by its badge", () => {
+        let attrs = {"aria-label": "alarms", "data-i18n-aria-label": "alarms"};
+        let badge = badge_node(3, "", "X_BADGE", "who");
+        name_control_with_badge(attrs, badge);
+        let $a = createElement2(["a", attrs, [badge]]);
+        let $b = $a.firstElementChild;
+
+        expect($a.id).toBeTruthy();
+        expect($b.id).toBeTruthy();
+        expect($a.getAttribute("aria-labelledby")).toBe(`${$a.id} ${$b.id}`);
+        /*  The aria-label stays, and with its key: the self-reference reads it  */
+        expect($a.getAttribute("aria-label")).toBe("alarms");
+        expect($a.getAttribute("data-i18n-aria-label")).toBe("alarms");
+    });
+
+    test("an id the control has is kept, and every pair is its own", () => {
+        let one = {id: "head-1", "aria-label": "a"};
+        let two = {"aria-label": "b"};
+        let b1 = badge_node(1, "", "X_BADGE", "who");
+        let b2 = badge_node(2, "", "X_BADGE", "who");
+        name_control_with_badge(one, b1);
+        name_control_with_badge(two, b2);
+        expect(one.id).toBe("head-1");
+        expect(one["aria-labelledby"]).toBe(`head-1 ${b1[1].id}`);
+        expect(two.id).not.toBe(one.id);
+        expect(b2[1].id).not.toBe(b1[1].id);
     });
 });

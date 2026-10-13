@@ -53,17 +53,22 @@ const {
 const logged = [];
 const commands = [];        /*  what the fake transport was asked  */
 let refuse_in_session = false;
+let refuse_silently = false;
 
 /*
  *  The transport. Out of session it refuses, as gui_agent's routing
  *  adapter (C_AGENT_TREEDB_LINK) does; in session it refuses only when
- *  the test says so (a transport that cannot route the command).
+ *  the test says so (a transport that cannot route the command) -- with
+ *  its words, or with a bare -1 that says nothing.
  */
 function remote_command_parser(gobj, command, kw, src)
 {
     commands.push({command, kw});
     if(gobj_current_state(gobj) !== "ST_SESSION") {
         return `cannot route '${command}' -- not in session`;
+    }
+    if(refuse_silently) {
+        return -1;
     }
     if(refuse_in_session) {
         return `cannot route '${command}'`;
@@ -148,6 +153,7 @@ beforeEach(() => {
     logged.length = 0;
     commands.length = 0;
     refuse_in_session = false;
+    refuse_silently = false;
 });
 
 /*
@@ -303,6 +309,40 @@ for(const gclass of ["C_YUI_TREEDB_TOPICS", "C_YUI_TREEDB_GRAPH"]) {
             gobj_send_event(host, "EV_TRANSPORT_STATE", {connected: false}, host);
             expect(viewer.priv.errors.has("topics")).toBe(false);
             expect(logged.filter((l) => l.level === "error")).toEqual([]);
+        });
+
+        test("a failure with no word from the backend draws the fallback KEY, translated", async () => {
+            /*  "print-tranger failed" travelled as `error`, which the
+             *  viewer draws as it came: the raw key, in English, in every
+             *  language (REV-CLOUD V23.5.4). As `i18n` it is drawn with
+             *  t() and carries data-i18n, so it changes language too.  */
+            const i18next = (await import("i18next")).default;
+            i18next.addResourceBundle("en", "translation",
+                {"print-tranger failed": "the tranger could not be read"}, true, true);
+            const {remote, host, viewer} = build(`${gclass}_i`, gclass);
+            click_stub(viewer);
+            const request = commands.find((c) => c.command === "print-tranger");
+            gobj_send_event(host, "EV_MT_COMMAND_ANSWER", {
+                result: -1, comment: "", data: null,
+                __md_iev__: {
+                    command_stack: [{command: "print-tranger", kw: request.kw.__md_command__}]
+                }
+            }, remote);
+            expect(viewer.priv.errors.get("topics")).toEqual(
+                {error: "print-tranger failed", is_key: true});
+            const $err = viewer.priv.$tree.querySelector(".JSON_STUB_ERR");
+            expect($err.getAttribute("data-i18n")).toBe("print-tranger failed");
+            expect($err.textContent).toBe("the tranger could not be read");
+        });
+
+        test("a refusal of the transport that says nothing draws the fallback KEY too", () => {
+            const {viewer} = build(`${gclass}_j`, gclass);
+            refuse_silently = true;
+            click_stub(viewer);
+            expect(drills()).toEqual(["topics"]);
+            expect(viewer.priv.pending.has("topics")).toBe(false);
+            expect(viewer.priv.errors.get("topics")).toEqual(
+                {error: "print-tranger failed", is_key: true});
         });
 
         test("a drill that failed is not answered again by a drop", () => {

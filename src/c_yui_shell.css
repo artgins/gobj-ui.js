@@ -61,6 +61,22 @@
 .yui-layer-loading.is-active,
 .yui-layer-modal.is-active { pointer-events: auto; }
 
+/*  The WINDOW layer, inside the overlay layer: the windows' own
+ *  stacking context. A window takes its z-index from the dock (a
+ *  counter that grows on every focus) or 3, and here no such number
+ *  can reach the drawer (z-index 18, a sibling of this layer in the
+ *  overlay) nor the layers above. It covers the screen like a layer,
+ *  so it lets the pointer through and its windows take it.  */
+.yui-layer > .yui-window-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+.yui-window-layer > * {
+    pointer-events: auto;
+}
+
 /*============================================================
  *      Base grid (zones)
  *

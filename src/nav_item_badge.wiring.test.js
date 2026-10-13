@@ -209,6 +209,38 @@ function errors()
     return logged.filter((l) => l.level === "error" || l.level === "warning").map((l) => l.msg);
 }
 
+/*  The NAME a reader computes for a control from its aria-labelledby,
+ *  as the accessible-name algorithm does: a reference to the control
+ *  itself reads its aria-label, any other the text of the element it
+ *  points at (a hidden one too, it is referenced directly), joined by
+ *  spaces. Without one, its aria-label.  */
+function name_of($control)
+{
+    const ids = ($control.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean);
+    if(ids.length === 0) {
+        return $control.getAttribute("aria-label");
+    }
+    /*  An id is looked up in the control's own tree: a nav made on its
+     *  own in a test is not on the page.  */
+    let $top = $control;
+    while($top.parentNode) {
+        $top = $top.parentNode;
+    }
+    return ids.map((id) => {
+        if(id === $control.id) {
+            return $control.getAttribute("aria-label") || "";
+        }
+        const $el = $top.querySelector(`#${id}`);
+        expect(!!$el, `aria-labelledby points at '${id}', which is not in its tree`).toBe(true);
+        return $el.textContent;
+    }).join(" ").trim();
+}
+
+function said(shell)
+{
+    return root(shell).querySelector(".SHELL_BADGE_STATUS").textContent;
+}
+
 
 describe("a badge declared in app_config.json", () => {
     test("renders: after the label in the rail, on the icon in the icon bar", () => {
@@ -216,7 +248,7 @@ describe("a badge declared in app_config.json", () => {
 
         const $rail = badge_in(zone(shell, "left"), "alarms");
         expect(shows($rail)).toEqual({text: "2", tones: ["warning"]});
-        expect($rail.getAttribute("role")).toBe("status");
+        expect($rail.getAttribute("role")).toBe(null);      // the shell says it now
         expect($rail.classList.contains("yui-badge")).toBe(true);
         expect($rail.classList.contains("yui-nav-badge-pinned")).toBe(false);
         expect($rail.parentNode.tagName).toBe("A");
@@ -560,5 +592,154 @@ describe("the toolbar badge takes a tone too", () => {
         const e = errors();
         expect(e.length).toBe(1);
         expect(e[0]).toContain("yui_shell_set_toolbar_item_badge('bell')");
+    });
+});
+
+/*
+ *  REV-CLOUD V23.5.5: what a READER gets. Up to 7.26.34 the badge was its
+ *  own live region: the count was never part of the item's name, the
+ *  region said a bare number, it was hidden while empty (so 0 -> 1 was
+ *  most likely never said), and inside a <button> (the toolbar, an
+ *  accordion head) it was not in the tree at all.
+ */
+describe("a reader gets the count with the name of what it counts", () => {
+    function control_of($badge)
+    {
+        return $badge.closest("a, button");
+    }
+
+    test("the count is part of the item's name, in every layout that draws one", () => {
+        const shell = new_shell();
+        for(const $b of badges_in(root(shell), "alarms")) {
+            const $a = control_of($b);
+            /*  rail and icon bar seed 2; the drawer's entry declares none  */
+            const expected = shows($b).text ? `alarms ${shows($b).text}` : "alarms";
+            expect(name_of($a)).toBe(expected);
+        }
+        yui_shell_set_nav_item_badge(shell, "alarms", 7);
+        for(const $b of badges_in(root(shell), "alarms")) {
+            expect(name_of(control_of($b))).toBe("alarms 7");
+        }
+        yui_shell_set_nav_item_badge(shell, "alarms", 0);
+        for(const $b of badges_in(root(shell), "alarms")) {
+            expect(name_of(control_of($b))).toBe("alarms");
+        }
+    });
+
+    test("tabs, cards and an accordion head -- a <button> -- too", () => {
+        let $c = root(new_nav({layout: "tabs", menu_id: "lab",
+            menu_items: [{id: "t", name: "t", icon: "yi-eye", route: "/t", badge: 2}]}));
+        expect(name_of(control_of(badge_in($c, "t")))).toBe("t 2");
+
+        $c = root(new_nav({layout: "cards", menu_id: "lab",
+            menu_items: [{id: "c", name: "c", icon: "yi-eye", route: "/c", badge: 3}]}));
+        expect(name_of(control_of(badge_in($c, "c")))).toBe("c 3");
+
+        $c = root(new_nav({layout: "accordion", menu_id: "lab",
+            menu_items: [{id: "s", name: "section", route: "/s", badge: 4, submenu: {items: []}}]}));
+        const $head = $c.querySelector(".yui-accordion-head");
+        expect($head.tagName).toBe("BUTTON");
+        expect(name_of($head)).toBe("section 4");
+    });
+
+    test("the toolbar's button too", () => {
+        const shell = new_shell();
+        const $btn = root(shell).querySelector('[data-toolbar-item-id="bell"]');
+        expect($btn.tagName).toBe("BUTTON");
+        expect(name_of($btn)).toBe("alarms 4");
+        yui_shell_set_toolbar_item_badge(shell, "bell", 9);
+        expect(name_of($btn)).toBe("alarms 9");
+    });
+
+    test("the name changes language with the app, the count stays", async () => {
+        const i18next = (await import("i18next")).default;
+        i18next.addResourceBundle("es", "translation", {"alarms": "alarmas"}, true, true);
+        const shell = new_shell();
+        yui_shell_set_nav_item_badge(shell, "alarms", 5);
+        yui_shell_set_translator(shell, i18next.getFixedT("es"));
+        yui_shell_language_changed(shell);
+        const $a = zone(shell, "left").querySelector('a[data-item-id="alarms"]');
+        expect(name_of($a)).toBe("alarmas 5");
+    });
+
+    test("one live region, always in the tree: not hidden, inside no control", () => {
+        const shell = new_shell();
+        const $status = root(shell).querySelector(".SHELL_BADGE_STATUS");
+        expect($status.getAttribute("role")).toBe("status");
+        expect($status.getAttribute("aria-live")).toBe("polite");
+        expect($status.getAttribute("aria-atomic")).toBe("true");
+        expect($status.hasAttribute("hidden")).toBe(false);
+        expect($status.classList.contains("is-sr-only")).toBe(true);
+        expect($status.closest("a, button")).toBe(null);
+        expect(said(shell)).toBe("");
+    });
+
+    test("the first count is said, with the item's name -- once, though three navs draw it", async () => {
+        const i18next = (await import("i18next")).default;
+        i18next.addResourceBundle("en", "translation",
+            {"{{name}}, {{n}}": "{{name}}, {{n}}", "alarms": "Alarms", "home": "Home"}, true, true);
+        const shell = new_shell();
+        yui_shell_set_translator(shell, i18next.getFixedT("en"));
+
+        /*  "home" has no badge: its first count is a change from nothing  */
+        yui_shell_set_nav_item_badge(shell, "home", 1);
+        expect(said(shell)).toBe("Home, 1");
+
+        const writes = [];
+        const $status = root(shell).querySelector(".SHELL_BADGE_STATUS");
+        const real = Object.getOwnPropertyDescriptor(Object.getPrototypeOf($status), "textContent");
+        Object.defineProperty($status, "textContent", {
+            get() {
+                return real.get.call(this);
+            },
+            set(v) {
+                writes.push(v);
+                real.set.call(this, v);
+            },
+            configurable: true
+        });
+        yui_shell_set_nav_item_badge(shell, "alarms", 3);
+        expect(writes).toEqual(["Alarms, 3"]);
+    });
+
+    test("the same count is no news, a count going away is not either, one coming back is", async () => {
+        const i18next = (await import("i18next")).default;
+        i18next.addResourceBundle("en", "translation",
+            {"{{name}}, {{n}}": "{{name}}, {{n}}", "alarms": "Alarms"}, true, true);
+        const shell = new_shell();
+        yui_shell_set_translator(shell, i18next.getFixedT("en"));
+        const $status = root(shell).querySelector(".SHELL_BADGE_STATUS");
+
+        /*  The seed is 2: setting 2 changes nothing a reader sees  */
+        yui_shell_set_nav_item_badge(shell, "alarms", 2);
+        expect(said(shell)).toBe("");
+
+        yui_shell_set_nav_item_badge(shell, "alarms", 3);
+        expect(said(shell)).toBe("Alarms, 3");
+        const node = $status.firstChild;
+
+        yui_shell_set_nav_item_badge(shell, "alarms", 3, "danger");     // only the tone
+        expect($status.firstChild).toBe(node);
+
+        yui_shell_set_nav_item_badge(shell, "alarms", 0);
+        expect($status.firstChild).toBe(node);                          // not said
+
+        yui_shell_set_nav_item_badge(shell, "alarms", 3);
+        expect(said(shell)).toBe("Alarms, 3");
+        expect($status.firstChild).not.toBe(node);                      // said again
+    });
+
+    test("the toolbar's count is said with the button's name", async () => {
+        const i18next = (await import("i18next")).default;
+        i18next.addResourceBundle("en", "translation",
+            {"{{name}}, {{n}}": "{{name}}, {{n}}", "alarms": "Alarms"}, true, true);
+        const shell = new_shell();
+        yui_shell_set_translator(shell, i18next.getFixedT("en"));
+
+        yui_shell_set_toolbar_item_badge(shell, "bell", 4);     // the seed: no news
+        expect(said(shell)).toBe("");
+        yui_shell_set_toolbar_item_badge(shell, "bell", 120);
+        expect(said(shell)).toBe("Alarms, 99+");
+        expect(errors()).toEqual([]);
     });
 });

@@ -42,7 +42,7 @@ import {
 
 import {describe_local_gclass} from "./gclass_describe.js";
 import {register_c_yui_gclass} from "./c_yui_gclass.js";
-import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
+import {yui_shell_show_error, yui_shell_show_modal} from "./shell_modals.js";
 import {yui_shell_of} from "./c_yui_shell.js";
 
 import {t} from "i18next";
@@ -205,7 +205,7 @@ function open_gclass_view(host, gclass_name, opts)
         return handle;
     }
 
-    let $win_parent = window_layer_of(host, shell);
+    let $win_parent = window_layer_of(host);
 
     handle.win = gobj_create_service(
         `gclass-win-${clean_name(gobj_name(host))}`,
@@ -307,8 +307,13 @@ function close_gclass_view(handle)
  *  window on `body` and mounted in the shell's popup layer
  *  lands BEHIND its opener whatever number it is given, and
  *  the button reads as one that did nothing.
+ *
+ *  Opened from no window: null -- the window layer of the
+ *  shell, where every window lives (the legacy '#top-layer'
+ *  when a page has one). It was the shell's popup layer: above
+ *  the drawer, in the way of the toolbar's dropdowns.
  ************************************************************/
-function window_layer_of(host, shell)
+function window_layer_of(host)
 {
     let $c = gobj_read_pointer_attr(host, "$container");
     if($c && typeof $c.closest === "function") {
@@ -319,9 +324,7 @@ function window_layer_of(host, shell)
     }
 
     return (typeof document !== "undefined" &&
-            document.getElementById("top-layer")) ||
-        (shell && yui_shell_popup_layer(shell)) ||
-        null;
+            document.getElementById("top-layer")) || null;
 }
 
 /************************************************************

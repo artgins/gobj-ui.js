@@ -71,11 +71,15 @@
  *          literal (or DOM, or nothing), a const the reader follows, a key
  *          position of the enclosing table function handed on, or a marked
  *          value fails, with the file and the line; a TRANSLATED text --
- *          t("..."), tr(), an alias of t, `t?.()`, `t.call()` -- fails even
- *          marked (it would be translated again, and never change
- *          language). A test (i18n_key_functions.test.js) holds the library
- *          to it, and validate-locales an app's own code. Publishing a list
- *          exempts no module.
+ *          t("..."), tr(), an alias of t, `t?.()`, `t.call()`, or a string
+ *          built from one, `t("k") + ":"` -- fails even marked (it would be
+ *          translated again, and never change language). A translator
+ *          handed as a callback is held the same way: each element
+ *          `keys.map(t)` walks is a key position, and what `.then(t)` is
+ *          handed is one no source writes. A test
+ *          (i18n_key_functions.test.js) holds the library to it, and
+ *          validate-locales an app's own code. Publishing a list exempts
+ *          no module.
  *
  *          The table is COMPLETE and CORRECT, and the same test proves both
  *          (REV-CLOUD V21.4.1, V22): it finds every function of the library
@@ -233,7 +237,8 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
         keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
     {module: "c_yui_nav.js", name: "render_drawer", exported: false,
         keys: ["1[].name", "1[].tooltip", "1[].aria_label"]},
-    {module: "c_yui_nav.js", name: "render_breadcrumb", exported: false, keys: ["1[].name", "1[].id"]},
+    {module: "c_yui_nav.js", name: "render_breadcrumb", exported: false,
+        keys: ["1[].name", "1[].id", "1[].tooltip", "1[].aria_label"]},
     {module: "c_yui_nav.js", name: "render_accordion", exported: false,
         keys: ["1[].name", "1[].submenu.items[].name", "1[].submenu.items[].tooltip",
                "1[].submenu.items[].aria_label"]},
@@ -253,6 +258,9 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "c_yui_shell.js", name: "toggle_toolbar_dropdown", exported: false, keys: ["1.name", "1.aria_label"]},
     {module: "c_yui_shell.js", name: "open_toolbar_dropdown", exported: false, keys: ["1.name", "1.aria_label"]},
     {module: "c_yui_shell.js", name: "build_dropdown_row", exported: false, keys: ["1.name", "1.aria_label"]},
+    /*  c_yui_shell.js -- the name of a badged item, said with its count:
+     *  the app's shell declaration  */
+    {module: "c_yui_shell.js", name: "announce_badge", exported: false, keys: ["1"]},
     /*  shell_route_map.js -- a node of the route map  */
     {module: "shell_route_map.js", name: "render_node", exported: false, keys: ["0.label"]},
 ]);

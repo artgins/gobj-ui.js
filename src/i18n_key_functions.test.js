@@ -36,8 +36,10 @@
  *          handed -- a comment `i18n: <NAME>_I18N_KEYS` (the module
  *          publishes those keys) or `i18n: data` (no key a list can hold).
  *          Anything else fails, naming the file and the line; so does a
- *          translated text -- t("..."), tr(), an alias of t -- marked or
- *          not;
+ *          translated text -- t("..."), tr(), an alias of t, a string built
+ *          from one (`t("k") + ":"`) -- marked or not. A translator handed
+ *          as a callback (V23.5: `keys.map(t)`, `promise.then(t)`) is held
+ *          the same way, each element it walks a key position;
  *        - every marker is one and stands where a key is read; the lists
  *          it names are published by its module or one it imports; the
  *          keys it marks that can be read are in them -- a marked `let`
@@ -1933,5 +1935,125 @@ describe("REV-CLOUD V22.3-4: the data marker hides no key; one notion of a trans
                                   "a published list is an `export const` array of literals"]);
         expect(list_mutations(parse_source(`export const B_I18N_KEYS = ["b"];\nB_I18N_KEYS.push("c");`),
                               [{name: "B_I18N_KEYS", keys: ["b"]}]).map((e) => e.line)).toEqual([2]);
+    });
+});
+
+describe("REV-CLOUD V23.5: a translator as a callback, by destructuring; setAttributeNS; t() compositions; aliases", () => {
+    let module = "x.js";
+    let head = [`import {yui_shell_show_info} from "./shell_modals.js";`,
+                `import i18next from "i18next";`];
+    let scan = (lines) => scan_ast(parse_as([...head, ...lines].join("\n"), module), {lib_module: module});
+    let rule = (lines) => rule_report(parse_as([...head, ...lines].join("\n"), module), module);
+    let found_in = (lines) => {
+        let ast = parse_as(lines.join("\n"), module);
+        return find_forwarders([module], () => ast, []);
+    };
+
+    test("each element a translator handed to .map() / .forEach() walks is a key; a promise's value is none", () => {
+        let r = scan([`const KINDS = ["kind a", "kind b"];`,
+                      `KINDS.map(t);`,
+                      `["literal a"].forEach(i18next.t);`,
+                      `Array.from(["from a"], t);`]);
+        expect(["kind a", "kind b", "literal a", "from a"].every((k) => r.keys.has(k))).toBe(true);
+        expect(rule([`const KINDS = ["kind a"];`, `KINDS.map(t);`])).toEqual([]);
+        expect(rule([`function f(kw) {`,
+                     `    let rows = kw.rows;`,
+                     `    rows.map(t);`,
+                     `    load().then(t);`,
+                     `    /* i18n: data */ rows.forEach(t);`,
+                     `    load().catch(/* i18n: data */ i18next.t);`,
+                     `    [t("a")].map(t);`,
+                     `}`])).toEqual([
+            `${module}:5 t() [map callback]: rows`,
+            `${module}:6 t() [then callback]: load().then(t)`,
+            `${module}:9 t() [map callback]: t("a") -- a TRANSLATED text where a key goes: hand the key`
+        ]);
+        /*  A translator handed to a FUNCTION is how gobj-ui takes one: no callback of these  */
+        expect(rule([`function f(shell) { yui_shell_show_info(shell, "k", {t: t}); build(rows, t); }`])).toEqual([]);
+    });
+
+    test("the search for forwarders sees them: an array walked by t(), setAttributeNS(), a destructured t", () => {
+        let found = found_in([
+            `const ATTR = "data-i18n-title";`,
+            `export function f_map(gobj, keys) { return keys.map(t); }`,
+            `export function f_ns(gobj, el, k) { el.setAttributeNS(null, ATTR, k); }`,
+            `export function f_destr(gobj, {t: translate}, k) { return translate(k); }`,
+            `export function f_const(gobj, k) { const {t: tt} = i18next; return tt(k); }`
+        ]);
+        expect(found.opaque).toEqual([]);
+        expect(Object.fromEntries(found.found.map((f) => [f.name, f.keys]))).toEqual({
+            f_map: ["1[]"], f_ns: ["2"], f_destr: ["2"], f_const: ["1"]
+        });
+    });
+
+    test("a destructured translator translates: its key is asked for, and its text is no key", () => {
+        let r = scan([`const {t: tt} = i18next;`, `tt("a destructured key");`]);
+        expect(r.keys.has("a destructured key")).toBe(true);
+        expect(rule([`const {t: tt} = i18next;`, `yui_shell_show_info(shell, /* i18n: data */ tt("k"));`]))
+            .toEqual([`${module}:4 yui_shell_show_info() [1]: tt("k") -- a TRANSLATED text where a key goes: hand the key`]);
+    });
+
+    test("a text BUILT from a translation is translated text: at a key position, and under a marker anywhere", () => {
+        expect(rule([`yui_shell_show_info(shell, /* i18n: data */ t("k") + ":");`,
+                     `yui_shell_show_info(shell, /* i18n: data */ t("k").toUpperCase());`,
+                     "yui_shell_show_info(shell, /* i18n: data */ `${t(\"k\")}: ${n}`);",
+                     `yui_shell_show_info(shell, /* i18n: data */ [t("a"), name].join(" "));`,
+                     `yui_shell_show_info(shell, /* i18n: data */ name + ":");`,
+                     `yui_shell_show_info(shell, /* i18n: data */ ["p", {}, t("k")]);`])
+            .map((l) => l.replace(/ -- .*/, ""))).toEqual([
+            `${module}:3 yui_shell_show_info() [1]: t("k") + ":"`,
+            `${module}:4 yui_shell_show_info() [1]: t("k").toUpperCase()`,
+            `${module}:5 yui_shell_show_info() [1]: \`\${t("k")}: \${n}\``,
+            `${module}:6 yui_shell_show_info() [1]: [t("a"), name].join(" ")`
+        ]);
+        let r = scan([`t(/* i18n: data */ t("k") + "!");`,
+                      `x.i18n = /* i18n: data */ t("k").trim();`,
+                      `t(/* i18n: data */ kw.comment + "!");`]);
+        expect(r.marker_errors.map((e) => e.line)).toEqual([3, 4]);
+        expect(r.marker_errors[0].why).toMatch(/^marked as data, but `t\("k"\) \+ "!"` is a TRANSLATED text: .*hand the key, not t\(key\)$/);
+    });
+
+    test("an UNMARKED let given nothing but literals is read where a key is read -- at a key position the rule still fails it", () => {
+        let r = scan([`function f(x, el) {`,
+                      `    let k = x? "a let key" : "another let key";`,
+                      `    let held = "a held key";`,
+                      `    held = k;`,                                          // a let given a literal-only let
+                      `    el.setAttribute("data-i18n", held);`,
+                      `    return t(k);`,
+                      `}`,
+                      `function g(kw) {`,
+                      `    let d = "a data let key";`,
+                      `    d = kw.comment;`,
+                      `    return t(d);`,
+                      `}`]);
+        expect(["a let key", "another let key", "a held key"].every((k) => r.keys.has(k))).toBe(true);
+        expect(r.keys.has("a data let key")).toBe(false);
+        expect(r.marker_errors).toEqual([]);
+        expect(rule([`function f(x) { let k = x? "a" : "b"; yui_shell_show_info(shell, k); }`]))
+            .toEqual([`${module}:3 yui_shell_show_info() [1]: k`]);
+    });
+
+    test("a published list mutated through a const or let alias, or a namespace member", () => {
+        let ast = parse_source([
+            `import * as M from "./m.js";`,
+            `import {Y_I18N_KEYS} from "./y.js";`,
+            `export const X_I18N_KEYS = ["x"];`,
+            `const a = X_I18N_KEYS;`,
+            `a.push("k");`,                                // 5
+            `let b = Y_I18N_KEYS;`,
+            `b[0] = "k";`,                                 // 7
+            `M.Z_I18N_KEYS.unshift("k");`,                 // 8
+            `const z = M.Z_I18N_KEYS;`,
+            `delete z[0];`,                                // 10
+            `let c = X_I18N_KEYS;`,
+            `c = c.concat(["k"]);`,
+            `c.push("a copy");`,
+            `M.helper.push("not a list");`,
+            `function f(a) { a.push("a parameter"); }`,
+            `let d = X_I18N_KEYS;`,
+            `d = X_I18N_KEYS;`,                            // the alias pointed again: no mutation
+            `X_I18N_KEYS = [];`                            // 18: the list itself given another value
+        ].join("\n"));
+        expect(list_mutations(ast, [{name: "X_I18N_KEYS", keys: ["x"]}]).map((e) => e.line)).toEqual([5, 7, 8, 10, 18]);
     });
 });

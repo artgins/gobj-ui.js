@@ -97,7 +97,7 @@ Modals chapter now demos the shell helpers only.
 
 **Done (1 as a whole, 2026-07-11):** `gobj-ui` `main` no longer
 ships the legacy stack and no consumer references it; the frozen v1
-npm line still serves estadodelaire/hidraulia.
+npm line still serves hidraulia (estadodelaire left it on 2026-10-13).
 
 ---
 

@@ -79,14 +79,50 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > the title bar in place) and its `is-shaded` CSS are **removed**; an app that
 > relied on shading needs to register a manager.
 >
-> **Where a window lives (7.26.31):** a `C_YUI_WINDOW` whose host names no
-> `$parent` mounts in the **overlay layer of the shell** -- above the content,
-> below the toolbar's dropdowns, the dialogs and the toasts -- and on
-> `document.body` only when there is no shell. It used to be the body always,
-> and since `.yui-shell` is `position: fixed` (a stacking context of its own)
-> a window at z-index 11 covered the WHOLE shell, modal layer included: the
-> confirmation of a window's own close opened under it, out of reach. A
-> `$parent` the host names still wins.
+> **Where a window lives (7.26.31, 7.26.35):** a `C_YUI_WINDOW` whose host
+> names no `$parent` mounts in the **window layer of the shell**
+> (`yui_shell_window_layer()`), a stacking context of its own inside the
+> overlay layer -- above the content, below the drawer, the toolbar's
+> dropdowns, the dialogs and the toasts -- and on `document.body` only while
+> there is no shell. It used to be the body always, and since `.yui-shell` is
+> `position: fixed` (a stacking context of its own) a window at z-index 11
+> covered the WHOLE shell, modal layer included: the confirmation of a
+> window's own close opened under it, out of reach. A `$parent` the host names
+> still wins.
+>
+> **Every window of the library lives there, in ONE z-order** (7.26.35). The
+> site map, the raw json of the treedb graph and topics, the gclass viewer and
+> the json of a treedb topic form used to name the shell's POPUP layer: above
+> the drawer, in the way of the toolbar's dropdowns (which opened behind them
+> where they met). And there were two orders: the dock raised its windows to a
+> counter of its own, a window without a dock sat at 3 -- so a window opened
+> later without a dock opened UNDER any docked one, and no click brought it up.
+> Now one number orders every window (`yui_shell_raise_window()`): a window
+> opens on top, a press brings it up (a docked one through the dock's
+> `EV_FOCUS_WINDOW`, one without a dock through its own `EV_SHOW`), and nothing
+> a window takes can reach the drawer or the layers above.
+>
+> **The place follows the shell.** A window parented to the app (the
+> developer window, a device window) outlives a logout that destroys the
+> shell: it goes to the body with it, and the next shell takes it in again.
+> Each shell built or destroyed sends `EV_SHELL_CHANGED` to every gobj that
+> asked with `yui_shell_watch_changes()` -- every `C_YUI_WINDOW` and the dock
+> do -- and each places itself again in its own action. A window its host
+> placed stays where it was put, unless that element was inside the shell
+> that went. From 7.26.31 to 7.26.34 such a window stayed in the destroyed
+> shell's layer: alive, detached, invisible, and the first click on its menu
+> entry closed the invisible one. Its Back entry goes with the shell that held
+> it: after a re-login Back no longer closes it, its ✕ does.
+>
+> **The dock** (`C_YUI_WINDOW_MANAGER`, floating) lives in the shell's popup
+> layer, at the top of it: above every window, below the dialogs and the
+> toasts. It was `document.body` at z-index 1000000, above the whole shell --
+> clickable over a dialog's backdrop. Inline, it moves to the next shell's zone
+> after a logout, and floats in the body between them. A **chip** of the dock
+> is no control itself (7.26.35): it holds two sibling buttons, the toggle
+> (minimise / bring back, named by the window's title, through the FSM:
+> `EV_TOGGLE_WINDOW`) and its ✕ (`close`). It was a `role="button"` holding
+> the ✕ button -- one control inside another.
 
 ## Two maintained lines
 
@@ -3207,14 +3243,35 @@ all for the same reason (a badge that lies costs more than no badge):
   the default look, so a call with three arguments works as it always did.
 - **Unknown item id is a silent no-op**, so an app whose toolbar or menu has no
   such item does not log an error on every tick of whatever feeds the number.
-- Writing the **same** value again touches no DOM: the badge is a
-  `role="status"` live region, and rewriting it would have a screen reader
-  announce the same number on every tick.
+- Writing the **same** value again touches no DOM.
 
-`role="status"` and not `aria-hidden`, deliberately: the button or link
-carries an explicit `aria-label`, and an explicit label **replaces** an
-element's content for a screen reader — a badge inside it would otherwise be
-silent. As its own live region it is both read and announced when it changes.
+**What a screen reader gets** (since `7.26.35`). The button or link carries an
+explicit `aria-label`, and an explicit label **replaces** an element's content
+for a reader -- inside a `<button>` (the toolbar, an accordion head) the badge
+is not even in the tree. So:
+
+- **The count is part of the control's NAME.** The control is labelled by
+  itself and by its badge (`aria-labelledby="<control> <badge>"`,
+  `name_control_with_badge()` in `yui_badge.js`): the self-reference reads its
+  `aria-label`, which `refresh_language()` re-translates, and the badge adds its
+  text -- *"Alarms 3"*, or *"Alarms"* while there is none. Nothing is composed
+  in javascript, so a language switch keeps it right.
+- **A change is SAID, with the name of what it counts**: *"Alarms, 3"*, in one
+  live region of the shell (`.SHELL_BADGE_STATUS`, `role="status"`,
+  visually hidden), which is always in the tree -- never hidden, never inside a
+  control. `yui_shell_set_nav_item_badge()` and
+  `yui_shell_set_toolbar_item_badge()` say it when the text a reader would see
+  CHANGES and is not empty: the same count is no news, a count going away is
+  not either, one coming back is. A menu entry drawn by three navs is said
+  once. The phrase is a key of its own, `"{{name}}, {{n}}"`, so a language
+  orders and punctuates it its way; it goes through the translator the app gave
+  the shell (`yui_shell_set_translator`).
+
+Up to `7.26.34` the badge was its own `role="status"`: it said *"3"* with no
+word of what has three, it was `hidden` while empty -- so the first count was
+most likely never said -- and inside a `<button>` it was not there at all. A
+`C_YUI_NAV` used without a shell names its counts the same way, but says
+nothing when one changes: the live region is the shell's.
 
 **The menu entry's badge reaches every instance of the id.** A menu hosted by
 two zones (a rail on desktop, an icon bar on a phone) draws the same entry
@@ -3599,7 +3656,8 @@ export default { plugins: [ yunetaHtmlPlugin({ defaultTitle: "My App" }) ] };
 
 `npm run build && npm test`, then `npm publish`. A published version reaches
 an app only through **`npm run deploy-round`**: it waits for the registry to
-serve the version, then per app raises the range, installs, builds, deploys
+serve the version, then per app raises the range (and the app's own version,
+its third number, in the same edit), installs, builds, deploys
 and reads back the bundle each host serves (`--check` only reads back,
 `--only <name>` does one app, `--no-wait` skips the registry). The private
 consumers are listed in `~/.yuneta/gobj-ui-consumers.json` (see
@@ -3654,7 +3712,7 @@ one. All four attributes are written where the control is built:
 ```
 
 It is a floor, not a preference. The ecosystem was swept against it — the
-deployed page of six SPAs, read control by control — and the target is **zero
+deployed page of every SPA, read control by control — and the target is **zero
 controls without a name**. Three things it exists to stop, each of which
 shipped:
 
@@ -3703,7 +3761,30 @@ DOM is a race with the next one:
   row-selection checkbox (`yui_tabulator_name_filters` /
   `yui_tabulator_name_row_selects`, hung off `columnsLoaded` and
   `renderComplete`), Tom Select's box in front of the `<select>` it hides
-  (`name_form_control`).
+  (`name_form_control`). Since `7.26.35` also:
+  - the box Tabulator draws in a cell being **edited**, named after its
+    column by `yui_tabulator_name_editor(column_def, name_of)` -- asked at
+    the moment of editing (Tabulator takes `editorParams` as a function of
+    the cell, and its built-in editors write the `elementAttributes` it
+    answers), so the name is in the language of that moment with nothing to
+    re-apply;
+  - the ✕ of a selected option of a Tom Select (its `remove_button`
+    plugin's `html`): `remove this option`, reachable and pressed by a key;
+  - the menu of the json editor of a form (vanilla-jsoneditor), known by
+    the class it gives each button (`form_json_editor_names.js`): its titles
+    and the text of its mode buttons through `onRenderMenu`, its aria-labels
+    and `aria-pressed` after each render (`EV_NAME_JSON_EDITORS`), and drawn
+    again on the shell's `EV_LANGUAGE_CHANGED`. Its CONTEXT menu too
+    (`onRenderContextMenu`): its items carry no class, so each is known by
+    the icon it is drawn with, the column it stands in, its place in a
+    dropdown and the editor's mode -- never by its words -- and an item the
+    module does not know stays in English rather than mislabelled; the arrow
+    that opens a dropdown, which the editor names not at all, is `more
+    options`. **A documented limit:** what the editor draws with no hook --
+    its search box, its repair messages, the tip at the foot of the context
+    menu, its sort and transform modals -- stays in its English;
+  - maplibre's canvas and default markers, whose `aria-label` maplibre writes
+    once from its locale: `yui_maplibre_relocalize()` rewrites them.
 - **An `<option>`**, which is text like any other: it carries `data-i18n`,
   with `value` kept explicit — a translated option with no value tells the FSM
   to enter a mode that does not exist.
@@ -3846,14 +3927,30 @@ call of t()?" (since `7.26.32`; up to `7.26.31` it was a call NAMED `t` or
 `tr`): a name `t` or `tr` (whatever binds it), a member `.t` / `.tr`
 (`i18next.t`), i18next's `t` imported under any name (`import {t as tt} from
 "i18next"`), or an alias of one -- a const (`const translate = t`), a
-`.bind()` (`i18next.t.bind(i18next)`), a re-export of a module the reader
-reads --, called as `t(k)`, `t?.(k)`, `t.call(x, k)` or `t.apply(x, [k])`. An
-ARRAY given to it is i18next's list of fallback keys, and each one is a key:
-`t([specific, "generic"])` asks for "generic". The places, since `7.26.32`, also
-include `el.dataset.i18nTitle = k` (`dataset.i18nX` IS the attribute
-`data-i18n-x`), and an attribute or property NAMED by a const:
+`.bind()` (`i18next.t.bind(i18next)`), a destructuring (since `7.26.35`:
+`const {t: tt} = i18next`, a parameter `{t: tt}`), a re-export of a module the
+reader reads --, called as `t(k)`, `t?.(k)`, `t.call(x, k)` or
+`t.apply(x, [k])`. An ARRAY given to it is i18next's list of fallback keys, and
+each one is a key: `t([specific, "generic"])` asks for "generic". The places,
+since `7.26.32`, also include `el.dataset.i18nTitle = k` (`dataset.i18nX` IS
+the attribute `data-i18n-x`), and an attribute or property NAMED by a const:
 `el.setAttribute(ATTR, k)`, `{[ATTR]: k}`, `x[ATTR] = k`, with `const ATTR =
-"data-i18n-title"`. What is followed:
+"data-i18n-title"`; and since `7.26.35` `el.setAttributeNS(ns, ATTR, k)`, and a
+translator handed as a CALLBACK:
+
+- `keys.map(t)`, `.forEach(t)` (and `flatMap`, `filter`, `find`, `findLast`,
+  `some`, `every`), `Array.from(keys, t)`: each ELEMENT is a key, read like any
+  other -- a const array, a published list, an import of one are followed;
+- `promise.then(t)`, `.catch(t)`: what the promise settles with is a key no
+  source writes.
+
+Both are held to the rule per call (below): an array the reader cannot follow,
+and any promise, fails unless the call is marked
+(`/* i18n: data */ rows.map(t)`; or before the translator,
+`load().then(/* i18n: data */ t)`). A translator handed to a FUNCTION is not
+one of these: `{t: t}`, `yui_tabulator_lang(t)`, `refresh_language($el, t)` --
+it is how gobj-ui receives one, and the function calls it with keys of its
+own. What is followed:
 
 - a string literal, a template with no `${}`, and every branch of `?:`, `||`
   and `??` (the right one of `&&`), so
@@ -3903,12 +4000,38 @@ function pick(ok) {
 t(pick(answer));                                    // asks for both
 ```
 
-What it cannot follow cannot be known: a `let`, a parameter of an app's
-function, a call it does not read, a concatenation, data from a backend. A key
-that arrives that way is PUBLISHED by its module (below), and the place it is
-read is MARKED; a marked `let` -- or a marked member or element of one -- is the
-one exception to "not followed" (below). A source file that cannot be parsed
+What it cannot follow cannot be known: a `let` given anything but literals, a
+parameter of an app's function, a call it does not read, a concatenation, data
+from a backend. A key that arrives that way is PUBLISHED by its module (below),
+and the place it is read is MARKED; a marked `let` -- or a marked member or
+element of one -- is followed (below). A source file that cannot be parsed
 fails the build, because its keys would go unchecked.
+
+**An UNMARKED `let` that is only ever given literals IS followed** (since
+`7.26.35`), where `t()`, an `i18n` / `code` value or a `data-i18n*` attribute
+reads a key: when every value it is given in its scope -- its initializer, every
+`=`, `||=`, `??=`, `&&=` -- is WRITTEN as a string literal, a const bound to one
+(of the module, or imported), `null` / `undefined`, another such `let`, or a
+`?:` / `||` / `??` of those (the right one of `&&`), the variable can only ever
+hold those literals, and each is a key asked for. It is exact, not a guess, so
+it fails nothing new: a key missing from the locales fails as any key does.
+
+```js
+let state_key = (st === "ST_MONITORING")? "monitor monitoring" : "monitor disconnected";
+if(connecting) {
+    state_key = "monitor connecting";
+}
+$state.setAttribute("data-i18n", state_key);    // asks for all three
+$state.textContent = t(state_key);
+```
+
+A `let` given anything else is not followed and stays invisible: a property of
+a table (`let m = MONTHS[i]`: the reader would read every value of the table,
+which is enough for a marker that names lists, and too much to ask the locales
+for), a call (`let k = busy_key(gobj)`), a parameter, data, or a write it cannot
+read (`k += "!"`, a `for...of` over it, a destructuring). At a key position of a
+key function nothing changes: a `let` there is still a violation of the rule per
+call (below), which wants a const or a marker.
 
 **A key handed to a FUNCTION is read where it is handed.**
 `yui_shell_show_error(shell, "some records were gone before the delete")` asks
@@ -4054,7 +4177,9 @@ write it as a literal or a `const` where it is read, and the reader sees it.
 `const key = maximized ? "restore" : "maximize"; t(key);` asks for both keys,
 and so do the pager's ✕, the camera's anchor button, the nav's landmark, the
 selection bar's clear button and the treedb form's title, which are written
-that way. The same code with a `let` asks for neither.
+that way. The same code with a `let` asks for both too at `t()` (since
+`7.26.35`: a `let` only ever given literals is followed), but at a key position
+of a key function it fails the rule per call, which wants the const.
 
 ```js
 export const MY_VIEW_I18N_KEYS = ['shape', 'radius', 'apply to'];
@@ -4088,9 +4213,11 @@ list in silence, and a key holding `]` dropped the whole array; up to
 WRITTEN, so a key it is given later is asked for by nobody. `X.push(k)`,
 `X.splice(i, 0, k)`, `X.unshift(k)`, `X.fill(k)`, `X[i] = k`, `X.length = n`,
 `Object.assign(X, ...)` and `delete X[i]` fail the build, in the module that
-publishes the list and in every module that imports it (under any name). Up
-to `7.26.31` an `export let` list was read and could be pushed into, and the
-pushed keys went unasked:
+publishes the list and in every module that imports it (under any name; since
+`7.26.35` also as a member of a namespace import, `M.X_I18N_KEYS.push(k)`, and
+through an ALIAS: `const a = X_I18N_KEYS; a.push(k)`, or a `let` given nothing
+else). Up to `7.26.31` an `export let` list was read and could be pushed into,
+and the pushed keys went unasked:
 
 ```js
 export let MY_VIEW_I18N_KEYS = ["shape"];     // fails: a published list is an export const
@@ -4117,12 +4244,24 @@ confirm_then(gobj, /* i18n: C_YUI_FORM_I18N_KEYS */ kw.warning || "all changes w
   follow must be in them: a marker is a claim, and it is checked. A key BUILT
   at run time is published that way and marked with its list -- gui_agent's
   monitor names a control's label `monitor ${control}`, and publishes the six
-  keys that template builds in `C_AGENT_MONITOR_I18N_KEYS`. A template with
-  `${}` under a list marker must have the SHAPE of some key of the lists
-  (since `7.26.32`): `monitor ${control}` is checked against `^monitor .*$`,
-  so a marker naming the wrong list fails. Every key of a published list is
-  asked for, so a control whose key the list lacks is the one thing no check
-  sees: the list sits next to the template, and a comment says so.
+  keys that template builds in `C_AGENT_MONITOR_I18N_KEYS` (and the questions,
+  `monitor confirm ${control}`, in `C_AGENT_MONITOR_CONFIRM_I18N_KEYS`). A
+  template with `${}` under a list marker must have the SHAPE of some key of
+  the lists (since `7.26.32`): `monitor ${control}` is checked against
+  `^monitor .*$`, so a marker naming the wrong list fails. And (since
+  `7.26.35`) a key of that shape that a NARROWER marked template builds -- one
+  whose shape lies inside it, `monitor confirm ${control}` -- is that
+  template's: up to `7.26.34` `monitor ${control}` marked with the list of the
+  questions passed, because "monitor confirm start" matches `^monitor .*$`;
+  now it fails, naming the narrower template. (The wider template builds such
+  a key only when what fills its `${}` carries the narrower one's literal --
+  "confirm start" for a control --, which code that writes both does not do.)
+  Every key of a published list is asked for, so a control whose key the list
+  LACKS is the one thing the validator cannot see: what a template builds is
+  data. The app holds such a list to its source with a test of its own --
+  gui_agent's `monitor_i18n_keys.test.js` derives every control from
+  `SCENARIO_ACTIONS` and `scenario_controls()`, and fails until both lists
+  hold exactly their keys.
 
 **A `data` marker is a claim too** (since `7.26.29`). On what the reader
 follows to keys and nothing else -- a literal, a template with no `${}`, a
@@ -4189,7 +4328,9 @@ t(/* i18n: C_YUI_WINDOW_I18N_KEYS */ key);
 ```
 
 The rule is the same under `i18n: data`: the literals of a marked variable are
-read, and one that holds nothing else fails.
+read, and one that holds nothing else fails. (Unmarked, such a variable fails
+nothing: since `7.26.35` its literals are simply asked for, above. The marker
+is what makes it a claim to check.)
 
 **A `let` that holds a TABLE is held the same way** (since the same round:
 up to then a marked member of one passed unread). When what is marked is read
@@ -4271,7 +4412,13 @@ so it never changes language. Hand it the key. A translated text is the value
 of any TRANSLATOR (since `7.26.32`; up to `7.26.31` only a call named `t`, so
 `tr("save")`, an alias of t, `t?.()` or `t.call()` passed marked -- and an
 unmarked `tr()` failed with *"cannot follow"*, whose advice was the marker that
-then let it pass):
+then let it pass), and (since `7.26.35`) a string BUILT from one: a
+concatenation or a template holding one (`t("k") + ":"`, `` `${t("k")}:` ``),
+a method called on one (`t("k").toUpperCase()`, `[t("a"), name].join(" ")`);
+DOM built with one (`createElement2(["p", {}, t("k")])`) is DOM. No marker
+excuses such a text anywhere a key is read -- `t(/* i18n: data */ t("k") +
+"!")` and `{i18n: /* i18n: data */ t("k").trim()}` fail too, with *"hand the
+key, not t(key)"*:
 
 ```js
 yui_install_ask_once(shell, {t: t, message: t("install this app")});   // fails
@@ -4354,8 +4501,10 @@ it asks for or carries with the list.
 reading the page in another language:
 
 - a key handed to a translator, an `i18n` or a `data-i18n*` value by an
-  UNMARKED `let`, a call the reader does not follow (a recursion, one whose
-  returns mix keys and data, a function of a package) or a computed string:
+  UNMARKED `let` given anything but literals (a property of a table, a call, a
+  parameter, data, a `+=`: one only ever given literals is followed, above), a
+  call the reader does not follow (a recursion, one whose returns mix keys and
+  data, a function of a package) or a computed string:
   a translator is not a key function, and only the positions of
   `I18N_KEY_FUNCTIONS` are held to the per-call rule -- in the library and in
   an app alike. (A PARAMETER is not, in the library: the forwarder test puts
@@ -4363,7 +4512,18 @@ reading the page in another language:
   name it.);
 - a translator the reader does not know as one: a name other than `t` / `tr`
   that no const or import makes an alias of -- a parameter `translate`, a
-  `let` alias, `opts.translate(k)`, `i18next.getFixedT()`;
+  `let` alias, `opts.translate(k)`, `i18next.getFixedT()` --, or one called
+  through what is no name of it: `(0, t)(k)`, `[t][0](k)`,
+  `Reflect.apply(t, x, [k])`, `Function.prototype.call.call(t, x, k)`;
+- a key BOUND with the translator, `t.bind(null, k)` (`.bind()` is read as an
+  alias of the translator, and the key it binds is not read);
+- a translator handed to a FUNCTION (`{t: t}`, `yui_tabulator_lang(t)`,
+  `run(t)`): only the iteration methods, `Array.from()` and `.then()` /
+  `.catch()` are read as calling it with what they walk or settle with;
+- a translated text held in a marked `let` (`let label = t(k);` ...
+  `/* i18n: data */ label`): the marker reads the literals of the `let`, not
+  its translations -- only a translated text written right under the marker
+  fails;
 - a key function reached through a parameter (`apply(fn)` calling
   `fn(shell, "k")`), a `let` given more than one function, a map in a `let`,
   a computed member (`API[name](...)`), or `.apply()` of an array the source
@@ -4378,13 +4538,20 @@ reading the page in another language:
 - what a module of a package exports (gobj-js, i18next), and an exported
   `let`;
 - in the library's forwarder search, a key stored in a heap object or a DOM
-  node and read back somewhere else (`$b._yui_label` was one), and what a
-  caller puts in a gobj's attrs (a window's `title` given at `gobj_create()`);
+  node and read back somewhere else (`$b._yui_label` was one), a parameter a
+  CLOSURE returns (`const inner = () => key; t(inner())`), and what a caller
+  puts in a gobj's attrs (a window's `title` given at `gobj_create()`);
+- a published list mutated through a function it is handed to
+  (`function add(list) { list.push(k); } add(X_I18N_KEYS)`), or by
+  `Array.prototype.push.call(X_I18N_KEYS, k)`;
 - in an app, a key its callers hand a wrapper of its own reaches the locales
   only through a list the module publishes: the wrapper's hand-off must be
   marked (the rule per call), and nothing ties its callers' literals to the
   list -- nor a key built at run time (a template) to the list its marker
-  names, beyond the shape of the template.
+  names, beyond the shape of the template (the app's own test does:
+  gui_agent's `monitor_i18n_keys.test.js`); a marker over a parameter of such
+  a wrapper (`title: /* i18n: L_I18N_KEYS */ title_key`) checks nothing at
+  all, since what its callers hand it is not read.
 
 **What fails the build, besides a key no locale defines:**
 
@@ -4396,14 +4563,17 @@ reading the page in another language:
   `translation` dict;
 - a source file that cannot be parsed;
 - a published list no consumer can read (above), declared with `let` or
-  `var`, or mutated;
+  `var`, or mutated (also through an alias or a namespace member);
 - a marker that is wrong (above): a `data` marker on what the reader follows
   to keys, or on what would hide a key (a call mixing keys and data, an array
-  of string literals), a list marker on a template whose shape no key of the
-  list has;
+  of string literals), any marker on a translated text, a list marker on a
+  template whose shape no key of the list has -- or whose every key of that
+  shape a narrower marked template builds;
 - a key position of a key function, in the app's own code, given what the
   reader cannot follow and unmarked, or given a translated text (the rule per
-  call, above).
+  call, above); and so a translator handed as a callback to `.map()`,
+  `.forEach()`, ... over an array the reader cannot follow, or to `.then()` /
+  `.catch()`, unmarked.
 
 Up to `7.26.27` the locale cases were "skipped" with an OK: one language less
 validated, and nobody told. A file of the locales directory with a locale's

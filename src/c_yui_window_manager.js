@@ -50,6 +50,13 @@ import {
 
 import {t} from "i18next";
 import {text_node} from "./yui_text.js";
+import {
+    yui_shell_of,
+    yui_shell_raise_window,
+    yui_shell_watch_changes,
+    yui_shell_unwatch_changes,
+} from "./c_yui_shell.js";
+import {yui_shell_popup_layer} from "./shell_modals.js";
 
 
 /***************************************************************
@@ -57,12 +64,17 @@ import {text_node} from "./yui_text.js";
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_WINDOW_MANAGER";
 
-/*  Dock sits above every window: windows raise to an incrementing
- *  counter that starts well below this. */
+/*  The floating dock sits at the top of the layer it lives in
+ *  (dock_place()), the shell's popup layer: every window is in the
+ *  window layer below it, whatever number it takes, and the shell's
+ *  dialogs and toasts are layers above. */
 const DOCK_Z = 1000000;
 
 /*  Chip close glyph (currentColor → theme-aware). */
 const WC_X = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5 L11.5 11.5 M11.5 4.5 L4.5 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+/*  Unique ids for the label spans a chip is named by (aria-labelledby).  */
+let __chip_seq__ = 0;
 
 
 /***************************************************************
@@ -74,14 +86,13 @@ SDATA(data_type_t.DTP_STRING,   "dock_mode",        0,  "floating",     "floatin
 SDATA(data_type_t.DTP_STRING,   "dock_corner",      0,  "bottom-left",  "Floating placement: top-left | top-right | bottom-left | bottom-right"),
 SDATA(data_type_t.DTP_STRING,   "inline_selector",  0,  "",             "CSS selector of the container the dock mounts into when inline (e.g. a shell zone)"),
 SDATA(data_type_t.DTP_STRING,   "responsive_query", 0,  "(max-width: 768px)", "Media query that selects inline placement when dock_mode is 'responsive'"),
-SDATA(data_type_t.DTP_POINTER,  "$parent",          0,  null,           "Where the floating dock mounts (default document.body)"),
+SDATA(data_type_t.DTP_POINTER,  "$parent",          0,  null,           "Where the floating dock mounts (default: the popup layer of the shell, document.body while there is none)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,           "Internal: the dock element"),
 SDATA_END()
 ];
 
 let PRIVATE_DATA = {
     windows: null,      /*  [{gobj, $chip, minimized}]  */
-    z: 0,               /*  z-order counter handed to focused windows  */
     mql: null,          /*  MediaQueryList when dock_mode is 'responsive'  */
     mql_handler: null,  /*  its change listener (kept for teardown)  */
 };
@@ -106,7 +117,6 @@ function mt_create(gobj)
     let priv = gobj.priv;
 
     priv.windows = [];
-    priv.z = 10;
 
     /*  In 'responsive' mode the placement follows a media query: watch it
      *  so the dock re-homes (floating <-> inline) when the viewport crosses
@@ -123,6 +133,13 @@ function mt_create(gobj)
 
     build_dock(gobj);
 
+    /*  The dock lives in a shell (its popup layer, or a zone when
+     *  inline), and it outlives the shell: the app builds it once, a
+     *  logout destroys the shell, the login builds another. Told when
+     *  a shell is built or destroyed, it places itself again
+     *  (ac_shell_changed). Unwatched in mt_destroy.  */
+    yui_shell_watch_changes(gobj);
+
     /*
      *  SERVICE subscription model
      */
@@ -138,6 +155,8 @@ function mt_create(gobj)
 function mt_destroy(gobj)
 {
     let priv = gobj.priv;
+
+    yui_shell_unwatch_changes(gobj);
 
     if(priv.mql && priv.mql_handler) {
         priv.mql.removeEventListener("change", priv.mql_handler);
@@ -200,10 +219,18 @@ function ensure_dock_style()
 }
 .yui-dock-chip {
     display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 12px;
-    padding: 4px 5px 4px 11px; border: 1px solid var(--bulma-border); border-radius: 7px;
-    background: var(--bulma-scheme-main); color: var(--bulma-text); cursor: pointer; white-space: nowrap;
+    padding: 0 5px 0 0; border: 1px solid var(--bulma-border); border-radius: 7px;
+    background: var(--bulma-scheme-main); color: var(--bulma-text); white-space: nowrap;
 }
 .yui-dock-chip:hover { border-color: var(--bulma-text-weak); }
+/*  The chip is the look; its toggle a button that adds none, and
+ *  takes the pill's padding, so the whole label is what a press lands
+ *  on and the chip reads as one pill with its ✕ at the end.  */
+.yui-dock-chip-toggle {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 0 4px 11px; margin: 0; border: 0; border-radius: 7px 0 0 7px;
+    background: transparent; font: inherit; color: inherit; cursor: pointer; white-space: nowrap;
+}
 /*  The BORDER says active, not the text: blue ink on a blue tint is
  *  the same hue on itself -- 4.49:1 on the light chip, under the 4.5
  *  its 12px label needs. The label takes the text colour (11:1).  */
@@ -307,10 +334,35 @@ function apply_placement(gobj)
         $dock.classList.toggle(`yui-dock--${c}`, !inline && c === corner);
     }
 
-    let target = inline ? $inline : (gobj_read_attr(gobj, "$parent") || document.body);
+    let target = inline ? $inline : (gobj_read_attr(gobj, "$parent") || dock_place(gobj));
     if($dock.parentNode !== target) {
         target.appendChild($dock);
     }
+}
+
+/************************************************************
+ *   Where the FLOATING dock lives when the app names no
+ *   `$parent`: the popup layer of the shell, at the top of it.
+ *
+ *   It was document.body at z-index 1000000, and that put it
+ *   above the WHOLE shell -- `.yui-shell` is a stacking context
+ *   of its own, so its dialogs (modal layer, 99) and toasts (120)
+ *   counted only inside it: the dock stayed clickable over a
+ *   dialog's backdrop (a window could be closed from its chip
+ *   while its own "all changes will be lost" question was open),
+ *   and it covered a toast where they met.
+ *
+ *   The popup layer, not the window layer: the dock has to stay
+ *   above EVERY window, and windows live in two layers -- the
+ *   window layer (no `$parent`) and the popup layer, where the
+ *   site map and the JSON windows of the treedb views put theirs.
+ *   Above both; below the dialogs, the toasts and the loading
+ *   cover. No shell (before the first, between a logout and the
+ *   next login): the body.
+ ************************************************************/
+function dock_place(gobj)
+{
+    return yui_shell_popup_layer(yui_shell_of(gobj)) || document.body;
 }
 
 /************************************************************
@@ -416,7 +468,6 @@ function set_active(gobj, entry)
  ************************************************************/
 function focus_entry(gobj, entry)
 {
-    let priv = gobj.priv;
     let $win = gobj_read_attr(entry.gobj, "$container");
     if($win) {
         if(entry.minimized) {
@@ -428,8 +479,10 @@ function focus_entry(gobj, entry)
                 entry.$chip.classList.remove('is-min');
             }
         }
-        priv.z += 1;
-        $win.style.zIndex = priv.z;
+        /*  The windows' ONE z-order, shared with the windows that have
+         *  no dock (yui_shell_raise_window). A counter of its own put a
+         *  window opened later without a dock UNDER every docked one.  */
+        yui_shell_raise_window($win);
     }
     set_active(gobj, entry);
 }
@@ -525,21 +578,52 @@ function ac_register_window(gobj, event, kw, src)
             text_node(title)]);     // data, not markup
     }
 
+    /*  The toggle's NAME is its label, read from the label's own spans
+     *  (aria-labelledby): the data half as it is, the kind half from the
+     *  node that carries its key -- so the name changes language with the
+     *  label, which a composed aria-label could not.  */
+    let chip_seq = ++__chip_seq__;
+    let label_ids = label_items.map(function(item, i) {
+        item[1].id = `yui-dock-chip-${chip_seq}-${i}`;
+        return item[1].id;
+    });
+
     let entry = {gobj: win, $chip: null, minimized: false};
-    /*  A div (not a button) so it can hold the close button — a
-     *  button inside a button is invalid. The chip toggles; the ✕
-     *  closes the window (EV_CLOSE_WINDOW → the window's own teardown
-     *  → EV_UNREGISTER_WINDOW removes this chip).
-     *  Tooltip: the composed string; when there is no DATA half it
-     *  carries the key as data-i18n-title so it re-translates too. */
+    /*  The chip is a CONTAINER of two sibling controls, and no control
+     *  itself: the TOGGLE (minimise / bring back, the whole label) and
+     *  the ✕ (EV_CLOSE_WINDOW → the window's own teardown →
+     *  EV_UNREGISTER_WINDOW removes this chip). Up to 7.26.34 the chip
+     *  was a role=button div HOLDING the ✕ button -- one control inside
+     *  another, whose name read the label and then "close", and whose
+     *  ✕ a reader could not reach as a control of its own.
+     *
+     *  Both are real <button>s: a key presses them, with no handler of
+     *  ours. Each says what it does with a title and an aria-label: the
+     *  toggle the window's composed title (with its key as
+     *  data-i18n-title / -aria-label when there is no DATA half; a
+     *  reader takes the aria-labelledby, which changes language with the
+     *  label), the ✕ "close". The toggle's click crosses the FSM
+     *  (EV_TOGGLE_WINDOW), by the window's name: a kw is plain json.  */
+    let window_name = gobj_full_name(win);
     let $chip = createElement2(
-        ['div', Object.assign(
-            {class: 'yui-dock-chip', role: 'button', tabindex: '0', title: title},
-            (!prefix && title_key) ? {'data-i18n-title': /* i18n: data */ title_key} : {}
-        ), [
-            chip_lead(kw.icon),
-            ['span', {class: 'yui-dock-label'}, label_items],
-            ['button', {class: 'yui-dock-close', type: 'button',
+        ['div', {class: 'DOCK_CHIP yui-dock-chip'}, [
+            ['button', Object.assign(
+                {class: 'DOCK_CHIP_TOGGLE yui-dock-chip-toggle', type: 'button',
+                 title: title, 'aria-label': title, 'aria-labelledby': label_ids.join(" ")},
+                (!prefix && title_key) ? {
+                    'data-i18n-title': /* i18n: data */ title_key,
+                    'data-i18n-aria-label': /* i18n: data */ title_key
+                } : {}
+            ), [
+                chip_lead(kw.icon),
+                ['span', {class: 'yui-dock-label'}, label_items]
+            ], {
+                click: (evt) => {
+                    evt.stopPropagation();
+                    gobj_send_event(gobj, "EV_TOGGLE_WINDOW", {window: window_name}, gobj);
+                }
+            }],
+            ['button', {class: 'DOCK_CHIP_CLOSE yui-dock-close', type: 'button',
                         title: t('close'), 'data-i18n-title': 'close',
                         'aria-label': t('close'), 'data-i18n-aria-label': 'close'}, html_markup(WC_X), {
                 click: (evt) => {
@@ -547,26 +631,7 @@ function ac_register_window(gobj, event, kw, src)
                     gobj_send_event(entry.gobj, "EV_CLOSE_WINDOW", {}, gobj);
                 }
             }],
-        ], {
-            click: (evt) => {
-                evt.stopPropagation();
-                on_chip_click(gobj, entry);
-            },
-            keydown: (evt) => {
-                /*  Only the chip itself — Enter on the inner ✕ button
-                 *  already fires its own click. */
-                if(evt.target !== evt.currentTarget) {
-                    return;
-                }
-                if(evt.key === "Enter" || evt.key === " ") {
-                    if(evt.key === " ") {
-                        evt.preventDefault();
-                    }
-                    evt.stopPropagation();
-                    on_chip_click(gobj, entry);
-                }
-            }
-        }]
+        ]]
     );
     entry.$chip = $chip;
     priv.windows.push(entry);
@@ -635,6 +700,49 @@ function ac_focus_window(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *   EV_TOGGLE_WINDOW { window } -- the toggle of a chip of THIS
+ *   dock was pressed: bring a minimized or covered window to the
+ *   front, send the one in front to the dock. Only the dock's own
+ *   chip sends it (src is the dock): the events a window sends
+ *   about itself come from the window, and this one from the chip
+ *   that names it.
+ ************************************************************/
+function ac_toggle_window(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(src !== gobj) {
+        log_error(
+            `${gobj_short_name(gobj)}: ${event} comes from the dock's own chip, ` +
+            `not from ${is_gobj(src) ? gobj_full_name(src) : String(src)}`
+        );
+        return -1;
+    }
+    let name = kw && kw.window;
+    let entry = priv.windows.find((e) => gobj_full_name(e.gobj) === name);
+    if(!entry) {
+        log_error(`${gobj_short_name(gobj)}: ${event}: no window '${name}' in the dock`);
+        return -1;
+    }
+    on_chip_click(gobj, entry);
+    return 0;
+}
+
+/************************************************************
+ *   EV_SHELL_CHANGED -- a shell was built, or is being destroyed
+ *   (yui_shell_watch_changes()). The dock's place -- the shell's
+ *   popup layer, or its zone when inline -- may have gone with
+ *   it, or be in the new one: place it again. Up to 7.26.34 an
+ *   inline dock stayed in the destroyed shell's zone after a
+ *   logout, detached, until a window registered.
+ ************************************************************/
+function ac_shell_changed(gobj, event, kw, src)
+{
+    apply_placement(gobj);
+    return 0;
+}
+
 
 
 
@@ -672,6 +780,8 @@ function create_gclass(gclass_name)
             ["EV_UNREGISTER_WINDOW",    ac_unregister_window,   null],
             ["EV_MINIMIZE_WINDOW",      ac_minimize_window,     null],
             ["EV_FOCUS_WINDOW",         ac_focus_window,        null],
+            ["EV_TOGGLE_WINDOW",        ac_toggle_window,       null],
+            ["EV_SHELL_CHANGED",        ac_shell_changed,       null],
         ]]
     ];
 
@@ -683,6 +793,8 @@ function create_gclass(gclass_name)
         ["EV_UNREGISTER_WINDOW",    0],
         ["EV_MINIMIZE_WINDOW",      0],
         ["EV_FOCUS_WINDOW",         0],
+        ["EV_TOGGLE_WINDOW",        0],
+        ["EV_SHELL_CHANGED",        0],
     ];
 
     __gclass__ = gclass_create(

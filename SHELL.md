@@ -80,8 +80,13 @@ Three orthogonal concepts:
 
 - **Layer** — Z-stacked plane (full-screen). Defined planes:
   - `base` — main layout (zones).
-  - `overlay` — off-canvas drawer, large dropdowns.
-  - `popup` — tooltips / context menus.
+  - `overlay` — off-canvas drawer, large dropdowns; and the WINDOW layer
+    (`yui_shell_window_layer()`), a stacking context under the drawer where
+    every `C_YUI_WINDOW` without a `$parent` lives, in one z-order
+    (`yui_shell_raise_window()`), following the shell across a logout
+    (`yui_shell_watch_changes()` / `EV_SHELL_CHANGED`).
+  - `popup` — tooltips, context menus, toolbar dropdowns, and the floating
+    dock (`C_YUI_WINDOW_MANAGER`) at its top.
   - `modal` — blocking dialogs.
   - `notification` — toasts.
   - `loading` — global spinner.
@@ -1163,7 +1168,7 @@ As of `3.0.0` the migration is complete and `c_yui_main.js`/`.css`,
 `c_yui_routing.js`/`.css`, `c_yui_tabs.js`, `themes.js` and
 `ytable.js`/`.css` are **removed from this line**.  The frozen **v1
 npm line** (`@yuneta/gobj-ui@^1.x`, dist-tag `legacy`) still ships
-them for estadodelaire/hidraulia.
+them for hidraulia (estadodelaire left it on 2026-10-13).
 
 What replaced each piece on `main`:
 

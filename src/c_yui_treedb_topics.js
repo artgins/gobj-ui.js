@@ -63,7 +63,7 @@ import {
     abandon_form_writes,
 } from "./form_writes_in_flight.js";
 
-import {yui_shell_show_error, yui_shell_show_modal, yui_shell_popup_layer} from "./shell_modals.js";
+import {yui_shell_show_error, yui_shell_show_modal} from "./shell_modals.js";
 import {
     yui_shell_of,
     yui_shell_icons_changed,
@@ -593,9 +593,13 @@ function add_tab(gobj, gobj2, id, text, icon)
     /*
      *  Create li a
      */
+    /*  A tab is a control: its title and its name, each with its key
+     *  (the topic's), as every control of the library carries.  */
     let $item = createElement2(
         ['li', {class: ''}, [ // is-active
-            ['a', {href: id}]
+            ['a', {href: id,
+                   title: t(text), 'data-i18n-title': text,
+                   'aria-label': t(text), 'data-i18n-aria-label': text}]
         ]]
     );
     $tabs.appendChild($item);
@@ -613,7 +617,7 @@ function add_tab(gobj, gobj2, id, text, icon)
         $a.appendChild(
             createElement2(
                 ['span', {class: 'icon is-small is-hidden-mobile'},
-                    ['i', {class: `${icon}`}]
+                    ['i', {class: `${icon}`, 'aria-hidden': 'true'}]
                 ]
             )
         );
@@ -822,7 +826,8 @@ function add_topic_card(gobj, id, text, icon, desc)
         let $card = createElement2(
             ['a', {class: 'yui-nav-item yui-nav-card TREEDB_TOPIC_CARD',
                    href: '#', 'data-topic-href': id,
-                   'aria-label': text, 'data-i18n-aria-label': text}, [
+                   title: t(text), 'data-i18n-title': text,
+                   'aria-label': t(text), 'data-i18n-aria-label': text}, [
                 ['span', {class: 'icon is-medium'}, [['i', {class: icon || 'yi-table',
                     'aria-hidden': 'true'}]]],
                 ['span', {class: 'yui-nav-label', i18n: text}, text_node(text)]
@@ -2090,9 +2095,13 @@ function open_json_viewer(gobj, opts)
             }
         });
     } else {
-        let $win_parent = (shell && yui_shell_popup_layer(shell)) ||
-            (typeof document !== "undefined" && document.getElementById("top-layer")) ||
-            null;
+        /*  The WINDOW layer, where every window lives (the legacy
+         *  '#top-layer' when a page has one): no `$parent` takes it. It
+         *  was the shell's popup layer -- above the drawer, in the way of
+         *  the toolbar's dropdowns (they opened BEHIND it where they met),
+         *  and in an order of its own no other window could rise above.  */
+        let $win_parent = (typeof document !== "undefined" &&
+            document.getElementById("top-layer")) || null;
 
         priv.json_win = gobj_create_service(
             `treedb-topics-jsonwin-${clean_name(gobj_name(gobj))}`,
@@ -2276,8 +2285,16 @@ function request_print_tranger(gobj, path)
         }, gobj);
     if(ret) {
         log_error(ret);
-        answer_print_tranger_refused(gobj, path,
-            {error: /* i18n: data */ refusal_text(ret) || "print-tranger failed"});
+        /*  The transport's own words travel as `error`, text the viewer
+         *  draws as it came. Our fallback is a KEY, and travels as `i18n`:
+         *  as `error` it was drawn raw, "print-tranger failed" in English
+         *  in every language.  */
+        const refusal = refusal_text(ret);
+        if(refusal) {
+            answer_print_tranger_refused(gobj, path, {error: /* i18n: data */ refusal});
+        } else {
+            answer_print_tranger_refused(gobj, path, {i18n: "print-tranger failed"});
+        }
         return;
     }
     if(path) {
@@ -2384,9 +2401,15 @@ function ac_mt_command_answer(gobj, event, kw, src)
             gobj.priv.drills_in_flight.clear();
         }
         if(result < 0) {
-            if(path) {
+            if(path && comment) {
                 gobj_send_event(jv, "EV_SUBTREE_ERROR",
-                    {path: path, error: comment || "print-tranger failed"}, gobj);
+                    {path: path, error: comment}, gobj);    // the backend's words
+            } else if(path) {
+                /*  No word from the backend: our fallback, a KEY, as `i18n`
+                 *  -- the viewer draws it translated, and it changes
+                 *  language with the app. As `error` it was drawn raw.  */
+                gobj_send_event(jv, "EV_SUBTREE_ERROR",
+                    {path: path, i18n: "print-tranger failed"}, gobj);
             } else {
                 yui_shell_show_error(yui_shell_of(gobj),
                     /* i18n: data */ comment || "print-tranger failed", {t: t});

@@ -18,14 +18,26 @@
  *      ALWAYS RENDERED, hidden when empty, so the runtime setters have a
  *      node to write into and never rebuild the control that holds it.
  *
- *      role="status" and NOT aria-hidden, deliberately.  The control
- *      carries an explicit aria-label, and an explicit label REPLACES
- *      the element's content for a screen reader -- so a badge inside
- *      it would be silent.  As its own live region it is both read and
- *      announced when the count changes, which is the whole point of a
- *      badge that means "something needs you".  For the same reason a
- *      write that changes nothing touches no DOM: rewriting the same
- *      number would have it announced again on every tick.
+ *      PART OF THE CONTROL'S NAME (name_control_with_badge()).  The
+ *      control carries an explicit aria-label, and an explicit label
+ *      REPLACES the element's content for a screen reader -- so a badge
+ *      inside it is silent, and inside a <button> (the toolbar, an
+ *      accordion head) its children are not even in the tree.  The
+ *      control is labelled by ITSELF (its aria-label, which
+ *      refresh_language() re-translates) and by the badge: the name is
+ *      "Alarms 3" while there is a count, "Alarms" while there is none,
+ *      with nothing composed in javascript that a language switch would
+ *      leave behind.
+ *
+ *      NOT a live region any more.  Up to 7.26.34 the badge was its own
+ *      role="status", and that said "3" with no word of what has three;
+ *      hidden while empty, it was not in the tree when the first count
+ *      arrived, so 0 -> 1 was most likely never said; and inside a
+ *      <button> it was not there at all.  The change is said by the
+ *      shell, in one live region of its own that is always there, with
+ *      the name of the item: "Alarms, 3" (yui_shell_set_nav_item_badge,
+ *      yui_shell_set_toolbar_item_badge).  A write that changes nothing
+ *      still touches no DOM.
  *
  *      A TONE, optional: one of BADGE_TONES, drawn as Bulma's
  *      `is-<tone>` on the badge.  It says HOW BAD the count is -- the
@@ -51,6 +63,10 @@ import {text_node} from "./yui_text.js";
 export const BADGE_TONES = Object.freeze([
     "danger", "warning", "info", "success", "primary", "link"
 ]);
+
+/*  Unique ids for the badges and the controls they name: the
+ *  aria-labelledby of a control points at two of them.  */
+let __badge_seq__ = 0;
 
 
 /************************************************************
@@ -101,13 +117,41 @@ export function badge_node(value, tone, classes, who)
     let text = badge_text(value);
     let known = badge_tone(tone, who);
     let attrs = {
-        class: known ? `${classes} is-${known}` : classes,
-        role:  "status"
+        class: known ? `${classes} is-${known}` : classes
     };
     if(!text) {
         attrs.hidden = "hidden";
     }
     return ["span", attrs, text_node(text)];
+}
+
+/************************************************************
+ *  Make the count part of the NAME of the control that carries
+ *  the badge: its `aria-labelledby` points at the control itself
+ *  and at the badge.
+ *
+ *  The control keeps its `aria-label` and its
+ *  data-i18n-aria-label: a self-reference reads the aria-label,
+ *  so the name is the translated label followed by the badge's
+ *  text -- "Alarms 3" -- or the label alone while the badge is
+ *  empty. A painted count is in the name at once, and a language
+ *  switch re-translates the label as it always did.
+ *
+ *  Both are createElement2() descriptions, before anything is
+ *  built: `control_attrs` (the attrs of the <a> or <button>, which
+ *  must carry its aria-label) gets an `id` when it has none, and
+ *  the `aria-labelledby`; `badge` (what badge_node() answered)
+ *  gets its `id`.
+ ************************************************************/
+export function name_control_with_badge(control_attrs, badge)
+{
+    let seq = ++__badge_seq__;
+    if(!control_attrs.id) {
+        control_attrs.id = `yui-badged-${seq}`;
+    }
+    let badge_attrs = badge[1];
+    badge_attrs.id = `yui-badge-${seq}`;
+    control_attrs["aria-labelledby"] = `${control_attrs.id} ${badge_attrs.id}`;
 }
 
 /************************************************************
@@ -134,9 +178,10 @@ export function paint_badge($badge, value, tone)
         $badge.setAttribute("hidden", "hidden");
         return;
     }
-    /*  Do not touch the DOM when nothing changed: role="status" is a
-     *  live region, and rewriting the same number would have a screen
-     *  reader announce it again on every tick. */
+    /*  Do not touch the DOM when nothing changed: whatever feeds the
+     *  number ticks, and a rewrite is a mutation for every observer of
+     *  the tree (and was an announcement while the badge was a live
+     *  region). */
     if($badge.textContent === text && !$badge.hasAttribute("hidden")) {
         return;
     }

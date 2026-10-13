@@ -49,11 +49,13 @@ import {
     gclass_find_by_name,
     gobj_is_destroying,
     html_markup,
+    gobj_post_event,
+    gobj_unsubscribe_event,
 } from "@yuneta/gobj-js";
 
 import {t} from "i18next";
 
-import {yui_tabulator_name_row_selects} from "./yui_tabulator_i18n.js";
+import {yui_tabulator_name_row_selects, yui_tabulator_name_editor} from "./yui_tabulator_i18n.js";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 import TomSelect from "tom-select"; // Import Tom-Select JS
 
@@ -92,6 +94,12 @@ import "./tabulator.css";
 import {is_time_field} from "./json_view_helpers.js";
 import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
+import {
+    json_editor_menu_items,
+    json_editor_context_menu_items,
+    name_json_editor_menu,
+} from "./form_json_editor_names.js";
+import {yui_shell_of} from "./c_yui_shell.js";
 import {text_node, text_title_formatter, text_list_item_formatter} from "./yui_text.js";
 import { TabulatorFull as Tabulator } from "tabulator-tables"; // Import Full Tabulator JS
 // import { Tabulator } from "tabulator-tables";  // Import light Tabulator JS
@@ -170,6 +178,11 @@ let PRIVATE_DATA = {
      *  table by id (a kw is plain json), see table_identity().  */
     tables: null,
     table_seq: 0,
+    /*  The menus of the json editors are to be named: posted once, and
+     *  named in ac_name_json_editors (form_json_editor_names.js).  */
+    json_names_posted: false,
+    /*  The shell this form hears the language change from.  */
+    lang_shell: null,
 };
 
 let __gclass__ = null;
@@ -223,6 +236,18 @@ function mt_destroy(gobj)
  ************************************************************/
 function mt_start(gobj)
 {
+    let priv = gobj.priv;
+
+    /*  The shell publishes the language switch (yui_shell_language_changed):
+     *  what a json editor draws in its menu is drawn again in the new
+     *  language (ac_language_changed). Its aria-labels carry their key and
+     *  refresh_language() reaches them; a title and a button's text do not.  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+        priv.lang_shell = shell;
+    }
+
     let record = gobj_read_attr(gobj, "record");
     if(record) {
         gobj_send_event(gobj, "EV_LOAD_RECORD", record, gobj);
@@ -234,6 +259,14 @@ function mt_start(gobj)
  ************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
+    /*  The shell it subscribed to, if it is still there: a logout may
+     *  have destroyed it, and its subscriptions with it.  */
+    if(priv.lang_shell && !gobj_is_destroying(priv.lang_shell)) {
+        gobj_unsubscribe_event(priv.lang_shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+    priv.lang_shell = null;
 }
 
 
@@ -737,6 +770,82 @@ function name_form_control($field, conf)
     }
 }
 
+/************************************************************
+ *  The ✕ of ONE selected option of a Tom Select: its
+ *  remove_button plugin calls this for every option it draws.
+ *
+ *  The plugin's own was a div titled "Remove" in English -- never
+ *  translated, no aria-label -- with tabindex -1, and the form
+ *  turns Backspace deletion off (no_backspace_delete): a keyboard
+ *  could not take one option out at all. Named here through t()
+ *  with its key (so a language change reaches it), and pressed by
+ *  Enter or Space as the clear button is: the key clicks it, which
+ *  runs the plugin's own handler.
+ ************************************************************/
+function remove_option_button()
+{
+    const KEY = "remove this option";
+    let $b = createElement2(['div', {
+        class: 'remove', role: 'button', tabindex: '0',
+        title: t(KEY), 'data-i18n-title': KEY,
+        'aria-label': t(KEY), 'data-i18n-aria-label': KEY
+    }, '×']);
+    $b.addEventListener("keydown", function(evt) {
+        if(evt.key === "Enter" || evt.key === " ") {
+            evt.preventDefault();       // Space would scroll the page
+            evt.stopPropagation();      // a key that pressed it is not Tom Select's
+            $b.click();
+        }
+    });
+    return $b;
+}
+
+/************************************************************
+ *  The `onRenderMenu` of a json editor of this form.
+ *
+ *  The editor calls it with the items it is about to draw: they go
+ *  back translated (json_editor_menu_items(), data for the editor
+ *  to draw). What no item can carry -- an aria-label, the state of
+ *  the mode buttons -- is written on the drawn buttons, after the
+ *  render, by the form's FSM (EV_NAME_JSON_EDITORS): the callback
+ *  only posts the event, once until it is handled. Posted, not
+ *  sent: when it runs the editor has not drawn the menu yet.
+ *
+ *  A new function each call: handing an editor a new one is what
+ *  makes it draw its menu again (ac_language_changed).
+ ************************************************************/
+function json_editor_render_menu(gobj)
+{
+    return function(items) {
+        ask_json_editor_names(gobj);
+        return json_editor_menu_items(items);
+    };
+}
+
+/************************************************************
+ *  The `onRenderContextMenu` of a json editor of this form: the
+ *  same, for the menu it opens on a right click or Ctrl+Q. It is
+ *  built each time it opens, in the language of that moment.
+ ************************************************************/
+function json_editor_render_context_menu(gobj)
+{
+    return function(items, context) {
+        ask_json_editor_names(gobj);
+        return json_editor_context_menu_items(items, context);
+    };
+}
+
+/*  The editors' menus are to be named, once their render is on the
+ *  page: posted once until EV_NAME_JSON_EDITORS is handled.  */
+function ask_json_editor_names(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv.json_names_posted && !gobj_is_destroying(gobj)) {
+        priv.json_names_posted = true;
+        gobj_post_event(gobj, "EV_NAME_JSON_EDITORS", {}, gobj);
+    }
+}
+
 function build_form(gobj)
 {
     let form_id = gobj_read_str_attr(gobj, "form_id");
@@ -803,11 +912,16 @@ function build_html_form(gobj, $form, prefix, template)
             : [field_desc.name];
         const NO_I18N = "\x00";
         html_field_conf.label = t(label_keys, {defaultValue: field_desc.header});
-        /*  A column of the template: the host's schema, data  */
-        html_field_conf.label_i18n =
-            (t(/* i18n: data */ field_desc.name, {defaultValue: NO_I18N}) !== NO_I18N)
-                ? field_desc.name
-                : null;
+        /*  The key it is re-translated by is the one the cascade TOOK: the
+         *  first of `label_keys` that has a translation. Up to 7.26.34 only
+         *  the bare column was asked -- a label translated by its
+         *  '<topic>.<col>' alone carried its own translated TEXT as the
+         *  key, and never changed language again; one translated by both
+         *  switched to the bare column's text at the first language
+         *  change. A column of the template is the host's schema: data.  */
+        html_field_conf.label_i18n = label_keys.find(
+            (k) => t(/* i18n: data */ k, {defaultValue: NO_I18N}) !== NO_I18N
+        ) || null;
         html_field_conf.placeholder = field_desc.placeholder?t(/* i18n: data */ field_desc.placeholder):'';
 
         let placeholders = gobj_read_attr(gobj, "placeholders");
@@ -1625,7 +1739,13 @@ function create_form_field(
                     },
                     'no_active_items': {},
                     'no_backspace_delete': {},
-                    'remove_button': {}
+                    /*  Tom Select drew the ✕ of each selected option with
+                     *  an English title ("Remove") and no name, out of the
+                     *  keyboard's reach: drawn here instead
+                     *  (remove_option_button).  */
+                    'remove_button': {
+                        html: remove_option_button
+                    }
                 }
             });
             $extend.tom_select.on('change', function() {
@@ -1705,6 +1825,10 @@ function create_form_field(
                     timestampTag: function({field, value, path}) {
                         return is_time_field(field);
                     },
+                    /*  Its menu and its context menu, in the app's
+                     *  language, and named (form_json_editor_names.js).  */
+                    onRenderMenu: json_editor_render_menu(gobj),
+                    onRenderContextMenu: json_editor_render_context_menu(gobj),
                 }
             });
             break;
@@ -2550,6 +2674,11 @@ function template2columns(gobj, columns, template, sub_elements)
             if(readonly) {
                 delete column.editor;
             }
+            /*  The box Tabulator draws in a cell being edited is named
+             *  after its column, in the language of that moment.  */
+            yui_tabulator_name_editor(column, function() {
+                return t(/* i18n: data */ field_desc.header || field_desc.name);  // the host's schema
+            });
             columns.push(column);
         }
     });
@@ -3762,6 +3891,50 @@ function ac_timeout(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *  EV_NAME_JSON_EDITORS {} -- a menu of a json editor of this
+ *  form was drawn, its menu or its context menu (posted by
+ *  ask_json_editor_names): name its buttons. Every editor of the
+ *  form: naming is idempotent, and a kw is plain json, which an
+ *  editor is not.
+ ************************************************************/
+function ac_name_json_editors(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    priv.json_names_posted = false;
+
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        log_error(`${gobj_short_name(gobj)}: ${event} without a container`);
+        return -1;
+    }
+    for(let $editor of $container.querySelectorAll(".jsoneditor")) {
+        name_json_editor_menu($editor);
+    }
+    return 0;
+}
+
+/************************************************************
+ *  EV_LANGUAGE_CHANGED {} -- from the shell. A json editor draws
+ *  its menu once: its titles and the text of its mode buttons stay
+ *  in the old language until it draws it again, so each is told to
+ *  (a new onRenderMenu), and the render names it again.
+ ************************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return 0;   // a form between builds has no editor to tell
+    }
+    for(let $editor of $container.querySelectorAll(".jsoneditor")) {
+        let editor = $editor.jsoneditor;
+        if(editor && typeof editor.updateProps === "function") {
+            editor.updateProps({onRenderMenu: json_editor_render_menu(gobj)});
+        }
+    }
+    return 0;
+}
+
 
 
                     /***************************
@@ -3877,7 +4050,9 @@ function create_gclass(gclass_name)
             ["EV_REFRESH",              ac_refresh,             null],
             ["EV_SHOW",                 ac_show,                null],
             ["EV_HIDE",                 ac_hide,                null],
-            ["EV_TIMEOUT",              ac_timeout,             null]
+            ["EV_TIMEOUT",              ac_timeout,             null],
+            ["EV_NAME_JSON_EDITORS",    ac_name_json_editors,   null],
+            ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null]
         ]]
     ];
 
@@ -3901,7 +4076,9 @@ function create_gclass(gclass_name)
         ["EV_REFRESH",              0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],
-        ["EV_TIMEOUT",              0]
+        ["EV_TIMEOUT",              0],
+        ["EV_NAME_JSON_EDITORS",    0],
+        ["EV_LANGUAGE_CHANGED",     0]
     ];
 
     __gclass__ = gclass_create(

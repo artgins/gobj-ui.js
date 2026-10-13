@@ -12,6 +12,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {text_node} from "./yui_text.js";
+import {name_control_with_badge} from "./yui_badge.js";
 
 /************************************************************
  *  Descriptor of one card: an <a> carrying the same data-*
@@ -58,7 +59,10 @@ export function card_descriptor(it, show_label, badge_of)
     if(label) {
         a_attrs["data-i18n-aria-label"] = label;
     }
-    let tip = it.tooltip || it.aria_label;
+    /*  Every control carries a title: the tooltip when one is declared,
+     *  else its name -- as the other layouts of the nav do. Up to
+     *  7.26.34 a card without a `tooltip` had none.  */
+    let tip = it.tooltip || it.aria_label || label;
     if(tip) {
         a_attrs.title = tip;
         a_attrs["data-i18n-title"] = tip;
@@ -66,6 +70,10 @@ export function card_descriptor(it, show_label, badge_of)
     if(it.disabled) {
         a_attrs["aria-disabled"] = "true";
         a_attrs["tabindex"] = "-1";
+    }
+    if(badge) {
+        /*  The count is part of its name (yui_badge.js)  */
+        name_control_with_badge(a_attrs, badge);
     }
     return ["a", a_attrs, children];
 }

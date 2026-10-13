@@ -35,7 +35,8 @@ const WIN_NAME = "Frontend-View-Window";
  *  Shell-agnostic: the legacy C_YUI_MAIN shell has a
  *  '#top-layer' stacking element; the new C_YUI_SHELL does not.
  *  We pass that element when present, otherwise null — C_YUI_WINDOW
- *  falls back to document.body by contract.
+ *  then takes the window layer of the shell (document.body while
+ *  there is none), and follows the shell across a logout.
  *
  *  Returns the window gobj, or null.
  ************************************************************/

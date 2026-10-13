@@ -321,6 +321,8 @@ function make_toolbar(gobj)
                    'data-i18n-placeholder': "search",
                    /*  A placeholder is not a name: it is gone as soon as
                     *  something is typed.  */
+                   title: t("search"),
+                   'data-i18n-title': "search",
                    'aria-label': t("search"),
                    'data-i18n-aria-label': "search"}, [], {
             input: function(evt) {

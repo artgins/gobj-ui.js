@@ -439,7 +439,7 @@ describe("validate-locales", () => {
             `yui_shell_show_error(shell, KEY + "!");`,          // built: not
             `x = KINDS.map((k) => ({value: k, i18n: k}));`,
             `function f(KEY) { t(KEY); }`,                     // a parameter: not the const
-            `let mutable = "let key"; t(mutable);`             // a let: not
+            `let mutable = "let key"; mutable = kw.other; t(mutable);`   // a let given data too: not
         ].join("\n")});
         expect(r.status).toBe(1);
         for(let k of ["const key", "table key", "kind a", "kind b"]) {
@@ -880,5 +880,195 @@ describe("validate-locales", () => {
         expect(wrong.out).toContain("src/main.js:6: the i18n marker names MONITOR_I18N_KEYS for `monitor ${control}`");
         let missing = run({...files(["monitor start", "monitor gone"])});
         expect(missing.out).toContain(`defined in NO locale: "monitor gone"`);     // every key of the list is asked for
+    });
+
+    test("REV-CLOUD V23.5.1: a translator handed as a callback, a destructured one, setAttributeNS", () => {
+        let r = run({...BOTH({}),
+            "src/lists.js": `export const LISTED_I18N_KEYS = ["a listed key"];`,
+            "src/main.js": [
+                `import i18next from "i18next";`,
+                `import {LISTED_I18N_KEYS} from "./lists.js";`,
+                `const {t: tt} = i18next;`,
+                `const KINDS = ["kind a", "kind b"];`,
+                `KINDS.map(t);`,                                                    // 5
+                `["literal a", "literal b"].forEach(i18next.t);`,
+                `LISTED_I18N_KEYS.map(t);`,
+                `Array.from(["from a"], t);`,
+                `tt("a destructured key");`,
+                `function f({t: translate}) { return translate("a parameter's key"); }`,
+                `el.setAttributeNS(null, "data-i18n-title", "an ns attribute key");`,
+                `let rows = kw.rows;`,
+                `rows.map(t);`,                                                     // 13: fails
+                `fetch_label().then(t);`,                                           // 14: fails
+                `/* i18n: data */ rows.map(t);`,
+                `fetch_label().then(/* i18n: data */ t);`,
+                `x.map((k) => k).filter(Boolean);`
+            ].join("\n")});
+        expect(r.status).toBe(1);
+        for(let k of ["kind a", "kind b", "literal a", "literal b", "a listed key", "from a",
+                      "a destructured key", "a parameter's key", "an ns attribute key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        let lines = r.out.split("\n").filter((l) => /src\/main\.js:\d+: \S+ hands t\(\)/.test(l))
+            .map((l) => Number(l.match(/main\.js:(\d+)/)[1]));
+        expect(lines).toEqual([13, 14]);
+        expect(r.out).toContain("src/main.js:13: .map(t) hands t() each element it walks as a key, and the " +
+            "reader cannot follow rows: walk a const array (or a published list), or mark the call");
+        expect(r.out).toContain("src/main.js:14: .then(t) hands t() what `fetch_label().then(t)` settles with, " +
+            "as a key no source writes: mark the call");
+    });
+
+    test("REV-CLOUD V23.5.1: a data marker over a TRANSLATED text built from t() fails: hand the key", () => {
+        let r = run({...BOTH({"saved": "x"}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `import {createElement2} from "@yuneta/gobj-js";`,
+            `yui_shell_show_info(shell, /* i18n: data */ t("saved") + ":");`,            // 3
+            `yui_shell_show_info(shell, /* i18n: data */ t("saved").toUpperCase());`,    // 4
+            `yui_shell_show_info(shell, t("saved") + ":");`,                             // 5: unmarked too
+            `t(/* i18n: data */ t("saved") + "!");`,                                     // 6: at t()
+            "x = {i18n: /* i18n: data */ `${t(\"saved\")}:`};",                           // 7: an i18n value
+            `yui_shell_show_info(shell, /* i18n: data */ comment + ":");`,               // data: fine
+            `yui_shell_show_info(shell, /* i18n: data */ createElement2(["p", {}, t("saved")]));`,  // DOM: fine
+            `yui_shell_show_info(shell, /* i18n: data */ kw.comment || "saved");`        // fine
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let rule = r.out.split("\n").filter((l) => /a TRANSLATED text where a KEY goes/.test(l))
+            .map((l) => Number(l.match(/main\.js:(\d+)/)[1]));
+        expect(rule).toEqual([3, 4, 5]);
+        expect(r.out).toContain(`src/main.js:3: yui_shell_show_info() [1] is given t("saved") + ":": a TRANSLATED text`);
+        let marked = r.out.split("\n").filter((l) => /is a TRANSLATED text: where a key is read/.test(l))
+            .map((l) => Number(l.match(/main\.js:(\d+)/)[1]));
+        expect(marked).toEqual([6, 7]);
+        expect(r.out).toContain("src/main.js:6: marked as data, but `t(\"saved\") + \"!\"` is a TRANSLATED text: " +
+            "where a key is read, the translation is kept as its key and never changes language, and no marker " +
+            "excuses it: hand the key, not t(key)");
+        expect(r.out).not.toMatch(/main\.js:(8|9|10):/);
+        expect(r.out).not.toMatch(/cannot follow/);
+    });
+
+    test("REV-CLOUD V23.5.2: a published list mutated through an alias or a namespace import FAILS", () => {
+        let r = run({...BOTH({"in it": "x"}), "src/main.js": [
+            `export const X_I18N_KEYS = ["in it"];`,
+            `const alias = X_I18N_KEYS;`,
+            `alias.push("through a const alias");`,                                         // 3
+            `function f() { const inner = alias; inner.splice(0, 0, "two aliases deep"); }`, // 4
+            `let held = X_I18N_KEYS;`,
+            `held.push("through a let given nothing else");`,                               // 6
+            `let copy = X_I18N_KEYS;`,
+            `copy = copy.slice();`,
+            `copy.push("a copy, not the list");`,
+            `Array.prototype.push.call(X_I18N_KEYS, "not seen: a documented limit");`,
+            `function g(list) { list.push("not seen: through a parameter"); }`,
+            `g(X_I18N_KEYS);`
+        ].join("\n"), "src/other.js": [
+            `import * as M from "./main.js";`,
+            `M.X_I18N_KEYS.push("through a namespace");`,                                  // 2
+            `M.X_I18N_KEYS[1] = "indexed through a namespace";`,                           // 3
+            `const n = M.X_I18N_KEYS;`,
+            `n.length = 0;`                                                                 // 5
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let lines = (file) => r.out.split("\n").filter((l) => l.includes(`src/${file}:`) && /is MUTATED/.test(l))
+            .map((l) => Number(l.match(/\.js:(\d+)/)[1]));
+        expect(lines("main.js")).toEqual([3, 4, 6]);
+        expect(lines("other.js")).toEqual([2, 3, 5]);
+        expect(r.out).toContain("src/main.js:3: the published list X_I18N_KEYS (through its alias `alias`) is MUTATED");
+        expect(r.out).toContain("src/main.js:4: the published list X_I18N_KEYS (through its alias `alias`) " +
+            "(through its alias `inner`) is MUTATED");
+        expect(r.out).toContain("src/other.js:2: the published list M.X_I18N_KEYS is MUTATED");
+        expect(r.out).toContain("src/other.js:5: the published list M.X_I18N_KEYS (through its alias `n`) is MUTATED");
+    });
+
+    test("REV-CLOUD V23.5: an UNMARKED let that only ever holds literals is followed; one given anything else is not", () => {
+        let keys = ["let key one", "let key two", "a const key", "an attr let key", "another attr let key",
+                    "an i18n let key", "an or-assigned key", "a dataset let key"];
+        let files = (dict) => ({...BOTH(dict), "src/main.js": [
+            `const K = "a const key";`,
+            `function f(x, kw, el) {`,
+            `    let state_key = (x === 1)? "let key one" : "let key two";`,
+            `    if(kw.z) {`,
+            `        state_key = K;`,
+            `    }`,
+            `    el.textContent = t(state_key);`,                                  // at t()
+            `    let attr_key;`,
+            `    if(x) {`,
+            `        attr_key = "an attr let key";`,
+            `    } else {`,
+            `        attr_key = "another attr let key";`,
+            `    }`,
+            `    el.setAttribute("data-i18n-title", attr_key);`,                   // at a data-i18n* attribute
+            `    var ds_key = "a dataset let key";`,
+            `    el.dataset.i18nAriaLabel = ds_key;`,                              // a var, at dataset.i18n*
+            `    let i18n_key = "an i18n let key";`,
+            `    if(kw.empty) {`,
+            `        i18n_key = null;`,
+            `    }`,
+            `    i18n_key ||= "an or-assigned key";`,
+            `    return ["span", {i18n: i18n_key}];`,                              // at an i18n attr
+            `}`,
+            `function g(kw) {`,
+            `    let mixed = "a mixed let key";`,
+            `    if(kw.y) {`,
+            `        mixed = kw.label;`,                                           // given a variable
+            `    }`,
+            `    let grown = "a grown key";`,
+            `    grown += "!";`,                                                   // a write it cannot read
+            `    let walked = "a walked key";`,
+            `    for(walked of kw.list) {`,
+            `        use(walked);`,
+            `    }`,
+            `    return [t(mixed), t(grown), t(walked)];`,
+            `}`
+        ].join("\n")});
+        let r = run(files({}));
+        expect(r.status).toBe(1);
+        for(let k of keys) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        for(let k of ["a mixed let key", "a grown key", "a walked key"]) {
+            expect(r.out).not.toContain(JSON.stringify(k));
+        }
+        expect(r.out).not.toMatch(/make it a const/);           // no new failure for an unmarked let
+        let ok = run(files(Object.fromEntries(keys.map((k) => [k, "x"]))));
+        expect(ok.out).toMatch(/OK \(2 locales x 8 keys, 8 used in the source\)/);
+        expect(ok.status).toBe(0);
+    });
+
+    test("REV-CLOUD V23.5.3: a marker naming the list of a NARROWER template fails at both templates", () => {
+        let files = (wide, narrow, lists) => ({
+            ...BOTH({"monitor start": "x", "monitor stop": "x", "monitor confirm start": "x",
+                     "monitor confirm stop": "x", "other": "x"}),
+            "src/main.js": [
+                `import {yui_shell_confirm_yesno} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+                ...lists,
+                `function confirm(control) {`,
+                `    let label = \`monitor \${control}\`;`,
+                `    yui_shell_confirm_yesno(shell, "other", {yes_label: /* i18n: ${wide} */ label});`,
+                `    t(/* i18n: ${narrow} */ \`monitor confirm \${control}\`);`,
+                `}`
+            ].join("\n")});
+        let two_lists = [`export const MONITOR_I18N_KEYS = ["monitor start", "monitor stop"];`,
+                         `export const CONFIRM_I18N_KEYS = ["monitor confirm start", "monitor confirm stop"];`];
+        let ok = run(files("MONITOR_I18N_KEYS", "CONFIRM_I18N_KEYS", two_lists));
+        expect(ok.out).not.toMatch(/main\.js/);
+
+        /*  The wide template marked with the narrow one's list: every key
+         *  of its shape there is the narrower template's  */
+        let wide = run(files("CONFIRM_I18N_KEYS", "CONFIRM_I18N_KEYS", two_lists));
+        expect(wide.status).toBe(1);
+        expect(wide.out).toContain("src/main.js:6: the i18n marker names CONFIRM_I18N_KEYS for `monitor ${control}`, " +
+            "and every key of it with that shape has the shape of a narrower template, `monitor confirm ${control}` " +
+            "(src/main.js:7), which builds those keys: name the list of the keys `monitor ${control}` builds");
+
+        /*  Both swapped: both fail  */
+        let swapped = run(files("CONFIRM_I18N_KEYS", "MONITOR_I18N_KEYS", two_lists));
+        expect(swapped.out).toMatch(/src\/main\.js:6: .*narrower template/);
+        expect(swapped.out).toMatch(/src\/main\.js:7: .*no key of it has that shape/);
+
+        /*  One list holding both families is no swap: the wide template
+         *  has keys of its own there  */
+        let one = run(files("ALL_I18N_KEYS", "ALL_I18N_KEYS",
+            [`export const ALL_I18N_KEYS = ["monitor start", "monitor stop", "monitor confirm start", "monitor confirm stop"];`]));
+        expect(one.out).not.toMatch(/main\.js/);
     });
 });

@@ -3,7 +3,7 @@
  *
  *          Utilities for maplibre
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
@@ -283,6 +283,23 @@ function label_ctrl($root, selector, text)
     }
 }
 
+/*  What maplibre wrote ONCE from its locale and never again: the name
+ *  of the map's canvas (`Map.Title`: a region a keyboard focuses, so a
+ *  reader announces it) and of a default marker (`Marker.Title`).
+ *  Rewritten where it still holds the word maplibre wrote -- a name an
+ *  app gave a marker is its own.  */
+function relabel_written($root, selector, was, now)
+{
+    if(!$root || !now) {
+        return;
+    }
+    for(const $el of $root.querySelectorAll(selector)) {
+        if($el.getAttribute("aria-label") === was) {
+            $el.setAttribute("aria-label", now);
+        }
+    }
+}
+
 function yui_maplibre_relocalize(map, t)
 {
     if(!map || typeof map.getContainer !== "function") {
@@ -291,7 +308,9 @@ function yui_maplibre_relocalize(map, t)
     const strings = yui_maplibre_locale(t);
 
     /*  The map's own table first: a control added later (or a popup
-     *  opened later) reads it when it builds itself.  */
+     *  opened later) reads it when it builds itself. What it said
+     *  before is kept, to know which names maplibre wrote with it.  */
+    const was = Object.assign({}, map._locale);
     try {
         map._locale = Object.assign({}, map._locale, strings);
     } catch(e) {
@@ -307,6 +326,11 @@ function yui_maplibre_relocalize(map, t)
     label_ctrl($c, ".maplibregl-ctrl-attrib-button", strings["AttributionControl.ToggleAttribution"]);
     label_ctrl($c, ".maplibregl-ctrl-fullscreen", strings["FullscreenControl.Enter"]);
     label_ctrl($c, ".maplibregl-popup-close-button", strings["Popup.Close"]);
+
+    /*  The canvas said "Mapa" in an English app after a switch, and a
+     *  default marker "Marcador del mapa": maplibre names them once.  */
+    relabel_written($c, ".maplibregl-canvas", was["Map.Title"], strings["Map.Title"]);
+    relabel_written($c, ".maplibregl-marker", was["Marker.Title"], strings["Marker.Title"]);
 
     /*  The notice of the cooperative gesture: two lines, one for a
      *  pointer and one for a finger, built by `_setupUI()` as

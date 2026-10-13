@@ -195,6 +195,47 @@ function yui_tabulator_name_row_selects(table, t)
     }
 }
 
+/***************************************************************
+ *  Name the EDITOR of an editable column: the box Tabulator draws
+ *  in a cell while it is edited (input, number, textarea, list,
+ *  tickCross, date...).
+ *
+ *  Tabulator gives it nothing -- no label, no aria-label, no title
+ *  -- so a reader lands in an anonymous edit box. Its name is the
+ *  column's: a cell is edited under its column's title. Asked at
+ *  the MOMENT of editing: Tabulator takes `editorParams` as a
+ *  function of the cell, and every built-in editor writes the
+ *  `elementAttributes` it answers onto the element it draws. So
+ *  the name is in the language of that moment, with nothing to
+ *  re-apply after a language change or a rebuild of the columns
+ *  -- the twin of the header filters above, which have to be
+ *  renamed after every render.
+ *
+ *  `name_of(cell)` answers the column's title, TRANSLATED (the
+ *  view's own label: a cascade, a schema header); "" names
+ *  nothing. What `editorParams` the column had is kept, its own
+ *  `elementAttributes` too; a name it set itself wins.
+ ***************************************************************/
+function yui_tabulator_name_editor(column_def, name_of)
+{
+    if(!column_def || !column_def.editor || typeof name_of !== "function") {
+        return;
+    }
+    let base = column_def.editorParams;
+    column_def.editorParams = function(cell) {
+        let params = (typeof base === "function") ? base(cell) : (base || {});
+        let name = name_of(cell);
+        if(!name) {
+            return params;
+        }
+        let attrs = Object.assign(
+            {"aria-label": name, title: name},
+            params.elementAttributes || {}
+        );
+        return Object.assign({}, params, {elementAttributes: attrs});
+    };
+}
+
 function yui_tabulator_relocalize(table, t)
 {
     if(!table) {
@@ -243,4 +284,5 @@ export {
     yui_tabulator_relocalize,
     yui_tabulator_name_filters,
     yui_tabulator_name_row_selects,
+    yui_tabulator_name_editor,
 };

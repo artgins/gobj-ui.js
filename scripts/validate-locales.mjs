@@ -59,16 +59,22 @@
  *            - the key given to a TRANSLATOR: t() or tr() -- whatever binds
  *              the name --, `i18next.t()`, i18next's t imported under any
  *              name, an alias of one (`const translate = t`, a `.bind()`,
- *              a re-export), called `t?.(k)`, `t.call(x, k)` or
+ *              a destructuring, `const {t: tt} = i18next` or a parameter
+ *              `{t: tt}`, a re-export), called `t?.(k)`, `t.call(x, k)` or
  *              `t.apply(x, [k])`; an array there is i18next's list of
  *              fallback keys, each one a key (`t([k, "fallback"])`);
+ *            - each element a translator handed as a CALLBACK walks:
+ *              `keys.map(t)`, `.forEach(t)` and the other iteration
+ *              methods, `Array.from(keys, t)` -- and what `.then(t)` /
+ *              `.catch(t)` settle with, which no source writes;
  *            - the string given to an `i18n` or `code` property, to a
  *              `data-i18n*` attribute (as a property, also computed by a
  *              const, `{[ATTR]: k}`; as a member written, `x.i18n = k`,
  *              `x["data-i18n-title"] = k`, `x[ATTR] = k`,
- *              `el.dataset.i18nTitle = k`; by setAttribute(), the name a
- *              literal or a const; or written in markup), and the codes of
- *              the schema checks (`add("error", "<code>")`);
+ *              `el.dataset.i18nTitle = k`; by setAttribute() or
+ *              setAttributeNS(), the name a literal or a const; or written
+ *              in markup), and the codes of the schema checks
+ *              (`add("error", "<code>")`);
  *            - the strings given to a gobj-ui function that RECEIVES a key
  *              as an argument (`yui_shell_show_error(shell, "<key>")`,
  *              `icon_button(..., "<key>")`), at the positions its table
@@ -95,8 +101,10 @@
  *              that is a variable, a call, a spread of an import or of a
  *              `let`). So is a list MUTATED, here or where it is imported
  *              (`.push()`, `.splice()`, `.unshift()`, `X[i] = k`,
- *              `X.length = n`, Object.assign()): what it is given there is
- *              asked for by nobody.
+ *              `X.length = n`, Object.assign()), by its name, as a member
+ *              of a namespace import (`M.X_I18N_KEYS.push(k)`) or through
+ *              an alias (`const a = X_I18N_KEYS; a.push(k)`): what it is
+ *              given there is asked for by nobody.
  *
  *          A string is read where it is written, and FOLLOWED where the
  *          source writes it out: a literal, a template with no `${}`,
@@ -120,9 +128,18 @@
  *          recursion is not followed (a call of a function being read is
  *          a value it cannot follow): up to 7.26.31 a recursive helper
  *          was read again at every call, and three recursive branches
- *          hung the build. A key built by concatenation, held in a `let`,
- *          or arriving as data cannot be known: its module publishes it
- *          in a `<NAME>_I18N_KEYS` list.
+ *          hung the build. And an UNMARKED plain `let` / `var` whose
+ *          every value in its scope -- its initializer, every `=`, `||=`,
+ *          `??=`, `&&=` -- is written as a string literal, a const bound
+ *          to one, `null`, or a `?:` / `||` / `??` of those (the right one
+ *          of `&&`), read where t(), an i18n or a data-i18n* value reads
+ *          a key: it can only ever hold those literals, so each is a key
+ *          asked for (exact, not a guess; a `let` given anything else --
+ *          a property of a table, a call, data, a `+=` -- is not
+ *          followed, and fails nothing). A key built by concatenation,
+ *          held in a `let` given anything else, or arriving as data
+ *          cannot be known: its module publishes it in a
+ *          `<NAME>_I18N_KEYS` list.
  *
  *          A MARKER at the place a key is read says where the keys of what
  *          follows it come from: `/\* i18n: <NAME>_I18N_KEYS *\/` (that
@@ -135,13 +152,20 @@
  *          published by a module the app mounts (the app's own included),
  *          and the keys it marks that can be read must be in them; a
  *          template with `${}` it marks must have the shape of some key of
- *          them (`monitor ${control}`: "monitor start"). A `data` marker
+ *          them (`monitor ${control}`: "monitor start") that no NARROWER
+ *          marked template builds (`monitor confirm ${control}` builds
+ *          "monitor confirm start": `monitor ${control}` marked with the
+ *          list of the confirms fails). A `data` marker
  *          is a claim too: on what the reader follows to keys and nothing
  *          else -- a literal, a const that is one, a `?:` branch that is
  *          one, a call that returns literals, imported or not -- it is a
  *          violation, and so is one that would HIDE a key the reader does
  *          not read -- a call whose returns mix keys with data (split the
- *          branches), an array of string literals. A marked `let` / `var`
+ *          branches), an array of string literals. No marker stands on a
+ *          TRANSLATED text -- `t("k")`, or a string built from one,
+ *          `t("k") + ":"`, `t("k").toUpperCase()` --: the place keeps the
+ *          translation as its key, and it never changes language. A
+ *          marked `let` / `var`
  *          is READ, and so is one a marked member or element is read from
  *          (`LABELS[k]`, `picked = LIST[0]`, the `x` of
  *          `LIST.forEach((x) => ...)`): everything it is given in its
@@ -159,27 +183,45 @@
  *          else -- a `let` given literals, an options variable, a
  *          concatenation, a parameter of a wrapper of the app's own -- is a
  *          violation, with the file and the line. So is a TRANSLATED text
- *          handed there -- `t("k")`, or any translator above --, even
- *          marked: the function translates it again and marks it data-i18n
- *          with the translation, so it never changes language; hand the
- *          key, not t(key). A function of the app is in no table, so what a
+ *          handed there -- `t("k")`, any translator above, or a string
+ *          built from one (`t("k") + ":"`) --, even marked: the function
+ *          translates it again and marks it data-i18n with the
+ *          translation, so it never changes language; hand the key, not
+ *          t(key). A translator handed as a CALLBACK is held to the same
+ *          rule: each element `keys.map(t)` walks is such a position, and
+ *          what `.then(t)` is handed, which no source writes, is marked or
+ *          fails. A function of the app is in no table, so what a
  *          wrapper of its own hands on is marked where it hands it -- and
  *          what its callers give it is read only if the module publishes
  *          it.
  *
  *          What stays INVISIBLE, and fails nothing: a key handed to t(),
- *          an i18n or a data-i18n* value by an unmarked `let`, by a call
- *          the reader does not follow or by a computed string (only the
- *          key positions of the table are held to the rule per call); a
- *          translator under another name than t / tr that no const or
- *          import makes an alias of (a parameter `translate`, a `let`
- *          alias, `i18next.getFixedT()`); a key function reached through a
- *          parameter, a `let` given more than one value, a computed
- *          member (`API[name](...)`); a data-i18n* attribute written
- *          through an alias of `dataset`, by Object.assign() into it, or
- *          named by a `let`; an export of a `let`; a module of a package
- *          (gobj-js, i18next); what is written into a const table after its
- *          declaration; a window's `title` given as an attr at
+ *          an i18n or a data-i18n* value by an unmarked `let` given
+ *          anything but literals (above), by a call the reader does not
+ *          follow or by a computed string (only the
+ *          key positions of the table, and a translator handed as a
+ *          callback, are held to the rule per call); a translator under
+ *          another name than t / tr that no const or import makes an
+ *          alias of (a parameter `translate`, a `let` alias,
+ *          `i18next.getFixedT()`), or called by what is no name of it --
+ *          `(0, t)(k)`, `[t][0](k)`, `Reflect.apply(t, x, [k])`,
+ *          `Function.prototype.call.call(t, x, k)` --; a key bound with
+ *          the translator, `t.bind(null, k)`; a parameter a closure
+ *          returns (`const inner = () => key; t(inner())`: the search for
+ *          the functions that forward a key does not see it); a translator
+ *          handed to a function (`{t: t}`, `yui_tabulator_lang(t)`: it
+ *          calls it with keys of its own); a translated text held in a
+ *          marked `let` (`let label = t(k); ... /\* i18n: data *\/ label`:
+ *          the marker reads the literals of the `let`, not what it
+ *          translates); a key function reached through a parameter, a
+ *          `let` given more than one value, a computed member
+ *          (`API[name](...)`); a data-i18n* attribute written through an
+ *          alias of `dataset`, by Object.assign() into it, or named by a
+ *          `let`; an export of a `let`; a published list mutated through a
+ *          function it is handed to, or by
+ *          `Array.prototype.push.call(X_I18N_KEYS, k)`; a module of a
+ *          package (gobj-js, i18next); what is written into a const table
+ *          after its declaration; a window's `title` given as an attr at
  *          gobj_create().
 
  *          Options (paths relative to the app's directory):
@@ -1606,7 +1648,8 @@ function callee_of(node, scope, depth = 0)
                     return {kind: "fn", fn: b.fn, scope: b.scope, name: b.fn.id.name, url: url_of(b.scope)};
                 case "const":
                     if(b.steps.length > 0) {
-                        return named;
+                        /*  `const {t: tt} = i18next` is `i18next.t`: a member `.t`  */
+                        return TRANSLATOR_NAMES.has(b.steps[b.steps.length - 1].prop)? TRANSLATOR : named;
                     }
                     if(FUNCTION_RE.test(b.init.type)) {
                         return {kind: "fn", fn: b.init, scope: b.scope, name: b.name, url: url_of(b.scope)};
@@ -1618,6 +1661,9 @@ function callee_of(node, scope, depth = 0)
                 }
                 case "import":
                     return exported_callee(import_target(b), depth) || named;
+                case "param":
+                    /*  `function f({t: tt})` is `opts.t`, the same member  */
+                    return /\.(?:t|tr)$/.test(b.path)? TRANSLATOR : named;
                 default:
                     return named;
             }
@@ -1817,6 +1863,131 @@ function is_translator_call(n, scope)
     }
     let c = call_kind(n, scope || []);
     return !!c && (c.kind === "t" || TRANSLATOR_NAMES.has(c.target.name));
+}
+
+/***************************************************************
+ *  Is a value a TRANSLATED text: a call of a translator
+ *  (is_translator_call()), or a string BUILT from one -- a
+ *  concatenation or a template holding one (`t("k") + ":"`,
+ *  `${t("k")}:`), a method called on one (`t("k").toUpperCase()`,
+ *  `[t("a"), name].join(" ")`), String() of one, a branch of
+ *  `?:` / `||` / `??` that is one? Its text is a translation: a place
+ *  that wants a key and gets it keeps the translation as its key.
+ *  A call of any other function is not read into (it may build DOM),
+ *  nor is a function.
+ ***************************************************************/
+function is_translated_text(n, scope, depth = 0)
+{
+    while(n && n.type === "ChainExpression") {
+        n = n.expression;
+    }
+    if(!n || depth > MAX_DEPTH) {
+        return false;
+    }
+    let sub = (x) => is_translated_text(x, scope, depth + 1);
+    switch(n.type) {
+        case "CallExpression": {
+            if(is_translator_call(n, scope)) {
+                return true;
+            }
+            let c = (n.callee.type === "ChainExpression")? n.callee.expression : n.callee;
+            if(c.type === "MemberExpression") {
+                /*  A method of a translated text, or of an array that holds one  */
+                let o = c.object;
+                if(o.type === "ArrayExpression") {
+                    return o.elements.some((e) => !!e && sub((e.type === "SpreadElement")? e.argument : e));
+                }
+                return sub(o);
+            }
+            if(c.type === "Identifier" && c.name === "String" && binding_of("String", scope) === null) {
+                return n.arguments.length > 0 && sub(n.arguments[0]);
+            }
+            return false;
+        }
+        case "BinaryExpression":
+            return n.operator === "+" && (sub(n.left) || sub(n.right));
+        case "TemplateLiteral":
+            return n.expressions.some(sub);
+        case "ConditionalExpression":
+            return sub(n.consequent) || sub(n.alternate);
+        case "LogicalExpression":
+            return (n.operator !== "&&" && sub(n.left)) || sub(n.right);
+        case "SequenceExpression":
+            return sub(n.expressions[n.expressions.length - 1]);
+        case "AwaitExpression":
+            return sub(n.argument);
+        default:
+            return false;
+    }
+}
+
+/*  The methods of a promise, which call a callback with what it settles
+ *  with (ITERATION_METHODS call theirs with each element)  */
+const SETTLE_METHODS = new Set(["then", "catch"]);
+
+/***************************************************************
+ *  A TRANSLATOR handed as a CALLBACK, not called: `keys.map(t)`. The
+ *  call it is handed to calls it, and what that call hands it is a
+ *  key the source writes nowhere as one:
+ *
+ *      {how: "elements", method, receiver, arg}
+ *              `keys.map(t)`, `.forEach(t)`, ... (ITERATION_METHODS),
+ *              `Array.from(keys, t)`: each ELEMENT of `receiver` is a
+ *              key
+ *      {how: "settled", method, arg}
+ *              `promise.then(t)`, `.catch(t)`: what the promise settles
+ *              with, which no source writes
+ *      null    anything else. A translator handed to a FUNCTION is how
+ *              gobj-ui receives one (`{t: t}`, `yui_tabulator_lang(t)`):
+ *              that function calls it with keys of its own, read where
+ *              it does. A `.bind()` that binds a key too (`t.bind(null,
+ *              k)`) is no callback of these.
+ *
+ *  `scope` is the chain of ancestors of the call, the call last.
+ ***************************************************************/
+function translator_callback(call, scope)
+{
+    let c = (call.callee.type === "ChainExpression")? call.callee.expression : call.callee;
+    if(c.type !== "MemberExpression" || c.computed || c.property.type !== "Identifier") {
+        return null;
+    }
+    let method = c.property.name;
+    let is_translator = (a) => {
+        while(a && a.type === "ChainExpression") {
+            a = a.expression;
+        }
+        if(!a || a.type === "SpreadElement") {
+            return false;
+        }
+        if(a.type === "CallExpression" && a.arguments.length > 1) {
+            return false;       // `t.bind(x, k)`: k is the key, not what the callback is handed
+        }
+        let target = callee_of(a, scope);
+        return !!target && (target.kind === "t" || (target.kind === "fn" && TRANSLATOR_NAMES.has(target.name)
+            && !is_key_function(target)));
+    };
+    let arg = call.arguments[0];
+    if(ITERATION_METHODS.has(method) && is_translator(arg)) {
+        return {how: "elements", method, receiver: c.object, arg};
+    }
+    if(SETTLE_METHODS.has(method) && call.arguments.some(is_translator)) {
+        return {how: "settled", method, arg: call.arguments.find(is_translator)};
+    }
+    if(method === "from" && c.object.type === "Identifier" && c.object.name === "Array"
+            && binding_of("Array", scope) === null && call.arguments.length >= 2 && is_translator(call.arguments[1])) {
+        return {how: "elements", method: "Array.from", receiver: call.arguments[0], arg: call.arguments[1]};
+    }
+    return null;
+}
+
+/*  Is a function the reader reads (callee_of(): {kind: "fn"}) a key
+ *  function of I18N_KEY_FUNCTIONS -- a `tr` of the library that takes
+ *  its key elsewhere than first?  */
+function is_key_function(target)
+{
+    let module = lib_module_of(target.url);
+    let fns = module? key_fn_index().by_module.get(module) : null;
+    return !!fns && fns.has(target.name);
 }
 
 
@@ -2917,6 +3088,144 @@ function var_leaves(root, seen = new Set(), depth = 0)
 }
 
 /***************************************************************
+ *  The keys an UNMARKED plain `let` / `var` holds -- the variable
+ *  itself read where a key is read (a leaf of leaves_of() with a
+ *  var_root and no step) -- when every value it is given in its scope
+ *  (assigned_values(): its value, every `=`, `||=`, `??=`, `&&=`) is,
+ *  as WRITTEN, a string literal or nothing (literal_values()). Such a
+ *  variable can only ever hold those literals, so they ARE the keys of
+ *  the place that reads it: exact, not a guess. Given anything else --
+ *  a property of a table (`SHORT_MONTHS[m]`), an element, a call, a
+ *  parameter, data --, or written in a way the reader cannot read
+ *  (`+=`, a for...of over it, a destructuring), it is not followed and
+ *  answers [] -- the invisible case, which fails nothing. (expand()
+ *  and var_leaves() read a member of a table as ANY value of it: good
+ *  enough for a marker, which names the lists to check against, and
+ *  too much to ask the locales for.) One declared by a destructuring,
+ *  and a member or an element read from one, are not this: a marker
+ *  follows those. Cached per variable.
+ *
+ *      -> [key]
+ ***************************************************************/
+const LITERAL_LETS = new WeakMap();     // the first declarator of a variable -> [string] | null
+
+function literal_let_keys(leaf)
+{
+    if(leaf.kind !== "unknown" || !leaf.var_root || leaf.var_root.steps.length > 0) {
+        return [];
+    }
+    return let_literals(leaf.var_root.binding, new Set()) || [];
+}
+
+/***************************************************************
+ *  The strings a plain `let` / `var` (binding_of(): {kind: "var"})
+ *  can hold, when it is only ever given literal_values(): [string],
+ *  or null. `seen` holds the variables on the way: one met again adds
+ *  nothing of its own (the frame that met it first adds it), and only
+ *  an answer found from no other variable's frame is kept.
+ ***************************************************************/
+function let_literals(b, seen)
+{
+    if(b.picks.size > 0) {
+        return null;        // a part of what a destructuring reads: no plain variable
+    }
+    let first = b.declarators[0];
+    if(LITERAL_LETS.has(first)) {
+        return LITERAL_LETS.get(first);
+    }
+    if(seen.has(first)) {
+        return [];
+    }
+    let outer = (seen.size === 0);
+    seen.add(first);
+    let {values, unknown} = assigned_values(b);
+    let out = (unknown.length === 0)? [] : null;
+    for(let v of values) {
+        if(out === null) {
+            break;
+        }
+        if(!v.node) {
+            continue;       // declared with no value: undefined
+        }
+        let lits = literal_values(v.node, v.scope, seen);
+        if(lits === null) {
+            out = null;
+        } else {
+            out.push(...lits);
+        }
+    }
+    let result = (out === null)? null : [...new Set(out)];
+    if(outer) {
+        LITERAL_LETS.set(first, result);
+    }
+    return result;
+}
+
+/***************************************************************
+ *  The strings a value IS, when it is written as nothing but
+ *  literals: a string literal or a template with no `${}` (an empty
+ *  one is nothing), `null` and `undefined` (nothing), every branch of
+ *  `?:`, `||` and `??` (the right one of `&&`: the left, when it is the
+ *  value, is falsy), a const -- of the module or imported from one the
+ *  reader reads -- bound to one of these, a plain `let` that is only
+ *  ever one of these (let_literals()). [string], or null for anything
+ *  else. `scope` is the chain of ancestors of `n`.
+ ***************************************************************/
+function literal_values(n, scope, seen, depth = 0)
+{
+    if(!n || depth > MAX_DEPTH) {
+        return null;
+    }
+    let sub = (x, s = scope) => literal_values(x, s, seen, depth + 1);
+    switch(n.type) {
+        case "Literal":
+            if(typeof n.value === "string") {
+                return n.value? [n.value] : [];
+            }
+            return (n.value === null && !n.regex)? [] : null;
+        case "TemplateLiteral": {
+            if(n.expressions.length > 0) {
+                return null;
+            }
+            let s = n.quasis[0].value.cooked;
+            return s? [s] : [];
+        }
+        case "ConditionalExpression": {
+            let a = sub(n.consequent);
+            let c = sub(n.alternate);
+            return (a && c)? [...a, ...c] : null;
+        }
+        case "LogicalExpression": {
+            let r = sub(n.right);
+            if(n.operator === "&&" || r === null) {
+                return r;
+            }
+            let l = sub(n.left);
+            return l? [...l, ...r] : null;
+        }
+        case "Identifier": {
+            let b = binding_of(n.name, scope);
+            if(!b) {
+                return (n.name === "undefined")? [] : null;
+            }
+            if(b.kind === "const" && b.steps.length === 0) {
+                return sub(b.init, b.scope);
+            }
+            if(b.kind === "import") {
+                let x = import_target(b);
+                return (x && x.kind === "const" && x.steps.length === 0)? sub(x.init, x.scope) : null;
+            }
+            if(b.kind === "var") {
+                return let_literals(b, seen);
+            }
+            return null;
+        }
+        default:
+            return null;
+    }
+}
+
+/***************************************************************
  *  What a SOURCE can hold, for a test that derives a published list
  *  from it (i18n_key_functions.test.js): the keys of leaves_of(), a
  *  `let` / `var` met followed into everything it is given
@@ -3351,14 +3660,16 @@ function is_forwarded(leaf, lib_module, table)
 /***************************************************************
  *  Is a leaf a TRANSLATED text -- a call of a translator
  *  (is_translator_call(): `t("...")`, `i18next.t("...")`, `tr()`, an
- *  alias, `t?.()`, `t.call()`)? At a key position it is a bug of its
- *  own: the function translates it again and marks it data-i18n with
- *  the translation, so it never changes language. What goes there is
- *  the key.
+ *  alias, `t?.()`, `t.call()`), or a string built from one
+ *  (is_translated_text(): `t("k") + ":"`, `t("k").toUpperCase()`)?
+ *  At a key position it is a bug of its own: the function translates
+ *  it again and marks it data-i18n with the translation, so it never
+ *  changes language. What goes there is the key. DOM is no such text,
+ *  whatever it holds.
  ***************************************************************/
 function is_translation(leaf)
 {
-    return !!leaf.node && is_translator_call(leaf.node, leaf.scope);
+    return !!leaf.node && !KNOWN.has(leaf.kind) && is_translated_text(leaf.node, leaf.scope || []);
 }
 
 /***************************************************************
@@ -3395,37 +3706,54 @@ function holds_only_dom(leaf)
  *       (a module publishes those keys) or `/\* i18n: data *\/`.
  *
  *  A TRANSLATED text -- a call of any translator, is_translator_call():
- *  `t("...")`, `tr()`, an alias, `t?.()`, `t.call()` -- fails even when
+ *  `t("...")`, `tr()`, an alias, `t?.()`, `t.call()`, or a string built
+ *  from one, is_translated_text(): `t("k") + ":"` -- fails even when
  *  marked: what goes there is the key (`why: "translated"`). The calls
  *  are found however they reach a key function (key_calls()). `table`
  *  is I18N_KEY_FUNCTIONS by default.
  *
- *      -> [{line, call_line, name, path, text, why}]
+ *  A translator handed as a CALLBACK (translator_callbacks(): `keys.map(t)`,
+ *  `promise.then(t)`) is held to the same rule: each element it is
+ *  handed is a key position, and so is what a promise settles with --
+ *  which no source writes, so it is marked or it fails (`name` "t",
+ *  `path` the method it is handed to, `callback` set).
+ *
+ *      -> [{line, call_line, name, path, text, why, callback}]
  ***************************************************************/
 function call_rule_violations(ast, lib_module, table)
 {
     let markers = markers_of(ast);
     let out = [];
+    let check = (leaves, call, name, path, callback) => {
+        for(let leaf of leaves) {
+            let why = null;
+            if(is_translation(leaf)) {
+                why = "translated";
+            } else if(KNOWN.has(leaf.kind) || is_forwarded(leaf, lib_module, table)
+                    || marker_of(leaf, markers) || holds_only_dom(leaf)) {
+                continue;
+            }
+            out.push({
+                line: line_of(ast, leaf.node.start),
+                call_line: line_of(ast, call.start),
+                name: name,
+                path: path,
+                text: ast.code.slice(leaf.node.start, leaf.node.end).slice(0, 120),
+                why: why,
+                callback: callback || null
+            });
+        }
+    };
     for(let {entry, call, scope, args} of key_calls(ast, lib_module, table)) {
         for(let path of entry.keys) {
-            for(let leaf of values_at(call, path, scope, args)) {
-                let why = null;
-                if(is_translation(leaf)) {
-                    why = "translated";
-                } else if(KNOWN.has(leaf.kind) || is_forwarded(leaf, lib_module, table)
-                        || marker_of(leaf, markers) || holds_only_dom(leaf)) {
-                    continue;
-                }
-                out.push({
-                    line: line_of(ast, leaf.node.start),
-                    call_line: line_of(ast, call.start),
-                    name: entry.name,
-                    path: path,
-                    text: ast.code.slice(leaf.node.start, leaf.node.end).slice(0, 120),
-                    why: why
-                });
-            }
+            check(values_at(call, path, scope, args), call, entry.name, path, null);
         }
+    }
+    for(let {call, scope, callback} of translator_callbacks(ast, lib_module)) {
+        let arg = ast.code.slice(callback.arg.start, callback.arg.end);
+        let shown = (callback.method === "Array.from")? `Array.from(..., ${arg})` : `.${callback.method}(${arg})`;
+        check(callback_leaves(call, callback, scope), call, "t", `${callback.method} callback`,
+              {how: callback.how, shown});
     }
     return out;
 }
@@ -3437,14 +3765,25 @@ function call_rule_violations(ast, lib_module, table)
 function call_rule_message(label, v)
 {
     let where = `${label}:${v.line}${v.call_line !== v.line? ` (call at line ${v.call_line})` : ""}`;
-    let what = `${v.name}() [${v.path}] is given ${v.text.replace(/\s+/g, " ")}`;
+    let text = v.text.replace(/\s+/g, " ");
+    let cb = v.callback;
     if(v.why === "translated") {
+        let what = cb? `${cb.shown} hands t() ${text}` : `${v.name}() [${v.path}] is given ${text}`;
         return `${where}: ${what}: a TRANSLATED text where a KEY goes (translated again and ` +
                `marked data-i18n with the translation, it never changes language, and no marker ` +
                `excuses it): hand the key, not t(key)`;
     }
-    return `${where}: ${what}, which the reader cannot follow: hand it a literal or a const, ` +
-           `or mark it /* i18n: data */ or /* i18n: <NAME>_I18N_KEYS */`;
+    if(cb && cb.how === "settled") {
+        return `${where}: ${cb.shown} hands t() what \`${text}\` settles with, as a key no source ` +
+               `writes: mark the call /* i18n: data */ or /* i18n: <NAME>_I18N_KEYS */`;
+    }
+    if(cb) {
+        return `${where}: ${cb.shown} hands t() each element it walks as a key, and the reader cannot ` +
+               `follow ${text}: walk a const array (or a published list), or mark the call ` +
+               `/* i18n: data */ or /* i18n: <NAME>_I18N_KEYS */`;
+    }
+    return `${where}: ${v.name}() [${v.path}] is given ${text}, which the reader cannot follow: hand it ` +
+           `a literal or a const, or mark it /* i18n: data */ or /* i18n: <NAME>_I18N_KEYS */`;
 }
 
 
@@ -3642,16 +3981,22 @@ const OBJECT_MUTATORS = new Set(["assign", "defineProperty", "defineProperties"]
 /***************************************************************
  *  The places a file MUTATES a published list: one of its own
  *  (`lists`, published_lists()) or one it imports (an import whose
- *  name ends in _I18N_KEYS). A list is read as it is WRITTEN, so a
- *  key it is given later -- `.push()`, `.splice()`, `.unshift()`,
- *  `.fill()`, `X[i] = k`, `X.length = n`, `Object.assign(X, ...)`,
- *  `delete X[i]`, a reassignment -- is asked for by nobody.
+ *  name ends in _I18N_KEYS, or such a member of a namespace import:
+ *  `import * as M from "./m.js"; M.X_I18N_KEYS`), by its name or
+ *  through an ALIAS of it -- a const bound to one (`const a = X`), or
+ *  a `let` / `var` given nothing else. A list is read as it is
+ *  WRITTEN, so a key it is given later -- `.push()`, `.splice()`,
+ *  `.unshift()`, `.fill()`, `X[i] = k`, `X.length = n`,
+ *  `Object.assign(X, ...)`, `delete X[i]`, a reassignment -- is asked
+ *  for by nobody. (Through a function it is handed to, or by
+ *  `Array.prototype.push.call(X, k)`, it is not seen.)
  *
  *      -> [{line, why}]
  ***************************************************************/
 function list_mutations(ast, lists = [])
 {
     let names = new Set();
+    let namespaces = false;
     for(let node of ast.body) {
         let decl = (node.type === "ExportNamedDeclaration")? node.declaration : node;
         if(decl && decl.type === "VariableDeclaration") {
@@ -3673,19 +4018,66 @@ function list_mutations(ast, lists = [])
                 if(spec.type === "ImportSpecifier" && PUBLISHED_LIST_RE.test(spec.imported.name || spec.imported.value)) {
                     names.add(spec.local.name);
                 }
+                if(spec.type === "ImportNamespaceSpecifier") {
+                    namespaces = true;
+                }
             }
         }
     }
-    if(names.size === 0) {
+    if(names.size === 0 && !namespaces) {
         return [];
     }
-    /*  A use of one of them: the name, bound at the top of the module  */
-    let is_list = (n, chain) => {
-        if(!n || n.type !== "Identifier" || !names.has(n.name)) {
-            return false;
+
+    /*
+     *  The list a node names, as said in a message, or null: its name
+     *  bound at the top of the module, a member of a namespace import,
+     *  or an alias of one of those
+     */
+    let list_of = (n, chain, depth = 0) => {
+        while(n && n.type === "ChainExpression") {
+            n = n.expression;
+        }
+        if(!n || depth > MAX_DEPTH) {
+            return null;
+        }
+        if(n.type === "MemberExpression") {
+            let step = member_step(n);
+            if(step.prop === null || !PUBLISHED_LIST_RE.test(step.prop) || n.object.type !== "Identifier") {
+                return null;
+            }
+            let b = binding_of(n.object.name, chain);
+            return (b && b.kind === "import" && b.imported === "*")? `${n.object.name}.${step.prop}` : null;
+        }
+        if(n.type !== "Identifier") {
+            return null;
         }
         let b = binding_of(n.name, chain);
-        return !!b && !!b.scope && b.scope.length === 1;
+        if(!b || !b.scope) {
+            return null;
+        }
+        if(names.has(n.name) && b.scope.length === 1) {
+            return n.name;
+        }
+        if(b.kind === "const" && b.steps.length === 0) {
+            let inner = list_of(b.init, b.scope, depth + 1);
+            return inner? `${inner} (through its alias \`${n.name}\`)` : null;
+        }
+        if(b.kind === "var" && b.picks.size === 0) {
+            /*  A `let` that is only ever given the list is an alias of it (the
+             *  first value asked first: `let out = []` is no alias, and costs
+             *  no walk of its scope)  */
+            let first = b.declarators[0];
+            let inner = (first && first.init)? list_of(first.init, b.scope, depth + 1) : null;
+            if(!inner) {
+                return null;
+            }
+            let {values, unknown} = assigned_values(b);
+            if(unknown.length > 0 || values.some((v) => !v.node || list_of(v.node, v.scope, depth + 1) !== inner)) {
+                return null;
+            }
+            return `${inner} (through its alias \`${n.name}\`)`;
+        }
+        return null;
     };
     let out = [];
     let say = (n, name) => {
@@ -3695,30 +4087,36 @@ function list_mutations(ast, lists = [])
                        `write every key in its array literal`});
     };
     walk(ast, (n, ancestors) => {
-        let chain = [...ancestors, n];
+        let chain = null;
+        let list = (x) => {
+            chain = chain || [...ancestors, n];
+            return list_of(x, chain);
+        };
+        let name = null;
         if(n.type === "CallExpression") {
             let c = n.callee;
-            if(c.type === "MemberExpression" && !c.computed && ARRAY_MUTATORS.has(c.property.name)
-                    && is_list(c.object, chain)) {
-                say(n, c.object.name);
+            if(c.type === "MemberExpression" && !c.computed && ARRAY_MUTATORS.has(c.property.name)) {
+                name = list(c.object);
             } else if(c.type === "MemberExpression" && !c.computed && c.object.type === "Identifier"
                     && (c.object.name === "Object" || c.object.name === "Reflect")
-                    && (OBJECT_MUTATORS.has(c.property.name) || c.property.name === "set")
-                    && is_list(n.arguments[0], chain)) {
-                say(n, n.arguments[0].name);
+                    && (OBJECT_MUTATORS.has(c.property.name) || c.property.name === "set")) {
+                name = list(n.arguments[0]);
             }
         } else if(n.type === "AssignmentExpression") {
-            if(is_list(n.left, chain)) {
-                say(n, n.left.name);
-            } else if(n.left.type === "MemberExpression" && is_list(n.left.object, chain)) {
-                say(n, n.left.object.name);
+            if(n.left.type === "MemberExpression") {
+                name = list(n.left) || list(n.left.object);
+            } else if(n.left.type === "Identifier" && names.has(n.left.name)) {
+                /*  The list itself given another value: an alias given one is no mutation  */
+                let x = list(n.left);
+                name = (x === n.left.name)? x : null;
             }
-        } else if(n.type === "UpdateExpression" && n.argument.type === "MemberExpression"
-                && is_list(n.argument.object, chain)) {
-            say(n, n.argument.object.name);
-        } else if(n.type === "UnaryExpression" && n.operator === "delete"
-                && n.argument.type === "MemberExpression" && is_list(n.argument.object, chain)) {
-            say(n, n.argument.object.name);
+        } else if(n.type === "UpdateExpression" && n.argument.type === "MemberExpression") {
+            name = list(n.argument.object);
+        } else if(n.type === "UnaryExpression" && n.operator === "delete" && n.argument.type === "MemberExpression") {
+            name = list(n.argument.object);
+        }
+        if(name) {
+            say(n, name);
         }
     });
     return out;
@@ -3743,7 +4141,8 @@ function list_mutations(ast, lists = [])
  *                    `t.call(x, key)`); an array there is the list of
  *                    keys i18next tries in turn, each one a key
  *      "code"        the code of a schema check, add("error", <code>)
- *      "attribute"   setAttribute("data-i18n*", <key>), the name a
+ *      "attribute"   setAttribute("data-i18n*", <key>) and
+ *                    setAttributeNS(ns, "data-i18n*", <key>), the name a
  *                    literal or a const the reader follows to one
  *      "property"    an `i18n`, `code` or `data-i18n*` property of an
  *                    object literal (`{[ATTR]: k}` with ATTR a const
@@ -3754,6 +4153,10 @@ function list_mutations(ast, lists = [])
  *                    (`dataset.i18nX` IS the attribute data-i18n-x)
  *      "call"        a key position of a key function: `entry` and
  *                    `path` say which
+ *      "callback"    a translator handed as a CALLBACK
+ *                    (translator_callback(), in `callback`): each element
+ *                    of what `keys.map(t)` walks, or what `.then(t)` is
+ *                    handed (callback_leaves())
  *
  *  `node` is the node of the place (the call, the property, the
  *  assignment), where a marker of the whole place stands.
@@ -3766,9 +4169,12 @@ function key_places(ast, ctx = {})
     let array_keys = ctx.array_keys || new Set();
     let table = ctx.table || I18N_KEY_FUNCTIONS;
     program_url(ast, ctx.lib_module || null);
-    /*  One walk: the key calls are found on the way (key_calls() gets them)  */
+    /*  One walk: the key calls and the translators handed as callbacks
+     *  are found on the way (key_calls(), translator_callbacks() get them)  */
     let known_calls = key_calls_cached(ast, table);
     let calls = known_calls || [];
+    let known_callbacks = CALLBACKS.get(ast) || null;
+    let callbacks = known_callbacks || [];
     let out = [];
     let read = (what, node, scope, root) => {
         if(node) {
@@ -3807,10 +4213,20 @@ function key_places(ast, ctx = {})
                 } else if(name === "add" && is_string_literal(n.arguments[0], /^(error|warning)$/)) {
                     /*  The codes the schema checks hand to `t(finding.code)`  */
                     read("code", n.arguments[1], [...ancestors, n], n);
-                } else if(name === "setAttribute" && n.arguments.length >= 2) {
+                } else if((name === "setAttribute" && n.arguments.length >= 2)
+                        || (name === "setAttributeNS" && n.arguments.length >= 3)) {
+                    /*  setAttributeNS(ns, name, value): the same, one argument on  */
+                    let at = (name === "setAttributeNS")? 1 : 0;
                     let scope = [...ancestors, n];
-                    if(names_of(n.arguments[0], scope).some((x) => DATA_I18N_ATTR_RE.test(x))) {
-                        read("attribute", n.arguments[1], scope, n);
+                    if(names_of(n.arguments[at], scope).some((x) => DATA_I18N_ATTR_RE.test(x))) {
+                        read("attribute", n.arguments[at + 1], scope, n);
+                    }
+                }
+                if(!known_callbacks && may_take_a_callback(n)) {
+                    let scope = [...ancestors, n];
+                    let cb = translator_callback(n, scope);
+                    if(cb) {
+                        callbacks.push({call: n, scope, callback: cb});
                     }
                 }
                 break;
@@ -3869,12 +4285,78 @@ function key_places(ast, ctx = {})
     if(!known_calls) {
         set_key_calls(ast, table, calls);
     }
+    if(!known_callbacks) {
+        CALLBACKS.set(ast, callbacks);
+    }
     for(let {entry, call, scope, args} of calls) {
         for(let path of entry.keys) {
             out.push({what: "call", node: call, entry, path, leaves: values_at(call, path, scope, args)});
         }
     }
+    for(let {call, scope, callback} of callbacks) {
+        out.push({what: "callback", node: call, callback, leaves: callback_leaves(call, callback, scope)});
+    }
     return out;
+}
+
+/***************************************************************
+ *  The translators a parsed file hands as CALLBACKS
+ *  (translator_callback()), found by key_places() on its walk or by
+ *  a walk of their own, and kept:
+ *
+ *      -> [{call, scope, callback}], `scope` the ancestors of the call,
+ *         the call last
+ ***************************************************************/
+const CALLBACKS = new WeakMap();    // a parsed file -> its translator callbacks
+
+function translator_callbacks(ast, lib_module = null)
+{
+    program_url(ast, lib_module);
+    if(CALLBACKS.has(ast)) {
+        return CALLBACKS.get(ast);
+    }
+    let out = [];
+    walk(ast, (n, ancestors) => {
+        if(n.type === "CallExpression" && may_take_a_callback(n)) {
+            let scope = [...ancestors, n];
+            let cb = translator_callback(n, scope);
+            if(cb) {
+                out.push({call: n, scope, callback: cb});
+            }
+        }
+    });
+    CALLBACKS.set(ast, out);
+    return out;
+}
+
+/*  Can a call be one translator_callback() looks at: a method of
+ *  ITERATION_METHODS, `then` / `catch`, or `Array.from()`?  */
+function may_take_a_callback(n)
+{
+    let c = (n.callee.type === "ChainExpression")? n.callee.expression : n.callee;
+    if(c.type !== "MemberExpression" || c.computed || c.property.type !== "Identifier" || n.arguments.length === 0) {
+        return false;
+    }
+    let m = c.property.name;
+    return ITERATION_METHODS.has(m) || SETTLE_METHODS.has(m) || m === "from";
+}
+
+/***************************************************************
+ *  The leaves of what a translator handed as a callback is called
+ *  with (translator_callback()): each element of the array, as
+ *  leaves_of() reads it, or -- for a promise -- one value the reader
+ *  cannot follow, the call. Their `via` starts at the call and at the
+ *  translator handed: a marker stands before the call (and so before
+ *  the array: `/\* i18n: data *\/ keys.map(t)`) or before the
+ *  translator.
+ ***************************************************************/
+function callback_leaves(call, callback, scope)
+{
+    let via = [call, callback.arg];
+    if(callback.how === "elements") {
+        return elements_of(callback.receiver, {scope, via, off: false}, 0).map(classify);
+    }
+    return [{kind: "unknown", node: call, scope: scope.slice(0, -1), via, off: false}];
 }
 
 /***************************************************************
@@ -3919,7 +4401,11 @@ function key_list_leaves(node, scope, root)
  *  string literals. Under a LIST marker those keys are asked for and
  *  must be in the lists, and a template with `${}` must have the
  *  shape of a key of them (`shapes`, checked where the lists are
- *  known).
+ *  known: shape_owner_check()). No marker stands on a TRANSLATED text
+ *  (is_translation()) where it is read as a key -- at a key position
+ *  of a key function and at a translator handed as a callback the
+ *  rule per call says so (call_rule_violations()), anywhere else the
+ *  marker does.
  ***************************************************************/
 function scan_ast(ast, ctx)
 {
@@ -3955,7 +4441,8 @@ function scan_ast(ast, ctx)
         }
         if(m.kind === "lists" && leaf.kind === "unknown" && leaf.node && leaf.node.type === "TemplateLiteral"
                 && leaf.node.expressions.length > 0) {
-            m.shapes.push({text: text_of(leaf.node), source: template_shape(leaf.node)});
+            m.shapes.push({text: text_of(leaf.node), source: template_shape(leaf.node),
+                           bottom: template_bottom(leaf.node)});
         }
     };
 
@@ -4009,7 +4496,11 @@ function scan_ast(ast, ctx)
         }
     };
 
-    let take = (leaves) => {
+    /*  `what`: the kind of place (key_places()). At a key position of a key
+     *  function and at a translator handed as a callback, a TRANSLATED
+     *  text is the rule's (call_rule_violations()); anywhere else a marker
+     *  standing on one answers for it.  */
+    let take = (leaves, what) => {
         for(let leaf of leaves) {
             if(leaf.kind === "key") {
                 keys.add(leaf.value);
@@ -4022,6 +4513,7 @@ function scan_ast(ast, ctx)
                     m.leaves = [];
                     m.hidden = [];
                     m.shapes = [];
+                    m.translated = [];
                 }
                 m.leaves.push(leaf);
                 if(leaf.kind === "key") {
@@ -4031,6 +4523,14 @@ function scan_ast(ast, ctx)
                     check_marked_var(leaf, m);
                 }
                 answer(leaf, m);
+                if(what !== "call" && what !== "callback" && is_translation(leaf)) {
+                    m.translated.push(leaf);
+                }
+            } else if(what !== "call" && what !== "callback") {
+                /*  An unmarked `let` that can only hold literals holds keys  */
+                for(let k of literal_let_keys(leaf)) {
+                    keys.add(k);
+                }
             }
         }
     };
@@ -4048,7 +4548,7 @@ function scan_ast(ast, ctx)
     };
 
     for(let place of key_places(ast, ctx)) {
-        take(place.leaves);
+        take(place.leaves, place.what);
     }
     walk(ast, (n) => {
         if(n.type === "Property") {
@@ -4079,6 +4579,21 @@ function scan_ast(ast, ctx)
         if(!m.used) {
             marker_errors.push({line: m.line, why: marker_misplaced(ast, m)});
             continue;
+        }
+        let seen_translated = new Set();
+        for(let leaf of m.translated) {
+            if(seen_translated.has(leaf.node)) {
+                continue;
+            }
+            seen_translated.add(leaf.node);
+            /*  A const imported from another file: its text is that file's  */
+            let program = (leaf.scope && leaf.scope.length > 0 && typeof leaf.scope[0].code === "string")?
+                leaf.scope[0] : ast;
+            let text = program.code.slice(leaf.node.start, leaf.node.end).replace(/\s+/g, " ").slice(0, 80);
+            marker_errors.push({line: m.line, why: `marked as ` +
+                `${m.kind === "data"? "data" : "keys of " + m.lists.join(", ")}, but \`${text}\` ` +
+                `is a TRANSLATED text: where a key is read, the translation is kept as its key and never ` +
+                `changes language, and no marker excuses it: hand the key, not t(key)`});
         }
         if(m.kind === "lists") {
             marker_refs.push({lists: m.lists, keys: [...m.keys], line: m.line, shapes: m.shapes});
@@ -4124,6 +4639,59 @@ function template_shape(node)
 {
     let esc = (q) => q.value.cooked.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return "^" + node.quasis.map(esc).join("[\\s\\S]*") + "$";
+}
+
+/***************************************************************
+ *  A template with each `${}` replaced by a character no literal
+ *  part holds (`monitor confirm ${control}` -> "monitor confirm \0").
+ *  Every string template A builds has the shape of template B exactly
+ *  when B's shape matches A's bottom: B's `${}`s must take the \0s,
+ *  and what takes a \0 takes any string.
+ ***************************************************************/
+const TEMPLATE_HOLE = "\u0000";
+
+function template_bottom(node)
+{
+    return node.quasis.map((q) => q.value.cooked).join(TEMPLATE_HOLE);
+}
+
+/***************************************************************
+ *  A template marked with lists (`shape`: {text, source, bottom}),
+ *  checked against the keys of those lists and every other marked
+ *  template (`shapes`, each with its `label` and `line`):
+ *
+ *      {narrower: null}        some key of the lists has its shape and
+ *                              no NARROWER template builds it -- a
+ *                              template whose shape lies strictly
+ *                              inside this one's
+ *      {narrower: shape}       every key of its shape is one of that
+ *                              narrower template (`monitor confirm
+ *                              ${control}` inside `monitor ${control}`):
+ *                              the marker names the other's list
+ *      null                    no key of the lists has its shape
+ *
+ *  A key that a narrower template builds is that template's: the
+ *  wider one builds it only when what fills its `${}` carries a
+ *  literal part of the narrower one ("confirm start" in `monitor
+ *  ${control}`), which code that writes both templates does not do.
+ *  So a marker that names the list of the other template fails at
+ *  BOTH templates, where up to 7.26.34 only the narrower one failed
+ *  ("monitor confirm start" has the shape `^monitor .*$`).
+ ***************************************************************/
+function shape_owner_check(shape, keys, shapes)
+{
+    let re = new RegExp(shape.source);
+    let own = keys.filter((k) => re.test(k));
+    if(own.length === 0) {
+        return null;
+    }
+    let narrower = shapes.filter((u) => u.source !== shape.source && re.test(u.bottom)
+                                         && !new RegExp(u.source).test(shape.bottom));
+    let free = own.filter((k) => !narrower.some((u) => new RegExp(u.source).test(k)));
+    if(free.length > 0) {
+        return {narrower: null};
+    }
+    return {narrower: narrower.find((u) => new RegExp(u.source).test(own[0]))};
 }
 
 /***************************************************************
@@ -4269,6 +4837,8 @@ function collect_used_keys(opts)
     }
 
     /*  A marker names lists that were read, and what it marks is in them  */
+    let all_shapes = refs.flatMap((ref) => (ref.shapes || []).map((s) =>
+        Object.assign({label: ref.label, line: ref.line}, s)));
     for(let ref of refs) {
         let names = ref.lists.filter((name) => published.has(name));
         for(let name of ref.lists) {
@@ -4286,12 +4856,18 @@ function collect_used_keys(opts)
                      `${ref.lists.join(", ")}, and is not in it`);
             }
         }
+        let them = (ref.lists.length > 1)? "them" : "it";
         for(let shape of ref.shapes || []) {
-            let re = new RegExp(shape.source);
-            if(!names.some((name) => [...published.get(name)].some((k) => re.test(k)))) {
+            let r = shape_owner_check(shape, names.flatMap((name) => [...published.get(name)]), all_shapes);
+            if(!r) {
                 fail(`${ref.label}:${ref.line}: the i18n marker names ${ref.lists.join(", ")} for ` +
-                     `${shape.text}, and no key of ${ref.lists.length > 1? "them" : "it"} has that shape: ` +
-                     `publish the keys the template builds`);
+                     `${shape.text}, and no key of ${them} has that shape: publish the keys the template builds`);
+            } else if(r.narrower) {
+                let u = r.narrower;
+                fail(`${ref.label}:${ref.line}: the i18n marker names ${ref.lists.join(", ")} for ` +
+                     `${shape.text}, and every key of ${them} with that shape has the shape of a narrower ` +
+                     `template, ${u.text} (${u.label}:${u.line}), which builds those keys: name the list ` +
+                     `of the keys ${shape.text} builds`);
             }
         }
     }

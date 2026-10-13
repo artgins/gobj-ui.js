@@ -5,6 +5,193 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.35
+
+Twenty-third check of the review (yunovatios `REV-CLOUD.md` §V23): the
+library half, the validator, and the deploy round.
+
+- **fix(`C_YUI_WINDOW`, `C_YUI_SHELL`): a window outlives a logout again, and
+  the next shell takes it in.** 7.26.31 put a window whose host names no
+  `$parent` in the shell's overlay layer -- and the layer goes with the shell.
+  A window that is not the shell's child (the developer window of gui_agent,
+  gui_treedb and wattyzer, parented to the app) stayed alive with its DOM
+  detached, the shell of the next login never placed it again, and the first
+  click on *Developer* closed the invisible one. A shell now tells, when it is
+  built and when it is destroyed, every gobj that asked
+  (`yui_shell_watch_changes()`, the input event `EV_SHELL_CHANGED`): a window
+  takes its place again in its own action -- the body while there is no shell,
+  the next shell's window layer once there is one -- and a window its host had
+  placed inside the dying shell takes the window place from then on. A window
+  created before the first shell is taken in by it. Its Back entry goes with
+  the shell that held it. The inline dock moves to the next shell's zone the
+  same way. A window parented to the app therefore stays on screen over the
+  login after a logout, as before 7.26.31: an app that does not want it
+  destroys its session windows at logout (yunovatios and estadodelaire do).
+  Test: `src/window_layer.wiring.test.js`.
+- **fix(`C_YUI_SHELL`, `C_YUI_WINDOW`, `C_YUI_WINDOW_MANAGER`): every window
+  of the library lives in a WINDOW layer under the drawer, in ONE z-order**
+  (`yui_shell_window_layer()`, `yui_shell_raise_window()`, new). In the overlay
+  layer itself a managed window's z-index -- a counter that grew on every focus
+  -- passed the drawer's 18 after a few focus changes, and a drawer opened under
+  the windows. The site map, the raw json of the treedb graph and topics, the
+  gclass viewer opened from no window and the json of a treedb topic form named
+  the POPUP layer: above the drawer, and in the way of the toolbar's dropdowns,
+  which opened behind them where they met. And there were two orders: the dock
+  raised its windows to a counter of its own, a window without a dock sat at 3
+  and rose by being moved to the end of its parent -- so a window opened later
+  without a dock opened UNDER any docked one, and no click brought it up. One
+  number orders them all now: a window opens on top; a press brings it up, a
+  docked one through the dock's `EV_FOCUS_WINDOW`, one without a dock through
+  its own `EV_SHOW`, which raises by the number instead of moving the element
+  (a move took its focus and the press that started on it). Tests:
+  `src/window_layer.wiring.test.js`, `src/window_stacking.wiring.test.js`.
+- **fix(`C_YUI_WINDOW_MANAGER`): the floating dock lives in the shell's popup
+  layer**, at its top: above every window, below the dialogs and the toasts.
+  It was `document.body` at z-index 1000000, above the whole shell -- clickable
+  over a dialog's backdrop, over the toasts. **A chip of the dock is no control
+  itself:** it was a `role="button"` holding the ✕ button -- one control inside
+  another, whose name read the label and then "close". It holds two sibling
+  buttons now: the toggle (minimise / bring back, named by the window's title,
+  through the FSM: `EV_TOGGLE_WINDOW`, an input event), and its ✕ (`close`).
+  QA scripts that clicked `.yui-dock-chip` click `.DOCK_CHIP_TOGGLE`. Tests:
+  `src/named_controls.wiring.test.js`.
+- **fix(`C_YUI_TREEDB_GRAPH`, `C_YUI_TREEDB_TOPICS`): "print-tranger failed"
+  is drawn translated.** On a drill the fallback travelled as `error`, which
+  the JSON viewer draws as it came: the raw key, in English, in every
+  language. It travels as `i18n` now (`EV_SUBTREE_ERROR {path, i18n}`); the
+  backend's own words stay `error`. Test: `src/treedb_json_drill.wiring.test.js`.
+- **fix(`C_YUI_SHELL`, `C_YUI_NAV`): a badge is part of its item's name, and a
+  change is said with it.** The badge of 7.26.30 was its own `role="status"`:
+  it said "3" with no word of what has three, it was `hidden` while empty (the
+  first count was most likely never said), and inside a `<button>` (the
+  toolbar, an accordion head) it was not in the tree. The control is now
+  labelled by itself and its badge (`aria-labelledby`,
+  `name_control_with_badge()`): "Alarms 3". A change is said once, in one live
+  region of the shell that is always there, with the item's name ("Alarms,
+  3", new key `{{name}}, {{n}}`) -- the same count again, or a count going
+  away, is no news. Tests: `src/nav_item_badge.wiring.test.js`,
+  `src/yui_badge.test.js`.
+- **fix: the controls the library drew without a name.** The find boxes of
+  C_YUI_JSON, C_YUI_JSON_GRAPH, C_YUI_GOBJ_TREE_JS and C_YUI_GCLASS (no
+  `title`); the dock's chip; a crumb and a card of C_YUI_NAV; a topic tab of
+  C_YUI_TREEDB_TOPICS; a link of the site map (named by its label,
+  `aria-current` on "you are here"); the buttons of a file field; the ✕ of a
+  selected option of a Tom Select (English "Remove", out of the keyboard's
+  reach: `remove this option`, pressed by Enter or Space); the box Tabulator
+  draws in a cell being EDITED, named after its column at the moment of
+  editing (`yui_tabulator_name_editor()`); the menu of the json editor of a
+  form, translated and named after each render, and drawn again on a
+  language change (`form_json_editor_names.js`); its CONTEXT menu too
+  (`onRenderContextMenu`: its items carry no class, so each is known by the
+  icon it is drawn with, the column it stands in, its place in a dropdown and
+  the editor's mode -- never by its words --, an item the library does not
+  know stays in English rather than mislabelled, and the arrow that opens a
+  dropdown is `more options`); and the aria-label maplibre writes once on the
+  map's canvas and its default markers, which stayed "Mapa" after a switch.
+  What the json editor draws with no hook -- its search box, its repair
+  messages, the tip of its context menu, its sort and transform modals --
+  stays in its English. Tests: `src/named_controls.wiring.test.js`,
+  `src/table_editor_name.wiring.test.js`,
+  `src/form_json_editor_names.wiring.test.js`,
+  `src/lib_maplibre_relocalize.test.js`.
+- **fix(`C_YUI_FORM`, `C_YUI_TREEDB_TOPIC_WITH_FORM`): a field label and a
+  column header change language by the key that translated them.** The label
+  is translated by `'<topic>.<col>'`, then `'<col>'`, but the key it was
+  re-translated by asked only `'<col>'`: a label translated by its topic's key
+  alone carried its translated TEXT as the key and never changed language
+  again; one translated by both switched to the bare column's text at the
+  first change. The column header of a topic form had the same cascade and
+  the same fault (the apps with a shell did not show it: the view rebuilds its
+  columns on `EV_LANGUAGE_CHANGED`). Tests: `src/form_label_i18n.wiring.test.js`,
+  `src/treedb_column_title.wiring.test.js`.
+- **New keys every app must define** (its `validate-locales` asks for them):
+  `{{name}}, {{n}}`, `remove this option`, `format json`, `compact json`,
+  `sort`, `transform`, `open context menu`, `table view`, `text mode`,
+  `tree mode`, `table mode`, `edit key`, `edit value`, `enforce string`,
+  `cut`, `cut formatted`, `cut compacted`, `copy formatted`,
+  `copy compacted`, `duplicate`, `extract`, `remove`, `convert to`, `insert`,
+  `structure`, `object`, `array`, `value`, `insert before`, `insert after`,
+  `table cell`, `table row`, `edit row`, `duplicate row`, `remove row`,
+  `more options` (yunomusica, which mounts no form: only the first).
+- **`scripts/deploy-round.mjs`: raising the range raises the app's version
+  too**, its third number, in the same edit of each package.json (V23.6.1): a
+  new range is a new bundle, and an "About" that showed one number for five
+  bundles (yunovatios, through four rounds) named none of them. A
+  package.json whose range was already raised is not touched again, so a
+  round run twice bumps once; a version that is not x.y.z is left, and said.
+- Docs: the package description, `SHELL.md` and `TODO.md` said the v1 line
+  serves estadodelaire too (only hidraulia now); "six apps" are seven.
+- **`validate-locales`: what the reader still did not see (REV-CLOUD V23.5.1).**
+  - **A translator handed as a CALLBACK.** `keys.map(t)`, `.forEach(t)` (and
+    the other iteration methods), `Array.from(keys, t)` hand each element to
+    t() as a key: the elements are read like any other key -- a const array,
+    a published list, an import of one --, and an array the reader cannot
+    follow fails the rule per call unless the call is marked
+    (`/* i18n: data */ rows.map(t)`). What `promise.then(t)` / `.catch(t)`
+    hands it is a key no source writes: marked, or it fails. A translator
+    handed to a FUNCTION (`{t: t}`, `yui_tabulator_lang(t)`) is not one of
+    these: it is how gobj-ui receives one.
+  - **A destructured translator**: `const {t: tt} = i18next` and a parameter
+    `{t: tt}` are the member `.t`, like `i18next.t`: `tt("k")` asks for "k",
+    and `/* i18n: data */ tt("k")` at a key position fails as a translated
+    text (it passed, and its key was not asked for).
+  - **`setAttributeNS(ns, "data-i18n-title", k)`** is read like
+    `setAttribute()`.
+  - **A text BUILT from a translation is a translated text**: `t("k") + ":"`,
+    `` `${t("k")}:` ``, `t("k").toUpperCase()`, `[t("a"), x].join(" ")`. At a
+    key position it fails like `t("k")`, marked or not (unmarked it used to
+    fail with *"cannot follow"*, whose advice -- the marker -- let it pass),
+    and a marker standing on one anywhere else a key is read (`t()`, an
+    `i18n` / `data-i18n*` value) fails too: *"hand the key, not t(key)"*. DOM
+    built with one is DOM.
+  - Left as documented limits (README, "What stays INVISIBLE"): a translator
+    called through what is no name of it (`(0, t)(k)`, `[t][0](k)`,
+    `Reflect.apply`, `Function.prototype.call.call`), a key bound with it
+    (`t.bind(null, k)`), a parameter a closure returns (`const inner = () =>
+    key; t(inner())`), and a translated text held in a marked `let`.
+  Tests: `REV-CLOUD V23.5.1` in `validate-locales.test.js`, `REV-CLOUD V23.5`
+  in `i18n_key_functions.test.js`.
+- **A published list mutated through an ALIAS or a NAMESPACE fails**
+  (V23.5.2): `const a = X_I18N_KEYS; a.push(k)` (and a `let` given nothing
+  but the list), `import * as M from "./m.js"; M.X_I18N_KEYS.push(k)`. A
+  mutation through a function the list is handed to, or by
+  `Array.prototype.push.call(X, k)`, stays a documented limit. Test:
+  `REV-CLOUD V23.5.2`.
+- **A list marker over a template is checked against NARROWER templates**
+  (V23.5.3). The shape test let `` /* i18n: <the questions' list> */ `monitor
+  ${control}` `` pass, because "monitor confirm start" matches `^monitor .*$`:
+  swapping gui_agent's two monitor lists was caught at two of its sites. A
+  key of the template's shape that a narrower marked template builds (one
+  whose shape lies inside it, `monitor confirm ${control}`) is that
+  template's now, so a template whose every key of its shape is a narrower
+  one's fails, naming it -- a swap is caught at every site. Test:
+  `REV-CLOUD V23.5.3`.
+- **An UNMARKED `let` that is only ever given literals is followed** where
+  `t()`, an `i18n` / `code` value or a `data-i18n*` attribute reads a key.
+  When every value a plain `let` / `var` is given in its scope -- its
+  initializer, every `=`, `||=`, `??=`, `&&=` -- is WRITTEN as a string
+  literal, a const bound to one, `null`, another such `let`, or a `?:` / `||`
+  / `??` of those, it can only ever hold those literals, and each is asked of
+  the locales: exact, so it fails nothing new (a missing key fails as any
+  key does). A `let` given anything else -- a property of a table, a call, a
+  parameter, data, a `+=` -- stays the documented invisible case; a marked
+  `let` keeps its rules (*"make it a const"*), and at a key position of a key
+  function a `let` still fails the rule per call. It is not the reader's
+  general following, which reads a member of a table as ANY value of it:
+  that would have asked gui_agent's terminal key bar for its control
+  sequences (`let name = pair[2] || pair[0]`) and wattyzer for "—". The
+  consumers ask for 37 keys more, all defined: gui_agent 14, wattyzer 9,
+  yunomusica 8, gui_treedb 4, test-app 2. Tests: `REV-CLOUD V23.5: an
+  UNMARKED let that only ever holds literals is followed` (and its unit
+  twin).
+- None of the other new forms is used by any consumer: apart from those 37
+  keys, the keys every consumer's run asks for are unchanged (gui_agent,
+  gui_treedb, wattyzer, gui-central, gui-controlador, yunomusica,
+  estadodelaire, test-app), and so is the time (gui_agent, median of 20
+  alternated runs: 0.68 s without the `let` rule, 0.69 s with it).
+- Docs: the 7.26.32 entry below said gui_agent's monitor named its list in
+  "three calls": it publishes two lists, named in five calls.
+
 ## 7.26.34
 
 - **fix(`C_YUI_FORM`): a table that does not validate refuses the save.**
@@ -151,9 +338,10 @@ i18n key validator.
   `` /* i18n: X_I18N_KEYS */ `monitor ${control}` `` (directly, or through
   the `let` it marks) needs a key of `X_I18N_KEYS` that matches
   `^monitor .*$`, or it fails. gui_agent marked as data the keys its monitor
-  BUILDS, `monitor ${control}`; it publishes the six now
-  (`C_AGENT_MONITOR_I18N_KEYS`) and its three calls name that list, so every
-  one of them is asked for (none was). Test: `REV-CLOUD V22.6`.
+  BUILDS, `monitor ${control}` and `monitor confirm ${control}`; it publishes
+  them now, six in each of two lists (`C_AGENT_MONITOR_I18N_KEYS`,
+  `C_AGENT_MONITOR_CONFIRM_I18N_KEYS`), and its five calls name those lists,
+  so every one of the twelve is asked for (none was). Test: `REV-CLOUD V22.6`.
 - **A published list is an `export const`, and is never mutated.** A list
   declared with `let` or `var` fails (it was read, and a `.push()` on it hid
   keys: the 7.26.29 entry said a spread of a `let` failed, which was true only

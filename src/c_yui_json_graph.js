@@ -565,6 +565,8 @@ function make_toolbar(gobj)
              *  cannot reach it: it needs its own key. */
             placeholder: t('search'),
             'data-i18n-placeholder': 'search',
+            title: t('search'),
+            'data-i18n-title': 'search',
             'aria-label': t('search'),
             'data-i18n-aria-label': 'search'
         }, [], {

@@ -64,7 +64,6 @@ import {
 import {
     yui_shell_confirm_yesnocancel,
     yui_shell_confirm_ok,
-    yui_shell_popup_layer,
     yui_shell_show_modal,
 } from "./shell_modals.js";
 
@@ -78,7 +77,8 @@ import {attach_clear} from "./yui_inputs.js";
 
 import {yui_tabulator_lang, yui_tabulator_relocalize,
         yui_tabulator_name_filters,
-        yui_tabulator_name_row_selects} from "./yui_tabulator_i18n.js";
+        yui_tabulator_name_row_selects,
+        yui_tabulator_name_editor} from "./yui_tabulator_i18n.js";
 
 import {
     yui_selection_column,
@@ -287,13 +287,6 @@ let PRIVATE_DATA = {
 
 let __gclass__ = null;
 
-/*  Where to mount the edit/delete modal.  Under a C_YUI_SHELL use
- *  its popup layer (z 20): the shell confirms live on the modal
- *  layer (z 99), so they always paint above this dialog — a
- *  body-mounted Bulma `.modal` would cover them (the shell is a
- *  stacking context below body-level modals).  The legacy
- *  C_YUI_MAIN "#popup-layer" and document.body (Bulma `.modal` is
- *  position:fixed) remain the shell-less fallbacks. */
 /*  True on a phone-width viewport (Bulma's mobile breakpoint).  */
 function is_mobile()
 {
@@ -341,7 +334,7 @@ function present_json_popup(gobj, $box, opts)
         opts.name,
         "C_YUI_WINDOW",
         {
-            $parent:    popup_mount_layer(gobj),
+            $parent:    popup_mount_layer(),
             subscriber: null,
             modal:      false,
             showMax:    true,
@@ -408,13 +401,18 @@ function retire_popup_window(win)
     }
 }
 
-function popup_mount_layer(gobj)
+/************************************************************
+ *  Where a json window of this view lives: null, the WINDOW
+ *  layer of the shell, where every window lives -- below the
+ *  shell's dialogs, so a confirm asked over it paints above it
+ *  (the legacy C_YUI_MAIN '#popup-layer' when a page has one).
+ *  It was the shell's popup layer: above the drawer, in the way
+ *  of the toolbar's dropdowns, and in an order of its own no
+ *  other window could rise above.
+ ************************************************************/
+function popup_mount_layer()
 {
-    let $layer = yui_shell_popup_layer(yui_shell_of(gobj));
-    if($layer) {
-        return $layer;
-    }
-    return document.getElementById("popup-layer") || document.body;
+    return document.getElementById("popup-layer") || null;
 }
 
 
@@ -1144,8 +1142,25 @@ function col_title_formatter(gobj, col)
         let text = col_label(col, topic_name);
         let attrs = {};
         const NO_I18N = "\x00";
-        if(t(col.id, {defaultValue: NO_I18N}) !== NO_I18N) {
-            attrs.i18n = col.id;
+        /*  The key a language change re-translates the header by is the
+         *  one the cascade TOOK -- '<topic>.<col>' before '<col>', as
+         *  col_label() reads them. Up to 7.26.34 it was always the bare
+         *  '<col>': a header translated by its topic's key alone carried
+         *  none (and stayed in its language), one translated by both went
+         *  to the bare column's text. The shell's apps did not show it --
+         *  their view rebuilds its columns on EV_LANGUAGE_CHANGED, after
+         *  refresh_language(), and this formatter runs the cascade again
+         *  -- but a refresh_language() alone did. The column is the
+         *  host's schema: data.  */
+        let key = null;
+        if(topic_name &&
+                t(/* i18n: data */ topic_name + "." + col.id, {defaultValue: NO_I18N}) !== NO_I18N) {
+            key = topic_name + "." + col.id;
+        } else if(t(col.id, {defaultValue: NO_I18N}) !== NO_I18N) {
+            key = col.id;
+        }
+        if(key) {
+            attrs.i18n = /* i18n: data */ key;
         }
         return createElement2(['span', attrs, text_node(text)]);
     };
@@ -1312,6 +1327,13 @@ function create_tabulator(gobj)
             return gobj_read_bool_attr(gobj, "editable") &&
                    !gobj_read_bool_attr(gobj, "readonly");
         };
+
+        /*  The box Tabulator draws in the cell being edited is named after
+         *  its column -- the header's own cascade -- in the language of
+         *  that moment.  */
+        yui_tabulator_name_editor(colDef, function() {
+            return col_label(col, gobj_read_str_attr(gobj, "topic_name"));
+        });
     }
 
     const FILTERABLE = [

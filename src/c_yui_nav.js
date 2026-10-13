@@ -109,7 +109,7 @@ import {
     bulma_hidden_class,
 } from "./shell_show_on.js";
 import {text_node} from "./yui_text.js";
-import {badge_node, badge_tone, paint_badge} from "./yui_badge.js";
+import {badge_node, badge_tone, paint_badge, name_control_with_badge} from "./yui_badge.js";
 
 /***************************************************************
  *              Constants
@@ -478,6 +478,8 @@ function render_tabs(gobj, items)
             a_attrs.title = tip;
             a_attrs["data-i18n-title"] = tip;
         }
+        /*  The count is part of its name (yui_badge.js)  */
+        name_control_with_badge(a_attrs, badge_el);
         /*  Per-item state class (e.g. a "disconnected" colour) rides on
          *  the <li>, alongside Bulma's own is-active. */
         let li_class = empty_string(it.class) ? "" : String(it.class);
@@ -539,16 +541,24 @@ function render_breadcrumb(gobj, items)
             let label = it.name || it.id || "";
             children.push(["span", {class: "yui-nav-label", i18n: label}, text_node(label)]);
         }
+        /*  Named and titled like every other item of the nav: up to
+         *  7.26.34 a crumb had no title, and no name when it had no
+         *  `name` (an icon crumb read as nothing).  */
         let a_attrs = {
             class: "yui-nav-item yui-nav-crumb",
             href: it.route ? "#" + it.route : "#",
             "data-item-id": it.id,
             "data-route": it.route || "",
-            "data-disabled": it.disabled ? "1" : "0"
+            "data-disabled": it.disabled ? "1" : "0",
+            "aria-label": it.name || it.id
         };
         if(it.name) {
-            a_attrs["aria-label"] = it.name;
             a_attrs["data-i18n-aria-label"] = it.name;
+        }
+        let tip = it.tooltip || it.aria_label || it.name;
+        if(tip) {
+            a_attrs.title = tip;
+            a_attrs["data-i18n-title"] = tip;
         }
         lis.push(["li", {}, [["a", a_attrs, children]]]);
     }
@@ -676,16 +686,20 @@ function render_accordion(gobj, items)
             "aria-expanded": "false",
             "aria-controls": body_id
         };
+        /*  A section head reads as a line: its badge follows the label  */
+        let head_badge = item_badge_node(gobj, it, false);
         if(!empty_string(head_text)) {
             head_attrs.i18n = head_text;
             head_attrs.title = head_text;
             head_attrs["data-i18n-title"] = head_text;
             head_attrs["aria-label"] = head_text;
             head_attrs["data-i18n-aria-label"] = head_text;
+            /*  The count is part of its name: inside a <button> the
+             *  badge is no node of its own for a reader (yui_badge.js)  */
+            name_control_with_badge(head_attrs, head_badge);
         }
-        /*  A section head reads as a line: its badge follows the label  */
         let $hdr = createElement2(["button", head_attrs,
-            [text_node(head_text), item_badge_node(gobj, it, false)]]);
+            [text_node(head_text), head_badge]]);
         $container.appendChild($hdr);
 
         let $ul = createElement2(
@@ -807,6 +821,8 @@ function item_li(gobj, it, opts)
         a_attrs["aria-disabled"] = "true";
         a_attrs["tabindex"] = "-1";
     }
+    /*  The count is part of its name (yui_badge.js)  */
+    name_control_with_badge(a_attrs, badge_el);
 
     return ["li", {},
         ["a", a_attrs, children]
@@ -863,6 +879,8 @@ function item_iconbar(gobj, it, opts)
         a_attrs.title = tip;
         a_attrs["data-i18n-title"] = tip;
     }
+    /*  The count is part of its name (yui_badge.js)  */
+    name_control_with_badge(a_attrs, badge_el);
     return ["div", {class: "level-item"},
         ["a", a_attrs, children]
     ];

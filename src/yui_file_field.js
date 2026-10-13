@@ -266,6 +266,7 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
     const $pick = createElement2(["button", {
         type: "button",
         class: "FILE_PICK button is-small",
+        title: t("choose a file"),
         "data-i18n-title": "choose a file",
         "aria-label": t("choose a file"),
         "data-i18n-aria-label": "choose a file"
@@ -280,6 +281,7 @@ function yui_file_control(gobj, {name, value, readonly, accept, on_pick})
     const $clear = createElement2(["button", {
         type: "button",
         class: "FILE_CLEAR button is-small",
+        title: t("remove the file"),
         "data-i18n-title": "remove the file",
         "aria-label": t("remove the file"),
         "data-i18n-aria-label": "remove the file"
