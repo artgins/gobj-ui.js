@@ -98,7 +98,8 @@ import {
 } from "./lib_icons.js";
 import {row_matches} from "./yui_row_search.js";
 
-import {t} from "i18next";
+import i18next, {t} from "i18next";
+import {safe_locale} from "./yui_time.js";
 
 import {yui_toolbar_icon} from "./yui_toolbar.js";
 
@@ -123,7 +124,7 @@ import {cell_text, hook_cell_spec} from "./table_cell_text.js";
 
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 import {text_node, text_list_item_formatter} from "./yui_text.js";
-import {time_value_to_date} from "./form_time_value.js";
+import {time_value_to_text} from "./form_time_value.js";
 
 /***************************************************************
  *              Constants
@@ -2271,33 +2272,17 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
                 case "string":
                 case "integer":
                     /*  An ISO text for a string column (up to 7.26.46 read
-                     *  with parseInt, as 2026 seconds), none for no time.  */
-                    value = time_value_to_date(value, field_desc.real_type);
-                    if(!value) {
-                        value = "";
-                        break;
+                     *  with parseInt, as 2026 seconds), none for no time.
+                     *  The APP's language and 24 hours, as C_YUI_FORM's
+                     *  cells (up to 7.26.51 the browser's language, 12
+                     *  hours). A language change re-runs setColumns(),
+                     *  which re-runs this.  */
+                    value = time_value_to_text(
+                        value, field_desc.real_type, safe_locale(i18next.language)
+                    );
+                    if(value) {
+                        value = createElement2(['span', {class: 'is-size-7'}, text_node(value)]);
                     }
-
-                    const rawLocale = navigator.language;
-                    // Playwright Firefox without locale config and some embedded
-                    // webviews report navigator.language as the literal string
-                    // "undefined" — would throw RangeError in Intl.DateTimeFormat.
-                    const userLocale = (typeof rawLocale === "string" && rawLocale && rawLocale !== "undefined")
-                        ? rawLocale
-                        : undefined;
-                    const opts = {
-                        day: 'numeric',
-                        month: 'short',   // 'long' for full month name, 'short' for abbreviated, 'narrow' for shortest
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: true, // Use true for AM/PM or false for 24-hour format, depending on locale preference
-                        // timeZoneName: 'short' // Options are 'short' or 'long'
-                    };
-
-                    const formatter = new Intl.DateTimeFormat(userLocale, opts);
-                    value = createElement2(['span', {class: 'is-size-7'}, formatter.format(value)]);
                     break;
             }
             break;

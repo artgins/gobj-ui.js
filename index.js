@@ -107,6 +107,7 @@ export {
     epoch_to_local_input,
     local_input_to_epoch,
     fmt_epoch,
+    fmt_date_time,
     iso_week,
     period_spec,
     period_start,

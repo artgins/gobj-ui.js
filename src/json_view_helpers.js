@@ -16,6 +16,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {json2flat, flat_diff} from "@yuneta/gobj-js";
+import {fmt_date_time} from "./yui_time.js";
 
 /*
  *  Path delimiter, identical to the kernel's `delimiter` in kwid.c.
@@ -214,11 +215,15 @@ export function is_time_field(field)
 export {TIME_FIELDS};
 
 /************************************************************
- *   Format an epoch value as a local wall-clock string.
+ *   Format an epoch value as a local wall-clock string, 24
+ *   hours, in the APP's language `locale` (fmt_date_time() of
+ *   yui_time.js, as the time cells of the forms and tables;
+ *   up to gobj-ui 7.26.51 it was toLocaleString(): the
+ *   browser's language, and 12 hours in English).
  *   Accepts seconds or milliseconds; returns null when the
  *   value is not a usable positive timestamp (0 == "unset").
  ************************************************************/
-export function format_epoch(value)
+export function format_epoch(value, locale)
 {
     if(typeof value !== "number" || !isFinite(value) || value <= 0) {
         return null;
@@ -228,7 +233,7 @@ export function format_epoch(value)
     if(isNaN(d.getTime())) {
         return null;
     }
-    return d.toLocaleString();
+    return fmt_date_time(d, locale);
 }
 
 

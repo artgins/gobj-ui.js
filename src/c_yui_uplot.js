@@ -3,6 +3,11 @@
  *
  *          Graphics, Charts with uPlot
  *
+ *          A moment uPlot writes -- a tick of a time axis, the reading of
+ *          the legend -- is in the app's language with a clock of 24 hours
+ *          (yui_uplot_time.js), and is written again on the shell's
+ *          EV_LANGUAGE_CHANGED.
+ *
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -18,6 +23,8 @@ import {
     gobj_read_pointer_attr,
     gobj_parent,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
+    gobj_is_destroying,
     gobj_read_attr,
     gobj_read_str_attr,
     gobj_write_attr,
@@ -34,6 +41,9 @@ import {yui_watch_theme} from "./yui_theme.js";
 /*  The ink of the axes -- the X and the Y -- and the palette of the
  *  series, on both schemes: see yui_uplot_ink.js.  */
 import {yui_uplot_axes, YUI_UPLOT_PALETTE} from "./yui_uplot_ink.js";
+import {yui_uplot_fmt_date} from "./yui_uplot_time.js";
+import {yui_shell_of} from "./c_yui_shell.js";
+import i18next from "i18next";
 
 
 /***************************************************************
@@ -66,6 +76,7 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     theme_observer: null,   /*  the DOM's data-theme, as an EV_THEME  */
+    lang_shell: null,       /*  the shell whose EV_LANGUAGE_CHANGED we hear  */
 };
 
 let __gclass__ = null;
@@ -107,6 +118,13 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    let priv = gobj.priv;
+
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+        priv.lang_shell = shell;
+    }
 }
 
 /***************************************************************
@@ -114,6 +132,14 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
+    /*  The shell it subscribed to, if it is still there: a logout may
+     *  have destroyed it, and its subscriptions with it.  */
+    if(priv.lang_shell && !gobj_is_destroying(priv.lang_shell)) {
+        gobj_unsubscribe_event(priv.lang_shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+    priv.lang_shell = null;
 }
 
 /***************************************************************
@@ -172,6 +198,7 @@ function build_ui(gobj)
         series: gobj_read_attr(gobj, "series"),
         axes: yui_uplot_axes(gobj_read_attr(gobj, "axes")),
         scales: gobj_read_attr(gobj, "scales"),
+        fmtDate: yui_uplot_fmt_date(() => i18next.language),
     };
     let uplot = new uPlot(
         uPlot_options,
@@ -438,6 +465,26 @@ function ac_theme(gobj, event, kw, src)
 }
 
 /******************************************************
+ *   The language changed: the ticks of a time axis and the
+ *   reading of the legend ask for it when they are written,
+ *   so they are written again.
+ ******************************************************/
+function ac_language_changed(gobj, event, kw, src)
+{
+    let uplot = gobj_read_attr(gobj, "uplot");
+    if(!uplot) {
+        return 0;
+    }
+    try {
+        uplot.redraw(true, true);
+        uplot.setLegend(null, false);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot redraw the chart: ${e}`);
+    }
+    return 0;
+}
+
+/******************************************************
  *
  ******************************************************/
 function ac_del_serie(gobj, event, kw, src)
@@ -511,7 +558,8 @@ function create_gclass(gclass_name)
             ["EV_ADD_SERIE",            ac_add_serie,           null],
             ["EV_DEL_SERIE",            ac_del_serie,           null],
             ["EV_CLEAR",                ac_clear,               null],
-            ["EV_THEME",                ac_theme,               null]
+            ["EV_THEME",                ac_theme,               null],
+            ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null]
         ]]
     ];
 
@@ -523,7 +571,8 @@ function create_gclass(gclass_name)
         ["EV_ADD_SERIE",            0],
         ["EV_DEL_SERIE",            0],
         ["EV_CLEAR",                0],
-        ["EV_THEME",                0]
+        ["EV_THEME",                0],
+        ["EV_LANGUAGE_CHANGED",     0]
     ];
 
     __gclass__ = gclass_create(

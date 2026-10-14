@@ -110,6 +110,15 @@ const FORM_TEMPLATE = {
 
     /*  free text (plain input; multiline textarea is not template-reachable)  */
     notes:      "string.writable",
+
+    /*  a table: its time cells show the local clock, 24 hours, in the
+     *  app's language, and follow the language button  */
+    visits: {id: "visits", header: "visits", type: "array",
+             flag: ["writable", "table"],
+             table: {
+                 when: {type: "integer", flag: ["writable", "time"]},
+                 note: {type: "string", flag: ["writable"]}
+             }},
 };
 
 /*  What the host would fetch from the treedb: the linkable parent rows per
@@ -139,6 +148,10 @@ const FORM_RECORD = {
     department:  "departments^engineering^users",           // canonical ref
     teams:       ["teams^core^members", "teams^ui^members"], // canonical refs
     notes:       "Edit a field and press Save — the JSON below updates.",
+    visits:      [
+        {when: 1791983109, note: "afternoon"},      // 2026-10-14T13:05:09Z
+        {when: 1790726400, note: "midnight UTC"},   // 2026-09-30T00:00:00Z
+    ],
 };
 
 

@@ -52,7 +52,7 @@ import {
     gobj_unsubscribe_event,
 } from "@yuneta/gobj-js";
 
-import {t} from "i18next";
+import i18next, {t} from "i18next";
 
 import {
     yui_tabulator_name_row_selects,
@@ -100,6 +100,7 @@ import {
     time_value_to_text
 } from "./form_time_value.js";
 import {form_time_cell_editor} from "./form_time_cell_editor.js";
+import {safe_locale} from "./yui_time.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
 import {
     json_editor_menu_items,
@@ -2605,6 +2606,48 @@ function table_column_titles(template)
     return titles;
 }
 
+/*  The formatters of the time cells, so a language change finds them.  */
+const TIME_CELL_FORMATTERS = new WeakSet();
+
+/******************************************************************
+ *  The formatter of a time cell: the local clock, 24 hours, in the
+ *  APP's language (fmt_date_time of yui_time.js, as the cells of
+ *  C_YUI_TREEDB_TOPIC_WITH_FORM): es "14 oct 2026, 15:05:09".
+ ******************************************************************/
+function time_cell_formatter(real_type)
+{
+    let formatter = function(cell) {
+        return text_node(time_value_to_text(
+            cell.getValue(), real_type, safe_locale(i18next.language)
+        ));
+    };
+    TIME_CELL_FORMATTERS.add(formatter);
+    return formatter;
+}
+
+/******************************************************************
+ *  Draw the time cells of a table again, in the current language.
+ *  Cell by cell, never a redraw of the rows: a row's formatter
+ *  builds its nested tables anew -- empty. A cell being edited is
+ *  its editor's; Tabulator formats it again when the editor closes.
+ ******************************************************************/
+function reformat_time_cells(tabulator)
+{
+    for(let column of tabulator.getColumns()) {
+        let formatter = column.getDefinition().formatter;
+        if(!TIME_CELL_FORMATTERS.has(formatter)) {
+            continue;
+        }
+        for(let cell of column.getCells()) {
+            let $cell = cell.getElement();
+            if($cell.classList.contains("tabulator-editing")) {
+                continue;
+            }
+            $cell.replaceChildren(formatter(cell));
+        }
+    }
+}
+
 /******************************************************************
  *  Convert a template's items in tabulator columns
  ******************************************************************/
@@ -2808,9 +2851,7 @@ function template2columns(gobj, columns, template, sub_elements)
                 };
                 /*  The clock, not the epoch: up to 7.26.46 the cell showed
                  *  the raw number.  */
-                column.formatter = function(cell) {
-                    return text_node(time_value_to_text(cell.getValue(), field_desc.real_type));
-                };
+                column.formatter = time_cell_formatter(field_desc.real_type);
                 break;
 
             case "color":
@@ -4346,11 +4387,13 @@ function ac_language_changed(gobj, event, kw, src)
      *  form was built in. Through the table's LOCALE, never by
      *  updateDefinition(): rebuilding a column re-renders every row, and
      *  a row's formatter builds its nested tables anew -- empty. A table
-     *  not built yet is drawn in the current language when it is.  */
+     *  not built yet is drawn in the current language when it is. The
+     *  time cells write their month in the language too.  */
     for(let $table of $container.querySelectorAll(".yui-tabulator-table, .yui-tabulator-table-nested")) {
         let tabulator = $table.tabulator;
         if(tabulator && tabulator.initialized && $table.template) {
             yui_tabulator_relocalize(tabulator, t, table_column_titles($table.template));
+            reformat_time_cells(tabulator);
         }
     }
     return 0;

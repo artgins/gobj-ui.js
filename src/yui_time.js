@@ -241,6 +241,42 @@ function fmt_epoch(value, ms)
     }
 }
 
+/*  The clock is always 24 hours: `hourCycle`, never `hour12: false`,
+ *  which some engines read as "h24" and show midnight as 24:00:00.  */
+const DATE_TIME_OPTIONS = {
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hourCycle: "h23"
+};
+
+/***************************************************************
+ *  A moment as a VIEW shows it as text: the day, the month and the
+ *  year, then the clock of 24 hours with its seconds, in the APP's
+ *  language -- `locale` is the language t() answers in (the views
+ *  pass `i18next.language`), never the browser's:
+ *
+ *      fmt_date_time(d, "es")  ->  "14 oct 2026, 15:05:09"
+ *      fmt_date_time(d, "en")  ->  "Oct 14, 2026, 15:05:09"
+ *
+ *  "" for anything that is not a valid Date. A locale Intl refuses
+ *  gives the language-free "2026-10-14 15:05:09".
+ *
+ *  The time cells of C_YUI_FORM and C_YUI_TREEDB_TOPIC_WITH_FORM and
+ *  the reading C_YUI_JSON writes beside a time field all come from
+ *  here, so the same moment reads the same in the three.
+ ***************************************************************/
+function fmt_date_time(date, locale)
+{
+    if(!(date instanceof Date) || isNaN(date.getTime())) {
+        return "";
+    }
+    try {
+        return new Intl.DateTimeFormat(safe_locale(locale), DATE_TIME_OPTIONS).format(date);
+    } catch(e) {
+        return epoch_to_local_input(date.getTime(), true).replace("T", " ");
+    }
+}
+
 
                     /***************************
                      *      Calendar atoms
@@ -663,6 +699,7 @@ export {
     epoch_to_local_input,
     local_input_to_epoch,
     fmt_epoch,
+    fmt_date_time,
 
     day_number,
     start_of_iso_week,

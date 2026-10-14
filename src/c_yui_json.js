@@ -68,6 +68,8 @@ import {
     gobj_read_pointer_attr,
     gobj_parent,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
+    gobj_is_destroying,
     gobj_create_pure_child,
     gobj_start,
     gobj_stop,
@@ -106,9 +108,11 @@ import {
 
 import {yui_toolbar, yui_toolbar_icon} from "./yui_toolbar.js";
 import {register_c_yui_json_graph} from "./c_yui_json_graph.js";
+import {yui_shell_of} from "./c_yui_shell.js";
 import {attach_clear} from "./yui_inputs.js";
 
-import {t} from "i18next";
+import i18next, {t} from "i18next";
+import {safe_locale} from "./yui_time.js";
 
 import "./c_yui_json.css";
 import {text_node} from "./yui_text.js";
@@ -197,6 +201,7 @@ let PRIVATE_DATA = {
     $expand_btn: null,  // "expand loaded" button (hidden in text view)
     $collapse_btn: null,// "collapse all" button (hidden in text view)
     $mode_btns: null,   // Map<mode, HTMLElement> of the view switch
+    lang_shell: null,   // the shell whose EV_LANGUAGE_CHANGED we hear
 };
 
 let __gclass__ = null;
@@ -255,6 +260,17 @@ function mt_start(gobj)
     if(priv.root !== null) {
         gobj_change_state(gobj, "ST_READY");
     }
+
+    /*  The reading beside a time field is written in the app's language
+     *  when the tree is drawn: the shell's language switch draws it again
+     *  (ac_language_changed). No host forwarded the event, so up to
+     *  gobj-ui 7.26.51 that action never ran.  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+        priv.lang_shell = shell;
+    }
+
     render_view(gobj);
 }
 
@@ -263,6 +279,15 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
+    /*  The shell it subscribed to, if it is still there: a logout may
+     *  have destroyed it, and its subscriptions with it.  */
+    if(priv.lang_shell && !gobj_is_destroying(priv.lang_shell)) {
+        gobj_unsubscribe_event(priv.lang_shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+    priv.lang_shell = null;
+
     /*
      *  The graph child dies with the parent's RUNNING state, not with
      *  its destruction, and the difference is not cosmetic:
@@ -1001,7 +1026,7 @@ function leaf_row(key, value, depth)
     body.push(['span', {class: 'JSON_VALUE JSON_TYPE_' + type.toUpperCase()}, text_node(text)]);
 
     if(key !== null && is_time_field(String(key))) {
-        let wall = format_epoch(value);
+        let wall = format_epoch(value, safe_locale(i18next.language));
         if(wall) {
             body.push(['span', {class: 'JSON_TIME is-size-7 yui-text-quiet ml-2'}, wall]);
         }
@@ -1337,6 +1362,12 @@ function ac_json_item_clicked(gobj, event, kw, src)
 
 /************************************************************
  *   EV_LANGUAGE_CHANGED — re-translate chrome + re-render
+ *
+ *   Only the TREE is drawn again: it writes the reading of a
+ *   time field in the language of the moment it was drawn. The
+ *   text view carries its keys (refresh_language reaches them),
+ *   and loading the graph again would throw away the reader's
+ *   camera for nothing.
  ************************************************************/
 function ac_language_changed(gobj, event, kw, src)
 {
@@ -1349,7 +1380,9 @@ function ac_language_changed(gobj, event, kw, src)
         }
         apply_view_mode(gobj);
     }
-    render_view(gobj);
+    if(current_view_mode(gobj) === "tree") {
+        render_tree(gobj);
+    }
     return 0;
 }
 

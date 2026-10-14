@@ -73,7 +73,9 @@ const USERS_DESC = {
          flag: ["persistent", "fkey"],
          fkey: {"teams": "members"}},
         {id: "secret",     header: "Secret",     type: "string",
-         flag: ["persistent", "hidden"]}
+         flag: ["persistent", "hidden"]},
+        {id: "last_seen",  header: "Last seen",  type: "integer",
+         flag: ["persistent", "writable", "time"]}
     ]
 };
 
@@ -95,18 +97,21 @@ function initial_data()
              config: {theme: "dark", limits: {cpu: 2}},
              department: "departments^engineering^users",
              teams: ["teams^core^members", "teams^ui^members"],
-             secret: "s3cr3t"},
+             secret: "s3cr3t",
+             last_seen: 1791983109},
             {id: "alan",  name: "Alan Turing",   age: 41, enabled: true,
              icon: "yi-u-demo-star",
              config: {theme: "light"},
              department: "departments^engineering^users",
              teams: ["teams^core^members"],
-             secret: "enigma"},
+             secret: "enigma",
+             last_seen: 1791929700},
             {id: "grace", name: "Grace Hopper",  age: 85, enabled: false,
              config: {},
              department: "departments^operations^users",
              teams: [],
-             secret: "cobol"}
+             secret: "cobol",
+             last_seen: 1790726400}
         ],
         departments: [
             {id: "engineering", name: "Engineering"},

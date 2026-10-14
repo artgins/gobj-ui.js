@@ -869,8 +869,9 @@ describe("a time column of a table", () => {
         expect(errors()).toEqual([]);
     });
 
-    /*  Up to 7.26.46 the cell showed the raw epoch (1700000000).  */
-    test("shows its time as the local clock the editor opens on, not the epoch", async () => {
+    /*  Up to 7.26.46 the cell showed the raw epoch (1700000000); up
+     *  to 7.26.51 "2026-03-14 09:26:53". The app's language is "en".  */
+    test("shows its time as the local clock, in the app's language, not the epoch", async () => {
         const first = tables.length;
         const app = gobj_create_pure_child(`trapp${++seq}`, "C_TEST_TR_APP", {}, yuno);
         gobj_start(app);
@@ -898,8 +899,8 @@ describe("a time column of a table", () => {
         };
         const wall = "2026-03-14T09:26:53";
         const epoch = Math.floor(new Date(wall).getTime() / 1000);
-        expect(text("when", epoch)).toBe("2026-03-14 09:26:53");
-        expect(text("at", new Date(epoch * 1000).toISOString())).toBe("2026-03-14 09:26:53");
+        expect(text("when", epoch)).toBe("Mar 14, 2026, 09:26:53");
+        expect(text("at", new Date(epoch * 1000).toISOString())).toBe("Mar 14, 2026, 09:26:53");
         expect(text("when", null)).toBe("");
         expect(text("at", "not a time")).toBe("not a time");
         gobj_stop(form);

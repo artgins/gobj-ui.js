@@ -40,7 +40,7 @@ describe("form_time_value", () => {
     it("a time cell shows the local clock, and what is not a time as it is", () => {
         const wall = "2026-03-14T09:26:53";
         const epoch = Math.floor(new Date(wall).getTime() / 1000);
-        expect(time_value_to_text(epoch, "integer")).toBe("2026-03-14 09:26:53");
+        expect(time_value_to_text(epoch, "integer", "es")).toBe("14 mar 2026, 09:26:53");
         expect(time_value_to_text(null, "integer")).toBe("");
         expect(time_value_to_text("garbage", "string")).toBe("garbage");
     });

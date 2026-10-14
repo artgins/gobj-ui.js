@@ -898,6 +898,23 @@ with both dict- and array-drill (via `kw_collapse()`): `c_tranger.c` for a
 A document that arrives with no `__collapsed__` sentinels is simply rendered
 client-side (no lazy drill).
 
+**The reading of a time field.** Beside a number under a time key (`t`, `tm`,
+`__t__`, `from_t`, `fr_t`, … — `TIME_FIELDS` in `json_view_helpers.js`, seconds
+or milliseconds) the tree writes the moment in the app's language with a clock
+of 24 hours (`JSON_TIME`):
+
+```text
+"t": 1785312000  29 jul 2026, 10:00:00          (es, Europe/Madrid)
+"t": 1785312000  Jul 29, 2026, 10:00:00         (en)
+```
+
+The viewer subscribes ITSELF to the shell's `EV_LANGUAGE_CHANGED` and draws the
+tree again (7.26.52). Up to 7.26.51 the reading was `toLocaleString()` -- the
+browser's language, and 12 hours in English -- and the language action never
+ran: no host forwarded the event. A language change draws only the tree: the
+text view carries its keys, and the graph is not loaded again (it would lose the
+reader's camera).
+
 Logical DOM classes: `JSON_VIEWER`, `JSON_TOOLBAR`, `JSON_SEARCH`, `JSON_TREE`,
 `JSON_ROW`, `JSON_KEY`, `JSON_VALUE`, `JSON_SUMMARY`, `JSON_COLLAPSED`,
 `JSON_TIME`. The gclass imports its own `c_yui_json.css`.
@@ -3693,6 +3710,25 @@ new uPlot({width: 600, height: 300, series: [{}, {label: "temperature"}],
            axes: yui_uplot_axes([{}])}, data, $el);
 ```
 
+**The moments of a time axis are the app's language, 24 hours** (7.26.52).
+uPlot writes them from templates of its own, in English and 12 hours: `3pm`,
+`3:05pm`, `10/14` (month first) on the ticks, `2026-10-14 3:05pm` in the
+legend. `C_YUI_UPLOT` gives it `fmtDate: yui_uplot_fmt_date(() =>
+i18next.language)` (`yui_uplot_time.js`): the ticks read `15:00`, `15:05`, es
+`14/10` / en `10/14`, and the legend reads as every other time a view shows
+(`14 oct 2026, 15:05:09`). It subscribes to the shell's `EV_LANGUAGE_CHANGED`
+and redraws the axes and the legend. A uPlot built by the app takes the same
+option:
+
+```js
+import {yui_uplot_fmt_date} from "@yuneta/gobj-ui/src/yui_uplot_time.js";
+
+new uPlot({..., fmtDate: yui_uplot_fmt_date(() => i18next.language)}, data, $el);
+// on EV_LANGUAGE_CHANGED: chart.redraw(true, true); chart.setLegend(null, false);
+```
+
+An axis whose host gives its own `values` writes them as the host says.
+
 ### `C_YUI_FORM` — what closing it asks about
 
 `changes` says the form is not what is stored: the reader changed it, or the
@@ -3747,8 +3783,12 @@ second, read and written as the form's own time field is (`form_time_value.js`:
 an epoch in seconds, or an ISO text for a string column). Up to 7.26.45 it was
 Tabulator's `datetime` editor with a luxon `format`, and nothing gives gobj-ui
 luxon: it opened empty and threw when committed. Luxon is not taken in for one
-editor. The cell shows the same local clock, `2026-03-14 09:26:53` (7.26.47+; it
-showed the raw epoch).
+editor. The cell shows the local clock as text, in the app's language and 24
+hours -- es `14 mar 2026, 09:26:53`, en `Mar 14, 2026, 09:26:53`, the same
+text as the time cells of `C_YUI_TREEDB_TOPIC_WITH_FORM` -- and writes it again
+when the language changes (7.26.52; 7.26.47 to 7.26.51 showed
+`2026-03-14 09:26:53`, and up to 7.26.46 the raw epoch). See *Dates → A time
+shown as text*.
 
 A date with a part cleared is not a value. The box answers `""` for it, as for an
 empty box, and only `validity.badInput` tells them apart: Enter leaves the editor
@@ -5534,6 +5574,8 @@ nothing else should.
 - `epoch_to_local_input` / `local_input_to_epoch` / `fmt_epoch` / `epoch_to_ms`
   / `ms_to_epoch` — every conversion crosses the producer's unit flag
   (`ms`: seconds unless a topic's `system_flag` says milliseconds).
+- `fmt_date_time(date, locale)` — a moment as a view shows it as text, in the
+  app's language, 24 hours (see *Dates: a time shown as text*).
 - `period_bounds` / `period_shift` / `period_start` / `period_label` /
   `infer_period` / `is_current_period` — the algebra of **periods**.
 
@@ -5586,6 +5628,50 @@ forwards the event anyway just repaints it twice, harmlessly. All Intl
 formatting (month names, weekday initials, the parked-bucket label) follows
 i18next's ACTIVE language, not `navigator.language` — the calendar never mixes
 scripts with the UI around it.
+
+### Dates: a time shown as text
+
+**Every time a view shows as text is in the APP's language, with a clock of 24
+hours** (7.26.52). One function writes it, `fmt_date_time(date, locale)` in
+`yui_time.js` -- day, short month, year, then hours, minutes and seconds --,
+and the views pass it `i18next.language`, never `navigator.language`:
+
+```js
+import {fmt_date_time, safe_locale} from "@yuneta/gobj-ui/src/yui_time.js";
+import i18next from "i18next";
+
+fmt_date_time(new Date(2026, 9, 14, 15, 5, 9), safe_locale(i18next.language));
+// es  "14 oct 2026, 15:05:09"
+// en  "Oct 14, 2026, 15:05:09"      (en-US too: 24 hours, no AM/PM)
+// midnight "00:00:00", never "24:00:00" (hourCycle "h23", not hour12: false)
+// not a valid Date -> ""; a locale Intl refuses -> "2026-10-14 15:05:09"
+```
+
+What writes it, and follows the language button (`EV_LANGUAGE_CHANGED`):
+
+| View | Where | Up to 7.26.51 |
+|---|---|---|
+| `C_YUI_TREEDB_TOPIC_WITH_FORM` | the cells of a `time` / `now` column | browser's language, 12 h: `14 oct 2026, 03:05:09 p. m.`; did not change with the app |
+| `C_YUI_FORM` | the cells of a `time` / `now` column of a table | `2026-10-14 15:05:09` |
+| `C_YUI_JSON` | the reading beside a time field (`JSON_TIME`) | `toLocaleString()`; never changed |
+| `C_YUI_UPLOT` | the ticks of a time axis and the legend | uPlot's English, 12 h |
+
+`time_value_to_text(value, real_type, locale)` (`form_time_value.js`) is the
+reader of a time COLUMN on top of it (an epoch in seconds, or an ISO text for a
+`string` column; `""` for no time, a value that is not a time shown as it is),
+and `format_epoch(value, locale)` (`json_view_helpers.js`) the reader of a
+number that may be seconds or milliseconds.
+
+The EDITORS are not text: the form's time field and the cell editor are
+`datetime-local` boxes, drawn by the browser in the browser's language. In the
+form, a cell whose editor is open when the language changes is left to it, and
+written in the new language when it closes. Other times that are deliberately
+not written this way: the bounds `C_YUI_PERIOD` resolves
+(`2026-10-14 00:00:00 → 2026-10-14 23:59:59.999`, `fmt_epoch`: the exact range
+a query will carry, with its milliseconds, under a label that is already in the
+app's language), and the developer window's traffic (`hh:mm:ss.SSS` of arrival
+and an ISO `Z` beside a timestamp field, to be matched against the backend's
+logs).
 
 ### Inputs: a clear (✕) is the norm on free-text fields
 

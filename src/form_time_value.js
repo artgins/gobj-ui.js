@@ -35,6 +35,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+import {fmt_date_time} from "./yui_time.js";
 
 /************************************************************
  *  A Date -> the value of a `datetime-local` input, in local time,
@@ -110,18 +111,20 @@ function epoch_to_time_value(epoch, real_type)
 
 /************************************************************
  *  The value of a time column as a table cell shows it: the
- *  local clock the editor opens on, "YYYY-MM-DD HH:mm:ss", as
- *  fmt_epoch() of yui_time.js writes a timestamp in a table. ""
- *  for no time; a value that is not one is shown as it is, so the
- *  reader sees what the column holds.
+ *  local clock, 24 hours, in the APP's language `locale`
+ *  (fmt_date_time() of yui_time.js: es "14 oct 2026, 15:05:09").
+ *  Up to gobj-ui 7.26.51 the form wrote "2026-10-14 15:05:09" and
+ *  the treedb table "14 oct 2026, 03:05:09 p. m.", in the
+ *  browser's language. "" for no time; a value that is not one is
+ *  shown as it is, so the reader sees what the column holds.
  ************************************************************/
-function time_value_to_text(value, real_type)
+function time_value_to_text(value, real_type, locale)
 {
     let date = time_value_to_date(value, real_type);
     if(!date) {
         return (value === null || value === undefined)? "" : String(value);
     }
-    return date_to_datetime_local(date).replace("T", " ");
+    return fmt_date_time(date, locale);
 }
 
 export {

@@ -54,13 +54,13 @@ const SAMPLE = {
                     topic: "meters^north^m1",
                     records: 3418772,
                     keys: ["kwh_total", "kwh_p1", "voltage_l1"],
-                    last: {t: "2026-07-29T08:00:00", kwh_total: 1200.0}
+                    last: {t: 1785312000, kwh_total: 1200.0}
                 },
                 m2: {
                     topic: "meters^north^m2",
                     records: 2904331,
                     keys: ["kwh_total"],
-                    last: {t: "2026-07-29T08:00:00", kwh_total: 987.5}
+                    last: {t: 1785312000, kwh_total: 987.5}
                 }
             },
             south_hall: {
