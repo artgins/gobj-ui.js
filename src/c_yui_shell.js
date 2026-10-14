@@ -104,8 +104,11 @@ let __retiring_shell__ = null;
  *  the markers of its overlays and the action entries of its `stay`
  *  routes. They are dead -- nothing closes or opens on them any more --
  *  and the next shell takes them off with ONE history.go(-n) at its
- *  start, heard by its own expected_pops (retire_dead_entries()). A
- *  stopped shell moves no history: it would not hear the landing.  */
+ *  start, heard by its own expected_pops, and goes on over them when a
+ *  Back or Forward of the reader's lands on them (retire_dead_entries()).
+ *  A key stays here while its entry exists, and leaves when a live shell
+ *  makes the entry its own again. A stopped shell moves no history: it
+ *  would not hear the landing.  */
 let __dead_entries__ = new Set();
 
 /*  A history.back() of a shell that stopped before it landed. Nothing
@@ -256,6 +259,11 @@ let PRIVATE_DATA = {
      *  markers and the action entries of its `stay` routes. Dead once
      *  it stops (__dead_entries__).  */
     own_entries:     [],
+    /*  The index of the entry a traversal comes FROM, told by the
+     *  Navigation API's currententrychange before its popstate: which
+     *  way a reader's traversal goes over dead entries.  */
+    traverse_from:   -1,
+    entry_change_handler: null,
     popstate_handler: null,
     /*  Avatar item support — every toolbar item with type:"avatar"
      *  registers its <span> here so refresh_avatars() can repaint
@@ -412,10 +420,21 @@ function mt_start(gobj)
                 return;
             }
             note_late_landing(gobj, ev);
+            let from = p.traverse_from;
+            p.traverse_from = -1;
             /*  A traversal that moved the hash is followed by a
              *  hashchange, QUEUED: it runs after this handler, and it is
              *  the one that navigates (and drains).  */
             let hash_moved = window.location.hash !== p.last_hash;
+            if(p.expected_pops === 0 && from >= 0 &&
+                    retire_dead_entries(gobj, from, hash_moved)) {
+                /*  A Back or Forward of the reader's onto dead entries
+                 *  goes on over them: what it lands on is not this one.  */
+                if(!p.skip_hash) {
+                    p.last_hash = window.location.hash;
+                }
+                return;
+            }
             if(p.expected_pops > 0 &&
                     window.location.hash !== p.expected_pop_hash) {
                 /*  Not the landing of ours: it was dropped. Whatever
@@ -546,6 +565,18 @@ function mt_start(gobj)
             }
         };
         window.addEventListener("popstate", priv.popstate_handler);
+        let nav = window.navigation;
+        if(nav && typeof nav.addEventListener === "function") {
+            priv.entry_change_handler = (ev) => {
+                let p = gobj.priv;
+                if(!p) {
+                    return;
+                }
+                p.traverse_from = (ev && ev.navigationType === "traverse" && ev.from &&
+                    typeof ev.from.index === "number")? ev.from.index : -1;
+            };
+            nav.addEventListener("currententrychange", priv.entry_change_handler);
+        }
         keep_dead_entries_across_reload();
         adopt_orphan_back(gobj);
     }
@@ -632,6 +663,14 @@ function mt_stop(gobj)
         window.removeEventListener("popstate", priv.popstate_handler);
         priv.popstate_handler = null;
     }
+    if(priv.entry_change_handler) {
+        let nav = window.navigation;
+        if(nav && typeof nav.removeEventListener === "function") {
+            nav.removeEventListener("currententrychange", priv.entry_change_handler);
+        }
+        priv.entry_change_handler = null;
+    }
+    priv.traverse_from = -1;
     /*  Nothing listens for the landings any more. An overlay that
      *  waited for one gets no marker: it says so, so neither a later
      *  dismissal retires one nor a traversal waits for it.  */
@@ -2895,7 +2934,9 @@ function retire_overlays(gobj)
  *
  *  A page with no next shell keeps them: with no router on the
  *  page, a Back over the app's own entries changes nothing on
- *  screen anyway, and the next shell retires them all the same.
+ *  screen anyway, and the next shell retires them all the same --
+ *  at its start, or when a traversal of the reader's lands on them
+ *  if the reader moved meanwhile.
  ************************************************************/
 function hand_over_history(gobj)
 {
@@ -3070,6 +3111,7 @@ function note_own_entry(gobj)
     if(!key || priv.own_entries.includes(key)) {
         return;
     }
+    __dead_entries__.delete(key);
     priv.own_entries.push(key);
     if(priv.own_entries.length > OWN_ENTRIES_PRUNE_AT) {
         /*  Entries cut off by a push are gone for good.  */
@@ -3082,16 +3124,34 @@ function note_own_entry(gobj)
  *  Take off, with ONE history.go(-n), the dead entries a
  *  stopped shell left under the current one (hand_over_history).
  *  The walk stops at the first entry that is not dead, so it
- *  never goes past an entry of the reader's. The traversal is
- *  this shell's own (expected_pops): its overlays' markers and
- *  the routes it pushes wait for the landing, and a position
- *  the URL holds is put back on the entry it lands on, as for
- *  any back() of ours (restore_hash). Returns true when it
- *  went.
+ *  never goes past an entry of the reader's, and at the first
+ *  entry of the current document: a navigation to another page
+ *  with replace keeps the entry's key, so a later document can
+ *  sit on the key of a dead marker, over the entries of the one
+ *  before it (up to gobj-ui 7.26.50 the walk went into them and
+ *  that document was loaded again). After a reload every entry
+ *  is the new document's, and its dead ones go.
+ *
+ *  With `from` (the index a traversal of the reader's came
+ *  from), it goes on over the dead entries that traversal landed
+ *  on, the way it was going: down to the first live one under
+ *  them, or up to the first live one over them -- there is none
+ *  when they are the newest, and nothing moves. Dead entries
+ *  under an entry of the reader's are taken off that way: the
+ *  start of a shell never goes past one.
+ *
+ *  The traversal is this shell's own (expected_pops): its
+ *  overlays' markers and the routes it pushes wait for the
+ *  landing. At the start, a position the URL holds is put back
+ *  on the entry it lands on, as for any back() of ours
+ *  (restore_hash). The keys stay dead while their entries
+ *  exist: a later Back or Forward onto them goes over them too.
+ *  Returns true when it went.
  ************************************************************/
-function retire_dead_entries(gobj)
+function retire_dead_entries(gobj, from, hash_moved)
 {
     let priv = gobj.priv;
+    let reader = (typeof from === "number");
     if(__dead_entries__.size === 0 || priv.expected_pops > 0 ||
             !priv.popstate_handler || !current_entry_key()) {
         return false;
@@ -3105,11 +3165,22 @@ function retire_dead_entries(gobj)
             __dead_entries__.delete(key);
         }
     }
-    let landing = index;
-    while(landing > 0 && __dead_entries__.has(entries[landing].key)) {
-        landing--;
+    if(reader && (from === index || !__dead_entries__.has(entries[index].key))) {
+        return false;
     }
-    let steps = index - landing;
+    let step = (reader && from < index)? 1 : -1;
+    let landing = index;
+    while(__dead_entries__.has(entries[landing].key)) {
+        let next = landing + step;
+        if(next < 0 || next >= entries.length || !entries[next].sameDocument) {
+            break;
+        }
+        landing = next;
+    }
+    if(step > 0 && __dead_entries__.has(entries[landing].key)) {
+        return false;
+    }
+    let steps = landing - index;
     if(steps === 0) {
         return false;
     }
@@ -3117,21 +3188,28 @@ function retire_dead_entries(gobj)
     try {
         landing_hash = new URL(entries[landing].url).hash;
     } catch(e) {
-        log_warning(`C_YUI_SHELL: the entry under the dead ones has no url: ${e}`);
+        log_warning(`C_YUI_SHELL: the entry past the dead ones has no url: ${e}`);
         return false;
-    }
-    for(let i = landing + 1; i <= index; i++) {
-        __dead_entries__.delete(entries[i].key);
     }
     priv.expected_pops++;
     priv.expected_pop_hash = landing_hash;
-    priv.restore_hash = (window.location.hash !== landing_hash)? window.location.hash : "";
+    if(reader) {
+        priv.restore_hash = "";
+        /*  The hashchange of the landing on the dead entry is queued
+         *  before ours lands, and is not the reader's destination.  */
+        if(hash_moved && window.location.hash !== landing_hash) {
+            priv.skip_hash = window.location.hash;
+        }
+    } else {
+        priv.restore_hash = (window.location.hash !== landing_hash)? window.location.hash : "";
+    }
     try {
-        window.history.go(-steps);
+        window.history.go(steps);
     } catch(e) {
         priv.expected_pops--;
         priv.restore_hash = "";
-        log_warning(`C_YUI_SHELL: retiring ${steps} dead history entries failed: ${e}`);
+        priv.skip_hash = "";
+        log_warning(`C_YUI_SHELL: going over ${Math.abs(steps)} dead history entries failed: ${e}`);
         return false;
     }
     clear_deferred_timer(gobj);     // a wait that just ended goes on: bound it again
@@ -3317,6 +3395,11 @@ function push_overlay_marker(gobj, entry)
             window.history.replaceState(
                 Object.assign({}, below, { __yui_below__: entry.id }), "");
             stamped = true;
+            /*  A Back onto it closes this overlay now.  */
+            let key = current_entry_key();
+            if(key) {
+                __dead_entries__.delete(key);
+            }
         } catch(e) {
             log_warning(`C_YUI_SHELL: stamping the entry under an overlay failed: ${e}`);
         }

@@ -60,8 +60,8 @@
  *          does not see as a rename (a package.json born with the range is
  *          asked of every package.json before it, by version, or of the
  *          other history when it is born in the root of a history joined
- *          to another; what that search reads is kept between rounds in
- *          ~/.yuneta/deploy-round-history.json), and a state
+ *          to another; what that search reads is kept between rounds, per
+ *          package, in ~/.yuneta/deploy-round-history.json), and a state
  *          that is not json read by its lines: the version is raised when
  *          one of them carries it with ANOTHER range. One
  *          whose history cannot be read is refused, and so is a shallow
@@ -684,10 +684,16 @@ function package_states(dir, parents)
     const shas = parents.map((p) => p.startsWith("^")?
         "^" + run("git", ["rev-parse", p.slice(1)], top).trim() : run("git", ["rev-parse", p], top).trim());
     const shallow = run("git", ["rev-parse", "--is-shallow-repository"], top).trim() === "true";
-    const key = shas.join(" ");
+    const key = `${PKG_NAME} ${shas.join(" ")}`;
     const cache = shallow? null : read_history_cache();
-    if(cache && Array.isArray(cache[key])) {
-        return cache[key];
+    if(cache && Array.isArray(cache.entries[key])) {
+        const kept = cache.entries[key];
+        if(Object.keys(cache.entries).at(-1) !== key) {
+            delete cache.entries[key];
+            cache.entries[key] = kept;
+            write_history_cache(cache);
+        }
+        return kept;
     }
     const raw = String(git(["log", "--full-history", "-m", "--raw", "--no-abbrev", "--no-renames", "--format=",
                             ...shas, "--", ":(top,glob)**/package.json",
@@ -711,7 +717,7 @@ function package_states(dir, parents)
     }
     const out = [...states.values()];
     if(cache) {
-        cache[key] = out;
+        cache.entries[key] = out;
         write_history_cache(cache);
     }
     return out;
@@ -727,30 +733,57 @@ function package_states(dir, parents)
  *  30 000 commits, against 0.3 s without the search. A shallow clone
  *  is not kept: what it holds grows when it is fetched. A cache that
  *  cannot be read is said, and read again from git.
+ *
+ *  Kept PER PACKAGE: a state is what one package.json says of THE
+ *  package of the round (state_of()), so the key is the package and
+ *  the commits. Up to gobj-ui 7.26.50 it was the commits alone, and a
+ *  round of the runtime after one of the library on the same HEAD
+ *  read the library's states -- "already" for an app whose number had
+ *  gone out with the runtime's old range, or a version raised for
+ *  nothing. A file of another format (one of those rounds) is not
+ *  read, and is written again in this one. The entries used last are
+ *  kept, HISTORY_CACHE_ENTRIES of them: a key per birth asked about,
+ *  and a key of a long history holds every state it ever had.
+ *
+ *      {format: HISTORY_CACHE_FORMAT,
+ *       entries: {"<package> <sha> ...": [state]}}, oldest first
  ************************************************************/
+const HISTORY_CACHE_FORMAT = 2;
+const HISTORY_CACHE_ENTRIES = 64;
+
 function read_history_cache()
 {
+    const empty = {format: HISTORY_CACHE_FORMAT, entries: {}};
     if(!existsSync(HISTORY_CACHE)) {
-        return {};
+        return empty;
     }
     try {
         const jn = parse_json(readFileSync(HISTORY_CACHE, "utf8"));
-        if(jn && typeof jn === "object" && !Array.isArray(jn)) {
-            return jn;
+        if(!jn || typeof jn !== "object" || Array.isArray(jn)) {
+            console.error(`    ${HISTORY_CACHE}: not a json object, read again from git`);
+        } else if(jn.format !== HISTORY_CACHE_FORMAT || !jn.entries || typeof jn.entries !== "object"
+                  || Array.isArray(jn.entries)) {
+            console.error(`    ${HISTORY_CACHE}: kept by a round of another format, read again from git`);
+        } else {
+            return {format: HISTORY_CACHE_FORMAT, entries: jn.entries};
         }
-        console.error(`    ${HISTORY_CACHE}: not a json object, read again from git`);
     } catch(e) {
         console.error(`    ${HISTORY_CACHE}: ${String(e.message).split("\n")[0]}, read again from git`);
     }
-    return {};
+    return empty;
 }
 
 function write_history_cache(cache)
 {
+    const keys = Object.keys(cache.entries);
+    const entries = {};
+    for(const k of keys.slice(Math.max(keys.length - HISTORY_CACHE_ENTRIES, 0))) {
+        entries[k] = cache.entries[k];
+    }
     try {
         mkdirSync(dirname(HISTORY_CACHE), {recursive: true});
         const tmp = `${HISTORY_CACHE}.${process.pid}`;
-        writeFileSync(tmp, JSON.stringify(cache));
+        writeFileSync(tmp, JSON.stringify({format: HISTORY_CACHE_FORMAT, entries}));
         renameSync(tmp, HISTORY_CACHE);
     } catch(e) {
         console.error(`    ${HISTORY_CACHE}: not written (${String(e.message).split("\n")[0]})`);

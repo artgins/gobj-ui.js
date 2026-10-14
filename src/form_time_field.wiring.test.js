@@ -187,3 +187,130 @@ describe("the time field of a form", () => {
         expect(errors()).toEqual([]);
     });
 });
+
+/*  Chromium and Firefox write a `datetime-local` value without its
+ *  seconds when they are :00: "…T02:30:00" reads back "…T02:30".  */
+function with_browser_box(fn)
+{
+    const create = document.createElement;
+    document.createElement = function(tag) {
+        const el = create.call(document, tag);
+        if(String(tag).toLowerCase() === "input") {
+            let raw = "";
+            Object.defineProperty(el, "value", {
+                configurable: true,
+                get: () => raw,
+                set: (v) => {
+                    raw = (v === null || v === undefined)? "" :
+                        String(v).replace(/^(\d{4}-\d\d-\d\dT\d\d:\d\d):00$/, "$1");
+                },
+            });
+        }
+        return el;
+    };
+    try {
+        fn();
+    } finally {
+        document.createElement = create;
+    }
+}
+
+function in_madrid(fn)
+{
+    const tz = process.env.TZ;
+    process.env.TZ = "Europe/Madrid";
+    try {
+        fn();
+    } finally {
+        if(tz === undefined) {
+            delete process.env.TZ;
+        } else {
+            process.env.TZ = tz;
+        }
+    }
+}
+
+/*  01:30Z and 00:30Z on 2026-10-25 are both 02:30 in Madrid: the
+ *  second and the first pass of the hour the clocks go back. A wall
+ *  time read back is the FIRST one.  */
+const SECOND_PASS = Date.UTC(2026, 9, 25, 1, 30, 0) / 1000;
+const FIRST_PASS = SECOND_PASS - 3600;
+const SECOND_PASS_S = Date.UTC(2026, 9, 25, 1, 30, 15) / 1000;
+
+describe("a time in the repeated hour of autumn, saved with nothing touched", () => {
+    test("goes back as the record had it: integer, string, template spec, with and without seconds", () => {
+        in_madrid(() => {
+            with_browser_box(() => {
+                const app = gobj_create_pure_child("tapp4", "C_TEST_TIME_APP", {}, yuno);
+                gobj_start(app);
+                const form = gobj_create_pure_child("tform4", "C_YUI_FORM", {
+                    template: {
+                        when:   {type: "integer", flag: ["writable", "persistent", "time"]},
+                        when_s: {type: "string",  flag: ["writable", "persistent", "time"]},
+                        bare:   "time.writable",
+                        secs:   "time.writable",
+                    },
+                    record: {
+                        when: SECOND_PASS,
+                        when_s: new Date(SECOND_PASS * 1000).toISOString(),
+                        bare: SECOND_PASS,
+                        secs: SECOND_PASS_S,
+                    },
+                    editable: true,
+                }, app);
+                gobj_start(form);
+
+                expect(box(form, "when").value).toBe("2026-10-25T02:30");
+                expect(box(form, "secs").value).toBe("2026-10-25T02:30:15");
+                expect(gobj_read_attr(form, "edited")).toBe(false);
+
+                gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
+                expect(saved.length).toBe(1);
+                expect(saved[0].when).toBe(SECOND_PASS);
+                expect(saved[0].when_s).toBe("2026-10-25T01:30:00.000Z");
+                expect(saved[0].bare).toBe(SECOND_PASS);
+                expect(saved[0].secs).toBe(SECOND_PASS_S);
+                expect(errors()).toEqual([]);
+            });
+        });
+    });
+
+    test("a box the reader changed is read, and a record loaded after another one is ITS value", () => {
+        in_madrid(() => {
+            with_browser_box(() => {
+                const app = gobj_create_pure_child("tapp5", "C_TEST_TIME_APP", {}, yuno);
+                gobj_start(app);
+                const form = gobj_create_pure_child("tform5", "C_YUI_FORM", {
+                    template: {when: "time.writable", other: "time.writable"},
+                    record: {when: SECOND_PASS, other: SECOND_PASS},
+                    editable: true,
+                }, app);
+                gobj_start(form);
+
+                /*  The same wall time, the other instant: the box shows
+                 *  the same text, and the save must be the NEW record's.  */
+                gobj_send_event(form, "EV_LOAD_RECORD", {when: FIRST_PASS, other: null}, form);
+                expect(box(form, "when").value).toBe("2026-10-25T02:30");
+                expect(box(form, "other").value).toBe("");
+                gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
+                expect(saved[0].when).toBe(FIRST_PASS);
+                expect(saved[0].other).toBe(null);
+
+                gobj_send_event(form, "EV_LOAD_RECORD", {when: SECOND_PASS, other: SECOND_PASS}, form);
+                box(form, "when").value = "2026-10-25T04:00:00";
+                box(form, "other").value = "";
+                gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
+                expect(saved[1].when).toBe(Date.UTC(2026, 9, 25, 3, 0, 0) / 1000);
+                expect(saved[1].other).toBe(null);
+
+                /*  Cleared by the form's own Clear: nothing kept.  */
+                gobj_send_event(form, "EV_LOAD_RECORD", {when: SECOND_PASS, other: SECOND_PASS}, form);
+                gobj_send_event(form, "EV_CLEAR_RECORD", {}, form);
+                gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
+                expect(saved[2].when).toBe(null);
+                expect(saved[2].other).toBe(null);
+                expect(errors()).toEqual([]);
+            });
+        });
+    });
+});

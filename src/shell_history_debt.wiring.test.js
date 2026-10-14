@@ -14,8 +14,14 @@
  *      the Navigation API: a list and an index, each entry with a key that
  *      a replaceState keeps and a push makes new, pushState truncating
  *      what is ahead, and a traversal (back(), go()) run on a later task
- *      from whatever entry is current THEN. Real browsers: qa-history
- *      cases (h) to (l).
+ *      from whatever entry is current THEN, announced by a
+ *      `currententrychange` (with the entry it came FROM) before its
+ *      popstate, as Chromium and Firefox do. Each entry belongs to a
+ *      document: a reload makes every entry the new document's (both
+ *      browsers say `sameDocument` of all of them after F5), and a
+ *      cross-document navigation with replace keeps the entry's key
+ *      for a NEW document, the entries under it staying the old one's.
+ *      Real browsers: qa-history cases (h) to (n).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -40,7 +46,7 @@ let yuno = null;
 let key_seq = 0;
 const shells = [];
 
-const session = {entries: [], index: 0, gos: []};
+const session = {entries: [], index: 0, gos: [], doc: 1, nav_listeners: []};
 
 function url_hash(url)
 {
@@ -51,14 +57,16 @@ function url_hash(url)
 function new_entry(state, hash)
 {
     key_seq++;
-    return {state: state, hash: hash, key: `k${key_seq}`};
+    return {state: state, hash: hash, key: `k${key_seq}`, doc: session.doc};
 }
 
 function install_history_model(with_navigation)
 {
+    session.doc++;
     session.entries = [new_entry(null, window.location.hash)];
     session.index = 0;
     session.gos = [];
+    session.nav_listeners = [];
     window.history = {
         get state() {
             return session.entries[session.index].state;
@@ -88,6 +96,7 @@ function install_history_model(with_navigation)
             this.go(-1);
         },
         forward() {
+            this.go(1);
         },
         go(delta) {
             session.gos.push(delta);
@@ -103,12 +112,21 @@ function install_history_model(with_navigation)
         window.navigation = {
             get currentEntry() {
                 const e = session.entries[session.index];
-                return {key: e.key, index: session.index};
+                return {key: e.key, index: session.index, sameDocument: true};
             },
             entries() {
+                const doc = session.entries[session.index].doc;
                 return session.entries.map((e, i) => ({
-                    key: e.key, index: i, url: `http://localhost/${e.hash}`
+                    key: e.key, index: i, url: `http://localhost/${e.hash}`,
+                    sameDocument: e.doc === doc
                 }));
+            },
+            addEventListener(type, fn) {
+                session.nav_listeners.push({type, fn});
+            },
+            removeEventListener(type, fn) {
+                session.nav_listeners = session.nav_listeners.filter(
+                    (l) => !(l.type === type && l.fn === fn));
             }
         };
     } else {
@@ -119,21 +137,47 @@ function install_history_model(with_navigation)
 function traverse_to(index)
 {
     const left = window.location.hash;
+    const from = {key: session.entries[session.index].key, index: session.index};
     session.index = index;
+    for(const l of session.nav_listeners.slice()) {
+        if(l.type === "currententrychange") {
+            l.fn({type: "currententrychange", navigationType: "traverse", from: from});
+        }
+    }
     window.location.hash = session.entries[index].hash;
-    const ev = new Event("popstate");
-    ev.state = window.history.state;
-    window.dispatchEvent(ev);
+    /*  The hashchange is queued BEFORE the popstate runs: a traversal
+     *  the popstate handler starts lands after it (both browsers).  */
     if(session.entries[index].hash !== left) {
         setTimeout(() => {
             window.dispatchEvent(new Event("hashchange"));
         }, 0);
     }
+    const ev = new Event("popstate");
+    ev.state = window.history.state;
+    window.dispatchEvent(ev);
 }
 
 function user_back()
 {
     traverse_to(session.index - 1);
+}
+
+function user_forward()
+{
+    traverse_to(session.index + 1);
+}
+
+/*  A navigation to another document with replace (location.replace):
+ *  the entry keeps its key and is a new document's, and the entries
+ *  under it are no longer the current document's.  */
+function cross_document_replace(hash)
+{
+    session.doc++;
+    const e = session.entries[session.index];
+    e.doc = session.doc;
+    e.state = null;
+    e.hash = hash;
+    window.location.hash = hash;
 }
 
 function next_task()
@@ -438,6 +482,145 @@ describe("a shell stopped with overlays up leaves its markers to the next one", 
         await settle();
         expect(session.gos).toEqual([-2]);
         expect(session.index).toBe(1);
+        expect(shell_warnings()).toEqual([]);
+    });
+
+    /*  location.replace() to another page and back to the app keeps
+     *  the key of the entry it replaced: the new document sits on the
+     *  key of a dead marker, and the entries under it are the earlier
+     *  document's. Up to gobj-ui 7.26.50 the new shell took that key
+     *  for dead and went back into them: the earlier document was
+     *  loaded again.  */
+    test("a dead key a later document sits on is not followed into the document before it", async () => {
+        window.location.hash = "#/prev";
+        install_history_model(true);
+        window.history.pushState(null, "", "#/home");
+        let shell = new_shell();
+        yui_shell_register_overlay(shell, () => {}, {keep_on_navigate: true});
+        await settle();
+        yui_shell_confirm_yesno(shell, "leave?");
+        expect(session.entries.length).toBe(4);
+        stop_shell(shell);
+        cross_document_replace("#/elsewhere");
+        cross_document_replace("#/home");
+
+        shell = new_shell();
+        await settle();
+        expect(session.gos).toEqual([]);
+        expect(session.index).toBe(3);
+
+        /*  Nor when a Back of the reader's lands on it.  */
+        window.history.pushState(null, "", "#/prev");
+        window.dispatchEvent(new Event("hashchange"));
+        await settle();
+        user_back();
+        await settle();
+        expect(session.gos).toEqual([]);
+        expect(session.index).toBe(3);
+        expect(window.location.hash).toBe("#/home");
+        expect(shell_warnings()).toEqual([]);
+    });
+
+    /*  A login page between the logout and the login, and the reader
+     *  goes somewhere in it: an entry of the reader's over the dead
+     *  markers, and the next shell starts on it. Up to gobj-ui 7.26.50
+     *  nothing took them off: two dead Backs under it.  */
+    test("a Back that lands on dead entries under a later one takes them off; Forward skips them", async () => {
+        window.location.hash = "#/prev";
+        install_history_model(true);
+        window.history.pushState(null, "", "#/home");
+        let shell = new_shell();
+        yui_shell_register_overlay(shell, () => {}, {keep_on_navigate: true});
+        await settle();
+        yui_shell_confirm_yesno(shell, "log out?");
+        stop_shell(shell);
+        window.history.pushState(null, "", "#/prev");
+
+        shell = new_shell();
+        await settle();
+        expect(session.gos).toEqual([]);
+        expect(session.index).toBe(4);
+
+        user_back();
+        await settle();
+        expect(session.gos).toEqual([-2]);
+        expect(session.index).toBe(1);
+        expect(window.location.hash).toBe("#/home");
+
+        /*  Forward goes over them to the reader's entry, not onto them,
+         *  and not back down.  */
+        user_forward();
+        await settle();
+        expect(session.gos).toEqual([-2, 2]);
+        expect(session.index).toBe(4);
+        expect(window.location.hash).toBe("#/prev");
+
+        user_back();
+        await settle();
+        expect(session.index).toBe(1);
+        const r = await count_backs_to_start(() => false);
+        expect(r).toEqual({backs: 1, dead: 0});
+        expect(window.location.hash).toBe("#/prev");
+        expect(shell_warnings()).toEqual([]);
+    });
+
+    /*  The dead entries on another hash than the live one under them:
+     *  the landing on them is not navigated -- it would fire the
+     *  action again and bring the preferences up.  */
+    test("a Back over dead entries of an action route does not run the action", async () => {
+        window.location.hash = "#/prev";
+        install_history_model(true);
+        window.history.pushState(null, "", "#/home");
+        let shell = new_shell();
+        window.history.pushState(null, "", "#/prefs");
+        window.dispatchEvent(new Event("hashchange"));
+        yui_shell_show_modal(shell, "the prefs", {dialog: true, title: "preferences"});
+        expect(session.entries.map(e => e.hash)).toEqual(["#/prev", "#/home", "#/prefs", "#/prefs"]);
+        /*  An app that does not unpark: the URL stays on the action.  */
+        stop_shell(shell);
+        window.history.pushState(null, "", "#/prev");
+        shell = new_shell();
+        await settle();
+        expect(session.gos).toEqual([]);
+        const actions = () => logged.filter((l) => l.msg.includes("EV_OPEN_PREFS")).length;
+        const before = actions();
+
+        user_back();
+        await settle();
+        expect(session.gos).toEqual([-2]);
+        expect(session.index).toBe(1);
+        expect(window.location.hash).toBe("#/home");
+        expect(actions()).toBe(before);
+        expect(shell_warnings()).toEqual([]);
+    });
+
+    test("a Forward onto dead entries with nothing of the reader's above them moves nothing", async () => {
+        window.location.hash = "#/prev";
+        install_history_model(true);
+        window.history.pushState(null, "", "#/home");
+        let shell = new_shell();
+        yui_shell_register_overlay(shell, () => {}, {keep_on_navigate: true});
+        await settle();
+        yui_shell_confirm_yesno(shell, "log out?");
+        stop_shell(shell);
+        shell = new_shell();
+        await settle();
+        expect(session.gos).toEqual([-2]);
+        expect(session.index).toBe(1);
+
+        user_forward();
+        await settle();
+        user_forward();
+        await settle();
+        expect(session.gos).toEqual([-2]);
+        expect(session.index).toBe(3);
+
+        /*  Back from there goes down to the reader's entry in ONE.  */
+        user_back();
+        await settle();
+        expect(session.gos).toEqual([-2, -1]);
+        expect(session.index).toBe(1);
+        expect(window.location.hash).toBe("#/home");
         expect(shell_warnings()).toEqual([]);
     });
 

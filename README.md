@@ -242,11 +242,36 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > pushes runs after it, and the position the URL holds is put back where it
 > lands. In 7.26.47 and 7.26.48 they stayed, and every logout with an overlay
 > up left more dead Backs (two per cycle with a question over a panel). The
-> entries are known by their Navigation API key (Chromium, Firefox and Safari
-> 26.2+); without the API they stay, as in 7.26.48. A page with no next shell
-> keeps them until one starts -- with no router on the page a Back over them
-> changes nothing on screen anyway --, and a reload keeps them in the tab's
-> `sessionStorage` for the first shell of the new load. A `history.back()` of
+> walk stops at the first entry of the reader's, and at the first entry of the
+> current DOCUMENT (7.26.51): a `location.replace()` to another page keeps the
+> key of the entry it replaces, so a later load of the app can sit on the key
+> of a dead marker, over the entries of the load before it, and 7.26.49 went
+> back into them -- that load was loaded again. After a reload every entry is
+> the new load's (`sameDocument`, Chromium and Firefox), and its dead entries
+> go. Dead entries UNDER an entry of the reader's (the reader moved while the
+> login page was up) are taken off when a Back of the reader's lands on them:
+> the shell goes on over them, down to the first live entry, with one
+> `history.go(-n)`; a Forward onto them goes on up to the first live entry
+> over them, or stays where it is when there is none (7.26.51; in 7.26.49 and
+> 7.26.50 they were never taken off: two dead Backs with a question over a
+> panel). The direction comes from the Navigation API's `currententrychange`.
+> **So a shell may move the history by itself, at its start and after a Back
+> or Forward of the reader's** (7.26.49 and 7.26.51): an app with its own
+> `popstate` / `hashchange` listener hears that traversal.
+> The entries are known by their Navigation API key (Chromium, Firefox and
+> Safari 26.2+). **Without the API they stay, as in 7.26.48**: each logout with
+> a question over a panel adds two entries and two dead Backs, and each logout
+> with the preferences up on their action route (`/prefs`, `stay`) leaves the
+> action entry under their marker -- `yui_shell_unpark_route()` rewrites only
+> the entry the URL is on --, so a Back over it opens the preferences again,
+> once per such logout (three logouts: three times; measured in Chromium and
+> Firefox with the API taken away). **A page with no next shell keeps them**
+> -- a login page that stays while the reader presses Back: two dead Backs
+> with a question over a panel, which change nothing on screen since no router
+> is on the page --, and the next shell takes them off. A reload keeps them in
+> the tab's `sessionStorage` for the first shell of the new load (a tab
+> opened from this one starts with a copy, and a key that names none of its
+> entries is dropped). A `history.back()` of
 > the stopped shell still in flight (an overlay closed by its own control in
 > the same turn as the stop) is adopted by a shell started before it lands. An
 > overlay parked on an action route (`redirect: "stay"`) whose `on_close` calls
@@ -1123,10 +1148,22 @@ form was opened on.
 **Known limit — the change of hour** (`form_time_value.js`). A
 `datetime-local` holds a local wall time and no offset. The night the clocks
 go back, one hour happens twice: an epoch in its second pass is shown with the
-wall time of the first and read back one hour earlier, so saving that record —
-any field of it — moves a WRITABLE time column holding it by -3600 s. The
+wall time of the first, and a wall time is read back as the FIRST pass. A time
+field or cell that still shows what it was filled with gives back the value it
+was filled from, so saving the record does not move it (7.26.51 for the field,
+7.26.49 for the cell; before, a save of any field of the record moved a
+WRITABLE time column in the second pass by -3600 s). What stays exposed is a
+wall time TYPED inside the repeated hour: it is taken as the first pass. The
 hour skipped in spring holds no epoch, so nothing read there comes back wrong.
 Read-only time columns never go back, and a time pkey2 goes back as it was.
+
+```js
+// Europe/Madrid. 01:30Z on 2026-10-25 is 02:30 of the SECOND pass.
+form record:      {when: 1792891800, when_s: "2026-10-25T01:30:00.000Z"}
+box shows:        2026-10-25T02:30          (the browser drops :00 seconds)
+Save, untouched:  {when: 1792891800, when_s: "2026-10-25T01:30:00.000Z"}
+// up to 7.26.50: {when: 1792888200, when_s: "2026-10-25T00:30:00.000Z"}
+```
 
 ```js
 // A host of C_YUI_TREEDB_TOPIC_WITH_FORM that answers the form's writes
@@ -3735,7 +3772,13 @@ the epoch into a `string` column, and showed no time as January 1970, which a
 save wrote back as `0`. A template field written `"time.writable"` (no real
 type) is an epoch (7.26.49): the template grammar gives such a spec `string`,
 and 7.26.47 read it as an ISO text -- the field showed no time and a save wrote
-`null` over it. Write `"string.time.writable"` for an ISO text.
+`null` over it. Write `"string.time.writable"` for an ISO text. Like the cell,
+a field the reader did not change is saved as the record had it (7.26.51): the
+form keeps the value it filled the box from and the text the box reads back,
+and a box that still shows that text gives back that value. Up to 7.26.50 a
+save converted the box again, and a time in the second pass of the hour that
+repeats in autumn went back -3600 s; a template field too. A load, an undo
+or a paste fills the box again and keeps the new value; a clear drops it.
 
 A field Save refuses (a required box left empty, a date with a part cleared)
 is outlined AND carries `aria-invalid`, and the line under it is its
@@ -4166,7 +4209,15 @@ run; a shallow clone is not kept, and a file that cannot be read is said and
 read again from git). Up to `7.26.48` that search read every package.json of
 the history again on every round while the range was the current one: on a
 history of 30 000 commits, 1.2 s per round against 0.25 s without it; now the
-first round pays it once. A package.json born with the range in the ROOT of a
+first round pays it once. They are kept PER PACKAGE (since `7.26.51`): a
+state is what a package.json says of the package of the round, and up to
+`7.26.50` the key was the commits alone, so a round of `@yuneta/gobj-js` after
+one of `@yuneta/gobj-ui` on the same HEAD read the library's states -- and
+said "already" for an app born with both new ranges whose number had gone out
+with the runtime's old range (deploying a new bundle under that number), or
+raised a version for nothing. A file of another format (one of those rounds)
+is not read, and is written again; the 64 entries used last are kept. A
+package.json born with the range in the ROOT of a
 history joined to another one (`--allow-unrelated-histories`) is asked of the
 other history, by version, as one born in a commit with parents is. The
 version raised is the package's own, the `"version"` of the top object: up to
@@ -4514,7 +4565,8 @@ This tree asks for "admin" (a root with children and no `label`), for
 **The source is PARSED, never run** (since `7.26.28`, with `acorn`, a
 dependency of this package since `7.26.29`: an app need not declare it). A
 LOCALE is not a source: it is parsed, and then imported, so its top-level code
-runs -- the app's own code, but code. Comments are not code. A key is read
+runs -- the app's own code, but code, and in a process of its own (since
+`7.26.51`), so nothing it does reaches the verdict. Comments are not code. A key is read
 where it is WRITTEN -- given to a translator, as an `i18n` or `data-i18n*`
 value of an object literal, by `setAttribute()`, or (since `7.26.29`) written
 as a member, `attrs.i18n = "save"`, `attrs["data-i18n-title"] = "save"` -- and
@@ -4599,7 +4651,11 @@ options). What is followed:
   `comment || "print-tranger failed"` for its fallback;
 - a `const`, to its value, in the scope that declares it (a parameter or a
   `let` of the same name hides it), and what a destructuring reads from it
-  (since `7.26.32`: `const {title = "untitled"} = LABELS`);
+  (since `7.26.32`: `const {title = "untitled"} = LABELS`). A default there
+  is asked for only where what it reads can be undefined -- past the end, a
+  hole, a property not written, `undefined`, or a value the reader cannot
+  know (a parameter, a call) -- since `7.26.51`: `const [a = "d0", b = "d1"]
+  = ["x0", "x1"]` asked for "d0" and "d1", which no run of the code reaches;
 - an IMPORT of a const or of a function, into the module it names, when the
   reader reads that module -- a file of the app, a module of this library;
   re-exports are followed (since `7.26.32`). A package (gobj-js, i18next) is
@@ -4632,17 +4688,37 @@ options). What is followed:
   and so do an index past a spread and a computed one (since `7.26.49`; up to
   `7.26.48` only the writes the reader knew -- `X[0] = k`, `.push()`,
   `.reverse()`, `delete`, ... in the array's own scope -- did, and the shapes
-  above read the element the source wrote there, not the one the array held);
+  above read the element the source wrote there, not the one the array held).
+  Since `7.26.51` also: `.at()` with no index (element 0) or with more than
+  one argument (the first), an `.at()` of whatever holds an array literal
+  (`ROWS[0].at(1)`, `ROWS.at(0).at(1)`), a `.slice()` read by its index or
+  walked (`const [b] = LABELS.slice(1)`, `LABELS.slice(1)[0]`,
+  `for(const k of LABELS.slice(1))`), and a rest (`const [a, ...others] =
+  LABELS; t(others[0])`) -- up to `7.26.50` all of them read nothing. An array
+  literal written INSIDE another one, or as the value of a property
+  (`[["foto", "CLS", "photo"]]`, `{cols: ["a", "b"]}`), is read by its index
+  as a property of an object is (up to `7.26.50` by every element): no name
+  holds it, and what is written into it after its declaration is not seen
+  (below);
 - an element of a `let` (or `var`) that is only ever given array literals of
   literals and elements that are literals (`L[0] = "k"`, `L.push("k")`):
   every one of them, at any index (`L[1]`, `L.at(1)`, `t(...L)`, a `for...of`,
   `const [a, b] = L`), since `7.26.49`; up to `7.26.48` it was read as nothing.
-  A let given anything else is not followed (below);
+  Since `7.26.51` the array literals may also come as the branches of `?:`,
+  `||` and `??`, as `null` / `undefined`, or as a const of one (`let L = c()?
+  ["a"] : ["b"]`, `L = c()? A : null`), and `Object.assign(L, {1: "k"})` gives
+  it its literals; `L.length = n` gives it no element. An element of an
+  element, a part (`L.slice(1)[0]`) and an `.at()` with any index read every
+  one of them too. Up to `7.26.50` each of these read nothing. A let given
+  anything else is not followed (below);
 - the element of a const array literal that a `for...of` walks, or that the
   first parameter of a callback of one of the methods above receives (in the
   same forms, and since `7.26.42` also the callback of `Array.from(ROWS, cb)`,
   of `.findIndex()` and of `Array.prototype.forEach.call(ROWS, cb)`), and what a
-  destructuring reads from it (`for(const {key} of ROWS)`);
+  destructuring reads from it (`for(const {key} of ROWS)`; an array
+  destructured, `for(const [id, key] of ROWS)`, `ROWS.map(([id, key]) =>
+  ...)`, since `7.26.51` -- up to `7.26.50` it read nothing) with its default
+  where that can be undefined;
 - `String(x)`, and a template that is only `${x}`, as `x` (since `7.26.29`);
 - a parameter, however it is read (since `7.26.32`): `opts.title`,
   `opts?.title`, `arguments[1]`, `rest[0]` of a rest parameter, a destructuring
@@ -5299,8 +5375,6 @@ reading the page in another language:
   since `7.26.49`), and a spread of a `.slice()` whose bounds are not integers
   written out (`t(...KEYS.slice(i))`): from the spread on, no position is
   known;
-- an element a REST takes from an array (`const [first, ...others] = KEYS;
-  t(others[0])`): the reader does not count positions through a rest;
 - a translator handed to a FUNCTION (`{t: t}`, `yui_tabulator_lang(t)`,
   `run(t)`) or to any method but those listed above (`keys.reduce(t)`,
   `keys.sort(t)`, an alias of a method, `Reflect.apply()`): only those
@@ -5330,7 +5404,8 @@ reading the page in another language:
   use (`LIST.push("k")`, `Reflect.set(LIST, 0, "k")`, `fill(LIST)`). The same
   for a `let` of literal arrays, for what is written into it in a way the
   reader does not read (`Reflect.set(L, 0, "k")`, a function it is handed
-  to);
+  to), and for an array literal written inside another one, which is read by
+  its index (`ROWS[0][1] = "k"`, `ROWS.forEach((row) => row.push("k"))`);
 - what a module of a package exports (gobj-js, i18next), and an exported
   `let`;
 - in the library's forwarder search, a key stored in a heap object or a DOM
@@ -5411,21 +5486,25 @@ name that does not look like one (`app.js`, a helper that needs a browser to
 load) is said and skipped, as before. The script runs the same when it is
 reached through a symlinked package with `--preserve-symlinks-main` (also from
 `NODE_OPTIONS`): both sides of its "am I the script?" test are resolved. A
-locale is IMPORTED, so its code runs: the script ends itself once what it wrote
-has left, and a timer a locale leaves running does not hold the build (since
-`7.26.46`; up to `7.26.45` it held it for ever, a failing run included). The
-run ends with the code of its own verdict: what a locale writes into
-`process.exitCode` changes nothing, and a `process.exit()` the script did not
-call fails the run, saying so (since `7.26.49`; a locale's
-`setTimeout(() => process.exit(0), 0)` or `process.exitCode = 0` in a timer
-turned a failing run into exit code 0 up to `7.26.45`, and again in `7.26.47`
-and `7.26.48`; a `process.exit(0)` at the top of a locale ended the run with 0
-before anything was checked, in every version). In a browser `process` does not exist, so such a locale is broken in
-the app too. The run waits for a timer of 0 before it ends, so a promise a
-locale rejects at its top or in such a timer, with nothing to handle it, fails
-the run with its stack (since `7.26.47`). A timer of more than 0 ms is not
-waited for -- a `setInterval` would hold the build for ever --, and what it
-does after the verdict, a rejection included, is not seen.
+locale is IMPORTED, so its code runs -- and since `7.26.51` it runs in a
+PROCESS OF ITS OWN, which reports what each locale exports (its keys and its
+endonym, as JSON) and ends with `process.reallyExit(0)` before any timer of a
+locale is due after the report and before any exit handler of one runs. The
+run itself executes no code of the app, so it ends with the code of its own
+verdict, whatever a locale does, and what it writes reaches a pipe whole. Up
+to `7.26.50` the locales were imported into the run, and a locale could still
+turn a failing run into exit code 0 -- `process.on("exit", () => {
+process.exitCode = 0 })`, a `process.reallyExit(0)` at its top or in an exit
+handler, `process.removeAllListeners("exit")` before a `process.exit(0)` --,
+or end it with most of a long list still on its way to a pipe; `7.26.49` had
+closed only the `process.exitCode` and `process.exit()` of a timer. A locale
+that ends its process before the report -- `process.exit()` or
+`process.reallyExit()` at its top or in a timer of 0, a signal -- fails the run,
+saying so; so does one that holds it past 60 s (a loop). A promise a locale
+rejects, or an exception it throws, with nothing to catch it, at its top or in
+a timer of 0, fails the run with its stack (since `7.26.47` for a rejection).
+What a timer of a locale due later, or an exit handler of one, would do is
+never run: in a browser `process` does not even exist.
 
 Up to `7.26.24` each app carried its own copy, and the copies had drifted into
 three families: only one read the codes of the schema editor, only the other

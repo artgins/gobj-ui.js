@@ -3187,7 +3187,19 @@ function get_form_values(gobj, $form)
             case "input":
                 switch(input_type) {
                     case "datetime-local":
-                        value = datetime_local_to_epoch($input.value);
+                        /*  A box still showing what it was filled with
+                         *  gives back the value it was filled from: read
+                         *  as a wall time, an instant in the SECOND pass
+                         *  of the hour the clocks go back is the first
+                         *  one, and up to gobj-ui 7.26.50 a save with the
+                         *  field untouched wrote it -3600 s
+                         *  (form_time_value.js).  */
+                        if($input.yui_time_kept &&
+                                $input.value === $input.yui_time_kept.shown) {
+                            value = $input.yui_time_kept.value;
+                        } else {
+                            value = datetime_local_to_epoch($input.value);
+                        }
                         break;
                     default:
                         value = getInputValue($input);
@@ -3306,6 +3318,7 @@ function clear_data(gobj, $form)
 
             } else if($input.type === 'datetime-local') { /* time */
                 $input.value = null;
+                $input.yui_time_kept = null;
 
             } else if($input.type === 'color') {
                 /*  A colour input holds a colour: the "" a null is written
@@ -3443,6 +3456,7 @@ function set_form_values(gobj, template, $form, record)
             value = field_desc.default_value;
             modified = true;
         }
+        let stored = (value === undefined)? null : value;
         value = treedb_value_2_form_value(gobj, field_desc, value);
         if(value === undefined) {
             /*  DOM 'value' setters stringify undefined as "undefined";
@@ -3466,8 +3480,12 @@ function set_form_values(gobj, template, $form, record)
             case "input":
                 switch(input_type) {
                     case "datetime-local":
-                        /*  value is a Date (see treedb_value_2_form_value)  */
+                        /*  value is a Date (see treedb_value_2_form_value).
+                         *  The text kept is the one READ BACK: the browser
+                         *  drops seconds of :00, so the text written never
+                         *  matches it (get_form_values).  */
                         $input.value = date_to_datetime_local(value);
+                        $input.yui_time_kept = {value: stored, shown: $input.value};
                         break;
                     case "color":
                         $input.value = convertColor(value);

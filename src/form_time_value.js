@@ -15,8 +15,11 @@
  *              `new Date("YYYY-MM-DDT02:30:00")` answers the EARLIER one
  *              (ECMAScript's "compatible" disambiguation). An epoch in the
  *              SECOND pass of that hour is shown as 02:30 and comes back
- *              one hour earlier: saving the record -- any field of it --
- *              moves a writable time column that holds it by -3600 s.
+ *              one hour earlier. So neither the form's field nor the cell
+ *              editor reads a box that still shows what it was filled
+ *              with: they give back the value it was filled from (up to
+ *              gobj-ui 7.26.48 the cell, and 7.26.50 the field, wrote
+ *              -3600 s on a save of any field of the record).
  *            - the night the clocks go forward (spring), one hour does not
  *              exist. No epoch is shown in it, so nothing read comes back
  *              wrong; a wall time TYPED in it is moved forward by the
@@ -26,8 +29,8 @@
  *          carry. What is safe: a read-only time column never goes back
  *          (treedb_write_plan.js, col_goes_back_to_treedb), and a time
  *          pkey2 goes back as the record had it, never through this
- *          widget (instance_keys_of). A writable time column edited or
- *          merely saved inside the repeated hour is the exposed case.
+ *          widget (instance_keys_of). A wall time TYPED inside the
+ *          repeated hour is the exposed case: it is the first pass.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

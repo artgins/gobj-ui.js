@@ -25,6 +25,12 @@ const VERSION = PKG.version;
 const [MAJOR, MINOR, PATCH] = VERSION.split(".").map(Number);
 const OLDER = `${MAJOR}.${MINOR}.${PATCH - 1}`;
 const NEWER = `${MAJOR}.${MINOR}.${PATCH + 8}`;
+/*  The runtime, a round of its own (`--pkg @yuneta/gobj-js`) on the same consumers  */
+const JS_VERSION = JSON.parse(readFileSync(join(dirname(SCRIPT), "..", "..", "gobj-js", "package.json"), "utf8")).version;
+const [JS_MAJOR, JS_MINOR, JS_PATCH] = JS_VERSION.split(".").map(Number);
+const JS_OLDER = `${JS_MAJOR}.${JS_MINOR}.${JS_PATCH - 1}`;
+const JS_ROUND = ["--no-wait", "--pkg", "@yuneta/gobj-js"];
+const CACHE_FORMAT = 2;
 
 function package_json(name, version, deps)
 {
@@ -501,10 +507,12 @@ describe("deploy-round: the range and the version", () => {
         let cache_file = join(root, "home", ".yuneta", "deploy-round-history.json");
         let r = round(root, {name: "app", path: join(repo, "app")});
         expect(r.out).toMatch(/range {2}already/);
-        expect(JSON.parse(readFileSync(cache_file, "utf8"))[parent]).toEqual([]);
 
         /*  What is kept is what is read: a carrier written into it raises the version  */
-        writeFileSync(cache_file, JSON.stringify({[parent]: [{specs: [`^${OLDER}`], versions: ["1.0.0"]}]}));
+        let key = `@yuneta/gobj-ui ${parent}`;
+        expect(JSON.parse(readFileSync(cache_file, "utf8"))).toEqual({format: CACHE_FORMAT, entries: {[key]: []}});
+        writeFileSync(cache_file, JSON.stringify({format: CACHE_FORMAT,
+            entries: {[key]: [{specs: [`^${OLDER}`], versions: ["1.0.0"]}]}}));
         r = round(root, {name: "app", path: join(repo, "app")});
         expect(r.out).toContain("version 1.0.0 -> 1.0.1");
         git(repo, "checkout", "-q", ".");
@@ -522,7 +530,101 @@ describe("deploy-round: the range and the version", () => {
         expect(r.out).toContain(`${cache_file}: `);
         expect(r.out).toContain("read again from git");
         expect(r.out).toMatch(/range {2}already/);
-        expect(JSON.parse(readFileSync(cache_file, "utf8"))[parent]).toEqual([]);
+        expect(JSON.parse(readFileSync(cache_file, "utf8")).entries[`@yuneta/gobj-ui ${parent}`]).toEqual([]);
+
+        /*  One kept by a round of another format (7.26.49 and 7.26.50 keyed it by the commits
+         *  alone) is not read: a carrier in it raises nothing, and it is written again  */
+        writeFileSync(cache_file, JSON.stringify({[parent]: [{specs: [`^${OLDER}`], versions: ["1.0.0"]}]}));
+        r = round(root, {name: "app", path: join(repo, "app")});
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(join(repo, "app")).version).toBe("1.0.0");
+        expect(JSON.parse(readFileSync(cache_file, "utf8"))).toEqual(
+            {format: CACHE_FORMAT, entries: {[`@yuneta/gobj-ui ${parent}`]: []}});
+    });
+
+    test("what is kept is kept per PACKAGE: a round of the runtime after one of the library reads its own states", () => {
+        let filler = (n) => Object.fromEntries(Array.from({length: n}, (_, i) => [`dep${i}`, `^1.${i}.0`]));
+        let born = (repo, name, deps) => {
+            mkdirSync(join(repo, name));
+            writeFileSync(join(repo, name, "package.json"), package_json(name, "2.0.0", Object.assign(deps, filler(40))));
+        };
+        for(let order of [["ui", "js"], ["js", "ui"]]) {
+            /*  2.0.0 went out depending on the runtime alone, with its old range; the app
+             *  moves with many changes (no rename git sees) and is born with both new ranges  */
+            let root = mkdtempSync(join(tmpdir(), "dr-"));
+            let repo = join(root, "repo");
+            mkdirSync(repo, {recursive: true});
+            execFileSync("git", ["init", "-q"], {cwd: repo});
+            consumer(repo, "gui", "2.0.0", {"@yuneta/gobj-js": `^${JS_OLDER}`});
+            commit(repo, "2.0.0 out with the old runtime range");
+            git(repo, "rm", "-rq", "gui");
+            born(repo, "guinew", {"@yuneta/gobj-js": `^${JS_VERSION}`, "@yuneta/gobj-ui": `^${VERSION}`});
+            commit(repo, "moved, with both ranges new");
+            let target = {name: "guinew", path: join(repo, "guinew")};
+            for(let pkg of order) {
+                let r = round(root, target, pkg === "js"? JS_ROUND : ["--no-wait"]);
+                if(pkg === "js") {
+                    /*  Up to gobj-ui 7.26.50, after the library's round, "already": 2.0.0 again  */
+                    expect(r.out, order.join(">")).toContain("version 2.0.0 -> 2.0.1");
+                } else {
+                    expect(r.out, order.join(">")).toMatch(/range {2}already/);
+                }
+            }
+            expect(read(join(repo, "guinew")).version).toBe("2.0.1");
+
+            /*  Born with both new ranges and moved: nothing went out with an old one, and
+             *  neither round raises it, in either order (up to 7.26.50 the second did)  */
+            root = mkdtempSync(join(tmpdir(), "dr-"));
+            repo = join(root, "repo");
+            mkdirSync(repo, {recursive: true});
+            execFileSync("git", ["init", "-q"], {cwd: repo});
+            writeFileSync(join(repo, "README"), "x\n");
+            commit(repo, "before the app");
+            consumer(repo, "gui", "2.0.0", {"@yuneta/gobj-js": `^${JS_VERSION}`, "@yuneta/gobj-ui": `^${VERSION}`});
+            commit(repo, "the app, born with both ranges new");
+            git(repo, "rm", "-rq", "gui");
+            born(repo, "guinew", {"@yuneta/gobj-js": `^${JS_VERSION}`, "@yuneta/gobj-ui": `^${VERSION}`});
+            commit(repo, "moved, with many changes");
+            target = {name: "guinew", path: join(repo, "guinew")};
+            for(let pkg of order) {
+                let r = round(root, target, pkg === "js"? JS_ROUND : ["--no-wait"]);
+                expect(r.out, `${order.join(">")} ${pkg}`).toMatch(/range {2}already/);
+            }
+            expect(read(join(repo, "guinew")).version).toBe("2.0.0");
+            let kept = JSON.parse(readFileSync(join(root, "home", ".yuneta", "deploy-round-history.json"), "utf8"));
+            expect(Object.keys(kept.entries).map((k) => k.split(" ")[0]).sort())
+                .toEqual(["@yuneta/gobj-js", "@yuneta/gobj-ui"]);
+        }
+    });
+
+    test("what is kept is pruned: the entries used last, up to a limit", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let repo = join(root, "repo");
+        mkdirSync(repo, {recursive: true});
+        execFileSync("git", ["init", "-q"], {cwd: repo});
+        writeFileSync(join(repo, "README"), "x\n");
+        commit(repo, "before the app");
+        let parent = git(repo, "rev-parse", "HEAD");
+        consumer(repo, "app", "1.0.0", {"@yuneta/gobj-ui": `^${VERSION}`});
+        commit(repo, "a new app, born with the range");
+        let cache_file = join(root, "home", ".yuneta", "deploy-round-history.json");
+        mkdirSync(dirname(cache_file), {recursive: true});
+        let key = `@yuneta/gobj-ui ${parent}`;
+        let stale = Object.fromEntries(Array.from({length: 300}, (_, i) => [`@yuneta/gobj-ui ${"0".repeat(39)}${i % 10}${i}`, []]));
+        /*  Read: moved to the end, kept  */
+        writeFileSync(cache_file, JSON.stringify({format: CACHE_FORMAT, entries: {[key]: [], ...stale}}));
+        let r = round(root, {name: "app", path: join(repo, "app")});
+        expect(r.out).toMatch(/range {2}already/);
+        let kept = Object.keys(JSON.parse(readFileSync(cache_file, "utf8")).entries);
+        expect(kept.length).toBe(64);
+        expect(kept[kept.length - 1]).toBe(key);
+        /*  Not there: read from git, added at the end, the oldest dropped  */
+        writeFileSync(cache_file, JSON.stringify({format: CACHE_FORMAT, entries: stale}));
+        r = round(root, {name: "app", path: join(repo, "app")});
+        kept = Object.keys(JSON.parse(readFileSync(cache_file, "utf8")).entries);
+        expect(kept.length).toBe(64);
+        expect(kept[kept.length - 1]).toBe(key);
+        expect(kept[0]).toBe(Object.keys(stale)[300 - 63]);
     });
 
     test("a range already raised is held to the same rules: a version that is not x.y.z refuses the app", () => {

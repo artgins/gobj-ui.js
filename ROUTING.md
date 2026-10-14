@@ -216,9 +216,16 @@ same hash) and an **overlay stack**:
   after an F5 the session history keeps the markers of the earlier load, and
   an id starting again from 1 matched them -- a Back onto an old marker was
   taken for the new overlay's own entry and lost (before 7.26.16). The
-  entries of the earlier load are still dead entries: after a reload with
-  overlays open, each of them absorbs one Back once the new overlays are
-  closed -- by design, as any dead marker.
+  entries of the earlier load are dead entries: since 7.26.49 the first shell
+  of the new load takes them off at its start (their keys are kept in the
+  tab's `sessionStorage` across the reload; up to 7.26.48 each of them
+  absorbed one Back). Since 7.26.51 the shell never goes past the first entry
+  of the current document: a `location.replace()` keeps the key of the entry
+  it replaces, so a later document can sit on the key of a dead marker, over
+  the entries of another document. A Back of the reader's that lands on dead
+  entries goes on over them (`history.go(-n)`), and a Forward goes on up to
+  the first live entry over them. Without the Navigation API nothing is
+  taken off (README, "it moves no browser history").
 - **A navigation made while the shell retires a marker waits for it.** An
   overlay closed by its button retires its marker with a `history.back()`,
   which is asynchronous; a push made in the same turn (`yui_shell_navigate()`,

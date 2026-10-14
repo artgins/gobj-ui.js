@@ -53,8 +53,9 @@
  *          "edit", "new", "delete" in every language). The library scanned
  *          is THIS one -- the package the app installed and builds with,
  *          the one this script ships in. (A LOCALE is not a source: it is
- *          parsed and then imported, and its top-level code runs; see
- *          below.) In each file it reads as keys:
+ *          parsed and then imported, in a process of its own, and its
+ *          top-level code runs there; see below.) In each file it reads as
+ *          keys:
  *
  *            - the key given to a TRANSLATOR: t() or tr() -- whatever binds
  *              the name --, `i18next.t()`, i18next's t imported under any
@@ -131,7 +132,8 @@
  *          every branch of `?:`, `||` and `??`, the right one of `&&`; a
  *          `const` to its value (`const KEY = "save"; t(KEY)` asks for
  *          "save"), and what a destructuring reads from one (`const
- *          {title} = OPTS`); an import of a const or a function, into the
+ *          {title} = OPTS`; its default only where what it reads can be
+ *          undefined: with_default()); an import of a const or a function, into the
  *          module it names, when that module is one this script reads (a
  *          file of the app, a module of the library); a property of a
  *          const object literal (`DEFAULTS.ok`; every value of it for
@@ -140,7 +142,10 @@
  *          that a for...of iterates, or the first parameter of a callback
  *          of one of the methods above (in the same forms, and of
  *          `Array.from(items, cb)`), and what a destructuring reads from
- *          it;
+ *          it -- an array one too, `([id, key]) => ...`; an element of an
+ *          array by its index, `.at()` and `.slice()` (array_method_values(),
+ *          is_nested_array()), or by every element where the index is not
+ *          known or the array may hold others by then, never by nothing;
  *          `String(x)`, and a template that is only `${x}`, as x; a
  *          parameter however it is read (`opts?.title`, `arguments[1]`,
  *          `rest[0]`) and its default; a call of a function the script
@@ -305,7 +310,10 @@
  *          es.js, pt-br.js; flags.js and locales.js are not) exporting
  *          `{<code>}` with a `translation` dict. It is parsed first, and
  *          then IMPORTED, so its top-level code runs -- the app's own code,
- *          but code. It is imported directly, not through locales.js, which
+ *          but code --, in a PROCESS OF ITS OWN that reports what it exports
+ *          (import_locales()): whatever a locale does there, the run, which
+ *          executes no code of the app, ends with its own verdict. It is
+ *          imported directly, not through locales.js, which
  *          drags in gobj-js and i18next and expects a browser. A file that
  *          LOOKS like a locale -- it holds a `translation` dict, it exports
  *          its own name (es.js exporting `es`), or it has a default export
@@ -332,6 +340,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {readdirSync, readFileSync, existsSync, statSync, realpathSync} from "fs";
+import {spawnSync} from "child_process";
 import {resolve, relative} from "path";
 import {pathToFileURL, fileURLToPath} from "url";
 import {I18N_KEY_FUNCTIONS} from "../src/i18n_key_functions.js";
@@ -354,7 +363,6 @@ const LIB_INDEX = new URL("index.js", LIB);
 const APP_DIR = pathToFileURL(process.cwd() + "/");
 
 let errors = 0;
-let failed = false;     // the verdict, whatever a locale writes into process.exitCode
 
 /***************************************************************
  *
@@ -488,7 +496,7 @@ function locale_export_names(code)
 /***************************************************************
  *  The locales of the app: {code: translation}
  ***************************************************************/
-async function load_locales(locales_dir)
+function load_locales(locales_dir)
 {
     if(!existsSync(locales_dir)) {
         abort(`no locales directory at ${locales_dir.pathname}`);
@@ -501,46 +509,41 @@ async function load_locales(locales_dir)
     if(codes.includes("en")) {
         codes = ["en", ...codes.filter((c) => c !== "en")];
     }
+
+    /*  Parsed first, never trusted to the import: a syntax error is
+     *  a broken file, not "a helper that needs a browser".  */
+    let parsed = new Map();     // code -> what it looks like ("" if not a locale), or an Error
+    for(let code of codes) {
+        try {
+            let ast = parse_source(readFileSync(new URL(`${code}.js`, locales_dir), "utf8"));
+            parsed.set(code, looks_like_a_locale(ast, locale_export_names(code)));
+        } catch(e) {
+            parsed.set(code, e);
+        }
+    }
+    let loaded = import_locales(locales_dir, codes.filter((code) => !(parsed.get(code) instanceof Error)));
+
     let locales = {};
     let names = new Set();
     for(let code of codes) {
-        let url = new URL(`${code}.js`, locales_dir);
-        let export_names = locale_export_names(code);
-
-        /*  Parsed first, never trusted to the import: a syntax error is
-         *  a broken file, not "a helper that needs a browser".  */
-        let ast;
-        try {
-            ast = parse_source(readFileSync(url, "utf8"));
-        } catch(e) {
-            fail(`${code}.js cannot be parsed (${e.message}): its language is NOT validated`);
+        let looks = parsed.get(code);
+        if(looks instanceof Error) {
+            fail(`${code}.js cannot be parsed (${looks.message}): its language is NOT validated`);
             continue;
         }
-        let looks = looks_like_a_locale(ast, export_names);
-
-        let mod;
-        try {
-            mod = await import(url.href);
-        } catch(e) {
+        let got = loaded[code];
+        if(got.error !== undefined) {
             if(looks) {
-                fail(`${code}.js ${looks} and cannot be loaded (${e.message}): ` +
+                fail(`${code}.js ${looks} and cannot be loaded (${got.error}): ` +
                      `its language is NOT validated`);
             } else {
                 /*  A helper that happens to have a locale's name (app.js),
                  *  and needs a browser to load: said and skipped  */
-                note(`${code}.js cannot be loaded here (${e.message}): not a locale, skipped`);
+                note(`${code}.js cannot be loaded here (${got.error}): not a locale, skipped`);
             }
             continue;
         }
-        let locale = null;
-        for(let name of export_names) {
-            if(mod[name]) {
-                locale = mod[name];
-                break;
-            }
-        }
-        locale = locale || mod.default;
-        if(!locale || !locale.translation || typeof locale.translation !== "object") {
+        if(!got.keys) {
             if(looks) {
                 fail(`${code}.js ${looks} but exports no {${code}} with a translation dict: ` +
                      `its language is NOT validated`);
@@ -549,15 +552,147 @@ async function load_locales(locales_dir)
             }
             continue;
         }
-        locales[code] = locale.translation;
-        if(typeof locale.name === "string" && locale.name) {
-            names.add(locale.name);     // its endonym: a literal of a language menu
+        locales[code] = Object.fromEntries(got.keys.map((k) => [k, true]));
+        if(got.name) {
+            names.add(got.name);     // its endonym: a literal of a language menu
         }
     }
     if(Object.keys(locales).length === 0) {
         abort(`no locale (<code>.js exporting {<code>: {translation}}) in ${locales_dir.pathname}`);
     }
     return {locales, names};
+}
+
+/***************************************************************
+ *  What the locale files `codes` export, read in a PROCESS OF THEIR
+ *  OWN: a locale is imported, so its code runs, and whatever it does
+ *  -- process.exit() or process.reallyExit() at its top or in a
+ *  timer, an exit handler that sets process.exitCode, a timer that
+ *  throws -- stays in that process, which reports what the files
+ *  export and ends before any timer of theirs is due after it. Up
+ *  to gobj-ui 7.26.50 they were imported into the run itself, and an
+ *  exit handler of a locale (`process.exitCode = 0`, a
+ *  `reallyExit(0)`), a `reallyExit(0)` at its top or the exit
+ *  handlers removed turned a failing run into exit code 0, and a
+ *  timer's exit cut short a list written to a pipe.
+ *
+ *  Returns {code: {keys, name} | {none: true} | {error}}. A
+ *  promise rejected or an exception thrown with nothing to catch it,
+ *  in the locales' process, is a violation; that process ending
+ *  before its report, or not reporting in LOCALES_TIMEOUT_MS, aborts
+ *  the run: no language could be checked.
+ ***************************************************************/
+const LOCALES_TIMEOUT_MS = 60000;
+
+function import_locales(locales_dir, codes)
+{
+    let request = JSON.stringify({
+        dir: locales_dir.href,
+        codes: codes.map((code) => [code, locale_export_names(code)])
+    });
+    let r = spawnSync(process.execPath,
+        [...process.execArgv, "-e", `(${report_locales.toString()})(${request});`], {
+            stdio: ["ignore", "inherit", "inherit", "pipe"],
+            timeout: LOCALES_TIMEOUT_MS,
+            killSignal: "SIGKILL",
+            maxBuffer: 1 << 30
+        });
+    const AT = "the locales are imported in a process of their own, and it";
+    const WHY = "a locale is imported, so its code runs: it must not end the process, and its loading must end";
+    if(r.error && r.error.code === "ETIMEDOUT") {
+        abort(`${AT} did not report in ${LOCALES_TIMEOUT_MS / 1000} s: ${WHY} (a loop, or a top-level ` +
+              `await that never settles while a timer runs, holds it)`);
+    }
+    if(r.error) {
+        abort(`${AT} could not run: ${r.error.message}`);
+    }
+    let text = r.output[3]? r.output[3].toString("utf8") : "";
+    let report = null;
+    if(text.endsWith("\n")) {
+        try {
+            report = JSON.parse(text);
+        } catch(e) {
+            report = null;
+        }
+    }
+    if(r.status !== 0 || !report || typeof report.locales !== "object" || !Array.isArray(report.problems)) {
+        let how = r.signal? `killed by ${r.signal}` : `exit code ${r.status}`;
+        abort(`${AT} ended (${how}) before it reported what they export` +
+              `${text? ", or reported what is not its report" : ""}: ${WHY} (a top-level await that ` +
+              `never settles ends it too)`);
+    }
+    for(let problem of report.problems) {
+        fail(`${problem} (a locale is imported, so its code runs)`);
+    }
+    for(let code of codes) {
+        if(!report.locales[code]) {
+            abort(`the locales' process reported nothing of ${code}.js`);
+        }
+    }
+    return report.locales;
+}
+
+/***************************************************************
+ *  The code of the locales' process (import_locales()), run there
+ *  from its text: it can use nothing of this module but its
+ *  argument. What it calls after the locales ran is taken BEFORE
+ *  them, so a locale that replaces process.reallyExit or
+ *  JSON.stringify does not reach the report. It reports after a
+ *  timer of 0 and an immediate: a promise a locale rejects in such
+ *  a timer, with nothing to handle it, is told first. Its own end is
+ *  process.reallyExit(0): no exit handler of a locale runs, and a
+ *  timer of a locale due later never does.
+ ***************************************************************/
+async function report_locales(request)
+{
+    const {writeSync} = await import("node:fs");
+    const really_exit = process.reallyExit.bind(process);
+    const stringify = JSON.stringify;
+    const keys_of = Object.keys;
+    const set_timeout = setTimeout;
+    const set_immediate = setImmediate;
+    const buffer_from = Buffer.from.bind(Buffer);
+    const problems = [];
+    process.on("unhandledRejection", (reason) => {
+        problems.push(`a promise was rejected and nothing handled it: ${(reason && reason.stack) || reason}`);
+    });
+    process.on("uncaughtException", (e) => {
+        problems.push(`an exception was thrown and nothing caught it: ${(e && e.stack) || e}`);
+    });
+    const locales = {};
+    for(const [code, names] of request.codes) {
+        try {
+            const mod = await import(new URL(`${code}.js`, request.dir).href);
+            let locale = null;
+            for(const name of names) {
+                if(mod[name]) {
+                    locale = mod[name];
+                    break;
+                }
+            }
+            locale = locale || mod.default;
+            if(!locale || !locale.translation || typeof locale.translation !== "object") {
+                locales[code] = {none: true};
+            } else {
+                locales[code] = {
+                    keys: keys_of(locale.translation),
+                    name: (typeof locale.name === "string" && locale.name)? locale.name : null
+                };
+            }
+        } catch(e) {
+            locales[code] = {error: String((e && e.message) || e)};
+        }
+    }
+    set_timeout(() => {
+        set_immediate(() => {
+            const buf = buffer_from(stringify({locales, problems}) + "\n", "utf8");
+            let done = 0;
+            while(done < buf.length) {
+                done += writeSync(3, buf, done, buf.length - done);
+            }
+            really_exit(0);
+        });
+    }, 0);
 }
 
 /***************************************************************
@@ -681,7 +816,7 @@ function find_plural_groups(locales)
 async function main()
 {
     let opts = parse_args(process.argv.slice(2));
-    let {locales, names} = await load_locales(opts.locales);
+    let {locales, names} = load_locales(opts.locales);
     opts.language_names = names;
     let codes = Object.keys(locales);
 
@@ -1231,8 +1366,8 @@ function scope_names(a)
             if(a.left.type === "VariableDeclaration") {
                 for(let d of a.left.declarations) {
                     for(let name of pattern_names(d.id)) {
-                        let at = (a.type === "ForOfStatement")? param_path(d.id, name) : null;
-                        declare(name, at? {kind: "each", of: a.right, steps: at.steps} :
+                        let at = (a.type === "ForOfStatement")? param_path(d.id, name, [], null, true) : null;
+                        declare(name, at? {kind: "each", of: a.right, steps: at.steps, default: at.default} :
                                       {kind: "each_part", of: a.right});
                     }
                 }
@@ -1356,7 +1491,8 @@ function param_path(p, name, steps = [], dflt = null, arrays = false)
                     continue;
                 }
                 if(e.type === "RestElement") {
-                    return null;
+                    /*  `const [a, ...r] = X`: r is X.slice(1). Up to gobj-ui 7.26.50 read as nothing.  */
+                    return param_path(e.argument, name, [...steps, {slice: true, from: i, to: "end"}], null, arrays);
                 }
                 return param_path(e, name, [...steps, {prop: String(i), computed: true}], null, arrays);
             }
@@ -1477,11 +1613,13 @@ function binding_of(name, scope)
             let j = params_of(a).get(name);
             if(j !== undefined) {
                 let p = a.params[j];
-                let at = param_path(p, name);
                 let it = (j === 0 && parent && a.type !== "FunctionDeclaration")?
                     iteration_callback_of(a, scope, i) : null;
+                /*  An element destructured as an array is read by its index: up to gobj-ui
+                 *  7.26.50 `X.map(([a, b]) => t(b))` read nothing  */
+                let at = param_path(p, name, [], null, !!it);
                 if(it) {
-                    return at? {kind: "each", of: it.receiver, steps: at.steps, scope: it.scope}
+                    return at? {kind: "each", of: it.receiver, steps: at.steps, default: at.default, scope: it.scope}
                              : {kind: "each_part", of: it.receiver, scope: it.scope};
                 }
                 let base = {fn: a, name: function_name(a, parent), index: j, scope: scope.slice(0, i + 1)};
@@ -1514,7 +1652,7 @@ function binding_of(name, scope)
                     name: d.name || name, scope: scope.slice(0, i + 1)};
         }
         if(d.kind === "each") {
-            return {kind: "each", of: d.of, steps: d.steps || [], scope: scope.slice(0, i)};
+            return {kind: "each", of: d.of, steps: d.steps || [], default: d.default || null, scope: scope.slice(0, i)};
         }
         if(d.kind === "each_part") {
             return {kind: "each_part", of: d.of, scope: scope.slice(0, i)};
@@ -2632,7 +2770,10 @@ function expand_node(node, ctx, depth)
                 for(let step of b.steps) {
                     out = out.flatMap((o) => step_values(o, step, node, depth + 1));
                 }
-                return out;
+                /*  What it cannot follow is the name, where it is read: param_flows() goes on from it  */
+                out = out.map((o) => (o.kind === "unknown" && !o.var_root && o.node === node)?
+                    Object.assign({}, o, {scope: ctx.scope}) : o);
+                return with_default(out, b.default, {scope: b.scope, via: via, off: true}, depth);
             }
             if(b.kind === "param") {
                 let out = [item("param", {binding: b, path: b.path})];
@@ -2674,13 +2815,9 @@ function expand_node(node, ctx, depth)
                     && node.arguments.length === 1 && binding_of("String", ctx.scope) === null) {
                 return expand(node.arguments[0], here, depth + 1);
             }
-            let at = element_at(node, ctx.scope);
-            if(at) {
-                let out = [];
-                for(let o of expand(node.callee.object, here, depth + 1)) {
-                    out.push(...step_values(o, at, node, depth + 1));
-                }
-                return out;
+            let part = array_method_values(node, here, depth);
+            if(part) {
+                return part;
             }
             let r = local_call_values(node, ctx, via, depth);
             if(r && r.items) {
@@ -2745,10 +2882,34 @@ function const_values(b, node, scope, via, depth)
     for(let step of b.steps || []) {
         out = out.flatMap((o) => step_values(o, step, node, depth + 1));
     }
-    if(b.default) {
-        out.push(...expand(b.default, ctx, depth + 1));
+    return with_default(out, b.default, ctx, depth);
+}
+
+/***************************************************************
+ *  The values of a name a destructuring declares with a default
+ *  (`const [a = "d"] = X`, `const {title = "d"} = opts`): what it
+ *  reads, and the default where that can be undefined -- nothing
+ *  there (past the end, a hole, a property not written, `undefined`)
+ *  or a value that is not written out (a parameter, a call, an
+ *  unknown) --, which it then is instead of nothing. Up to gobj-ui
+ *  7.26.50 the default was a value wherever it was written, and
+ *  `const [a = "d0", b = "d1"] = ["x0", "x1"]; t(b)` asked for "d1",
+ *  which no run of the code reaches.
+ ***************************************************************/
+const NEVER_UNDEFINED = new Set(["Literal", "TemplateLiteral", "ArrayExpression", "ObjectExpression",
+                                 "ArrowFunctionExpression", "FunctionExpression", "ClassExpression",
+                                 "NewExpression"]);
+
+function with_default(values, dflt, ctx, depth)
+{
+    if(!dflt) {
+        return values;
     }
-    return out;
+    let defined = (o) => o.kind === "value" && NEVER_UNDEFINED.has(o.node.type);
+    if(values.length > 0 && values.every(defined)) {
+        return values;
+    }
+    return [...values.filter((o) => o.kind !== "nothing"), ...expand(dflt, ctx, depth + 1)];
 }
 
 /***************************************************************
@@ -3015,32 +3176,133 @@ function written_elements(n, scope)
 }
 
 /***************************************************************
- *  `X.at(i)` of a const array (const_array()), as the step that reads
- *  the same element: `X[i]`, the element counted from the end for a
- *  negative literal (with no spread before), any element for an index
- *  not written out; of a let of literal arrays (let_array()), any
- *  element. null for anything else. Up to gobj-ui 7.26.48 it was read
- *  as nothing.
+ *  `x.at(i)` and `x.slice(a, b)` where x holds an array the source
+ *  writes out -- an array literal (a const of one, a branch of `?:`,
+ *  an element of another, ...), or a `let` of literal arrays
+ *  (let_array()) --: the element, or the part, read from each such
+ *  value (array_step()); any other value of x is unknown there. null
+ *  when x holds none: the call is read as any other.
+ *
+ *  `.at()` reads element 0, `.at(i, ...)` element i, and an index not
+ *  written out (a variable, a spread) any element; a negative one
+ *  counts from the end of an array with no spread. Up to gobj-ui
+ *  7.26.48 `X.at(1)` was read as nothing; up to 7.26.50 so were
+ *  `X.at()`, `X.at(-1, 0)`, an `.at()` of anything but a name
+ *  (`X[0].at(1)`, `X.at(0).at(1)`), a `.slice()` read by its index
+ *  (`X.slice(1)[0]`, `const [b] = X.slice(1)`) and the elements of a
+ *  `.slice()` walked (`for(const k of X.slice(1))`).
  ***************************************************************/
-function element_at(call, scope)
+function array_method_values(call, ctx, depth)
 {
     let c = call.callee;
-    if(c.type !== "MemberExpression" || member_step(c).prop !== "at" || c.object.type !== "Identifier"
-            || call.arguments.length !== 1 || is_spread(call.arguments[0])) {
+    if(c.type !== "MemberExpression") {
         return null;
     }
-    let array = const_array(c.object, scope);
-    if(!array) {
-        return let_array(binding_of(c.object.name, scope))? {prop: null, computed: true} : null;
+    let name = member_step(c).prop;
+    let step = (name === "slice")? slice_step(call) : (name === "at")? {at: at_index(call)} : null;
+    if(!step) {
+        return null;
     }
-    let i = literal_integer(call.arguments[0]);
-    if(i !== null && i < 0 && !array.elements.some(is_spread)) {
-        i = array.elements.length + i;
+    let values = expand(c.object, ctx, depth + 1);
+    if(!values.some(holds_array)) {
+        return null;
+    }
+    let via = ctx.off? ctx.via : [...ctx.via, call];
+    return values.flatMap((o) => holds_array(o)? step_values(o, array_step(o, step), call, depth + 1)
+        : [{kind: "unknown", node: call, scope: ctx.scope, via, off: ctx.off}]);
+}
+
+/*  A value that is an array the source writes out: an array literal,
+ *  or what a `let` of literal arrays holds (let_array())  */
+function holds_array(o)
+{
+    if(o.kind === "value") {
+        return o.node.type === "ArrayExpression";
+    }
+    return o.kind === "unknown" && !!o.var_root && o.var_root.steps.every(is_element_step)
+        && !!let_array(o.var_root.binding);
+}
+
+/*  The index `.at()` reads: an integer written out (0 for none), or
+ *  null for one that is not  */
+function at_index(call)
+{
+    let a = call.arguments[0];
+    if(a === undefined) {
+        return 0;
+    }
+    return is_spread(a)? null : literal_integer(a);
+}
+
+/*  `.slice(a, b)` as a step: {slice, from, to}, each end an integer
+ *  written out, "end" for an end left out, null for one that is not
+ *  written out. null for a slice that is no read of a part.  */
+function slice_step(call)
+{
+    if(call.arguments.length > 2 || call.arguments.some(is_spread)) {
+        return call.arguments.some(is_spread)? {slice: true, from: null, to: null} : null;
+    }
+    let bound = (a, dflt) => (a === undefined)? dflt : literal_integer(a);
+    return {slice: true, from: bound(call.arguments[0], 0), to: bound(call.arguments[1], "end")};
+}
+
+/*  The step `.at()` takes on one value (holds_array()): an index
+ *  counted from the start, or any element  */
+function array_step(o, step)
+{
+    if(step.slice) {
+        return step;
+    }
+    let i = step.at;
+    if(i === null || o.kind !== "value") {
+        return {prop: null, computed: true};
+    }
+    if(i < 0) {
+        if(o.node.elements.some(is_spread)) {
+            return {prop: null, computed: true};
+        }
+        i = o.node.elements.length + i;
         if(i < 0) {
-            i = array.elements.length;      // nothing there
+            i = o.node.elements.length;      // nothing there
         }
     }
-    return (i !== null && i >= 0)? {prop: String(i), computed: true} : {prop: null, computed: true};
+    return {prop: String(i), computed: true};
+}
+
+/***************************************************************
+ *  The part of an array literal a slice step reads (slice_step()),
+ *  as an array literal of its elements -- made once per array and
+ *  part, and read by its index. Only an array read by its index
+ *  (is_indexed_array(), is_nested_array()) has a part: of any other,
+ *  an end not written out or a spread in it, the part is the whole
+ *  array, read by every element -- the array may hold its elements
+ *  elsewhere by then (`X.reverse()`).
+ ***************************************************************/
+const ARRAY_PARTS = new WeakMap();      // an array literal -> Map("from:to" -> its part)
+
+function array_part(array, step, nested)
+{
+    let els = array.elements;
+    let exact = step.from !== null && step.to !== null && !els.some(is_spread)
+        && (nested || is_indexed_array(array));
+    let key = exact? `${step.from}:${step.to}` : "*";
+    let parts = ARRAY_PARTS.get(array);
+    if(!parts) {
+        parts = new Map();
+        ARRAY_PARTS.set(array, parts);
+    }
+    if(!parts.has(key)) {
+        let part = els;
+        if(exact) {
+            let len = els.length;
+            let bound = (v) => (v === "end")? len : (v < 0)? Math.max(len + v, 0) : Math.min(v, len);
+            part = els.slice(bound(step.from), bound(step.to));
+        }
+        let node = {type: "ArrayExpression", elements: part, start: array.start, end: array.end};
+        INDEXED_ARRAYS.set(node, exact);
+        parts.set(key, node);
+    }
+    return parts.get(key);
 }
 
 /*  An integer written out (`1`, `-1`), or null  */
@@ -3172,6 +3434,26 @@ function is_indexed_array(array)
         INDEXED_ARRAYS.set(array, !!b && ((b.steps || []).length > 0 || array_only_read(b)));
     }
     return INDEXED_ARRAYS.get(array);
+}
+
+/***************************************************************
+ *  An array literal written INSIDE another literal -- an element of
+ *  an array, the value of a property (`[["foto", "CLS", "photo"]]`,
+ *  `{cols: ["a", "b"]}`) --, which is read by its index, as a property
+ *  of an object is: no name holds it, so only a read of the literal
+ *  around it reaches it, and what is written into it after that is
+ *  not seen, as with an object (the README's list of what stays
+ *  invisible). Up to gobj-ui 7.26.50 such an array was read by every
+ *  element, and a destructuring of it by nothing.
+ ***************************************************************/
+function is_nested_array(o)
+{
+    let parent = o.scope[o.scope.length - 1];
+    if(!parent) {
+        return false;
+    }
+    return (parent.type === "ArrayExpression" && parent.elements.includes(o.node))
+        || (parent.type === "Property" && parent.value === o.node);
 }
 
 /*  The methods of an array that read it and write nothing into it.
@@ -3669,6 +3951,16 @@ function step_values(o, step, node, depth)
     if(step.each) {
         return element_values(o, depth);
     }
+    if(step.slice) {
+        if(o.kind === "value" && o.node.type === "ArrayExpression") {
+            return [Object.assign({}, o, {node: array_part(o.node, step, is_nested_array(o))})];
+        }
+        if(o.kind === "nothing") {
+            return [Object.assign({}, o, {node: at})];
+        }
+        return [Object.assign({}, o, {kind: "unknown", binding: null, node: at,
+                                      var_root: extend_root(o.var_root, step)})];
+    }
     if(o.kind === "param" && o.binding.rest) {
         if(step.computed && step.prop !== null && /^\d+$/.test(step.prop)) {
             let binding = Object.assign({}, o.binding, {index: o.binding.index + Number(step.prop), rest: false});
@@ -3688,7 +3980,7 @@ function step_values(o, step, node, depth)
     }
     if(o.kind === "value" && o.node.type === "ArrayExpression" && (step.computed || array_index(step) !== null)) {
         let i = array_index(step);
-        if(i !== null && is_indexed_array(o.node)
+        if(i !== null && (is_indexed_array(o.node) || is_nested_array(o))
                 && !o.node.elements.slice(0, i + 1).some((e) => e && e.type === "SpreadElement")) {
             return indexed_values(o, i, at, depth + 1);
         }
@@ -4658,9 +4950,7 @@ function var_leaves(root, seen = new Set(), depth = 0)
             for(let step of v.pick.steps) {
                 cur = cur.flatMap((o) => step_values(o, step, null, 0));
             }
-            if(v.pick.default) {
-                cur.push(...expand(v.pick.default, ctx));
-            }
+            cur = with_default(cur, v.pick.default, ctx, 0);
         }
         for(let step of steps.slice(v.steps.length)) {
             cur = cur.flatMap((o) => step_values(o, step, null, 0));
@@ -4718,7 +5008,8 @@ function literal_let_keys(leaf)
         return [];
     }
     let steps = leaf.var_root.steps;
-    if(steps.length === 1 && is_element_step(steps[0])) {
+    if(steps.length > 0 && steps.every(is_element_step)) {
+        /*  `X[0][1]`, `X.slice(1)[0]`: an element of an element is one of its strings, or nothing  */
         return let_array_literals(leaf.var_root.binding) || [];
     }
     if(steps.length > 0) {
@@ -4730,7 +5021,7 @@ function literal_let_keys(leaf)
 /*  A step that reads an element: `X[i]`, `X[1]`, an element walked  */
 function is_element_step(step)
 {
-    return !!step.each || step.computed || array_index(step) !== null;
+    return !!step.each || !!step.slice || step.computed || array_index(step) !== null;
 }
 
 /***************************************************************
@@ -4766,17 +5057,17 @@ function let_array(b)
         if(!v.node) {
             continue;
         }
-        if(v.steps.length === 0 && v.node.type === "ArrayExpression") {
-            out.length = Math.max(out.length, v.node.elements.length);
-            for(let e of v.node.elements) {
-                let lits = (!e)? [] : (e.type === "SpreadElement")? null
-                    : literal_values(e, [...v.scope, v.node], new Set());
-                if(lits === null) {
-                    out = null;
-                    break;
-                }
-                out.strings.push(...lits);
-            }
+        if(v.steps.length === 1 && v.steps[0].prop === "length") {
+            continue;       // `X.length = n` gives no element, only holes
+        }
+        let a = (v.steps.length > 0)? null
+            : (v.into && v.node.type === "ObjectExpression")? assigned_elements(v.node, v.scope)
+            : array_literal_strings(v.node, v.scope);
+        if(a) {
+            out.length = Math.max(out.length, a.length);
+            out.strings.push(...a.strings);
+        } else if(v.steps.length === 0) {
+            out = null;
         } else if(v.steps.length === 1 && is_element_step(v.steps[0]) && !v.spread) {
             let lits = literal_values(v.node, v.scope, new Set());
             if(lits === null) {
@@ -4792,6 +5083,93 @@ function let_array(b)
         out.strings = [...new Set(out.strings)];
     }
     LET_ARRAYS.set(first, out);
+    return out;
+}
+
+/***************************************************************
+ *  The strings of the elements of what a value is, when it is written
+ *  as nothing but literal arrays: {strings, length}, `length` its
+ *  longest array. An array literal of literal_values() (a hole is
+ *  nothing), `null` and `undefined` (no element), every branch of `?:`,
+ *  `||` and `??` (the right one of `&&`), a const of one -- of the
+ *  module or imported. null for anything else. Up to gobj-ui 7.26.50 a
+ *  `let` given anything but an array literal was not followed, and
+ *  `let X = c()? ["a"] : ["b"]; t(X[0])` asked for nothing.
+ ***************************************************************/
+function array_literal_strings(n, scope, seen = new Set())
+{
+    if(!n || seen.has(n)) {
+        return null;
+    }
+    seen.add(n);
+    switch(n.type) {
+        case "ArrayExpression": {
+            let out = {strings: [], length: n.elements.length};
+            for(let e of n.elements) {
+                let lits = (!e)? [] : is_spread(e)? null : literal_values(e, [...scope, n], new Set());
+                if(lits === null) {
+                    return null;
+                }
+                out.strings.push(...lits);
+            }
+            return out;
+        }
+        case "Literal":
+            return (n.value === null && !n.regex)? {strings: [], length: 0} : null;
+        case "ConditionalExpression":
+        case "LogicalExpression": {
+            let parts = (n.type === "ConditionalExpression")? [n.consequent, n.alternate]
+                : (n.operator === "&&")? [n.right] : [n.left, n.right];
+            let out = {strings: [], length: 0};
+            for(let x of parts) {
+                let a = array_literal_strings(x, scope, seen);
+                if(!a) {
+                    return null;
+                }
+                out.strings.push(...a.strings);
+                out.length = Math.max(out.length, a.length);
+            }
+            return out;
+        }
+        case "Identifier": {
+            let b = binding_of(n.name, scope);
+            if(!b) {
+                return (n.name === "undefined")? {strings: [], length: 0} : null;
+            }
+            if(b.kind === "import") {
+                b = import_target(b);
+            }
+            if(b && b.kind === "const" && b.steps.length === 0 && !b.default) {
+                return array_literal_strings(b.init, b.scope, seen);
+            }
+            return null;
+        }
+        default:
+            return null;
+    }
+}
+
+/*  The elements `Object.assign(X, {1: "k"})` writes into X, when it
+ *  writes literal_values(): {strings, length}, or null  */
+function assigned_elements(n, scope)
+{
+    let out = {strings: [], length: 0};
+    for(let p of n.properties) {
+        if(p.type !== "Property" || p.kind !== "init" || p.method) {
+            return null;
+        }
+        let lits = literal_values(p.value, [...scope, n], new Set());
+        if(lits === null) {
+            return null;
+        }
+        out.strings.push(...lits);
+        let i = array_index({prop: prop_name(p)});
+        if(i !== null) {
+            out.length = Math.max(out.length, i + 1);
+        } else if(prop_name(p) === null) {
+            return null;        // a computed key the reader does not follow: an index it cannot bound
+        }
+    }
     return out;
 }
 
@@ -7204,74 +7582,19 @@ try {
 }
 if(is_main) {
     /*
-     *  A locale is IMPORTED, so its code runs, timers included, and it
-     *  can write process.exitCode or call process.exit() before the run
-     *  ends (in gobj-ui 7.26.47 and 7.26.48, as up to 7.26.45, a
-     *  timer's `process.exit(0)` or `process.exitCode = 0` turned a
-     *  failing run into rc 0). The run
-     *  ends with the code of its own verdict, and an end it did not call
-     *  is a failure: in a browser `process` does not even exist.
+     *  No code of the app runs here: the sources are parsed, and the
+     *  locales are imported in a process of their own
+     *  (import_locales()). So the run ends when its work does, with the
+     *  code of its own verdict, and what it wrote reaches a pipe whole.
      */
-    const real_exit = process.exit;
-    let ending = false;
-    process.on("exit", (code) => {
-        if(!ending) {
-            process.stderr.write(`validate-locales: the process was ended by process.exit(${code}), which ` +
-                                 `the script did not call: a locale is imported, so its code runs, ` +
-                                 `and a locale must not end the process\n`);
-            failed = true;
-        }
-        if(failed) {
-            process.exitCode = 1;
-        }
-    });
-    process.on("unhandledRejection", (reason) => {
-        console.error("validate-locales: a promise was rejected and nothing handled it (a locale is " +
-                      `imported, so its code runs): ${(reason && reason.stack) || reason}`);
-        failed = true;
-    });
     try {
         await main();
     } catch(e) {
-        failed = true;
         if(!(e instanceof Abort)) {
-            ending = true;
             throw e;
         }
     }
     if(errors > 0) {
-        failed = true;
+        process.exitCode = 1;
     }
-    exit_when_written(() => {
-        ending = true;
-        real_exit.call(process, failed? 1 : 0);
-    });
-}
-
-/***************************************************************
- *  End the run once what it wrote has left: a locale is IMPORTED,
- *  and a timer its code leaves running holds the process for ever,
- *  verdict or not (up to gobj-ui 7.26.45, also a run that failed).
- *  `end` runs from the callbacks of a last write to each stream,
- *  which come after every write before them, so a long list on its
- *  way to a pipe still reaches it whole. It waits for a timer first:
- *  a promise rejected with nothing to handle it is told only when the
- *  loop turns, and a timer of 0 a locale set is due before it -- up to
- *  gobj-ui 7.26.46 such a rejection was lost, and the run passed. A
- *  timer of more than 0 ms is not waited for (a setInterval would hold
- *  the run for ever): what it does after the verdict is not seen.
- ***************************************************************/
-function exit_when_written(end)
-{
-    let pending = 2;
-    let written = () => {
-        pending--;
-        if(pending === 0) {
-            end();
-        }
-    };
-    setTimeout(() => {
-        process.stdout.write("", written);
-        process.stderr.write("", written);
-    }, 0);
 }

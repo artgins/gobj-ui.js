@@ -68,6 +68,22 @@
  *            twice: the back() that retires its marker is still in
  *            flight when the shell stops, and the new shell's panel
  *            must not take it.
+ *        (m) the panel up, then location.replace() to another page and
+ *            location.replace() back to the app: the new document sits
+ *            on the key of the panel's marker, which a replace keeps,
+ *            over the entries of the first document. It must stay
+ *            there: up to gobj-ui 7.26.50 the new shell took the key
+ *            for dead and went back into the first document, which was
+ *            loaded again (three loads instead of two).
+ *        (n) the panel up, "log out, and in later", and in the login
+ *            page the reader moves (location.hash): the new shell
+ *            starts on an entry of the reader's, over the dead markers.
+ *            Back closes the panel, and from there TWO Backs leave the
+ *            chapter, with no dead one: the first lands on the dead
+ *            markers and the shell goes on over them. Two Forwards
+ *            come back to the reader's entry, the second going over
+ *            them the other way. Up to gobj-ui 7.26.50 they were
+ *            never taken off: four Backs, two of them dead.
  *
  *      Every Back of a case is counted: one that changes nothing on
  *      screen (the URL, the panel, the view, the preferences) is a DEAD
@@ -476,6 +492,74 @@ async function case_l(page)
     return relogin_cycles(page, 2, () => relogin(page, ".DEMO_HISTORY_CLOSE_AND_RELOGIN"));
 }
 
+async function case_m(page)
+{
+    let loads = 0;
+    await page.route(/\/probe-elsewhere\.html/, (route) => route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><html><body>elsewhere</body></html>"
+    }));
+    await fresh(page);
+    await page.click(".DEMO_HISTORY_OPEN");
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await settle(page);
+    const before = await snap(page);
+    page.on("load", () => {
+        loads++;
+    });
+    await page.evaluate(() => {
+        location.replace("/probe-elsewhere.html");
+    });
+    await page.waitForURL(/probe-elsewhere/, {timeout: 15000});
+    await page.waitForLoadState("load");
+    await settle(page);
+    await page.evaluate(() => {
+        location.replace("/#/history");
+    });
+    await page.waitForSelector(".C_DEMO_HISTORY", {timeout: 15000});
+    await page.waitForTimeout(1500);
+    const after = await snap(page);
+
+    const ok = before.panel && loads === 2 &&
+        after.hash === "#/history" && after.length === before.length;
+    return {ok, loads, before, after};
+}
+
+async function case_n(page)
+{
+    await fresh(page);
+    await page.click(".DEMO_HISTORY_OPEN");
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await settle(page);
+    await page.evaluate(() => {
+        document.querySelector(".DEMO_HISTORY_RELOGIN_LATER").click();
+    });
+    await page.waitForTimeout(100);
+    await page.evaluate(() => {
+        location.hash = "#/history/pos-9";
+    });
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await page.waitForTimeout(800);
+    const relogged = await snap(page);
+    await page.goBack();
+    await settle(page);
+    const after_back = await snap(page);
+    const leave = await backs_to_leave(page);
+    await page.goForward();
+    await settle(page);
+    const forward1 = await snap(page);
+    await page.goForward();
+    await settle(page);
+    const forward2 = await snap(page);
+
+    const ok = relogged.panel && relogged.hash === "#/history/pos-9" &&
+        !after_back.panel && after_back.hash === "#/history/pos-9" &&
+        leave.left === "#/windows" && leave.backs === 2 && leave.dead === 0 &&
+        forward1.hash === "#/history" && !forward1.panel &&
+        forward2.hash === "#/history/pos-9" && forward2.view === "history";
+    return {ok, relogged, after_back, leave, forward1, forward2};
+}
+
 /*
  *  Main
  */
@@ -500,7 +584,9 @@ try {
                                       ["i: log out and in, Back", case_i],
                                       ["j: preferences up, log out and in", case_j],
                                       ["k: log out, and in later", case_k],
-                                      ["l: close, log out and in", case_l]]
+                                      ["l: close, log out and in", case_l],
+                                      ["m: replaced by another page and back", case_m],
+                                      ["n: log out, move, and in later", case_n]]
                                       .filter(([label]) => !only_case || label.startsWith(`${only_case}:`))) {
                 const context = await browser.newContext({viewport: {width: 1250, height: 850}});
                 const page = await context.newPage();

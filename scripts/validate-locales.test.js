@@ -908,32 +908,87 @@ describe("validate-locales", () => {
         }
     }, 30000);
 
-    test("a locale cannot turn the verdict: its exitCode is ignored, and a process.exit() of its own fails the run", () => {
+    test("a locale is imported in a process of its own: nothing it does reaches the verdict", () => {
+        const ENDED = "the locales are imported in a process of their own, and it ended";
+        const MISSING = "a key no locale defines";
+        const DEFINED = "a defined key";
+        /*  [what, the locale's code, the key asked, the status, what the run says]  */
         let cases = [
-            ["a timer sets exitCode 0", `setTimeout(() => { process.exitCode = 0; }, 0);\n`, "a key no locale defines", false],
-            ["the top sets exitCode 0", `process.exitCode = 0;\n`, "a key no locale defines", false],
-            ["a timer exits 0, with a violation", `setTimeout(() => process.exit(0), 0);\n`, "a key no locale defines", true],
-            ["a timer exits 0, with no violation", `setTimeout(() => process.exit(0), 0);\n`, "a defined key", true],
-            ["the top exits 0", `process.exit(0);\n`, "a defined key", true]
+            ["a timer sets exitCode 0", `setTimeout(() => { process.exitCode = 0; }, 0);`, MISSING, 1, "1 violation(s)"],
+            ["the top sets exitCode 0", `process.exitCode = 0;`, MISSING, 1, "1 violation(s)"],
+            ["an exit handler sets exitCode 0", `process.on("exit", () => { process.exitCode = 0; });`,
+             MISSING, 1, "1 violation(s)"],
+            ["a first exit handler sets exitCode 0", `process.prependListener("exit", () => { process.exitCode = 0; });`,
+             MISSING, 1, "1 violation(s)"],
+            ["an exit handler calls reallyExit(0)", `process.on("exit", () => process.reallyExit(0));`,
+             MISSING, 1, "1 violation(s)"],
+            ["an exit handler throws", `process.on("exit", () => { throw new Error("an exit handler threw"); });`,
+             MISSING, 1, "1 violation(s)"],
+            ["process.exit replaced", `process.exit = () => {};`, MISSING, 1, "1 violation(s)"],
+            ["a timer of 1 s exits 0", `setTimeout(() => process.exit(0), 1000);`, MISSING, 1, "1 violation(s)"],
+            ["a timer exits 0, with a violation", `setTimeout(() => process.exit(0), 0);`, MISSING, 1,
+             `${ENDED} (exit code 0) before it reported`],
+            ["a timer exits 0, with no violation", `setTimeout(() => process.exit(0), 0);`, DEFINED, 1,
+             `${ENDED} (exit code 0) before it reported`],
+            ["the top exits 0", `process.exit(0);`, DEFINED, 1, `${ENDED} (exit code 0) before it reported`],
+            ["the top calls reallyExit(0)", `process.reallyExit(0);`, DEFINED, 1,
+             `${ENDED} (exit code 0) before it reported`],
+            ["the exit handlers removed, then exit 0", `process.removeAllListeners("exit"); process.exit(0);`,
+             MISSING, 1, `${ENDED} (exit code 0) before it reported`],
+            ["a timer removes the exit handlers, then exits 0",
+             `setTimeout(() => { process.removeAllListeners("exit"); process.exit(0); }, 0);`,
+             MISSING, 1, `${ENDED} (exit code 0) before it reported`],
+            ["a top-level await that never settles", `await new Promise(() => {});`, DEFINED, 1,
+             `${ENDED} (exit code 0) before it reported`],
+            ["the top kills its process", `process.kill(process.pid, "SIGTERM");`, DEFINED, 1,
+             `${ENDED} (killed by SIGTERM) before it reported`],
+            ["a timer throws", `setTimeout(() => { throw new Error("a locale threw in a timer"); }, 0);`, DEFINED, 1,
+             "an exception was thrown and nothing caught it"],
+            /*  What runs after the locales are read is not the catalogue: in a browser it never runs  */
+            ["an exit handler throws, nothing missing", `process.on("exit", () => { throw new Error("x"); });`,
+             DEFINED, 0, "validate-locales: OK"],
+            ["a timer sets exitCode 3, nothing missing", `setTimeout(() => { process.exitCode = 3; }, 0);`,
+             DEFINED, 0, "validate-locales: OK"],
+            ["an exit handler sets exitCode 3, nothing missing", `process.on("exit", () => { process.exitCode = 3; });`,
+             DEFINED, 0, "validate-locales: OK"]
         ];
-        for(let [what, code, key, said] of cases) {
+        for(let [what, code, key, status, says] of cases) {
             let r = run({
-                "src/locales/en.js": code + locale("en", {"a defined key": "x"}),
+                "src/locales/en.js": code + "\n" + locale("en", {"a defined key": "x"}),
                 "src/locales/es.js": locale("es", {"a defined key": "x"}),
                 "src/main.js": `t(${JSON.stringify(key)});`
             });
-            expect(r.status, what).toBe(1);
-            if(said) {
-                expect(r.out, what).toContain("the process was ended by process.exit(0), which the script did not call");
-            }
+            expect(r.status, what).toBe(status);
+            expect(r.out, what).toContain(says);
         }
-        let r = run({
-            "src/locales/en.js": `setTimeout(() => { process.exitCode = 3; }, 0);\n` + locale("en", {"a defined key": "x"}),
-            "src/locales/es.js": locale("es", {"a defined key": "x"}),
-            "src/main.js": `t("a defined key");`
+    }, 60000);
+
+    test("a locale that ends its process in a timer cuts nothing the run writes to a pipe read late", async () => {
+        let lines = [];
+        for(let i = 0; i < 3000; i++) {
+            lines.push(`t("a key no locale defines, long enough to fill a pipe ${i}");`);
+        }
+        let dir = mkdtempSync(join(tmpdir(), "vl-"));
+        write_files(dir, {
+            "src/locales/en.js": `setTimeout(() => process.exit(0), 1000);\n` + locale("en", {}),
+            "src/locales/es.js": locale("es", {}),
+            "src/main.js": lines.join("\n")
         });
-        expect(r.status).toBe(0);
-        expect(r.out).toContain("validate-locales: OK");
+        /*  Up to gobj-ui 7.26.50 the locale's timer ran in the run itself and ended it
+         *  with most of the list still on its way, and no verdict  */
+        let child = spawn(process.execPath, [SCRIPT], {cwd: dir, stdio: ["ignore", "pipe", "pipe"]});
+        child.stderr.pause();
+        let closed = new Promise((resolve) => child.on("close", resolve));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        let out = "";
+        child.stderr.on("data", (d) => {
+            out += d;
+        });
+        child.stderr.resume();
+        child.stdout.resume();
+        expect(await closed).toBe(1);
+        expect((out.match(/defined in NO locale/g) || []).length).toBe(3000);
+        expect(out).toContain("3000 violation(s), see above");
     }, 30000);
 
     test("where the reader gives up on a value it FAILS, with the file and the line: a key behind it is never skipped in silence", () => {
@@ -1801,6 +1856,87 @@ describe("validate-locales", () => {
                 "k20 let walked"].filter((k) => !asked(k))).toEqual([]);
         expect(["k06 let given data", "k10 inline 0"].filter(asked)).toEqual([]);
         expect(main_lines(r.out)).toEqual([]);
+    });
+
+    test("an array read in any other shape is read by its element, or by every element -- never as nothing", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            /*  a let given a ?: of arrays, at its declaration or later; given null on a branch  */
+            `let T1 = c() ? ["m01 let branch a0", "m02 let branch a1"] : ["m03 let branch b0", "m04 let branch b1"];`,
+            `t(T1[1]);`,
+            `let T2 = ["m05 let again a0"];`,
+            `if(c()) { T2 = c() ? ["m06 let again b0"] : null; }`,
+            `t(T2[0]);`,
+            `const A3 = ["m07 const behind a let"];`,
+            `let T3 = c() ? A3 : undefined;`,
+            `t(T3[0]);`,
+            /*  a let whose length is set, or written into by Object.assign()  */
+            `let T4 = ["m08 let length 0", "m09 let length 1"];`,
+            `T4.length = 1;`,
+            `t(T4[1]);`,
+            `let T5 = ["m10 let assigned 0"];`,
+            `Object.assign(T5, {1: "m11 let assigned 1"});`,
+            `t(T5[1]);`,
+            /*  a part of a const array, read by its index or walked  */
+            `const S1 = ["m12 slice 0", "m13 slice 1", "m14 slice 2"];`,
+            `const [s1] = S1.slice(1);`,
+            `t(s1);`,
+            `t(S1.slice(-1)[0]);`,
+            `for(const x of S1.slice(2)) { t(x); }`,
+            `const [, ...rest] = S1;`,
+            `t(rest[1]);`,
+            /*  .at() of an element, of an .at(), with no index and with two  */
+            `const N = [["m15 nested 00", "m16 nested 01"], ["m17 nested 10", "m18 nested 11"]];`,
+            `t(N[0].at(1));`,
+            `t(N.at(1).at(0));`,
+            `const AT = ["m19 at 0", "m20 at 1"];`,
+            `t(AT.at());`,
+            `t(AT.at(-1, 0));`,
+            /*  an element destructured as an array, walked or mapped  */
+            `const ROWS = [["m21 row id", "m22 row key"]];`,
+            `for(const [id, key] of ROWS) { t(key); }`,
+            `ROWS.forEach(([id, key]) => t(key));`,
+            `[["m23 tile id", "m24 tile key", "m25 tile class"]].map(([id, key, cls]) => ({i18n: key}));`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let asked = (k) => r.out.includes(`defined in NO locale: ${JSON.stringify(k)}`);
+        expect(["m01 let branch a0", "m02 let branch a1", "m03 let branch b0", "m04 let branch b1",
+                "m05 let again a0", "m06 let again b0", "m07 const behind a let", "m08 let length 0",
+                "m09 let length 1", "m10 let assigned 0", "m11 let assigned 1", "m13 slice 1", "m14 slice 2",
+                "m16 nested 01", "m17 nested 10", "m19 at 0", "m20 at 1", "m22 row key", "m24 tile key"]
+            .filter((k) => !asked(k))).toEqual([]);
+        /*  ...and nothing the code does not read  */
+        expect(["m12 slice 0", "m15 nested 00", "m18 nested 11", "m21 row id", "m23 tile id", "m25 tile class"]
+            .filter(asked)).toEqual([]);
+        expect(main_lines(r.out)).toEqual([]);
+    });
+
+    test("the default of a destructuring is asked for only where what it reads can be undefined", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `const X = ["n01 element 0", "n02 element 1"];`,
+            `const [a = "n03 default never", b = "n04 default never"] = X;`,
+            `t(b);`,
+            `const [, , c = "n05 default past the end"] = X;`,
+            `t(c);`,
+            `const H = ["n06 hole 0", , undefined];`,
+            `const [, h1 = "n07 default of a hole", h2 = "n08 default of undefined"] = H;`,
+            `t(h1); t(h2);`,
+            `const O = {o: "n09 property", n: null};`,
+            `const {o = "n10 default never", p = "n11 default of no property", n = "n12 default of null"} = O;`,
+            `t(o); t(p); t(n);`,
+            `const F = [f()];`,
+            `const [fv = "n13 default of a call"] = F;`,
+            `t(fv);`,
+            `function g(opts) { const {title = "n14 default of a parameter"} = opts; t(title); }`,
+            `for(const {k = "n15 default never in a loop"} of [{k: "n16 loop element"}]) { t(k); }`,
+            `for(const {k = "n17 default of a loop"} of [{}]) { t(k); }`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let asked = (k) => r.out.includes(`defined in NO locale: ${JSON.stringify(k)}`);
+        expect(["n02 element 1", "n05 default past the end", "n07 default of a hole", "n08 default of undefined",
+                "n09 property", "n11 default of no property", "n13 default of a call", "n14 default of a parameter",
+                "n16 loop element", "n17 default of a loop"].filter((k) => !asked(k))).toEqual([]);
+        expect(["n01 element 0", "n03 default never", "n04 default never", "n10 default never",
+                "n12 default of null", "n15 default never in a loop"].filter(asked)).toEqual([]);
     });
 
     test("a card is named `name || aria_label || id`: its id is a key only for a card with neither", () => {
