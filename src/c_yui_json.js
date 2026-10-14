@@ -112,7 +112,7 @@ import {yui_shell_of} from "./c_yui_shell.js";
 import {attach_clear} from "./yui_inputs.js";
 
 import i18next, {t} from "i18next";
-import {safe_locale} from "./yui_time.js";
+import {safe_locale} from "./yui_date_text.js";
 
 import "./c_yui_json.css";
 import {text_node} from "./yui_text.js";

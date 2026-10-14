@@ -16,7 +16,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {json2flat, flat_diff} from "@yuneta/gobj-js";
-import {fmt_date_time} from "./yui_time.js";
+import {fmt_date_time} from "./yui_date_text.js";
 
 /*
  *  Path delimiter, identical to the kernel's `delimiter` in kwid.c.

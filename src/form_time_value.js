@@ -35,7 +35,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-import {fmt_date_time} from "./yui_time.js";
+import {fmt_date_time} from "./yui_date_text.js";
 
 /************************************************************
  *  A Date -> the value of a `datetime-local` input, in local time,

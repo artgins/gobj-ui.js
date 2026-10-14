@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.53
+
+- **fix: 7.26.52 broke the build of every app that shows a time** (`validate-locales` in its `prebuild`: 27 keys "used in the source but defined in NO locale", the names of the period picker). The time text helper lived in `yui_time.js`, which publishes the period picker's keys (`YUI_TIME_I18N_KEYS`); the four views that show a time imported it, and the validator follows the modules an app mounts, so every app that mounts one owed those keys. `safe_locale()` and `fmt_date_time()` live now in `yui_date_text.js`, which carries no key; `yui_time.js` re-exports both, so no import changes for a consumer. 7.26.52 reached no app: the deploy round refused them all at the build (only the demo, which carries every key, went out). Checked with the `validate-locales` of wattyzer and estadodelaire against these modules.
+
 ## 7.26.52
 
 - **change (display, visible -- not BREAKING): a time a view shows as text is in the APP's language, with a clock of 24 hours, the same in every view, and it changes with the app's language button.** One function writes it, `fmt_date_time(date, locale)` (`yui_time.js`, exported by the barrel): day, short month, year, then `HH:mm:ss` with `hourCycle: "h23"` (never `hour12: false`, which some engines read as `h24`: midnight `24:00:00`). The views pass `i18next.language`, never `navigator.language`. es `14 oct 2026, 15:05:09`, en (and en-US) `Oct 14, 2026, 15:05:09`, midnight `00:00:00`. Up to 7.26.51, for the same moment:

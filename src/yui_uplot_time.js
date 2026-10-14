@@ -27,7 +27,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {fmt_date_time, safe_locale} from "./yui_time.js";
+import {fmt_date_time, safe_locale} from "./yui_date_text.js";
 
 /*  The legend's stamp, as uPlot 1.6 writes it (_timeSeriesStamp).  */
 const LEGEND_STAMP = "{YYYY}-{MM}-{DD} {h}:{mm}{aa}";

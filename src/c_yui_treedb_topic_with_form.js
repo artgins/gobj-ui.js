@@ -99,7 +99,7 @@ import {
 import {row_matches} from "./yui_row_search.js";
 
 import i18next, {t} from "i18next";
-import {safe_locale} from "./yui_time.js";
+import {safe_locale} from "./yui_date_text.js";
 
 import {yui_toolbar_icon} from "./yui_toolbar.js";
 

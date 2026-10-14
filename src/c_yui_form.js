@@ -100,7 +100,7 @@ import {
     time_value_to_text
 } from "./form_time_value.js";
 import {form_time_cell_editor} from "./form_time_cell_editor.js";
-import {safe_locale} from "./yui_time.js";
+import {safe_locale} from "./yui_date_text.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
 import {
     json_editor_menu_items,
