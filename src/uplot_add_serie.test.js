@@ -23,9 +23,12 @@ vi.mock("uplot", () => ({
         constructor() {
             this.series = [{}];
         }
-        setSize() {}
-        addSeries() {}
-        destroy() {}
+        setSize() {
+        }
+        addSeries() {
+        }
+        destroy() {
+        }
     }
 }));
 

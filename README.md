@@ -137,6 +137,72 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > (minimise / bring back, named by the window's title, through the FSM:
 > `EV_TOGGLE_WINDOW`) and its ✕ (`close`). It was a `role="button"` holding
 > the ✕ button -- one control inside another.
+>
+> **A floating dock keeps its band free (7.26.43).** A window that fills the
+> screen -- the sheet a window becomes on a phone, a maximized one on a laptop --
+> went under the floating dock: at a bottom corner the dock covered its foot, at
+> a top corner its ✕ and its minimize. It happens on a phone to every app whose
+> dock is `responsive` with no `inline_selector` (it floats there too). The dock
+> now says the band it keeps, on the root element (`--yui-dock-inset-top` /
+> `--yui-dock-inset-bottom`, set while a floating dock shows a chip), and a
+> full-screen window takes `top: var(--yui-dock-inset-top, 0px)` and a height
+> that leaves both bands out. A maximized window is therefore that much shorter
+> with a floating dock; an inline dock keeps no band (it is in the layout).
+>
+> **A window is a dialog (7.26.43).** `focus`, `modal` and `keyboard` were
+> declared and did nothing up to 7.26.42: a window took no focus, closed with no
+> key, kept nothing in and had no role. Now:
+>
+> - it is `role="dialog"`, named by its title (`aria-labelledby` on the two
+>   halves, `title_prefix` and `title`, so the name changes language; under a
+>   `header` of the caller's the title is still there, `is-sr-only`);
+> - when it **starts** (`gobj_start`, so a host that fills the body after
+>   creating it can name what it put there) in answer to the reader -- a press
+>   or a key, the browser's user activation -- it takes the focus: `focus` is an
+>   element of the window, a selector looked up in it, or a number (the n-th
+>   control of the body); by default the window itself (`tabindex="-1"`). A
+>   window the app opens on its own (the Developer window restored at start up
+>   from the last session) leaves the focus in the page, or a keyboard reader's
+>   first Tab lands in a window they did not open; a modal one takes it always.
+>   When it goes, the focus goes back where it was -- if it was in the window;
+> - **Escape closes it** (`keyboard`, `true` by default) when the focus is in
+>   it, the way its ✕ does: `EV_CLOSE_WINDOW`, so `EV_WINDOW_TO_CLOSE` still
+>   vetoes or asks. Not an Escape that what it was typed in took first: a
+>   handler that called `preventDefault()` (a Tom Select list, the json
+>   editor's search box), an input method composing, an inline editor that
+>   closed with the key (Tabulator cancels a cell edit by removing the box --
+>   the window then takes the focus back), a `textarea` or a
+>   `contenteditable` (what is being written is not lost to one key). Turn it
+>   off with `keyboard: false`; the key then goes on to the shell;
+> - a **`modal`** one blocks the rest of the app: it hangs over a backdrop in
+>   the shell's dialog layer (`yui_shell_modal_layer()`; above the drawer, the
+>   dock and every other window, below the toasts, and a question it asks opens
+>   above it), `aria-modal="true"`, a press on the backdrop does nothing, and
+>   Tab stays inside (the trap of the shell's dialogs). It never goes to the
+>   dock: a `manager` given to a modal window is ignored, with a warning.
+>
+> ```js
+> const win = gobj_create_service("keys", "C_YUI_WINDOW", {
+>     title_prefix: topic,            // data, never translated
+>     title:        "keys",           // the key
+>     body:         $box,
+>     focus:        ".KEYS_FILTER",   // the filter box takes the focus
+>     modal:        true,             // answer it before anything else
+> }, gobj);
+> gobj_start(win);                    // opened by the reader: the focus moves here
+> ```
+>
+> **The shell's Escape follows the same rule (7.26.43).** It closed the
+> overlay on top of its chain for any Escape: one typed in a table cell being
+> edited inside a dialog cancelled the edit and closed the dialog with it. The
+> rule is one function, `escape_is_taken()` (`src/escape_taken.js`).
+>
+> **The focus trap counts only what is drawn (7.26.43).** The adaptive dialog's
+> back arrow is the first control of every dialog and is `display:none` on a
+> laptop: the trap gave it the focus on opening (so the focus stayed outside
+> the dialog), and every Tab after that "wrapped" to it, did nothing and was
+> prevented -- the keyboard never got into a dialog. It now skips a control
+> that is not drawn.
 
 ## Two maintained lines
 
@@ -3339,7 +3405,11 @@ is not even in the tree. So:
   nothing); two controls of one name with one count say it once. The next
   turn starts a message of its own: the shell posts itself
   `EV_CLOSE_BADGE_NEWS` on the first change of a turn, which closes it on the
-  next one -- a deferral through the machine, not a time.
+  next one -- a deferral through the machine, not a time. A turn is
+  therefore up to that delivery (`gobj_post_event()` runs it from a
+  `setTimeout(0)`), not one task of the browser: a message of the socket
+  already queued may be handled first, and what it changes joins the same
+  message -- news that arrive together are said together.
 
   ```js
   /*  One action: both are said -- "Alerts, 3" and "Modals, 3"  */
@@ -3418,7 +3488,15 @@ meant for the question, reached the modal, which asked again, and on a phone
 a warning) -- is the veto, and a Back that asked gets its entry back when it
 settles. A `true` that comes after the guard closed the modal itself closes
 nothing twice. Up to `7.26.41` any promise was a veto, so an `async` guard --
-which always answers a promise -- left a modal that nobody could close:
+which always answers a promise -- left a modal that nobody could close.
+
+**An `async` guard closes with `return true`, never with `return;`.** Without
+`async` a bare `return;` closes; with it, the guard settles with `undefined`,
+which is the veto -- and when the guard opened nothing through the shell, no
+question is on the screen and the modal simply does not close. That case is
+said in the log (`7.26.43`+): *"before_close settled with undefined and asked
+nothing"*. An `undefined` from a guard that asked is its "no", and says
+nothing.
 
 ```js
 /*  An async guard: true closes, false keeps it up  */
@@ -3524,14 +3602,49 @@ true. A record that lacks a defaulted field opens changed and closes without
 a question; until 7.26.39 it asked on every close, about nothing the reader
 would lose.
 
+```js
+const kw = {abort_close: false};
+gobj_send_event(form, "EV_WINDOW_TO_CLOSE", kw, gobj);
+if(kw.abort_close) {
+    // the reader changed it: ask kw.warning before closing
+}
+```
+
 What the reader does to a TABLE of the form -- edits a cell, adds a row,
 deletes one, in a nested table too -- is `edited` like anything typed, whatever
 the record the form opened with. Each table hears it from the moment it is
-built (a nested one is built by its row, whenever the row is drawn); the rows
-the form loads itself say nothing. In 7.26.39 and 7.26.40 a form that opened
-changed did not hear its tables at all, so closing it lost a table edit without
-a question. And the titles of those tables change language with the shell's
-`EV_LANGUAGE_CHANGED` (7.26.41+), like the rest of the form.
+built (a nested one is built by its row, the first time the row is drawn); the
+rows the form loads itself say nothing. In 7.26.39 and 7.26.40 a form that
+opened changed did not hear its tables at all, so closing it lost a table edit
+without a question. And the titles of those tables change language with the
+shell's `EV_LANGUAGE_CHANGED` (7.26.41+), like the rest of the form.
+
+A table hears the reader through Tabulator's `dataChanged`, which Tabulator
+does not say for `setData()` / `replaceData()`, nor when its `history` module
+undoes or redoes a cell edit or a row move (`Ctrl+Z`; a row added or deleted
+is said). The form uses none of them (it loads with `addData()`, and `history`
+is off); a host that does -- through `$table.tabulator`, or by turning
+`history` on in `tabulator_settings` -- marks the form edited itself with
+`EV_RECORD_CHANGED`.
+
+**Undo gives the tables back the rows the form was loaded with** (7.26.43+).
+Tabulator keeps the objects it is given and writes a cell edit into them, so
+the form hands each table its own copy of the record's rows. Up to 7.26.42 it
+handed the record's own: an edit wrote into the record (and into the host's
+object, when the host kept the one it sent), Undo loaded that record again --
+the edit -- and cleared `edited`, so the close did not ask and a later save
+sent what the reader believed undone. What a save publishes is a copy too, so
+an edit after the save does not reach what the host was given.
+
+A row's nested tables live as long as the row: a reload, an Undo, a Clear, a
+row the reader deletes and the form's destroy destroy them, and a row drawn
+again (a forced `redraw(true)`, a column rebuilt) keeps them with their rows.
+Up to 7.26.42 nothing destroyed them -- five reloads of two rows left ten
+orphan tables in Tabulator's registry, for the life of the page -- and a row
+drawn again built new ones, empty. A table loads its rows in ONE call
+(`addData()`) and is redrawn once; it added them one by one and redrew the
+table after each, so 300 rows took 20 s to load (0.14 s now), and 300 with a
+nested table each 39 s (3 s now).
 
 A host marks the form edited again with `EV_RECORD_CHANGED`, when what the
 reader changed is unsaved once more: a save the form published but the host
@@ -3541,14 +3654,6 @@ its save, and the next close asks.
 ```js
 // the save never left: what the reader typed is still theirs to lose
 gobj_send_event(form, "EV_RECORD_CHANGED", {}, gobj);
-```
-
-```js
-const kw = {abort_close: false};
-gobj_send_event(form, "EV_WINDOW_TO_CLOSE", kw, gobj);
-if(kw.abort_close) {
-    // the reader changed it: ask kw.warning before closing
-}
 ```
 
 ### `C_YUI_FORM` — which field is editable, and the one `writable` does not govern
@@ -3852,6 +3957,19 @@ and reads back the bundle each host serves (`--check` only reads back,
 consumers are listed in `~/.yuneta/gobj-ui-consumers.json` (see
 `scripts/gobj-ui-consumers.example.json`); the demo (`test-app/`) is built in.
 
+An app whose range cannot be raised safely is refused and left as it was --
+every package.json of it, since all are checked before any is written: a
+range that is not a `^` of the version's major, a range AHEAD of the version
+(the source tree the version is read from is behind: raising it would lower
+it), a version that is not x.y.z. A registry that serves a NEWER version than
+the tree stops the round at once and says so. A range found already raised
+raises the app's version all the same when nobody raised it with the range (a
+range raised by hand), and leaves it when it did (the round run twice, a
+package.json two apps share): the package.json's git history says which, and
+one whose history cannot be read is refused (since `7.26.43`; up to `7.26.42`
+a refused app kept the files raised before the refusal, `--no-wait` could
+lower a range, and "already" deployed a new bundle under the old number).
+
 ### Colour: a brand token as INK takes `-on-scheme`, as a FILL it does not
 
 A Bulma brand colour (`--bulma-link`, `--bulma-danger`, …) is built to carry
@@ -3971,7 +4089,14 @@ DOM is a race with the next one:
     that opens a dropdown, which the editor names not at all, is `more
     options`. **A documented limit:** what the editor draws with no hook --
     its search box, its repair messages, the tip at the foot of the context
-    menu, its sort and transform modals -- stays in its English;
+    menu, its sort and transform modals -- stays in its English. Why:
+    vanilla-jsoneditor (3.13.0) has no i18n option. Those words are literals
+    inside its Svelte components (the tip is a fixed string handed to the
+    context menu), `createJSONEditor()` takes no translation, and its only
+    hooks are `onRenderMenu`, `onRenderContextMenu`, `onRenderValue` and
+    `onClassName`. What is left is a fork, or rewriting the editor's DOM by
+    its English words after each render -- which this module refuses: an
+    item is known by its class or its place, never by its words;
   - maplibre's canvas and default markers, whose `aria-label` maplibre writes
     once from its locale: `yui_maplibre_relocalize()` rewrites them.
 - **An `<option>`**, which is text like any other: it carries `data-i18n`,
@@ -4057,6 +4182,16 @@ locale, so they are drawn again and no column is rebuilt -- `updateDefinition()`
 re-renders every row, and a row formatter that builds something in its row (a
 nested table) builds it again, empty.
 
+A column GROUP is bound by field as well, and Tabulator gives a group none, so
+its title stays in the language the table was built in. Give the group a
+`field` -- no row reads a group's -- and hand its title like any other; a group
+without one is said in the log when titles are handed (`7.26.43`+):
+
+```js
+columns: [{title: t("sizes"), field: "sizes", columns: [...]}]
+yui_tabulator_relocalize(table, t, {sizes: t("sizes"), width: t("width")});
+```
+
 **A missing key is invisible:** i18next answers an unknown key **with the key
 itself**, so it renders (lower-case English) and simply never changes language.
 A **duplicate** key in a locale file is silent too — an object literal keeps the
@@ -4119,13 +4254,20 @@ by it, because the item has no `name` (a node, no `label`):
 
 - a menu item (of `menu.<id>.items` or of a `submenu.items`) with neither a
   `name` nor an `aria_label`: `C_YUI_NAV` names it `name || aria_label || id`
-  in every layout;
+  in every layout, and the navs of its submenu and the landing of a section
+  index it opens (`submenu.index`) are labelled the same way;
 - a menu item with no `name` in a breadcrumb that shows its labels (the text
-  of the crumb is `name || id`), or that opens a section index (its landing is
-  labelled `name || id`);
+  of the crumb is `name || id`);
+- a MENU (`menu.<id>`) drawn as a `"submenu"` in a zone that hosts it: that
+  layout heads the nav with its label, and the shell gives a menu none, so the
+  heading is the menu's id (since `7.26.43`; `7.26.42` asked for neither);
 - a toolbar item, the menu of a toolbar dropdown, or an entry of one, with
   neither an `aria_label` nor a `name`: the shell names them
-  `aria_label || name || id` (an avatar's menu is the library's "user menu");
+  `aria_label || name || id` (an avatar's menu is the library's "user
+  menu"). The menu a RIGHT-click opens (`context_action`, wired on an action
+  item and on a connection) is named the same way, and read the same way,
+  since `7.26.43`: up to `7.26.42` the shell named it by the raw id whatever
+  the item declared, and the validator did not read it;
 - a row the SITE MAP draws, labelled as its control is named: the rows of the
   dropdown action of a menu entry with no submenu (`name || aria_label ||
   id`), and every row under a toolbar item that is not the brand, at every
@@ -4170,7 +4312,14 @@ runs -- the app's own code, but code. Comments are not code. A key is read
 where it is WRITTEN -- given to a translator, as an `i18n` or `data-i18n*`
 value of an object literal, by `setAttribute()`, or (since `7.26.29`) written
 as a member, `attrs.i18n = "save"`, `attrs["data-i18n-title"] = "save"` -- and
-FOLLOWED where the source writes it out.
+FOLLOWED where the source writes it out. A `code` property is a key only in
+the modules of this library whose codes are keys -- the findings and conflicts
+of the schema checks, which the schema editor hands to `t(finding.code)`
+(`CODE_KEY_MODULES`) -- and in an app that names it in its `attr_keys`. Up to
+`7.26.42` every `code` of every file was read as one, `{code: "en"}` asked
+for "en", and so was every `add("error", x)`, `classList.add("error",
+"has-text-danger")` included (the schema checks' own `add()` is a key
+function of the table).
 
 A **translator** is one notion, the same everywhere the reader asks "is this a
 call of t()?" (since `7.26.32`; up to `7.26.31` it was a call NAMED `t` or
@@ -4185,7 +4334,8 @@ each one is a key: `t([specific, "generic"])` asks for "generic". A `.bind()`
 that binds a KEY makes a translator whose calls hand i18next its options or its
 default value: `const tk = t.bind(null, "save"); tk({count: 2})` (since
 `7.26.42`; up to `7.26.41` what `tk()` was handed was asked for as a key). The
-key it binds is not read (below). The places,
+key it binds is read where the bind is written: `t.bind(null, "save")` asks
+for "save" (since `7.26.43`; up to `7.26.42` it was not read). The places,
 since `7.26.32`, also include `el.dataset.i18nTitle = k` (`dataset.i18nX` IS
 the attribute `data-i18n-x`), and an attribute or property NAMED by a const:
 `el.setAttribute(ATTR, k)`, `{[ATTR]: k}`, `x[ATTR] = k`, with `const ATTR =
@@ -4195,8 +4345,9 @@ translator handed as a CALLBACK -- in these forms, and no other:
 - the methods `map`, `flatMap`, `forEach`, `filter`, `find`, `findIndex`,
   `findLast`, `findLastIndex`, `some`, `every` (`findIndex` and
   `findLastIndex` since `7.26.42`), called on the array -- `keys.map(t)`,
-  `keys?.map(t)`, `keys["map"](t)` -- or (since `7.26.42`) by `.call()` /
-  `.apply()` of the method, `Array.prototype.map.call(keys, t)`,
+  `keys?.map(t)`, and (since `7.26.42`) `keys["map"](t)` -- or (since
+  `7.26.42` too) by `.call()` / `.apply()` of the method,
+  `Array.prototype.map.call(keys, t)`,
   `[].forEach.apply(keys, [t])`; and `Array.from(keys, t)`,
   `Array.fromAsync(keys, t)`: each ELEMENT is a key, read like any other -- a
   const array, a published list, an import of one are followed;
@@ -4273,7 +4424,7 @@ element of one -- is followed (below). A source file that cannot be parsed
 fails the build, because its keys would go unchecked.
 
 **An UNMARKED `let` that is only ever given literals IS followed** (since
-`7.26.35`), where `t()`, an `i18n` / `code` value or a `data-i18n*` attribute
+`7.26.35`), where `t()`, an `i18n` value or a `data-i18n*` attribute
 reads a key: when every value it is given in its scope -- its initializer, every
 `=`, `||=`, `??=`, `&&=`, the value of a `var` of it declared again -- is
 WRITTEN as a string literal, a const bound to one (of the module, or imported),
@@ -4365,7 +4516,26 @@ that receives a key, and where it is:
 
 A position is an argument (`"1"`), a property of the object given there
 (`"2.title"`, also through `Object.assign()` or a spread of a const object),
-or a property of each object of an array (`"1.actions[].label"`). What is
+or a property of each object of an array (`"1.actions[].label"`). A position
+that is only the FALLBACK of others the function reads first says so in the
+entry's `fallbacks` (since `7.26.43`):
+
+```js
+{module: "nav_cards_helpers.js", name: "card_descriptor", exported: true,
+    keys: ["0.name", "0.tooltip", "0.aria_label", "0.id"],
+    fallbacks: {"0.id": ["0.name", "0.aria_label"]}},
+```
+
+`card_descriptor()` names a card `it.name || it.aria_label || it.id`, so an
+object that surely gives a `name` or an `aria_label` (a non-empty string in
+every value it can take) never reaches its `id`: `card_descriptor({id:
+"card_internal_id", name: "save"})` asks for "save" and not for
+"card_internal_id", and `{id: row.id, name: "ok"}` passes the rule per call.
+One that may give neither (`{id: "x", name: row.name}`, a parameter) reaches
+it. The test of the table proves every `fallbacks` against the code: each
+hand-off of the position is the right side of a `||` whose left reads the
+positions named (or a key position of a key function whose `fallbacks` say as
+much). Up to `7.26.42` the id of a card was a key in every case. What is
 given at those positions is read like any other key (literals, consts,
 branches): in the app's own code, on a call that reaches that function of
 gobj-ui (an app function of the same name is not mistaken for it), and in
@@ -4376,7 +4546,12 @@ member): an import under any name, a re-export from a file of the app
 (`export {yui_shell_show_info as say} from "@yuneta/gobj-ui/src/shell_modals.js"`),
 a const alias (`const show = yui_shell_show_info`), a map in a const
 (`const API = {info: yui_shell_show_info}; API.info(...)`, imported too),
-`.call(x, ...)` and `.apply(x, [...])`. A position may also hold
+`.call(x, ...)` and `.apply(x, [...])`; and a `.bind()` of it is read as the
+call it prepares, at the positions it binds (since `7.26.43`):
+`yui_shell_show_info.bind(null, shell, "k")` asks for "k", and a parameter
+bound there fails the rule per call as it does when it is handed directly. Up
+to `7.26.42` what a bind binds was not read, and the forwarder search missed a
+function that hands its parameter on that way. A position may also hold
 DOM, which is no key (since `7.26.29`): an array (a `createElement2` spec), a
 call of `createElement2()`, `createOneHtml()` or `html_markup()` imported
 from gobj-js, of `text_node()` from gobj-ui, of `document.createElement()`
@@ -4391,9 +4566,9 @@ variable: `$box` says nothing. The exported ones an app calls:
 / `yui_asset_element` (`key`), `hook_cell_spec` (the title key),
 `period_name` (a granularity id), `card_descriptor` / `cards_grid_descriptor`
 (a nav item's `name`, `tooltip`, `aria_label`, and its `id`: the key of an
-item with no `name`), `keep_canvas_tab_order` / `set_canvas_tab_order` (the
-name of a graph's main canvas) and `open_gclass_view` (the gclass name, which
-titles it).
+item with neither a `name` nor an `aria_label`), `keep_canvas_tab_order` /
+`set_canvas_tab_order` (the name of a graph's main canvas) and
+`open_gclass_view` (the gclass name, which titles it).
 
 **Every function that forwards a key is in the table, and a test finds them**
 (since `7.26.29`: up to `7.26.28` the table lacked 39 of them, and 6 entries
@@ -4746,8 +4921,8 @@ src/c_app.js:734 (call at line 732): yui_install_ask_once() [1.message] is given
 ```
 
 Such a text fails EVERYWHERE a key is read, marked or not: given to `t()`
-(`t(t("k") + "!")`), to an `i18n` / `code` / `data-i18n*` value
-(`{i18n: t("k").trim()}`, `el.dataset.i18nTitle = t("k")`), or to a
+(`t(t("k") + "!")`), to an `i18n` / `data-i18n*` value -- a `code` where it is
+a key -- (`{i18n: t("k").trim()}`, `el.dataset.i18nTitle = t("k")`), or to a
 `data-i18n*` attribute (`el.setAttribute("data-i18n-title", t("k"))`), and
 through a `const` that holds one. The place keeps the translation as its key,
 so it never changes language. Up to `7.26.41` only a MARKED one failed there:
@@ -4845,10 +5020,6 @@ reading the page in another language:
   `let` alias, `opts.translate(k)`, `i18next.getFixedT()` --, or one called
   through what is no name of it: `(0, t)(k)`, `[t][0](k)`,
   `Reflect.apply(t, x, [k])`, `Function.prototype.call.call(t, x, k)`;
-- a key BOUND with the translator, `t.bind(null, k)` (`.bind()` is read as an
-  alias of the translator, and the key it binds is not read; what a call of
-  it is handed is i18next's options or default value, and since `7.26.42` it
-  is not read as a key either);
 - a translator handed to a FUNCTION (`{t: t}`, `yui_tabulator_lang(t)`,
   `run(t)`) or to any method but those listed above (`keys.reduce(t)`,
   `keys.sort(t)`, an alias of a method, `Reflect.apply()`): only those
@@ -4905,13 +5076,23 @@ reading the page in another language:
   list has -- or whose every key of that shape a narrower marked template
   builds;
 - a TRANSLATED text where a key is read, marked or not: given to `t()`, to an
-  `i18n` / `code` / `data-i18n*` value or to a `data-i18n*` attribute (since
-  `7.26.42`; up to `7.26.41` only a marked one failed), or to a key position
-  of a key function (the rule per call, above);
+  `i18n` / `data-i18n*` value (a `code` where it is a key) or to a
+  `data-i18n*` attribute (since `7.26.42`; up to `7.26.41` only a marked one
+  failed), or to a key position of a key function (the rule per call, above);
 - a key position of a key function, in the app's own code, given what the
   reader cannot follow and unmarked (the rule per call, above); and so a
   translator handed as a callback to one of the methods above over an array
-  the reader cannot follow, or to `.then()` / `.catch()`, unmarked.
+  the reader cannot follow, or to `.then()` / `.catch()`, unmarked;
+- a value the reader GIVES UP on, with the file and the line (since
+  `7.26.43`): a chain of consts, aliases or calls more than 24 steps deep, a
+  const that leads back to itself, an expression that can take more than
+  10000 values. A key behind it would go unasked. Up to `7.26.42` the reader
+  stopped there in silence -- a chain of 24 aliases of a const, or of 12
+  consts that branch, asked for nothing at its far end, and the build passed
+  -- and a chain of consts that doubles at every link (`const O1 = c()? O0 :
+  {...O0, ...O0}`) grew three times at every link until it died with a
+  `RangeError` that named no file. A const is now read once, wherever it is
+  read, and a spread of the same object or array twice gives its values once.
 
 Up to `7.26.27` the locale cases were "skipped" with an OK: one language less
 validated, and nobody told. A file of the locales directory with a locale's

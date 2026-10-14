@@ -30,9 +30,12 @@ install_dom_double();
 
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 
@@ -59,7 +62,8 @@ vi.mock("tabulator-tables", () => {
         off(ev) {
             delete this.externalEvents.events[ev];
         }
-        destroy() {}
+        destroy() {
+        }
     }
     return {TabulatorFull: FakeTabulator, Tabulator: FakeTabulator};
 });

@@ -43,9 +43,22 @@
  *
  *          A range it cannot raise SAFELY is refused, never "already":
  *          anything but a caret range of the version's major (an exact
- *          version, a `~`, a `^1.x` that a v2 version would rewrite), and
- *          a package version that is not x.y.z. The app is reported
- *          FAILED and left as it was.
+ *          version, a `~`, a `^1.x` that a v2 version would rewrite), a
+ *          range AHEAD of the version (raising it would lower it: the
+ *          source tree the version is read from is behind), and a package
+ *          version that is not x.y.z. Every package.json of the app is
+ *          checked before any is written, so a refused app is reported
+ *          FAILED and left as it was -- all of it (up to gobj-ui 7.26.42
+ *          the files before the refused one kept their raise).
+ *
+ *          A range found ALREADY raised raises the version all the same
+ *          when nobody raised it with the range -- a range raised by hand,
+ *          committed or not -- and leaves it when the version moved with
+ *          it (the round run twice, or a package.json two apps share): the
+ *          git history of the package.json says which. One whose history
+ *          cannot be read is refused. Up to gobj-ui 7.26.42 "already" was
+ *          taken as done, and a range raised by hand went out in a new
+ *          bundle under the old number.
  *
  *          The other consumers are private repositories on this machine,
  *          so they are read from `~/.yuneta/gobj-ui-consumers.json`
@@ -73,7 +86,7 @@
  ***********************************************************************/
 import {execFileSync} from "node:child_process";
 import {readFileSync, existsSync, statSync} from "node:fs";
-import {dirname, join, resolve} from "node:path";
+import {basename, dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {homedir} from "node:os";
 
@@ -209,7 +222,11 @@ function read_consumers()
  *
  *  `npm publish` returning is not the same as `npm install` finding it:
  *  a consumer installed in that window silently keeps the version
- *  before.
+ *  before. A registry serving a NEWER version than the source tree is
+ *  no wait: the tree is behind (up to gobj-ui 7.26.42 the round waited
+ *  150 s for it and said "not serving this version yet").
+ *
+ *      -> null when it serves the version, else why the round stops
  ************************************************************/
 function wait_for_registry()
 {
@@ -223,13 +240,36 @@ function wait_for_registry()
         }
         if(served === VERSION) {
             console.log("-> serving");
-            return true;
+            return null;
+        }
+        if(compare_versions(served, VERSION) > 0) {
+            /*  No wait ends that: the tree the version is read from is behind  */
+            console.log("");
+            return `the registry serves ${PKG_NAME} ${served}, NEWER than ${VERSION}, the version of ` +
+                   `${PKG_DIR}: that tree is behind -- bring it up to date and run the round again`;
         }
         process.stdout.write(".");
         execFileSync("sleep", ["5"]);
     }
     console.log(" TIMEOUT");
-    return false;
+    return `the registry is not serving ${PKG_NAME} ${VERSION} yet`;
+}
+
+/*  x.y.z against x.y.z: < 0, 0, > 0; 0 when either is not one  */
+function compare_versions(a, b)
+{
+    const re = /^(\d+)\.(\d+)\.(\d+)$/;
+    const x = re.exec(a || "");
+    const y = re.exec(b || "");
+    if(!x || !y) {
+        return 0;
+    }
+    for(let i = 1; i <= 3; i++) {
+        if(Number(x[i]) !== Number(y[i])) {
+            return Number(x[i]) - Number(y[i]);
+        }
+    }
+    return 0;
 }
 
 /************************************************************
@@ -244,28 +284,38 @@ function write_file(path, content)
     execFileSync("tee", [path], {input: content, stdio: ["pipe", "ignore", "inherit"]});
 }
 
-function raise_range(dir)
+/*  The specs a package.json text carries for the package -- gobj-ui
+ *  declares the runtime TWICE, as a peer and as a devDependency, and a
+ *  consumer may too  */
+function specs_of(text)
 {
-    return raise_range_in(join(dir, "package.json"), true);
+    const name = PKG_NAME.replace("/", "\\/");
+    return [...text.matchAll(new RegExp(`"${name}":\\s*"([^"]*)"`, "g"))].map(m => m[1]);
 }
 
-/*  `bump`: raise the package's own version too. A template's file has
- *  a marker for a version, and is raised without.  */
-function raise_range_in(f, bump)
+/************************************************************
+ *  What raising the range of one package.json would write, checked
+ *  and not written: {f, after (null: nothing to write), notes}, or
+ *  an Error thrown for a file it cannot raise safely. `bump`: raise
+ *  the package's own version too. A template's file has a marker for
+ *  a version, and is raised without.
+ *
+ *  Every package.json of a target is planned before any is written
+ *  (do_round()): a refusal leaves them all as they were.
+ ************************************************************/
+function plan_raise(f, bump)
 {
     if(!existsSync(f)) {
         throw new Error(`${f}: not there`);
     }
     const before = readFileSync(f, "utf8");
-    const name = PKG_NAME.replace("/", "\\/");
 
-    /*  Every spec it carries for the package -- gobj-ui declares the
-     *  runtime TWICE, as a peer and as a devDependency, and a consumer
-     *  may too -- must be a caret range of the version's major: that is
+    /*  Every spec must be a caret range of the version's major: that is
      *  the one shape this round can raise without changing what it
      *  means. An exact or a `~` range used to be taken for "already"
-     *  and deployed unraised; a `^1.x` would be rewritten to v2.  */
-    const specs = [...before.matchAll(new RegExp(`"${name}":\\s*"([^"]*)"`, "g"))].map(m => m[1]);
+     *  and deployed unraised; a `^1.x` would be rewritten to v2. And
+     *  not one ahead of the version: raising it would LOWER it.  */
+    const specs = specs_of(before);
     if(!specs.length) {
         throw new Error(`${f} does not depend on ${PKG_NAME}`);
     }
@@ -276,26 +326,35 @@ function raise_range_in(f, bump)
             throw new Error(`${f}: ${PKG_NAME} "${spec}" is not a ^${major}.x.y range -- ` +
                             `not raised, not deployed`);
         }
+        if(compare_versions(spec.slice(1), VERSION) > 0) {
+            throw new Error(`${f}: ${PKG_NAME} "${spec}" is AHEAD of ${VERSION}, the version of ` +
+                            `${PKG_DIR}: raising it would lower it (is that tree behind?) -- ` +
+                            `not raised, not deployed`);
+        }
     }
 
-    const re = new RegExp(`("${name}":\\s*")\\^[0-9][^"]*(")`, "g");
+    const re = new RegExp(`("${PKG_NAME.replace("/", "\\/")}":\\s*")\\^[0-9][^"]*(")`, "g");
     let after = before.replace(re, `$1^${VERSION}$2`);
     if(after === before) {
-        return false;
+        if(!bump || version_raised_with_range(f)) {
+            return {f, after: null, notes: []};
+        }
+        const b = bump_patch_version(f, before);
+        return {f, after: b.text, notes: [`${b.note}, raised by hand without its version`]};
     }
-    if(bump) {
-        after = bump_patch_version(f, after);
+    if(!bump) {
+        return {f, after, notes: []};
     }
-    write_file(f, after);
-    return true;
+    const b = bump_patch_version(f, after);
+    return {f, after: b.text, notes: [b.note]};
 }
 
 /************************************************************
  *  The third number of the package's own version, up by one, in
- *  the text of its package.json (its formatting kept). A version
- *  that is not x.y.z refuses the app: a new bundle under the old
- *  number is what the bump exists to prevent (the js_gui template
- *  leaves a literal "{{version}}").
+ *  the text of its package.json (its formatting kept): {text,
+ *  note}. A version that is not x.y.z refuses the app: a new bundle
+ *  under the old number is what the bump exists to prevent (the
+ *  js_gui template leaves a literal "{{version}}").
  ************************************************************/
 function bump_patch_version(f, text)
 {
@@ -309,8 +368,59 @@ function bump_patch_version(f, text)
     if(!at.test(text)) {
         throw new Error(`${f}: no "version": "${version}" in its text -- not raised, not deployed`);
     }
-    console.log(`    version ${version} -> ${next}  (${f})`);
-    return text.replace(at, `$1${next}$2`);
+    return {text: text.replace(at, `$1${next}$2`), note: `version ${version} -> ${next}  (${f})`};
+}
+
+/************************************************************
+ *  A package.json whose range is ALREADY ^VERSION: was its own
+ *  version raised with it? Asked of its git history, since the round
+ *  commits nothing and runs again:
+ *
+ *    - the raise is not committed (HEAD has another range): raised
+ *      with it when the version differs from HEAD's -- the round ran
+ *      already, or a package.json two apps share was raised by the
+ *      first one;
+ *    - it is committed: raised with it when the version differs from
+ *      the one before the commit that brought the range (a package.json
+ *      born with the range carries a version of its own).
+ *
+ *  A version that is not x.y.z, or a history it cannot read, refuses
+ *  the app: "already" would deploy a new bundle under a number that
+ *  may be the old one.
+ ************************************************************/
+function version_raised_with_range(f)
+{
+    const dir = dirname(f);
+    const rel = "./" + basename(f);
+    const version = JSON.parse(readFileSync(f, "utf8")).version;
+    if(!/^\d+\.\d+\.\d+$/.test(version || "")) {
+        throw new Error(`${f}: version '${version}' is not x.y.z -- not raised, not deployed`);
+    }
+    const git = (git_args) => run("git", git_args, dir);
+    try {
+        const head = git(["show", `HEAD:${rel}`]);
+        const head_specs = specs_of(head);
+        if(head_specs.length === 0 || head_specs.some((spec) => spec !== `^${VERSION}`)) {
+            return version !== JSON.parse(head).version;
+        }
+        const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const brought = git(["log", "-1", "--format=%H", "-G",
+                             `"${esc(PKG_NAME)}":[[:space:]]*"${esc("^" + VERSION)}"`, "--", rel]).trim();
+        if(!brought) {
+            throw new Error("no commit brought the range");
+        }
+        let before;
+        try {
+            before = git(["show", `${brought}^:${rel}`]);
+        } catch(e) {
+            return true;        // born with the range: no number of it went out with another one
+        }
+        return version !== JSON.parse(before).version;
+    } catch(e) {
+        throw new Error(`${f}: its range is already ^${VERSION}, and the round cannot tell whether its ` +
+                        `version was raised with the range (${String(e.message).split("\n")[0]}) -- ` +
+                        `not raised, not deployed`);
+    }
 }
 
 /************************************************************
@@ -348,12 +458,18 @@ function do_round(c)
     try {
         if(!c.worktree) {
             const dirs = Array.isArray(c.range_dirs)? c.range_dirs : [c.path];
-            for(const d of dirs) {
-                console.log(`    range  ${raise_range(d)? "raised" : "already"} ^${VERSION}  (${d})`);
-            }
-            for(const rf of (c.range_files || [])) {
-                const f = rf.startsWith("/")? rf : join(c.path, rf);
-                console.log(`    range  ${raise_range_in(f, false)? "raised" : "already"} ^${VERSION}  (${f})`);
+            const plan = [
+                ...dirs.map((d) => plan_raise(join(d, "package.json"), true)),
+                ...(c.range_files || []).map((rf) => plan_raise(rf.startsWith("/")? rf : join(c.path, rf), false))
+            ];
+            for(const p of plan) {
+                for(const note of p.notes) {
+                    console.log(`    ${note}`);
+                }
+                if(p.after !== null) {
+                    write_file(p.f, p.after);
+                }
+                console.log(`    range  ${p.after !== null? "raised" : "already"} ^${VERSION}  (${p.f})`);
             }
             if(c.install !== false) {
                 for(const d of dirs) {
@@ -485,8 +601,9 @@ if(CHECK_ONLY) {
     }
 } else {
     if(!NO_WAIT && targets.some((c) => !c.worktree)) {
-        if(!wait_for_registry()) {
-            console.error("the registry is not serving this version yet -- stopping");
+        const why = wait_for_registry();
+        if(why) {
+            console.error(`${why} -- stopping`);
             process.exit(1);
         }
     }

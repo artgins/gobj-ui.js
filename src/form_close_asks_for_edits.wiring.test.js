@@ -21,9 +21,12 @@ install_dom_double();
 
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 

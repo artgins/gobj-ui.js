@@ -148,3 +148,39 @@ describe("the events of a C_YUI_NAV reach its C_YUI_NODE", () => {
         expect(closed.map((c) => c.item_id)).toEqual(["b"]);
     });
 });
+
+describe("the path a node draws is named by the node", () => {
+
+    /*  A root that draws the PATH (`projection.path`), with or without a
+     *  label, on the path to its child "a"  */
+    function build_path(kw)
+    {
+        const name = `n${++seq}`;
+        const app = gobj_create(`${name}_app`, "C_TEST_APP", {}, yuno);
+        gobj_start(app);
+        const shell = gobj_create(`${name}_shell`, "C_YUI_SHELL",
+            {config: {shell: {}}, default_route: "/home", subscriber: app}, app);
+        gobj_start(shell);
+        const tree = gobj_create_pure_child(`${name}_tree`, "C_YUI_NODE", Object.assign({
+            node_id: "root",
+            base_route: "/tree",
+            projection: {index: {layout: "cards"}, path: {layout: "submenu"}},
+            children: [{id: "a", label: "A"}, {id: "b", label: "B"}]
+        }, kw), shell);
+        gobj_start(tree);
+        gobj_send_event(tree, "EV_ROUTE_CHANGED", {base: "/tree", subpath: "a"}, shell);
+        return tree.priv.navs.find((nav) => gobj_read_attr(nav, "menu_id").startsWith("node.path."));
+    }
+
+    /*  A "submenu" heads the nav with its nav_label, else its menu_id, as a
+     *  KEY: a node with no label read "node.path./tree" there (up to
+     *  7.26.42), a key no locale can hold, where every other nav of the
+     *  node is named `label || node_id`  */
+    test("by its label, else by its node_id -- never by the menu_id", () => {
+        const unlabelled = build_path({});
+        expect(unlabelled).toBeTruthy();
+        expect(gobj_read_attr(unlabelled, "nav_label")).toBe("root");
+        const labelled = build_path({label: "the tree"});
+        expect(gobj_read_attr(labelled, "nav_label")).toBe("the tree");
+    });
+});

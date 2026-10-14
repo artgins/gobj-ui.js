@@ -23,9 +23,12 @@ install_dom_double();
 
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 
@@ -62,6 +65,10 @@ vi.mock("tabulator-tables", () => {
             this.added.push(record);
             return Promise.resolve({getElement: () => document.createElement("div")});
         }
+        addData(records) {
+            this.added.push(...records);
+            return Promise.resolve(records.map(() => ({getElement: () => document.createElement("div")})));
+        }
     }
     return {TabulatorFull: FakeTabulator, Tabulator: FakeTabulator};
 });
@@ -80,7 +87,8 @@ beforeAll(async () => {
     const i18next = (await import("i18next")).default;
     await i18next.init({lng: "en", resources: {}});
     gobj_start_up(null, null, null, null, null, null, null);
-    set_log_callback(() => {});
+    set_log_callback(() => {
+    });
     gclass_create("C_TEST_RA_HOST", [], [["ST_IDLE", []]], {}, 0, [SDATA_END()], {}, 0, 0, 0, 0);
     gclass_create(
         "C_TEST_RA_APP",
@@ -147,7 +155,7 @@ describe("a form with a table, destroyed right after", () => {
         gobj_destroy(form);
     });
 
-    test("a loaded row reaches its table through EV_ADD_TABLE_ROW's table id", async () => {
+    test("the loaded rows reach their table through EV_LOAD_TABLE_ROWS's table id", async () => {
         const before = tables.length;
         const {form} = build([{k: "x"}, {k: "y"}]);
         const table = tables.slice(before).find(tb => tb.added.length > 0);

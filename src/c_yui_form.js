@@ -30,7 +30,6 @@ import {
     kwid_new_dict,
     sprintf,
     template_get_field_desc,
-    str_in_list,
     gobj_write_bool_attr,
     gobj_short_name,
     empty_string,
@@ -180,8 +179,9 @@ let PRIVATE_DATA = {
      *  filled): what a table says then is no change of the reader's
      *  (see create_tabulator's dataChanged).  */
     loading_rows: 0,
-    /*  table_id -> WeakRef of its element: EV_ADD_TABLE_ROW names a
-     *  table by id (a kw is plain json), see table_identity().  */
+    /*  table_id -> WeakRef of its element: EV_ADD_TABLE_ROW and
+     *  EV_LOAD_TABLE_ROWS name a table by id (a kw is plain json), see
+     *  table_identity().  */
     tables: null,
     table_seq: 0,
     /*  The menus of the json editors are to be named: posted once, and
@@ -554,18 +554,17 @@ function cell_icon(icon_class, key)
 
 /************************************************************
  *  The identity of a table element, for the kw of
- *  EV_ADD_TABLE_ROW: a kw is plain json, and an element (with its
- *  `.tabulator`, circular) broke the `machine` trace that dumps it.
- *  Given on first use and kept on the element; the registry holds
- *  it weakly, so a nested table re-built by its row formatter is
- *  not kept alive by it.
+ *  EV_ADD_TABLE_ROW and EV_LOAD_TABLE_ROWS: a kw is plain json,
+ *  and an element (with its `.tabulator`, circular) broke the
+ *  `machine` trace that dumps it. Given on first use and kept on
+ *  the element; the registry holds it weakly, so a nested table
+ *  whose row is gone is not kept alive by it.
  ************************************************************/
 function table_identity(gobj, $table)
 {
     if(!$table.yui_table_id) {
         let priv = gobj.priv;
-        /*  The entries of tables the collector already took go first: a
-         *  nested table rebuilt by its row formatter leaves one behind.  */
+        /*  The entries of tables the collector already took go first.  */
         for(let [id, ref] of priv.tables) {
             if(!ref.deref()) {
                 priv.tables.delete(id);
@@ -596,6 +595,69 @@ function find_table(gobj, table_id)
 }
 
 /************************************************************
+ *  Destroy one third-party widget, saying why it could not be.
+ ************************************************************/
+function destroy_widget(gobj, what, widget)
+{
+    try {
+        /*  vanilla-jsoneditor 3 destroys asynchronously: its failure
+         *  is a rejected promise, which no try/catch sees.  */
+        let r = widget.destroy();
+        if(r && typeof r.then === "function") {
+            r.catch((e) => {
+                log_warning(`${gobj_short_name(gobj)}: cannot destroy ${what}: ${e}`);
+            });
+        }
+    } catch(e) {
+        log_warning(`${gobj_short_name(gobj)}: cannot destroy ${what}: ${e}`);
+    }
+}
+
+/************************************************************
+ *  A table element that is gone: its identity is no table now,
+ *  and what was waiting to be loaded in it never will be.
+ ************************************************************/
+function forget_table(gobj, $table)
+{
+    $table.yui_pending_rows = null;
+    if($table.yui_table_id && gobj.priv && gobj.priv.tables) {
+        gobj.priv.tables.delete($table.yui_table_id);
+    }
+}
+
+/************************************************************
+ *  Destroy the nested tables a row of a table built (its row
+ *  formatter keeps them on the row's element), theirs first.
+ *  Tabulator takes the row's DOM away when the row goes -- a
+ *  reload, an undo, a deleted row -- and destroys nothing in it:
+ *  each nested table stayed in Tabulator's registry, with its
+ *  observers, for the life of the page.
+ ************************************************************/
+function destroy_row_tables(gobj, $row)
+{
+    let nested = $row.yui_nested || [];
+    $row.yui_nested = null;
+    for(let $nested of nested) {
+        if($nested.tabulator) {
+            destroy_rows_tables(gobj, $nested.tabulator);
+            destroy_widget(gobj, "nested table", $nested.tabulator);
+            $nested.tabulator = null;
+        }
+        forget_table(gobj, $nested);
+    }
+}
+
+/************************************************************
+ *  Destroy the nested tables of every row of a table.
+ ************************************************************/
+function destroy_rows_tables(gobj, tabulator)
+{
+    for(let row of tabulator.getRows()) {
+        destroy_row_tables(gobj, row.getElement());
+    }
+}
+
+/************************************************************
  *  Destroy the third-party widgets the form built. Removing
  *  their DOM is not enough: Tom Select keeps listeners on
  *  `document` and `window`, the jsoneditor is a live Svelte app
@@ -605,46 +667,21 @@ function find_table(gobj, table_id)
  ************************************************************/
 function destroy_widgets(gobj, $container)
 {
-    let destroy = (what, widget) => {
-        try {
-            /*  vanilla-jsoneditor 3 destroys asynchronously: its failure
-             *  is a rejected promise, which no try/catch sees.  */
-            let r = widget.destroy();
-            if(r && typeof r.then === "function") {
-                r.catch((e) => {
-                    log_warning(`${gobj_short_name(gobj)}: cannot destroy ${what}: ${e}`);
-                });
-            }
-        } catch(e) {
-            log_warning(`${gobj_short_name(gobj)}: cannot destroy ${what}: ${e}`);
-        }
-    };
-    let forget = ($el) => {
-        if($el.yui_table_id && gobj.priv && gobj.priv.tables) {
-            gobj.priv.tables.delete($el.yui_table_id);
-        }
-    };
-    $container.querySelectorAll('.yui-tabulator-table-nested').forEach(($el) => {
-        if($el.tabulator) {
-            destroy("nested table", $el.tabulator);
-            $el.tabulator = null;
-        }
-        forget($el);
-    });
     $container.querySelectorAll('.yui-form-data-input').forEach(($el) => {
         if($el.tom_select) {
-            destroy("select", $el.tom_select);
+            destroy_widget(gobj, "select", $el.tom_select);
             $el.tom_select = null;
         }
         if($el.jsoneditor) {
-            destroy("json editor", $el.jsoneditor);
+            destroy_widget(gobj, "json editor", $el.jsoneditor);
             $el.jsoneditor = null;
         }
         if($el.tabulator) {
-            destroy("table", $el.tabulator);
+            destroy_rows_tables(gobj, $el.tabulator);
+            destroy_widget(gobj, "table", $el.tabulator);
             $el.tabulator = null;
+            forget_table(gobj, $el);
         }
-        forget($el);
     });
 }
 
@@ -1481,7 +1518,6 @@ function create_form_field(
                                             {
                                                 table_id: table_identity(gobj, $add_table),
                                                 record: {},
-                                                loading: false,
                                             },
                                             gobj
                                         );
@@ -2184,6 +2220,19 @@ function create_coordinates(gobj, attrs)
 
 /******************************************************************
  *  Create tabulator
+ *
+ *  A row builds its nested tables the first time it is drawn, each
+ *  loaded from the row's own data, and keeps them on its element
+ *  (`yui_nested`) until the row goes (destroy_row_tables). A row
+ *  drawn AGAIN -- a forced redraw, a column rebuilt -- has its
+ *  children taken off by Tabulator before its formatter runs: they
+ *  are put back as they are. Built anew, they came back empty, and
+ *  the old ones stayed alive in Tabulator's registry.
+ *
+ *  A load that comes before the table is built waits for its
+ *  `tableBuilt`, ONE per table (`yui_pending_rows`): a later load
+ *  replaces it, a clear drops it. Each load used to hang a listener
+ *  of its own, so two loads before the build drew the rows twice.
  ******************************************************************/
 function create_tabulator(gobj, $extend, name, template)
 {
@@ -2222,6 +2271,15 @@ function create_tabulator(gobj, $extend, name, template)
 
     if(sub_elements.length > 0) {
         tabulator_settings.rowFormatter = function(row) {
+            let $row = row.getElement();
+            if($row.yui_nested) {   // drawn again: its tables, rows and all
+                for(let $nested of $row.yui_nested) {
+                    $row.appendChild($nested);
+                }
+                return;
+            }
+            $row.yui_nested = [];
+            let data = row.getData() || {};
             for(let sub_element of sub_elements) {
                 let extend = ['div',
                     {
@@ -2233,9 +2291,10 @@ function create_tabulator(gobj, $extend, name, template)
                 $extend.tabulator = create_tabulator(
                     gobj, $extend, sub_element.name, sub_element.template
                 );
-
-                // Append the container to the row's element
-                row.getElement().appendChild($extend);
+                $row.appendChild($extend);
+                $row.yui_nested.push($extend);
+                let rows = data[sub_element.name];
+                load_tabulator_data(gobj, $extend, is_array(rows)? rows : []);
             }
         };
     }
@@ -2280,18 +2339,37 @@ function create_tabulator(gobj, $extend, name, template)
     /*  What the READER does to a table -- edits a cell, adds or deletes a
      *  row -- reaches the form only through `dataChanged`. Wired here, on
      *  every table, nested ones included (a row's formatter builds them
-     *  whenever the row is drawn), and never switched off: until 7.26.40
-     *  it was unwired whenever the form was CHANGED and re-wired only by a
-     *  save, an undo or a load of what is stored, so a form that opened
-     *  changed (a field its record lacks, filled with its default) never
-     *  heard its tables -- an edit there was not `edited`, and closing lost
-     *  it without a question. The rows the form adds itself say nothing
-     *  (`loading_rows`, ac_add_table_row).  */
+     *  the first time the row is drawn), and never switched off: until
+     *  7.26.40 it was unwired whenever the form was CHANGED and re-wired
+     *  only by a save, an undo or a load of what is stored, so a form that
+     *  opened changed (a field its record lacks, filled with its default)
+     *  never heard its tables -- an edit there was not `edited`, and
+     *  closing lost it without a question. The rows the form loads itself
+     *  say nothing (`loading_rows`, ac_load_table_rows).  */
     tabulator.on("dataChanged", function() {
         if(gobj.priv.loading_rows > 0) {
             return;
         }
         gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+    });
+    $extend.yui_pending_rows = null;
+    tabulator.on("tableBuilt", function() {
+        let rows = $extend.yui_pending_rows;
+        $extend.yui_pending_rows = null;
+        if(rows && !gobj_is_destroying(gobj)) {
+            gobj_send_event(gobj,
+                "EV_LOAD_TABLE_ROWS",
+                {
+                    table_id: table_identity(gobj, $extend),
+                    rows: rows
+                },
+                gobj
+            );
+        }
+    });
+    /*  A row the reader deletes takes its nested tables with it.  */
+    tabulator.on("rowDeleted", function(row) {
+        destroy_row_tables(gobj, row.getElement());
     });
     /*  Tabulator hard-codes `aria-label="Select Row"` on the box its
      *  rowSelection formatter draws, and it draws a fresh one on EVERY
@@ -2459,7 +2537,6 @@ function template2columns(gobj, columns, template, sub_elements)
                             {
                                 table_id: table_identity(gobj, $extend),
                                 record: {},
-                                loading: false,
                             },
                             gobj
                         );
@@ -2858,6 +2935,27 @@ function getInputValue($input) {
 }
 
 /************************************************************
+ *  The rows of a table as the form saves them: copies, each with
+ *  the rows of the nested tables its row holds. A row's
+ *  getData() is the row's OWN object: handed out in the save, a
+ *  later edit wrote into what the host had been given.
+ ************************************************************/
+function table_values(tabulator)
+{
+    let value = [];
+    for(let row of tabulator.getRows()) {
+        let d = json_deep_copy(row.getData());
+        for(let $nested of (row.getElement().yui_nested || [])) {
+            if($nested.tabulator) {
+                d[$nested.getAttribute("name")] = table_values($nested.tabulator);
+            }
+        }
+        value.push(d);
+    }
+    return value;
+}
+
+/************************************************************
  *  Function to get input value based on its type
  ************************************************************/
 function get_form_values(gobj, $form)
@@ -2934,18 +3032,7 @@ function get_form_values(gobj, $form)
             case "table":
                 let template = gobj_read_attr(gobj, "template");
                 if(!empty_string(name) && kw_has_key(template, name)) {
-                    value = [];
-                    let rows = $input.tabulator.getRows();
-
-                    for(let row of rows) {
-                        let d = row.getData();
-                        value.push(d);
-                        let $row = row.getElement();
-                        $row.querySelectorAll('.yui-tabulator-table-nested').forEach($nested => {
-                            let name_n = $nested.getAttribute("name");
-                            d[name_n] = $nested.tabulator.getData();
-                        });
-                    }
+                    value = table_values($input.tabulator);
                 }
                 break;
 
@@ -2986,7 +3073,10 @@ function get_form_values(gobj, $form)
 }
 
 /************************************************************
- *
+ *  Empty the form. A table not built yet has no rows to clear
+ *  but may have a load waiting for its build: it is dropped too,
+ *  or the rows cleared here came back when the table was built.
+ *  The nested tables go with the rows that hold them.
  ************************************************************/
 function clear_data(gobj, $form)
 {
@@ -3044,15 +3134,11 @@ function clear_data(gobj, $form)
     });
 
     $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
+        $table.yui_pending_rows = null;
         if($table.tabulator.initialized) {
+            destroy_rows_tables(gobj, $table.tabulator);
             $table.tabulator.clearData();
         }
-
-        $table.querySelectorAll('.yui-tabulator-table-nested').forEach($table_nested => {
-            if($table_nested.tabulator.initialized) {
-                $table_nested.tabulator.clearData();
-            }
-        });
     });
 }
 
@@ -3259,43 +3345,49 @@ function set_form_values(gobj, template, $form, record)
 }
 
 /************************************************************
- *  loading data from backend to tabulator,
- *  check if the table is built
+ *  Load the rows of a record in a table: all of them at once
+ *  (EV_LOAD_TABLE_ROWS), now if the table is built, else when it
+ *  is (create_tabulator's `tableBuilt`).
  ************************************************************/
 function load_tabulator_data(gobj, $table, value)
 {
-    if(!value) {
+    if(!is_array(value)) {
         log_error(sprintf("%s: no data to load_tabulator_data()", gobj_short_name(gobj)));
         return;
     }
     let tabulator = $table.tabulator;
-    if(tabulator.initialized) {
-        for(let row of value) {
-            gobj_send_event(gobj,
-                "EV_ADD_TABLE_ROW",
-                {
-                    table_id: table_identity(gobj, $table),
-                    record: row,
-                    loading: true,
-                },
-                gobj
-            );
-        }
-    } else {
-        tabulator.on("tableBuilt", function() {
-            for(let row of value) {
-                gobj_send_event(gobj,
-                    "EV_ADD_TABLE_ROW",
-                    {
-                        table_id: table_identity(gobj, $table),
-                        record: row,
-                        loading: true,
-                    },
-                    gobj
-                );
-            }
-        });
+    if(!tabulator.initialized) {
+        $table.yui_pending_rows = value.length > 0? value : null;
+        return;
     }
+    $table.yui_pending_rows = null;
+    if(value.length === 0) {
+        return;
+    }
+    gobj_send_event(gobj,
+        "EV_LOAD_TABLE_ROWS",
+        {
+            table_id: table_identity(gobj, $table),
+            rows: value
+        },
+        gobj
+    );
+}
+
+/************************************************************
+ *  Redraw a table once what was added to it is drawn: the
+ *  "double scrollbar" Tabulator leaves when its rows grow.
+ ************************************************************/
+function redraw_table_later(gobj, $table)
+{
+    setTimeout(function() {
+        if(gobj_is_destroying(gobj)) {
+            return;     // the form went in the meantime: nothing to redraw
+        }
+        if($table && $table.tabulator) {    // it may be destroyed by now
+            $table.tabulator.redraw();
+        }
+    }, 30);
 }
 
 /************************************************************
@@ -3761,8 +3853,16 @@ function ac_set_file_preview(gobj, event, kw, src)
 }
 
 /************************************************************
- *  From internal form button for new rows
- *  or from load_tabulator_data() to load data from backend
+ *  From the add button of a table, outer or nested: the
+ *  reader's new row. A change of the reader's (`dataChanged`).
+ *  Tabulator keeps the object it is given and writes the
+ *  reader's edits into it: it is given a copy. A row added to a
+ *  nested table makes the row it lives in grow: the outer table
+ *  is the one redrawn.
+ *  {
+ *      table_id:   the table (table_identity())
+ *      record:     the new row, {} from the button
+ *  }
  ************************************************************/
 function ac_add_table_row(gobj, event, kw, src)
 {
@@ -3773,64 +3873,69 @@ function ac_add_table_row(gobj, event, kw, src)
         log_error(`${gobj_short_name(gobj)}: EV_ADD_TABLE_ROW to a table that is gone: '${table_id}'`);
         return -1;
     }
-    let record = kw.record;
-    let loading = kw.loading;
 
-    /*  Tabulator says `dataChanged` INSIDE addRow(), synchronously: a row
-     *  loaded from the record is muted there, whenever it lands -- also
-     *  from a `tableBuilt` that comes after the load returned, which is
-     *  why no timer can tell the two apart.  */
-    let added;
-    if(loading) {
-        gobj.priv.loading_rows++;
-    }
-    try {
-        added = tabulator.addRow(record);
-    } finally {
-        if(loading) {
-            gobj.priv.loading_rows--;
-        }
-    }
-
-    added
-        .then(function(row) {
-            if(loading) {
-                /*
-                 *  Loading from backend, can have nested tables
-                 */
-                let template = $table.template;
-                Object.entries(template).forEach(([key, template_value]) => {
-                    if(str_in_list(template_value.flag, "table")) {
-                        let $row_nested = row.getElement();
-                        let $table_nested = $row_nested.querySelector(`.yui-tabulator-table-nested[name="${key}"]`);
-                        if($table_nested) {
-                            load_tabulator_data(gobj, $table_nested, record[key]);
-                        } else {
-                            log_error(sprintf("%s: nested table not found '%s'", gobj_short_name(gobj), key));
-                        }
-                    }
-                });
-            }
-        })
+    tabulator.addRow(json_deep_copy(is_object(kw.record)? kw.record : {}))
         .catch(function(error){
             log_error(`${gobj_short_name(gobj)}: cannot add a table row: ${error}`);
         });
 
-    // TODO improve, to use only once the timeout?
-    setTimeout(function() {
-        if(gobj_is_destroying(gobj)) {
-            return;     // the form went in the meantime: nothing to redraw
-        }
-        /*  A row LOADED redraws the table that took it, nested or not; a
-         *  row ADDED by hand to a nested table redraws the table of the
-         *  row the nested one lives in, which is what grew (closest()
-         *  is the table itself for an outer one). Re-checked: it may be
-         *  destroyed by now.  */
-        let $target = loading? $table : $table.closest('.yui-tabulator-table');
-        if($target && $target.tabulator) {
-            $target.tabulator.redraw(); /* Delete double scrollbar */
-        }
-    }, 30);
+    redraw_table_later(gobj, $table.closest('.yui-tabulator-table'));   // itself, if outer
+
+    return 0;
+}
+
+/************************************************************
+ *  From load_tabulator_data(): the rows of the record a table
+ *  shows, all of them in ONE call and one redraw. A row at a time
+ *  redrew every row of the table after each one: 300 rows took
+ *  20 s, 300 with a nested table each 39 s.
+ *
+ *  Tabulator keeps the objects it is given (Row.setData() copies
+ *  nothing) and a cell edit writes into them: handed the
+ *  `record`'s own, an edit wrote into the record, and Undo --
+ *  which loads the record again -- loaded the edit. It is given
+ *  a copy.
+ *
+ *  And it says `dataChanged` INSIDE addData(), synchronously,
+ *  once per row: rows the FORM loads are muted there, whenever
+ *  they land -- also from a `tableBuilt` that comes after the
+ *  load returned, which is why no timer can tell them from the
+ *  reader's.
+ *  {
+ *      table_id:   the table (table_identity())
+ *      rows:       [record, ...]
+ *  }
+ ************************************************************/
+function ac_load_table_rows(gobj, event, kw, src)
+{
+    let table_id = kw.table_id;
+    let $table = find_table(gobj, table_id);
+    let tabulator = $table? $table.tabulator : null;
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: EV_LOAD_TABLE_ROWS to a table that is gone: '${table_id}'`);
+        return -1;
+    }
+    if(!is_array(kw.rows)) {
+        log_error(`${gobj_short_name(gobj)}: EV_LOAD_TABLE_ROWS without rows: '${table_id}'`);
+        return -1;
+    }
+    if(kw.rows.length === 0) {
+        return 0;
+    }
+
+    let rows = json_deep_copy(kw.rows);
+    let added;
+    gobj.priv.loading_rows++;
+    try {
+        added = tabulator.addData(rows);
+    } finally {
+        gobj.priv.loading_rows--;
+    }
+    added.catch(function(error){
+        log_error(`${gobj_short_name(gobj)}: cannot load the rows of a table: ${error}`);
+    });
+
+    redraw_table_later(gobj, $table);
 
     return 0;
 }
@@ -4074,6 +4179,7 @@ function create_gclass(gclass_name)
             ["EV_UNDO_RECORD",          ac_undo_record,         null],
             ["EV_CLEAR_RECORD",         ac_clear_record,        null],
             ["EV_ADD_TABLE_ROW",        ac_add_table_row,       null],
+            ["EV_LOAD_TABLE_ROWS",      ac_load_table_rows,     null],
             ["EV_RECORD_CHANGED",       ac_record_changed,      null],
             ["EV_COPY_RECORD",          ac_copy_record,         null],
             ["EV_PASTE_RECORD",         ac_paste_record,        null],
@@ -4100,6 +4206,7 @@ function create_gclass(gclass_name)
         ["EV_UNDO_RECORD",          0],
         ["EV_CLEAR_RECORD",         0],
         ["EV_ADD_TABLE_ROW",        0],
+        ["EV_LOAD_TABLE_ROWS",      0],
         ["EV_RECORD_CHANGED",       0],
         ["EV_COPY_RECORD",          0],
         ["EV_PASTE_RECORD",         0],

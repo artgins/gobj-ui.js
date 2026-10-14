@@ -146,9 +146,14 @@ disk, but they are still four writes that change nothing.
 - **Focus-trap unit tests use hand-rolled DOM stubs.**  Stubs cover
   every branch of the trap (Tab / Shift+Tab / non-Tab / focus-from-
   outside / release idempotency / missing panel / empty panel / LIFO
-  stacking).  Switch to `jsdom` or `happy-dom` only if a real edge
-  case appears (Shadow DOM, `inert`, native `<dialog>`, `tabindex`
-  derived from CSS, etc.).
+  stacking).  One real edge case has appeared (7.26.43): a control that
+  is not drawn (`display:none`, the adaptive dialog's back arrow on a
+  laptop) took the focus and no dialog could be reached from the
+  keyboard.  It is covered with a `getClientRects` stub plus a check in
+  Chromium; a stub cannot tell what CSS hides, so a change of the trap's
+  "drawn" test is checked in a real browser.  Switch to `jsdom` or
+  `happy-dom` if another such case appears (Shadow DOM, `inert`, native
+  `<dialog>`, `tabindex` derived from CSS, etc.).
 
 - **The banners of `set_submit_state()` / `set_active_state()` name the
   wrong colours.**  They say green and orange; `lib_graph.css`, which is

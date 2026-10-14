@@ -29,9 +29,14 @@ describe("the long press of a G6 graph and the clocks", () => {
         const handlers = {};
         const emitted = [];
         const graph = {
-            on(name, fn) { handlers[name] = fn; },
-            off() {},
-            emit(name) { emitted.push(name); },
+            on(name, fn) {
+                handlers[name] = fn;
+            },
+            off() {
+            },
+            emit(name) {
+                emitted.push(name);
+            },
         };
         let mono = 1000;
         let wall = 1_800_000_000_000;

@@ -60,6 +60,7 @@ import {
 import {
     activate_focus_trap_on,
 } from "./shell_focus_trap.js";
+import {escape_is_taken} from "./escape_taken.js";
 
 import {
     classify_toolbar_item,
@@ -519,12 +520,18 @@ function mt_start(gobj)
     /*  Global Escape: route to the top handler of the escape stack,
      *  not to a hardcoded "close all drawers".  Modals and popups
      *  push themselves on top of drawers, so Escape closes them
-     *  first; second Escape closes the drawer underneath; etc. */
+     *  first; second Escape closes the drawer underneath; etc.
+     *  An Escape that what it was typed in took first is not the
+     *  overlay's (escape_is_taken()): up to 7.26.42 one typed in a
+     *  table cell being edited closed the whole dialog.  */
     priv.keydown_handler = ev => {
         if(ev.key !== "Escape" && ev.keyCode !== 27) {
             return;
         }
         if(priv.escape_stack.length === 0) {
+            return;
+        }
+        if(escape_is_taken(ev)) {
             return;
         }
         let top = priv.escape_stack[priv.escape_stack.length - 1];
@@ -2196,6 +2203,10 @@ function refresh_avatars(gobj)
  *  Wire an optional secondary (right-click) action on a
  *  toolbar item.  Same action shape as `action`; used e.g. by
  *  the connection indicator to open a dev panel on right-click.
+ *  The item goes along whole, with the secondary action in place
+ *  of its own: a menu it opens is named as its trigger is (up to
+ *  7.26.42 it went as `{id, action}`, and the menu was named by
+ *  the raw id whatever the item declared).
  ************************************************************/
 function attach_context_action(gobj, $item, it)
 {
@@ -2205,7 +2216,7 @@ function attach_context_action(gobj, $item, it)
     $item.addEventListener("contextmenu", ev => {
         ev.preventDefault();
         handle_toolbar_action(
-            gobj, {id: it.id, action: it.context_action}, $item
+            gobj, {...it, action: it.context_action}, $item
         );
     });
 }
@@ -4194,6 +4205,20 @@ function yui_shell_window_layer(shell_gobj)
 }
 
 /************************************************************
+ *  The DOM where a MODAL C_YUI_WINDOW lives when its host names
+ *  no `$parent`: the shell's dialog layer, with the dialogs of
+ *  shell_modals.js -- above the drawer, the dock and every other
+ *  window, below the toasts. Null with no shell.
+ ************************************************************/
+function yui_shell_modal_layer(shell_gobj)
+{
+    if(!shell_gobj || !shell_gobj.priv || !shell_gobj.priv.layers) {
+        return null;
+    }
+    return shell_gobj.priv.layers.modal || null;
+}
+
+/************************************************************
  *  Put a window on top of the others: the next number of ONE
  *  counter, the same for a window of the dock and for a floating
  *  one.
@@ -4778,6 +4803,7 @@ export {
     yui_shell_of,
     yui_shell_zone,
     yui_shell_window_layer,
+    yui_shell_modal_layer,
     yui_shell_raise_window,
     yui_shell_watch_changes,
     yui_shell_unwatch_changes,

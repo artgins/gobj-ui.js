@@ -270,6 +270,59 @@ describe("what the guard's promise settles with is the answer", () => {
         expect(errors()).toEqual([]);
     });
 
+    /*  An `async` guard that ends in `return;` settles with undefined:
+     *  a veto, as for every promise, and with no question on the screen
+     *  the reader is left with a modal that does not close. Said, so
+     *  the developer learns it from the log and not from the reader.  */
+    test("an async guard that settles with undefined and asked nothing is a veto, said", async () => {
+        const {shell, handle, counts} = open_sheet(async () => {
+            return;
+        });
+        document.querySelector(".TEST_SHEET .yui-dialog-x").click();
+        await settle();
+        expect(sheets()).toBe(1);
+        expect(counts.closes).toBe(0);
+        expect(warnings().some((m) => m.includes("before_close") &&
+                                      m.includes("undefined") &&
+                                      m.includes("asked nothing"))).toBe(true);
+
+        handle.close();
+        expect(sheets()).toBe(0);
+        expect(shell.priv.overlay_stack).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+
+    /*  The README's guard: a question, and a `.then()` that returns
+     *  nothing -- it closes the modal itself on "yes". On "no" the
+     *  undefined is the veto it means, and nothing is said.  */
+    test("a guard that asked and settles with undefined on \"no\" is a veto, said nothing", async () => {
+        let shell_of = null;
+        const {shell, handle, counts} = open_sheet((handle_of) => {
+            return yui_shell_confirm_yesnocancel(shell_of, "all changes will be lost", {
+                yes_label: "yes", no_label: "no", cancel_label: "cancel"
+            }).then((answer) => {
+                if(answer === "yes") {
+                    handle_of().close();
+                }
+            });
+        });
+        shell_of = shell;
+        document.querySelector(".TEST_SHEET .yui-dialog-x").click();
+        await settle();
+        expect(questions()).toBe(1);
+        document.querySelector('.CONFIRM [data-modal-button-value="no"]').click();
+        await settle();
+        await settle();
+        expect(questions()).toBe(0);
+        expect(sheets()).toBe(1);
+        expect(counts.closes).toBe(0);
+        expect(warnings()).toEqual([]);
+
+        handle.close();
+        expect(sheets()).toBe(0);
+        expect(errors()).toEqual([]);
+    });
+
     test("a promise that rejects is a veto, said, and Back gets its entry back", async () => {
         const {shell, handle, counts} = open_sheet(() => Promise.reject(new Error("no answer")));
         press_back(shell);

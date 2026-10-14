@@ -348,9 +348,11 @@ that *enters* the section from outside. Full rules in
   (`.yui-toolbar-conn.is-connected` / `.is-disconnected`). Optional
   `action` (left-click) and `context_action` (right-click) honored —
   e.g. right-click to open a dev panel.
-- **`context_action`** (any item kind) — optional secondary action
-  fired on right-click (`contextmenu`, `preventDefault`ed). Same
-  object shape and `action.type` set as `action`.
+- **`context_action`** (an action item and a connection dot; the avatar
+  and the brand do not wire it) — optional secondary action fired on
+  right-click (`contextmenu`, `preventDefault`ed). Same object shape
+  and `action.type` set as `action`; a menu it opens is named as its
+  trigger is (since 7.26.43; before, by the raw id).
 
 Compose freely — `type:"avatar"` + `action:{type:"dropdown",items:[…]}`
 is the canonical user menu.  Dropdown sub-items reuse the same

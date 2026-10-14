@@ -26,6 +26,15 @@
  *                   (`responsive_query`) — so on mobile it lives above
  *                   the bottom menu instead of covering it.
  *
+ *  A FLOATING dock that shows says the band it keeps at the top or
+ *  the foot of the viewport: `--yui-dock-inset-top` /
+ *  `--yui-dock-inset-bottom` on the root element (publish_dock_band).
+ *  A window that fills the screen -- the sheet of a phone, a
+ *  maximized one -- leaves that band free. It used to go under the
+ *  dock: at a bottom corner the dock covered its foot, at a top
+ *  corner its ✕ and its minimize (a 'responsive' dock with no
+ *  `inline_selector` floats on a phone too).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -175,6 +184,7 @@ function mt_destroy(gobj)
     }
 
     destroy_dock(gobj);
+    publish_dock_band(gobj);
 }
 
 
@@ -307,8 +317,10 @@ function ensure_dock_style()
 .yui-dock-label { flex: 0 0 auto; }
 /*  Split label halves (prefix = DATA, kind = translatable). The
  *  separator is CSS, never a text node — same rule as the window
- *  title bar (createElement2 trims text nodes). */
-.yui-dock-label .yui-dock-label-prefix + .yui-dock-label-kind::before { content: " \\00b7 "; }
+ *  title bar (createElement2 trims text nodes). Decorative ("/ ''"):
+ *  the halves NAME the toggle (aria-labelledby), and a reader read
+ *  the dot into the kind half ("#1 ·demo window"). */
+.yui-dock-label .yui-dock-label-prefix + .yui-dock-label-kind::before { content: " \\00b7 "; content: " \\00b7 " / ""; }
 .yui-dock-close {
     width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
     padding: 0; margin-left: 1px; border: 0; border-radius: 4px;
@@ -395,6 +407,48 @@ function apply_placement(gobj)
     let target = inline ? $inline : (gobj_read_attr(gobj, "$parent") || dock_place(gobj));
     if($dock.parentNode !== target) {
         target.appendChild($dock);
+    }
+    publish_dock_band(gobj);
+}
+
+/************************************************************
+ *   Say the band the dock keeps over the windows: a FLOATING
+ *   dock that shows takes the top or the foot of the viewport,
+ *   from its edge to its far side. A window that fills the
+ *   screen leaves it free (C_YUI_WINDOW's fill_work_area()). An
+ *   inline dock keeps none: it is in the layout. Nor does an
+ *   empty one, or one that is not drawn.
+ ************************************************************/
+function publish_dock_band(gobj)
+{
+    let $dock = gobj_read_attr(gobj, "$container");
+    let top = 0;
+    let bottom = 0;
+
+    if($dock && $dock.parentNode &&
+            $dock.classList.contains("yui-dock--floating") &&
+            !$dock.classList.contains("is-empty")) {
+        let r = $dock.getBoundingClientRect();
+        if(r.height > 0) {
+            let corner = gobj_read_attr(gobj, "dock_corner") || "bottom-left";
+            if(corner.indexOf("top") === 0) {
+                top = Math.ceil(r.bottom);
+            } else {
+                bottom = Math.ceil((window.innerHeight || 0) - r.top);
+            }
+        }
+    }
+
+    let style = document.documentElement.style;
+    if(top > 0) {
+        style.setProperty("--yui-dock-inset-top", `${top}px`);
+    } else {
+        style.removeProperty("--yui-dock-inset-top");
+    }
+    if(bottom > 0) {
+        style.setProperty("--yui-dock-inset-bottom", `${bottom}px`);
+    } else {
+        style.removeProperty("--yui-dock-inset-bottom");
     }
 }
 
@@ -506,6 +560,7 @@ function sync_dock_visibility(gobj)
     if($dock) {
         $dock.classList.toggle('is-empty', priv.windows.length === 0);
     }
+    publish_dock_band(gobj);
 }
 
 /************************************************************
@@ -567,11 +622,19 @@ function minimize_entry(gobj, entry)
 /************************************************************
  *   Dock chip click: taskbar toggle — restore+focus a
  *   minimized/inactive window, minimize the active one.
+ *
+ *   The window brought back takes the keyboard focus too: the
+ *   reader pressed its chip to go there, and a window is heard
+ *   (Escape, Tab) only with the focus in it.
  ************************************************************/
 function on_chip_click(gobj, entry)
 {
     if(entry.minimized || !entry.$chip.classList.contains('is-active')) {
         focus_entry(gobj, entry);
+        let $win = gobj_read_attr(entry.gobj, "$container");
+        if($win) {
+            $win.focus();
+        }
     } else {
         minimize_entry(gobj, entry);
     }
@@ -738,7 +801,16 @@ function ac_minimize_window(gobj, event, kw, src)
     }
     let entry = find_entry(gobj.priv, win);
     if(entry) {
+        /*  A window hidden with the focus in it drops the focus to
+         *  <body>: it goes to the chip instead, the way back.  */
+        let $win = gobj_read_attr(win, "$container");
+        let had_focus = !!($win && $win.contains(document.activeElement));
         minimize_entry(gobj, entry);
+        let $toggle = had_focus && entry.$chip ?
+            entry.$chip.querySelector(".DOCK_CHIP_TOGGLE") : null;
+        if($toggle) {
+            $toggle.focus();
+        }
     }
     return 0;
 }

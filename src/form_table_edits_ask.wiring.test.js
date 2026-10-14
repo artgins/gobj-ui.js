@@ -18,7 +18,8 @@
  *
  *      Driven through the real gclass on a document double, with a
  *      Tabulator double that, like Tabulator, draws a row (its formatter
- *      runs) and says `dataChanged` INSIDE addRow(), synchronously.
+ *      runs) and says `dataChanged` INSIDE addRow() and addData(), once
+ *      per row, synchronously.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -30,9 +31,12 @@ install_dom_double();
 
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 
@@ -76,7 +80,7 @@ vi.mock("tabulator-tables", () => {
                 fn([]);
             }
         }
-        addRow(record) {
+        add(record) {
             /*  The row's element lives in the table's, as in Tabulator:
              *  a nested table drawn in it is inside the form.  */
             const $row = document.createElement("div");
@@ -87,7 +91,14 @@ vi.mock("tabulator-tables", () => {
             }
             this.rows.push(row);
             this.emit("dataChanged");
-            return Promise.resolve(row);
+            return row;
+        }
+        addRow(record) {
+            return Promise.resolve(this.add(record));
+        }
+        /*  Like Tabulator, `dataChanged` once per row, inside the call.  */
+        addData(records) {
+            return Promise.resolve(records.map((record) => this.add(record)));
         }
         /*  What the trash of a row ends in (row.delete()).  */
         delete_row() {
@@ -288,8 +299,7 @@ describe("a form that opens changed hears what the reader does to its tables", (
         const tables_before = tables.length;
         gobj_send_event(form, "EV_ADD_TABLE_ROW", {
             table_id: alarms.element.yui_table_id,
-            record: {},
-            loading: false
+            record: {}
         }, form);
         expect(alarms.rows.length).toBe(2);
         expect(tables.length).toBe(tables_before + 1);  // the new row's triggers table

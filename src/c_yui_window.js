@@ -3,6 +3,30 @@
  *
  *          Window - position fixed
  *
+ *  A window is a DIALOG for the keyboard and for a reader:
+ *
+ *    - it says so (`role="dialog"`) and is named by its title
+ *      (`aria-labelledby` on its two halves, the kind half carrying
+ *      its key, so the name changes language with it);
+ *    - when it starts in answer to the reader (a press, a key) it
+ *      takes the focus (`focus`: an element, a selector, a number;
+ *      by default the window itself, which is focusable with
+ *      tabindex=-1) -- not one the app restores on its own at start
+ *      up -- and when it goes it gives the focus back to where it
+ *      came from, if the focus was in it;
+ *    - Escape closes it (`keyboard`) the way its ✕ does, through
+ *      EV_CLOSE_WINDOW, so EV_WINDOW_TO_CLOSE can still veto or
+ *      ask; not an Escape that what it was typed in took first
+ *      (escape_is_taken());
+ *    - a `modal` one blocks the rest of the app: it hangs over a
+ *      backdrop in the shell's dialog layer (above the dock, the
+ *      drawer, every other window), a press outside it does
+ *      nothing, Tab stays inside (activate_focus_trap_on(), the
+ *      trap of the shell's dialogs), and it never goes to the dock.
+ *
+ *  Up to 7.26.42 `focus`, `modal` and `keyboard` were declared and
+ *  did nothing.
+ *
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -54,10 +78,13 @@ import {
     yui_shell_register_overlay,
     yui_shell_overlay_dismissed,
     yui_shell_window_layer,
+    yui_shell_modal_layer,
     yui_shell_raise_window,
     yui_shell_watch_changes,
     yui_shell_unwatch_changes,
 } from "./c_yui_shell.js";
+import {activate_focus_trap_on, FOCUSABLE_SELECTOR} from "./shell_focus_trap.js";
+import {escape_is_taken} from "./escape_taken.js";
 
 import "./c_yui_window.css";
 import {text_node} from "./yui_text.js";
@@ -79,6 +106,22 @@ const WC_CLOSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4 L12 
 /*  Bulma mobile breakpoint: at or below this a window becomes a
  *  full-screen sheet (no float / drag / resize). */
 const MOBILE_MAX = 768;
+
+/*  The band a FLOATING dock keeps at the top or the foot of the
+ *  viewport (C_YUI_WINDOW_MANAGER publishes it on the root element).
+ *  A window that fills the screen -- the sheet of a phone, a
+ *  maximized one -- leaves it free: under the dock it lost its foot,
+ *  or its ✕ at a top corner.  */
+const DOCK_INSET_TOP = "var(--yui-dock-inset-top, 0px)";
+const DOCK_INSET_BOTTOM = "var(--yui-dock-inset-bottom, 0px)";
+
+/*  The z-index Bulma gives a `.modal` (--bulma-modal-z): a modal
+ *  window and the shell's dialogs, in the same layer, stack in the
+ *  order they opened in.  */
+const MODAL_WINDOW_Z = 40;
+
+/*  Unique ids for the title node a window is named by.  */
+let __title_seq__ = 0;
 
 /***************************************************************
  *              Data
@@ -110,10 +153,9 @@ SDATA(data_type_t.DTP_STRING,   "logical_class",0,  "",     "Logical UPPER_SNAKE
 SDATA(data_type_t.DTP_STRING,   "title_prefix", 0,  "",     "Optional DATA half of the title (a topic/service/marker name), shown before `title` and never translated. Use it instead of composing `${name} · ${t(key)}` into `title`, which cannot re-translate"),
 SDATA(data_type_t.DTP_STRING,   "title",        0,  "",     "Window title, an i18n KEY: painted in the title bar (unless `header` overrides it) and on the dock chip. Pass the key, not t(key), or it cannot re-translate"),
 SDATA(data_type_t.DTP_STRING,   "icon",         0,  "",     "Window icon (by window type), leading the title bar and the dock chip: a yi-* class name or inline SVG"),
-// TODO declared, NOT implemented yet: focus, modal, keyboard (Escape does not close a window)
-SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "NOT implemented yet: would bring focus to the element, a number or a selector"),
-SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "NOT implemented yet: would enable modal mode"),
-SDATA(data_type_t.DTP_BOOLEAN,  "keyboard",     0,  true,   "NOT implemented yet: would close the window on ESC (Escape does nothing today)"),
+SDATA(data_type_t.DTP_POINTER,  "focus",        0,  null,   "What takes the focus when the window starts in answer to the reader (a press, a key; a window the app restores on its own leaves the focus in the page, a modal one takes it always): an element of the window, a CSS selector looked up in it, or a number (the n-th control of the body, from 0). Null: the window itself. The focus goes back where it came from when the window goes, if it was in the window"),
+SDATA(data_type_t.DTP_BOOLEAN,  "modal",        0,  false,  "Block the rest of the app while the window is open: a backdrop in the shell's dialog layer (above the dock, the drawer, every other window), a press outside does nothing, Tab stays inside, aria-modal. A modal window never goes to the dock: `manager` is ignored"),
+SDATA(data_type_t.DTP_BOOLEAN,  "keyboard",     0,  true,   "Escape closes the window the way its ✕ does (EV_WINDOW_TO_CLOSE can veto or ask), when the focus is in it -- not an Escape that what it was typed in took first: a handler that used it, a cell editor that closed with it, a textarea or a contenteditable"),
 SDATA(data_type_t.DTP_BOOLEAN,  "back_dismissable", 0, true, "Browser Back closes this window (floating overlays only; ignored when it has a `manager`)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "keep_on_navigate", 0, false, "This window is a navigation PANEL: a route change does not close it"),
 SDATA(data_type_t.DTP_POINTER,  "back_overlay", 0,  null,   "Internal: overlay-history entry (Back-button integration)"),
@@ -131,6 +173,14 @@ let PRIVATE_DATA = {
     placed_by_shell: false,
     /*  The shell that holds this window's Back entry (`back_overlay`).  */
     back_shell: null,
+    /*  Where the focus was when the window started: it goes back
+     *  there when the window goes.  */
+    opener: null,
+    /*  A modal window: the element that holds it over its backdrop
+     *  (what is placed and removed instead of $container), and the
+     *  release of its focus trap.  */
+    $lock: null,
+    release_focus: null,
 };
 
 let __gclass__ = null;
@@ -160,6 +210,13 @@ function mt_create(gobj)
 
     let window_id = "window-" + clean_name(gobj_short_name(gobj));
     gobj_write_attr(gobj, "window_id", window_id);
+
+    /*  A modal window blocks the dock too: minimized to it, it would
+     *  leave its backdrop up and nothing to bring it back with.  */
+    if(gobj_read_bool_attr(gobj, "modal") && gobj_read_pointer_attr(gobj, "manager")) {
+        log_warning(`${gobj_short_name(gobj)}: a modal window does not go to the dock: its manager is ignored`);
+        gobj_write_attr(gobj, "manager", null);
+    }
 
     /*  Optional window manager (dock/taskbar): register, and raise/
      *  highlight on any pointer press. Resolved BEFORE build_ui: minimize
@@ -244,16 +301,57 @@ function mt_create(gobj)
 }
 
 /***************************************************************
+ *          Framework Method: Start
+ *
+ *  The window takes the focus when it STARTS, not when it is
+ *  created: a host fills the body between the two (the json pad,
+ *  the frontend view), and `focus` may name what it put there.
+ *
+ *  Only a window the READER opened takes it (opened_by_the_reader()).
+ *  One the app opens on its own -- the Developer window restored at
+ *  start up from the last session -- leaves the focus in the page:
+ *  the first Tab of a keyboard reader landed in a window they had
+ *  not opened. A modal window takes it all the same: nothing else
+ *  can be used while it is up.
+ ***************************************************************/
+function mt_start(gobj)
+{
+    let priv = gobj.priv;
+
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        log_error(`${gobj_short_name(gobj)}: started without a container`);
+        return;
+    }
+
+    let active = document.activeElement;
+    if(active && active !== document.body && !$container.contains(active)) {
+        priv.opener = active;
+    }
+    let modal = gobj_read_bool_attr(gobj, "modal");
+    if(modal && !priv.release_focus) {
+        /*  Saves the opener itself, and gives it back on release.  */
+        priv.release_focus = activate_focus_trap_on($container);
+    }
+    if(modal || opened_by_the_reader()) {
+        focus_target(gobj, $container).focus();
+    }
+}
+
+/***************************************************************
  *          Framework Method: Destroy
  ***************************************************************/
 function mt_destroy(gobj)
 {
     let priv = gobj.priv;
 
+    give_focus_back(gobj);
+
     yui_shell_unwatch_changes(gobj);
 
+    /*  A dock destroyed first took this window's chip with it.  */
     let manager = gobj_read_pointer_attr(gobj, "manager");
-    if(manager) {
+    if(manager && !gobj_is_destroying(manager)) {
         gobj_send_event(manager, "EV_UNREGISTER_WINDOW", {window: gobj_full_name(gobj)}, gobj);
     }
 
@@ -309,9 +407,12 @@ function ensure_window_style()
 .yui-window-title .icon { flex: 0 0 auto; }
 .yui-window-title svg { width: 14px; height: 14px; display: block; }
 /*  Separator between the data half and the translated kind half. CSS,
- *  not a text node: createElement2 trims text nodes and eats the spaces. */
+ *  not a text node: createElement2 trims text nodes and eats the spaces.
+ *  Decorative ("/ ''"): the halves NAME the window, and a reader read
+ *  the dot into the kind half ("#1 ·demo window"). */
 .WINDOW_TITLE_PREFIX + .WINDOW_TITLE_KIND::before {
     content: "·";
+    content: "·" / "";
     padding: 0 0.4em;
     color: var(--bulma-text-weak);
 }
@@ -325,6 +426,13 @@ function ensure_window_style()
 .yui-wc svg { width: 15px; height: 15px; display: block; }
 .yui-window-resize { color: var(--bulma-text-weak); opacity: 0.55; }
 .yui-window-resize:hover { opacity: 1; color: var(--bulma-text); }
+/*  A modal window over its backdrop: the backdrop of a Bulma .modal,
+ *  which the shell's dialogs wear (its variable lives on .modal).  */
+.yui-window-lock { position: fixed; inset: 0; }
+.yui-window-backdrop {
+    position: absolute; inset: 0;
+    background-color: hsla(var(--bulma-scheme-h), var(--bulma-scheme-s), var(--bulma-scheme-invert-l), 0.86);
+}
 @media (max-width: ${MOBILE_MAX}px) {
     .C_YUI_WINDOW.is-mobile-sheet { border-radius: 0 !important; box-shadow: none !important; }
     .C_YUI_WINDOW.is-mobile-sheet .yui-window-resize { display: none !important; }
@@ -361,8 +469,15 @@ function ensure_window_style()
  *   refresh_language() re-translates just that one. The separator is
  *   CSS (::before), never a text node: createElement2 TRIMS text nodes
  *   and would eat the spaces around it.
+ *
+ *   The same halves NAME the window: aria-labelledby lists them
+ *   (`<id>-prefix`, `<id>-kind`), so a reader joins them with a space
+ *   and leaves out the CSS separator, and the kind half changes
+ *   language. Under a `header` of the caller's the node is still
+ *   built, `hidden` (is-sr-only, no icon): a header is a toolbar more
+ *   often than a title, and the name of a dialog is its title.
  ************************************************************/
-function build_default_header(gobj)
+function build_title_node(gobj, id, hidden)
 {
     let title = gobj_read_str_attr(gobj, "title");
     let prefix = gobj_read_str_attr(gobj, "title_prefix");
@@ -370,7 +485,7 @@ function build_default_header(gobj)
         return null;
     }
 
-    let icon = gobj_read_str_attr(gobj, "icon");
+    let icon = hidden ? "" : gobj_read_str_attr(gobj, "icon");
     let items = [];
     if(!empty_string(icon)) {
         if(icon.charAt(0) === '<') {
@@ -382,19 +497,22 @@ function build_default_header(gobj)
     }
     if(!empty_string(prefix)) {
         items.push(
-            ['span', {class: 'WINDOW_TITLE_PREFIX has-text-weight-semibold'},
+            ['span', {class: 'WINDOW_TITLE_PREFIX has-text-weight-semibold', id: `${id}-prefix`},
              text_node(prefix)]     // data, not markup
         );
     }
     if(!empty_string(title)) {
         items.push(
-            ['span', {class: 'WINDOW_TITLE_KIND has-text-weight-semibold',
+            ['span', {class: 'WINDOW_TITLE_KIND has-text-weight-semibold', id: `${id}-kind`,
                       i18n: title}, text_node(title)]
         );
     }
 
     return createElement2(
-        ['span', {class: 'WINDOW_TITLE yui-window-title icon-text ml-1'}, items]
+        ['span', {
+            id: id,
+            class: hidden ? 'WINDOW_TITLE is-sr-only' : 'WINDOW_TITLE yui-window-title icon-text ml-1'
+        }, items]
     );
 }
 
@@ -413,6 +531,142 @@ function composed_title(gobj)
         return `${prefix} · ${kind}`;
     }
     return empty_string(prefix) ? kind : prefix;
+}
+
+/************************************************************
+ *   Is the window opening in answer to the reader -- a press, a
+ *   key (the browser's user activation)? Not one the app restores
+ *   at start up. A browser that cannot say is taken at its word
+ *   that the reader asked.
+ ************************************************************/
+function opened_by_the_reader()
+{
+    let ua = (typeof navigator !== "undefined") ? navigator.userActivation : null;
+    if(!ua) {
+        return true;
+    }
+    return !!ua.isActive;
+}
+
+/************************************************************
+ *   What takes the focus when the window starts (`focus`): an
+ *   element of the window, a selector looked up in it, or the
+ *   n-th control of the body. Null, or one that names nothing
+ *   (said): the window itself.
+ ************************************************************/
+function focus_target(gobj, $container)
+{
+    let focus = gobj_read_attr(gobj, "focus");
+    if(focus === null || focus === undefined) {
+        return $container;
+    }
+
+    let $target = null;
+    if(typeof focus === "number") {
+        let $body = $container.querySelector(".WINDOW_BODY");
+        let controls = $body ? $body.querySelectorAll(FOCUSABLE_SELECTOR) : [];
+        $target = controls[focus] || null;
+    } else if(typeof focus === "string") {
+        $target = $container.querySelector(focus);
+    } else if(focus && typeof focus.focus === "function" && $container.contains(focus)) {
+        $target = focus;
+    }
+
+    if(!$target) {
+        log_warning(`${gobj_short_name(gobj)}: focus '${String(focus)}' names nothing in the window: the window takes it`);
+        return $container;
+    }
+    return $target;
+}
+
+/************************************************************
+ *   The window goes: the focus goes back where it came from --
+ *   if it was in the window, or lost with what the window held
+ *   (a child torn down first takes its focused element with
+ *   it). A focus the reader has put elsewhere stays there. A
+ *   modal window's trap gives it back itself.
+ ************************************************************/
+function give_focus_back(gobj)
+{
+    let priv = gobj.priv;
+
+    let opener = priv.opener;
+    priv.opener = null;
+
+    if(priv.release_focus) {
+        let release = priv.release_focus;
+        priv.release_focus = null;
+        release();
+        return;
+    }
+
+    let $container = gobj_read_attr(gobj, "$container");
+    let active = document.activeElement;
+    let lost = !active || active === document.body;
+    if(!lost && !($container && $container.contains(active))) {
+        return;
+    }
+    if(opener && opener.isConnected !== false && typeof opener.focus === "function") {
+        opener.focus();
+    }
+}
+
+/************************************************************
+ *   A window that fills the screen -- the sheet of a phone, a
+ *   maximized one -- fills it but for the band a floating dock
+ *   keeps (DOCK_INSET_*). CSS, so the band moves with the dock
+ *   and no one has to tell the window.
+ ************************************************************/
+function fill_work_area($container)
+{
+    let vw = window.innerWidth || document.documentElement.offsetWidth;
+    let vh = window.innerHeight || document.documentElement.offsetHeight;
+
+    $container.style.left = '0px';
+    $container.style.top = DOCK_INSET_TOP;
+    $container.style.width = vw + 'px';
+    $container.style.height = `calc(${vh}px - ${DOCK_INSET_TOP} - ${DOCK_INSET_BOTTOM})`;
+    return {x: 0, y: 0, width: vw, height: vh};
+}
+
+/************************************************************
+ *   What is placed in the DOM, and removed from it: the window,
+ *   or the lock that holds a modal one over its backdrop.
+ ************************************************************/
+function window_root(gobj)
+{
+    return gobj.priv.$lock || gobj_read_attr(gobj, "$container");
+}
+
+/************************************************************
+ *   An Escape typed in the window. The callback only decides
+ *   whether the key is the window's -- not when `keyboard` is
+ *   off, nor one that what it was typed in took -- and sends
+ *   the event: the close is the ✕'s, in the action.
+ ************************************************************/
+function on_escape_key(gobj, evt)
+{
+    if(evt.key !== "Escape" && evt.keyCode !== 27) {
+        return;
+    }
+    if(gobj_is_destroying(gobj) || !gobj_read_bool_attr(gobj, "keyboard")) {
+        return;
+    }
+    if(escape_is_taken(evt)) {
+        /*  An inline editor that closed with the key took the focus
+         *  with it (to <body>): the window takes it back, or the next
+         *  Escape -- and Tab -- would not be heard here.  */
+        let $container = gobj_read_attr(gobj, "$container");
+        let active = document.activeElement;
+        if(evt.target && evt.target.isConnected === false && $container &&
+                (!active || active === document.body)) {
+            $container.focus();
+        }
+        return;
+    }
+    evt.preventDefault();
+    evt.stopPropagation();
+    gobj_send_event(gobj, "EV_CLOSE_WINDOW", {key: "Escape"}, gobj);
 }
 
 /************************************************************
@@ -472,9 +726,13 @@ function build_ui(gobj)
     if(is_gobj(header)) {
         header = gobj_read_attr(header, "$container");
     }
+    let title_id = `yui-window-title-${++__title_seq__}`;
+    let $title = build_title_node(gobj, title_id, !!header);
+    let $hidden_title = header ? $title : null;
     if(!header) {
-        header = build_default_header(gobj);
+        header = $title;
     }
+    let modal = gobj_read_bool_attr(gobj, "modal");
     let body = gobj_read_attr(gobj, "body");
     if(is_gobj(body)) {
         body = gobj_read_attr(body, "$container");
@@ -549,11 +807,26 @@ function build_ui(gobj)
      *  only this tells them apart in the Inspector or in a selector. */
     let logical = gobj_read_str_attr(gobj, "logical_class");
 
+    let dialog_attrs = {role: 'dialog', tabindex: '-1'};
+    let label_ids = [];
+    if(!empty_string(gobj_read_str_attr(gobj, "title_prefix"))) {
+        label_ids.push(`${title_id}-prefix`);
+    }
+    if(!empty_string(gobj_read_str_attr(gobj, "title"))) {
+        label_ids.push(`${title_id}-kind`);
+    }
+    if(label_ids.length > 0) {
+        dialog_attrs['aria-labelledby'] = label_ids.join(' ');
+    }
+    if(modal) {
+        dialog_attrs['aria-modal'] = 'true';
+    }
+
     let $container = createElement2(
-        ['div', {
+        ['div', Object.assign({
             class: 'C_YUI_WINDOW' + (logical ? ' ' + logical : '') +
                    ' strong-shadow is-flex is-flex-direction-column' + (mobile ? ' is-mobile-sheet' : ''),
-            style: window_style}, [
+            style: window_style}, dialog_attrs), [
 
             /*----------------------------*
              *          Header
@@ -728,6 +1001,16 @@ function build_ui(gobj)
     );
     gobj_write_attr(gobj, "$container", $container);
 
+    if($hidden_title) {
+        $container.insertBefore($hidden_title, $container.firstChild);
+    }
+    $container.addEventListener("keydown", function(evt) {
+        on_escape_key(gobj, evt);
+    });
+    if(mobile) {
+        fill_work_area($container);
+    }
+
     /*----------------------------*
      *  Resize button in body
      *----------------------------*/
@@ -762,12 +1045,30 @@ function build_ui(gobj)
 
     refresh_language($container, t);
 
+    if(modal) {
+        /*  A press on the backdrop closes nothing: a modal is answered,
+         *  not dismissed by a click beside it. Nor does it take the
+         *  focus out of the window, where Escape and Tab are heard.  */
+        let $lock = createElement2(
+            ['div', {class: 'WINDOW_MODAL_LOCK yui-window-lock',
+                     style: `z-index:${MODAL_WINDOW_Z};`}, [
+                ['div', {class: 'WINDOW_MODAL_BACKDROP yui-window-backdrop'}, [], {
+                    mousedown: (evt) => {
+                        evt.preventDefault();
+                    }
+                }]
+            ]]
+        );
+        $lock.appendChild($container);
+        gobj.priv.$lock = $lock;
+    }
+
     let $parent = gobj_read_attr(gobj, "$parent");
     gobj.priv.placed_by_shell = !$parent;
     if(!$parent) {
         $parent = window_place(gobj);
     }
-    $parent.appendChild($container);
+    $parent.appendChild(window_root(gobj));
 
     if (gobj_read_bool_attr(gobj, "openMaximized")) {
         max(gobj);
@@ -789,13 +1090,12 @@ function build_ui(gobj)
  ************************************************************/
 function destroy_ui(gobj)
 {
-    let $container = gobj_read_attr(gobj, "$container");
-    if($container) {
-        if($container.parentNode) {
-            $container.parentNode.removeChild($container);
-        }
-        gobj_write_attr(gobj, "$container", null);
+    let $root = window_root(gobj);
+    if($root && $root.parentNode) {
+        $root.parentNode.removeChild($root);
     }
+    gobj.priv.$lock = null;
+    gobj_write_attr(gobj, "$container", null);
 }
 
 /************************************************************
@@ -925,10 +1225,19 @@ function close_window(gobj)
  *  The place is the shell's, and a window parented to the app
  *  outlives it: ac_shell_changed() moves it when a shell goes or
  *  comes.
+ *
+ *  A MODAL window lives in the shell's dialog layer instead, with
+ *  its backdrop: it blocks the drawer, the dock and every other
+ *  window, and a question it asks (a dialog of the same layer)
+ *  opens above it.
  ************************************************************/
 function window_place(gobj)
 {
-    return yui_shell_window_layer(yui_shell_of(gobj)) || document.body;
+    let shell = yui_shell_of(gobj);
+    if(gobj_read_bool_attr(gobj, "modal")) {
+        return yui_shell_modal_layer(shell) || document.body;
+    }
+    return yui_shell_window_layer(shell) || document.body;
 }
 
 /************************************************************
@@ -953,15 +1262,7 @@ function max(gobj)
     let $container = gobj_read_attr(gobj, "$container");
     priv.prevSize = $container.getBoundingClientRect();
 
-    let rect = do_fix_dimension_to_screen(gobj, 0, 0, 10000, 10000);
-    if (gobj_read_bool_attr(gobj, "center")) {
-        rect = do_center(gobj, rect.x, rect.y, rect.width, rect.height);
-    }
-
-    $container.style.left = parseInt(rect.x) + 'px';
-    $container.style.top = parseInt(rect.y) + 'px';
-    $container.style.width = parseInt(rect.width) +'px';
-    $container.style.height = parseInt(rect.height) +'px';
+    let rect = fill_work_area($container);
 
     gobj_write_bool_attr(gobj, "maximized", true);
     set_max_icon(gobj, true);
@@ -1242,26 +1543,14 @@ function handleResize(gobj)
     /*  Mobile: full-screen sheet, refit to the viewport and stop. */
     if(is_mobile()) {
         $container.classList.add("is-mobile-sheet");
-        let vw = window.innerWidth || document.documentElement.offsetWidth;
-        let vh = window.innerHeight || document.documentElement.offsetHeight;
-        $container.style.left = '0px';
-        $container.style.top = '0px';
-        $container.style.width = vw + 'px';
-        $container.style.height = vh + 'px';
+        fill_work_area($container);
         return;
     }
     $container.classList.remove("is-mobile-sheet");
 
     /*  Maximized: just refit to the (new) viewport. */
     if(gobj_read_bool_attr(gobj, "maximized") === true) {
-        let r = do_fix_dimension_to_screen(gobj, 0, 0, 10000, 10000);
-        if(gobj_read_bool_attr(gobj, "center")) {
-            r = do_center(gobj, r.x, r.y, r.width, r.height);
-        }
-        $container.style.left = parseInt(r.x) + 'px';
-        $container.style.top = parseInt(r.y) + 'px';
-        $container.style.width = parseInt(r.width) + 'px';
-        $container.style.height = parseInt(r.height) + 'px';
+        fill_work_area($container);
         return;
     }
 
@@ -1396,8 +1685,9 @@ function ac_shell_changed(gobj, event, kw, src)
     }
 
     let $place = window_place(gobj);
-    if($container.parentNode !== $place) {
-        $place.appendChild($container);
+    let $root = window_root(gobj);
+    if($root.parentNode !== $place) {
+        $place.appendChild($root);
     }
     return 0;
 }
@@ -1417,6 +1707,7 @@ function ac_shell_changed(gobj, event, kw, src)
  *---------------------------------------------*/
 const gmt = {
     mt_create:  mt_create,
+    mt_start:   mt_start,
     mt_destroy: mt_destroy
 };
 

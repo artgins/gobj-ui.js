@@ -33,9 +33,12 @@ if(globalThis.window) {
 /*  Tabulator watches its table; the document double has no observer.  */
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 

@@ -23,9 +23,12 @@ install_dom_double();
 
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 
@@ -70,8 +73,10 @@ vi.mock("vanilla-jsoneditor", () => ({
         get() {
             return {text: ""};
         },
-        set() {},
-        destroy() {},
+        set() {
+        },
+        destroy() {
+        },
     }),
 }));
 

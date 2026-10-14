@@ -25,6 +25,14 @@
  *        - the table is CORRECT (V22): the same search started from no
  *          table finds every entry, at every position, with the same
  *          `exported` -- an entry nothing forwards to fails;
+ *        - a position the table declares the FALLBACK of others
+ *          (`fallbacks`: a card's id, behind its name and aria_label) is
+ *          one in the code: every hand-off of it is the right side of a
+ *          `||` whose left reads those positions;
+ *        - a `code` is a key only in the modules whose codes reach t()
+ *          (CODE_KEY_MODULES), and those are the modules that write one;
+ *        - the reader gives up on no value of the library (a chain too
+ *          deep, a const that leads back to itself, too many values);
  *        - a parameter handed on through what no position can name (V22:
  *          `k.toLowerCase()`, a concatenation, `Object.entries(opts)`, a
  *          rest parameter walked, `arguments[i]`, an array pattern) fails,
@@ -77,6 +85,8 @@ import {fileURLToPath, pathToFileURL} from "node:url";
 
 import {I18N_KEY_FUNCTIONS} from "./i18n_key_functions.js";
 import {
+    CODE_KEY_MODULES,
+    gave_up,
     parse_source,
     walk,
     line_of,
@@ -938,6 +948,93 @@ function table_errors(found, table = I18N_KEY_FUNCTIONS)
 }
 
 
+/*
+ *  A FALLBACK of the table is one in the code: every hand-off of the
+ *  position, in its function, is the right operand of a `||` / `??`
+ *  chain whose left operands read every position the entry names as
+ *  read first (`it.name || it.aria_label || it.id`, the left read
+ *  through a `let` or a const too) -- or a key position of a key
+ *  function whose own fallbacks are positions of this one, handed
+ *  there with it (`{...it}`, not `{id: it.id}`, which drops them). A
+ *  fallback the code does not show would let the validator skip a key
+ *  the function asks for.
+ */
+function fallback_errors(table = I18N_KEY_FUNCTIONS, asts = ast_of)
+{
+    let out = [];
+    let ancestors_of = (ast, node) => {
+        let found = null;
+        walk(ast, (n, ancestors) => {
+            if(!found && n === node) {
+                found = ancestors.slice();
+            }
+        });
+        return found || [];
+    };
+    let guards_in_code = (ast, e, node) => {
+        let guards = new Set();
+        let ancestors = ancestors_of(ast, node);
+        let cur = node;
+        for(let i = ancestors.length - 1; i >= 0; i--) {
+            let a = ancestors[i];
+            if(a.type === "LogicalExpression" && a.operator !== "&&" && a.right === cur) {
+                for(let f of param_flows(a.left, ancestors.slice(0, i + 1))) {
+                    if(f.binding.name === e.name && f.path !== null) {
+                        guards.add(`${f.binding.index}${f.path}`);
+                    }
+                }
+            } else if(!(a.type === "LogicalExpression" && a.left === cur)
+                    && !(a.type === "ConditionalExpression" && a.test !== cur)
+                    && a.type !== "ChainExpression") {
+                break;
+            }
+            cur = a;
+        }
+        return guards;
+    };
+    let modules = [...new Set(table.filter((e) => e.fallbacks).map((e) => e.module))];
+    for(let module of modules) {
+        let ast = asts(module);
+        let entries = table.filter((e) => e.module === module && e.fallbacks);
+        for(let place of key_places(ast, {lib_module: module, table})) {
+            for(let leaf of place.leaves) {
+                for(let p of handed_params(leaf)) {
+                    let pos = `${p.binding.index}${p.path}`;
+                    let e = entries.find((x) => x.name === p.binding.name && x.fallbacks[pos]);
+                    if(!e) {
+                        continue;
+                    }
+                    let guards;
+                    let callee_firsts = (place.what === "call" && place.entry.fallbacks)?
+                        place.entry.fallbacks[place.path] : null;
+                    if(callee_firsts) {
+                        /*  What the callee reads first, where it is handed: the
+                         *  positions of this function that arrive there  */
+                        let k = key_calls(ast, module, table).find((c) => c.call === place.node);
+                        guards = new Set();
+                        for(let f of callee_firsts) {
+                            for(let l of values_at(k.call, f, k.scope, k.args)) {
+                                if(l.kind === "param" && l.binding.name === e.name && l.path !== null) {
+                                    guards.add(`${l.binding.index}${l.path}`);
+                                }
+                            }
+                        }
+                    } else {
+                        guards = guards_in_code(ast, e, p.node);
+                    }
+                    let lacking = e.fallbacks[pos].filter((f) => !guards.has(f));
+                    if(lacking.length > 0) {
+                        out.push(`${module}:${line_of(ast, p.node.start)} ${e.name}() hands [${pos}] to a place a key ` +
+                                 `is read without reading [${lacking.join(", ")}] first: its \`fallbacks\` in ` +
+                                 `I18N_KEY_FUNCTIONS say otherwise`);
+                    }
+                }
+            }
+        }
+    }
+    return [...new Set(out)];
+}
+
 describe("I18N_KEY_FUNCTIONS: the table", () => {
     test("every entry names a function of its module, at positions that can be followed", () => {
         let wrong = [];
@@ -973,6 +1070,29 @@ describe("I18N_KEY_FUNCTIONS: the table", () => {
                     wrong.push(`${where}: key position ${JSON.stringify(k)} cannot be followed`);
                 }
             }
+            if(e.fallbacks === undefined) {
+                continue;
+            }
+            if(!e.fallbacks || typeof e.fallbacks !== "object" || Array.isArray(e.fallbacks)) {
+                wrong.push(`${where}: \`fallbacks\` is not an object`);
+                continue;
+            }
+            for(let [k, firsts] of Object.entries(e.fallbacks)) {
+                let parent = k.slice(0, k.lastIndexOf(".") + 1);
+                if(!e.keys.includes(k) || !parent) {
+                    wrong.push(`${where}: the fallback ${JSON.stringify(k)} is no property position of \`keys\``);
+                }
+                if(!Array.isArray(firsts) || firsts.length === 0) {
+                    wrong.push(`${where}: the fallback ${JSON.stringify(k)} names no position read first`);
+                    continue;
+                }
+                for(let f of firsts) {
+                    if(f === k || !e.keys.includes(f) || !f.startsWith(parent) || f.slice(parent.length).includes("[]")) {
+                        wrong.push(`${where}: ${JSON.stringify(f)}, read before ${JSON.stringify(k)}, is no other ` +
+                                   `position of \`keys\` under ${JSON.stringify(parent)}`);
+                    }
+                }
+            }
         }
         expect(wrong).toEqual([]);
     });
@@ -987,6 +1107,38 @@ describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
         expect(table_errors(find_forwarders(MODULES, ast_of, []).found)).toEqual([]);
     });
 
+    test("every fallback of the table is one in the code, and the check fails when it is not", () => {
+        expect(fallback_errors()).toEqual([]);
+        let module = "nav_cards_helpers.js";
+        let wider = I18N_KEY_FUNCTIONS.map((e) => (e.name !== "card_descriptor")? e :
+            Object.assign({}, e, {fallbacks: {"0.id": ["0.name", "0.aria_label", "0.tooltip"]}}));
+        expect(fallback_errors(wider)).toEqual([
+            `${module}:55 card_descriptor() hands [0.id] to a place a key is read without reading [0.tooltip] ` +
+            `first: its \`fallbacks\` in I18N_KEY_FUNCTIONS say otherwise`
+        ]);
+        let code = readFileSync(join(SRC, module), "utf8");
+        let plain = code.replace('"data-disabled": it.disabled ? "1" : "0",',
+                                 '"data-disabled": it.disabled ? "1" : "0", "data-i18n-placeholder": it.id,');
+        expect(plain).not.toBe(code);
+        let mutated = parse_as(plain, module);
+        expect(fallback_errors(I18N_KEY_FUNCTIONS, (m) => (m === module)? mutated : ast_of(m))).toEqual([
+            `${module}:61 card_descriptor() hands [0.id] to a place a key is read without reading [0.name, ` +
+            `0.aria_label] first: its \`fallbacks\` in I18N_KEY_FUNCTIONS say otherwise`
+        ]);
+        /*  A hand-off to a key function counts its fallbacks only when they
+         *  arrive with the id: `{id: it.id}` drops them (7.26.42's right-click)  */
+        let shell = "c_yui_shell.js";
+        let shell_code = readFileSync(join(SRC, shell), "utf8");
+        let dropped = shell_code.replace("{...it, action: it.context_action}", "{id: it.id, action: it.context_action}");
+        expect(dropped).not.toBe(shell_code);
+        let shell_mutated = parse_as(dropped, shell);
+        let table = I18N_KEY_FUNCTIONS.map((e) => (e.name !== "attach_context_action")? e :
+            Object.assign({}, e, {keys: ["2.id"]}));
+        let said = fallback_errors(table, (m) => (m === shell)? shell_mutated : ast_of(m));
+        expect(said.length).toBe(1);
+        expect(said[0]).toMatch(/^c_yui_shell\.js:\d+ attach_context_action\(\) hands \[2\.id\] to a place a key is read without reading \[2\.aria_label, 2\.name\] first/);
+    });
+
     test("the search finds what it should, and nothing else", () => {
         let code = [
             `import {yui_shell_show_error} from "./shell_modals.js";`,
@@ -999,14 +1151,16 @@ describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
             `function by_pattern(gobj, {title, label = "fallback"}) { return t(title); }`,
             `function ac_show(gobj, event, kw, src) { yui_shell_show_error(shell, kw.comment); }`,
             `function ac_marked(gobj, event, kw, src) { return t(/* i18n: data */ kw.comment); }`,
-            `say(); told(); relay(); own(); as_dom(); by_let(); by_pattern();`
+            `function by_bind(gobj, msg) { return yui_shell_show_error.bind(null, shell, msg); }`,
+            `function by_bound_t(gobj, key) { return t.bind(null, key); }`,
+            `say(); told(); relay(); own(); as_dom(); by_let(); by_pattern(); by_bind(); by_bound_t();`
         ].join("\n");
         let ast = parse_as(code, "x.js");
         let found = find_forwarders(["x.js"], () => ast);
         let got = Object.fromEntries(found.missing.map((m) => [m.name, m.keys.sort()]));
         expect(got).toEqual({
             say: ["1"], told: ["1.message"], relay: ["1"], as_dom: ["1"],
-            by_let: ["1.name"], by_pattern: ["1.title"]
+            by_let: ["1.name"], by_pattern: ["1.title"], by_bind: ["1"], by_bound_t: ["1"]
         });
         expect(found.unmarked.map((u) => `${u.name} ${u.pos}`)).toEqual(["ac_show 2.comment"]);
 
@@ -1036,6 +1190,55 @@ describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
         let unmarked = parse_as(code.replace(/\/\* i18n: data \*\/ /g, ""), module);
         expect(find_forwarders([module], () => unmarked).unmarked.map((u) => u.name))
             .toContain("ac_register_window");
+    });
+});
+
+describe("a `code` is a key where the library makes one", () => {
+    test("the modules that write a literal `code` are CODE_KEY_MODULES, and only those", () => {
+        let writers = new Set();
+        for(let module of MODULES) {
+            walk(ast_of(module), (n, ancestors) => {
+                let parent = ancestors[ancestors.length - 1];
+                if(n.type === "Property" && parent && parent.type === "ObjectExpression"
+                        && !n.computed && ((n.key.type === "Identifier" && n.key.name === "code")
+                            || (n.key.type === "Literal" && n.key.value === "code"))
+                        && n.value.type === "Literal" && typeof n.value.value === "string") {
+                    writers.add(module);
+                }
+            });
+        }
+        expect([...writers].sort()).toEqual([...CODE_KEY_MODULES].sort());
+    });
+
+    test("there a literal `code` is asked for; in any other module it is not", () => {
+        let code = `let finding = {severity: "error", code: "a finding code"};`;
+        expect([...scan_ast(parse_as(code, "schema_validate.js"), {lib_module: "schema_validate.js"}).keys])
+            .toEqual(["a finding code"]);
+        expect([...scan_ast(parse_as(code, "x.js"), {lib_module: "x.js"}).keys]).toEqual([]);
+    });
+});
+
+describe("the reader never gives up on the library", () => {
+    test("no chain too deep, no const that leads back to itself, no value with too many values", () => {
+        let said = [];
+        for(let module of MODULES) {
+            let ast = ast_of(module);
+            scan_ast(ast, {lib_module: module});
+            call_rule_violations(ast, module);
+            said.push(...gave_up(ast).map((g) => `${module}:${g.line} \`${g.text}\`: ${g.why}`));
+        }
+        expect(said).toEqual([]);
+    });
+
+    test("...and says where it would", () => {
+        let lines = [`const K0 = "far";`];
+        for(let i = 1; i <= 24; i++) {
+            lines.push(`const K${i} = K${i - 1};`);
+        }
+        lines.push(`function f() { return t(K24); }`);
+        let ast = parse_as(lines.join("\n"), "x.js");
+        scan_ast(ast, {lib_module: "x.js"});
+        expect(gave_up(ast).map((g) => `${g.line} ${g.text}`)).toEqual([`1 "far"`]);
     });
 });
 
@@ -2113,6 +2316,13 @@ describe("REV-CLOUD V24.5: every write counts; a translated text fails unmarked 
          *  module `var` given more in a block included  */
         expect(keys_of([`var key = "a module key";`, `if(c) {`, `    var key = "a block key";`, `}`, `t(key);`]))
             .toEqual(["a block key", "a module key"]);
+        /*  An INDIRECT eval -- `eval?.()`, `(0, eval)()` -- runs in the global
+         *  scope and writes no variable of the module: the let is still
+         *  followed (up to 7.26.42 `eval?.()` counted as a direct eval)  */
+        for(let call of [`eval?.(code);`, `(0, eval)(code);`]) {
+            expect(keys_of([`function f(code) {`, `    let key = "an eval-proof key";`, `    ${call}`,
+                            `    return t(key);`, `}`]), call).toEqual(["an eval-proof key"]);
+        }
         /*  A `var` of a class's static block is the block's own: it hides an
          *  outer `let` of the same name (up to 7.26.41 it was not seen)  */
         expect(keys_of([`let key = "-";`, `class A {`, `    static {`, `        var key = kw.data;`, `        t(key);`,
@@ -2139,8 +2349,8 @@ describe("REV-CLOUD V24.5: every write counts; a translated text fails unmarked 
                       `el.setAttribute("data-i18n-title", t("k"));`,        // 4
                       `t(t("k") + "!");`,                                   // 5
                       `el.dataset.i18nTitle = tr("k");`,                    // 6
-                      `x = {code: i18next.t("k")};`,                        // 7
-                      `add("error", t("k"));`,                              // 8
+                      `x = {code: i18next.t("k")};`,                        // 7: no key place in x.js
+                      `add("error", t("k"));`,                              // 8: no key function
                       `t([t("k"), "fallback"]);`,                           // 9
                       `const L = t("k");`,                                  // 10: the text, read at 11
                       `x = {"data-i18n": L};`,
@@ -2148,15 +2358,19 @@ describe("REV-CLOUD V24.5: every write counts; a translated text fails unmarked 
                       `x = {i18n: ["p", {}, t("k")]};`,                     // DOM is DOM
                       `let held = t("k");`,
                       `x = {i18n: held};`]);                                 // in a let: the documented limit
-        expect(r.translated_errors.map((e) => e.line)).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 12]);
+        expect(r.translated_errors.map((e) => e.line)).toEqual([3, 4, 5, 6, 9, 10, 12]);
         expect(r.translated_errors[0].why).toBe('`t("k")` is a TRANSLATED text given to a property that holds a key ' +
             '(i18n, code, data-i18n*): the translation is kept as its key and never changes language: hand the key, ' +
             'not t(key)');
         expect(r.translated_errors[1].why).toMatch(/^`t\("k"\)` is a TRANSLATED text given to a data-i18n\* attribute: /);
         expect(r.translated_errors[2].why).toMatch(/^`t\("k"\) \+ "!"` is a TRANSLATED text handed to a translator as its key: /);
-        expect(r.translated_errors[7].why).toMatch(/^`t\("k"\)` is a TRANSLATED text given to a property .* \(read at line 11\): /);
-        expect(r.translated_errors[8].why).toMatch(/^marked as data, but `t\("k"\)` is a TRANSLATED text: .*no marker excuses it/);
+        expect(r.translated_errors[5].why).toMatch(/^`t\("k"\)` is a TRANSLATED text given to a property .* \(read at line 11\): /);
+        expect(r.translated_errors[6].why).toMatch(/^marked as data, but `t\("k"\)` is a TRANSLATED text: .*no marker excuses it/);
         expect(r.marker_errors).toEqual([]);
+        /*  Where a `code` is a key, a translated one fails as well  */
+        let c = scan_ast(parse_as([`x = {code: i18next.t("k")};`].join("\n"), "schema_import.js"),
+                         {lib_module: "schema_import.js"});
+        expect(c.translated_errors.map((e) => e.line)).toEqual([1]);
     });
 
     test("no module of the library hands a TRANSLATED text to a place a key is read", () => {
@@ -2212,6 +2426,7 @@ describe("REV-CLOUD V24.5: every write counts; a translated text fails unmarked 
     });
 
     test("a bound translator: what a call of it is handed is i18next's options, no key; a bound key function counts them", () => {
+        /*  The key it binds is read where the bind is written  */
         expect(keys_of([`const tk = t.bind(null, "bound key");`,
                         `tk("an option");`,
                         `tk.call(null, "another option");`,
@@ -2219,7 +2434,7 @@ describe("REV-CLOUD V24.5: every write counts; a translated text fails unmarked 
                         `["an element"].map(tk);`,
                         `["another element"].map(t.bind(null, "bound key"));`,
                         `const tt = t.bind(i18next);`,
-                        `tt("a key: nothing bound");`])).toEqual(["a key: nothing bound"]);
+                        `tt("a key: nothing bound");`])).toEqual(["a key: nothing bound", "bound key"]);
         /*  Its text is translated text all the same  */
         expect(scan([`const tk = t.bind(null, "bound key");`, `x = {i18n: tk()};`]).translated_errors.map((e) => e.line))
             .toEqual([4]);
@@ -2229,7 +2444,14 @@ describe("REV-CLOUD V24.5: every write counts; a translated text fails unmarked 
         expect(rule([`const show = yui_shell_show_info.bind(null, shell);`, `show(kw.message);`,
                      `const more = yui_shell_show_info.bind(null, ...args);`, `more("k");`])).toEqual([
             `${module}:4 yui_shell_show_info() [1]: kw.message`,
+            `${module}:5 yui_shell_show_info() [1]: ...args`,         // what the bind hands, unknown: loud
             `${module}:6 yui_shell_show_info() [1]: more("k")`        // a spread hides the positions: loud
         ]);
+        /*  What a bind binds is read where it is written: keys asked, and the rule per call  */
+        let b = scan([`const say = yui_shell_show_info.bind(null, shell, "a bound message");`, `say();`,
+                      `const ask = yui_shell_show_info.bind(null, shell).bind(null, "a twice bound one");`]);
+        expect([...b.keys].sort()).toEqual(["a bound message", "a twice bound one"]);
+        expect(rule([`function relay(msg) {`, `    return yui_shell_show_info.bind(null, shell, msg);`, `}`]))
+            .toEqual([`${module}:4 yui_shell_show_info() [1]: msg`]);
     });
 });

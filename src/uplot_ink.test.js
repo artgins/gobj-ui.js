@@ -25,10 +25,14 @@ vi.mock("uplot", () => ({
             given = opts;
             this.series = [{}];
         }
-        setSize() {}
-        addSeries() {}
-        redraw() {}
-        destroy() {}
+        setSize() {
+        }
+        addSeries() {
+        }
+        redraw() {
+        }
+        destroy() {
+        }
     }
 }));
 

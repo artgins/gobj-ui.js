@@ -64,6 +64,7 @@
  *              `t.apply(x, [k])`; an array there is i18next's list of
  *              fallback keys, each one a key (`t([k, "fallback"])`). A
  *              `.bind()` that binds a key (`const tk = t.bind(null, k)`)
+ *              hands t() that key, read where the bind is written, and
  *              makes a translator whose calls hand i18next its options or
  *              its default value, not a key: what they hand is not read;
  *            - each element a translator handed as a CALLBACK walks, and
@@ -75,21 +76,28 @@
  *              `[].forEach.call(keys, t)`) --, `Array.from(keys, t)` and
  *              `Array.fromAsync(keys, t)`; and what `.then(t)` /
  *              `.catch(t)` settle with, which no source writes;
- *            - the string given to an `i18n` or `code` property, to a
+ *            - the string given to an `i18n` property, to a
  *              `data-i18n*` attribute (as a property, also computed by a
  *              const, `{[ATTR]: k}`; as a member written, `x.i18n = k`,
  *              `x["data-i18n-title"] = k`, `x[ATTR] = k`,
  *              `el.dataset.i18nTitle = k`; by setAttribute() or
  *              setAttributeNS(), the name a literal or a const; or written
- *              in markup), and the codes of the schema checks
- *              (`add("error", "<code>")`);
+ *              in markup), and to a `code` property in the modules of the
+ *              library whose codes are keys (CODE_KEY_MODULES: the
+ *              findings and conflicts of the schema checks, which the
+ *              schema editor hands to t()); in an app a `code` is no key
+ *              unless its package.json names it (`attr_keys`);
  *            - the strings given to a gobj-ui function that RECEIVES a key
  *              as an argument (`yui_shell_show_error(shell, "<key>")`,
  *              `icon_button(..., "<key>")`), at the positions its table
  *              names: I18N_KEY_FUNCTIONS, src/i18n_key_functions.js --
  *              however the call reaches it: its name, an import under any
  *              name, a re-export, a const alias, a map
- *              (`API.info(...)`), `.call()`, `.apply()`. A position may
+ *              (`API.info(...)`), `.call()`, `.apply()`, and a `.bind()`
+ *              (`f.bind(x, shell, k)`), read at the positions it binds. A
+ *              position that is only the fallback of others (`fallbacks`:
+ *              a card's id, behind its name and its aria_label) is not
+ *              read where one of those is surely given. A position may
  *              hold DOM as well, which is no key: an array (a
  *              createElement2 spec; not an array of string literals,
  *              which is none), createElement2(), createOneHtml() or
@@ -193,8 +201,9 @@
  *          A TRANSLATED text where a key is read -- `t("k")`, any
  *          translator above, or a string built from one, `t("k") + ":"`,
  *          `t("k").toUpperCase()` -- is a violation, MARKED OR NOT, given
- *          to t() (`t(t("k") + "!")`), to an i18n / code / data-i18n*
- *          value (`{i18n: t("k")}`) or to a data-i18n* attribute: the
+ *          to t() (`t(t("k") + "!")`), to an i18n / data-i18n* value or a
+ *          `code` where it is a key (`{i18n: t("k")}`), or to a data-i18n*
+ *          attribute: the
  *          place keeps the translation as its key, and it never changes
  *          language. Up to 7.26.41 only a marked one failed.
  *
@@ -228,8 +237,7 @@
  *          alias of (a parameter `translate`, a `let` alias,
  *          `i18next.getFixedT()`), or called by what is no name of it --
  *          `(0, t)(k)`, `[t][0](k)`, `Reflect.apply(t, x, [k])`,
- *          `Function.prototype.call.call(t, x, k)` --; a key bound with
- *          the translator, `t.bind(null, k)`; a parameter a closure
+ *          `Function.prototype.call.call(t, x, k)` --; a parameter a closure
  *          returns (`const inner = () => key; t(inner())`: the search for
  *          the functions that forward a key does not see it); a translator
  *          handed to a function (`{t: t}`, `yui_tabulator_lang(t)`: it
@@ -249,6 +257,15 @@
  *          package (gobj-js, i18next); what is written into a const table
  *          after its declaration; a window's `title` given as an attr at
  *          gobj_create().
+ *
+ *          Where the reader GIVES UP on a value it says so, with the file
+ *          and the line, and that fails: a chain of consts, aliases or
+ *          calls more than MAX_DEPTH (24) steps deep, a const that leads
+ *          back to itself, an expression that can take more than
+ *          MAX_VALUES (10000) values -- a key behind it would go unasked.
+ *          Up to 7.26.42 it stopped there in silence, and a chain of consts
+ *          that doubles at every link died with a RangeError naming no
+ *          file. A const is read once, wherever it is read.
 
  *          Options (paths relative to the app's directory):
  *
@@ -897,11 +914,6 @@ function callee_name(callee)
         return callee.property.name;
     }
     return null;
-}
-
-function is_string_literal(n, re)
-{
-    return !!n && n.type === "Literal" && typeof n.value === "string" && (!re || re.test(n.value));
 }
 
 /***************************************************************
@@ -1759,7 +1771,11 @@ const TRANSLATOR = Object.freeze({kind: "t", name: "t"});
  ***************************************************************/
 function callee_of(node, scope, depth = 0)
 {
-    if(!node || depth > MAX_DEPTH) {
+    if(!node) {
+        return null;
+    }
+    if(depth > MAX_DEPTH) {
+        give_up(node, scope, GIVE_UP_DEEP);
         return null;
     }
     switch(node.type) {
@@ -1910,10 +1926,10 @@ function var_function(b)
  *  b (null when `.apply()` hands an array the source does not write
  *  out). A callee with arguments BOUND (`const g = f.bind(x, a)`)
  *  receives those first: they stand as holes (null) before what the
- *  call hands -- a position that is not read, as the bound key of
- *  `t.bind(null, k)` is not --, and the arguments are null when a
- *  spread hides how many were bound. Cached per call: what it calls
- *  does not change.
+ *  call hands -- a position not read HERE: what a bind binds is read
+ *  where the bind is written (bind_kind()) --, and the arguments are
+ *  null when a spread hides how many were bound. Cached per call: what
+ *  it calls does not change.
  *
  *      -> {target, args} | null
  ***************************************************************/
@@ -1952,6 +1968,47 @@ function call_target(call, scope)
     }
     CALL_TARGETS.set(call, r);
     return r;
+}
+
+/***************************************************************
+ *  A `.bind()` of a key function or of a translator, read as the
+ *  call it prepares: `yui_shell_show_info.bind(null, shell, "k")`
+ *  hands "k" at position 1 of yui_shell_show_info, `t.bind(null, "k")`
+ *  hands t() its key -- where the bind is written, since a call of
+ *  what it makes no longer hands those positions (call_target()).
+ *  Up to 7.26.42 what a bind binds was not read: a key bound there
+ *  went unasked, and a parameter bound there passed the rule per call.
+ *
+ *      -> {kind: "key", entry, target, args} | {kind: "t", target, args}
+ *         | null, `args` the arguments the function receives, the ones
+ *         bound before (`f.bind(x, a).bind(y, b)`) as holes, and null
+ *         when a spread hides them
+ ***************************************************************/
+function bind_kind(call, scope, table = I18N_KEY_FUNCTIONS)
+{
+    let c = call.callee;
+    if(c.type !== "MemberExpression" || c.computed || c.property.type !== "Identifier"
+            || c.property.name !== "bind" || call.arguments.length < 2) {
+        return null;
+    }
+    let inner = callee_of(c.object, scope);
+    if(!inner) {
+        return null;
+    }
+    let args = inner.bound_spread? null : [...new Array(inner.bound || 0).fill(null), ...call.arguments.slice(1)];
+    if(inner.kind === "t") {
+        return {kind: "t", target: inner, args};
+    }
+    let module = lib_module_of(inner.url);
+    let fns = module? key_fn_index(table).by_module.get(module) : null;
+    let entry = fns? (fns.get(inner.name) || null) : null;
+    if(entry) {
+        return {kind: "key", entry, target: inner, args};
+    }
+    if(TRANSLATOR_NAMES.has(inner.name)) {
+        return {kind: "t", target: inner, args};
+    }
+    return null;
 }
 
 /***************************************************************
@@ -2033,7 +2090,11 @@ function is_translated_text(n, scope, depth = 0)
     while(n && n.type === "ChainExpression") {
         n = n.expression;
     }
-    if(!n || depth > MAX_DEPTH) {
+    if(!n) {
+        return false;
+    }
+    if(depth > MAX_DEPTH) {
+        give_up(n, scope, GIVE_UP_DEEP);
         return false;
     }
     let sub = (x) => is_translated_text(x, scope, depth + 1);
@@ -2145,8 +2206,60 @@ function is_key_function(target)
                      ***************************/
 
 
-/*  How far a chain of consts is followed: a cycle stops here  */
+/*  How far a chain of consts, aliases or calls is followed (a cycle stops
+ *  here too), and how many values one expression may take. Past either the
+ *  reader GIVES UP, and says so (give_up()): a key behind a value it does
+ *  not follow would go unasked, and the build say OK  */
 const MAX_DEPTH = 24;
+const MAX_VALUES = 10000;
+
+/***************************************************************
+ *  Where the reader GAVE UP on a value: a chain deeper than
+ *  MAX_DEPTH, a const that leads back to itself, an expression that
+ *  can take more than MAX_VALUES values. A key behind it would go
+ *  unasked, so it is a violation, with the file and the line
+ *  (collect_used_keys(); the library's own test holds the library to
+ *  none). Up to 7.26.42 the reader stopped there in silence: a chain
+ *  of 24 aliases of a const asked for nothing, and a chain of consts
+ *  that doubles at every step (`{...O, ...O}`) grew without end and
+ *  died with a RangeError naming no file.
+ *
+ *  `node` is the value it gave up on, `scope` the chain of its
+ *  ancestors (the first one, the module: where it is said).
+ ***************************************************************/
+const GAVE_UP = new Map();      // node -> {node, scope, why}
+
+const GIVE_UP_DEEP = `it is more than ${MAX_DEPTH} steps deep (a chain of consts, aliases or calls ` +
+    `that long): shorten the chain`;
+const GIVE_UP_CYCLE = `it is a const that leads back to itself: break the cycle`;
+const GIVE_UP_MANY = `it can take more than ${MAX_VALUES} values: split it`;
+
+function give_up(node, scope, why)
+{
+    if(node && !GAVE_UP.has(node)) {
+        GAVE_UP.set(node, {node, scope: scope || [], why});
+    }
+}
+
+/*  Where the reader gave up so far -- in one parsed file, when it is
+ *  given: [{url, line, text, why}]  */
+function gave_up(ast = null)
+{
+    let out = [];
+    for(let {node, scope, why} of GAVE_UP.values()) {
+        let program = (scope.length > 0 && typeof scope[0].code === "string")? scope[0] : null;
+        if(ast && program !== ast) {
+            continue;
+        }
+        out.push({
+            url: program? (PROGRAM_URL.get(program) || null) : null,
+            line: program? line_of(program, node.start) : 0,
+            text: program? program.code.slice(node.start, node.end).replace(/\s+/g, " ").slice(0, 80) : "",
+            why
+        });
+    }
+    return out;
+}
 
 /***************************************************************
  *  The values an expression can take, as far as the source writes
@@ -2212,6 +2325,16 @@ const MAX_DEPTH = 24;
  ***************************************************************/
 function expand(node, ctx, depth = 0)
 {
+    let out = expand_node(node, ctx, depth);
+    if(out.length > MAX_VALUES) {
+        give_up(node, ctx.scope, GIVE_UP_MANY);
+        return [{kind: "unknown", node, scope: ctx.scope, via: ctx.off? ctx.via : [...ctx.via, node], off: ctx.off}];
+    }
+    return out;
+}
+
+function expand_node(node, ctx, depth)
+{
     if(!node) {
         return [];
     }
@@ -2219,6 +2342,7 @@ function expand(node, ctx, depth = 0)
     let here = {scope: ctx.scope, via: via, off: ctx.off};
     let item = (kind, extra) => Object.assign({kind, node, scope: ctx.scope, via, off: ctx.off}, extra);
     if(depth > MAX_DEPTH) {
+        give_up(node, ctx.scope, GIVE_UP_DEEP);
         return [item("unknown")];
     }
 
@@ -2321,12 +2445,38 @@ function expand(node, ctx, depth = 0)
 /***************************************************************
  *  The values of a const (a binding of binding_of(), or a const
  *  module_export() found in another module): its value read where it
- *  is declared, the steps a destructuring reads from it, its default
+ *  is declared, the steps a destructuring reads from it, its default.
+ *
+ *  Its value is read ONCE, without repeats, and kept: a const is read
+ *  where it is declared, so what it holds is the same wherever it is
+ *  read -- only `via`, the place it is read from, differs, and it is
+ *  the same for every value (the reader leaves the place for the
+ *  declaration). Up to 7.26.42 a const was read again at every read,
+ *  so `const O1 = c()? O0 : {...O0, ...O0}`, chained, took three
+ *  times as long at every link (eleven links, 906 ms) and grew its
+ *  values until a RangeError. A const met again while its value is
+ *  being read leads back to itself: the reader gives up on it
+ *  (give_up()).
  ***************************************************************/
+const CONST_VALUES = new WeakMap();     // the init of a const -> its values, `via` left out
+const CONST_READING = new Set();        // the inits being read
+
 function const_values(b, node, via, depth)
 {
     let ctx = {scope: b.scope, via: via, off: true};
-    let out = expand(b.init, ctx, depth + 1);
+    if(!CONST_VALUES.has(b.init)) {
+        if(CONST_READING.has(b.init)) {
+            give_up(b.init, b.scope, GIVE_UP_CYCLE);
+            return [{kind: "unknown", node: b.init, scope: b.scope, via, off: true}];
+        }
+        CONST_READING.add(b.init);
+        try {
+            CONST_VALUES.set(b.init, unique_values(expand(b.init, {scope: b.scope, via: [], off: true}, depth + 1)));
+        } finally {
+            CONST_READING.delete(b.init);
+        }
+    }
+    let out = CONST_VALUES.get(b.init).map((v) => Object.assign({}, v, {via}));
     for(let step of b.steps || []) {
         out = out.flatMap((o) => step_values(o, step, node, depth + 1));
     }
@@ -2602,9 +2752,44 @@ function assigned_properties(o, step, depth)
  *  The values of property `name` of an object literal (`name` null:
  *  of every property), each followed with expand(). A spread is read
  *  for it: an object literal, or a parameter (`{...opts}` holds
- *  opts.title as its title)
+ *  opts.title as its title).
+ *
+ *  An object reached from a declaration (`o.off`: every value it
+ *  gives carries the same `via`) is read once per property, without
+ *  repeats, and kept -- as a const is (const_values()): a spread of the
+ *  same object twice, `{...O, ...O}`, gives its values once.
  ***************************************************************/
+const PROPERTY_VALUES = new WeakMap();  // an object literal -> Map(property -> its values, `via` left out)
+
 function property_values(o, name, depth)
+{
+    if(!o.off) {
+        return capped(o, property_values_of(o, name, depth));
+    }
+    let known = PROPERTY_VALUES.get(o.node);
+    if(!known) {
+        known = new Map();
+        PROPERTY_VALUES.set(o.node, known);
+    }
+    if(!known.has(name)) {
+        let values = unique_values(property_values_of(Object.assign({}, o, {via: []}), name, depth));
+        known.set(name, capped(Object.assign({}, o, {via: []}), values));
+    }
+    return known.get(name).map((v) => Object.assign({}, v, {via: o.via}));
+}
+
+/*  The values of a value, or the reader giving up on it when they are
+ *  more than MAX_VALUES  */
+function capped(o, values)
+{
+    if(values.length <= MAX_VALUES) {
+        return values;
+    }
+    give_up(o.node, o.scope, GIVE_UP_MANY);
+    return [Object.assign({}, o, {kind: "unknown", binding: null, var_root: null})];
+}
+
+function property_values_of(o, name, depth)
 {
     let out = [];
     let scope = [...o.scope, o.node];
@@ -2667,9 +2852,30 @@ function elements_of(node, ctx, depth)
 /***************************************************************
  *  The elements of one value of expand(): see elements_of(). Each
  *  element of a rest parameter is another parameter: no position can
- *  name one, and the reader cannot follow it.
+ *  name one, and the reader cannot follow it. The elements of an array
+ *  literal (or of a `.map()` of one) reached from a declaration are
+ *  read once, without repeats, and kept, as the properties of an
+ *  object are (property_values()): `[...A, ...A]` gives A's once.
  ***************************************************************/
+const ELEMENT_VALUES = new WeakMap();   // an array literal or a .map() -> its elements, `via` left out
+
 function element_values(v, depth)
+{
+    let literal = v.kind === "value" && (v.node.type === "ArrayExpression" || is_mapping(v.node));
+    if(!literal) {
+        return element_values_of(v, depth);
+    }
+    if(!v.off) {
+        return capped(v, element_values_of(v, depth));
+    }
+    if(!ELEMENT_VALUES.has(v.node)) {
+        let bare = Object.assign({}, v, {via: []});
+        ELEMENT_VALUES.set(v.node, capped(bare, unique_values(element_values_of(bare, depth))));
+    }
+    return ELEMENT_VALUES.get(v.node).map((x) => Object.assign({}, x, {via: v.via}));
+}
+
+function element_values_of(v, depth)
 {
     let out = [];
     if(v.kind === "param" && v.binding.rest) {
@@ -2925,8 +3131,16 @@ function static_keys(node, scope = [])
  *  A position the call does not reach (an argument not given) has no
  *  leaf: its default applies. An options object held in a variable,
  *  a spread, a parameter, a copy: followed like any value.
+ *
+ *  `fallbacks` (the entry's `fallbacks` of the position, or null):
+ *  the positions the function reads FIRST, the position itself being
+ *  only their fallback (`it.name || it.aria_label || it.id`). An
+ *  object that surely gives one of them -- every value it can take
+ *  there is a non-empty string -- does not reach the position, and has
+ *  no leaf there; any other object (one that may give none of them, a
+ *  parameter, data) reaches it.
  ***************************************************************/
-function values_at(call, path, scope = [], args = call.arguments)
+function values_at(call, path, scope = [], args = call.arguments, fallbacks = null)
 {
     let segs = String(path).split(".");
     let first = segs.shift().match(/^(\d+)(\[\])?$/);
@@ -2948,10 +3162,15 @@ function values_at(call, path, scope = [], args = call.arguments)
 
     let ctx = {scope: call_scope, via: [call], off: false};
     let cur = first[2]? elements_of(arg, ctx, 0) : expand(arg, ctx);
-    for(let seg of segs) {
+    let parent = String(path).slice(0, String(path).lastIndexOf(".") + 1);
+    let shortcuts = (fallbacks || []).map((f) => f.slice(parent.length).split("."));
+    for(let [i, seg] of segs.entries()) {
         let m = seg.match(/^([\w$]+)(\[\])?$/);
         if(!m) {
             return [at_call];
+        }
+        if(i === segs.length - 1 && shortcuts.length > 0) {
+            cur = cur.filter((v) => !shortcuts.some((rel) => surely_given(v, rel)));
         }
         let next = [];
         for(let v of cur) {
@@ -2966,6 +3185,24 @@ function values_at(call, path, scope = [], args = call.arguments)
         cur = next;
     }
     return cur.map(classify);
+}
+
+/*  Does a value surely give a non-empty string at the steps `rel`
+ *  (["name"], ["roll", "label"]) -- every value it can take there is
+ *  one? Nothing, a parameter, data: not surely.  */
+function surely_given(v, rel)
+{
+    let cur = [v];
+    for(let prop of rel) {
+        cur = cur.flatMap((o) => (o.kind === "nothing")? [o] : step_values(o, {prop, computed: false}, null, 0));
+    }
+    return cur.length > 0 && cur.every((x) => classify(x).kind === "key");
+}
+
+/*  The `fallbacks` of a position of an entry of I18N_KEY_FUNCTIONS  */
+function fallbacks_of(entry, path)
+{
+    return (entry.fallbacks && entry.fallbacks[path]) || null;
 }
 
 /***************************************************************
@@ -3163,9 +3400,10 @@ function assigned_values(binding, members = false)
                 }
                 break;
             case "CallExpression": {
-                if(n.callee.type === "Identifier" && n.callee.name === "eval") {
+                if(n.callee.type === "Identifier" && n.callee.name === "eval" && !n.optional) {
                     /*  Not run: a direct eval() of the SOURCE writes what its text says, which no
-                     *  reader reads (in a module no other binding can be called `eval`)  */
+                     *  reader reads (in a module no other binding can be called `eval`); `eval?.()`
+                     *  is an indirect one, which runs in the global scope  */
                     unknown.push({node: n, steps: [], scope: chain});
                     break;
                 }
@@ -3250,6 +3488,7 @@ function var_leaves(root, seen = new Set(), depth = 0)
     }
     seen.add(id);
     if(depth > MAX_DEPTH) {
+        give_up(b.declarators[0], b.scope, GIVE_UP_DEEP);
         out.complete = false;
         out.unread.push(b.declarators[0]);
         return out;
@@ -3400,7 +3639,11 @@ function let_literals(b, seen)
  ***************************************************************/
 function literal_values(n, scope, seen, depth = 0)
 {
-    if(!n || depth > MAX_DEPTH) {
+    if(!n) {
+        return null;
+    }
+    if(depth > MAX_DEPTH) {
+        give_up(n, scope, GIVE_UP_DEEP);
         return null;
     }
     let sub = (x, s = scope) => literal_values(x, s, seen, depth + 1);
@@ -3529,7 +3772,11 @@ function param_flows(node, scope, seen = new Set(), depth = 0)
 {
     /*  Through a call or an iteration a path names no position any more  */
     let unnamed = (flows) => flows.map((f) => (f.path === null)? f : {binding: f.binding, path: null, priv: f.priv});
-    if(!node || typeof node.type !== "string" || depth > MAX_DEPTH) {
+    if(!node || typeof node.type !== "string") {
+        return [];
+    }
+    if(depth > MAX_DEPTH) {
+        give_up(node, scope, GIVE_UP_DEEP);
         return [];
     }
     let sub = (n, s = scope) => param_flows(n, s, seen, depth + 1);
@@ -3854,7 +4101,7 @@ function key_calls(ast, lib_module, table = I18N_KEY_FUNCTIONS)
             return;
         }
         ancestors.push(n);
-        let c = call_kind(n, ancestors, table);
+        let c = call_kind(n, ancestors, table) || bind_kind(n, ancestors, table);
         ancestors.pop();
         if(c && c.kind === "key") {
             out.push({entry: c.entry, call: n, scope: ancestors.slice(), args: c.args});
@@ -3973,7 +4220,7 @@ function call_rule_violations(ast, lib_module, table)
     };
     for(let {entry, call, scope, args} of key_calls(ast, lib_module, table)) {
         for(let path of entry.keys) {
-            check(values_at(call, path, scope, args), call, entry.name, path, null);
+            check(values_at(call, path, scope, args, fallbacks_of(entry, path)), call, entry.name, path, null);
         }
     }
     for(let {call, scope, callback} of translator_callbacks(ast, lib_module)) {
@@ -4267,7 +4514,11 @@ function list_mutations(ast, lists = [])
         while(n && n.type === "ChainExpression") {
             n = n.expression;
         }
-        if(!n || depth > MAX_DEPTH) {
+        if(!n) {
+            return null;
+        }
+        if(depth > MAX_DEPTH) {
+            give_up(n, chain, GIVE_UP_DEEP);
             return null;
         }
         if(n.type === "MemberExpression") {
@@ -4359,6 +4610,21 @@ function list_mutations(ast, lists = [])
 
 
 /***************************************************************
+ *  The modules of the library whose `code` properties are i18n keys:
+ *  the findings of the schema checks (schema_validate.js) and the
+ *  conflicts of an import (schema_import.js), which the schema editor
+ *  (c_yui_schema_editor.js, which also writes some) hands to
+ *  `t(finding.code)` / `t(conflict.code)`. Anywhere else a `code` is
+ *  whatever the code says -- a language (`{code: "en"}`), an error
+ *  number --, and no key: up to 7.26.42 every `code` of every file was
+ *  read as one, and so was any `add("error", x)`, a `classList.add()`
+ *  included. (The checks' own add() is a key function of the table.)
+ *  i18n_key_functions.test.js holds the list to the library: a module
+ *  that writes a literal `code` is in it, and only those.
+ ***************************************************************/
+const CODE_KEY_MODULES = new Set(["schema_validate.js", "schema_import.js", "c_yui_schema_editor.js"]);
+
+/***************************************************************
  *  Every place a parsed file READS a key, with the leaves of what
  *  stands there (leaves_of(), values_at()):
  *
@@ -4370,13 +4636,13 @@ function list_mutations(ast, lists = [])
  *                    tr(), `i18next.t()`, an alias, `t?.()`,
  *                    `t.call(x, key)`); an array there is the list of
  *                    keys i18next tries in turn, each one a key
- *      "code"        the code of a schema check, add("error", <code>)
  *      "attribute"   setAttribute("data-i18n*", <key>) and
  *                    setAttributeNS(ns, "data-i18n*", <key>), the name a
  *                    literal or a const the reader follows to one
- *      "property"    an `i18n`, `code` or `data-i18n*` property of an
- *                    object literal (`{[ATTR]: k}` with ATTR a const
- *                    bound to one), or one of ctx.attr_keys
+ *      "property"    an `i18n` or `data-i18n*` property of an object
+ *                    literal (`{[ATTR]: k}` with ATTR a const bound to
+ *                    one), one of ctx.attr_keys, or a `code` in a module
+ *                    of CODE_KEY_MODULES
  *      "array"       an element of one of ctx.array_keys
  *      "assignment"  `x.i18n = <key>`, `x["data-i18n-title"] = <key>`,
  *                    `x[ATTR] = <key>`, `el.dataset.i18nTitle = <key>`
@@ -4423,12 +4689,13 @@ function key_places(ast, ctx = {})
         return (s !== null)? [s] : static_keys(node, scope).keys;
     };
     let is_i18n_name = (name) => name === "i18n" || DATA_I18N_ATTR_RE.test(name);
-    let is_property_key = (x) => is_i18n_name(x) || x === "code" || attr_keys.has(x);
+    let codes_are_keys = CODE_KEY_MODULES.has(ctx.lib_module);
+    let is_property_key = (x) => is_i18n_name(x) || (x === "code" && codes_are_keys) || attr_keys.has(x);
     walk(ast, (n, ancestors) => {
         switch(n.type) {
             case "CallExpression": {
                 ancestors.push(n);
-                let c = call_kind(n, ancestors, table);
+                let c = call_kind(n, ancestors, table) || bind_kind(n, ancestors, table);
                 ancestors.pop();
                 if(c && c.kind === "key") {
                     /*  A key function (a `tr` of the library too): read where its table says  */
@@ -4440,9 +4707,6 @@ function key_places(ast, ctx = {})
                 let name = callee_name(n.callee);
                 if(c && c.kind === "t") {
                     read_t(c.args? c.args[0] : null, [...ancestors, n], n);
-                } else if(name === "add" && is_string_literal(n.arguments[0], /^(error|warning)$/)) {
-                    /*  The codes the schema checks hand to `t(finding.code)`  */
-                    read("code", n.arguments[1], [...ancestors, n], n);
                 } else if((name === "setAttribute" && n.arguments.length >= 2)
                         || (name === "setAttributeNS" && n.arguments.length >= 3)) {
                     /*  setAttributeNS(ns, name, value): the same, one argument on  */
@@ -4520,7 +4784,8 @@ function key_places(ast, ctx = {})
     }
     for(let {entry, call, scope, args} of calls) {
         for(let path of entry.keys) {
-            out.push({what: "call", node: call, entry, path, leaves: values_at(call, path, scope, args)});
+            out.push({what: "call", node: call, entry, path,
+                      leaves: values_at(call, path, scope, args, fallbacks_of(entry, path))});
         }
     }
     for(let {call, scope, callback} of callbacks) {
@@ -4635,8 +4900,8 @@ function key_list_leaves(node, scope, root)
  *  known: shape_owner_check()).
  *
  *  A TRANSLATED text (is_translation()) where a key is read -- given
- *  to t(), to an `i18n` / `code` / `data-i18n*` value, to a
- *  data-i18n* attribute -- is an error, MARKED OR NOT
+ *  to t(), to an `i18n` / `data-i18n*` value (a `code` where it is a
+ *  key), to a data-i18n* attribute -- is an error, MARKED OR NOT
  *  (`translated_errors`): the place keeps the translation as its key,
  *  and it never changes language. Up to 7.26.41 only a marked one
  *  failed, so `{i18n: t("k")}` passed and `{i18n: /\* i18n: data *\/
@@ -4648,7 +4913,6 @@ function key_list_leaves(node, scope, root)
 /*  Where key_places() reads a key, as a message says it  */
 const PLACE_NAMES = {
     t: "handed to a translator as its key",
-    code: "handed as the code of a schema check",
     attribute: "given to a data-i18n* attribute",
     property: "given to a property that holds a key (i18n, code, data-i18n*)",
     array: "given as an element of a list of keys",
@@ -4973,6 +5237,7 @@ function shape_owner_check(shape, keys, shapes)
  ***************************************************************/
 function collect_used_keys(opts)
 {
+    GAVE_UP.clear();
     let keys = new Set();
     let lib_keys = new Set();
     let attr_keys = opts.attr_keys || [];
@@ -5129,6 +5394,14 @@ function collect_used_keys(opts)
                      `of the keys ${shape.text} builds`);
             }
         }
+    }
+
+    /*  Where the reader gave up: a key behind it would go unasked  */
+    for(let g of gave_up()) {
+        let module = lib_module_of(g.url);
+        let label = module? `gobj-ui/src/${module}` : g.url? relative(process.cwd(), fileURLToPath(g.url)) : "?";
+        fail(`${label}:${g.line}: the reader gave up on \`${g.text}\`, and a key behind it would go ` +
+             `unasked: ${g.why}`);
     }
 
     return {keys, lib_keys};
@@ -5303,12 +5576,18 @@ function node_tree_keys(config, keys, is_key)
  *      the item in every layout -- a tab, an entry of a vertical menu,
  *      a submenu or an icon bar, a card, an accordion head, a crumb
  *      (`name || aria_label || id`: c_yui_nav.js, nav_cards_helpers.js)
- *      -- and its title too, when it has no `tooltip`;
+ *      -- and its title too, when it has no `tooltip`; the navs its
+ *      submenu opens, and the landing of a SECTION INDEX it opens
+ *      (`submenu.index`), are labelled the same way (c_yui_shell.js,
+ *      shell_section_index.js), so they ask for nothing more;
  *    - when it has no `name`, in a menu drawn as a BREADCRUMB that shows
- *      its labels: the text of the crumb is `name || id`;
- *    - when it has no `name`, for an item that opens a SECTION INDEX
- *      (`submenu.index`, a `route`, no `target`): the landing's nav is
- *      labelled `name || id` (shell_section_index.js).
+ *      its labels: the text of the crumb is `name || id`.
+ *
+ *  And the id of a MENU (`menu.<id>`) drawn as a "submenu" in a zone
+ *  that hosts it: that layout heads the nav with its `nav_label`, and
+ *  the shell gives a menu none, so the heading is the menu's id, as a
+ *  key (render_submenu(), c_yui_nav.js). Up to gobj-ui 7.26.42 the
+ *  validator did not ask for it.
  *
  *  The items are those of every menu (`menu.<id>.items`) and of every
  *  submenu of them (`submenu.items`) -- and the rows of the dropdown
@@ -5334,7 +5613,8 @@ function menu_item_keys(config, keys, is_key)
         let cfg = (typeof r === "string")? {layout: r} : r;
         return !!cfg && typeof cfg === "object" && cfg.layout === "breadcrumb" && cfg.show_label !== false;
     };
-    let read_items = (items, crumbs, top) => {
+    let layout_of = (r) => (typeof r === "string")? r : (r && typeof r === "object")? r.layout : null;
+    let read_items = (items, crumbs) => {
         for(let it of (Array.isArray(items)? items : [])) {
             if(!it || typeof it !== "object" || it.type === "header" || it.type === "divider") {
                 continue;
@@ -5349,17 +5629,14 @@ function menu_item_keys(config, keys, is_key)
                  *  as an entry is (route_map_model.js, nav_node_from_item())  */
                 let a = it.action;
                 if(a && typeof a === "object" && a.type === "dropdown") {
-                    read_items(a.items, false, false);
+                    read_items(a.items, false);
                 }
                 continue;
-            }
-            if(top && sub.index && it.route && !it.target && !it.name) {
-                ask(it.id);
             }
             /*  A submenu is drawn in each zone its `render` names ("*" is no
              *  zone for it)  */
             let render = (sub.render && typeof sub.render === "object")? sub.render : {};
-            read_items(sub.items, Object.keys(render).some((z) => z !== "*" && draws_crumbs(render[z])), false);
+            read_items(sub.items, Object.keys(render).some((z) => z !== "*" && draws_crumbs(render[z])));
         }
     };
     for(let menu_id of Object.keys(menus)) {
@@ -5370,9 +5647,11 @@ function menu_item_keys(config, keys, is_key)
         /*  A menu is drawn in each zone that hosts it, with that zone's
          *  render, else the render "*", else a vertical menu  */
         let render = (menu.render && typeof menu.render === "object")? menu.render : {};
-        let crumbs = Object.keys(zones).some((z) => zones[z] && zones[z].host === `menu.${menu_id}`
-                                                  && draws_crumbs(render[z] || render["*"]));
-        read_items(menu.items, crumbs, true);
+        let hosts = Object.keys(zones).filter((z) => zones[z] && zones[z].host === `menu.${menu_id}`);
+        if(hosts.some((z) => layout_of(render[z] || render["*"]) === "submenu")) {
+            ask(menu_id);
+        }
+        read_items(menu.items, hosts.some((z) => draws_crumbs(render[z] || render["*"])));
     }
 }
 
@@ -5386,7 +5665,10 @@ function menu_item_keys(config, keys, is_key)
  *    - an action item (any `type` but "brand", "avatar", "connection");
  *    - the menu a dropdown opens (`action.type` "dropdown"), named as
  *      its trigger, except an avatar's, which the shell names "user
- *      menu";
+ *      menu" -- and the one a RIGHT-click opens (`context_action`, which
+ *      the shell wires on an action item and on a connection), named
+ *      the same way (up to gobj-ui 7.26.42 the shell named it by the
+ *      raw id, and the validator did not read it);
  *    - each entry of that menu (`action.items`) that is drawn: not a
  *      divider, and with an `action` of its own;
  *    - each row the SITE MAP draws under a toolbar node that is not the
@@ -5440,8 +5722,16 @@ function toolbar_item_keys(config, keys, is_key)
         if(kind === "action" && nameless(it)) {
             ask(it.id);
         }
-        let action = (it.action && typeof it.action === "object")? it.action : {};
-        if(action.type === "dropdown") {
+        /*  The menu a click opens, and the one a right-click opens: the
+         *  shell wires `context_action` on an action item and a connection  */
+        let actions = [it.action];
+        if(kind === "action" || kind === "connection") {
+            actions.push(it.context_action);
+        }
+        for(let action of actions) {
+            if(!action || typeof action !== "object" || action.type !== "dropdown") {
+                continue;
+            }
             if(kind !== "avatar" && nameless(it)) {
                 ask(it.id);
             }
@@ -5568,6 +5858,8 @@ function lib_imports(ast, barrel, lib_module)
 /*  The readers, for a test of the library and for an app whose catalog
  *  has another shape (gobj-ui's test-app)  */
 export {
+    CODE_KEY_MODULES,
+    gave_up,
     parse_source,
     walk,
     line_of,

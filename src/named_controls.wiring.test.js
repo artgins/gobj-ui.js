@@ -37,9 +37,12 @@ install_dom_double();
 
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 
@@ -59,7 +62,8 @@ vi.mock("@antv/g6", async (importOriginal) => {
         draw() {
             return Promise.resolve();
         }
-        on() {}
+        on() {
+        }
         getZoom() {
             return 1;
         }
@@ -81,7 +85,8 @@ vi.mock("@antv/g6", async (importOriginal) => {
         getOptions() {
             return {behaviors: []};
         }
-        destroy() {}
+        destroy() {
+        }
     }
     return {...real, Graph: FakeGraph};
 });
@@ -109,7 +114,8 @@ vi.mock("tabulator-tables", () => {
         off(ev) {
             delete this.externalEvents.events[ev];
         }
-        destroy() {}
+        destroy() {
+        }
     }
     return {TabulatorFull: FakeTabulator, Tabulator: FakeTabulator};
 });
@@ -123,16 +129,23 @@ vi.mock("tom-select", () => ({
             this.settings = settings;
             selects.push(this);
         }
-        on() {}
-        disable() {}
-        enable() {}
+        on() {
+        }
+        disable() {
+        }
+        enable() {
+        }
         getValue() {
             return [];
         }
-        clear() {}
-        setValue() {}
-        addOption() {}
-        destroy() {}
+        clear() {
+        }
+        setValue() {
+        }
+        addOption() {
+        }
+        destroy() {
+        }
     }
 }));
 
@@ -597,6 +610,33 @@ describe("the items of the toolbar: what the nav got (REV-CLOUD V24.5.4)", () =>
         expect($panel.getAttribute("aria-label")).toBe("more");
         expect($panel.getAttribute("data-i18n-aria-label")).toBe("more");
         $more.click();
+        expect(errors()).toEqual([]);
+    });
+
+    test("the menu a right-click opens is named as its trigger, as the left-click one is", () => {
+        const shell = toolbar_shell([
+            {id: "conn", type: "connection", aria_label: "server link",
+                context_action: {type: "dropdown", items: [
+                    {id: "logs", icon: "yi-list", action: {type: "event", event: "EV_LOGS"}}
+                ]}},
+            {id: "tools", icon: "yi-gear", name: "tools key", action: {type: "event", event: "EV_TOOLS"},
+                context_action: {type: "dropdown", items: [
+                    {id: "about", name: "about", action: {type: "event", event: "EV_ABOUT"}}
+                ]}}
+        ]);
+        const right_click = ($el) => $el.dispatchEvent({type: "contextmenu", preventDefault() {}});
+        /*  Up to 7.26.42 it was named by the raw id: the right-click handed
+         *  the shell `{id, action}`, which dropped the trigger's names  */
+        right_click(item_of(shell, "conn"));
+        let $panel = document.querySelector('[data-toolbar-dropdown-for="conn"]');
+        expect($panel.getAttribute("aria-label")).toBe("server link");
+        expect($panel.getAttribute("data-i18n-aria-label")).toBe("server link");
+        expect_named($panel.querySelector('[data-dropdown-item-id="logs"]'), "logs");
+        right_click(item_of(shell, "conn"));
+        right_click(item_of(shell, "tools"));
+        $panel = document.querySelector('[data-toolbar-dropdown-for="tools"]');
+        expect($panel.getAttribute("aria-label")).toBe("tools key");
+        right_click(item_of(shell, "tools"));
         expect(errors()).toEqual([]);
     });
 

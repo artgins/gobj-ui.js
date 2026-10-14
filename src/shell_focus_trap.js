@@ -16,6 +16,14 @@
  *          - restores focus to whatever element had it before
  *            activation when release() runs.
  *
+ *      Only a control that is DRAWN counts: focus() on one that is
+ *      not (display:none) does nothing. The adaptive dialog's back
+ *      arrow is the first control of every dialog and is hidden on a
+ *      laptop: up to 7.26.42 the trap gave it the focus on activation
+ *      (so the focus stayed outside the dialog), and every Tab after
+ *      that wrapped to it, did nothing and was prevented -- the
+ *      keyboard never got into the dialog.
+ *
  *      Pure module — no gobj / Yuneta dependencies.  The optional
  *      second argument lets callers inject a mock document object
  *      for unit tests.
@@ -41,6 +49,26 @@ export const FOCUSABLE_SELECTOR =
  *  middle elements unreachable.  We keep one stack and only run the
  *  topmost trap; the rest short-circuit. */
 const __trap_stack__ = [];
+
+
+/*  Whether `el` is drawn, so focus() on it can take. An element that
+ *  cannot say (a stub with no getClientRects) is taken as drawn.  */
+function is_drawn(el)
+{
+    if(typeof el.checkVisibility === "function") {
+        return el.checkVisibility();
+    }
+    if(typeof el.getClientRects === "function") {
+        return el.getClientRects().length > 0;
+    }
+    return true;
+}
+
+/*  The controls of $panel that can take the focus, in order.  */
+function focusables_of($panel)
+{
+    return Array.from($panel.querySelectorAll(FOCUSABLE_SELECTOR)).filter(is_drawn);
+}
 
 
 /***************************************************************
@@ -75,7 +103,7 @@ export function activate_focus_trap_on($panel, doc)
         if(__trap_stack__[__trap_stack__.length - 1] !== trap) {
             return;
         }
-        let nodes = $panel.querySelectorAll(FOCUSABLE_SELECTOR);
+        let nodes = focusables_of($panel);
         if(nodes.length === 0) {
             return;
         }
@@ -99,7 +127,7 @@ export function activate_focus_trap_on($panel, doc)
     __trap_stack__.push(trap);
 
     /*  Move focus to the first focusable child of the panel. */
-    let firstFocusable = $panel.querySelector(FOCUSABLE_SELECTOR);
+    let firstFocusable = focusables_of($panel)[0];
     if(firstFocusable && typeof firstFocusable.focus === "function") {
         firstFocusable.focus();
     }

@@ -40,7 +40,9 @@
  *      Not reached, because the editor gives them no hook: its search
  *      box, its repair messages, the tip at the foot of the context
  *      menu, and its modals (sort, transform). They stay in its
- *      English.
+ *      English. vanilla-jsoneditor (3.13.0) has no i18n option: they
+ *      are literals inside its Svelte components, and the only way to
+ *      them would be rewriting its DOM by its English words.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

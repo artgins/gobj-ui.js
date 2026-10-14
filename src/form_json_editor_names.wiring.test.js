@@ -26,9 +26,12 @@ install_dom_double();
 
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 
@@ -279,7 +282,8 @@ vi.mock("vanilla-jsoneditor", () => ({
             set(content) {
                 this.content = content;
             },
-            destroy() {},
+            destroy() {
+            },
         };
         ed.draw();
         editors.push(ed);

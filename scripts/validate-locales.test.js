@@ -91,8 +91,8 @@ describe("validate-locales", () => {
             `x = {i18n: "i18n key"};`,
             `x = {"data-i18n-placeholder": "placeholder key"};`,
             "x = `<b data-i18n-title=\"${k}\">`;",  // interpolated: not
-            `add("error", "finding key", a);`,
-            `x = {code: "code key"};`,
+            `add("error", "finding key", a);`,      // an app's add(): no schema check (below)
+            `x = {code: "code key"};`,              // an app's code: no key (below)
             `x = {app_title: "app title key", welcome_features: ["feat a", "feat b"]};`,
             `el.setAttribute('data-i18n-title', 'attribute key');`,
             `t("don't stop");`,                     // an apostrophe inside double quotes
@@ -101,14 +101,32 @@ describe("validate-locales", () => {
             `/* t("in a comment") */`
         ].join("\n")});
         expect(r.status).toBe(1);
-        for(let k of ["label", "tr key", "i18n key", "placeholder key", "finding key", "code key",
+        for(let k of ["label", "tr key", "i18n key", "placeholder key",
                       "attribute key", "don't stop", "template key"]) {
             expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
         }
         /*  The orchestrator's attributes are not known without the app's package.json  */
-        for(let k of ["kind_", "${k}", "in a comment", "app title key", "feat a", "don"]) {
+        for(let k of ["kind_", "${k}", "in a comment", "app title key", "feat a", "don", "finding key", "code key"]) {
             expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
         }
+    });
+
+    test("a `code` is a key only where the library makes one: an app's codes and add() calls ask for nothing", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `const LANGS = [{code: "en", name: "English"}, {code: "es", name: "Spanish"}];`,
+            `$el.classList.add("error", "has-text-danger");`,
+            `let saved = {code: t("a saved key")};`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        expect(r.out).toContain(`defined in NO locale: "a saved key"`);
+        for(let k of ["en", "es", "has-text-danger"]) {
+            expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        expect(r.out).not.toMatch(/TRANSLATED/);
+        /*  ...and declared in the app's package.json, its `code` is a key again  */
+        let d = run({...BOTH({}), "package.json": JSON.stringify({"validate-locales": {attr_keys: ["code"]}}),
+            "src/main.js": `const LANGS = [{code: "a declared code key"}];`});
+        expect(d.out).toContain(`defined in NO locale: "a declared code key"`);
     });
 
     test("what is particular to an app is declared in its package.json, not in the script", () => {
@@ -751,6 +769,69 @@ describe("validate-locales", () => {
         }
     });
 
+    test("a const is read once: a chain of them that triples at every link is read fast, and its keys asked", () => {
+        let chain = (n, first, link, read) => {
+            let lines = [first];
+            for(let i = 1; i <= n; i++) {
+                lines.push(link(i));
+            }
+            lines.push(read(n));
+            return lines.join("\n");
+        };
+        let objects = chain(11, `const O0 = {title: "an object chain key"};`,
+            (i) => `const O${i} = c()? O${i - 1} : {...O${i - 1}, ...O${i - 1}, ...O${i - 1}};`,
+            (n) => `t(O${n}.title);`);
+        let arrays = chain(11, `const A0 = ["an array chain key"];`,
+            (i) => `const A${i} = c()? A${i - 1} : [...A${i - 1}, ...A${i - 1}, ...A${i - 1}];`,
+            (n) => `t(A${n}[0]);`);
+        for(let main of [objects, arrays]) {
+            let t0 = Date.now();
+            let r = run({...BOTH({}), "src/main.js": main});
+            expect(Date.now() - t0).toBeLessThan(5000);
+            expect(r.status).toBe(1);
+            expect(r.out).toMatch(/defined in NO locale: "an (object|array) chain key"/);
+            expect(r.out).not.toMatch(/RangeError|gave up/);
+        }
+    });
+
+    test("where the reader gives up on a value it FAILS, with the file and the line: a key behind it is never skipped in silence", () => {
+        let chain = (n, first, link, read) => {
+            let lines = [first];
+            for(let i = 1; i <= n; i++) {
+                lines.push(link(i));
+            }
+            lines.push(read(n));
+            return lines.join("\n");
+        };
+        let cases = [
+            /*  doubles at every link: up to 7.26.42 a RangeError naming no file  */
+            [chain(12, `const O0 = {title: "a doubled key"};`,
+                (i) => `const O${i} = c()? O${i - 1} : {...O${i - 1}, ...O${i - 1}};`, (n) => `t(O${n}.title);`),
+             "src/main.js:2: the reader gave up on `O0`, and a key behind it would go unasked: it is more than " +
+             "24 steps deep (a chain of consts, aliases or calls that long): shorten the chain"],
+            /*  up to 7.26.42 it asked for nothing, and passed  */
+            [chain(24, `const K0 = "an alias key";`, (i) => `const K${i} = K${i - 1};`, (n) => `t(K${n});`),
+             "src/main.js:1: the reader gave up on `\"an alias key\"`"],
+            /*  up to 7.26.42 it asked for every key but the last one, and passed without it  */
+            [chain(12, `const K0 = "a far key";`, (i) => `const K${i} = c()? K${i - 1} : "a near key ${i}";`,
+                (n) => `t(K${n});`),
+             "src/main.js:1: the reader gave up on `\"a far key\"`"],
+            [`const a = c()? a : "a looping key";\nt(a);`,
+             "src/main.js:1: the reader gave up on `c()? a : \"a looping key\"`, and a key behind it would go " +
+             "unasked: it is a const that leads back to itself: break the cycle"],
+            /*  an alias of t that far is no translator any more: up to 7.26.42 its key went unasked  */
+            [chain(24, `const T0 = t;`, (i) => `const T${i} = T${i - 1};`,
+                (n) => `T${n}("a key handed to a far alias of t");`),
+             "src/main.js:1: the reader gave up on `t`"]
+        ];
+        for(let [main, said] of cases) {
+            let r = run({...BOTH({}), "src/main.js": main});
+            expect(r.status).toBe(1);
+            expect(r.out).toContain(said);
+            expect(r.out).not.toMatch(/RangeError/);
+        }
+    });
+
     test("REV-CLOUD V22.3: an import is followed into the module it names -- the data marker on it too", () => {
         let r = run({...BOTH({"accepted": "x", "an imported const": "x", "renamed": "x"}),
             "src/labels.js": [
@@ -1189,15 +1270,70 @@ describe("validate-locales", () => {
         ].join("\n")});
         expect(r.status).toBe(1);
         for(let k of ["a findindex key", "a findlastindex key", "a call key", "an apply key", "a from async key",
-                      "a callback's key", "a bound function key"]) {
+                      "a callback's key", "a bound function key", "a bound key"]) {     // read where it is bound
             expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
         }
         expect(r.out).not.toMatch(/not a key/);
-        expect(r.out).not.toContain(`"a bound key"`);                       // the bound key: a documented limit
         expect(r.out).toContain("src/main.js:15: .map.call(..., t) hands t() each element it walks as a key, and " +
             "the reader cannot follow rows: walk a const array (or a published list), or mark the call");
         expect(r.out).toContain("src/main.js:16: yui_shell_show_info() [1] is given kw.message, which the reader " +
             "cannot follow");
+    });
+
+    test("the arguments a `.bind()` binds to a key function, or to t(), are read at their positions", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `import {yui_shell_show_info, yui_shell_confirm_ok} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `const say = yui_shell_show_info.bind(null, shell, "a bound message key");`,
+            `say();`,
+            `const ask = yui_shell_confirm_ok.bind(null, shell, "a bound question key", {title: "a bound title key"});`,
+            `const later = yui_shell_show_info.bind(null, shell).bind(null, "a twice bound key");`,
+            `const tk = t.bind(null, "a key bound to t");`,
+            `const tn = t.bind(i18next);`,
+            `function relay(msg) {`,
+            `    return yui_shell_show_info.bind(null, shell, msg);`,            // 9: fails, as unbound
+            `}`,
+            `function relay_marked(msg) {`,
+            `    return yui_shell_show_info.bind(null, shell, /* i18n: data */ msg);`,
+            `}`,
+            `const many = yui_shell_show_info.bind(null, ...ARGS);`              // 14: fails
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        for(let k of ["a bound message key", "a bound question key", "a bound title key", "a twice bound key",
+                      "a key bound to t"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        expect(r.out).toContain("src/main.js:9: yui_shell_show_info() [1] is given msg, which the reader cannot follow");
+        expect(r.out).toContain("src/main.js:14: yui_shell_show_info() [1] is given ...ARGS, which the reader cannot follow");
+        expect(r.out).not.toMatch(/main\.js:(2|3|4|5|6|7|12):/);
+    });
+
+    test("a card is named `name || aria_label || id`: its id is a key only for a card with neither", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `import {card_descriptor, cards_grid_descriptor} from "@yuneta/gobj-ui/src/nav_cards_helpers.js";`,
+            `card_descriptor({id: "a named card id", name: "a card name key"});`,
+            `card_descriptor({id: "an aria card id", aria_label: "a card aria key"});`,
+            `card_descriptor({id: "a bare card id"});`,
+            `card_descriptor({id: row.id, name: "an ok key"});`,                 // no violation: it has a name
+            `card_descriptor({id: "a maybe named card id", name: row.name});`,   // 6: the name may be empty
+            `cards_grid_descriptor([{id: "a named grid id", name: "a grid name key"}, {id: "a bare grid id"},`,
+            `                       {id: "an empty named grid id", name: ""}]);`,
+            `const CARD = {id: "a const card id", name: "a const card name key"};`,
+            `card_descriptor(CARD);`,
+            `card_descriptor({...CARD, id: "a spread card id"});`,
+            `card_descriptor(c() ? {id: "a branch card id", name: "a branch name key"} : {id: "a bare branch id"});`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        for(let k of ["a card name key", "a card aria key", "a bare card id", "an ok key", "a maybe named card id",
+                      "a grid name key", "a bare grid id", "an empty named grid id", "a const card name key",
+                      "a branch name key", "a bare branch id"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        for(let k of ["a named card id", "an aria card id", "a named grid id", "a const card id", "a spread card id",
+                      "a branch card id"]) {
+            expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        expect(r.out).toContain("src/main.js:6: card_descriptor() [0.name] is given row.name, which the reader cannot follow");
+        expect(r.out).not.toMatch(/main\.js:5:/);
     });
 
     test("a menu item with no `name` is named by its key: the `id` the library falls back to is asked for", () => {
@@ -1217,8 +1353,9 @@ describe("validate-locales", () => {
                             {id: "a nameless sub", route: "/s/x"},
                             {id: "an aria sub", aria_label: "an aria sub key", route: "/s/y"}
                         ]}},
-                        {id: "an indexed aria item", aria_label: "an indexed aria key", route: "/t",
+                        {id: "an indexed aria item", aria_label: "an indexed aria key", route: "/t",     // its landing:
                          submenu: {index: true, items: [{id: "a named sub", name: "a sub name key", route: "/t/x"}]}},
+                                                                                // name || aria_label || id
                         {id: "a targeted section", aria_label: "a targeted aria key", route: "/u", target: {},
                          submenu: {index: true, items: []}},
                         {id: "a crumbs section", name: "a crumbs section key", route: "/v", submenu: {
@@ -1246,14 +1383,39 @@ describe("validate-locales", () => {
         };
         let r = run({...BOTH({}), "src/main.js": ``, "src/app_config.json": JSON.stringify(config)});
         expect(r.status).toBe(1);
-        for(let k of ["a nameless item", "a section", "a nameless sub", "an indexed aria item", "a crumb", "a sub crumb",
+        for(let k of ["a nameless item", "a section", "a nameless sub", "a crumb", "a sub crumb",
                       "a nameless dropdown row", "an aria key", "a name key", "an aria sub key", "a crumb aria key",
-                      "a quiet aria key", "an aria dropdown row key"]) {
+                      "a quiet aria key", "an aria dropdown row key", "an indexed aria key"]) {
             expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
         }
         for(let k of ["an aria item", "a named item", "a header id", "a divider id", "an aria sub", "a named sub",
                       "a targeted section", "a quiet crumb", "a crumbs section", "a dropdown entry",
-                      "an aria dropdown row", "a shadowed row"]) {
+                      "an aria dropdown row", "a shadowed row", "an indexed aria item"]) {
+            expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+    });
+
+    test("a menu drawn as a `submenu` is headed by its id, a key: the id is asked for", () => {
+        let config = {
+            shell: {zones: {left: {host: "menu.a side menu"}, top: {host: "menu.a star menu"},
+                            bottom: {host: "menu.a vertical menu"}}},
+            menu: {
+                "a side menu": {render: {left: "submenu"}, items: [{id: "a", name: "an a key", route: "/a"}]},
+                "a star menu": {render: {"*": {layout: "submenu"}}, items: [{id: "b", name: "a b key", route: "/b"}]},
+                "a vertical menu": {render: {bottom: "vertical"}, items: [{id: "c", name: "a c key", route: "/c"}]},
+                "an unhosted menu": {render: {left: "submenu"}, items: [{id: "d", name: "a d key", route: "/d"}]},
+                "a menu with a submenu": {render: {left: "vertical"}, items: [
+                    {id: "e", name: "an e key", route: "/e", submenu: {render: {left: "submenu"},     // headed by
+                        items: [{id: "e1", name: "an e1 key", route: "/e/1"}]}}                         // its entry
+                ]}
+            }
+        };
+        let r = run({...BOTH({}), "src/main.js": ``, "src/app_config.json": JSON.stringify(config)});
+        expect(r.status).toBe(1);
+        for(let k of ["a side menu", "a star menu", "an a key", "a b key", "an e key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        for(let k of ["a vertical menu", "an unhosted menu", "a menu with a submenu", "e"]) {
             expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
         }
     });
@@ -1296,6 +1458,33 @@ describe("validate-locales", () => {
         for(let k of ["an aria action", "a named action", "a named entry", "a divider entry", "a parent entry",
                       "a brand", "Brand", "a brand entry with no action", "an avatar", "an avatar-typed entry",
                       "a connection"]) {
+            expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+    });
+
+    test("the menu a right-click opens (`context_action`) is read like the one a click opens", () => {
+        let config = {
+            toolbar: {items: [
+                {id: "a nameless dot", type: "connection", context_action: {type: "dropdown", items: [
+                    {id: "a nameless context entry", action: {type: "event", event: "EV_X"}},
+                    {id: "an undrawn context entry"}                                     // no action
+                ]}},
+                {id: "a named action", aria_label: "a named action key", action: {type: "event", event: "EV_Y"},
+                 context_action: {type: "dropdown", items: [
+                     {id: "a named context entry", name: "a context entry key", action: {type: "event", event: "EV_Z"}}
+                 ]}},
+                {id: "an avatar", type: "avatar", context_action: {type: "dropdown", items: [  // not wired:
+                    {id: "an avatar context entry", action: {type: "event", event: "EV_W"}}  // drawn by nothing
+                ]}}
+            ]}
+        };
+        let r = run({...BOTH({}), "src/main.js": ``, "src/app_config.json": JSON.stringify(config)});
+        expect(r.status).toBe(1);
+        for(let k of ["a nameless dot", "a nameless context entry", "a named action key", "a context entry key"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        for(let k of ["an undrawn context entry", "a named action", "a named context entry", "an avatar",
+                      "an avatar context entry"]) {
             expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
         }
     });

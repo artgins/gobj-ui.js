@@ -971,7 +971,8 @@ function render_path(gobj, $where)
             "C_YUI_NAV",
             {
                 menu_id:      `node.path.${route_of(gobj)}`,
-                nav_label:    gobj_read_attr(gobj, "label") || "",
+                /*  As its other navs: a "submenu" heads the nav with it, as a key  */
+                nav_label:    gobj_read_attr(gobj, "label") || gobj_read_attr(gobj, "node_id"),
                 menu_items:   items,
                 layout:       render.layout,
                 icon_pos:     render.icon_pos || "left",

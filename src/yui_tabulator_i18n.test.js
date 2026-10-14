@@ -10,6 +10,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {describe, it, expect} from "vitest";
+import {set_log_callback} from "@yuneta/gobj-js";
 
 import {
     yui_tabulator_name_filters,
@@ -162,5 +163,50 @@ describe("yui_tabulator_relocalize", () => {
         const tb = table();
         yui_tabulator_relocalize(tb, t);
         expect(tb.installed[tb.locale].columns).toBe(undefined);
+    });
+
+    /*  A column double, a group when it has `columns`.  */
+    function col(def, subs)
+    {
+        return {
+            getDefinition: () => def,
+            getSubColumns: () => subs || [],
+        };
+    }
+
+    /*  Tabulator binds a title to the locale by `field`, and a GROUP has
+     *  none: its title stayed in the language the table was built in,
+     *  and nothing said so. A group given a `field` is bound like any
+     *  other column (checked on Tabulator 6.6 in a browser).  */
+    it("a column group with no field is said; one with a field is a title like any other", () => {
+        const warned = [];
+        set_log_callback((level, msg) => {
+            if(String(level) === "warning") {
+                warned.push(String(msg));
+            }
+        });
+        try {
+            const a = col({field: "a", title: "A"});
+            const b = col({field: "b", title: "B"});
+            const tb = table();
+            tb.getColumns = (structured) => structured ?
+                [col({field: "x", title: "X"}), col({title: "Sizes", columns: [{}, {}]}, [a, b])] : [];
+            yui_tabulator_relocalize(tb, t, {x: "Equis", a: "A es", b: "B es"});
+            expect(warned.filter((m) => m.includes("'Sizes'") && m.includes("no field")).length).toBe(1);
+
+            warned.length = 0;
+            const named = table();
+            named.getColumns = (structured) => structured ?
+                [col({title: "Sizes", field: "sizes", columns: [{}, {}]}, [a, b])] : [];
+            yui_tabulator_relocalize(named, t, {sizes: "Tallas", a: "A es", b: "B es"});
+            expect(warned).toEqual([]);
+            expect(named.installed[named.locale].columns.sizes).toBe("Tallas");
+
+            /*  Without titles nothing is asked of the columns.  */
+            yui_tabulator_relocalize(tb, t);
+            expect(warned).toEqual([]);
+        } finally {
+            set_log_callback(null);
+        }
     });
 });

@@ -46,7 +46,9 @@ function make_doc(initial_active, body_contains = true)
     let listeners = [];
     return {
         activeElement: initial_active,
-        addEventListener(_t, fn, _opts) { listeners.push(fn); },
+        addEventListener(_t, fn, _opts) {
+            listeners.push(fn);
+        },
         removeEventListener(_t, fn, _opts) {
             let i = listeners.indexOf(fn);
             if(i >= 0) {
@@ -105,7 +107,9 @@ test("Tab from the last focusable wraps to the first", () => {
     let ev = {
         key: "Tab",
         shiftKey: false,
-        preventDefault() { prevented = true; }
+        preventDefault() {
+            prevented = true;
+        }
     };
     doc.listeners[0](ev);
 
@@ -129,7 +133,9 @@ test("Shift+Tab from the first focusable wraps to the last", () => {
     let ev = {
         key: "Tab",
         shiftKey: true,
-        preventDefault() { prevented = true; }
+        preventDefault() {
+            prevented = true;
+        }
     };
     doc.listeners[0](ev);
 
@@ -149,7 +155,9 @@ test("non-Tab keys are ignored by the trap", () => {
     let ev = {
         key: "Escape",
         shiftKey: false,
-        preventDefault() { prevented = true; }
+        preventDefault() {
+            prevented = true;
+        }
     };
     doc.listeners[0](ev);
 
@@ -173,7 +181,9 @@ test("focus jumps into the panel when activeElement is outside", () => {
     let ev = {
         key: "Tab",
         shiftKey: false,
-        preventDefault() { prevented = true; }
+        preventDefault() {
+            prevented = true;
+        }
     };
     doc.listeners[0](ev);
 
@@ -291,9 +301,83 @@ test("an empty panel installs the listener but does nothing on Tab", () => {
     let ev = {
         key: "Tab",
         shiftKey: false,
-        preventDefault() { prevented = true; }
+        preventDefault() {
+            prevented = true;
+        }
     };
     doc.listeners[0](ev);
     /*  No focusables → trap stays out of the way. */
     expect(prevented).toBe(false);
+});
+
+
+/***************************************************************
+ *  A control that is not DRAWN cannot take the focus: focus() on
+ *  it does nothing. The adaptive dialog's back arrow is the first
+ *  control of every dialog and is display:none on a laptop (its
+ *  ✕ is, on a phone): the trap gave it the focus on activation,
+ *  so the focus stayed outside the dialog; and every Tab after
+ *  that "wrapped" to it, did nothing and was prevented, so the
+ *  keyboard never got into the dialog at all.
+ ***************************************************************/
+function drawn(name)
+{
+    return make_focusable(name, {getClientRects: () => [{width: 10, height: 10}]});
+}
+
+function not_drawn(name)
+{
+    return make_focusable(name, {getClientRects: () => []});
+}
+
+test("activation gives the focus to the first DRAWN control", () => {
+    let back  = not_drawn("back");
+    let close = drawn("close");
+    let panel = make_panel([back, close]);
+    let doc   = make_doc(null);
+
+    let release = activate_focus_trap_on(panel, doc);
+
+    expect(back.focus_calls).toEqual([]);
+    expect(close.focus_calls).toEqual(["close.focus"]);
+    release();
+});
+
+test("Tab and Shift+Tab wrap to the first and last DRAWN controls", () => {
+    let back  = not_drawn("back");
+    let a     = drawn("a");
+    let b     = drawn("b");
+    let x     = not_drawn("x");
+    let panel = make_panel([back, a, b, x]);
+    let doc   = make_doc(null);
+
+    let release = activate_focus_trap_on(panel, doc);
+    a.focus_calls.length = 0;
+
+    doc.activeElement = b;
+    let prevented = false;
+    doc.listeners[0]({
+        key: "Tab",
+        shiftKey: false,
+        preventDefault() {
+            prevented = true;
+        }
+    });
+    expect(prevented).toBe(true);
+    expect(a.focus_calls).toEqual(["a.focus"]);
+    expect(back.focus_calls).toEqual([]);
+
+    doc.activeElement = a;
+    prevented = false;
+    doc.listeners[0]({
+        key: "Tab",
+        shiftKey: true,
+        preventDefault() {
+            prevented = true;
+        }
+    });
+    expect(prevented).toBe(true);
+    expect(b.focus_calls).toEqual(["b.focus"]);
+    expect(x.focus_calls).toEqual([]);
+    release();
 });

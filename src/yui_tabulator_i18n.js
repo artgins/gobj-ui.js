@@ -20,6 +20,10 @@
  *
  *          yui_tabulator_relocalize(table, t, {device_id: t("device id")});
  *
+ *      A column GROUP is bound by field too, and Tabulator gives it none:
+ *      give it one (`{title, field: "sizes", columns: [...]}`, no row reads
+ *      it) and its title goes in the same object. One without is said.
+ *
  *      Every key carries an English `defaultValue`, so an app that does not
  *      define it renders exactly what Tabulator rendered before — the
  *      keys are an OPPORTUNITY to translate, never a requirement.
@@ -243,6 +247,29 @@ function yui_tabulator_name_editor(column_def, name_of)
 }
 
 /***************************************************************
+ *  A column GROUP whose title cannot change language, said.
+ *
+ *  Tabulator binds a column's title to the locale by its `field`, and
+ *  a group has none: its title stays in the language the table was
+ *  built in. Given a `field` (no row reads a group's), a group is
+ *  bound like any other column, and its title goes in `titles`.
+ ***************************************************************/
+function say_groups_without_field(columns)
+{
+    for(let column of columns || []) {
+        let def = column.getDefinition() || {};
+        if(!Array.isArray(def.columns)) {
+            continue;
+        }
+        if(!def.field) {
+            log_warning(`yui_tabulator_relocalize: column group '${def.title}' has no field: ` +
+                        `its title stays in the language it was built in`);
+        }
+        say_groups_without_field(column.getSubColumns());
+    }
+}
+
+/***************************************************************
  *  yui_tabulator_relocalize() -- see "Put an EXISTING table in the
  *  current language" above.
  *
@@ -251,7 +278,9 @@ function yui_tabulator_name_editor(column_def, name_of)
  *  (`columns`), where Tabulator binds each column's title: setLocale()
  *  draws them again without rebuilding a column -- updateDefinition()
  *  re-renders every row, and a row whose formatter builds something (a
- *  nested table) builds it anew. A field left out keeps its title.
+ *  nested table) builds it anew. A field left out keeps its title. A
+ *  column GROUP is bound only if it has a `field` of its own: one
+ *  without is said (say_groups_without_field).
  ***************************************************************/
 function yui_tabulator_relocalize(table, t, titles)
 {
@@ -263,6 +292,7 @@ function yui_tabulator_relocalize(table, t, titles)
         let strings = tabulator_strings(t);
         if(titles && typeof titles === "object") {
             strings.columns = Object.assign({}, titles);
+            say_groups_without_field(table.getColumns(true));
         }
 
         /*  Tabulator DEEP-CLONES options.langs into its localize module when

@@ -5,6 +5,189 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.43
+
+- **fix(`C_YUI_FORM`): Undo gives the tables back the values the form was
+  loaded with, and the record stays as loaded.** Tabulator keeps the objects
+  it is given (`Row.setData()` copies nothing) and writes a cell edit into
+  them. The form handed it the objects of its `record`, so an edit wrote into
+  the record -- and into the host's own object -- and `ac_undo_record()`
+  loaded that record again and cleared `changes` and `edited`: the tables kept
+  the edit, the close did not ask, and a later save sent what the reader
+  believed undone (estadodelaire's device settings: alarms and their
+  triggers). Each table now gets its own copy of the rows, and what a save
+  publishes is a copy too (`table_values()`): it was the table's own row
+  objects, so an edit after the save wrote into what the host had been given.
+  Checked with Tabulator 6.6.0 in Chromium. Test
+  `form_table_rows.wiring.test.js` (red on 7.26.42).
+- **fix(`C_YUI_FORM`): two loads before a table is built draw its rows once.**
+  Each load hung its own `tableBuilt` listener and `clear_data()` skipped a
+  table not built yet: a form started with a `record` and sent
+  `EV_LOAD_RECORD` in the same turn drew `hot, wet, hot, wet`, and a Clear
+  before the build was undone by the build. One load waits per table now; a
+  later load replaces it and a clear drops it.
+- **fix(`C_YUI_FORM`): a row's nested tables live as long as the row.** Nothing
+  destroyed them: a reload, an Undo, a Clear, a deleted row and the form's own
+  destroy left them in Tabulator's registry with their observers (five reloads
+  of two rows: 3 -> 13 tables, 12 of them outliving the form). And a row drawn
+  again (`redraw(true)`, a column rebuilt) built its nested tables anew, EMPTY,
+  so a save then sent every nested table as `[]`. A row builds its nested
+  tables once, from its own data, and puts them back when it is drawn again;
+  reload, Undo, Clear, `rowDeleted` and the destroy destroy them. With three
+  levels, `get_form_values` no longer puts the grandchildren in the outer row.
+- **perf(`C_YUI_FORM`): a table loads its rows in one call and is redrawn
+  once.** A row at a time (`addRow()`, a re-render plus a `dataChanged` that
+  copied the whole table, and a redraw 30 ms later) was quadratic. Chromium,
+  Tabulator 6.6.0: 150 flat rows 5.2 s -> 0.11 s, 300 flat 20.6 s -> 0.14 s,
+  300 with a nested table each 38.9 s -> 3.0 s. The form's own load is a new
+  internal event, `EV_LOAD_TABLE_ROWS {table_id, rows}`; `EV_ADD_TABLE_ROW` is
+  only the reader's new row now and lost its `loading` key. Both are internal:
+  no host sends them.
+- **fix(`C_YUI_WINDOW`): `focus`, `modal` and `keyboard` are implemented;
+  they were declared and inert up to 7.26.42** (a window took no focus, did not
+  close with Escape, kept nothing in and had no role). A window is
+  `role="dialog"`, named by its title (`aria-labelledby` on the `title_prefix`
+  / `title` halves, so the name changes language; an `is-sr-only` title under
+  a caller's `header`). When it starts in answer to the reader (a press, a
+  key: the browser's user activation) it takes the focus (`focus`: an element,
+  a selector, the n-th control of the body; by default the window itself,
+  `tabindex="-1"`) and gives it back to the opener when it goes, if the focus
+  was in it; a window the app opens on its own (a Developer window restored at
+  start up, a push of the backend) leaves the focus in the page, and a modal
+  one always takes it. Escape closes it the way its ✕ does (`EV_CLOSE_WINDOW`,
+  so `EV_WINDOW_TO_CLOSE` still vetoes or asks) unless what it was typed in
+  took it (new `escape_is_taken()`, `src/escape_taken.js`: a handler that
+  called `preventDefault`, an IME composition, an element that left the
+  document with the key, a search box holding text, a `textarea`, a
+  `contenteditable`). `modal: true` hangs it over a backdrop in the shell's
+  dialog layer (new `yui_shell_modal_layer()`), `aria-modal`, Tab kept inside,
+  never in the dock (`manager` ignored, with a warning). No API break, but a
+  visible change: Escape now closes a focused window (`keyboard: false` keeps
+  the old behaviour). Tests `window_dialog.wiring.test.js` (red on 7.26.42).
+- **fix(`C_YUI_WINDOW_MANAGER`, `C_YUI_WINDOW`): the floating dock covered a
+  full-screen window** -- the foot of a phone sheet or of a maximized window
+  at a bottom corner, the ✕ and minimize at a top corner (every `responsive`
+  dock with no `inline_selector` floats on a phone). The dock publishes its
+  band (`--yui-dock-inset-top` / `--yui-dock-inset-bottom` on the root
+  element) and a full-screen window leaves it free: a maximized window is that
+  band shorter while a floating dock shows. A window minimized with the focus
+  in it gives the focus to its dock chip, and one brought back from its chip
+  takes it (it dropped to `<body>`). A window destroyed after its dock no
+  longer logs *"gobj dst DESTROYED"*. Test `window_dock_band.wiring.test.js`.
+- **fix(`C_YUI_SHELL`, `shell_modals`): the shell's dialogs and questions had
+  no name for a reader** (`role="dialog"` with no `aria-labelledby`: a reader
+  said "dialog" and nothing else). A modal is named by the halves of its title
+  (an `is-sr-only` title when it has no dialog chrome), or by its message; a
+  question is named by its title and described by its message, or named by
+  its message. A modal with neither logs a warning (no caller has one). The
+  separator dot of a title, and of a dock chip's name, is decorative
+  (`content: "·" / ""`): a reader read "#1 ·demo window". Test
+  `shell_dialog_names.wiring.test.js`.
+- **fix(`C_YUI_SHELL`): the shell's Escape closed the dialog on top for ANY
+  Escape** -- one typed in a Tabulator cell being edited cancelled the edit
+  and closed the dialog with it. It leaves what `escape_is_taken()` says was
+  taken (above). Visible change: Escape in a `textarea` of a dialog no longer
+  closes it. Test `shell_escape_taken.wiring.test.js`.
+- **fix(`shell_focus_trap`): the focus trap gave the focus to controls that
+  are not drawn.** The adaptive dialog's back arrow (`display:none` on a
+  laptop) is the first control of every dialog, so the focus never entered it
+  and every Tab was swallowed: no dialog could be reached from the keyboard.
+  Only drawn controls count now.
+- **fix(`C_YUI_SHELL`): the menu a right-click opens is named as its
+  trigger.** `attach_context_action` handed the shell `{id, action}`, which
+  dropped the item's `aria_label` and `name`, so a `context_action` dropdown
+  was named by the raw id. It hands the whole item with the secondary action
+  in its place. `SHELL.md` said `context_action` works on "any item kind"; it
+  says what the code does now (an action item and the connection).
+- **fix(`C_YUI_NODE`): the path a node draws is named `label || node_id`,
+  like its other navs.** With no `label`, a path drawn as a `"submenu"` was
+  headed by its menu id (`node.path./tree`), a key no locale can hold, and its
+  `aria-label` was "navigation".
+- **fix(`yui_shell_show_modal`): an `async` `before_close` that ends in
+  `return;` and asked nothing is said in the log.** It settles with
+  `undefined`, which is a veto (a `.then()` that returns nothing on "no" is
+  the documented idiom, and it stays one), so the modal did not close and
+  nothing said why. When the guard opened nothing through the shell, the shell
+  logs *"before_close settled with undefined and asked nothing"*; a guard that
+  asked logs nothing.
+- **fix(`yui_tabulator_relocalize`): a column group without a `field` is
+  said.** Tabulator binds a title to the locale by `field`, and a group has
+  none, so its title stayed in the build language with no word. Given
+  `titles`, a group without a `field` is logged; a group given a `field` (no
+  row reads it) is relocalized like any column. The README says how.
+- **fix(`validate-locales`): the landing of a section index is named like its
+  entry, and a menu drawn as a `submenu` is headed by its id.** The landing is
+  labelled `name || aria_label || id` (`shell_section_index.js`), but 7.26.42
+  asked for the id of every entry with no `name`, so `{"id": "m_index_aria",
+  "aria_label": "index aria", "submenu": {"index": true, ...}}` asked for a key
+  nothing draws (the 7.26.42 note that both are labelled `name || id` was
+  wrong about the section index). A menu a zone draws as a `"submenu"` is
+  headed by its id (`render_submenu`: `nav_label || menu_id`): that id is
+  asked for now. The menu a right-click opens (`context_action`) is read like
+  the one a click opens.
+- **fix(`validate-locales`): what a `.bind()` binds is read where the bind is
+  written.** `yui_shell_show_info.bind(null, shell, "k")` asks for "k" and is
+  held to the per-call rule at the positions it binds; a parameter bound there
+  failed nothing, though the same call without the bind fails. The forwarder
+  search finds a function that hands its parameter on that way (before, the
+  complete-table test passed with one in the library). `t.bind(null, "k")`
+  asks for "k" too, where 7.26.42 listed it as invisible.
+- **fix(`I18N_KEY_FUNCTIONS`, `validate-locales`): an item's id is a key only
+  for an item with no name.** A table entry may declare positions as the
+  `fallbacks` of another: `card_descriptor` / `cards_grid_descriptor`, the
+  item renderers of `c_yui_nav.js` and the toolbar entries of the shell
+  declare the id behind the name and the aria label (the brand behind its
+  `aria_label`). `card_descriptor({id: "card_internal_id", name: "save"})`
+  asked for "card_internal_id", and `{id: row.id, name: "ok"}` failed the
+  per-call rule. The table test proves every `fallbacks` against the code, and
+  credits a key function's `fallbacks` to a hand-off only when the names
+  arrive with the id (`{...it}`, not `{id: it.id}`).
+- **fix(`validate-locales`): a const is read once, and where the reader gives
+  up, the build fails.** A chain of consts that doubles at every link (`const
+  O1 = c()? O0 : {...O0, ...O0}`) was read again at every read: three times
+  slower per link, and at twelve links a `RangeError` that named no file. A
+  const's value, and the properties and elements of a literal reached from a
+  declaration, are read once now. And the reader stopped in SILENCE at 24
+  steps: a chain of 24 aliases, or of 12 consts that branch, asked for nothing
+  at its far end and the build passed. Every place the reader gives up (a
+  chain too deep, a const that leads back to itself, more than 10000 values)
+  now fails with the file and the line. No consumer and no module of the
+  library hits one, and a test holds the library to it.
+- **fix(`validate-locales`): a `code` is a key only where the library makes
+  one.** Every `code` property of every file was asked for (`{code: "en"}`
+  asked for "en"), and so was every `add("error"|"warning", x)`,
+  `classList.add("error", "has-text-danger")` included. A `code` is a key in
+  the modules whose codes reach `t()` (`CODE_KEY_MODULES`: `schema_validate.js`,
+  `schema_import.js`, `c_yui_schema_editor.js`, pinned by a test), or where an
+  app lists it in `attr_keys`.
+- **fix(`validate-locales`): `eval?.()` is an indirect eval.** It counted as a
+  direct one, and the `let`s of its scope were no longer followed.
+- All of the above: the nine consumer trees ask for exactly the same keys as
+  with 7.26.42, in the same time.
+- **fix(`deploy-round`): a refusal leaves the whole app as it was, a range is
+  never lowered, and a range raised by hand raises the version.** Every
+  `package.json` of a target is checked before any is written (with
+  `range_dirs: [m1, m2-without-the-dependency]` m1 kept its raised range and
+  went 2.0.0 -> 2.0.1 while the app was FAILED). A range ahead of the version
+  is refused (with `--no-wait`, a stale sibling tree turned `^7.26.50` into
+  `^7.26.42`), and a registry that serves a newer version than the tree stops
+  the round at once and says the tree is behind (it waited 150 s and said "not
+  serving this version yet"). A range found already raised raises the version
+  unless the git history of the `package.json` shows the two moved together;
+  the round run twice, or a `package.json` two apps share, is raised once; a
+  history it cannot read, or a version that is not x.y.z, refuses the app.
+  Tests `scripts/deploy-round.test.js` (new, six cases, red on 7.26.42).
+- **docs(README):** the `EV_WINDOW_TO_CLOSE` example is back under its
+  paragraph; the limits of `dataChanged` (`setData()` / `replaceData()`, and
+  `history`'s undo of a cell edit or a row move); the badge "turn" (a socket
+  message already queued joins it, and is said in the same announcement);
+  why the json editor's search, repair messages, context-menu tip and
+  sort/transform modals stay in English (vanilla-jsoneditor 3.13.0 has no i18n
+  option; only a fork would change them); `keys["map"](t)` is read since
+  7.26.42, not before. The i18n rule is written once, in the README: this
+  repo's `CLAUDE.md` and the yunetas one point to it.
+- **test:** one-line bodies with statements expanded across the wiring tests.
+
 ## 7.26.42
 
 - **fix(`validate-locales`): an unmarked `let` is followed only when EVERY

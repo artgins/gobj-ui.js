@@ -33,9 +33,12 @@ install_dom_double();
 
 if(!globalThis.ResizeObserver) {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 

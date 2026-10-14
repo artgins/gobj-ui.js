@@ -27,9 +27,12 @@ install_dom_double();
 
 if(typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
+        observe() {
+        }
+        unobserve() {
+        }
+        disconnect() {
+        }
     };
 }
 
@@ -87,7 +90,8 @@ beforeAll(async () => {
     const i18next = (await import("i18next")).default;
     await i18next.init({lng: "en", resources: {}});
     gobj_start_up(null, null, null, null, null, null, null);
-    set_log_callback(() => {});
+    set_log_callback(() => {
+    });
     gclass_create("C_TEST_FORM_HOST", [], [["ST_IDLE", []]], {}, 0, [SDATA_END()], {}, 0, 0, 0, 0);
     gclass_create(
         "C_TEST_FORM_APP",
