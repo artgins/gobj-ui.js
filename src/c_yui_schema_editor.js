@@ -102,8 +102,10 @@ import {
     gobj_start,
     gobj_stop,
     gobj_destroy,
+    gobj_is_running,
     gobj_is_destroying,
     gobj_send_event,
+    gobj_post_event,
     gobj_publish_event,
     gobj_subscribe_event,
     gobj_unsubscribe_event,
@@ -259,6 +261,7 @@ let PRIVATE_DATA = {
 
     /*  Children and overlays  */
     diagram_gobj:   null,
+    retired_diagrams: null, /*  drawings left, destroyed on the next turn  */
     dialog:         null,
     dialog_gen:     0,      /*  the model_gen the open dialog was built on  */
     dialog_kind:    "",     /*  the logical class of the open dialog  */
@@ -317,6 +320,7 @@ function mt_create(gobj)
     priv.host_drafts = {};  /*  what the host says is a draft, {treedb: [topics]} (EV_DRAFTS)  */
     priv.host_ids = {};     /*  the same, as {topic id: true} of the model  */
     priv.save_queue = [];
+    priv.retired_diagrams = [];
 
     build_ui(gobj);
 
@@ -358,6 +362,7 @@ function mt_stop(gobj)
     }
     close_dialog(gobj);
     destroy_diagram(gobj);
+    destroy_retired_diagrams(gobj);
 }
 
 /***************************************************************
@@ -1911,6 +1916,13 @@ function render_diagram(gobj)
     gobj_send_event(diagram, "EV_SHOW", {}, gobj);
 }
 
+/***************************************************************
+ *  The drawing leaves the screen at once and is destroyed on the
+ *  next turn (EV_DESTROY_DIAGRAMS). It can be leaving because of
+ *  its own node click, which it publishes from inside G6's dispatch
+ *  of that click: stopped there, the gobj went from under its own
+ *  publication and the G6 graph from under its own event.
+ ***************************************************************/
 function destroy_diagram(gobj)
 {
     let priv = gobj.priv;
@@ -1918,9 +1930,29 @@ function destroy_diagram(gobj)
     if(!priv.diagram_gobj) {
         return;
     }
-    gobj_stop(priv.diagram_gobj);
-    gobj_destroy(priv.diagram_gobj);
+    let diagram = priv.diagram_gobj;
     priv.diagram_gobj = null;
+
+    let $d = gobj_read_attr(diagram, "$container");
+    if($d && $d.parentNode) {
+        $d.parentNode.removeChild($d);
+    }
+    priv.retired_diagrams.push(diagram);
+    if(priv.retired_diagrams.length === 1) {
+        gobj_post_event(gobj, "EV_DESTROY_DIAGRAMS", {}, gobj);
+    }
+}
+
+function destroy_retired_diagrams(gobj)
+{
+    let priv = gobj.priv;
+
+    for(let diagram of priv.retired_diagrams.splice(0)) {
+        if(gobj_is_running(diagram)) {
+            gobj_stop(diagram);
+        }
+        gobj_destroy(diagram);
+    }
 }
 
 
@@ -3996,6 +4028,15 @@ function ac_node_click(gobj, event, kw, src)
     return reload_after_move(gobj);
 }
 
+/***************************************************************
+ *  The drawings left on the previous turn (destroy_diagram()).
+ ***************************************************************/
+function ac_destroy_diagrams(gobj, event, kw, src)
+{
+    destroy_retired_diagrams(gobj);
+    return 0;
+}
+
 function ac_show_orphans(gobj, event, kw, src)
 {
     if(reload_first(gobj, event)) {
@@ -4778,7 +4819,9 @@ function create_gclass(gclass_name)
         ["EV_REFRESH",              ac_refresh,             null],
         ["EV_DRAFTS",               ac_drafts,              null],
         /*  The export dialog outlives the screen it was opened from.  */
-        ["EV_EXPORT_VIEW",          ac_export_view,         null]
+        ["EV_EXPORT_VIEW",          ac_export_view,         null],
+        /*  Posted to itself: a drawing left on any screen goes a turn later.  */
+        ["EV_DESTROY_DIAGRAMS",     ac_destroy_diagrams,    null]
     ];
 
     /*  What a treedb is open for: reading it whole, and writing it
@@ -4904,6 +4947,9 @@ function create_gclass(gclass_name)
 
         /*  From the drawing, which is a child of this gobj.  */
         ["EV_NODE_CLICK",           0],
+
+        /*  To itself: the drawings left, destroyed a turn later.  */
+        ["EV_DESTROY_DIAGRAMS",     0],
 
         /*  Outwards. The host mirrors the position into the url and
          *  carries the write up to whoever owns the Apply — both are

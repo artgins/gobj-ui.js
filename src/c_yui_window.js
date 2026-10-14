@@ -747,7 +747,7 @@ function build_ui(gobj)
      *----------------------------------------------*/
     if(gobj_read_bool_attr(gobj, "auto_save_size_and_position")) {
         if(gobj_is_service(gobj)) {
-            let rect = kw_get_local_storage_value(`${gobj_name(gobj)}-rect`);
+            let rect = whole_rect(kw_get_local_storage_value(`${gobj_name(gobj)}-rect`));
             if(rect) {
                 rect.x = rect.x<0?0:rect.x;
                 rect.y = rect.y<0?0:rect.y;
@@ -1316,6 +1316,28 @@ function min(gobj)
 }
 
 /************************************************************
+ *  The rect of a window in whole pixels: x, y, width and height
+ *  are DTP_INTEGER, and getBoundingClientRect() answers fractions
+ *  under a zoom or a device pixel ratio (an integer attr refuses
+ *  2.5, as in C). Also a rect saved with fractions before. null
+ *  when it is not a rect of four numbers.
+ ************************************************************/
+function whole_rect(rect)
+{
+    if(!rect || typeof rect !== "object") {
+        return null;
+    }
+    let whole = {};
+    for(const key of ["x", "y", "width", "height"]) {
+        if(typeof rect[key] !== "number" || !Number.isFinite(rect[key])) {
+            return null;
+        }
+        whole[key] = Math.round(rect[key]);
+    }
+    return whole;
+}
+
+/************************************************************
  *  handlers moving
  ************************************************************/
 function mvStart(gobj, evt)
@@ -1373,16 +1395,15 @@ function mvStart(gobj, evt)
         // trigger event
         let rect = $container.getBoundingClientRect();
 
-        gobj_write_integer_attr(gobj, "x", rect.x);
-        gobj_write_integer_attr(gobj, "y", rect.y);
-        gobj_write_integer_attr(gobj, "width", rect.width);
-        gobj_write_integer_attr(gobj, "height", rect.height);
+        let whole = whole_rect(rect);
+        gobj_write_integer_attr(gobj, "x", whole.x);
+        gobj_write_integer_attr(gobj, "y", whole.y);
+        gobj_write_integer_attr(gobj, "width", whole.width);
+        gobj_write_integer_attr(gobj, "height", whole.height);
 
         if(gobj_read_bool_attr(gobj, "auto_save_size_and_position")) {
             if(gobj_is_service(gobj)) {
-                kw_set_local_storage_value(`${gobj_name(gobj)}-rect`, {
-                    x:rect.x, y:rect.y, width:rect.width, height: rect.height
-                });
+                kw_set_local_storage_value(`${gobj_name(gobj)}-rect`, whole);
             }
         }
         gobj_publish_event(gobj, "EV_WINDOW_MOVED", {rect: rect});
@@ -1448,16 +1469,15 @@ function rsStart(gobj, evt)
             $container.style.height = rect.height +'px';
         }
 
-        gobj_write_integer_attr(gobj, "x", rect.x);
-        gobj_write_integer_attr(gobj, "y", rect.y);
-        gobj_write_integer_attr(gobj, "width", rect.width);
-        gobj_write_integer_attr(gobj, "height", rect.height);
+        let whole = whole_rect(rect);
+        gobj_write_integer_attr(gobj, "x", whole.x);
+        gobj_write_integer_attr(gobj, "y", whole.y);
+        gobj_write_integer_attr(gobj, "width", whole.width);
+        gobj_write_integer_attr(gobj, "height", whole.height);
 
         if(gobj_read_bool_attr(gobj, "auto_save_size_and_position")) {
             if(gobj_is_service(gobj)) {
-                kw_set_local_storage_value(`${gobj_name(gobj)}-rect`, {
-                    x:rect.x, y:rect.y, width:rect.width, height: rect.height
-                });
+                kw_set_local_storage_value(`${gobj_name(gobj)}-rect`, whole);
             }
         }
         gobj_publish_event(gobj, "EV_WINDOW_RESIZED", {rect: rect});

@@ -112,6 +112,7 @@ import {
     gobj_subscribe_event,
     gobj_unsubscribe_event,
     gobj_send_event,
+    gobj_post_event,
     gobj_change_state,
     gobj_current_state,
     createElement2,
@@ -186,6 +187,7 @@ SDATA_END()
 let PRIVATE_DATA = {
     children:       null,   /*  child NODE gobjs, in order              */
     navs:           null,   /*  live C_YUI_NAV gobjs inside my own body  */
+    retired_navs:   null,   /*  navs a render left, destroyed on the next turn */
     zone_navs:      null,   /*  navs projected into the SPACE, by key     */
     zone_sig:       null,   /*  their last item signature                 */
     content_gobj:   null,
@@ -230,6 +232,7 @@ function mt_create(gobj)
     priv.children = [];
     priv.remembered = {};
     priv.navs = [];
+    priv.retired_navs = [];
     priv.zone_navs = {};
     priv.zone_sig = {};
 
@@ -309,6 +312,7 @@ function mt_stop(gobj)
     }
 
     deactivate(gobj);
+    destroy_retired_navs(gobj);
 
     /*  Symmetric with mt_start: what this node started, it stops —
      *  the framework destroys children, and destroying a RUNNING gobj
@@ -342,6 +346,7 @@ function mt_destroy(gobj)
      *  references and own nothing but the DOM. */
     priv.content_gobj = null;
     priv.navs = [];
+    priv.retired_navs = [];
     priv.zone_navs = {};
     priv.zone_sig = {};
     priv.active_child = null;
@@ -613,18 +618,42 @@ function translate_own_dom(gobj, $el)
 }
 
 /************************************************************
- *  Destroy the C_YUI_NAV gobjs rendering this node's projection.
+ *  Take down the C_YUI_NAV gobjs rendering this node's projection:
+ *  off the page now, destroyed on the next turn (EV_DESTROY_NAVS).
+ *  A render can come from a click on one of them -- the active item
+ *  clicked again is a navigation to the same hash, done in the same
+ *  turn -- and that nav is still inside its publication of
+ *  EV_NAV_CLICKED.
  ************************************************************/
 function clear_navs(gobj)
 {
     let priv = gobj.priv;
+    if(!priv.navs.length) {
+        return;
+    }
+    let none_waiting = (priv.retired_navs.length === 0);
     for(let nav of priv.navs) {
+        let $nav = gobj_read_attr(nav, "$container");
+        if($nav && $nav.parentNode) {
+            $nav.parentNode.removeChild($nav);
+        }
+        priv.retired_navs.push(nav);
+    }
+    priv.navs = [];
+    if(none_waiting) {
+        gobj_post_event(gobj, "EV_DESTROY_NAVS", {}, gobj);
+    }
+}
+
+function destroy_retired_navs(gobj)
+{
+    let priv = gobj.priv;
+    for(let nav of priv.retired_navs.splice(0)) {
         if(gobj_is_running(nav)) {
             gobj_stop(nav);
         }
         gobj_destroy(nav);
     }
-    priv.navs = [];
 }
 
 /************************************************************
@@ -1585,6 +1614,15 @@ function ac_set_content(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  The navs a render left on the previous turn (clear_navs()).
+ ************************************************************/
+function ac_destroy_navs(gobj, event, kw, src)
+{
+    destroy_retired_navs(gobj);
+    return 0;
+}
+
+/************************************************************
  *  A descendant changed shape; keep bubbling to the root, which
  *  owns the site-map contribution.
  ************************************************************/
@@ -1738,7 +1776,8 @@ function create_gclass(gclass_name)
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
-            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
+            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
+            ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
         ]],
         ["ST_SELF", [
             ["EV_ROUTE_CHANGED",        ac_route_changed,       null],
@@ -1753,7 +1792,8 @@ function create_gclass(gclass_name)
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
-            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
+            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
+            ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
         ]],
         ["ST_CHILD", [
             ["EV_ROUTE_CHANGED",        ac_route_changed,       null],
@@ -1768,7 +1808,8 @@ function create_gclass(gclass_name)
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
-            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null]
+            ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
+            ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
         ]]
     ];
 
@@ -1788,7 +1829,9 @@ function create_gclass(gclass_name)
         ["EV_SET_CHROME_DEPTH",     0],
         ["EV_SET_NAV_MODE",         0],
         ["EV_SET_CONTENT",          0],
-        ["EV_NODE_TREE_CHANGED",    0]
+        ["EV_NODE_TREE_CHANGED",    0],
+        /*  internal: posted to itself, the navs a render left  */
+        ["EV_DESTROY_NAVS",         0]
     ];
 
     __gclass__ = gclass_create(

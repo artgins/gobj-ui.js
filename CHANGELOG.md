@@ -64,6 +64,27 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   never in the dock (`manager` ignored, with a warning). No API break, but a
   visible change: Escape now closes a focused window (`keyboard: false` keeps
   the old behaviour). Tests `window_dialog.wiring.test.js` (red on 7.26.42).
+- **fix(`C_YUI_WINDOW`): a window's saved position and size are whole
+  pixels** (`auto_save_size_and_position`): `getBoundingClientRect()` answers
+  fractions of a pixel under a zoom or a device pixel ratio, and they were
+  saved and written into the integer attrs `x`, `y`, `width` and `height` --
+  which gobj-js 7.26.22 refuses, as the C kernel does. They are rounded on a
+  move, a resize and a restore, so an entry saved before with fractions still
+  restores. Test `window_rect_rounding.wiring.test.js`.
+- **fix(`C_YUI_SCHEMA_EDITOR`): a topic clicked in the drawing destroyed the
+  drawing inside its own click.** The drawing publishes `EV_NODE_CLICK` from
+  inside G6's dispatch of that click, and the editor stopped and destroyed it
+  there: the gobj under its own publication, its G6 graph under its own event
+  (gobj-js 7.26.22 says it as an ERROR). The screen still changes at once; the
+  drawing leaves the page at once and is destroyed on the next turn
+  (`EV_DESTROY_DIAGRAMS`, posted to itself). Test
+  `schema_editor_diagram_click.wiring.test.js`.
+- **fix(`C_YUI_NODE`): the item a node is showing, clicked again, destroyed
+  its nav inside the nav's publication.** The same hash navigates in the same
+  turn, the node renders again inside `EV_NAV_CLICKED`, and the render
+  destroyed the nav that published it. The navs a render leaves go off the
+  page at once and are destroyed on the next turn (`EV_DESTROY_NAVS`). Test in
+  `node_nav_events.wiring.test.js`.
 - **fix(`C_YUI_WINDOW_MANAGER`, `C_YUI_WINDOW`): the floating dock covered a
   full-screen window** -- the foot of a phone sheet or of a maximized window
   at a bottom corner, the ✕ and minimize at a top corner (every `responsive`

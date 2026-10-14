@@ -12,6 +12,13 @@
  *      of a root that is off the path landed on ST_OFF, which declared
  *      none of the three.
  *
+ *      And a click on the item a node is already showing navigates to the
+ *      same route in the same turn (no hash change, so no hashchange):
+ *      the node renders again INSIDE the nav's publication of
+ *      EV_NAV_CLICKED, and the render destroyed that nav under it (the
+ *      ERROR "Destroying a gobj while its tree is publishing" of
+ *      gobj-js 7.26.22). The navs a render leaves go on the next turn.
+ *
  *      Driven through the real gclasses (C_YUI_SHELL, C_YUI_NODE,
  *      C_YUI_NAV) on a document double: each event is published by the
  *      real nav the node created.
@@ -31,7 +38,8 @@ const {
     gobj_current_state, gobj_change_state,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
-const {register_c_yui_shell} = await import("./c_yui_shell.js");
+const {gobj_is_destroying} = await import("@yuneta/gobj-js");
+const {register_c_yui_shell, yui_shell_navigate} = await import("./c_yui_shell.js");
 const {register_c_yui_nav} = await import("./c_yui_nav.js");
 const {register_c_yui_node} = await import("./c_yui_node.js");
 
@@ -182,5 +190,53 @@ describe("the path a node draws is named by the node", () => {
         expect(gobj_read_attr(unlabelled, "nav_label")).toBe("root");
         const labelled = build_path({label: "the tree"});
         expect(gobj_read_attr(labelled, "nav_label")).toBe("the tree");
+    });
+});
+
+describe("the item a node is showing, clicked again", () => {
+
+    test("renders the node again; the nav that published the click goes on the next turn", async () => {
+        const name = `n${++seq}`;
+        const shell = gobj_create(`${name}_shell`, "C_YUI_SHELL", {
+            config: {
+                shell: {
+                    zones: {center: {host: "stage.main"}},
+                    stages: {main: {zone: "center", default_route: "/tree"}}
+                },
+                menu: {primary: {items: [
+                    {id: "tree", name: "tree", route: "/tree", target: {
+                        stage: "main", gclass: "C_YUI_NODE", lifecycle: "keep_alive",
+                        name: `${name}_tree`,
+                        kw: {
+                            node_id: "root",
+                            base_route: "/tree",
+                            projection: {index: {layout: "tabs"}, chrome: {layout: "tabs"}},
+                            children: [{id: "a", label: "A"}, {id: "b", label: "B"}]
+                        }
+                    }}
+                ]}}
+            },
+            use_hash: false
+        }, yuno);
+        gobj_start(shell);
+        yui_shell_navigate(shell, "/tree/a");
+        const tree = shell.priv.stages.main.items["/tree"];
+        expect(gobj_current_state(tree)).toBe("ST_CHILD");
+        const nav = tree.priv.navs[0];
+        expect(nav).toBeTruthy();
+        logged.length = 0;
+
+        /*  What the nav's click handler does with the active item.  */
+        gobj_publish_event(nav, "EV_NAV_CLICKED", {route: "/tree/a", item_id: "a"});
+
+        expect(gobj_is_destroying(nav)).toBe(false);
+        expect(tree.priv.navs.length).toBe(1);
+        expect(tree.priv.navs[0]).not.toBe(nav);
+        expect(gobj_read_attr(nav, "$container").parentNode).toBeFalsy();
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(gobj_is_destroying(nav)).toBe(true);
+        expect(gobj_is_destroying(tree.priv.navs[0])).toBe(false);
+        expect(errors()).toEqual([]);
     });
 });
