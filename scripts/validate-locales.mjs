@@ -354,6 +354,7 @@ const LIB_INDEX = new URL("index.js", LIB);
 const APP_DIR = pathToFileURL(process.cwd() + "/");
 
 let errors = 0;
+let failed = false;     // the verdict, whatever a locale writes into process.exitCode
 
 /***************************************************************
  *
@@ -1263,7 +1264,7 @@ function scope_names(a)
             for(let v of d.declarations) {
                 let plain = (v.id.type === "Identifier");
                 for(let name of pattern_names(v.id)) {
-                    let at = plain? {steps: [], default: null} : param_path(v.id, name);
+                    let at = plain? {steps: [], default: null} : param_path(v.id, name, [], null, d.kind === "const");
                     let what = {kind: "other", init: v.init || null};
                     if(at && d.kind === "const" && v.init) {
                         what = {kind: "const", init: v.init, steps: at.steps, default: at.default, name};
@@ -1307,7 +1308,7 @@ function scope_names(a)
  *      function f({title, opts: {label}})  title: ".title", label: ".opts.label"
  *      const {id, ...rest} = opts          rest: "" (rest.title is opts.title)
  ***************************************************************/
-function param_path(p, name, steps = [], dflt = null)
+function param_path(p, name, steps = [], dflt = null, arrays = false)
 {
     if(!p) {
         return null;
@@ -1319,11 +1320,11 @@ function param_path(p, name, steps = [], dflt = null)
             }
             return {steps, path: steps.map((s) => "." + s.prop).join(""), default: dflt};
         case "AssignmentPattern":
-            return param_path(p.left, name, steps, p.right);
+            return param_path(p.left, name, steps, p.right, arrays);
         case "ObjectPattern":
             for(let q of p.properties) {
                 if(q.type === "RestElement") {
-                    let r = param_path(q.argument, name, steps, null);
+                    let r = param_path(q.argument, name, steps, null, arrays);
                     if(r) {
                         return r;
                     }
@@ -1337,10 +1338,27 @@ function param_path(p, name, steps = [], dflt = null)
                     }
                     continue;
                 }
-                let r = param_path(target, name, [...steps, {prop: key, computed: false}], null);
+                let r = param_path(target, name, [...steps, {prop: key, computed: false}], null, arrays);
                 if(r) {
                     return r;
                 }
+            }
+            return null;
+        case "ArrayPattern":
+            /*  Only for a const (`arrays`): `const [a, b] = X` reads X[1]
+             *  into b. Up to gobj-ui 7.26.48 it was read as nothing.  */
+            if(!arrays) {
+                return null;
+            }
+            for(let i = 0; i < p.elements.length; i++) {
+                let e = p.elements[i];
+                if(!e || !pattern_names(e).includes(name)) {
+                    continue;
+                }
+                if(e.type === "RestElement") {
+                    return null;
+                }
+                return param_path(e, name, [...steps, {prop: String(i), computed: true}], null, arrays);
             }
             return null;
         default:
@@ -2656,6 +2674,14 @@ function expand_node(node, ctx, depth)
                     && node.arguments.length === 1 && binding_of("String", ctx.scope) === null) {
                 return expand(node.arguments[0], here, depth + 1);
             }
+            let at = element_at(node, ctx.scope);
+            if(at) {
+                let out = [];
+                for(let o of expand(node.callee.object, here, depth + 1)) {
+                    out.push(...step_values(o, at, node, depth + 1));
+                }
+                return out;
+            }
             let r = local_call_values(node, ctx, via, depth);
             if(r && r.items) {
                 return r.items;
@@ -2958,7 +2984,9 @@ function written_args(list, scope)
  *  literal (its spreads read by written_args(), a hole is an argument
  *  not given), or a const bound to one with no spread and no hole --
  *  its elements read THROUGH it, as `X[0]`, `X[1]`... (element_ref()),
- *  so each is read where the const is declared.
+ *  so each is read where the const is declared --, a `let` of literal
+ *  arrays (let_array(), each position any element), or a `.slice()` of
+ *  one of those (sliced_elements()).
  ***************************************************************/
 function written_elements(n, scope)
 {
@@ -2968,14 +2996,106 @@ function written_elements(n, scope)
     if(n.type === "ArrayExpression") {
         return written_args(n.elements, scope);
     }
+    if(n.type === "CallExpression") {
+        return sliced_elements(n, scope);
+    }
     if(n.type !== "Identifier") {
         return null;
     }
     let array = const_array(n, scope);
-    if(!array || array.elements.some((e) => e === null || e.type === "SpreadElement")) {
+    if(!array) {
+        /*  A let of literal arrays: each position of its longest array is any element  */
+        let a = let_array(binding_of(n.name, scope));
+        return a? Array.from({length: Math.max(a.length, 1)}, (_, i) => element_ref(n, i)) : null;
+    }
+    if(array.elements.some((e) => e === null || e.type === "SpreadElement")) {
         return null;
     }
     return array.elements.map((e, i) => element_ref(n, i));
+}
+
+/***************************************************************
+ *  `X.at(i)` of a const array (const_array()), as the step that reads
+ *  the same element: `X[i]`, the element counted from the end for a
+ *  negative literal (with no spread before), any element for an index
+ *  not written out; of a let of literal arrays (let_array()), any
+ *  element. null for anything else. Up to gobj-ui 7.26.48 it was read
+ *  as nothing.
+ ***************************************************************/
+function element_at(call, scope)
+{
+    let c = call.callee;
+    if(c.type !== "MemberExpression" || member_step(c).prop !== "at" || c.object.type !== "Identifier"
+            || call.arguments.length !== 1 || is_spread(call.arguments[0])) {
+        return null;
+    }
+    let array = const_array(c.object, scope);
+    if(!array) {
+        return let_array(binding_of(c.object.name, scope))? {prop: null, computed: true} : null;
+    }
+    let i = literal_integer(call.arguments[0]);
+    if(i !== null && i < 0 && !array.elements.some(is_spread)) {
+        i = array.elements.length + i;
+        if(i < 0) {
+            i = array.elements.length;      // nothing there
+        }
+    }
+    return (i !== null && i >= 0)? {prop: String(i), computed: true} : {prop: null, computed: true};
+}
+
+/*  An integer written out (`1`, `-1`), or null  */
+function literal_integer(n)
+{
+    if(n && n.type === "UnaryExpression" && n.operator === "-") {
+        let v = literal_integer(n.argument);
+        return (v !== null)? -v : null;
+    }
+    return (n && n.type === "Literal" && Number.isInteger(n.value))? n.value : null;
+}
+
+/***************************************************************
+ *  The elements `X.slice(a, b)` takes from a const array with no
+ *  spread and no hole, `a` and `b` integers written out (or left
+ *  out): X[a], ..., read through X (element_ref()); of a let of
+ *  literal arrays, what a spread of it is (written_elements()). null
+ *  for any other call. Up to gobj-ui 7.26.48 `t(...X.slice(1))` read
+ *  nothing.
+ ***************************************************************/
+function sliced_elements(call, scope)
+{
+    let c = call.callee;
+    if(c.type !== "MemberExpression" || member_step(c).prop !== "slice" || c.object.type !== "Identifier"
+            || call.arguments.length > 2) {
+        return null;
+    }
+    let array = const_array(c.object, scope);
+    if(!array) {
+        return written_elements(c.object, scope);       // a let: every element at each position
+    }
+    if(array.elements.some((e) => e === null || e.type === "SpreadElement")) {
+        return null;
+    }
+    let len = array.elements.length;
+    let bound = (a, dflt) => {
+        if(a === undefined) {
+            return dflt;
+        }
+        let v = literal_integer(a);
+        if(v === null) {
+            return null;
+        }
+        return (v < 0)? Math.max(len + v, 0) : Math.min(v, len);
+    };
+    let from = bound(call.arguments[0], 0);
+    let to = bound(call.arguments[1], len);
+    if(from === null || to === null) {
+        return null;
+    }
+    let out = [];
+    for(let i = from; i < to; i++) {
+        out.push(element_ref(c.object, i));
+    }
+    return out;
 }
 
 /***************************************************************
@@ -3013,84 +3133,495 @@ function const_array(n, scope)
 
 /***************************************************************
  *  The array literals an element is read from by its index
- *  (step_values()): the value of a const that its scope does not
- *  write INTO -- `X[i] = k`, `X.length = n`, `X[i]++`, `delete X[i]`,
- *  `X.push()` and every method that moves its elements (`reverse()`,
- *  `sort()`, `shift()`, ...), `Object.assign(X, ...)`. Any other
- *  array -- one written into, where an element read by its index may
- *  be another one by then (`X.reverse(); t(X[0])`), the value of a
- *  `let`, an `export default` -- is read by every element written out,
- *  at any index. What is written into it is not read (the invisible
- *  list of the README), nor a write through an alias of it, from a
- *  module that imports it, or by a function it is handed to.
+ *  (step_values()): the value of a const -- written out, or
+ *  `Object.freeze()`d -- whose every use is a READ that leaves its
+ *  elements where they are (array_only_read()). Any other array is
+ *  read by every element written out, at any index: one used in any
+ *  other way (written into, handed to a function, kept in an object,
+ *  returned, exported to a module that does any of these) may hold
+ *  another element by then. Up to gobj-ui 7.26.48 the reader looked
+ *  for the WRITES it knew (`X[0] = k`, `.reverse()`, ...) and read by
+ *  index whatever it did not see written: `Reflect.set(X, 0, k)`,
+ *  `Array.prototype.reverse.call(X)`, `X["re" + "verse"]()`, a write
+ *  through `{x: X}` or through the third argument of a `.forEach()`
+ *  callback, `for(X[0] of ...)` read the element the source wrote
+ *  there, not the one the array held.
  ***************************************************************/
-const INDEXED_ARRAYS = new WeakSet();   // the array literals of consts not written into
-const ARRAY_WRITERS = new Set(["push", "unshift", "splice", "fill", "copyWithin", "reverse", "sort", "shift",
-                               "pop"]);
-const NOTED_ARRAYS = new WeakSet();     // the inits of consts already asked
+const ARRAY_CONSTS = new WeakMap();    // an array literal -> the binding of the const that holds it
+const INDEXED_ARRAYS = new WeakMap();  // an array literal -> whether it is read by its index
 
 function note_const_array(b)
 {
     let init = b.init;
-    if(!init || init.type !== "ArrayExpression" || NOTED_ARRAYS.has(init) || !b.name || !b.scope) {
+    if(init && is_object_call(init, "freeze") && init.arguments.length === 1) {
+        init = init.arguments[0];
+    }
+    if(!init || init.type !== "ArrayExpression" || ARRAY_CONSTS.has(init) || !b.name || !b.scope) {
         return;
     }
-    NOTED_ARRAYS.add(init);
-    let root = b.scope[b.scope.length - 1];
-    for(let chain of (in_place_writes(root).get(b.name) || [])) {
-        let w = binding_of(b.name, chain);
-        if(w && w.kind === "const" && w.init === init) {
-            return;
-        }
-    }
-    INDEXED_ARRAYS.add(init);
+    ARRAY_CONSTS.set(init, b);
 }
 
-/*  The places a scope writes INTO what a name holds: name -> [the
- *  chain from the scope to the name written], found in one walk  */
-const IN_PLACE_WRITES = new WeakMap();  // a scope -> Map(name -> [chain])
-
-function in_place_writes(root)
+/*  Asked when an index is read, not when the const is: the importers
+ *  of an exported array are looked for only then  */
+function is_indexed_array(array)
 {
-    let known = IN_PLACE_WRITES.get(root);
+    if(!INDEXED_ARRAYS.has(array)) {
+        let b = ARRAY_CONSTS.get(array);
+        /*  `const [a, b] = [...]`: a literal with no name has no other use  */
+        INDEXED_ARRAYS.set(array, !!b && ((b.steps || []).length > 0 || array_only_read(b)));
+    }
+    return INDEXED_ARRAYS.get(array);
+}
+
+/*  The methods of an array that read it and write nothing into it.
+ *  Those that take a callback hand it the array as their third
+ *  argument (the fourth for reduce): a callback that can reach it
+ *  that way is not a read.  */
+const ARRAY_READERS = new Set(["at", "includes", "indexOf", "lastIndexOf", "join", "slice", "concat", "entries",
+                               "keys", "values", "toString", "toLocaleString", "flat", "toReversed", "toSorted",
+                               "toSpliced", "with"]);
+const ARRAY_CALLBACK_READERS = new Map([
+    ["map", 2], ["flatMap", 2], ["forEach", 2], ["filter", 2], ["find", 2], ["findIndex", 2], ["findLast", 2],
+    ["findLastIndex", 2], ["some", 2], ["every", 2], ["reduce", 3], ["reduceRight", 3]
+]);
+
+/***************************************************************
+ *  Every use of the array a const binds (`b`, of binding_of()) is a
+ *  read the reader knows: an element or a property read (`X[1]`,
+ *  `X.length`), a method of ARRAY_READERS / ARRAY_CALLBACK_READERS
+ *  (`X.at(1)`, `X.map((k) => t(k))`, `X.map(t)`), a spread (`t(...X)`,
+ *  `[...X]`), the array of an `.apply()` (`f.apply(x, X)`), a
+ *  destructuring (`const [a, b] = X`), a for...of / for...in over it,
+ *  a test or an operand (`if(X)`, `X === Y`, `${X}`), `Object.freeze(X)`,
+ *  `Array.isArray(X)`. A const alias (`const B = X`,
+ *  `const F = Object.freeze(X)`) is a read when every use of IT is one.
+ *  An export is a read when every module of the run that imports it
+ *  (the app's sources, and the library's for an array of the library)
+ *  only reads it; a namespace import, a re-export or a dynamic import()
+ *  of the module is not. Anything else -- an argument of any other call
+ *  (`Reflect.set(X, ...)`, `shuffle(X)`, `F.call(X)`), a value kept,
+ *  returned or handed on (`{x: X}`, `return X`, `a || X`, `let L = X`),
+ *  a write into it, a method not listed or named by what is no string
+ *  written out -- is not.
+ ***************************************************************/
+let RUN_SOURCES = null;     // the files of the run (collect_used_keys()), where importers are looked for
+
+function array_only_read(b)
+{
+    let exported = new Set();
+    let ok = name_only_read(b.name, b.scope, (w) => w.kind === "const" && w.init === b.init, exported, new Map());
+    if(!ok || exported.size === 0) {
+        return ok;
+    }
+    let url = url_of(b.scope);
+    if(!url || b.scope.length !== 1) {
+        return false;
+    }
+    return importers_only_read(url, exported);
+}
+
+/*  `scope` is the chain down to the scope that declares `name`;
+ *  `is_it(binding)` says a binding_of() is the one meant. The names
+ *  it is exported as go into `exported`.  */
+function name_only_read(name, scope, is_it, exported, seen)
+{
+    let root = scope[scope.length - 1];
+    if(!seen.has(root)) {
+        seen.set(root, new Set());
+    }
+    if(seen.get(root).has(name)) {
+        return true;        // an alias met again: its uses are being read
+    }
+    seen.get(root).add(name);
+    let prefix = scope.slice(0, -1);
+    let writes = written_members(root);
+    for(let {n, ancestors} of (scope_identifiers(root).get(name) || [])) {
+        let p = ancestors[ancestors.length - 1];
+        if(!is_reference(n, p)) {
+            continue;
+        }
+        let chain = prefix.concat(ancestors);
+        let w = binding_of(name, chain);
+        if(!w || !is_it(w)) {
+            continue;
+        }
+        let use = use_of(n, ancestors, chain, writes);
+        if(use.alias) {
+            if(!name_only_read(use.alias.name, use.alias.scope,
+                               (x) => x.kind === "const" && x.init === use.alias.init, exported, seen)) {
+                return false;
+            }
+        } else if(use.export) {
+            exported.add(use.export);
+        } else if(!use.read) {
+            return false;
+        }
+    }
+    if(scope.length === 1 && declared_exports(root).has(name)) {
+        exported.add(name);
+    }
+    return true;
+}
+
+/*  The names a module exports where it declares them (`export const X`)  */
+const DECLARED_EXPORTS = new WeakMap();     // a parsed file -> Set(name)
+
+function declared_exports(program)
+{
+    let known = DECLARED_EXPORTS.get(program);
+    if(!known) {
+        known = new Set();
+        for(let s of program.body) {
+            if(s.type === "ExportNamedDeclaration" && s.declaration && s.declaration.type === "VariableDeclaration") {
+                for(let d of s.declaration.declarations) {
+                    for(let name of pattern_names(d.id)) {
+                        known.add(name);
+                    }
+                }
+            }
+        }
+        DECLARED_EXPORTS.set(program, known);
+    }
+    return known;
+}
+
+/*  The identifiers of a scope by name, each with the chain from the
+ *  scope to its parent: found in one walk, so that asking for every
+ *  const array of a module is not quadratic  */
+const SCOPE_IDENTIFIERS = new WeakMap();    // a scope -> Map(name -> [{n, ancestors}])
+
+function scope_identifiers(root)
+{
+    let known = SCOPE_IDENTIFIERS.get(root);
     if(known) {
         return known;
     }
     known = new Map();
-    let add = (target, ancestors) => {
-        let chain = [...ancestors];
-        while(target && target.type === "MemberExpression") {
-            target = target.object;
+    walk(root, (n, ancestors) => {
+        if(n.type !== "Identifier") {
+            return;
         }
-        if(target && target.type === "Identifier") {
-            if(!known.has(target.name)) {
-                known.set(target.name, []);
+        if(!known.has(n.name)) {
+            known.set(n.name, []);
+        }
+        known.get(n.name).push({n, ancestors: [...ancestors]});
+    });
+    SCOPE_IDENTIFIERS.set(root, known);
+    return known;
+}
+
+/*  An identifier that names a binding there, not a property, a key or
+ *  a declaration  */
+function is_reference(n, p)
+{
+    if(!p) {
+        return false;
+    }
+    switch(p.type) {
+        case "MemberExpression":
+            return p.object === n || p.computed;
+        case "Property":
+            return p.value === n && (p.shorthand || p.key !== n);
+        case "MethodDefinition":
+        case "PropertyDefinition":
+            return p.computed && p.key === n;
+        case "VariableDeclarator":
+            return p.init === n;
+        case "FunctionDeclaration":
+        case "FunctionExpression":
+        case "ArrowFunctionExpression":
+        case "ClassDeclaration":
+        case "ClassExpression":
+        case "LabeledStatement":
+        case "BreakStatement":
+        case "ContinueStatement":
+        case "ImportSpecifier":
+        case "ImportDefaultSpecifier":
+        case "ImportNamespaceSpecifier":
+        case "CatchClause":
+            return p.type === "ArrowFunctionExpression" && p.body === n;
+        case "ExportSpecifier":
+            return p.local === n;
+        case "AssignmentPattern":
+            return p.right === n;
+        case "ArrayPattern":
+        case "ObjectPattern":
+        case "RestElement":
+            return false;
+        default:
+            return true;
+    }
+}
+
+/*  What one use of the array is: {read}, {alias: binding}, {export:
+ *  name}, or {} (anything else)  */
+function use_of(n, ancestors, chain, writes)
+{
+    let p = ancestors[ancestors.length - 1];
+    let gp = ancestors[ancestors.length - 2];
+    let at = (k) => ancestors[ancestors.length - k];
+    switch(p.type) {
+        case "MemberExpression": {
+            if(p.object !== n) {
+                return {read: true};        // `Y[X]`: a key
             }
-            known.get(target.name).push(chain);
+            if(writes.has(p)) {
+                return {};
+            }
+            if(gp && gp.type === "TaggedTemplateExpression" && gp.tag === p) {
+                return {};
+            }
+            if(!gp || gp.type !== "CallExpression" || gp.callee !== p) {
+                return {read: true};
+            }
+            let method = member_step(p).prop;
+            if(ARRAY_READERS.has(method)) {
+                return {read: true};
+            }
+            if(ARRAY_CALLBACK_READERS.has(method)) {
+                let reach = ARRAY_CALLBACK_READERS.get(method);
+                return {read: gp.arguments.every((a) => callback_cannot_reach(a, reach, chain.slice(0, -1)))};
+            }
+            return {};
+        }
+        case "SpreadElement":
+            return {read: !!gp && /^(CallExpression|NewExpression|ArrayExpression|ObjectExpression)$/.test(gp.type)};
+        case "CallExpression": {
+            if(p.callee === n) {
+                return {};
+            }
+            let method = (p.callee.type === "MemberExpression")? member_step(p.callee).prop : null;
+            if(method === "apply" && p.arguments[1] === n) {
+                return {read: true};
+            }
+            if(p.callee.type === "MemberExpression" && !p.callee.computed && p.callee.object.type === "Identifier"
+                    && p.callee.object.name === "Array" && method === "isArray"
+                    && binding_of("Array", chain) === null) {
+                return {read: true};
+            }
+            if(is_object_call(p, "freeze") && p.arguments.length === 1 && binding_of("Object", chain) === null) {
+                if(gp && gp.type === "ExpressionStatement") {
+                    return {read: true};
+                }
+                return const_alias(gp, at(3), p, chain);
+            }
+            return {};
+        }
+        case "VariableDeclarator":
+            if(p.id.type === "ArrayPattern" || p.id.type === "ObjectPattern") {
+                return {read: true};
+            }
+            return const_alias(p, gp, n, chain);
+        case "AssignmentExpression":
+            return {read: p.right === n && p.operator === "="
+                          && (p.left.type === "ArrayPattern" || p.left.type === "ObjectPattern")};
+        case "ForOfStatement":
+        case "ForInStatement":
+            return {read: p.right === n};
+        case "BinaryExpression":
+            return {read: true};
+        case "TemplateLiteral":
+            return {read: !gp || gp.type !== "TaggedTemplateExpression"};     // a tag is handed the array
+        case "UnaryExpression":
+            return {read: p.operator !== "delete"};
+        case "IfStatement":
+        case "WhileStatement":
+        case "DoWhileStatement":
+        case "ConditionalExpression":
+            return {read: p.test === n};
+        case "ExportSpecifier":
+            return {export: p.exported.name || p.exported.value};
+        case "ExportDefaultDeclaration":
+            return {export: "default"};
+        default:
+            return {};
+    }
+}
+
+/*  `const <name> = <value>`: an alias, whose uses are the array's  */
+function const_alias(declarator, declaration, value, chain)
+{
+    if(!declarator || declarator.type !== "VariableDeclarator" || declarator.init !== value
+            || declarator.id.type !== "Identifier" || !declaration || declaration.kind !== "const") {
+        return {};
+    }
+    let name = declarator.id.name;
+    let b = binding_of(name, chain);
+    if(!b || b.kind !== "const" || b.init !== value) {
+        return {};
+    }
+    return {alias: b};
+}
+
+/*  An argument of a method of ARRAY_CALLBACK_READERS that cannot reach
+ *  the array: a value that is no function, a function literal that
+ *  declares no parameter at `reach` (nor a rest) and reads no
+ *  `arguments`, or a translator. A function named by anything else may
+ *  take the array and write into it.  */
+function callback_cannot_reach(a, reach, scope)
+{
+    if(a.type === "Literal" || a.type === "ObjectExpression" || a.type === "ArrayExpression"
+            || a.type === "TemplateLiteral") {
+        return true;        // no function: what it holds is a use of its own
+    }
+    if(a.type === "ArrowFunctionExpression" || a.type === "FunctionExpression") {
+        if(a.params.length > reach || a.params.some((q) => q.type === "RestElement")) {
+            return false;
+        }
+        if(a.type === "ArrowFunctionExpression") {
+            return true;
+        }
+        let uses_arguments = false;
+        walk(a.body, (x) => {
+            if(x.type === "Identifier" && x.name === "arguments") {
+                uses_arguments = true;
+            }
+        });
+        return !uses_arguments;
+    }
+    let c = callee_of(a, scope);
+    return !!c && c.kind === "t";
+}
+
+/*  The members a scope writes: the left of an `=` (through any
+ *  destructuring), the head of a for...of / for...in that declares
+ *  nothing, `x[i]++`, `delete x[i]`. Found in one walk.  */
+const WRITTEN_MEMBERS = new WeakMap();  // a scope -> Set(member)
+
+function written_members(root)
+{
+    let known = WRITTEN_MEMBERS.get(root);
+    if(known) {
+        return known;
+    }
+    known = new Set();
+    let add = (targets) => {
+        for(let t of targets) {
+            if(t.type === "MemberExpression") {
+                known.add(t);
+            }
         }
     };
-    walk(root, (n, ancestors) => {
+    walk(root, (n) => {
         if(n.type === "AssignmentExpression") {
-            for(let t of write_targets(n.left)) {
-                if(t.type === "MemberExpression") {
-                    add(t, [...ancestors, n]);
-                }
-            }
-        } else if((n.type === "UpdateExpression" && n.argument.type === "MemberExpression")
-                || (n.type === "UnaryExpression" && n.operator === "delete" && n.argument.type === "MemberExpression")) {
-            add(n.argument, [...ancestors, n]);
-        } else if(n.type === "CallExpression") {
-            let c = n.callee;
-            if(c.type === "MemberExpression" && ARRAY_WRITERS.has(member_step(c).prop)) {
-                add(c.object, [...ancestors, n]);
-            } else if((is_object_call(n, "assign") || is_object_call(n, "defineProperty")
-                       || is_object_call(n, "defineProperties")) && n.arguments.length > 0) {
-                add(n.arguments[0], [...ancestors, n]);
-            }
+            add(write_targets(n.left));
+        } else if((n.type === "ForOfStatement" || n.type === "ForInStatement") && n.left.type !== "VariableDeclaration") {
+            add(write_targets(n.left));
+        } else if(n.type === "UpdateExpression"
+                || (n.type === "UnaryExpression" && n.operator === "delete")) {
+            add([n.argument]);
         }
     });
-    IN_PLACE_WRITES.set(root, known);
+    WRITTEN_MEMBERS.set(root, known);
     return known;
+}
+
+/***************************************************************
+ *  Every module of the run that imports `names` of the module `url`
+ *  only reads what it imports (name_only_read()). A namespace import,
+ *  a re-export, an `export *` or a dynamic import() of the module is no
+ *  read the reader follows. With no run (a test that scans one file),
+ *  nothing is known of the importers: false.
+ ***************************************************************/
+function importers_only_read(url, names)
+{
+    if(!RUN_SOURCES) {
+        return false;
+    }
+    let files = [...RUN_SOURCES];
+    if(lib_module_of(url) || url.href === LIB_INDEX.href) {
+        files.push(...lib_sources());
+    }
+    for(let f of files) {
+        if(f.href === url.href) {
+            continue;
+        }
+        let ast = load_ast(f);
+        if(!ast) {
+            continue;
+        }
+        for(let imp of module_imports(ast, f)) {
+            if(imp.any) {
+                return false;       // `import(path)`: any module, this one too
+            }
+            if(imp.target !== url.href) {
+                continue;
+            }
+            if(imp.whole) {
+                return false;
+            }
+            if(!names.has(imp.imported)) {
+                continue;
+            }
+            if(imp.reexport) {
+                return false;
+            }
+            let again = new Set();      // exported on by the importer: its own importers are not looked for
+            let ok = name_only_read(imp.local, [ast], (w) => w.kind === "import" && w.scope.length === 1
+                                    && w.imported === imp.imported && module_url(f, w.source)
+                                    && module_url(f, w.source).href === url.href, again, new Map());
+            if(!ok || again.size > 0) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/*  What a module takes from others: [{target (href), imported, local,
+ *  reexport, whole, any}], `whole` for a namespace, an `export *` or a
+ *  dynamic import(), `any` for an import() of a path not written out  */
+const MODULE_IMPORTS = new WeakMap();   // a parsed file -> its imports
+
+function module_imports(ast, url)
+{
+    let known = MODULE_IMPORTS.get(ast);
+    if(known) {
+        return known;
+    }
+    known = [];
+    let target = (source) => {
+        let u = module_url(url, source);
+        return u? u.href : null;
+    };
+    for(let s of ast.body) {
+        if(s.type === "ImportDeclaration") {
+            for(let sp of s.specifiers) {
+                let imported = (sp.type === "ImportSpecifier")? (sp.imported.name || sp.imported.value)
+                    : (sp.type === "ImportDefaultSpecifier")? "default" : "*";
+                known.push({target: target(s.source.value), imported, local: sp.local.name,
+                            reexport: false, whole: imported === "*"});
+            }
+        } else if(s.type === "ExportAllDeclaration") {
+            known.push({target: target(s.source.value), imported: "*", local: null, reexport: true, whole: true});
+        } else if(s.type === "ExportNamedDeclaration" && s.source) {
+            for(let sp of s.specifiers) {
+                known.push({target: target(s.source.value), imported: sp.local.name || sp.local.value, local: null,
+                            reexport: true, whole: false});
+            }
+        }
+    }
+    walk(ast, (n) => {
+        if(n.type === "ImportExpression") {
+            let src = static_string(n.source);
+            known.push({target: (src !== null)? target(src) : null, imported: "*", local: null, reexport: false,
+                        whole: true, any: src === null});
+        }
+    });
+    MODULE_IMPORTS.set(ast, known);
+    return known;
+}
+
+/*  The modules of this library (src/, its tests left out)  */
+let LIB_SOURCES = null;
+
+function lib_sources()
+{
+    if(!LIB_SOURCES) {
+        LIB_SOURCES = [LIB_INDEX, ...source_files(LIB_SRC, null)];
+    }
+    return LIB_SOURCES;
 }
 
 function is_spread(n)
@@ -3155,9 +3686,9 @@ function step_values(o, step, node, depth)
     if(o.kind === "value" && is_object_call(o.node, "assign")) {
         return assigned_properties(o, step, depth + 1);
     }
-    if(o.kind === "value" && o.node.type === "ArrayExpression" && step.computed) {
+    if(o.kind === "value" && o.node.type === "ArrayExpression" && (step.computed || array_index(step) !== null)) {
         let i = array_index(step);
-        if(i !== null && INDEXED_ARRAYS.has(o.node)
+        if(i !== null && is_indexed_array(o.node)
                 && !o.node.elements.slice(0, i + 1).some((e) => e && e.type === "SpreadElement")) {
             return indexed_values(o, i, at, depth + 1);
         }
@@ -4183,10 +4714,91 @@ const LITERAL_LETS = new WeakMap();     // the first declarator of a variable ->
 
 function literal_let_keys(leaf)
 {
-    if(leaf.kind !== "unknown" || !leaf.var_root || leaf.var_root.steps.length > 0) {
+    if(leaf.kind !== "unknown" || !leaf.var_root) {
+        return [];
+    }
+    let steps = leaf.var_root.steps;
+    if(steps.length === 1 && is_element_step(steps[0])) {
+        return let_array_literals(leaf.var_root.binding) || [];
+    }
+    if(steps.length > 0) {
         return [];
     }
     return let_literals(leaf.var_root.binding, new Set()) || [];
+}
+
+/*  A step that reads an element: `X[i]`, `X[1]`, an element walked  */
+function is_element_step(step)
+{
+    return !!step.each || step.computed || array_index(step) !== null;
+}
+
+/***************************************************************
+ *  The strings an ELEMENT of a plain `let` / `var` can be, when it is
+ *  only ever given array literals of literal_values() and elements
+ *  that are those (`X[0] = "k"`, `X.push("k")`): every one of them, at
+ *  any index -- what a let holds at a place is not known, so `X[1]`
+ *  and `t(...X)` read every element (let_array_length()). null for any
+ *  other let: given anything else, or written in a way the reader does
+ *  not read (assigned_values()). A write the reader does not see
+ *  (`Reflect.set(X, 0, k)`, a function it is handed to) adds what it
+ *  writes unread. Up to gobj-ui 7.26.48 an element of a let was read
+ *  as nothing.
+ ***************************************************************/
+const LET_ARRAYS = new WeakMap();   // the first declarator of a variable -> {strings, length} | null
+
+function let_array(b)
+{
+    if(!b || b.kind !== "var" || b.picks.size > 0) {
+        return null;
+    }
+    let first = b.declarators[0];
+    if(LET_ARRAYS.has(first)) {
+        return LET_ARRAYS.get(first);
+    }
+    LET_ARRAYS.set(first, null);        // a let met again while it is read adds nothing
+    let {values, unknown} = assigned_values(b, true);
+    let out = (unknown.length === 0)? {strings: [], length: 0} : null;
+    for(let v of values) {
+        if(out === null) {
+            break;
+        }
+        if(!v.node) {
+            continue;
+        }
+        if(v.steps.length === 0 && v.node.type === "ArrayExpression") {
+            out.length = Math.max(out.length, v.node.elements.length);
+            for(let e of v.node.elements) {
+                let lits = (!e)? [] : (e.type === "SpreadElement")? null
+                    : literal_values(e, [...v.scope, v.node], new Set());
+                if(lits === null) {
+                    out = null;
+                    break;
+                }
+                out.strings.push(...lits);
+            }
+        } else if(v.steps.length === 1 && is_element_step(v.steps[0]) && !v.spread) {
+            let lits = literal_values(v.node, v.scope, new Set());
+            if(lits === null) {
+                out = null;
+            } else {
+                out.strings.push(...lits);
+            }
+        } else {
+            out = null;
+        }
+    }
+    if(out) {
+        out.strings = [...new Set(out.strings)];
+    }
+    LET_ARRAYS.set(first, out);
+    return out;
+}
+
+function let_array_literals(b)
+{
+    let a = let_array(b);
+    return a? a.strings : null;
 }
 
 /***************************************************************
@@ -5898,6 +6510,21 @@ function shape_owner_check(shape, keys, shapes)
  ***************************************************************/
 function collect_used_keys(opts)
 {
+    RUN_SOURCES = [];
+    for(let dir of opts.src) {
+        if(existsSync(dir)) {
+            RUN_SOURCES.push(...source_files(dir, opts.locales));
+        }
+    }
+    try {
+        return collect_run_keys(opts);
+    } finally {
+        RUN_SOURCES = null;
+    }
+}
+
+function collect_run_keys(opts)
+{
     GAVE_UP.clear();
     let keys = new Set();
     let lib_keys = new Set();
@@ -5909,6 +6536,7 @@ function collect_used_keys(opts)
         declared: new Set([...attr_keys, ...array_keys])
     };
     let declared_seen = new Set();
+    let excluded = new Set((opts.exclude || []).map((u) => u.href));
     let barrel = barrel_export_map();
     let published = new Map();      // list name -> Set of keys
     let refs = [];                  // [{label, line, lists, keys}]
@@ -5969,7 +6597,6 @@ function collect_used_keys(opts)
 
     /*  The app's own source, and the code it shares with others  */
     let pending = [];
-    let excluded = new Set((opts.exclude || []).map((u) => u.href));
     for(let dir of opts.src) {
         if(!existsSync(dir)) {
             abort(`no source directory at ${dir.pathname}`);
@@ -6576,40 +7203,71 @@ try {
     is_main = false;
 }
 if(is_main) {
+    /*
+     *  A locale is IMPORTED, so its code runs, timers included, and it
+     *  can write process.exitCode or call process.exit() before the run
+     *  ends (in gobj-ui 7.26.47 and 7.26.48, as up to 7.26.45, a
+     *  timer's `process.exit(0)` or `process.exitCode = 0` turned a
+     *  failing run into rc 0). The run
+     *  ends with the code of its own verdict, and an end it did not call
+     *  is a failure: in a browser `process` does not even exist.
+     */
+    const real_exit = process.exit;
+    let ending = false;
+    process.on("exit", (code) => {
+        if(!ending) {
+            process.stderr.write(`validate-locales: the process was ended by process.exit(${code}), which ` +
+                                 `the script did not call: a locale is imported, so its code runs, ` +
+                                 `and a locale must not end the process\n`);
+            failed = true;
+        }
+        if(failed) {
+            process.exitCode = 1;
+        }
+    });
     process.on("unhandledRejection", (reason) => {
         console.error("validate-locales: a promise was rejected and nothing handled it (a locale is " +
                       `imported, so its code runs): ${(reason && reason.stack) || reason}`);
-        process.exitCode = 1;
+        failed = true;
     });
     try {
         await main();
     } catch(e) {
+        failed = true;
         if(!(e instanceof Abort)) {
+            ending = true;
             throw e;
         }
     }
-    exit_when_written();
+    if(errors > 0) {
+        failed = true;
+    }
+    exit_when_written(() => {
+        ending = true;
+        real_exit.call(process, failed? 1 : 0);
+    });
 }
 
 /***************************************************************
- *  End the run with its exitCode once what it wrote has left: a
- *  locale is IMPORTED, and a timer its code leaves running holds the
- *  process for ever, verdict or not (up to gobj-ui 7.26.45, also a run
- *  that failed). process.exit() runs from the callbacks of a last
- *  write to each stream, which come after every write before them, so
- *  a long list on its way to a pipe still reaches it whole. It waits
- *  for a timer first: a promise rejected with nothing to handle it is
- *  told only when the loop turns, and a timer of 0 a locale set is due
- *  before it -- up to gobj-ui 7.26.46 such a rejection was lost, and
- *  the run passed.
+ *  End the run once what it wrote has left: a locale is IMPORTED,
+ *  and a timer its code leaves running holds the process for ever,
+ *  verdict or not (up to gobj-ui 7.26.45, also a run that failed).
+ *  `end` runs from the callbacks of a last write to each stream,
+ *  which come after every write before them, so a long list on its
+ *  way to a pipe still reaches it whole. It waits for a timer first:
+ *  a promise rejected with nothing to handle it is told only when the
+ *  loop turns, and a timer of 0 a locale set is due before it -- up to
+ *  gobj-ui 7.26.46 such a rejection was lost, and the run passed. A
+ *  timer of more than 0 ms is not waited for (a setInterval would hold
+ *  the run for ever): what it does after the verdict is not seen.
  ***************************************************************/
-function exit_when_written()
+function exit_when_written(end)
 {
     let pending = 2;
     let written = () => {
         pending--;
         if(pending === 0) {
-            process.exit();
+            end();
         }
     };
     setTimeout(() => {

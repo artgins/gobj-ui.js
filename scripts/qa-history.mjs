@@ -38,33 +38,51 @@
  *            click (EV_NAV_CLICKED) navigates in the same turn (V6.2, p9).
  *        (h) a reload (F5) on the panel's marker, the panel opened again:
  *            Back closes it -- the marker of the earlier load is not the
- *            new panel's own entry (V7.3, e1) -- and Back still leaves the
- *            chapter (the earlier load's entries absorb at most one).
+ *            new panel's own entry (V7.3, e1) -- and the NEXT Back leaves
+ *            the chapter: the new load takes the earlier load's marker
+ *            off (up to gobj-ui 7.26.48 it stayed, one dead Back).
  *        (i) a question up, then a logout and a new login in one turn,
  *            the new shell opening the panel (the chapter's "log out and
- *            in"): Back closes the panel and stays in the app, and Back
- *            still reaches the previous route (the question's marker,
- *            left in place by the stopped shell, absorbs one). Up to
- *            gobj-ui 7.26.46 the stopped shell retired that marker with
- *            a history.back() that took the panel's: in Chromium the
- *            panel stayed up with no entry and Back left the chapter.
+ *            in"), three times: the history does not grow, Back closes
+ *            the panel and stays in the app, and the NEXT Back reaches
+ *            the previous route. Up to gobj-ui 7.26.46 the stopped shell
+ *            retired the question's marker with a history.back() that
+ *            took the panel's (Chromium: the panel stayed up with no
+ *            entry, and Back left the chapter); in 7.26.47 and 7.26.48
+ *            the markers stayed, and every cycle left two more dead
+ *            Backs (five after three cycles).
  *        (j) the preferences up on their action route (/prefs, `stay`),
- *            then the same logout and login: the new shell opens the
- *            panel on the chapter, not the preferences again, and Back
- *            closes the panel without bringing them back. Up to gobj-ui
- *            7.26.47 the preferences' on_close took the URL off /prefs
- *            with a history.back(), which landed on the action entry
- *            under their marker: the URL stayed on /prefs.
+ *            then the same logout and login, twice: the new shell opens
+ *            the panel on the chapter, not the preferences again, Back
+ *            closes the panel without bringing them back, and the next
+ *            Back leaves the chapter -- no Back lands on /prefs again.
+ *            Up to gobj-ui 7.26.47 the preferences' on_close took the
+ *            URL off /prefs with a history.back(), which landed on the
+ *            action entry under their marker: the URL stayed on /prefs;
+ *            in 7.26.48 Back reopened them from the entries left under.
+ *        (k) as (i), with a login page between ("log out, and in
+ *            later": the new shell is built 600 ms after the stop),
+ *            twice.
+ *        (l) the panel closed by a control of its own, and a logout and
+ *            a new login in the same turn (its "close, log out and in"),
+ *            twice: the back() that retires its marker is still in
+ *            flight when the shell stops, and the new shell's panel
+ *            must not take it.
  *
- *      Besides the cases, a warning of the shell (C_YUI_SHELL: ...) in
- *      the console is a failure: the false "did not land ... dropped" of
- *      7.26.13 was such a warning, and nothing failed on it.
+ *      Every Back of a case is counted: one that changes nothing on
+ *      screen (the URL, the panel, the view, the preferences) is a DEAD
+ *      Back, and a case allows none.
+ *
+ *      Besides the cases, a warning of the shell (C_YUI_SHELL: ...) or
+ *      of a focus trap in the console is a failure: the false "did not
+ *      land ... dropped" of 7.26.13 was such a warning, and nothing failed
+ *      on it.
  *
  *      It starts the test-app's vite dev server on its own port and stops
  *      it at the end. Exit 0 when every case passes, 1 otherwise.
  *
  *      Usage (from the package root):
- *          node scripts/qa-history.mjs [--browser chromium|firefox] [--headed]
+ *          node scripts/qa-history.mjs [--browser chromium|firefox] [--case <letter>] [--headed]
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -86,6 +104,7 @@ const {chromium, firefox} = require_app("playwright");
 const argv = process.argv.slice(2);
 const only = argv.includes("--browser") ? argv[argv.indexOf("--browser") + 1] : null;
 const headed = argv.includes("--headed");
+const only_case = argv.includes("--case") ? argv[argv.indexOf("--case") + 1] : null;
 
 /*
  *  The dev server
@@ -132,6 +151,8 @@ async function snap(page)
         };
         return {
             hash: location.hash,
+            length: history.length,
+            prefs: !!document.querySelector(".DEMO_PREFS"),
             panel: !!document.querySelector(".DEMO_HISTORY_PANEL"),
             view: shown(".C_DEMO_HISTORY")? "history" :
                   shown(".C_DEMO_TABLE")? "table" : "other",
@@ -156,6 +177,70 @@ async function link_to(page, hash)
 async function settle(page)
 {
     await page.waitForTimeout(400);
+}
+
+/*  Back until the previous route (#/windows), counting the Backs and the
+ *  DEAD ones -- a Back after which nothing on screen changed -- and
+ *  whether one of them brought the preferences up.  */
+async function backs_to_leave(page)
+{
+    let prev = await snap(page);
+    let backs = 0;
+    let dead = 0;
+    let prefs = false;
+    while(prev.hash !== "#/windows" && backs < 10) {
+        await page.goBack();
+        await settle(page);
+        const s = await snap(page);
+        backs++;
+        if(s.hash === prev.hash && s.panel === prev.panel &&
+                s.view === prev.view && s.prefs === prev.prefs) {
+            dead++;
+        }
+        if(s.prefs) {
+            prefs = true;
+        }
+        prev = s;
+    }
+    return {backs, dead, prefs, left: prev.hash};
+}
+
+/*  "log out and in" (or a variant), and wait for the new shell's panel.  */
+async function relogin(page, selector, wait_ms)
+{
+    /*  Under a modal: a DOM click, as the app's own logout would come
+     *  from code, not from a pointer.  */
+    await page.evaluate((sel) => {
+        document.querySelector(sel).click();
+    }, selector);
+    await page.waitForTimeout(wait_ms || 0);
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await page.waitForTimeout(800);
+    return snap(page);
+}
+
+/*  N cycles of a logout and a login, the panel up at the end of each:
+ *  the history does not grow, Back closes the panel and stays, and the
+ *  next Back leaves the chapter, with no dead Back.  */
+async function relogin_cycles(page, cycles, one_cycle)
+{
+    const lengths = [];
+    let relogged = null;
+    for(let i = 0; i < cycles; i++) {
+        relogged = await one_cycle(i);
+        lengths.push(relogged.length);
+    }
+    await page.goBack();
+    await settle(page);
+    const after_back = await snap(page);
+    const leave = await backs_to_leave(page);
+
+    const ok = relogged.panel && relogged.hash === "#/history" && !relogged.prefs &&
+        lengths.every((n) => n === lengths[0]) &&
+        !after_back.panel && after_back.hash === "#/history" && !after_back.prefs &&
+        leave.left === "#/windows" && leave.backs === 1 && leave.dead === 0 &&
+        !leave.prefs;
+    return {ok, lengths, relogged, after_back, leave};
 }
 
 async function fresh(page)
@@ -345,72 +430,50 @@ async function case_h(page)
     await page.goBack();
     await settle(page);
     const after_back = await snap(page);
-    let backs = 0;
-    let left = after_back;
-    while(left.hash !== "#/windows" && backs < 3) {
-        await page.goBack();
-        await settle(page);
-        left = await snap(page);
-        backs++;
-    }
+    const leave = await backs_to_leave(page);
 
     const ok = !after_back.panel && after_back.hash === "#/history" &&
-        left.hash === "#/windows" && backs <= 2;
-    return {ok, after_back, left, backs};
+        leave.left === "#/windows" && leave.backs === 1 && leave.dead === 0;
+    return {ok, after_back, leave};
 }
 
 async function case_i(page)
 {
     await fresh(page);
-    await page.click(".DEMO_HISTORY_RELOGIN");
-    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
-    await page.waitForTimeout(800);
-    const relogged = await snap(page);
-    await page.goBack();
-    await settle(page);
-    const after_back = await snap(page);
-    let backs = 0;
-    let left = after_back;
-    while(left.hash !== "#/windows" && backs < 3) {
-        await page.goBack();
-        await settle(page);
-        left = await snap(page);
-        backs++;
-    }
-
-    const ok = relogged.panel && relogged.hash === "#/history" &&
-        !after_back.panel && after_back.hash === "#/history" &&
-        left.hash === "#/windows" && backs <= 2;
-    return {ok, relogged, after_back, left, backs};
+    return relogin_cycles(page, 3, () => relogin(page, ".DEMO_HISTORY_RELOGIN"));
 }
 
 async function case_j(page)
 {
     await fresh(page);
-    await page.evaluate(() => {
-        location.hash = "#/prefs";
+    let parked = null;
+    const r = await relogin_cycles(page, 2, async () => {
+        await page.evaluate(() => {
+            location.hash = "#/prefs";
+        });
+        await page.waitForSelector(".DEMO_PREFS", {timeout: 5000});
+        await settle(page);
+        parked = parked || await snap(page);
+        return relogin(page, ".DEMO_HISTORY_RELOGIN");
     });
-    await page.waitForSelector(".DEMO_PREFS", {timeout: 5000});
-    await settle(page);
-    const parked = await snap(page);
-    /*  The relogin button is under the modal: a DOM click, as the app's
-     *  own logout would come from code, not from a pointer.  */
-    await page.evaluate(() => {
-        document.querySelector(".DEMO_HISTORY_RELOGIN").click();
-    });
-    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
-    await page.waitForTimeout(800);
-    const relogged = await snap(page);
-    const prefs_after = await page.evaluate(() => !!document.querySelector(".DEMO_PREFS"));
-    await page.goBack();
-    await settle(page);
-    const after_back = await snap(page);
-    const prefs_after_back = await page.evaluate(() => !!document.querySelector(".DEMO_PREFS"));
+    r.ok = r.ok && parked.hash === "#/prefs" && parked.prefs;
+    r.parked = parked;
+    return r;
+}
 
-    const ok = parked.hash === "#/prefs" &&
-        relogged.panel && relogged.hash === "#/history" && !prefs_after &&
-        !after_back.panel && after_back.hash === "#/history" && !prefs_after_back;
-    return {ok, parked, relogged, prefs_after, after_back, prefs_after_back};
+async function case_k(page)
+{
+    await fresh(page);
+    return relogin_cycles(page, 2, () => relogin(page, ".DEMO_HISTORY_RELOGIN_LATER", 600));
+}
+
+async function case_l(page)
+{
+    await fresh(page);
+    await page.click(".DEMO_HISTORY_OPEN");
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await settle(page);
+    return relogin_cycles(page, 2, () => relogin(page, ".DEMO_HISTORY_CLOSE_AND_RELOGIN"));
 }
 
 /*
@@ -435,7 +498,10 @@ try {
                                       ["g: close and click", case_g],
                                       ["h: reload, open again, Back", case_h],
                                       ["i: log out and in, Back", case_i],
-                                      ["j: preferences up, log out and in", case_j]]) {
+                                      ["j: preferences up, log out and in", case_j],
+                                      ["k: log out, and in later", case_k],
+                                      ["l: close, log out and in", case_l]]
+                                      .filter(([label]) => !only_case || label.startsWith(`${only_case}:`))) {
                 const context = await browser.newContext({viewport: {width: 1250, height: 850}});
                 const page = await context.newPage();
                 page.on("pageerror", (e) => {
@@ -443,7 +509,8 @@ try {
                 });
                 page.on("console", (m) => {
                     if(m.type() === "error" ||
-                            (m.type() === "warning" && m.text().includes("C_YUI_SHELL"))) {
+                            (m.type() === "warning" && (m.text().includes("C_YUI_SHELL") ||
+                                                        m.text().includes("focus trap")))) {
                         errors.push(`${name} ${label}: ${m.text()}`);
                     }
                 });

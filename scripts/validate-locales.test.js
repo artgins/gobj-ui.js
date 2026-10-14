@@ -836,6 +836,21 @@ describe("validate-locales", () => {
         expect(r.out).toContain("6000 used in the source");
     });
 
+    test("a scope is walked once for the uses of its arrays: 3000 const arrays read by their index stay fast", () => {
+        let lines = [];
+        let dict = {};
+        for(let i = 0; i < 3000; i++) {
+            lines.push(`export const A${i} = ["not asked ${i}", "an element key ${i}"];`, `t(A${i}[1]);`);
+            dict[`an element key ${i}`] = "x";
+        }
+        let t0 = Date.now();
+        let r = run({...BOTH(dict), "src/main.js": lines.join("\n"),
+                     "src/other.js": `import {A1, A2} from "./main.js";\nt(A1[1]);\nA2.at(0);\n`});
+        expect(Date.now() - t0).toBeLessThan(5000);
+        expect(r.status).toBe(0);
+        expect(r.out).toContain("3000 used in the source");
+    });
+
     test("a long list of violations reaches a reader that reads it late, whole (exit 1)", async () => {
         let lines = [];
         for(let i = 0; i < 3000; i++) {
@@ -891,6 +906,34 @@ describe("validate-locales", () => {
             expect(r.out).toContain(`Error: a locale rejected ${where}`);
             expect(r.out).toMatch(/at .*es\.js:\d+/);
         }
+    }, 30000);
+
+    test("a locale cannot turn the verdict: its exitCode is ignored, and a process.exit() of its own fails the run", () => {
+        let cases = [
+            ["a timer sets exitCode 0", `setTimeout(() => { process.exitCode = 0; }, 0);\n`, "a key no locale defines", false],
+            ["the top sets exitCode 0", `process.exitCode = 0;\n`, "a key no locale defines", false],
+            ["a timer exits 0, with a violation", `setTimeout(() => process.exit(0), 0);\n`, "a key no locale defines", true],
+            ["a timer exits 0, with no violation", `setTimeout(() => process.exit(0), 0);\n`, "a defined key", true],
+            ["the top exits 0", `process.exit(0);\n`, "a defined key", true]
+        ];
+        for(let [what, code, key, said] of cases) {
+            let r = run({
+                "src/locales/en.js": code + locale("en", {"a defined key": "x"}),
+                "src/locales/es.js": locale("es", {"a defined key": "x"}),
+                "src/main.js": `t(${JSON.stringify(key)});`
+            });
+            expect(r.status, what).toBe(1);
+            if(said) {
+                expect(r.out, what).toContain("the process was ended by process.exit(0), which the script did not call");
+            }
+        }
+        let r = run({
+            "src/locales/en.js": `setTimeout(() => { process.exitCode = 3; }, 0);\n` + locale("en", {"a defined key": "x"}),
+            "src/locales/es.js": locale("es", {"a defined key": "x"}),
+            "src/main.js": `t("a defined key");`
+        });
+        expect(r.status).toBe(0);
+        expect(r.out).toContain("validate-locales: OK");
     }, 30000);
 
     test("where the reader gives up on a value it FAILS, with the file and the line: a key behind it is never skipped in silence", () => {
@@ -1620,6 +1663,143 @@ describe("validate-locales", () => {
         expect(["k04 a default value", "k07 before a hole", "k14 not the one read", "k21 not read"].filter(asked))
             .toEqual([]);
         expect(r.out).not.toContain("which the reader cannot follow");
+        expect(main_lines(r.out)).toEqual([]);
+    });
+
+    test("an element is read by its index only from an array every use of which is a read: any other use reads every element", () => {
+        let shapes = {
+            "for head": `for(X[0] of ["x"]) {}`,
+            "Reflect.set": `Reflect.set(X, 0, "x");`,
+            "reverse by call": `Array.prototype.reverse.call(X);`,
+            "computed reverse": `X["re" + "verse"]();`,
+            "through an object": `const O = {x: X};\nO.x.reverse();`,
+            "forEach third arg": `X.forEach((v, i, arr) => { arr[i] = v; });`,
+            "named callback": `X.forEach(write_back);`,
+            "handed to a function": `shuffle(X);`,
+            "const alias": `const B = X;\nB.reverse();`,
+            "let alias": `let L = X;\nL.reverse();`,
+            "returned": `function get() { return X; }`,
+            "unknown method": `X.copyWithin(0, 1);`
+        };
+        let i = 0;
+        for(let [what, use] of Object.entries(shapes)) {
+            i++;
+            let r = run({...BOTH({}), "src/main.js": [
+                `const X = ["k${i} first", "k${i} second"];`,
+                use,
+                `t(X[1]);`
+            ].join("\n")});
+            expect(r.out, what).toContain(`defined in NO locale: "k${i} first"`);
+            expect(r.out, what).toContain(`defined in NO locale: "k${i} second"`);
+        }
+        let reads = {
+            "map": `X.map((k) => k);`,
+            "map(t)": `X.map(t);`,
+            "destructuring": `const [a] = X;`,
+            "at": `X.at(0);`,
+            "for of": `for(const v of X) { v; }`,
+            "length": `X.length;`,
+            "apply": `t.apply(null, X);`,
+            "includes": `X.includes("x");`,
+            "spread": `const C = [...X];`,
+            "test": `if(X) { a(); }`,
+            "freeze": `Object.freeze(X);`,
+            "const alias read": `const B = X;\nB.at(0);`,
+            "frozen alias": `const F = Object.freeze(X);\nF.map((k) => k);`
+        };
+        for(let [what, use] of Object.entries(reads)) {
+            i++;
+            let r = run({...BOTH({}), "src/main.js": [
+                `const X = ["k${i} first", "k${i} second"];`,
+                use,
+                `t(X[1]);`
+            ].join("\n")});
+            if(what !== "map(t)" && what !== "apply") {
+                expect(r.out, what).not.toContain(`defined in NO locale: "k${i} first"`);
+            }
+            expect(r.out, what).toContain(`defined in NO locale: "k${i} second"`);
+        }
+    }, 60000);
+
+    test("an exported array is read by its index only when every module that imports it reads it", () => {
+        let keys = `export const X = ["k1 first", "k1 second"];\nexport const Y = ["k2 first", "k2 second"];\n` +
+                   `t(X[1]);\nt(Y[1]);\n`;
+        let r = run({...BOTH({}), "src/keys.js": keys, "src/main.js": [
+            `import {X, Y as Z} from "./keys.js";`,
+            `X.reverse();`,
+            `t(Z[1]);`
+        ].join("\n")});
+        expect(r.out).toContain(`defined in NO locale: "k1 first"`);
+        expect(r.out).not.toContain(`defined in NO locale: "k2 first"`);
+        for(let importer of [`import * as K from "./keys.js";\nK.X.reverse();`,
+                             `export {X} from "./keys.js";`,
+                             `import("./keys.js").then((m) => m.X.reverse());`,
+                             `import(where).then((m) => m.X.reverse());`]) {
+            let r2 = run({...BOTH({}), "src/keys.js": keys, "src/main.js": importer});
+            expect(r2.out, importer).toContain(`defined in NO locale: "k1 first"`);
+        }
+    }, 30000);
+
+    test("a write the reader does not see fails the rule per call as a write it sees does; Object.freeze() is read by its index", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `const ARGS = [shell, "k1 hidden write"];`,
+            `Reflect.set(ARGS, 1, shell);`,
+            `yui_shell_show_info.apply(null, ARGS);`,
+            `const FROZEN = Object.freeze([shell, "k2 frozen key"]);`,
+            `yui_shell_show_info.apply(null, FROZEN);`,
+            `const F = Object.freeze(["k3 frozen", "k4 a default value"]);`,
+            `t(...F);`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        expect(r.out).toContain("src/main.js:2 (call at line 4): yui_shell_show_info() [1] is given shell");
+        expect(main_lines(r.out).filter((l) => l >= 5)).toEqual([]);
+        for(let k of ["k1 hidden write", "k2 frozen key", "k3 frozen"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        expect(r.out).not.toContain(`"k4 a default value"`);
+    }, 30000);
+
+    test("an element of a let of literal arrays is every element; a destructuring, .at() and .slice() of a const array read their element", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `let L = ["k01 let first", "k02 let second"];`,
+            `t(L[1]);`,
+            `let S = ["k03 let spread"];`,
+            `t(...S);`,
+            `var V = ["k04 var first"];`,
+            `V.push("k05 var pushed");`,
+            `t(V[0]);`,
+            `let D = ["k06 let given data"];`,
+            `D = rows();`,
+            `t(D[0]);`,
+            `const C = ["k07 c0", "k08 c1", "k09 c2"];`,
+            `const [c0, c1] = C;`,
+            `t(c1);`,
+            `const {2: c2} = C;`,
+            `t(c2);`,
+            `t(C.at(-3));`,
+            `t(...C.slice(1, 2));`,
+            `const [i0, i1] = ["k10 inline 0", "k11 inline 1"];`,
+            `t(i1);`,
+            `const E = ["k12 e0", "k13 e1"];`,
+            `t(E.at(i));`,
+            `let LA = ["k14 let at 0", "k15 let at 1"];`,
+            `t(LA.at(1));`,
+            `let LS = ["k16 let slice 0", "k17 let slice 1"];`,
+            `t(...LS.slice(1));`,
+            `let LD = ["k18 let destructured 0", "k19 let destructured 1"];`,
+            `const [ld0, ld1] = LD;`,
+            `t(ld1);`,
+            `let LF = ["k20 let walked"];`,
+            `for(const x of LF) { t(x); }`
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        let asked = (k) => r.out.includes(`defined in NO locale: ${JSON.stringify(k)}`);
+        expect(["k01 let first", "k02 let second", "k03 let spread", "k04 var first", "k05 var pushed",
+                "k07 c0", "k08 c1", "k09 c2", "k11 inline 1", "k12 e0", "k13 e1", "k14 let at 0", "k15 let at 1",
+                "k16 let slice 0", "k17 let slice 1", "k18 let destructured 0", "k19 let destructured 1",
+                "k20 let walked"].filter((k) => !asked(k))).toEqual([]);
+        expect(["k06 let given data", "k10 inline 0"].filter(asked)).toEqual([]);
         expect(main_lines(r.out)).toEqual([]);
     });
 

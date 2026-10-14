@@ -6,6 +6,7 @@
  *      `activate_focus_trap_on($panel, doc)` — no extra devDep.
  ***********************************************************************/
 import { test, expect } from "vitest";
+import { set_log_callback } from "@yuneta/gobj-js";
 import {
     FOCUSABLE_SELECTOR,
     activate_focus_trap_on,
@@ -519,4 +520,55 @@ test("a panel taken out and put back keeps its trap", () => {
     release();
     expect(doc.listeners.length).toBe(0);
     expect(focus_trap_panel()).not.toBe(panel);
+});
+
+
+/***************************************************************
+ *  A trap skipped because its panel is out of the document is
+ *  said, once per trap: twenty panels taken out with their traps
+ *  up (owners torn down with them open) leave twenty listeners,
+ *  and up to gobj-ui 7.26.48 the log said nothing of them.
+ ***************************************************************/
+test("each trap skipped for a panel out of the document is said once", () => {
+    let warnings = [];
+    set_log_callback((level, msg) => {
+        if(String(level) === "warning") {
+            warnings.push(String(msg));
+        }
+    });
+    try {
+        let doc = make_doc(null);
+        let releases = [];
+        let panels = [];
+        for(let i = 0; i < 20; i++) {
+            let panel = connected_panel([make_focusable(`f${i}`)]);
+            panel.className = `MODAL DIALOG_${i} modal`;
+            panels.push(panel);
+            releases.push(activate_focus_trap_on(panel, doc));
+            panel.isConnected = false;
+        }
+        /*  Only this test's: a trap an earlier test left skipped is said
+         *  when the stack is first read here.  */
+        let mine = () => warnings.filter((w) => w.includes("DIALOG_"));
+        expect(mine().length).toBe(0);
+        expect(panels.includes(focus_trap_panel())).toBe(false);
+        expect(panels.includes(focus_trap_panel())).toBe(false);
+        expect(mine().length).toBe(20);
+        expect(mine().every((w) => w.startsWith("focus trap: its panel (MODAL DIALOG_"))).toBe(true);
+        expect(doc.listeners.length).toBe(20);
+
+        /*  One that comes back holds the focus again, and is not said again.  */
+        panels[19].isConnected = true;
+        expect(focus_trap_panel()).toBe(panels[19]);
+        panels[19].isConnected = false;
+        expect(panels.includes(focus_trap_panel())).toBe(false);
+        expect(mine().length).toBe(20);
+
+        for(let release of releases) {
+            release();
+        }
+        expect(doc.listeners.length).toBe(0);
+    } finally {
+        set_log_callback(null);
+    }
 });

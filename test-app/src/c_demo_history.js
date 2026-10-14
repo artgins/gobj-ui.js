@@ -174,7 +174,9 @@ function build_ui(gobj)
                 action_button(gobj, "DEMO_HISTORY_WRITE", "write position",
                     "yi-location-dot", "EV_WRITE_POSITION"),
                 action_button(gobj, "DEMO_HISTORY_RELOGIN", "log out and in",
-                    "yi-arrow-right", "EV_RELOGIN")
+                    "yi-arrow-right", "EV_RELOGIN"),
+                action_button(gobj, "DEMO_HISTORY_RELOGIN_LATER", "log out, and in later",
+                    "yi-arrow-right", "EV_RELOGIN_LATER")
             ]]
         ]]
     );
@@ -217,7 +219,9 @@ function ac_open_panel(gobj, event, kw, src)
                     action_button(gobj, "DEMO_HISTORY_CLOSE_AND_GO", "close and go to table",
                         "yi-arrow-right", "EV_CLOSE_AND_GO"),
                     action_button(gobj, "DEMO_HISTORY_CLOSE_AND_CLICK", "close and click the menu",
-                        "yi-arrow-right", "EV_CLOSE_AND_CLICK")
+                        "yi-arrow-right", "EV_CLOSE_AND_CLICK"),
+                    action_button(gobj, "DEMO_HISTORY_CLOSE_AND_RELOGIN", "close, log out and in",
+                        "yi-arrow-right", "EV_CLOSE_AND_RELOGIN")
                 ]]
             ]],
             x: 760,
@@ -282,6 +286,43 @@ function ac_relogin(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  The same with a login page between: the new shell is built on a
+ *  later turn (C_DEMO's ac_relogin, `later`). What the stopped shell
+ *  left in the history waits for it.
+ ***************************************************************/
+function ac_relogin_later(gobj, event, kw, src)
+{
+    let shell = yui_shell_of(gobj);
+    yui_shell_confirm_yesno(shell, "log out and in?");     // answered by the stop
+    gobj_post_event(gobj_parent(shell), "EV_RELOGIN", {later: true}, gobj);
+    return 0;
+}
+
+/***************************************************************
+ *  The panel closed by a control of its own -- its shell retires the
+ *  marker with a history.back() -- and, in the same turn as that
+ *  close, a logout and a new login (C_DEMO's ac_relogin,
+ *  `close_panel`): the back() is still in flight when the shell stops.
+ ***************************************************************/
+function ac_close_and_relogin(gobj, event, kw, src)
+{
+    gobj_post_event(gobj_parent(yui_shell_of(gobj)), "EV_RELOGIN", {close_panel: true}, gobj);
+    return 0;
+}
+
+/***************************************************************
+ *  Close the panel (C_DEMO's ac_relogin, before it stops the shell).
+ ***************************************************************/
+function ac_close_panel(gobj, event, kw, src)
+{
+    let win = gobj_find_child(gobj, {__gobj_name__: PANEL_NAME});
+    if(win) {
+        gobj_send_event(win, "EV_CLOSE_WINDOW", {}, gobj);
+    }
+    return 0;
+}
+
+/***************************************************************
  *  Write the position in the URL, replacing the entry.
  ***************************************************************/
 function ac_write_position(gobj, event, kw, src)
@@ -325,7 +366,10 @@ function create_gclass(gclass_name)
             ["EV_WRITE_POSITION",   ac_write_position,  null],
             ["EV_CLOSE_AND_GO",     ac_close_and_go,    null],
             ["EV_CLOSE_AND_CLICK",  ac_close_and_click, null],
-            ["EV_RELOGIN",          ac_relogin,         null]
+            ["EV_RELOGIN",          ac_relogin,         null],
+            ["EV_RELOGIN_LATER",    ac_relogin_later,   null],
+            ["EV_CLOSE_AND_RELOGIN", ac_close_and_relogin, null],
+            ["EV_CLOSE_PANEL",      ac_close_panel,     null]
         ]]
     ];
 
@@ -334,7 +378,10 @@ function create_gclass(gclass_name)
         ["EV_WRITE_POSITION",   0],
         ["EV_CLOSE_AND_GO",     0],
         ["EV_CLOSE_AND_CLICK",  0],
-        ["EV_RELOGIN",          0]
+        ["EV_RELOGIN",          0],
+        ["EV_RELOGIN_LATER",    0],
+        ["EV_CLOSE_AND_RELOGIN", 0],
+        ["EV_CLOSE_PANEL",      0]
     ];
 
     __gclass__ = gclass_create(

@@ -60,6 +60,10 @@ import {toggle_locale} from "./locales.js";
  ***************************************************************/
 const GCLASS_NAME = "C_DEMO";
 
+/*  The time a login page stays up between a logout and a new login
+ *  (ac_relogin, `later`).  */
+const RELOGIN_LATER_MS = 600;
+
 
 /***************************************************************
  *              Attrs
@@ -268,17 +272,45 @@ function apply_theme(theme)
  *  A logout and a new login in ONE turn, as an app does when its
  *  session is cut and taken again: the shell goes -- with whatever
  *  it had open --, a new one is made, and the chapter it lands on
- *  opens its panel. What scripts/qa-history.mjs case (i) drives,
- *  from the history chapter's "log out and in" (with a question up).
+ *  opens its panel. What scripts/qa-history.mjs drives from the
+ *  history chapter: "log out and in" (with a question up, cases i
+ *  and j), "log out, and in later" (`later`: a login page between,
+ *  case k) and the panel's "close, log out and in" (`close_panel`:
+ *  the panel's back() still in flight at the stop, case l).
  ***************************************************************/
 function ac_relogin(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
+    if(kw && kw.close_panel) {
+        let view = gobj_find_child(priv.shell, {__gclass_name__: "C_DEMO_HISTORY"});
+        if(view) {
+            gobj_send_event(view, "EV_CLOSE_PANEL", {}, gobj);
+        }
+    }
     detach_lead_handler(gobj);
     gobj_stop_tree(priv.shell);
     gobj_destroy(priv.shell);
     priv.shell = null;
+
+    if(kw && kw.later) {
+        /*  A login page between: the timer only says that the time is
+         *  up, the login is an action (ac_login_again).  */
+        window.setTimeout(() => {
+            gobj_send_event(gobj, "EV_LOGIN_AGAIN", {}, gobj);
+        }, RELOGIN_LATER_MS);
+        return 0;
+    }
+    return ac_login_again(gobj, event, {}, src);
+}
+
+/***************************************************************
+ *  The new login of ac_relogin: a new shell, and the history chapter
+ *  it lands on opens its panel.
+ ***************************************************************/
+function ac_login_again(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
 
     create_shell(gobj);
     gobj_start_tree(priv.shell);
@@ -585,7 +617,8 @@ function create_gclass(gclass_name)
             ["EV_OPEN_SITEMAP",     ac_open_sitemap,     null],
             ["EV_OPEN_PREFS",       ac_open_prefs,       null],
             ["EV_ABOUT",            ac_about,            null],
-            ["EV_RELOGIN",          ac_relogin,          null]
+            ["EV_RELOGIN",          ac_relogin,          null],
+            ["EV_LOGIN_AGAIN",      ac_login_again,      null]
         ]]
     ];
 
@@ -603,7 +636,8 @@ function create_gclass(gclass_name)
         ["EV_OPEN_SITEMAP",     0],
         ["EV_OPEN_PREFS",       0],
         ["EV_ABOUT",            0],
-        ["EV_RELOGIN",          0]
+        ["EV_RELOGIN",          0],
+        ["EV_LOGIN_AGAIN",      0]
     ];
 
     __gclass__ = gclass_create(

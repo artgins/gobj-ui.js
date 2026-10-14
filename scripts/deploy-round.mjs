@@ -58,7 +58,10 @@
  *          git history of the package.json says which -- every state it
  *          had, every branch merged in and a rename followed, also one git
  *          does not see as a rename (a package.json born with the range is
- *          asked of every package.json before it, by version), and a state
+ *          asked of every package.json before it, by version, or of the
+ *          other history when it is born in the root of a history joined
+ *          to another; what that search reads is kept between rounds in
+ *          ~/.yuneta/deploy-round-history.json), and a state
  *          that is not json read by its lines: the version is raised when
  *          one of them carries it with ANOTHER range. One
  *          whose history cannot be read is refused, and so is a shallow
@@ -92,13 +95,14 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {execFileSync} from "node:child_process";
-import {readFileSync, existsSync, statSync} from "node:fs";
+import {readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync} from "node:fs";
 import {basename, dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {homedir} from "node:os";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST = join(homedir(), ".yuneta", "gobj-ui-consumers.json");
+const HISTORY_CACHE = join(homedir(), ".yuneta", "deploy-round-history.json");
 
 /*
  *  The package this round is for, and the source tree its version is
@@ -220,7 +224,7 @@ function read_consumers()
         console.error(`Copy scripts/gobj-ui-consumers.example.json there and fill it in.\n`);
         return [];
     }
-    const jn = JSON.parse(readFileSync(MANIFEST, "utf8"));
+    const jn = parse_json(readFileSync(MANIFEST, "utf8"));
     return jn.consumers || [];
 }
 
@@ -372,11 +376,66 @@ function bump_patch_version(f, text)
         throw new Error(`${f}: version '${version}' is not x.y.z -- not raised, not deployed`);
     }
     const next = `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
-    const at = new RegExp(`("version":\\s*")${version.replace(/\./g, "\\.")}(")`);
-    if(!at.test(text)) {
+    const at = top_level_string(text, "version");
+    if(!at || JSON.parse(text.slice(at.start, at.end)) !== version) {
         throw new Error(`${f}: no "version": "${version}" in its text -- not raised, not deployed`);
     }
-    return {text: text.replace(at, `$1${next}$2`), note: `version ${version} -> ${next}  (${f})`};
+    const after = text.slice(0, at.start) + JSON.stringify(next) + text.slice(at.end);
+    if(package_json_of(f, after).version !== next) {
+        throw new Error(`${f}: the version written is not read back as ${next} -- not raised, not deployed`);
+    }
+    return {text: after, note: `version ${version} -> ${next}  (${f})`};
+}
+
+/************************************************************
+ *  Where the string value of a key of the TOP object of a json text
+ *  is: {start, end} of the value with its quotes, the LAST one when
+ *  the key is there twice (as JSON.parse() reads it), or null (not
+ *  there, or not a string). Up to gobj-ui 7.26.48 the version was
+ *  found by a pattern, which took the first `"version": "x.y.z"` of
+ *  the text: a `config.version` or a `scripts.version` equal to it
+ *  was raised in its place, and the app went out under its old number.
+ ************************************************************/
+function top_level_string(text, key)
+{
+    let depth = 0;
+    let want_key = false;       // in the top object, where a key goes
+    let last_key = null;
+    let found = null;
+    for(let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if(c === "\"") {
+            let j = i + 1;
+            while(j < text.length && text[j] !== "\"") {
+                j += (text[j] === "\\")? 2 : 1;
+            }
+            if(depth === 1 && want_key) {
+                last_key = JSON.parse(text.slice(i, j + 1));
+                want_key = false;
+            } else if(depth === 1 && last_key === key) {
+                found = {start: i, end: j + 1};
+                last_key = null;
+            }
+            i = j;
+        } else if(c === "{" || c === "[") {
+            if(depth === 1 && last_key === key) {
+                found = null;       // a later value that is no string
+            }
+            depth++;
+            if(depth === 1) {
+                want_key = (c === "{");
+            }
+        } else if(c === "}" || c === "]") {
+            depth--;
+        } else if(c === "," && depth === 1) {
+            want_key = true;
+            last_key = null;
+        } else if(depth === 1 && last_key === key && /[-0-9tfn]/.test(c)) {
+            found = null;
+            last_key = null;
+        }
+    }
+    return found;
 }
 
 /************************************************************
@@ -424,9 +483,9 @@ function version_raised_with_range(f)
             }
             return !versions.includes(version);
         }
-        const carries = (text) => !range_is_raised(text) && versions_of(text).includes(version);
+        const carries = (st) => !state_is_raised(st) && st.versions.includes(version);
         const {texts, births} = range_history(dir, basename(f));
-        if(texts.some(carries)) {
+        if(texts.map(state_of).some(carries)) {
             return false;
         }
         for(const b of births) {
@@ -446,8 +505,26 @@ function version_raised_with_range(f)
 /*  Does a package.json text carry ^VERSION in every spec of the package?  */
 function range_is_raised(text)
 {
-    const specs = specs_of(text);
-    return specs.length > 0 && specs.every((spec) => spec === `^${VERSION}`);
+    return state_is_raised(state_of(text));
+}
+
+/*  What the round reads of a package.json text: {specs, versions}  */
+function state_of(text)
+{
+    return {specs: specs_of(text), versions: versions_of(text)};
+}
+
+function state_is_raised(st)
+{
+    return st.specs.length > 0 && st.specs.every((spec) => spec === `^${VERSION}`);
+}
+
+/*  A json text, with a byte order mark before it if it has one: npm
+ *  reads a package.json that way (up to gobj-ui 7.26.48 the round
+ *  refused it as "not json")  */
+function parse_json(text)
+{
+    return JSON.parse(text.startsWith("\ufeff")? text.slice(1) : text);
 }
 
 /*  A package.json's text as json; one that is not json refuses the
@@ -455,7 +532,7 @@ function range_is_raised(text)
 function package_json_of(f, text)
 {
     try {
-        return JSON.parse(text);
+        return parse_json(text);
     } catch(e) {
         throw new Error(`${f}: not json (${e.message}) -- not raised, not deployed`);
     }
@@ -476,7 +553,7 @@ function package_json_of(f, text)
 function versions_of(text)
 {
     try {
-        return [JSON.parse(text).version];
+        return [parse_json(text).version];
     } catch(e) {
         return [...text.matchAll(/"version"\s*:\s*"([^"]*)"/g)].map((m) => m[1]);
     }
@@ -520,6 +597,14 @@ function range_history(dir, file)
         /*  no merge in progress  */
     }
 
+    let roots = null;
+    const other_root = (c) => {
+        if(roots === null) {
+            roots = String(git(["rev-list", "--max-parents=0", ...revs])).split("\n").filter((h) => h.length > 0);
+        }
+        return roots.some((r) => r !== c);
+    };
+
     const texts = [];
     const births = [];
     const walked = new Set();
@@ -545,6 +630,10 @@ function range_history(dir, file)
                     throw new Error(`a shallow clone: the history before ${c.slice(0, 10)} is not ` +
                                     `here -- run git fetch --unshallow in ${top}`);
                 }
+                if(range_is_raised(text) && other_root(c)) {
+                    /*  A root of a joined history: the other history is what came before  */
+                    births.push({text, parents: [...revs, `^${c}`]});
+                }
                 continue;       // born there
             }
             if(parents.some((p) => blobs.get(`${p}:${path}`) !== null)) {
@@ -569,7 +658,9 @@ function range_history(dir, file)
 
 /************************************************************
  *  Every state of EVERY package.json (node_modules left out) in the
- *  history of `parents`, as texts that depend on the package. Asked
+ *  history of `parents` (commits, `^c` to leave one's history out)
+ *  that depends on the package, as state_of() reads it, kept between
+ *  runs (read_history_cache()). Asked
  *  where a package.json is BORN with the range and the version of the
  *  working tree: a rename git does not see as one (a move with many
  *  changes, below -M's 50%; a removal and an addition in two commits; a
@@ -590,8 +681,16 @@ function package_states(dir, parents)
         cwd: top, env: child_env(), input: input, maxBuffer: 1 << 28,
         stdio: ["pipe", "pipe", "pipe"]
     });
+    const shas = parents.map((p) => p.startsWith("^")?
+        "^" + run("git", ["rev-parse", p.slice(1)], top).trim() : run("git", ["rev-parse", p], top).trim());
+    const shallow = run("git", ["rev-parse", "--is-shallow-repository"], top).trim() === "true";
+    const key = shas.join(" ");
+    const cache = shallow? null : read_history_cache();
+    if(cache && Array.isArray(cache[key])) {
+        return cache[key];
+    }
     const raw = String(git(["log", "--full-history", "-m", "--raw", "--no-abbrev", "--no-renames", "--format=",
-                            ...parents, "--", ":(top,glob)**/package.json",
+                            ...shas, "--", ":(top,glob)**/package.json",
                             ":(top,exclude,glob)**/node_modules/**"]));
     const blobs = new Set();
     for(const line of raw.split("\n")) {
@@ -600,7 +699,62 @@ function package_states(dir, parents)
             blobs.add(m[1]);
         }
     }
-    return [...read_blobs(git, [...blobs]).values()].filter((t) => t !== null && specs_of(t).length > 0);
+    const states = new Map();
+    for(const t of read_blobs(git, [...blobs]).values()) {
+        if(t === null) {
+            continue;
+        }
+        const st = state_of(t);
+        if(st.specs.length > 0) {
+            states.set(JSON.stringify(st), st);
+        }
+    }
+    const out = [...states.values()];
+    if(cache) {
+        cache[key] = out;
+        write_history_cache(cache);
+    }
+    return out;
+}
+
+/************************************************************
+ *  What package_states() found, kept between runs: commits do not
+ *  change, so the states of the history of a set of commits are the
+ *  same on every run. Up to gobj-ui 7.26.48 a package.json born with
+ *  the range and the version (a new app, a move git does not see)
+ *  read every package.json of the history again on every round while
+ *  that range was the current one -- 1.2 s per round on a history of
+ *  30 000 commits, against 0.3 s without the search. A shallow clone
+ *  is not kept: what it holds grows when it is fetched. A cache that
+ *  cannot be read is said, and read again from git.
+ ************************************************************/
+function read_history_cache()
+{
+    if(!existsSync(HISTORY_CACHE)) {
+        return {};
+    }
+    try {
+        const jn = parse_json(readFileSync(HISTORY_CACHE, "utf8"));
+        if(jn && typeof jn === "object" && !Array.isArray(jn)) {
+            return jn;
+        }
+        console.error(`    ${HISTORY_CACHE}: not a json object, read again from git`);
+    } catch(e) {
+        console.error(`    ${HISTORY_CACHE}: ${String(e.message).split("\n")[0]}, read again from git`);
+    }
+    return {};
+}
+
+function write_history_cache(cache)
+{
+    try {
+        mkdirSync(dirname(HISTORY_CACHE), {recursive: true});
+        const tmp = `${HISTORY_CACHE}.${process.pid}`;
+        writeFileSync(tmp, JSON.stringify(cache));
+        renameSync(tmp, HISTORY_CACHE);
+    } catch(e) {
+        console.error(`    ${HISTORY_CACHE}: not written (${String(e.message).split("\n")[0]})`);
+    }
 }
 
 /*  The texts of `<commit>:<path>` specs, in one `git cat-file`: a Map

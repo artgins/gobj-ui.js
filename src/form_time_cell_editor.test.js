@@ -151,4 +151,77 @@ describe("a time column's cell editor", () => {
         expect(said.success).toEqual([]);
         expect(said.cancel).toBe(1);
     });
+
+    test("a box emptied part by part is no longer said invalid, with no `input`", () => {
+        const {$input, said} = open_editor(EPOCH, "integer");
+        half_typed($input);
+        $input.dispatchEvent(key("Enter"));
+        expect($input.getAttribute("aria-invalid")).toBe("true");
+
+        /*  The other parts cleared: still "" -- no value changed, so
+         *  Chromium fires no `input` --, and no longer badInput.  */
+        Object.defineProperty($input, "validity", {configurable: true, value: {badInput: false, valid: true}});
+        $input.dispatchEvent({type: "keyup", key: "Backspace"});
+        expect($input.getAttribute("aria-invalid")).toBe(null);
+        $input.dispatchEvent(key("Enter"));
+        expect(said.success).toEqual([null]);
+    });
+});
+
+/*  Chromium and Firefox write a `datetime-local` value without its
+ *  seconds when they are :00: "…T02:30:00" reads back "…T02:30".  */
+function with_browser_box(fn)
+{
+    const create = document.createElement;
+    document.createElement = function(tag) {
+        const el = create.call(document, tag);
+        if(String(tag).toLowerCase() === "input") {
+            let raw = "";
+            Object.defineProperty(el, "value", {
+                configurable: true,
+                get: () => raw,
+                set: (v) => {
+                    raw = String(v).replace(/^(\d{4}-\d\d-\d\dT\d\d:\d\d):00$/, "$1");
+                },
+            });
+        }
+        return el;
+    };
+    try {
+        fn();
+    } finally {
+        document.createElement = create;
+    }
+}
+
+describe("a time on the hour, as the browser writes it", () => {
+    test("Enter with nothing changed is a cancel, in the repeated hour of autumn too", () => {
+        const tz = process.env.TZ;
+        process.env.TZ = "Europe/Madrid";
+        try {
+            /*  01:30Z on 2026-10-25 is 02:30 of the SECOND pass in Madrid:
+             *  read back as a wall time it is the first one, an hour
+             *  earlier.  */
+            const epoch = Date.UTC(2026, 9, 25, 1, 30, 0) / 1000;
+            for(const [value, real_type] of [
+                [epoch, "integer"],
+                [new Date(epoch * 1000).toISOString(), "string"],
+                [Math.floor(new Date("2026-03-14T09:26:00").getTime() / 1000), "integer"],
+            ]) {
+                with_browser_box(() => {
+                    const {$input, said} = open_editor(value, real_type);
+                    expect($input.value).toMatch(/T\d\d:\d\d$/);
+                    $input.dispatchEvent(key("Enter"));
+                    expect(said.success).toEqual([]);
+                    expect(said.cancel).toBe(1);
+                });
+            }
+        } finally {
+            if(tz === undefined) {
+                delete process.env.TZ;
+            } else {
+                process.env.TZ = tz;
+            }
+        }
+    });
 });

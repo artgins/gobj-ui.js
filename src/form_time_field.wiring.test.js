@@ -115,4 +115,75 @@ describe("the time field of a form", () => {
         expect(saved[0].no_time).toBe(null);
         expect(errors()).toEqual([]);
     });
+
+    /*  The template grammar defaults a spec with no real type to
+     *  `string`: "time.writable" was read as an ISO text, so the
+     *  test-app's appointment showed no time and a save wrote null
+     *  (gobj-ui 7.26.47 and 7.26.48).  */
+    test("a spec with no real type (\"time.writable\") is an epoch; \"string.time\" is a text", () => {
+        const app = gobj_create_pure_child("tapp2", "C_TEST_TIME_APP", {}, yuno);
+        gobj_start(app);
+        const form = gobj_create_pure_child("tform2", "C_YUI_FORM", {
+            template: {
+                bare:    "time.writable",
+                as_text: "string.time.writable",
+                as_int:  "integer.time.writable",
+            },
+            record: {bare: EPOCH, as_text: ISO, as_int: EPOCH},
+            editable: true,
+        }, app);
+        gobj_start(form);
+
+        expect(box(form, "bare").value).toBe(WALL);
+        expect(box(form, "as_text").value).toBe(WALL);
+        expect(box(form, "as_int").value).toBe(WALL);
+
+        gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
+        expect(saved.length).toBe(1);
+        expect(saved[0].bare).toBe(EPOCH);
+        expect(saved[0].as_text).toBe(ISO);
+        expect(saved[0].as_int).toBe(EPOCH);
+        expect(errors()).toEqual([]);
+    });
+
+    /*  The red outline is for the eye only: up to gobj-ui 7.26.48 a field
+     *  Save refused -- here a date with a part cleared -- carried no
+     *  aria-invalid, and its line was not the box's description.  */
+    test("a date with a part cleared is said invalid to a reader, and the line describes it", () => {
+        const app = gobj_create_pure_child("tapp3", "C_TEST_TIME_APP", {}, yuno);
+        gobj_start(app);
+        const form = gobj_create_pure_child("tform3", "C_YUI_FORM", {
+            template: TEMPLATE,
+            record: {as_epoch: EPOCH, as_text: ISO, no_time: null},
+            editable: true,
+        }, app);
+        gobj_start(form);
+
+        const $box = box(form, "as_epoch");
+        $box.value = "";
+        Object.defineProperty($box, "validity", {
+            configurable: true,
+            value: {badInput: true, valid: false, valueMissing: false}
+        });
+        Object.defineProperty($box, "validationMessage", {
+            configurable: true, value: "Please enter a valid date and time."
+        });
+        $box.dispatchEvent({type: "invalid"});
+        expect($box.classList.contains("is-danger")).toBe(true);
+        expect($box.getAttribute("aria-invalid")).toBe("true");
+        const $help = $box.parentNode.querySelector(".help");
+        expect($help.textContent).toBe("Please enter a valid date and time.");
+        expect($help.id).toBeTruthy();
+        expect($box.getAttribute("aria-describedby")).toBe($help.id);
+
+        Object.defineProperty($box, "validity", {
+            configurable: true, value: {badInput: false, valid: true, valueMissing: false}
+        });
+        $box.value = WALL;
+        $box.dispatchEvent({type: "blur"});
+        expect($box.classList.contains("is-danger")).toBe(false);
+        expect($box.getAttribute("aria-invalid")).toBe(null);
+        expect($help.textContent).toBe("");
+        expect(errors()).toEqual([]);
+    });
 });

@@ -201,12 +201,15 @@ function restore_view_state(gobj)
     let done = false;
     priv.restoring = true;
     try {
-        if(typeof state.zoom === "number" && state.zoom > 0) {
+        /*  A camera saved by an older version can hold nulls (a NaN
+         *  written as json): what is not a number is not restored.  */
+        if(Number.isFinite(state.zoom) && state.zoom > 0) {
             graph.zoomTo(state.zoom);
             priv.last_zoom = state.zoom;
             done = true;
         }
-        if(Array.isArray(state.position) && state.position.length >= 2) {
+        if(Array.isArray(state.position) && state.position.length >= 2 &&
+                Number.isFinite(state.position[0]) && Number.isFinite(state.position[1])) {
             graph.translateTo([state.position[0], state.position[1]]);
             done = true;
         }
@@ -243,14 +246,44 @@ function save_view_state(gobj)
         collapsed: priv.collapse_state || {},
         anchor: (priv.anchor_state === "on")? priv.anchor_name: "",
     };
+    let camera = null;
     try {
-        state.zoom = graph.getZoom();
-        state.position = graph.getPosition();
+        camera = camera_of(graph.getZoom(), graph.getPosition());
     } catch(e) {
         /*  between renders: keep the rest, the camera is not readable  */
     }
+    if(!camera) {
+        /*  Not readable, or not numbers yet (G6 answers NaN before it
+         *  paints): the camera saved before stays. Written as it came,
+         *  a NaN was saved as null (it has no json text), and gobj-js
+         *  7.26.27 refuses the whole value with an ERROR.  */
+        let old = load_view_state(gobj);
+        camera = old? camera_of(old.zoom, old.position) : null;
+    }
+    if(camera) {
+        state.zoom = camera.zoom;
+        state.position = camera.position;
+    }
 
     kw_set_local_storage_value(view_store_key(gobj), state);
+}
+
+/*  A camera that can be saved and restored: a zoom above 0 and a
+ *  position of two finite numbers; null otherwise.  */
+function camera_of(zoom, position)
+{
+    if(!(Number.isFinite(zoom) && zoom > 0)) {
+        return null;
+    }
+    if(!position || typeof position.length !== "number" || position.length < 2) {
+        return null;
+    }
+    let x = position[0];
+    let y = position[1];
+    if(!Number.isFinite(x) || !Number.isFinite(y)) {
+        return null;
+    }
+    return {zoom: zoom, position: [x, y]};
 }
 
 function load_view_state(gobj)

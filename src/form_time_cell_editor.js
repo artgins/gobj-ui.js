@@ -31,8 +31,10 @@
  *          it had. Up to gobj-ui 7.26.46 both committed null: one
  *          Backspace and Enter erased the stored time. To clear a time
  *          on purpose, clear EVERY part of the box: an empty box
- *          commits null. (Inside the box Tab moves between its parts,
- *          as the browser does: it does not leave the cell.)
+ *          commits null. Inside the box the Left and Right arrows move
+ *          between its parts; Tab is the table's (Tabulator's navNext):
+ *          it leaves the cell and opens the editor of the next one, in
+ *          Chromium and Firefox alike.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -82,6 +84,13 @@ function form_time_cell_editor(real_type)
             }
         }
         input.value = original_text;
+        /*  What the box holds, as the browser writes it: Chromium and
+         *  Firefox drop seconds of :00 ("…T02:30:00" reads "…T02:30"),
+         *  so the text written never equals the text read back. Up to
+         *  gobj-ui 7.26.48 a confirm with nothing changed then fell to
+         *  the epoch, which in the repeated hour of autumn is one hour
+         *  earlier (form_time_value.js): Enter wrote -3600 s.  */
+        let shown_text = input.value;
 
         onRendered(function() {
             if(cell.getType() === "cell") {
@@ -106,7 +115,7 @@ function form_time_cell_editor(real_type)
                 }
                 return;
             }
-            if(input.value === original_text) {
+            if(input.value === shown_text) {
                 cancel();
                 return;
             }
@@ -125,11 +134,17 @@ function form_time_cell_editor(real_type)
             }
         });
 
-        input.addEventListener("input", function() {
+        /*  On every key too: a part cleared in a box whose value was
+         *  already "" (incomplete) changes no value, and Chromium fires
+         *  `input` only when the value changes -- the last part
+         *  cleared left `aria-invalid` on an empty, valid box.  */
+        let recheck = function() {
             if(!incomplete()) {
                 input.removeAttribute("aria-invalid");
             }
-        });
+        };
+        input.addEventListener("input", recheck);
+        input.addEventListener("keyup", recheck);
 
         input.addEventListener("keydown", function(e) {
             switch(e.key) {

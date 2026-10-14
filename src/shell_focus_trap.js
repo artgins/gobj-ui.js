@@ -33,6 +33,10 @@
  *      stack, which was for good: a panel that only moved (taken out
  *      and put back, its trap never released) lost its trap. It is
  *      skipped now, and leaves the stack only by its release().
+ *      The first time a trap is skipped it is said, once: a panel out
+ *      of the document whose owner is gone keeps its keydown listener
+ *      until a release() that will never come, and up to gobj-ui
+ *      7.26.48 nothing said so (twenty such panels, twenty listeners).
  *
  *      No gobj dependency: only gobj-js's logger.  The optional
  *      second argument lets callers inject a mock document object
@@ -41,6 +45,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+import {log_warning} from "@yuneta/gobj-js";
 
 /*  Selector matching the elements typically considered focusable.
  *  Kept conservative: items that are explicitly removed from the tab
@@ -72,8 +77,24 @@ function top_trap()
         if(trap.$panel.isConnected !== false) {
             return trap;
         }
+        if(!trap.said_skipped) {
+            trap.said_skipped = true;
+            log_warning(
+                `focus trap: its panel (${panel_name(trap.$panel)}) is out of the ` +
+                `document and the trap was not released; it is skipped, and its ` +
+                `listener stays until its release() (an owner torn down with it open?)`
+            );
+        }
     }
     return null;
+}
+
+/*  What names a panel in the log: its classes, where the logical name
+ *  of the overlay is.  */
+function panel_name($panel)
+{
+    let cls = (typeof $panel.className === "string")? $panel.className.trim() : "";
+    return cls || "a panel with no class";
 }
 
 

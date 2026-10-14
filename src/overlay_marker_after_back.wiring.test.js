@@ -276,6 +276,9 @@ afterEach(async () => {
             gobj_stop(sh);
         }
     }
+    /*  A back() a test left in flight at a stop lands here: the next
+     *  test's shell would adopt it (adopt_orphan_back()).  */
+    window.dispatchEvent(new Event("popstate"));
 });
 
 function errors()

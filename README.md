@@ -229,12 +229,26 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > yui_shell_push_escape(shell, "modal", ask_then_close, close_now);
 > ```
 >
-> **And it moves no browser history (7.26.47).** The markers of the overlays it
-> closes are left in place, inert, as those of overlays a navigation drains: a
-> later Back lands on one and is absorbed. In 7.26.46 the stop retired them with
-> `history.back()`, which is asynchronous, and a stopped shell no longer hears
-> where it lands: a logout followed by a new shell in the same turn had it take
-> the new shell's first marker (Chromium), and the next Back left the app. An
+> **And it moves no browser history (7.26.47); the NEXT shell takes off what
+> it left (7.26.49).** The markers of the overlays it closes, and the action
+> entry of a `stay` route parked under one, are dead once it stops: a Back
+> onto one closes nothing. The stopped shell does not take them off -- a
+> `history.back()` is asynchronous, and a stopped shell no longer hears where
+> it lands (in 7.26.46 a logout followed by a new shell in the same turn had
+> it take the new shell's first marker in Chromium, and the next Back left the
+> app) --; it hands them over, and the next shell that starts with `use_hash`
+> takes them off with ONE `history.go(-n)` heard by its own landing bookkeeping:
+> an overlay it opens meanwhile gets its marker after the landing, a route it
+> pushes runs after it, and the position the URL holds is put back where it
+> lands. In 7.26.47 and 7.26.48 they stayed, and every logout with an overlay
+> up left more dead Backs (two per cycle with a question over a panel). The
+> entries are known by their Navigation API key (Chromium, Firefox and Safari
+> 26.2+); without the API they stay, as in 7.26.48. A page with no next shell
+> keeps them until one starts -- with no router on the page a Back over them
+> changes nothing on screen anyway --, and a reload keeps them in the tab's
+> `sessionStorage` for the first shell of the new load. A `history.back()` of
+> the stopped shell still in flight (an overlay closed by its own control in
+> the same turn as the stop) is adopted by a shell started before it lands. An
 > overlay parked on an action route (`redirect: "stay"`) whose `on_close` calls
 > `yui_shell_unpark_route()` has the URL rewritten in place to the resting
 > route, not taken back (7.26.48): a single `back()` landed on the action entry
@@ -251,7 +265,10 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > down with it no longer stands for an overlay that is gone. It is skipped, not
 > dropped: it leaves the stack only by its `release()`, and a panel that only
 > moves (taken out and put back) has its trap again (7.26.47; 7.26.46 dropped
-> it for good).
+> it for good). The first time a trap is skipped it is said, once, with the
+> panel's classes (7.26.49): a panel whose owner is gone keeps its `keydown`
+> listener until a `release()` that will never come, and the warning is how
+> that owner is found.
 
 ## Two maintained lines
 
@@ -3701,15 +3718,31 @@ empty box, and only `validity.badInput` tells them apart: Enter leaves the edito
 open, outlined and with `aria-invalid`, until the date is whole again or Escape;
 leaving the cell cancels, and the cell keeps its time (7.26.47+; up to 7.26.46
 one Backspace and Enter erased the stored time). **To clear a time on purpose,
-clear every part of the box**: an empty box writes `null`. Inside the box Tab
-moves between its parts, as the browser does.
+clear every part of the box**: an empty box writes `null`, and the box is no
+longer said invalid once its last part is cleared (7.26.49: Chromium says no
+`input` for it, the value stays `""`). Inside the box the Left and Right arrows
+move between its parts; Tab is the table's: it leaves the cell and opens the
+editor of the next one (Chromium and Firefox). Enter on a time left as it was
+is a cancel, on the hour too (7.26.49): the browser writes `…T02:30:00` back as
+`…T02:30`, so the text never matched, and in the hour that repeats in autumn
+the epoch of the wall time is the earlier one -- Enter wrote -3600 s.
 
 The form's own time field and the cell editor read and write a column the same
 way (7.26.47+): an epoch in seconds, an ISO text for a `string` column, and an
 empty box for a column that holds no time. Up to 7.26.46 the field read every
 column with `parseInt` -- an ISO text as 2026 seconds, in January 1970 --, wrote
 the epoch into a `string` column, and showed no time as January 1970, which a
-save wrote back as `0`.
+save wrote back as `0`. A template field written `"time.writable"` (no real
+type) is an epoch (7.26.49): the template grammar gives such a spec `string`,
+and 7.26.47 read it as an ISO text -- the field showed no time and a save wrote
+`null` over it. Write `"string.time.writable"` for an ISO text.
+
+A field Save refuses (a required box left empty, a date with a part cleared)
+is outlined AND carries `aria-invalid`, and the line under it is its
+`aria-describedby` (7.26.49; up to 7.26.48 only the outline said it, which a
+reader does not see). The line holds the form's own sentence for an empty
+required box and the browser's for the rest (`validationMessage`, in the
+browser's language).
 
 A table hears the reader through Tabulator's `dataChanged`, which Tabulator
 does not say for `setData()` / `replaceData()`, nor when its `history` module
@@ -3792,7 +3825,10 @@ the form is not selectable (7.26.46): Tabulator's row box ticks before its
 toggle is refused, and its header box selects every row without asking. It
 follows `selectable` written at any time, in every table (7.26.47+; in 7.26.46
 it was read when the table was built, and a `false` written later left boxes
-that ticked without selecting). Its header box is named *select all rows*, a
+that ticked without selecting). Writing `selectable: false` also takes off what
+was selected, in every table (7.26.49): the rows stayed selected with no box to
+untick, and a click could not take them off either -- the check refuses it
+(Chromium and Firefox, Tabulator 6.6.0). Its header box is named *select all rows*, a
 row's *select row*, and both change language with the form (consumer key
 `select all rows`, 7.26.47). A click in a NESTED table selects in that table
 only; it bubbled up to the row holding the table, which toggled too.
@@ -4122,6 +4158,23 @@ that is not json (a stray comma, conflict markers) is read by its lines, every
 `"version"` it holds: up to `7.26.46` one such commit anywhere in the history
 refused the app on every round, without naming the commit. A package.json of
 the working tree that is not json is refused naming the file.
+
+Since `7.26.49` the states read for a package.json born with the range are
+kept between rounds in `~/.yuneta/deploy-round-history.json` (commits do not
+change, so the states of the history before a birth are the same on every
+run; a shallow clone is not kept, and a file that cannot be read is said and
+read again from git). Up to `7.26.48` that search read every package.json of
+the history again on every round while the range was the current one: on a
+history of 30 000 commits, 1.2 s per round against 0.25 s without it; now the
+first round pays it once. A package.json born with the range in the ROOT of a
+history joined to another one (`--allow-unrelated-histories`) is asked of the
+other history, by version, as one born in a commit with parents is. The
+version raised is the package's own, the `"version"` of the top object: up to
+`7.26.48` the first `"version": "x.y.z"` of the text was, so a `config.version`
+or a `scripts.version` equal to it was raised in its place and the app went
+out under its old number; the json is read back after the edit. A
+package.json that starts with a byte order mark is read, as npm reads it (up to
+`7.26.48` it was refused as not json).
 
 ### Colour: a brand token as INK takes `-on-scheme`, as a FILL it does not
 
@@ -4491,12 +4544,18 @@ with `const T = "t"`), and so is a SPREAD of an array the source writes out:
 `t(...["k"])`, `t.call(x, ...["k"])`, `t(...KEYS)` and `t.apply(x, KEYS)` with
 `const KEYS = ["k"]` -- each element of the const read as `KEYS[0]`,
 `KEYS[1]`... (up to `7.26.45` none of them was read, and nothing failed). Since
-`7.26.47` each of those is THAT element, so `t.apply(null, ["save", "Save it"])`
-asks for "save" and not for its default value (`7.26.46` read every element of
-the array at every position, and asked for both), and a const ALIAS of such an
-array (`const B = KEYS; t(...B)`), an import of one, and an
-`Object.freeze([...])` are read as it is (up to `7.26.46` they were spreads of
-what the source does not write).
+`7.26.47` each of those is THAT element of a const array only ever read (below),
+so `t.apply(null, SAVE)` with `const SAVE = ["save", "Save it"]` asks for
+"save" and not for its default value (`7.26.46` read every element of a const
+array at every position, and asked for both; an array written in the call,
+`t.apply(null, ["save", "Save it"])`, was read by position already), and a
+const ALIAS of such an array (`const B = KEYS; t(...B)`), an import of one, and
+an `Object.freeze([...])` are read as it is (up to `7.26.46` they were spreads
+of what the source does not write; `7.26.47` and `7.26.48` read a frozen array
+by every element at every position, so `f.apply(x, Object.freeze([shell,
+"k"]))` failed the rule per call). A `let` of literal arrays is read too, by
+every element at each position (since `7.26.49`; up to `7.26.48` `t(...L)` and
+`t(L[1])` with `let L = ["a", "b"]` read nothing).
 An ARRAY given to it is i18next's list of fallback keys, and
 each one is a key: `t([specific, "generic"])` asks for "generic". A `.bind()`
 that binds a KEY makes a translator whose calls hand i18next its options or its
@@ -4550,11 +4609,35 @@ options). What is followed:
   COPY of one (since `7.26.32`): `{...BASE, title: "t"}`,
   `Object.assign({}, BASE)`;
 - an element of a const array literal read by an index the source writes
-  (`LABELS[1]`, `LABELS["1"]`): that element, nothing past the end or in a
-  hole (since `7.26.47`; up to `7.26.46` every element of the array). An
-  index past a spread, a computed one, and an array its scope writes into
-  (`LABELS[0] = k`, `.push()`, `.reverse()`, `.sort()`, `delete`, ...: an
-  element may be another one by then) read every element written out;
+  (`LABELS[1]`, `LABELS["1"]`, `LABELS.at(1)`, `LABELS.at(-1)`, `const [a, b]
+  = LABELS`, `const {1: b} = LABELS`, a spread of `LABELS.slice(1, 3)`): that
+  element, nothing past the end or in a hole (since `7.26.47`; up to `7.26.46`
+  every element of the array; `.at()`, the destructuring and `.slice()` since
+  `7.26.49`, up to `7.26.48` they read nothing) -- when EVERY use of the array
+  is a read that leaves its elements where they are: an element or a property
+  read, a spread, the array of an `.apply()`, a destructuring, a `for...of`, a
+  test or an operand, `Object.freeze()`, `Array.isArray()`, the methods that
+  write nothing (`.at()`, `.slice()`, `.includes()`, `.join()`, ...) and the
+  callbacks of `.map()`, `.forEach()`, `.reduce()` ... that cannot reach the
+  array (a function written there with no parameter for it, or `t`). A const
+  alias of it is held to the same, and so is every module of the run that
+  imports it (the app's sources, and the library's for an array of the
+  library); a namespace import, a re-export or an `import()` of its module is
+  not a read. Any other use -- written into, handed to a function
+  (`shuffle(LABELS)`, `Reflect.set(LABELS, 0, k)`,
+  `Array.prototype.reverse.call(LABELS)`), kept (`{x: LABELS}`, `let L =
+  LABELS`), returned, a method named by what is no string written out
+  (`LABELS["re" + "verse"]()`), a callback that takes the array (`(v, i, arr)
+  => ...`, a function named) -- reads every element written out, at any index,
+  and so do an index past a spread and a computed one (since `7.26.49`; up to
+  `7.26.48` only the writes the reader knew -- `X[0] = k`, `.push()`,
+  `.reverse()`, `delete`, ... in the array's own scope -- did, and the shapes
+  above read the element the source wrote there, not the one the array held);
+- an element of a `let` (or `var`) that is only ever given array literals of
+  literals and elements that are literals (`L[0] = "k"`, `L.push("k")`):
+  every one of them, at any index (`L[1]`, `L.at(1)`, `t(...L)`, a `for...of`,
+  `const [a, b] = L`), since `7.26.49`; up to `7.26.48` it was read as nothing.
+  A let given anything else is not followed (below);
 - the element of a const array literal that a `for...of` walks, or that the
   first parameter of a callback of one of the methods above receives (in the
   same forms, and since `7.26.42` also the callback of `Array.from(ROWS, cb)`,
@@ -5210,9 +5293,14 @@ reading the page in another language:
   `m` a parameter or a `let`, `t[c()? "call" : "apply"]`);
 - a key handed to a translator in a spread of what is no array the source
   writes out (`t(...args)`, `t.apply(x, args)` with `args` a parameter, a
-  `let`, or a const whose array holds a spread or a hole; a const alias, an
-  import or an `Object.freeze()` of an array written out is read, since
-  `7.26.47`): from the spread on, no position is known;
+  `let` given anything but literal arrays, or a const whose array holds a
+  spread or a hole; a const alias, an import or an `Object.freeze()` of an
+  array written out is read, since `7.26.47`, and a `let` of literal arrays
+  since `7.26.49`), and a spread of a `.slice()` whose bounds are not integers
+  written out (`t(...KEYS.slice(i))`): from the spread on, no position is
+  known;
+- an element a REST takes from an array (`const [first, ...others] = KEYS;
+  t(others[0])`): the reader does not count positions through a rest;
 - a translator handed to a FUNCTION (`{t: t}`, `yui_tabulator_lang(t)`,
   `run(t)`) or to any method but those listed above (`keys.reduce(t)`,
   `keys.sort(t)`, an alias of a method, `Reflect.apply()`): only those
@@ -5236,11 +5324,13 @@ reading the page in another language:
   (`TABLE.k = "k"`, `LIST[0] = "k"`, `LIST.push("k")`): the reader follows a
   const to its value, and only a marked `let` is followed into what is
   written into it (a published list that is written into fails: above). An
-  array written into in its own scope is read by every element at any index
-  (above); written through an alias (`const B = LIST; B.reverse()`), from a
-  module that imports it, or by a function it is handed to (`shuffle(LIST)`),
-  it is not seen, and an element
-  read by its index is the one the source writes there;
+  array used in any way but a read is read by every element written out, at
+  any index (above), so an element read by its index is never one the array
+  may no longer hold; what such a use PUTS into it is not read, whatever the
+  use (`LIST.push("k")`, `Reflect.set(LIST, 0, "k")`, `fill(LIST)`). The same
+  for a `let` of literal arrays, for what is written into it in a way the
+  reader does not read (`Reflect.set(L, 0, "k")`, a function it is handed
+  to);
 - what a module of a package exports (gobj-js, i18next), and an exported
   `let`;
 - in the library's forwarder search, a key stored in a heap object or a DOM
@@ -5323,7 +5413,19 @@ reached through a symlinked package with `--preserve-symlinks-main` (also from
 `NODE_OPTIONS`): both sides of its "am I the script?" test are resolved. A
 locale is IMPORTED, so its code runs: the script ends itself once what it wrote
 has left, and a timer a locale leaves running does not hold the build (since
-`7.26.46`; up to `7.26.45` it held it for ever, a failing run included).
+`7.26.46`; up to `7.26.45` it held it for ever, a failing run included). The
+run ends with the code of its own verdict: what a locale writes into
+`process.exitCode` changes nothing, and a `process.exit()` the script did not
+call fails the run, saying so (since `7.26.49`; a locale's
+`setTimeout(() => process.exit(0), 0)` or `process.exitCode = 0` in a timer
+turned a failing run into exit code 0 up to `7.26.45`, and again in `7.26.47`
+and `7.26.48`; a `process.exit(0)` at the top of a locale ended the run with 0
+before anything was checked, in every version). In a browser `process` does not exist, so such a locale is broken in
+the app too. The run waits for a timer of 0 before it ends, so a promise a
+locale rejects at its top or in such a timer, with nothing to handle it, fails
+the run with its stack (since `7.26.47`). A timer of more than 0 ms is not
+waited for -- a `setInterval` would hold the build for ever --, and what it
+does after the verdict, a rejection included, is not seen.
 
 Up to `7.26.24` each app carried its own copy, and the copies had drifted into
 three families: only one read the codes of the schema editor, only the other

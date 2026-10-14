@@ -99,6 +99,20 @@ let __live_shells__ = [];
  *  reads it).  */
 let __retiring_shell__ = null;
 
+/*  The session-history entries a stopped shell left behind, by their
+ *  navigation key (the Navigation API's, which a replaceState keeps):
+ *  the markers of its overlays and the action entries of its `stay`
+ *  routes. They are dead -- nothing closes or opens on them any more --
+ *  and the next shell takes them off with ONE history.go(-n) at its
+ *  start, heard by its own expected_pops (retire_dead_entries()). A
+ *  stopped shell moves no history: it would not hear the landing.  */
+let __dead_entries__ = new Set();
+
+/*  A history.back() of a shell that stopped before it landed. Nothing
+ *  hears it but a passive count; a shell started meanwhile adopts it,
+ *  so its own markers wait for that landing (adopt_orphan_back()).  */
+let __orphan_back__ = null;
+
 /*  The gobjs that keep DOM in a shell's layers without being its
  *  children: a C_YUI_WINDOW parented to the app, the dock of
  *  C_YUI_WINDOW_MANAGER. Each is sent EV_SHELL_CHANGED when a shell is
@@ -238,6 +252,10 @@ let PRIVATE_DATA = {
      *  them is given up -- what to say if one lands after all.  */
     expected_pop_ids: [],
     given_up:        null,
+    /*  The navigation keys of the entries this shell made: its overlay
+     *  markers and the action entries of its `stay` routes. Dead once
+     *  it stops (__dead_entries__).  */
+    own_entries:     [],
     popstate_handler: null,
     /*  Avatar item support — every toolbar item with type:"avatar"
      *  registers its <span> here so refresh_avatars() can repaint
@@ -446,6 +464,9 @@ function mt_start(gobj)
                         }
                     }
                     p.restore_hash = "";
+                    if(retire_dead_entries(gobj)) {
+                        return;     // the markers wait for that landing too
+                    }
                     push_pending_markers(gobj);
                 }
                 return;
@@ -525,6 +546,8 @@ function mt_start(gobj)
             }
         };
         window.addEventListener("popstate", priv.popstate_handler);
+        keep_dead_entries_across_reload();
+        adopt_orphan_back(gobj);
     }
 
     /*  Global Escape: route to the top handler of the escape stack,
@@ -572,6 +595,13 @@ function mt_start(gobj)
             "shell.stages.<name>.default_route, or navigate via hash"
         );
     }
+
+    /*  After the first route, which reads the URL now (a stop rewrote
+     *  it in place, yui_shell_unpark_route): the traversal is
+     *  asynchronous, and the position is put back where it lands.  */
+    if(priv.popstate_handler) {
+        retire_dead_entries(gobj);
+    }
 }
 
 /***************************************************************
@@ -590,6 +620,9 @@ function mt_stop(gobj)
      *  shell. */
     retire_overlays(gobj);
     close_toolbar_dropdown(gobj);
+    if(priv.popstate_handler) {
+        hand_over_history(gobj);
+    }
 
     if(priv.hash_handler) {
         window.removeEventListener("hashchange", priv.hash_handler);
@@ -1613,6 +1646,12 @@ function navigate_to(gobj, route, depth, no_drain)
                      *  entry.  no_drain: internal fix-up hop, not a
                      *  resting navigation. */
                     navigate_to(gobj, prev, depth + 1, true);
+                    /*  The entry rewritten is a resting one now, whatever
+                     *  it was in an earlier load (a reload on a marker).  */
+                    let key = current_entry_key();
+                    if(key) {
+                        __dead_entries__.delete(key);
+                    }
                     let h = route_to_hash(route);
                     try {
                         window.history.pushState(null, "", h);
@@ -1624,6 +1663,11 @@ function navigate_to(gobj, route, depth, no_drain)
                  *  hash — the URL stays where the user sees it, and
                  *  nothing was restored, so there is no ordering to
                  *  keep: the event just fires. */
+                /*  The action entry, when the URL sits on it: dead
+                 *  once a stop closes the overlay (hand_over_history).  */
+                if(window.location.hash === route_to_hash(route)) {
+                    note_own_entry(gobj);
+                }
             }
             publish_action();
             return;
@@ -2836,6 +2880,265 @@ function retire_overlays(gobj)
     }
 }
 
+/************************************************************
+ *  The history a shell that stops leaves to the next one.
+ *
+ *  Its markers and the action entries of its `stay` routes
+ *  are dead now: a Back onto one closes nothing (up to gobj-ui
+ *  7.26.48 they stayed, one more dead Back per overlay and per
+ *  logout, accumulating). It cannot take them off itself: a
+ *  back() is asynchronous and it no longer hears where it
+ *  lands. They go to __dead_entries__, and the next shell takes
+ *  them off at its start (retire_dead_entries()). A back() of
+ *  its own still in flight goes to __orphan_back__, which a
+ *  shell started before it lands adopts.
+ *
+ *  A page with no next shell keeps them: with no router on the
+ *  page, a Back over the app's own entries changes nothing on
+ *  screen anyway, and the next shell retires them all the same.
+ ************************************************************/
+function hand_over_history(gobj)
+{
+    let priv = gobj.priv;
+    for(let key of priv.own_entries) {
+        __dead_entries__.add(key);
+    }
+    priv.own_entries = [];
+
+    if(priv.expected_pops > 0) {
+        if(__orphan_back__) {
+            drop_orphan_back("another shell stopped with a back() in flight");
+        }
+        let orphan = {
+            pops:         priv.expected_pops,
+            hash:         priv.expected_pop_hash,
+            restore_hash: priv.restore_hash,
+            ids:          priv.expected_pop_ids.slice(),
+            /*  A monotonic clock, as given_up's.  */
+            since:        performance.now(),
+            listener:     null
+        };
+        /*  Only counts the landing: with no shell to restore a
+         *  position on screen, the URL is put back as a shell would.  */
+        orphan.listener = () => {
+            orphan.pops--;
+            if(orphan.pops > 0) {
+                return;
+            }
+            if(orphan.restore_hash && window.location.hash !== orphan.restore_hash) {
+                try {
+                    window.history.replaceState(window.history.state, "", orphan.restore_hash);
+                } catch(e) {
+                    log_warning(`C_YUI_SHELL: restoring '${orphan.restore_hash}' failed: ${e}`);
+                }
+            }
+            drop_orphan_back(null);
+        };
+        window.addEventListener("popstate", orphan.listener);
+        __orphan_back__ = orphan;
+    }
+}
+
+function drop_orphan_back(reason)
+{
+    let orphan = __orphan_back__;
+    if(!orphan) {
+        return;
+    }
+    __orphan_back__ = null;
+    window.removeEventListener("popstate", orphan.listener);
+    if(reason) {
+        log_warning(`C_YUI_SHELL: a back() of a stopped shell is no longer waited for: ${reason}`);
+    }
+}
+
+/************************************************************
+ *  A shell that starts while a back() of a stopped one is in
+ *  flight waits for it as for one of its own: an overlay it
+ *  opens meanwhile gets its marker after the landing, and a
+ *  route it pushes runs after it. Pushed before, Chromium runs
+ *  the traversal from the new entry and Firefox drops it.
+ ************************************************************/
+function adopt_orphan_back(gobj)
+{
+    let orphan = __orphan_back__;
+    if(!orphan) {
+        return;
+    }
+    if(performance.now() - orphan.since > DEFERRED_ROUTE_WAIT_MS) {
+        drop_orphan_back(`it did not land in ${DEFERRED_ROUTE_WAIT_MS} ms`);
+        return;
+    }
+    __orphan_back__ = null;
+    window.removeEventListener("popstate", orphan.listener);
+    let priv = gobj.priv;
+    priv.expected_pops = orphan.pops;
+    priv.expected_pop_hash = orphan.hash;
+    priv.restore_hash = orphan.restore_hash;
+    priv.expected_pop_ids = orphan.ids;
+    arm_back_wait(gobj);
+}
+
+/************************************************************
+ *  A reload is a shell going away with its overlays up, and
+ *  no stop: the entries it made stay in the session history,
+ *  and they are entries of the new document too (a Back onto
+ *  one is a popstate, not a load). Their keys are kept in the
+ *  tab's sessionStorage when the page goes, and the first
+ *  shell of the new document takes them off as a stop's.
+ ************************************************************/
+const DEAD_ENTRIES_STORAGE_KEY = "yui_shell_dead_entries";
+let __dead_entries_kept__ = false;
+
+function keep_dead_entries_across_reload()
+{
+    if(__dead_entries_kept__) {
+        return;
+    }
+    __dead_entries_kept__ = true;
+    let storage = null;
+    try {
+        storage = window.sessionStorage;
+    } catch(e) {
+        log_warning(`C_YUI_SHELL: no sessionStorage, a reload keeps its dead history entries: ${e}`);
+        return;
+    }
+    if(!storage) {
+        return;
+    }
+    let raw = null;
+    try {
+        raw = storage.getItem(DEAD_ENTRIES_STORAGE_KEY);
+        storage.removeItem(DEAD_ENTRIES_STORAGE_KEY);
+    } catch(e) {
+        log_warning(`C_YUI_SHELL: reading the dead history entries of the last load failed: ${e}`);
+    }
+    if(raw) {
+        let keys = null;
+        try {
+            keys = JSON.parse(raw);
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: the dead history entries of the last load are not json: ${e}`);
+        }
+        if(Array.isArray(keys)) {
+            for(let key of keys) {
+                if(typeof key === "string") {
+                    __dead_entries__.add(key);
+                }
+            }
+        }
+    }
+    window.addEventListener("pagehide", () => {
+        let keys = new Set(__dead_entries__);
+        for(let shell of __live_shells__) {
+            for(let key of (shell.priv && shell.priv.own_entries) || []) {
+                keys.add(key);
+            }
+        }
+        try {
+            if(keys.size > 0) {
+                storage.setItem(DEAD_ENTRIES_STORAGE_KEY, JSON.stringify([...keys]));
+            } else {
+                storage.removeItem(DEAD_ENTRIES_STORAGE_KEY);
+            }
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: keeping the dead history entries for the next load failed: ${e}`);
+        }
+    });
+}
+
+/*  The key of the current session-history entry, or null without the
+ *  Navigation API (then nothing is retired: the dead entries stay, as
+ *  up to gobj-ui 7.26.48).  */
+function current_entry_key()
+{
+    let nav = window.navigation;
+    if(!nav || !nav.currentEntry || typeof nav.entries !== "function") {
+        return null;
+    }
+    return nav.currentEntry.key || null;
+}
+
+/*  The current entry is this shell's: a marker it pushed, or the entry
+ *  of a `stay` route it parked an overlay on.  */
+const OWN_ENTRIES_PRUNE_AT = 64;
+
+function note_own_entry(gobj)
+{
+    let priv = gobj.priv;
+    let key = current_entry_key();
+    if(!key || priv.own_entries.includes(key)) {
+        return;
+    }
+    priv.own_entries.push(key);
+    if(priv.own_entries.length > OWN_ENTRIES_PRUNE_AT) {
+        /*  Entries cut off by a push are gone for good.  */
+        let alive = new Set(window.navigation.entries().map(e => e.key));
+        priv.own_entries = priv.own_entries.filter(k => alive.has(k));
+    }
+}
+
+/************************************************************
+ *  Take off, with ONE history.go(-n), the dead entries a
+ *  stopped shell left under the current one (hand_over_history).
+ *  The walk stops at the first entry that is not dead, so it
+ *  never goes past an entry of the reader's. The traversal is
+ *  this shell's own (expected_pops): its overlays' markers and
+ *  the routes it pushes wait for the landing, and a position
+ *  the URL holds is put back on the entry it lands on, as for
+ *  any back() of ours (restore_hash). Returns true when it
+ *  went.
+ ************************************************************/
+function retire_dead_entries(gobj)
+{
+    let priv = gobj.priv;
+    if(__dead_entries__.size === 0 || priv.expected_pops > 0 ||
+            !priv.popstate_handler || !current_entry_key()) {
+        return false;
+    }
+    let nav = window.navigation;
+    let entries = nav.entries();
+    let index = nav.currentEntry.index;
+    let alive = new Set(entries.map(e => e.key));
+    for(let key of __dead_entries__) {
+        if(!alive.has(key)) {
+            __dead_entries__.delete(key);
+        }
+    }
+    let landing = index;
+    while(landing > 0 && __dead_entries__.has(entries[landing].key)) {
+        landing--;
+    }
+    let steps = index - landing;
+    if(steps === 0) {
+        return false;
+    }
+    let landing_hash = "";
+    try {
+        landing_hash = new URL(entries[landing].url).hash;
+    } catch(e) {
+        log_warning(`C_YUI_SHELL: the entry under the dead ones has no url: ${e}`);
+        return false;
+    }
+    for(let i = landing + 1; i <= index; i++) {
+        __dead_entries__.delete(entries[i].key);
+    }
+    priv.expected_pops++;
+    priv.expected_pop_hash = landing_hash;
+    priv.restore_hash = (window.location.hash !== landing_hash)? window.location.hash : "";
+    try {
+        window.history.go(-steps);
+    } catch(e) {
+        priv.expected_pops--;
+        priv.restore_hash = "";
+        log_warning(`C_YUI_SHELL: retiring ${steps} dead history entries failed: ${e}`);
+        return false;
+    }
+    clear_deferred_timer(gobj);     // a wait that just ended goes on: bound it again
+    arm_back_wait(gobj);
+    return true;
+}
+
 function pop_escape(gobj, handler)
 {
     let priv = gobj.priv;
@@ -3033,6 +3336,7 @@ function push_overlay_marker(gobj, entry)
     }
     try {
         window.history.pushState({ __yui_overlay__: entry.id }, "");
+        note_own_entry(gobj);
     } catch(e) {
         /*  pushState failed (rare): drop the entry so overlay_dismissed
          *  won't later history.back() past a real route. */
@@ -3099,6 +3403,13 @@ function defer_route(gobj, route)
         );
     }
     priv.deferred_route = route;
+    arm_back_wait(gobj);
+}
+
+/*  Bound the wait for a traversal of ours that may never land.  */
+function arm_back_wait(gobj)
+{
+    let priv = gobj.priv;
     if(!priv.deferred_timer) {
         /*  The timer only says that the time is up: the giving up is
          *  an action of the FSM (ac_back_wait_timeout).  */

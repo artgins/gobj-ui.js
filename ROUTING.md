@@ -366,7 +366,8 @@ reads as an accident.
 > `history.back()`s only while the URL still sits on the route (and, when the
 > close comes from a shell that stops, rewrites the URL to the resting route in
 > place instead of going back: a stopped shell never hears where a `back()`
-> lands, 7.26.48). A blind
+> lands, 7.26.48; the action entry and the overlay's marker are then taken off
+> by the next shell at its start, 7.26.49). A blind
 > `history.back()` breaks when the shell's overlay **drain** closes the modal
 > (the user navigated to another resting route while it was open): the URL has
 > already moved, so the back() lands on the stranded action entries and

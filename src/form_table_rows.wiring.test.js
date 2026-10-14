@@ -167,6 +167,16 @@ vi.mock("tabulator-tables", () => {
         getRows() {
             return this.rows.map((row) => row.component);
         }
+        getSelectedRows() {
+            return this.rows.filter((row) => row.selected).map((row) => row.component);
+        }
+        /*  SelectRow's deselectRow(): with no argument every row, and
+         *  it asks no `selectableRowsCheck`.  */
+        deselectRow() {
+            for(const row of this.rows) {
+                row.selected = false;
+            }
+        }
         /*  The structured columns start with the row header, as
          *  Tabulator's (ColumnManager.columns).  */
         getColumns(structured) {
@@ -659,6 +669,28 @@ describe("the checkbox column", () => {
         gobj_write_attr(form, "selectable", true);
         expect(alarms.getColumns(true)[0].isVisible()).toBe(true);
         expect(nested.getColumns(true)[0].isVisible()).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+
+    /*  Up to 7.26.48 the rows selected before stayed selected: no box
+     *  to untick, and a click asks the check, which refuses.  */
+    test("written false, it takes off what was selected", async () => {
+        const {form, first} = build(record(), null, {
+            with_checkbox: true, tabulator_settings: {selectableRows: true}
+        });
+        await settle();
+        const alarms = alarms_of(first);
+        alarms.click_row(0);
+        alarms.click_row(1);
+        expect(alarms.getSelectedRows().length).toBe(2);
+        gobj_write_attr(form, "selectable", false);
+        expect(alarms.getColumns(true)[0].isVisible()).toBe(false);
+        expect(alarms.getSelectedRows().length).toBe(0);
+        alarms.click_row(0);
+        expect(alarms.getSelectedRows().length).toBe(0);
+        gobj_write_attr(form, "selectable", true);
+        alarms.click_row(0);
+        expect(alarms.getSelectedRows().length).toBe(1);
         expect(errors()).toEqual([]);
     });
 

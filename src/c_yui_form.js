@@ -241,14 +241,20 @@ function mt_create(gobj)
 function mt_writing(gobj, path)
 {
     if(path === "selectable") {
-        /*  The checkbox column follows it, in every table built  */
+        /*  The checkbox column follows it, in every table built; and
+         *  what was selected goes, or it would stay selected with no
+         *  box and no click to take it off (the check refuses both).  */
         let $container = gobj_read_attr(gobj, "$container");
         if(!$container) {
             return;
         }
+        let selectable = gobj_read_bool_attr(gobj, "selectable");
         for(let $table of $container.querySelectorAll(".yui-tabulator-table, .yui-tabulator-table-nested")) {
             if($table.tabulator) {
                 show_row_selection(gobj, $table.tabulator);
+                if(!selectable && $table.tabulator.initialized) {
+                    $table.tabulator.deselectRow();
+                }
             }
         }
     }
@@ -960,7 +966,7 @@ function build_form(gobj)
 function build_html_form(gobj, $form, prefix, template)
 {
     Object.entries(template).forEach(([key, value]) => {
-        const field_desc = template_get_field_desc(key, value);
+        const field_desc = form_template_field_desc(key, value);
         /*  The drawing of a user icon (`svg` of __icons__): a text area
          *  with the icon it draws below it.  */
         if(!prefix && yui_icons_is_svg_field(
@@ -2207,6 +2213,7 @@ function create_coordinates(gobj, attrs)
             $input.value = `${longitude}, ${latitude}`;
 
             $input.classList.remove('is-danger');
+            $input.removeAttribute('aria-invalid');
             let $h = $input.closest('.xcontrol').parentNode.querySelector('.help');
             $h.textContent = '';
             $h.style.display = 'none';
@@ -2234,7 +2241,9 @@ function create_coordinates(gobj, attrs)
             }
 
             $input.classList.add('is-danger');
+            $input.setAttribute('aria-invalid', 'true');
             let $h = $input.closest('.xcontrol').parentNode.querySelector('.help');
+            describe_by_help($input, $h);
             $h.textContent = errorMsg;
             $h.style.display = 'block';
         }
@@ -2590,7 +2599,7 @@ function table_column_titles(template)
 {
     let titles = {};
     Object.entries(template || {}).forEach(([key, value]) => {
-        const field_desc = template_get_field_desc(key, value);
+        const field_desc = form_template_field_desc(key, value);
         titles[field_desc.name] = column_title(field_desc);
     });
     return titles;
@@ -2609,7 +2618,7 @@ function template2columns(gobj, columns, template, sub_elements)
         /*
          *  Decode the item in template into html item
          */
-        const field_desc = template_get_field_desc(key, value);
+        const field_desc = form_template_field_desc(key, value);
 
         let readonly = !field_desc.is_writable;
         let validator = [];
@@ -2920,6 +2929,26 @@ function template2columns(gobj, columns, template, sub_elements)
 }
 
 /************************************************************
+ *  A field of the template. A dot-token spec that names a
+ *  `time` / `now` type and no real type ("time.writable") is
+ *  an epoch, as the real type of a treedb time column is
+ *  integer: template_get_field_desc() (gobj-js) gives every
+ *  spec without one `string`, and a `string` time column is
+ *  an ISO text (form_time_value.js). Since gobj-ui 7.26.47
+ *  such a field showed its epoch as no time, and a save of
+ *  any field wrote null over it.
+ ************************************************************/
+function form_template_field_desc(key, value)
+{
+    let field_desc = template_get_field_desc(key, value);
+    if(is_string(value) && (field_desc.type === "time" || field_desc.type === "now") &&
+            !value.split(".").includes(field_desc.real_type)) {
+        field_desc.real_type = "integer";
+    }
+    return field_desc;
+}
+
+/************************************************************
  *  What is wrong with a field, in the APP's language.
  *
  *  `input.validationMessage` is the BROWSER's sentence in the BROWSER's
@@ -2986,6 +3015,7 @@ function mark_field_validity($input)
 
     if(ok) {
         $input.classList.remove('is-danger');
+        $input.removeAttribute('aria-invalid');
         if($h) {
             $h.textContent = '';
             $h.removeAttribute('data-i18n');
@@ -2994,8 +3024,14 @@ function mark_field_validity($input)
         return true;
     }
 
+    /*  The red outline is for the eye; a reader hears `aria-invalid`
+     *  and the line under the box (aria-describedby). Up to gobj-ui
+     *  7.26.48 a field Save refused -- a date with a part cleared, an
+     *  empty required box -- said so to the eye only.  */
     $input.classList.add('is-danger');
+    $input.setAttribute('aria-invalid', 'true');
     if($h) {
+        describe_by_help($input, $h);
         let key = field_validation_key($input);
         if(key) {
             $h.setAttribute('data-i18n', /* i18n: C_YUI_FORM_I18N_KEYS, FORM_JSON_FIELD_I18N_KEYS */ key);
@@ -3006,6 +3042,22 @@ function mark_field_validity($input)
         $h.style.display = 'block';
     }
     return false;
+}
+
+/*  The help line under a box describes it: an id for the line, and
+ *  the box's aria-describedby names it (kept with what it held).  */
+let __help_seq__ = 0;
+
+function describe_by_help($input, $h)
+{
+    if(!$h.id) {
+        $h.id = `yui-form-help-${++__help_seq__}`;
+    }
+    let ids = ($input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+    if(!ids.includes($h.id)) {
+        ids.push($h.id);
+        $input.setAttribute('aria-describedby', ids.join(' '));
+    }
 }
 
 /************************************************************
@@ -3307,12 +3359,18 @@ function clear_data(gobj, $form)
  ************************************************************/
 function clear_validation(gobj, $form)
 {
-    $form.querySelectorAll('input').forEach($input => {
+    /*  Every field mark_field_validity() marks: a textarea and a json
+     *  editor stayed red after a clear, as they stay `aria-invalid`.  */
+    $form.querySelectorAll('input, .yui-form-data-input').forEach($input => {
         $input.classList.remove('is-danger');
+        $input.removeAttribute('aria-invalid');
     });
 
+    /*  Its key goes too: a language change re-translates every node
+     *  that carries one, and wrote the message back into the line.  */
     $form.querySelectorAll('.help').forEach($input => {
         $input.textContent = '';
+        $input.removeAttribute('data-i18n');
         $input.style.display = 'none';
     });
 

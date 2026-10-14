@@ -430,6 +430,101 @@ describe("deploy-round: the range and the version", () => {
         expect(read(join(repo, "second")).version).toBe("1.0.1");
     });
 
+    test("the version raised is the package's own: a nested \"version\" equal to it is left alone", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let dir = join(root, "nested");
+        mkdirSync(dir, {recursive: true});
+        let text = `{\n    "name": "nested",\n    "config": {"version": "1.0.0"},\n    "scripts": {"version": "1.0.0"},\n` +
+                   `    "versions": ["1.0.0"],\n    "version": "1.0.0",\n` +
+                   `    "dependencies": {"@yuneta/gobj-ui": "^${OLDER}"}\n}\n`;
+        writeFileSync(join(dir, "package.json"), text);
+        let r = round(root, {name: "nested", path: dir});
+        expect(r.out).toContain("version 1.0.0 -> 1.0.1");
+        let pkg = read(dir);
+        expect(pkg.version).toBe("1.0.1");
+        expect(pkg.config.version).toBe("1.0.0");
+        expect(pkg.scripts.version).toBe("1.0.0");
+        expect(readFileSync(join(dir, "package.json"), "utf8"))
+            .toBe(text.replace(`"version": "1.0.0",\n    "dep`, `"version": "1.0.1",\n    "dep`)
+                      .replace(`^${OLDER}`, `^${VERSION}`));
+    });
+
+    test("a package.json that starts with a BOM is read, as npm reads it, and keeps it", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let dir = join(root, "bom");
+        mkdirSync(dir, {recursive: true});
+        writeFileSync(join(dir, "package.json"), "\ufeff" + package_json("bom", "2.1.0", {"@yuneta/gobj-ui": `^${OLDER}`}));
+        let r = round(root, {name: "bom", path: dir});
+        expect(r.out).toContain("version 2.1.0 -> 2.1.1");
+        expect(r.out).not.toMatch(/FAILED in this round/);
+        let after = readFileSync(join(dir, "package.json"), "utf8");
+        expect(after.startsWith("\ufeff")).toBe(true);
+        expect(JSON.parse(after.slice(1))).toEqual({name: "bom", version: "2.1.1",
+                                                    dependencies: {"@yuneta/gobj-ui": `^${VERSION}`}});
+    });
+
+    test("a package.json born with the range in the root of a history joined to another is asked of the other one", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let repo = join(root, "repo");
+        consumer(repo, "old", "3.0.0", {"@yuneta/gobj-ui": `^${OLDER}`});
+        execFileSync("git", ["init", "-q", "-b", "main"], {cwd: repo});
+        commit(repo, "3.0.0 out with the old range");
+        git(repo, "checkout", "-q", "--orphan", "side");
+        git(repo, "rm", "-rqf", ".");
+        consumer(repo, "new", "3.0.0", {"@yuneta/gobj-ui": `^${VERSION}`});
+        commit(repo, "the app again, in a history of its own");
+        git(repo, "checkout", "-q", "main");
+        git(repo, "merge", "-q", "--no-edit", "--allow-unrelated-histories", "side");
+        let r = round(root, {name: "joined", path: join(repo, "new")});
+        expect(r.out).toContain("version 3.0.0 -> 3.0.1");
+        commit(repo, "the round");
+        r = round(root, {name: "joined", path: join(repo, "new")});
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(join(repo, "new")).version).toBe("3.0.1");
+        /*  A repository of one root: nothing is before it, nothing is asked  */
+        let solo = consumer(join(root, "solo"), "app", "1.0.0", {"@yuneta/gobj-ui": `^${VERSION}`}, true);
+        r = round(root, {name: "solo", path: solo});
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(solo).version).toBe("1.0.0");
+    });
+
+    test("the states of the history before a birth are kept between rounds, never for a shallow clone", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let repo = join(root, "repo");
+        mkdirSync(repo, {recursive: true});
+        execFileSync("git", ["init", "-q"], {cwd: repo});
+        writeFileSync(join(repo, "README"), "x\n");
+        commit(repo, "before the app");
+        let parent = git(repo, "rev-parse", "HEAD");
+        consumer(repo, "app", "1.0.0", {"@yuneta/gobj-ui": `^${VERSION}`});
+        commit(repo, "a new app, born with the range");
+        let cache_file = join(root, "home", ".yuneta", "deploy-round-history.json");
+        let r = round(root, {name: "app", path: join(repo, "app")});
+        expect(r.out).toMatch(/range {2}already/);
+        expect(JSON.parse(readFileSync(cache_file, "utf8"))[parent]).toEqual([]);
+
+        /*  What is kept is what is read: a carrier written into it raises the version  */
+        writeFileSync(cache_file, JSON.stringify({[parent]: [{specs: [`^${OLDER}`], versions: ["1.0.0"]}]}));
+        r = round(root, {name: "app", path: join(repo, "app")});
+        expect(r.out).toContain("version 1.0.0 -> 1.0.1");
+        git(repo, "checkout", "-q", ".");
+
+        /*  A shallow clone reads git, whatever is kept  */
+        let clone = join(root, "clone");
+        execFileSync("git", ["clone", "-q", "--depth", "2", `file://${repo}`, clone]);
+        r = round(root, {name: "app", path: join(clone, "app")});
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(join(clone, "app")).version).toBe("1.0.0");
+
+        /*  A cache that is not json is said, and read again from git  */
+        writeFileSync(cache_file, "{not json");
+        r = round(root, {name: "app", path: join(repo, "app")});
+        expect(r.out).toContain(`${cache_file}: `);
+        expect(r.out).toContain("read again from git");
+        expect(r.out).toMatch(/range {2}already/);
+        expect(JSON.parse(readFileSync(cache_file, "utf8"))[parent]).toEqual([]);
+    });
+
     test("a range already raised is held to the same rules: a version that is not x.y.z refuses the app", () => {
         let root = mkdtempSync(join(tmpdir(), "dr-"));
         let dir = consumer(root, "tmpl", "{{version}}", {"@yuneta/gobj-ui": `^${VERSION}`}, true);
