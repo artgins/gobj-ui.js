@@ -5,6 +5,26 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.44
+
+- **fix(`C_YUI_FORM`): a click on a row of a form's table WROTE the
+  `selectable` attribute with no value instead of reading it**
+  (`get_selectable_state()`, there since v1). gobj-js up to 7.26.21 wrote it
+  `false` and answered 0, so a click never selected a row and silently
+  switched `selectable` off; gobj-js 7.26.22 refuses a write with no value and
+  answers -1, which read as "selectable", so a click on a row logged *"Attribute
+  value of the wrong type"* and called `toggleSelect()` on a table that selects
+  no rows (*"Cannot read properties of undefined (reading 'add')"*, found by
+  the console check of estadodelaire's device settings after the 7.26.22
+  round). A click now selects a row only when the form is `selectable` AND its
+  table selects rows (`selectableRows` true or a number in
+  `tabulator_settings`, off by default): with the defaults, nothing is
+  selected, as before. Test `form_table_rows.wiring.test.js` ("a click on a
+  row", red with gobj-js 7.26.22).
+- **test:** the suite runs against gobj-js `^7.26.22` (its devDependency was
+  `^7.26.3`, so the library's own tests did not see what the runtime of its
+  consumers does; that is how the line above reached a deployed app).
+
 ## 7.26.43
 
 - **fix(`C_YUI_FORM`): Undo gives the tables back the values the form was

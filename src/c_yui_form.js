@@ -2236,8 +2236,14 @@ function create_coordinates(gobj, attrs)
  ******************************************************************/
 function create_tabulator(gobj, $extend, name, template)
 {
+    /*  A click selects a row only when the form is `selectable` AND its
+     *  table selects rows (`selectableRows`, off unless a host sets it in
+     *  `tabulator_settings`): toggleSelect() on a table that does not
+     *  select throws.  */
     function get_selectable_state(row) {
-        return gobj_write_bool_attr(gobj, "selectable");
+        let selectable_rows = tabulator.options.selectableRows;
+        return gobj_read_bool_attr(gobj, "selectable") &&
+            (selectable_rows === true || typeof selectable_rows === "number");
     }
 
     $extend.template = template;

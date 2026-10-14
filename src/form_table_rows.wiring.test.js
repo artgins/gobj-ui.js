@@ -52,7 +52,7 @@ vi.mock("tabulator-tables", () => {
         constructor($el, settings) {
             this.element = $el;
             this.settings = settings;
-            this.options = {};
+            this.options = Object.assign({}, settings);
             this.handlers = {};
             this.initialized = false;
             this.destroyed = false;
@@ -104,6 +104,9 @@ vi.mock("tabulator-tables", () => {
             row.component = {
                 getElement: () => row.$row,
                 getData: () => row.data,
+                toggleSelect: () => {
+                    row.selected = !row.selected;
+                },
                 delete: () => {
                     this.delete_row(this.rows.indexOf(row));
                 },
@@ -274,16 +277,16 @@ let seq = 0;
 
 /*  `then(form)` runs in the same turn as the start, before any table
  *  is built.  */
-function build(rec, then)
+function build(rec, then, extra)
 {
     const first = tables.length;
     const app = gobj_create_pure_child(`trapp${++seq}`, "C_TEST_TR_APP", {}, yuno);
     gobj_start(app);
-    const form = gobj_create_pure_child(`trform${seq}`, "C_YUI_FORM", {
+    const form = gobj_create_pure_child(`trform${seq}`, "C_YUI_FORM", Object.assign({
         template: TEMPLATE,
         record: rec,
         editable: true,
-    }, app);
+    }, extra || {}), app);
     gobj_start(form);
     if(then) {
         then(form);
@@ -484,6 +487,47 @@ describe("a table is loaded in one call", () => {
         expect(alarms.calls.redraw).toBe(1);
         expect(gobj_read_attr(form, "edited")).toBe(false);
         expect(close_asks(form)).toBe(false);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("a click on a row", () => {
+    function click(alarms, index)
+    {
+        alarms.emit("rowClick", {
+            preventDefault: () => {
+            }
+        }, alarms.rows[index].component);
+    }
+
+    test("does not WRITE the `selectable` attribute, and selects nothing when Tabulator selects no rows", async () => {
+        const {form, first} = build(record());
+        await settle();
+        const alarms = alarms_of(first);
+        click(alarms, 0);
+        expect(gobj_read_attr(form, "selectable")).toBe(true);
+        expect(alarms.rows[0].selected).toBeFalsy();
+        expect(errors()).toEqual([]);
+    });
+
+    test("selects the row when the form is selectable and its table selects rows", async () => {
+        const {first} = build(record(), null, {tabulator_settings: {selectableRows: true}});
+        await settle();
+        const alarms = alarms_of(first);
+        click(alarms, 1);
+        expect(alarms.rows[1].selected).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+
+    test("selects nothing when the form is not selectable", async () => {
+        const {first} = build(record(), null, {
+            selectable: false,
+            tabulator_settings: {selectableRows: true}
+        });
+        await settle();
+        const alarms = alarms_of(first);
+        click(alarms, 1);
+        expect(alarms.rows[1].selected).toBeFalsy();
         expect(errors()).toEqual([]);
     });
 });
