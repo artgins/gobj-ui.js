@@ -514,8 +514,6 @@
     white-space: nowrap;
     background-color: var(--bulma-danger, #f14668);
     color: var(--bulma-danger-invert, #fff);
-    /*  Separates the pill from the glyph when they overlap. */
-    box-shadow: 0 0 0 0.12em var(--bulma-scheme-main, #fff);
     pointer-events: none;
 }
 .yui-badge[hidden] {
@@ -556,14 +554,24 @@
     top: -0.35em;
     right: -0.55em;
     font-size: 0.62em;
+    /*  Separates the dot from the glyph it overlaps. */
+    box-shadow: 0 0 0 0.12em var(--bulma-scheme-main, #fff);
 }
 
-/*  Menu item: after the label.  Sized in rem, so it is the same
+/*  Menu item: after the label, a pill of the size of a Bulma tag
+ *  (as gobj-ui v1 drew it), with no ring: nothing under it to keep
+ *  apart, and on the colour of an active item a ring of the page's
+ *  colour read as a dark circle that ate the tone -- red and yellow
+ *  were hard to tell at that size.  Sized in rem, so it is the same
  *  pill in every layout whatever the item's own font size.  */
 .yui-nav-badge {
     flex: 0 0 auto;
     margin-inline-start: 0.4rem;
     font-size: 0.75rem;
+    min-width: 2em;
+    height: 2em;
+    padding: 0 0.75em;
+    font-weight: 400;
     vertical-align: middle;
 }
 /*  Where the item already spaces its children (a flex row or column
@@ -585,6 +593,12 @@
     inset-inline-end: -0.55em;
     margin: 0;
     font-size: 0.7rem;
+    min-width: 1.15em;
+    height: 1.15em;
+    padding: 0 0.3em;
+    font-weight: 700;
+    /*  Separates the dot from the glyph it overlaps. */
+    box-shadow: 0 0 0 0.12em var(--bulma-scheme-main, #fff);
 }
 
 /*============================================================
