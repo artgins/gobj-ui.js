@@ -583,7 +583,7 @@ function mt_stop(gobj)
      *  modals, questions, the toolbar dropdown -- so no focus trap,
      *  document-level listener or escape-stack entry outlives the
      *  shell. */
-    close_overlays(gobj);
+    retire_overlays(gobj);
     close_toolbar_dropdown(gobj);
 
     if(priv.hash_handler) {
@@ -657,7 +657,7 @@ function mt_destroy(gobj)
      *  (it returns early when nothing is open) and prevents a
      *  dangling document mousedown listener / escape-stack entry
      *  when stop is skipped. The other overlays the same way.  */
-    close_overlays(gobj);
+    retire_overlays(gobj);
     close_toolbar_dropdown(gobj);
 
     let live_idx = __live_shells__.indexOf(gobj);
@@ -2800,6 +2800,29 @@ function close_overlays(gobj)
             log_warning(`C_YUI_SHELL: closing the '${entry.layer}' overlay at stop failed: ${e}`);
         }
     }
+}
+
+/************************************************************
+ *  What a shell that stops does with its overlays: their
+ *  history markers are left where they are, and then they are
+ *  closed (close_overlays). The overlay stack is emptied FIRST,
+ *  so no close -- of an overlay closed here, or of a window
+ *  closed later -- retires its marker with a history.back().
+ *  Such a back() is asynchronous and a stopped shell no longer
+ *  hears where it lands: up to gobj-ui 7.26.46 a logout followed
+ *  by a new shell in the same turn had it taken by the new
+ *  shell's first window (Chromium stepped back off that window's
+ *  marker, Firefox dropped the back()), and the next Back left
+ *  the page. A marker left in place is inert, as a drained one
+ *  is: a later Back lands on it and is absorbed.
+ ************************************************************/
+function retire_overlays(gobj)
+{
+    let priv = gobj.priv;
+    if(priv && priv.overlay_stack) {
+        priv.overlay_stack.splice(0);
+    }
+    close_overlays(gobj);
 }
 
 function pop_escape(gobj, handler)

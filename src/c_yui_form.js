@@ -95,7 +95,10 @@ import "tabulator-tables/dist/css/tabulator_bulma.css";
 
 import "./tabulator.css";
 import {is_time_field} from "./json_view_helpers.js";
-import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
+import {
+    date_to_datetime_local, datetime_local_to_epoch, time_value_to_date, epoch_to_time_value,
+    time_value_to_text
+} from "./form_time_value.js";
 import {form_time_cell_editor} from "./form_time_cell_editor.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
 import {
@@ -134,7 +137,7 @@ SDATA(data_type_t.DTP_STRING,   "topic_name",       0,  "",     "Treedb topic na
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",         0,  false,  "Default is editable, set false to readonly"),
 SDATA(data_type_t.DTP_BOOLEAN,  "readonly",         0,  false,  "Show EVERY field read-only, whatever its schema says: a record being LOOKED at, not edited. Independent of `editable`, which drives the TABLE rendering; this one drives the FORM"),
 SDATA(data_type_t.DTP_BOOLEAN,  "selectable",       0,  true,   "A click selects a row, when tabulator_settings selects rows (selectableRows)"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows (not drawn when the form is not `selectable`)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows (hidden while the form is not `selectable`)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_rownum",      0,  false,  "Print first column with row number"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_row_btn", 0,  false, "Print last column with delete row button"),
 /*
@@ -190,6 +193,13 @@ let PRIVATE_DATA = {
     json_names_posted: false,
     /*  The shell this form hears the language change from.  */
     lang_shell: null,
+    /*  Moved by every write of `changes` (set_changed_stated): a cell
+     *  editor cancelled gives back the state it opened on only if
+     *  nothing but its own typing moved it since (cell_edit).  */
+    change_seq: 0,
+    /*  The cell editor open: {table_id, edited, changes, seq}, see
+     *  ac_cell_edit_opened.  */
+    cell_edit: null,
 };
 
 let __gclass__ = null;
@@ -223,6 +233,25 @@ function mt_create(gobj)
 
     gobj.priv.tables = new Map();
     build_ui(gobj);
+}
+
+/************************************************************
+ *      Framework Method writing
+ ************************************************************/
+function mt_writing(gobj, path)
+{
+    if(path === "selectable") {
+        /*  The checkbox column follows it, in every table built  */
+        let $container = gobj_read_attr(gobj, "$container");
+        if(!$container) {
+            return;
+        }
+        for(let $table of $container.querySelectorAll(".yui-tabulator-table, .yui-tabulator-table-nested")) {
+            if($table.tabulator) {
+                show_row_selection(gobj, $table.tabulator);
+            }
+        }
+    }
 }
 
 /************************************************************
@@ -292,6 +321,7 @@ function mt_stop(gobj)
  ************************************************************/
 function set_changed_stated(gobj, changed)
 {
+    gobj.priv.change_seq += 1;
     let $container = gobj_read_attr(gobj, "$container");
     let $form = $container.querySelector('form');
 
@@ -890,6 +920,12 @@ function build_form(gobj)
 {
     let form_id = gobj_read_str_attr(gobj, "form_id");
     let $form = createElement2(['form', {id: form_id, class: 'yui-form'}]);
+    /*  Widget plumbing, not an action: the values are read from the
+     *  controls, never submitted. Enter in a form of a single text box
+     *  is an implicit submission, and up to 7.26.46 it reloaded the page.  */
+    $form.addEventListener("submit", function(ev) {
+        ev.preventDefault();
+    });
 
     /*----------------------------*
      *  Check if template exists
@@ -1544,7 +1580,7 @@ function create_form_field(
                     ['div', {class: 'field-body'}, [
                         ['div', {class: 'field'}, [
                             ['div', {class: '' }, [
-                                ['button', {class: 'button p-1',
+                                ['button', {class: 'button p-1', type: 'button',
                                             title: t('add'), 'data-i18n-title': 'add',
                                             'aria-label': t('add'), 'data-i18n-aria-label': 'add'}, [
                                     ['span', {class: 'icon m-0'}, html_markup('<i class="yi-plus"></i>')],
@@ -2263,6 +2299,31 @@ function create_coordinates(gobj, attrs)
 }
 
 /******************************************************************
+ *  Show the checkbox column of a table while the form is
+ *  `selectable`, hide it while it is not. The column is the table's
+ *  row header, the first of its structured columns. A table not
+ *  built yet does it when it is (tableBuilt).
+ ******************************************************************/
+function show_row_selection(gobj, tabulator)
+{
+    if(!gobj_read_bool_attr(gobj, "with_checkbox") || !tabulator.initialized) {
+        return;
+    }
+    let column = tabulator.getColumns(true).find(
+        (c) => c.getDefinition().formatter === "rowSelection"
+    );
+    if(!column) {
+        log_error(`${gobj_short_name(gobj)}: the table has no checkbox column to show or hide`);
+        return;
+    }
+    if(gobj_read_bool_attr(gobj, "selectable")) {
+        column.show();
+    } else {
+        column.hide();
+    }
+}
+
+/******************************************************************
  *  Create tabulator
  *
  *  A row builds its nested tables the first time it is drawn, each
@@ -2292,11 +2353,13 @@ function create_coordinates(gobj, attrs)
  *  `"highlight"` is left as it is, hover and all.
  *
  *  The checkbox column (`with_checkbox`) asks `selectable` too, and is
- *  not drawn when the form is not selectable: Tabulator's row box ticks
- *  before its toggle is refused (a ticked box over a row not selected),
- *  and its header box selects every row asking nothing. Up to 7.26.45
- *  the boxes were drawn and lied; with the default `selectableRows`
- *  they selected whatever `selectable` said.
+ *  not shown while the form is not selectable: Tabulator's row box
+ *  ticks before its toggle is refused (a ticked box over a row not
+ *  selected), and its header box selects every row asking nothing. Up
+ *  to 7.26.45 the boxes were drawn and lied; with the default
+ *  `selectableRows` they selected whatever `selectable` said. Up to
+ *  7.26.46 `selectable` was read when the table was built; the column
+ *  now follows every write of it (mt_writing, show_row_selection).
  *
  *  A click in a nested table stays there: it bubbled to the row that
  *  holds the table, whose own click listener (SelectRow's) toggled
@@ -2395,7 +2458,7 @@ function create_tabulator(gobj, $extend, name, template, rows)
         );
     }
 
-    if(with_checkbox && gobj_read_bool_attr(gobj, "selectable")) {
+    if(with_checkbox) {
         tabulator_settings.rowHeader = {
             formatter: "rowSelection",
             titleFormatter: "rowSelection",
@@ -2403,7 +2466,8 @@ function create_tabulator(gobj, $extend, name, template, rows)
             resizable: false,
             frozen: true,
             headerHozAlign: "center",
-            hozAlign: "center"
+            hozAlign: "center",
+            visible: gobj_read_bool_attr(gobj, "selectable")
         };
     }
 
@@ -2441,10 +2505,29 @@ function create_tabulator(gobj, $extend, name, template, rows)
                 table_element_of($target) !== $extend) {
             return;
         }
-        gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+        gobj_send_event(gobj, "EV_RECORD_CHANGED",
+            {typed_in: table_identity(gobj, $extend)}, gobj);
+    });
+    /*  An edit CANCELLED (Escape, a box left as it was) gives back the
+     *  `edited` and `changes` the form had when its editor opened: what
+     *  was typed in it is gone (ac_cell_edit_cancelled).  */
+    tabulator.on("cellEditing", function() {
+        if(gobj_is_destroying(gobj)) {
+            return;
+        }
+        gobj_send_event(gobj, "EV_CELL_EDIT_OPENED",
+            {table_id: table_identity(gobj, $extend)}, gobj);
+    });
+    tabulator.on("cellEditCancelled", function() {
+        if(gobj_is_destroying(gobj)) {
+            return;     // closed by the teardown (close_table_editor)
+        }
+        gobj_send_event(gobj, "EV_CELL_EDIT_CANCELLED",
+            {table_id: table_identity(gobj, $extend)}, gobj);
     });
     $extend.yui_pending_rows = null;
     tabulator.on("tableBuilt", function() {
+        show_row_selection(gobj, tabulator);
         let rows = $extend.yui_pending_rows;
         $extend.yui_pending_rows = null;
         if(rows && !gobj_is_destroying(gobj)) {
@@ -2713,6 +2796,11 @@ function template2columns(gobj, columns, template, sub_elements)
                 column.editor = form_time_cell_editor(field_desc.real_type);
                 column.editorParams = {
                     verticalNavigation: "table", //navigate cursor around table without changing the value
+                };
+                /*  The clock, not the epoch: up to 7.26.46 the cell showed
+                 *  the raw number.  */
+                column.formatter = function(cell) {
+                    return text_node(time_value_to_text(cell.getValue(), field_desc.real_type));
                 };
                 break;
 
@@ -3532,9 +3620,9 @@ function treedb_value_2_form_value(gobj, field_desc, value)
             break;
         case "now":
         case "time":
-            /*  Stored epoch is in SECONDS (Yuneta/timeranger convention),
-             *  matching get_form_values() which saves getTime()/1000. */
-            value = new Date((parseInt(value) || 0) * 1000);
+            /*  An epoch in SECONDS, or an ISO text for a string column;
+             *  null when it holds no time (form_time_value.js).  */
+            value = time_value_to_date(value, field_desc.real_type);
             break;
         case "date":
         case "color":
@@ -3671,14 +3759,12 @@ function form_value_2_treedb_value(gobj, field_desc, value)
         case "time":
             switch(real_type) {
                 case "string":
-                    if(value && is_date(value)) {
-                        value = value.toISOString();
-                    }
-                    break;
                 case "integer":
-                    if(value && is_date(value)) {
-                        value = (value.getTime())/1000;
+                    /*  The box gives an epoch in seconds (get_form_values)  */
+                    if(is_date(value)) {
+                        value = Math.floor(value.getTime() / 1000);
                     }
+                    value = epoch_to_time_value(value, real_type);
                     break;
                 default:
                     log_error("incompatible type for time: " + real_type);
@@ -4018,8 +4104,55 @@ function ac_load_table_rows(gobj, event, kw, src)
 function ac_record_changed(gobj, event, kw, src)
 {
     if(gobj_read_bool_attr(gobj, "initialized")) {
+        let priv = gobj.priv;
+        let open = priv.cell_edit;
+        /*  Typing in the open editor, and nothing else since it opened  */
+        let own = !!(open && kw && kw.typed_in === open.table_id &&
+                     open.seq === priv.change_seq);
         set_edited_by_reader(gobj);
+        if(own) {
+            open.seq = priv.change_seq;
+        }
     }
+    return 0;
+}
+
+/************************************************************
+ *  A cell editor opened, in the table `table_id`: what the form
+ *  says now is what a cancel of it gives back.
+ ************************************************************/
+function ac_cell_edit_opened(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    priv.cell_edit = {
+        table_id: kw.table_id,
+        edited:   gobj_read_bool_attr(gobj, "edited"),
+        changes:  gobj_read_bool_attr(gobj, "changes"),
+        seq:      priv.change_seq
+    };
+    return 0;
+}
+
+/************************************************************
+ *  A cell editor cancelled -- Escape, or a box left as it was:
+ *  the value comes back, and so do the `edited` and `changes` the
+ *  form had when it opened. Up to gobj-ui 7.26.46 what was typed
+ *  in it still counted, and closing asked about a change that was
+ *  gone. Nothing is given back when anything but that editor's
+ *  own typing changed the form meanwhile: that change is real.
+ ************************************************************/
+function ac_cell_edit_cancelled(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let open = priv.cell_edit;
+    priv.cell_edit = null;
+    if(!open || open.table_id !== kw.table_id || open.seq !== priv.change_seq) {
+        return 0;   // not the editor that opened, or the form changed meanwhile
+    }
+    if(gobj_read_bool_attr(gobj, "changes") !== open.changes) {
+        set_changed_stated(gobj, open.changes);
+    }
+    gobj_write_bool_attr(gobj, "edited", open.edited);
     return 0;
 }
 
@@ -4225,6 +4358,7 @@ function cmd_get_picked_files(gobj, cmd, kw, src)
  *---------------------------------------------*/
 const gmt = {
     mt_create:          mt_create,
+    mt_writing:         mt_writing,
     mt_start:           mt_start,
     mt_stop:            mt_stop,
     mt_destroy:         mt_destroy,
@@ -4253,6 +4387,8 @@ function create_gclass(gclass_name)
             ["EV_ADD_TABLE_ROW",        ac_add_table_row,       null],
             ["EV_LOAD_TABLE_ROWS",      ac_load_table_rows,     null],
             ["EV_RECORD_CHANGED",       ac_record_changed,      null],
+            ["EV_CELL_EDIT_OPENED",     ac_cell_edit_opened,    null],
+            ["EV_CELL_EDIT_CANCELLED",  ac_cell_edit_cancelled, null],
             ["EV_COPY_RECORD",          ac_copy_record,         null],
             ["EV_PASTE_RECORD",         ac_paste_record,        null],
             ["EV_SET_FILE_PREVIEW",     ac_set_file_preview,    null],
@@ -4280,6 +4416,8 @@ function create_gclass(gclass_name)
         ["EV_ADD_TABLE_ROW",        0],
         ["EV_LOAD_TABLE_ROWS",      0],
         ["EV_RECORD_CHANGED",       0],
+        ["EV_CELL_EDIT_OPENED",     0],
+        ["EV_CELL_EDIT_CANCELLED",  0],
         ["EV_COPY_RECORD",          0],
         ["EV_PASTE_RECORD",         0],
         ["EV_SET_FILE_PREVIEW",     0],

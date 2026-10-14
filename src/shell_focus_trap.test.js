@@ -390,8 +390,9 @@ test("Tab and Shift+Tab wrap to the first and last DRAWN controls", () => {
  *  drawer or a dialog open) holds the focus of nothing. Kept on
  *  the stack it was the "overlay" every later window opened
  *  under, so none of them took the focus; and above a live trap
- *  it left that one deaf to Tab. It is dropped, with its
- *  listener, the first time the stack is read.
+ *  it left that one deaf to Tab. It is skipped: the top is the
+ *  highest trap whose panel is in the document. It stays on the
+ *  stack, listener and all, until its release().
  ***************************************************************/
 function connected_panel(focusables)
 {
@@ -407,12 +408,12 @@ test("a trap whose panel left the document is no longer the top", () => {
     let doc = make_doc(null);
 
     let release_a = activate_focus_trap_on(panel_a, doc);
-    activate_focus_trap_on(panel_b, doc);
+    let release_b = activate_focus_trap_on(panel_b, doc);
     expect(focus_trap_panel()).toBe(panel_b);
 
     panel_b.isConnected = false;
     expect(focus_trap_panel()).toBe(panel_a);
-    expect(doc.listeners.length).toBe(1);
+    expect(doc.listeners.length).toBe(2);
 
     /*  And the live one under it hears Tab again.  */
     a_first.focus_calls.length = 0;
@@ -429,6 +430,7 @@ test("a trap whose panel left the document is no longer the top", () => {
     expect(a_first.focus_calls).toEqual(["a-first.focus"]);
 
     release_a();
+    release_b();
     expect(doc.listeners.length).toBe(0);
 });
 
@@ -439,10 +441,10 @@ test("a detached trap above a live one does not leave the live one deaf to Tab",
     let doc = make_doc(null);
 
     let release_a = activate_focus_trap_on(panel_a, doc);
-    activate_focus_trap_on(panel_b, doc);
+    let release_b = activate_focus_trap_on(panel_b, doc);
     panel_b.isConnected = false;
 
-    /*  Nobody asked for the top: the Tab itself finds the stale one.  */
+    /*  Nobody asked for the top: the Tab itself skips the stale one.  */
     a_first.focus_calls.length = 0;
     doc.activeElement = make_focusable("outside");
     let prevented = false;
@@ -458,12 +460,13 @@ test("a detached trap above a live one does not leave the live one deaf to Tab",
     }
     expect(prevented).toBe(true);
     expect(a_first.focus_calls).toEqual(["a-first.focus"]);
-    expect(doc.listeners.length).toBe(1);
 
     release_a();
+    release_b();
+    expect(doc.listeners.length).toBe(0);
 });
 
-test("the release of a dropped trap still gives the focus back", () => {
+test("the release of a skipped trap takes it off and gives the focus back", () => {
     let prev = make_focusable("prev");
     let panel = connected_panel([make_focusable("first")]);
     let doc = make_doc(prev);
@@ -471,8 +474,49 @@ test("the release of a dropped trap still gives the focus back", () => {
     let release = activate_focus_trap_on(panel, doc);
     panel.isConnected = false;
     expect(focus_trap_panel()).not.toBe(panel);
-    expect(doc.listeners.length).toBe(0);
+    expect(doc.listeners.length).toBe(1);
 
     release();
+    expect(doc.listeners.length).toBe(0);
     expect(prev.focus_calls).toEqual(["prev.focus"]);
+    panel.isConnected = true;
+    expect(focus_trap_panel()).not.toBe(panel);
+});
+
+/***************************************************************
+ *  A panel that only MOVES -- taken out of the document and put
+ *  back, its trap never released -- keeps its trap. Up to gobj-ui
+ *  7.26.46 the first read of the stack while it was out dropped
+ *  the trap for good: back in the document, Tab left the window.
+ ***************************************************************/
+test("a panel taken out and put back keeps its trap", () => {
+    let first = make_focusable("first");
+    let last = make_focusable("last");
+    let panel = connected_panel([first, last]);
+    let doc = make_doc(null);
+
+    let release = activate_focus_trap_on(panel, doc);
+    panel.isConnected = false;
+    expect(focus_trap_panel()).not.toBe(panel);
+    panel.isConnected = true;
+    expect(focus_trap_panel()).toBe(panel);
+
+    first.focus_calls.length = 0;
+    doc.activeElement = last;
+    let prevented = false;
+    for(let fn of doc.listeners.slice()) {
+        fn({
+            key: "Tab",
+            shiftKey: false,
+            preventDefault() {
+                prevented = true;
+            }
+        });
+    }
+    expect(prevented).toBe(true);
+    expect(first.focus_calls).toEqual(["first.focus"]);
+
+    release();
+    expect(doc.listeners.length).toBe(0);
+    expect(focus_trap_panel()).not.toBe(panel);
 });

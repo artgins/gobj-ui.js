@@ -1703,7 +1703,7 @@ function declared_value(b, url, seen)
         if(b.steps.length === 0 && FUNCTION_RE.test(b.init.type)) {
             return {kind: "fn", fn: b.init, scope: b.scope, name: b.name, url};
         }
-        return {kind: "const", init: b.init, steps: b.steps, default: b.default, scope: b.scope, url};
+        return {kind: "const", init: b.init, steps: b.steps, default: b.default, scope: b.scope, url, name: b.name};
     }
     if(b.kind === "import") {
         return import_target(b, seen);
@@ -2697,6 +2697,7 @@ const CONST_READING = new Set();        // the inits being read
 
 function const_values(b, node, scope, via, depth)
 {
+    note_const_array(b);
     let ctx = {scope: b.scope, via: via, off: true};
     let unknown = () => [{kind: "unknown", node: b.init, scope: b.scope, via, off: true}];
     if(!CONST_VALUES.has(b.init) && CONST_READING.has(b.init)) {
@@ -2970,12 +2971,126 @@ function written_elements(n, scope)
     if(n.type !== "Identifier") {
         return null;
     }
-    let b = binding_of(n.name, scope);
-    if(!b || b.kind !== "const" || b.steps.length > 0 || !b.init || b.init.type !== "ArrayExpression"
-            || b.init.elements.some((e) => e === null || e.type === "SpreadElement")) {
+    let array = const_array(n, scope);
+    if(!array || array.elements.some((e) => e === null || e.type === "SpreadElement")) {
         return null;
     }
-    return b.init.elements.map((e, i) => element_ref(n, i));
+    return array.elements.map((e, i) => element_ref(n, i));
+}
+
+/***************************************************************
+ *  The array literal a name is a const of, or null: its own value
+ *  (`Object.freeze()`d too), an import of one, or a const ALIAS of
+ *  one (`const B = A`), followed to its end. Up to gobj-ui 7.26.46 an
+ *  alias or an import was a spread of what the source does not write.
+ ***************************************************************/
+function const_array(n, scope)
+{
+    let seen = new Set();
+    for(;;) {
+        let b = binding_of(n.name, scope);
+        if(b && b.kind === "import") {
+            b = import_target(b);
+        }
+        if(!b || b.kind !== "const" || (b.steps || []).length > 0 || b.default || !b.init || seen.has(b.init)) {
+            return null;
+        }
+        seen.add(b.init);
+        let init = b.init;
+        if(is_object_call(init, "freeze") && init.arguments.length === 1) {
+            init = init.arguments[0];
+        }
+        if(init.type === "ArrayExpression") {
+            return init;
+        }
+        if(init.type !== "Identifier") {
+            return null;
+        }
+        n = init;
+        scope = b.scope;
+    }
+}
+
+/***************************************************************
+ *  The array literals an element is read from by its index
+ *  (step_values()): the value of a const that its scope does not
+ *  write INTO -- `X[i] = k`, `X.length = n`, `X[i]++`, `delete X[i]`,
+ *  `X.push()` and every method that moves its elements (`reverse()`,
+ *  `sort()`, `shift()`, ...), `Object.assign(X, ...)`. Any other
+ *  array -- one written into, where an element read by its index may
+ *  be another one by then (`X.reverse(); t(X[0])`), the value of a
+ *  `let`, an `export default` -- is read by every element written out,
+ *  at any index. What is written into it is not read (the invisible
+ *  list of the README), nor a write through an alias of it, from a
+ *  module that imports it, or by a function it is handed to.
+ ***************************************************************/
+const INDEXED_ARRAYS = new WeakSet();   // the array literals of consts not written into
+const ARRAY_WRITERS = new Set(["push", "unshift", "splice", "fill", "copyWithin", "reverse", "sort", "shift",
+                               "pop"]);
+const NOTED_ARRAYS = new WeakSet();     // the inits of consts already asked
+
+function note_const_array(b)
+{
+    let init = b.init;
+    if(!init || init.type !== "ArrayExpression" || NOTED_ARRAYS.has(init) || !b.name || !b.scope) {
+        return;
+    }
+    NOTED_ARRAYS.add(init);
+    let root = b.scope[b.scope.length - 1];
+    for(let chain of (in_place_writes(root).get(b.name) || [])) {
+        let w = binding_of(b.name, chain);
+        if(w && w.kind === "const" && w.init === init) {
+            return;
+        }
+    }
+    INDEXED_ARRAYS.add(init);
+}
+
+/*  The places a scope writes INTO what a name holds: name -> [the
+ *  chain from the scope to the name written], found in one walk  */
+const IN_PLACE_WRITES = new WeakMap();  // a scope -> Map(name -> [chain])
+
+function in_place_writes(root)
+{
+    let known = IN_PLACE_WRITES.get(root);
+    if(known) {
+        return known;
+    }
+    known = new Map();
+    let add = (target, ancestors) => {
+        let chain = [...ancestors];
+        while(target && target.type === "MemberExpression") {
+            target = target.object;
+        }
+        if(target && target.type === "Identifier") {
+            if(!known.has(target.name)) {
+                known.set(target.name, []);
+            }
+            known.get(target.name).push(chain);
+        }
+    };
+    walk(root, (n, ancestors) => {
+        if(n.type === "AssignmentExpression") {
+            for(let t of write_targets(n.left)) {
+                if(t.type === "MemberExpression") {
+                    add(t, [...ancestors, n]);
+                }
+            }
+        } else if((n.type === "UpdateExpression" && n.argument.type === "MemberExpression")
+                || (n.type === "UnaryExpression" && n.operator === "delete" && n.argument.type === "MemberExpression")) {
+            add(n.argument, [...ancestors, n]);
+        } else if(n.type === "CallExpression") {
+            let c = n.callee;
+            if(c.type === "MemberExpression" && ARRAY_WRITERS.has(member_step(c).prop)) {
+                add(c.object, [...ancestors, n]);
+            } else if((is_object_call(n, "assign") || is_object_call(n, "defineProperty")
+                       || is_object_call(n, "defineProperties")) && n.arguments.length > 0) {
+                add(n.arguments[0], [...ancestors, n]);
+            }
+        }
+    });
+    IN_PLACE_WRITES.set(root, known);
+    return known;
 }
 
 function is_spread(n)
@@ -3041,6 +3156,11 @@ function step_values(o, step, node, depth)
         return assigned_properties(o, step, depth + 1);
     }
     if(o.kind === "value" && o.node.type === "ArrayExpression" && step.computed) {
+        let i = array_index(step);
+        if(i !== null && INDEXED_ARRAYS.has(o.node)
+                && !o.node.elements.slice(0, i + 1).some((e) => e && e.type === "SpreadElement")) {
+            return indexed_values(o, i, at, depth + 1);
+        }
         return element_values(o, depth + 1);
     }
     if(o.kind === "nothing" || (o.kind === "value" && o.node.type === "Literal")) {
@@ -3167,6 +3287,52 @@ function property_values_of(o, name, depth)
         out.push({kind: "nothing", node: o.node, scope: o.scope, via: o.via, off: o.off});
     }
     return out;
+}
+
+/***************************************************************
+ *  The index a step reads, when it is one written out (`X[1]`,
+ *  `X["1"]`, ``X[`1`]``), or null
+ ***************************************************************/
+function array_index(step)
+{
+    return (step.prop !== null && /^(0|[1-9][0-9]{0,8})$/.test(step.prop))? Number(step.prop) : null;
+}
+
+/***************************************************************
+ *  The element `i` of an array literal with no spread up to it: that
+ *  element followed with expand() -- a hole, or past the end, is
+ *  nothing. Up to gobj-ui 7.26.46 `X[1]` read every element of X, and
+ *  so did the spread of a const array (written_args()):
+ *  `t.apply(null, ["k", "a default value"])` asked for the default
+ *  value, and `f.apply(x, [shell, "k"])` gave `shell` to the key
+ *  position of a key function. Kept per element, as a property is
+ *  (property_values()).
+ ***************************************************************/
+const INDEXED_VALUES = new WeakMap();   // an array literal -> Map(index -> {values, steps}), `via` left out
+
+function indexed_values(o, i, at, depth)
+{
+    if(i >= o.node.elements.length || o.node.elements[i] === null) {
+        return [Object.assign({}, o, {kind: "nothing", node: at})];
+    }
+    if(!o.off) {
+        return capped(o, indexed_values_of(o, i, depth));
+    }
+    let known = INDEXED_VALUES.get(o.node);
+    if(!known) {
+        known = new Map();
+        INDEXED_VALUES.set(o.node, known);
+    }
+    let bare = Object.assign({}, o, {via: []});
+    let values = kept_values(known, i, depth, o.node, o.scope,
+        () => capped(bare, unique_values(indexed_values_of(bare, i, depth))),
+        () => [Object.assign({}, bare, {kind: "unknown", binding: null, var_root: null})]);
+    return values.map((v) => Object.assign({}, v, {via: o.via}));
+}
+
+function indexed_values_of(o, i, depth)
+{
+    return expand(o.node.elements[i], {scope: [...o.scope, o.node], via: o.via, off: o.off}, depth + 1);
 }
 
 /***************************************************************
@@ -6410,6 +6576,11 @@ try {
     is_main = false;
 }
 if(is_main) {
+    process.on("unhandledRejection", (reason) => {
+        console.error("validate-locales: a promise was rejected and nothing handled it (a locale is " +
+                      `imported, so its code runs): ${(reason && reason.stack) || reason}`);
+        process.exitCode = 1;
+    });
     try {
         await main();
     } catch(e) {
@@ -6426,7 +6597,11 @@ if(is_main) {
  *  process for ever, verdict or not (up to gobj-ui 7.26.45, also a run
  *  that failed). process.exit() runs from the callbacks of a last
  *  write to each stream, which come after every write before them, so
- *  a long list on its way to a pipe still reaches it whole.
+ *  a long list on its way to a pipe still reaches it whole. It waits
+ *  for a timer first: a promise rejected with nothing to handle it is
+ *  told only when the loop turns, and a timer of 0 a locale set is due
+ *  before it -- up to gobj-ui 7.26.46 such a rejection was lost, and
+ *  the run passed.
  ***************************************************************/
 function exit_when_written()
 {
@@ -6437,6 +6612,8 @@ function exit_when_written()
             process.exit();
         }
     };
-    process.stdout.write("", written);
-    process.stderr.write("", written);
+    setTimeout(() => {
+        process.stdout.write("", written);
+        process.stderr.write("", written);
+    }, 0);
 }

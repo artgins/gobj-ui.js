@@ -13,7 +13,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {describe, test, expect, beforeAll, beforeEach} from "vitest";
+import {describe, test, expect, beforeAll, beforeEach, vi} from "vitest";
 import {install_dom_double} from "../test/dom_double.js";
 
 install_dom_double();
@@ -60,7 +60,7 @@ function settle()
     return new Promise(resolve => setTimeout(resolve, 0));
 }
 
-function make_shell()
+function make_shell(use_hash)
 {
     seq++;
     const app = gobj_create(`sapp${seq}`, "C_TEST_STOP_HOST", {}, yuno);
@@ -75,7 +75,8 @@ function make_shell()
                 }
             }
         },
-        subscriber: app
+        subscriber: app,
+        use_hash: !!use_hash
     }, app);
     gobj_start(shell);
     logged.length = 0;     /*  the shell's own start: no route table here  */
@@ -139,5 +140,36 @@ describe("a shell stopped with an overlay up", () => {
         expect(document.querySelectorAll(".TEST_STOP_SHEET").length).toBe(0);
         /*  gobj-js says what the test did; nothing else is said.  */
         expect(errors().filter((m) => !m.includes("Destroying a RUNNING gobj"))).toEqual([]);
+    });
+
+    test("it moves no browser history: their markers are left in place", async () => {
+        window.location.hash = "#/home";
+        const shell = make_shell(true);
+
+        yui_shell_show_modal(shell, "the sheet", {
+            dialog: true, logical_class: "TEST_STOP_SHEET", title: "settings"
+        });
+        let answer = null;
+        yui_shell_confirm_yesno(shell, "really?").then((a) => {
+            answer = a;
+        });
+        expect(window.history.state && window.history.state.__yui_overlay__).toBeTruthy();
+
+        /*  A stopped shell hears no landing: a back() of its own would be
+         *  taken by whatever the next shell pushed in the same turn.  */
+        const back = vi.spyOn(window.history, "back");
+        try {
+            gobj_stop(shell);
+            gobj_destroy(shell);
+            await settle();
+            expect(back).not.toHaveBeenCalled();
+        } finally {
+            back.mockRestore();
+            window.location.hash = "";
+        }
+        expect(answer).toBe(false);
+        expect(document.querySelectorAll(".TEST_STOP_SHEET").length).toBe(0);
+        expect(focus_trap_panel()).toBe(null);
+        expect(errors()).toEqual([]);
     });
 });

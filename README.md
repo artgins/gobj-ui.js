@@ -229,9 +229,23 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > yui_shell_push_escape(shell, "modal", ask_then_close, close_now);
 > ```
 >
-> And a trap whose panel left the document without being released is dropped,
-> said in the log, the next time the stack is read: it no longer stands for an
-> overlay that is gone.
+> **And it moves no browser history (7.26.47).** The markers of the overlays it
+> closes are left in place, inert, as those of overlays a navigation drains: a
+> later Back lands on one and is absorbed. In 7.26.46 the stop retired them with
+> `history.back()`, which is asynchronous, and a stopped shell no longer hears
+> where it lands: a logout followed by a new shell in the same turn had it take
+> the new shell's first marker (Chromium), and the next Back left the app. A
+> question open at the stop answers what Escape answers -- `false` for a yes/no
+> or a danger question, `"cancel"` for yes/no/cancel --; a
+> `yui_shell_confirm_ok()` resolves as on every close, so code awaiting it runs
+> after the stop and must not take the shell for alive.
+>
+> A trap whose panel is out of the document is not the top: the top is the
+> highest trap whose panel is in it, so a trap left behind by an owner torn
+> down with it no longer stands for an overlay that is gone. It is skipped, not
+> dropped: it leaves the stack only by its `release()`, and a panel that only
+> moves (taken out and put back) has its trap again (7.26.47; 7.26.46 dropped
+> it for good).
 
 ## Two maintained lines
 
@@ -3656,12 +3670,40 @@ question. A reload or a close by code still discards the open editor (it is
 cancelled before the rows go): asking is the host's part, and `edited` is
 what tells it to.
 
+An edit the reader CANCELS -- Escape, or a box left as it was -- gives back the
+`edited` and `changes` the form had when that editor opened (7.26.47+): what was
+typed is gone, and up to 7.26.46 it still counted, so closing asked about a
+change that no longer existed. Nothing is given back when anything else changed
+the form while the editor was open (another cell committed, a paste): that
+change is real.
+
+Enter in a box of the form never submits it (7.26.47+). The table's "add"
+button was the form's first submit button, so Enter in any field -- or in a cell
+editor that stays open -- added an empty row; and a form of a single text box
+reloaded the page.
+
 A `time` / `now` column of a table is edited in a `datetime-local` box, to the
 second, read and written as the form's own time field is (`form_time_value.js`:
 an epoch in seconds, or an ISO text for a string column). Up to 7.26.45 it was
 Tabulator's `datetime` editor with a luxon `format`, and nothing gives gobj-ui
 luxon: it opened empty and threw when committed. Luxon is not taken in for one
-editor.
+editor. The cell shows the same local clock, `2026-03-14 09:26:53` (7.26.47+; it
+showed the raw epoch).
+
+A date with a part cleared is not a value. The box answers `""` for it, as for an
+empty box, and only `validity.badInput` tells them apart: Enter leaves the editor
+open, outlined and with `aria-invalid`, until the date is whole again or Escape;
+leaving the cell cancels, and the cell keeps its time (7.26.47+; up to 7.26.46
+one Backspace and Enter erased the stored time). **To clear a time on purpose,
+clear every part of the box**: an empty box writes `null`. Inside the box Tab
+moves between its parts, as the browser does.
+
+The form's own time field and the cell editor read and write a column the same
+way (7.26.47+): an epoch in seconds, an ISO text for a `string` column, and an
+empty box for a column that holds no time. Up to 7.26.46 the field read every
+column with `parseInt` -- an ISO text as 2026 seconds, in January 1970 --, wrote
+the epoch into a `string` column, and showed no time as January 1970, which a
+save wrote back as `0`.
 
 A table hears the reader through Tabulator's `dataChanged`, which Tabulator
 does not say for `setData()` / `replaceData()`, nor when its `history` module
@@ -3739,11 +3781,15 @@ so it governs the row's own click, which toggles the row (a row drawn while it
 was `false` stays unselectable until it is drawn again). With the defaults
 nothing is selected.
 
-The checkbox column (`with_checkbox`) asks `selectable` too, and is not drawn
-when the form is not selectable (7.26.46): Tabulator's row box ticks before its
-toggle is refused, and its header box selects every row without asking. A
-click in a NESTED table selects in that table only; it bubbled up to the row
-holding the table, which toggled too.
+The checkbox column (`with_checkbox`) asks `selectable` too, and is hidden while
+the form is not selectable (7.26.46): Tabulator's row box ticks before its
+toggle is refused, and its header box selects every row without asking. It
+follows `selectable` written at any time, in every table (7.26.47+; in 7.26.46
+it was read when the table was built, and a `false` written later left boxes
+that ticked without selecting). Its header box is named *select all rows*, a
+row's *select row*, and both change language with the form (consumer key
+`select all rows`, 7.26.47). A click in a NESTED table selects in that table
+only; it bubbled up to the row holding the table, which toggled too.
 
 ```js
 gobj_create("form", "C_YUI_FORM", {
@@ -4058,6 +4104,18 @@ that brought the range, so a merge of a branch that raised the range by hand,
 next to a version raised on main with the old range, deployed under that
 version, and a package.json MOVED after a hand raise was taken for one born
 with the range; and `7.26.45` refused every shallow clone.
+
+Since `7.26.47` a move git does not see as a rename is followed too -- a `git
+mv` with many changes (below `-M`'s 50%), a removal and an addition in two
+commits, a copy: where the package.json is BORN with the range and the version
+of the working tree, every package.json the repository had before it is read,
+by version. In a repository of two apps, a new one born with the range beside
+one that once had its number with another range has its version raised once
+more than needed -- a number spent, never a bundle under an old one. A state
+that is not json (a stray comma, conflict markers) is read by its lines, every
+`"version"` it holds: up to `7.26.46` one such commit anywhere in the history
+refused the app on every round, without naming the commit. A package.json of
+the working tree that is not json is refused naming the file.
 
 ### Colour: a brand token as INK takes `-on-scheme`, as a FILL it does not
 
@@ -4426,7 +4484,13 @@ well (``t[`call`](x, k)``, `t[M](x, k)` with `const M = "call"`, `i18next[T](k)`
 with `const T = "t"`), and so is a SPREAD of an array the source writes out:
 `t(...["k"])`, `t.call(x, ...["k"])`, `t(...KEYS)` and `t.apply(x, KEYS)` with
 `const KEYS = ["k"]` -- each element of the const read as `KEYS[0]`,
-`KEYS[1]`... (up to `7.26.45` none of them was read, and nothing failed).
+`KEYS[1]`... (up to `7.26.45` none of them was read, and nothing failed). Since
+`7.26.47` each of those is THAT element, so `t.apply(null, ["save", "Save it"])`
+asks for "save" and not for its default value (`7.26.46` read every element of
+the array at every position, and asked for both), and a const ALIAS of such an
+array (`const B = KEYS; t(...B)`), an import of one, and an
+`Object.freeze([...])` are read as it is (up to `7.26.46` they were spreads of
+what the source does not write).
 An ARRAY given to it is i18next's list of fallback keys, and
 each one is a key: `t([specific, "generic"])` asks for "generic". A `.bind()`
 that binds a KEY makes a translator whose calls hand i18next its options or its
@@ -4479,6 +4543,12 @@ options). What is followed:
   computed one, `NOTES[verdict]`, every value the object holds; also of a
   COPY of one (since `7.26.32`): `{...BASE, title: "t"}`,
   `Object.assign({}, BASE)`;
+- an element of a const array literal read by an index the source writes
+  (`LABELS[1]`, `LABELS["1"]`): that element, nothing past the end or in a
+  hole (since `7.26.47`; up to `7.26.46` every element of the array). An
+  index past a spread, a computed one, and an array its scope writes into
+  (`LABELS[0] = k`, `.push()`, `.reverse()`, `.sort()`, `delete`, ...: an
+  element may be another one by then) read every element written out;
 - the element of a const array literal that a `for...of` walks, or that the
   first parameter of a callback of one of the methods above receives (in the
   same forms, and since `7.26.42` also the callback of `Array.from(ROWS, cb)`,
@@ -4654,7 +4724,9 @@ a const alias (`const show = yui_shell_show_info`), a map in a const
 ...)`, and with a spread or an `.apply()` of an array the source writes out,
 `f(shell, ...["k"])`, `f.apply(x, ARGS)` with `const ARGS = [shell, "k"]`,
 since `7.26.46` -- up to `7.26.45` such a spread failed the rule per call, and
-`f[M](...)` was not read); and a `.bind()` of it is read as the
+`f[M](...)` was not read; in `7.26.46` a const such as ARGS was read at every
+position as all of its elements, so this very example failed the rule per call
+with `shell`: each position is its own element since `7.26.47`); and a `.bind()` of it is read as the
 call it prepares, at the positions it binds (since `7.26.43`):
 `yui_shell_show_info.bind(null, shell, "k")` asks for "k", and a parameter
 bound there fails the rule per call as it does when it is handed directly. Up
@@ -5132,8 +5204,9 @@ reading the page in another language:
   `m` a parameter or a `let`, `t[c()? "call" : "apply"]`);
 - a key handed to a translator in a spread of what is no array the source
   writes out (`t(...args)`, `t.apply(x, args)` with `args` a parameter, a
-  `let`, or a const whose array holds a spread or a hole): from the spread on,
-  no position is known;
+  `let`, or a const whose array holds a spread or a hole; a const alias, an
+  import or an `Object.freeze()` of an array written out is read, since
+  `7.26.47`): from the spread on, no position is known;
 - a translator handed to a FUNCTION (`{t: t}`, `yui_tabulator_lang(t)`,
   `run(t)`) or to any method but those listed above (`keys.reduce(t)`,
   `keys.sort(t)`, an alias of a method, `Reflect.apply()`): only those
@@ -5154,9 +5227,14 @@ reading the page in another language:
   (`const ds = el.dataset; ds.i18nTitle = k`), by `Object.assign()` into it,
   or named by a `let`;
 - what is written INTO a `const` table after its declaration
-  (`TABLE.k = "k"`): the reader follows a const to its value, and only a
-  marked `let` is followed into what is written into it (a published list
-  that is written into fails: above);
+  (`TABLE.k = "k"`, `LIST[0] = "k"`, `LIST.push("k")`): the reader follows a
+  const to its value, and only a marked `let` is followed into what is
+  written into it (a published list that is written into fails: above). An
+  array written into in its own scope is read by every element at any index
+  (above); written through an alias (`const B = LIST; B.reverse()`), from a
+  module that imports it, or by a function it is handed to (`shuffle(LIST)`),
+  it is not seen, and an element
+  read by its index is the one the source writes there;
 - what a module of a package exports (gobj-js, i18next), and an exported
   `let`;
 - in the library's forwarder search, a key stored in a heap object or a DOM

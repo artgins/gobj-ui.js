@@ -81,6 +81,42 @@ describe("yui_tabulator_name_row_selects", () => {
         expect($box.attrs["title"]).toBe("Seleccionar fila");
         expect($box.attrs["data-i18n-title"]).toBe("select row");
     });
+
+    /*  Up to 7.26.46 the header's box -- which selects every row -- was
+     *  named "select row" too.  */
+    it("names the header's box for what it does: select all rows", () => {
+        const $box = element();
+        $box.setAttribute("aria-label", "Select Row");
+        $box.closest = (sel) => (sel === ".tabulator-header" ? {} : null);
+        const table = {element: element($box)};
+
+        yui_tabulator_name_row_selects(table, (key) => key === "select all rows" ? "Seleccionar todas las filas" : key);
+
+        expect($box.attrs["aria-label"]).toBe("Seleccionar todas las filas");
+        expect($box.attrs["data-i18n-aria-label"]).toBe("select all rows");
+        expect($box.attrs["title"]).toBe("Seleccionar todas las filas");
+        expect($box.attrs["data-i18n-title"]).toBe("select all rows");
+    });
+
+    /*  Up to 7.26.46 only Tabulator's English literal was matched, so a
+     *  box named once was never named again: a language change through
+     *  yui_tabulator_relocalize() (C_YUI_FORM's EV_LANGUAGE_CHANGED) left
+     *  it in the old language.  */
+    it("names again, in the new language, a box it named before", () => {
+        const $box = element();
+        $box.setAttribute("aria-label", "Select Row");
+        /*  Found again by the mark it left, not by Tabulator's literal  */
+        const table = {element: {querySelectorAll: (sel) => (
+            sel.includes("Select Row") && $box.attrs["aria-label"] !== "Select Row" &&
+            !sel.includes("data-yui-row-select") ? [] : [$box])}};
+
+        yui_tabulator_name_row_selects(table, t);
+        expect($box.attrs["aria-label"]).toBe("Seleccionar fila");
+
+        yui_tabulator_name_row_selects(table, (key) => key === "select row" ? "Select the row" : key);
+        expect($box.attrs["aria-label"]).toBe("Select the row");
+        expect($box.attrs["title"]).toBe("Select the row");
+    });
 });
 
 describe("yui_tabulator_name_editor", () => {

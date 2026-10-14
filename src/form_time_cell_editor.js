@@ -23,27 +23,30 @@
  *          Escape cancels, `verticalNavigation: "editor"` keeps the
  *          arrows, and a value that did not change is a cancel.
  *
+ *          A date with a part cleared is NOT a value: the box answers
+ *          `value ""` for it, as for an empty box, and only
+ *          `validity.badInput` tells them apart. Enter leaves the
+ *          editor open with `aria-invalid` until the date is whole
+ *          again (or Escape); a blur cancels, and the cell keeps what
+ *          it had. Up to gobj-ui 7.26.46 both committed null: one
+ *          Backspace and Enter erased the stored time. To clear a time
+ *          on purpose, clear EVERY part of the box: an empty box
+ *          commits null. (Inside the box Tab moves between its parts,
+ *          as the browser does: it does not leave the cell.)
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
+import {
+    date_to_datetime_local, datetime_local_to_epoch, time_value_to_date, epoch_to_time_value
+} from "./form_time_value.js";
 
 /************************************************************
  *  A cell's value -> the text of the box ("" when empty).
  ************************************************************/
 function time_to_datetime_local(value, real_type)
 {
-    if(value === null || value === undefined || value === "") {
-        return "";
-    }
-    if(real_type === "string") {
-        return date_to_datetime_local(new Date(String(value)));
-    }
-    let seconds = Number(value);
-    if(!Number.isFinite(seconds)) {
-        return "";
-    }
-    return date_to_datetime_local(new Date(seconds * 1000));
+    return date_to_datetime_local(time_value_to_date(value, real_type));
 }
 
 /************************************************************
@@ -51,14 +54,7 @@ function time_to_datetime_local(value, real_type)
  ************************************************************/
 function datetime_local_to_time(text, real_type)
 {
-    let epoch = datetime_local_to_epoch(text);
-    if(epoch === null) {
-        return null;
-    }
-    if(real_type === "string") {
-        return new Date(epoch * 1000).toISOString();
-    }
-    return epoch;
+    return epoch_to_time_value(datetime_local_to_epoch(text), real_type);
 }
 
 /************************************************************
@@ -94,7 +90,22 @@ function form_time_cell_editor(real_type)
             }
         });
 
-        let commit = function() {
+        /*  A part of the date cleared (one Backspace) reads "" as an
+         *  empty box does: only badInput tells "not a time yet" from
+         *  "no time".  */
+        let incomplete = function() {
+            return !!(input.validity && input.validity.badInput);
+        };
+
+        let commit = function(from_blur) {
+            if(incomplete()) {
+                if(from_blur) {
+                    cancel();
+                } else {
+                    input.setAttribute("aria-invalid", "true");
+                }
+                return;
+            }
             if(input.value === original_text) {
                 cancel();
                 return;
@@ -110,14 +121,20 @@ function form_time_cell_editor(real_type)
         /*  Only a TRUE blur: not the one of the browser's own picker.  */
         input.addEventListener("blur", function(e) {
             if(e.relatedTarget || e.rangeParent || e.explicitOriginalTarget !== input) {
-                commit();
+                commit(true);
+            }
+        });
+
+        input.addEventListener("input", function() {
+            if(!incomplete()) {
+                input.removeAttribute("aria-invalid");
             }
         });
 
         input.addEventListener("keydown", function(e) {
             switch(e.key) {
                 case "Enter":
-                    commit();
+                    commit(false);
                     break;
                 case "Escape":
                     cancel();

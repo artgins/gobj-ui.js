@@ -66,4 +66,62 @@ function datetime_local_to_epoch(value)
     return Math.floor(date.getTime() / 1000);
 }
 
-export {date_to_datetime_local, datetime_local_to_epoch};
+/************************************************************
+ *  The value of a time column -> a Date, or null when it holds
+ *  none. A `string` column holds an ISO text, any other an epoch
+ *  in SECONDS. The form's time field and the cell editor of a
+ *  table read it here, so the two agree: up to gobj-ui 7.26.46 the
+ *  field read every column with parseInt -- an ISO text as the
+ *  year 2026 in SECONDS, in January 1970 -- and showed an empty
+ *  one as January 1970 too, which a save then wrote back as 0.
+ ************************************************************/
+function time_value_to_date(value, real_type)
+{
+    if(value === null || value === undefined || value === "") {
+        return null;
+    }
+    let date = (real_type === "string")?
+        new Date(String(value)) : new Date(Number(value) * 1000);
+    return isNaN(date.getTime())? null : date;
+}
+
+/************************************************************
+ *  An epoch in seconds (null: no time) -> the value of a time
+ *  column: an ISO text for a `string` column, the epoch for any
+ *  other. Up to gobj-ui 7.26.46 the field wrote the epoch into a
+ *  `string` column too.
+ ************************************************************/
+function epoch_to_time_value(epoch, real_type)
+{
+    if(epoch === null || epoch === undefined) {
+        return null;
+    }
+    if(typeof epoch !== "number" || !Number.isFinite(epoch)) {
+        return epoch;   // not an epoch: handed on as it came
+    }
+    if(real_type === "string") {
+        return new Date(epoch * 1000).toISOString();
+    }
+    return epoch;
+}
+
+/************************************************************
+ *  The value of a time column as a table cell shows it: the
+ *  local clock the editor opens on, "YYYY-MM-DD HH:mm:ss", as
+ *  fmt_epoch() of yui_time.js writes a timestamp in a table. ""
+ *  for no time; a value that is not one is shown as it is, so the
+ *  reader sees what the column holds.
+ ************************************************************/
+function time_value_to_text(value, real_type)
+{
+    let date = time_value_to_date(value, real_type);
+    if(!date) {
+        return (value === null || value === undefined)? "" : String(value);
+    }
+    return date_to_datetime_local(date).replace("T", " ");
+}
+
+export {
+    date_to_datetime_local, datetime_local_to_epoch,
+    time_value_to_date, epoch_to_time_value, time_value_to_text
+};

@@ -776,7 +776,8 @@ function build_ui(gobj)
             let key = `${gobj_name(gobj)}-rect`;
             let stored = kw_get_local_storage_value(key);
             let rect = whole_rect(stored);
-            if(!rect && stored != null) {
+            /*  Text that is not json reads as nothing, as no entry does  */
+            if(!rect && local_storage_holds(key)) {
                 log_warning(`${gobj_short_name(gobj)}: the saved position '${key}' is not a rect of four numbers: ignored`);
                 kw_remove_local_storage_value(key);
             } else if(rect && (rect.width <= 0 || rect.height <= 0)) {
@@ -1350,6 +1351,19 @@ function min(gobj)
     set_max_icon(gobj, false);
 
     return rect;
+}
+
+/************************************************************
+ *  Whether localStorage holds anything under `key`, readable
+ *  or not.
+ ************************************************************/
+function local_storage_holds(key)
+{
+    try {
+        return window.localStorage.getItem(key) !== null;
+    } catch(e) {
+        return false;   // no storage: nothing is kept in it either
+    }
 }
 
 /************************************************************

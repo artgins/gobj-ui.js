@@ -113,4 +113,42 @@ describe("a time column's cell editor", () => {
         expect(datetime_local_to_time(time_to_datetime_local(EPOCH, "integer"), "integer")).toBe(EPOCH);
         expect(time_to_datetime_local(EPOCH, "integer")).toBe(date_to_datetime_local(new Date(EPOCH * 1000)));
     });
+
+    /*  A box with a part of its date cleared answers `value ""`, as an
+     *  empty one does, and only `validity.badInput` tells them apart.
+     *  Up to 7.26.46 both were committed as null: one Backspace and
+     *  Enter erased the stored time.  */
+    function half_typed($input)
+    {
+        $input.value = "";
+        Object.defineProperty($input, "validity", {
+            configurable: true,
+            value: {badInput: true, valid: false}
+        });
+    }
+
+    test("an incomplete date is not committed by Enter: the editor stays open, said invalid", () => {
+        const {$input, said} = open_editor(EPOCH, "integer");
+        half_typed($input);
+        $input.dispatchEvent(key("Enter"));
+        expect(said.success).toEqual([]);
+        expect(said.cancel).toBe(0);
+        expect($input.getAttribute("aria-invalid")).toBe("true");
+
+        /*  Completed, it commits.  */
+        Object.defineProperty($input, "validity", {configurable: true, value: {badInput: false, valid: true}});
+        $input.value = "2026-03-14T10:00:00";
+        $input.dispatchEvent({type: "input"});
+        expect($input.getAttribute("aria-invalid")).toBe(null);
+        $input.dispatchEvent(key("Enter"));
+        expect(said.success).toEqual([Math.floor(new Date("2026-03-14T10:00:00").getTime() / 1000)]);
+    });
+
+    test("an incomplete date left by a blur is a cancel: the stored time stays", () => {
+        const {$input, said} = open_editor(EPOCH, "integer");
+        half_typed($input);
+        $input.dispatchEvent({type: "blur", relatedTarget: {}});
+        expect(said.success).toEqual([]);
+        expect(said.cancel).toBe(1);
+    });
 });

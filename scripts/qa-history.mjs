@@ -40,6 +40,14 @@
  *            Back closes it -- the marker of the earlier load is not the
  *            new panel's own entry (V7.3, e1) -- and Back still leaves the
  *            chapter (the earlier load's entries absorb at most one).
+ *        (i) a question up, then a logout and a new login in one turn,
+ *            the new shell opening the panel (the chapter's "log out and
+ *            in"): Back closes the panel and stays in the app, and Back
+ *            still reaches the previous route (the question's marker,
+ *            left in place by the stopped shell, absorbs one). Up to
+ *            gobj-ui 7.26.46 the stopped shell retired that marker with
+ *            a history.back() that took the panel's: in Chromium the
+ *            panel stayed up with no entry and Back left the chapter.
  *
  *      Besides the cases, a warning of the shell (C_YUI_SHELL: ...) in
  *      the console is a failure: the false "did not land ... dropped" of
@@ -344,6 +352,31 @@ async function case_h(page)
     return {ok, after_back, left, backs};
 }
 
+async function case_i(page)
+{
+    await fresh(page);
+    await page.click(".DEMO_HISTORY_RELOGIN");
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await page.waitForTimeout(800);
+    const relogged = await snap(page);
+    await page.goBack();
+    await settle(page);
+    const after_back = await snap(page);
+    let backs = 0;
+    let left = after_back;
+    while(left.hash !== "#/windows" && backs < 3) {
+        await page.goBack();
+        await settle(page);
+        left = await snap(page);
+        backs++;
+    }
+
+    const ok = relogged.panel && relogged.hash === "#/history" &&
+        !after_back.panel && after_back.hash === "#/history" &&
+        left.hash === "#/windows" && backs <= 2;
+    return {ok, relogged, after_back, left, backs};
+}
+
 /*
  *  Main
  */
@@ -364,7 +397,8 @@ try {
                                       ["e: link back after a position", case_e],
                                       ["f: link from the position", case_f],
                                       ["g: close and click", case_g],
-                                      ["h: reload, open again, Back", case_h]]) {
+                                      ["h: reload, open again, Back", case_h],
+                                      ["i: log out and in, Back", case_i]]) {
                 const context = await browser.newContext({viewport: {width: 1250, height: 850}});
                 const page = await context.newPage();
                 page.on("pageerror", (e) => {

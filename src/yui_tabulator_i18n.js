@@ -169,8 +169,14 @@ function yui_tabulator_name_filters(table, t)
  *  from `yui_tabulator_relocalize()` so a language change
  *  reaches them.
  *
- *  It matches Tabulator's OWN literal and only that, so a box a
- *  view named itself is left alone.
+ *  It matches Tabulator's OWN literal, and the boxes it named itself
+ *  (they carry `data-yui-row-select`), so a box a view named itself is
+ *  left alone. Up to 7.26.46 it matched only the literal: a box named
+ *  once was never found again, and a language change through
+ *  yui_tabulator_relocalize() left it in the old language.
+ *
+ *  The box in the HEADER selects every row, and is named so
+ *  ("select all rows"); up to 7.26.46 it was "select row" too.
  ***************************************************************/
 const TABULATOR_ROW_SELECT_ARIA = "Select Row";
 
@@ -193,12 +199,17 @@ function yui_tabulator_name_row_selects(table, t)
             return;
         }
         let boxes = $el.querySelectorAll(
-            `input[type=checkbox][aria-label="${TABULATOR_ROW_SELECT_ARIA}"]`);
+            `input[type=checkbox][aria-label="${TABULATOR_ROW_SELECT_ARIA}"], ` +
+            `input[type=checkbox][data-yui-row-select]`);
         for(let $box of boxes) {
-            $box.setAttribute("aria-label", t("select row"));
-            $box.setAttribute("data-i18n-aria-label", "select row");
-            $box.setAttribute("title", t("select row"));
-            $box.setAttribute("data-i18n-title", "select row");
+            let all = typeof $box.closest === "function" && !!$box.closest(".tabulator-header");
+            let name = all ? t("select all rows") : t("select row");
+            let key = all ? "select all rows" : "select row";
+            $box.setAttribute("aria-label", name);
+            $box.setAttribute("data-i18n-aria-label", key);
+            $box.setAttribute("title", name);
+            $box.setAttribute("data-i18n-title", key);
+            $box.setAttribute("data-yui-row-select", "");
         }
     } catch(e) {
         /*  a table between renders has no boxes to name  */

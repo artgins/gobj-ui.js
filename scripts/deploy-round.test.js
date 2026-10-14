@@ -9,7 +9,10 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {describe, test, expect} from "vitest";
+import {describe, test, expect, vi} from "vitest";
+
+/*  Each test spawns node (and git): under a loaded machine 5 s is not enough.  */
+vi.setConfig({testTimeout: 30000});
 import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync} from "node:fs";
 import {join, dirname, delimiter} from "node:path";
 import {tmpdir} from "node:os";
@@ -314,6 +317,117 @@ describe("deploy-round: the range and the version", () => {
         let r = round(root, {name: "born", path: born});
         expect(r.out).toMatch(/range {2}already/);
         expect(read(born).version).toBe("0.1.0");
+    });
+
+    test("a state of the history that is not json is read by its text: no refusal for ever, and its version counts", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        /*  A package.json committed broken (",,") and fixed: the round, committed, run again  */
+        let dir = consumer(root, "commas", "1.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+        let f = join(dir, "package.json");
+        writeFileSync(f, readFileSync(f, "utf8").replace(/\n}\n$/, ",,\n}\n"));
+        commit(dir, "broken");
+        writeFileSync(f, package_json("commas", "1.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}));
+        commit(dir, "fixed");
+        let r = round(root, {name: "commas", path: dir});
+        expect(r.out).toContain("version 1.0.0 -> 1.0.1");
+        commit(dir, "the round");
+        r = round(root, {name: "commas", path: dir});
+        expect(r.out).not.toMatch(/FAILED/);
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(dir).version).toBe("1.0.1");
+
+        /*  A commit with conflict markers whose text carries this version beside the old
+         *  range, fixed with the range raised by hand: the version is raised  */
+        let conflict = consumer(root, "conflict", "2.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+        f = join(conflict, "package.json");
+        writeFileSync(f, readFileSync(f, "utf8").replace(/ {4}"version": "2\.0\.0",\n/,
+            "<<<<<<< HEAD\n    \"version\": \"2.0.0\",\n=======\n    \"version\": \"2.0.1\",\n>>>>>>> other\n"));
+        commit(conflict, "committed in the middle of a conflict");
+        writeFileSync(f, package_json("conflict", "2.0.1", {"@yuneta/gobj-ui": `^${VERSION}`}));
+        commit(conflict, "fixed, the range raised by hand");
+        r = round(root, {name: "conflict", path: conflict});
+        expect(r.out).not.toMatch(/FAILED/);
+        expect(r.out).toContain("version 2.0.1 -> 2.0.2");
+    });
+
+    test("a package.json that is not json is named in the refusal", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let markers = (dir) => {
+            let f = join(dir, "package.json");
+            writeFileSync(f, readFileSync(f, "utf8").replace(/\n}\n$/, ",\n<<<<<<< HEAD\n=======\n>>>>>>> b\n}\n"));
+            return f;
+        };
+        for(let range of [OLDER, VERSION]) {
+            let main = consumer(root, `main-${range}`, "1.0.0", {"@yuneta/gobj-ui": `^${range}`}, true);
+            let common = consumer(root, `common-${range}`, "0.1.0", {"@yuneta/gobj-ui": `^${range}`}, true);
+            let f = markers(common);
+            let r = round(root, {name: `m-${range}`, path: main, range_dirs: [main, common]});
+            expect(r.out).toMatch(/FAILED in this round/);
+            expect(r.out).toContain(`${f}: not json (`);
+        }
+        /*  ...and HEAD's, when the round must read it  */
+        let head = consumer(root, "head", "1.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+        let f = join(head, "package.json");
+        writeFileSync(f, "{\n<<<<<<< HEAD\n=======\n>>>>>>> b\n}\n");
+        commit(head, "only markers");
+        writeFileSync(f, package_json("head", "1.0.0", {"@yuneta/gobj-ui": `^${VERSION}`}));
+        let r = round(root, {name: "head", path: head});
+        expect(r.out).toMatch(/FAILED in this round/);
+        expect(r.out).toMatch(/HEAD \([0-9a-f]{10}\):\.\/package\.json carries no version/);
+    });
+
+    test("a package.json moved in a way git does not see as a rename is followed by its version", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let filler = (n) => Object.fromEntries(Array.from({length: n}, (_, i) => [`dep${i}`, `^1.${i}.0`]));
+        for(let how of ["mv-changed", "delete-add", "copy"]) {
+            let repo = join(root, `repo-${how}`);
+            consumer(repo, "old", "3.0.0", {"@yuneta/gobj-ui": `^${OLDER}`});
+            execFileSync("git", ["init", "-q"], {cwd: repo});
+            commit(repo, "init, 3.0.0 out with the old range");
+            edit(join(repo, "old"), (p) => {
+                p.dependencies["@yuneta/gobj-ui"] = `^${VERSION}`;
+            });
+            commit(repo, "the range raised by hand");
+            let text = package_json("new", "3.0.0", Object.assign({"@yuneta/gobj-ui": `^${VERSION}`}, filler(40)));
+            if(how === "mv-changed") {
+                git(repo, "mv", "old", "new");
+                writeFileSync(join(repo, "new", "package.json"), text);
+                commit(repo, "moved, with many changes");
+            } else if(how === "delete-add") {
+                git(repo, "rm", "-rq", "old");
+                commit(repo, "removed");
+                mkdirSync(join(repo, "new"));
+                writeFileSync(join(repo, "new", "package.json"), text);
+                commit(repo, "added again");
+            } else {
+                mkdirSync(join(repo, "new"));
+                writeFileSync(join(repo, "new", "package.json"), readFileSync(join(repo, "old", "package.json")));
+                commit(repo, "copied");
+            }
+            let r = round(root, {name: how, path: join(repo, "new")});
+            expect(r.out).toContain("version 3.0.0 -> 3.0.1");
+            expect(read(join(repo, "new")).version).toBe("3.0.1");
+            commit(repo, "the round");
+            r = round(root, {name: how, path: join(repo, "new")});
+            expect(r.out).toMatch(/range {2}already/);
+            expect(read(join(repo, "new")).version).toBe("3.0.1");
+        }
+        /*  A NEW app born with the range beside one that shipped its number with the
+         *  old range: raised once (a number spent), and left after that  */
+        let repo = join(root, "two-apps");
+        consumer(repo, "first", "1.0.0", {"@yuneta/gobj-ui": `^${OLDER}`});
+        execFileSync("git", ["init", "-q"], {cwd: repo});
+        commit(repo, "init");
+        consumer(repo, "second", "1.0.0", {"@yuneta/gobj-ui": `^${VERSION}`});
+        commit(repo, "a new app");
+        let r = round(root, {name: "second", path: join(repo, "second")});
+        expect(r.out).toContain("version 1.0.0 -> 1.0.1");
+        r = round(root, {name: "second", path: join(repo, "second")});
+        expect(r.out).toMatch(/range {2}already/);
+        commit(repo, "the round");
+        r = round(root, {name: "second", path: join(repo, "second")});
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(join(repo, "second")).version).toBe("1.0.1");
     });
 
     test("a range already raised is held to the same rules: a version that is not x.y.z refuses the app", () => {

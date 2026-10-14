@@ -60,6 +60,7 @@ vi.mock("tabulator-tables", () => {
             this.initialized = false;
             this.destroyed = false;
             this.rows = [];
+            this.row_header = null;
             this.calls = {addRow: 0, addData: 0, redraw: 0};
             this.modules = {
                 localize: {
@@ -165,6 +166,28 @@ vi.mock("tabulator-tables", () => {
         }
         getRows() {
             return this.rows.map((row) => row.component);
+        }
+        /*  The structured columns start with the row header, as
+         *  Tabulator's (ColumnManager.columns).  */
+        getColumns(structured) {
+            const def = this.settings && this.settings.rowHeader;
+            if(!structured || !def) {
+                return [];
+            }
+            if(!this.row_header) {
+                const header = {visible: def.visible !== false};
+                this.row_header = {
+                    getDefinition: () => def,
+                    isVisible: () => header.visible,
+                    show: () => {
+                        header.visible = true;
+                    },
+                    hide: () => {
+                        header.visible = false;
+                    },
+                };
+            }
+            return [this.row_header];
         }
         getData() {
             return this.rows.map((row) => structuredClone(row.data));
@@ -612,12 +635,39 @@ describe("a click on a row", () => {
  *  row; and with the default `selectableRows` ("highlight") the
  *  `selectable` of the form was not asked at all.  */
 describe("the checkbox column", () => {
-    test("is not drawn when the form is not selectable", async () => {
+    test("is not shown when the form is not selectable", async () => {
         const {first} = build(record(), null, {with_checkbox: true, selectable: false});
         await settle();
         const alarms = alarms_of(first);
-        expect(alarms.settings.rowHeader).toBeUndefined();
-        expect(triggers_of(alarms, 0).settings.rowHeader).toBeUndefined();
+        expect(alarms.getColumns(true)[0].isVisible()).toBe(false);
+        expect(triggers_of(alarms, 0).getColumns(true)[0].isVisible()).toBe(false);
+        expect(errors()).toEqual([]);
+    });
+
+    /*  Up to 7.26.46 `selectable` was read when a table was built: written
+     *  false after it, the boxes stayed, and ticked over rows that the
+     *  check no longer let be selected.  */
+    test("follows `selectable` written after the tables are built", async () => {
+        const {form, first} = build(record(), null, {with_checkbox: true});
+        await settle();
+        const alarms = alarms_of(first);
+        const nested = triggers_of(alarms, 0);
+        expect(alarms.getColumns(true)[0].isVisible()).toBe(true);
+        gobj_write_attr(form, "selectable", false);
+        expect(alarms.getColumns(true)[0].isVisible()).toBe(false);
+        expect(nested.getColumns(true)[0].isVisible()).toBe(false);
+        gobj_write_attr(form, "selectable", true);
+        expect(alarms.getColumns(true)[0].isVisible()).toBe(true);
+        expect(nested.getColumns(true)[0].isVisible()).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a table built after `selectable` was written follows it", async () => {
+        const {form, first} = build(record(), (f) => {
+            gobj_write_attr(f, "selectable", false);
+        }, {with_checkbox: true});
+        await settle();
+        expect(alarms_of(first).getColumns(true)[0].isVisible()).toBe(false);
         expect(errors()).toEqual([]);
     });
 
@@ -631,6 +681,36 @@ describe("the checkbox column", () => {
         gobj_write_attr(form, "selectable", false);
         expect(alarms.settings.selectableRowsCheck()).toBe(false);
         expect(errors()).toEqual([]);
+    });
+});
+
+/*  Enter in a box of a <form> is an implicit submission: the browser
+ *  clicks the form's first SUBMIT button, and with none and a single text
+ *  box it submits the form. Up to 7.26.46 the table's "add" button had no
+ *  `type`, so it was that button: Enter in any field (or in a cell editor
+ *  that stays open) added an empty row; and a form of one text box
+ *  reloaded the page (Chromium and Firefox).  */
+describe("Enter in a box of the form", () => {
+    test("the table's add button is no submit button", async () => {
+        const {form} = build(record());
+        await settle();
+        const $container = gobj_read_attr(form, "$container");
+        const $buttons = Array.from($container.querySelector("form").querySelectorAll("button"));
+        expect($buttons.length).toBeGreaterThan(0);
+        for(const $b of $buttons) {
+            expect($b.getAttribute("type"), $b.className).toBe("button");
+        }
+    });
+
+    test("the form is never submitted", async () => {
+        const {form} = build(record());
+        await settle();
+        const $form = gobj_read_attr(form, "$container").querySelector("form");
+        let prevented = 0;
+        $form.dispatchEvent({type: "submit", target: $form, preventDefault() {
+            prevented++;
+        }, stopPropagation() {}});
+        expect(prevented).toBe(1);
     });
 });
 
@@ -672,6 +752,54 @@ describe("typing in a cell editor", () => {
         type_in(alarms, editing_box(alarms.element, false));
         expect(gobj_read_attr(form, "edited")).toBe(false);
     });
+
+    /*  Escape, or a box left as it was: what was typed is gone, and up
+     *  to 7.26.46 it still counted -- closing asked about nothing.  */
+    test("a cancelled edit gives back the `edited` the form had when it opened", async () => {
+        const {form, first} = build(record());
+        await settle();
+        const alarms = alarms_of(first);
+        alarms.emit("cellEditing");
+        type_in(alarms, editing_box(alarms.rows[0].$row, true));
+        expect(gobj_read_attr(form, "edited")).toBe(true);
+        alarms.emit("cellEditCancelled");
+        expect(gobj_read_attr(form, "edited")).toBe(false);
+        expect(gobj_read_attr(form, "changes")).toBe(false);
+        expect(close_asks(form)).toBe(false);
+
+        /*  An edit already made stays one: the cancel gives back what
+         *  was there when THIS editor opened.  */
+        alarms.edit_cell(0, "name", "renamed");
+        expect(gobj_read_attr(form, "edited")).toBe(true);
+        alarms.emit("cellEditing");
+        type_in(alarms, editing_box(alarms.rows[0].$row, true));
+        alarms.emit("cellEditCancelled");
+        expect(gobj_read_attr(form, "edited")).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a cancel gives nothing back when something else changed the form meanwhile", async () => {
+        const {form, first} = build(record());
+        await settle();
+        const alarms = alarms_of(first);
+        alarms.emit("cellEditing");
+        type_in(alarms, editing_box(alarms.rows[0].$row, true));
+        alarms.edit_cell(1, "name", "elsewhere");
+        alarms.emit("cellEditCancelled");
+        expect(gobj_read_attr(form, "edited")).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a committed edit stays `edited`", async () => {
+        const {form, first} = build(record());
+        await settle();
+        const alarms = alarms_of(first);
+        alarms.emit("cellEditing");
+        type_in(alarms, editing_box(alarms.rows[0].$row, true));
+        alarms.edit_cell(0, "name", "typed");
+        expect(gobj_read_attr(form, "edited")).toBe(true);
+        expect(errors()).toEqual([]);
+    });
 });
 
 /*  A time column was edited by Tabulator's `datetime` with a `format`,
@@ -704,6 +832,44 @@ describe("a time column of a table", () => {
         expect(params.format).toBeUndefined();
         expect(params.elementAttributes["aria-label"]).toBe("when");
         expect(params.elementAttributes.title).toBe("when");
+        gobj_stop(form);
+        gobj_destroy(form);
+        expect(errors()).toEqual([]);
+    });
+
+    /*  Up to 7.26.46 the cell showed the raw epoch (1700000000).  */
+    test("shows its time as the local clock the editor opens on, not the epoch", async () => {
+        const first = tables.length;
+        const app = gobj_create_pure_child(`trapp${++seq}`, "C_TEST_TR_APP", {}, yuno);
+        gobj_start(app);
+        const form = gobj_create_pure_child(`trform${seq}`, "C_YUI_FORM", {
+            template: {
+                events: {
+                    type: "array",
+                    flag: ["writable", "persistent", "table"],
+                    table: {
+                        when: {type: "integer", flag: ["writable", "persistent", "time"]},
+                        at: {type: "string", flag: ["writable", "persistent", "time"]}
+                    }
+                }
+            },
+            record: {events: []},
+            editable: true,
+        }, app);
+        gobj_start(form);
+        await settle();
+        const columns = tables[first].settings.columns;
+        const text = (field, value) => {
+            const column = columns.find((c) => c.field === field);
+            const out = column.formatter({getValue: () => value});
+            return typeof out === "string" ? out : out.textContent;
+        };
+        const wall = "2026-03-14T09:26:53";
+        const epoch = Math.floor(new Date(wall).getTime() / 1000);
+        expect(text("when", epoch)).toBe("2026-03-14 09:26:53");
+        expect(text("at", new Date(epoch * 1000).toISOString())).toBe("2026-03-14 09:26:53");
+        expect(text("when", null)).toBe("");
+        expect(text("at", "not a time")).toBe("not a time");
         gobj_stop(form);
         gobj_destroy(form);
         expect(errors()).toEqual([]);

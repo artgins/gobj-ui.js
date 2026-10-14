@@ -123,6 +123,7 @@ import {cell_text, hook_cell_spec} from "./table_cell_text.js";
 
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 import {text_node, text_list_item_formatter} from "./yui_text.js";
+import {time_value_to_date} from "./form_time_value.js";
 
 /***************************************************************
  *              Constants
@@ -2269,8 +2270,13 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             switch(field_desc.real_type) {
                 case "string":
                 case "integer":
-                    value = parseInt(value) || 0;
-                    value = new Date(value*1000);
+                    /*  An ISO text for a string column (up to 7.26.46 read
+                     *  with parseInt, as 2026 seconds), none for no time.  */
+                    value = time_value_to_date(value, field_desc.real_type);
+                    if(!value) {
+                        value = "";
+                        break;
+                    }
 
                     const rawLocale = navigator.language;
                     // Playwright Firefox without locale config and some embedded

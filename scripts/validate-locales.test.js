@@ -7,7 +7,10 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {describe, test, expect} from "vitest";
+import {describe, test, expect, vi} from "vitest";
+
+/*  Each test spawns node (and git): under a loaded machine 5 s is not enough.  */
+vi.setConfig({testTimeout: 30000});
 import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, cpSync, symlinkSync} from "node:fs";
 import {join, dirname} from "node:path";
 import {tmpdir} from "node:os";
@@ -56,6 +59,28 @@ function library_copy(mutate)
     }
     return join(lib, "scripts", "validate-locales.mjs");
 }
+
+/*  The lines of src/main.js a run names, as the place of a violation or
+ *  as the line of its call (`src/main.js:10 (call at line 24): ...`)  */
+function main_lines(out)
+{
+    let lines = [];
+    for(let m of out.matchAll(/main\.js:(\d+)(?: \(call at line (\d+)\))?/g)) {
+        lines.push(Number(m[1]));
+        if(m[2]) {
+            lines.push(Number(m[2]));
+        }
+    }
+    return lines;
+}
+
+/*  No violation names any of `lines` of src/main.js  */
+function expect_lines_clean(out, lines)
+{
+    expect(main_lines(out).filter((l) => lines.includes(l))).toEqual([]);
+}
+
+const range = (a, b) => Array.from({length: b - a + 1}, (_, i) => a + i);
 
 const BOTH = (dict) => ({
     "src/locales/en.js": locale("en", dict),
@@ -388,7 +413,7 @@ describe("validate-locales", () => {
             expect(r.out).toMatch(new RegExp(`src/main\\.js:${line}: the published list X_I18N_KEYS is MUTATED \\(\`${what}`));
         }
         expect(r.out).toMatch(/src\/other\.js:2: the published list LIST is MUTATED \(`LIST\.push\("pushed elsewhere"\)`\)/);
-        expect(r.out).not.toMatch(/main\.js:11:/);
+        expect_lines_clean(r.out, [11]);
     });
 
     test("a list no consumer can read FAILS, naming the file and the list (app code too)", () => {
@@ -483,7 +508,7 @@ describe("validate-locales", () => {
         expect(r.out).toMatch(/src\/main\.js:6: the i18n marker names NO_SUCH_I18N_KEYS, a list no module the app mounts publishes/);
         expect(r.out).toMatch(/src\/main\.js:7: "i18n: dato" is no i18n marker/);
         expect(r.out).toMatch(/src\/main\.js:8: the i18n marker stands before `1;`, the value a variable is DECLARED with: mark it where the variable is handed to a place a key is read/);
-        expect(r.out).not.toMatch(/main\.js:3:|main\.js:4:/);
+        expect_lines_clean(r.out, [3, 4]);
     });
 
     test("a let a marker stands before is held to the marker: what it is given is read", () => {
@@ -850,6 +875,24 @@ describe("validate-locales", () => {
         }
     }, 30000);
 
+    test("a promise a locale rejects and nobody handles fails the run, with its stack", () => {
+        let rejecting = {
+            "at the top": `Promise.reject(new Error("a locale rejected at the top"));\n`,
+            "in a timer": `setTimeout(() => Promise.reject(new Error("a locale rejected in a timer")), 0);\n`
+        };
+        for(let [where, code] of Object.entries(rejecting)) {
+            let r = run({
+                "src/locales/en.js": locale("en", {"a defined key": "x"}),
+                "src/locales/es.js": locale("es", {"a defined key": "x"}) + code,
+                "src/main.js": `t("a defined key");`
+            });
+            expect(r.status, where).toBe(1);
+            expect(r.out).toContain(`a promise was rejected and nothing handled it`);
+            expect(r.out).toContain(`Error: a locale rejected ${where}`);
+            expect(r.out).toMatch(/at .*es\.js:\d+/);
+        }
+    }, 30000);
+
     test("where the reader gives up on a value it FAILS, with the file and the line: a key behind it is never skipped in silence", () => {
         let chain = (n, first, link, read) => {
             let lines = [first];
@@ -1017,7 +1060,7 @@ describe("validate-locales", () => {
         expect(r.status).toBe(1);
         expect(r.out).toMatch(/src\/main\.js:3: marked as data, but `label\(kw\)` can also return the key "a mixed key": .*Split the branches/);
         expect(r.out).toMatch(/src\/main\.js:4: marked as data, but what it marks is an array of string literals \("a mixed key", "x"\), which is no DOM/);
-        expect(r.out).not.toMatch(/main\.js:[56]:/);
+        expect_lines_clean(r.out, [5, 6]);
     });
 
     test("REV-CLOUD V22.4: a translated text fails at a key position, marked too, whatever the translator is called", () => {
@@ -1164,7 +1207,7 @@ describe("validate-locales", () => {
         expect(r.out).toContain("src/main.js:6: marked as data, but `t(\"saved\") + \"!\"` is a TRANSLATED text: " +
             "where a key is read, the translation is kept as its key and never changes language, and no marker " +
             "excuses it: hand the key, not t(key)");
-        expect(r.out).not.toMatch(/main\.js:(8|9|10):/);
+        expect_lines_clean(r.out, [8, 9, 10]);
         expect(r.out).not.toMatch(/cannot follow/);
     });
 
@@ -1387,7 +1430,7 @@ describe("validate-locales", () => {
         expect(r.out).toContain("src/main.js:8: `t(\"saved\")` is a TRANSLATED text given to a data-i18n* attribute " +
             "(read at line 9):");
         expect(r.out).toContain("src/main.js:10: marked as data, but `t(\"saved\")` is a TRANSLATED text:");
-        expect(r.out).not.toMatch(/main\.js:(11|12|13):/);
+        expect_lines_clean(r.out, [11, 12, 13]);
     });
 
     test("REV-CLOUD V24.5 Info: findIndex, findLastIndex, .call() / .apply(), Array.fromAsync(); a bound t's arguments are no keys", () => {
@@ -1445,7 +1488,7 @@ describe("validate-locales", () => {
         }
         expect(r.out).toContain("src/main.js:9: yui_shell_show_info() [1] is given msg, which the reader cannot follow");
         expect(r.out).toContain("src/main.js:14: yui_shell_show_info() [1] is given ...ARGS, which the reader cannot follow");
-        expect(r.out).not.toMatch(/main\.js:(2|3|4|5|6|7|12):/);
+        expect_lines_clean(r.out, [2, 3, 4, 5, 6, 7, 12]);
     });
 
     test("`.bind()`, `.call()` and `.apply()` written as computed members are read as the plain ones", () => {
@@ -1469,7 +1512,7 @@ describe("validate-locales", () => {
         expect(r.out).toContain("src/main.js:9: yui_shell_show_info() [1] is given kw.comment, which the reader " +
             "cannot follow");
         expect(r.out).not.toContain(`"count"`);
-        expect(r.out).not.toMatch(/main\.js:[2-8]:/);
+        expect_lines_clean(r.out, range(2, 8));
     });
 
     test("a method named by a const or a template, and a spread of an array the source writes out, are read", () => {
@@ -1513,7 +1556,71 @@ describe("validate-locales", () => {
         }
         expect(r.out).toContain("src/main.js:29: yui_shell_show_info() [1] is given ...REST, which the reader " +
             "cannot follow");
-        expect(r.out).not.toMatch(/main\.js:([0-9]|1[0-9]|2[0-8]):/);
+        expect_lines_clean(r.out, range(1, 28));
+    });
+
+    test("an element of a const array read by a literal index is THAT element; a const alias or import of one is read", () => {
+        let r = run({...BOTH({}), "src/keys.js": `export const IMPORTED = ["k20 imported spread"];\n` +
+            `export const IMPORTED_ARGS = [shell, "k23 imported key fn args"];\n`,
+            "src/main.js": [
+                `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+                `import {IMPORTED, IMPORTED_ARGS} from "./keys.js";`,
+                `yui_shell_show_info(...IMPORTED_ARGS);`,
+                `const ARGS = [shell, "k01 apply of the README"];`,
+                `yui_shell_show_info.apply(x, ARGS);`,
+                `yui_shell_show_info(...ARGS);`,
+                `const S = [shell, "k02 call spread"];`,
+                `yui_shell_show_info.call(x, ...S);`,
+                `const KEYS = ["k03 the key", "k04 a default value"];`,
+                `t.apply(null, KEYS);`,
+                `t(...KEYS);`,
+                `t.call(null, ...KEYS);`,
+                `const PAIR = ["k05 first of a pair", "k06 second of a pair"];`,
+                `t(PAIR[1]);`,
+                "t(PAIR[`0`]);",
+                `const OTHER = ["k14 not the one read", "k15 the one read"];`,
+                `t(OTHER["1"]);`,
+                `const HOLED = ["k07 before a hole", , "k08 after a hole"];`,
+                `t(HOLED[2]);`,
+                `t(HOLED[1]);`,
+                `t(HOLED[9]);`,
+                `const SPREAD = [...PAIR, "k09 after a spread"];`,
+                `t(SPREAD[2]);`,
+                `const TURNED = ["k10 first, turned", "k11 second, turned"];`,
+                `TURNED.reverse();`,
+                `t(TURNED[0]);`,
+                `const WRITTEN = ["k12 written over"];`,
+                `WRITTEN[0] = "k13 the writer";`,
+                `t(WRITTEN[0]);`,
+                `const BASE = ["k16 through an alias"];`,
+                `const ALIAS = BASE;`,
+                `t(...ALIAS);`,
+                `const ARGS3 = [shell, "k17 key fn through an alias"];`,
+                `const ARGS4 = ARGS3;`,
+                `yui_shell_show_info(...ARGS4);`,
+                `t(...IMPORTED);`,
+                `const FROZEN = Object.freeze(["k18 frozen spread"]);`,
+                `t(...FROZEN);`,
+                `const C1 = C2;`,
+                `const C2 = C1;`,
+                `t(...C1);`,
+                `const SHADOWED = ["k21 not read", "k22 read"];`,
+                `function turn(SHADOWED) { SHADOWED.reverse(); }`,
+                `t(SHADOWED[1]);`
+            ].join("\n")});
+        expect(r.status).toBe(1);
+        let asked = (k) => r.out.includes(`defined in NO locale: ${JSON.stringify(k)}`);
+        let missing = ["k01 apply of the README", "k02 call spread", "k03 the key", "k05 first of a pair",
+                       "k06 second of a pair", "k08 after a hole", "k09 after a spread", "k10 first, turned",
+                       "k11 second, turned", "k12 written over", "k15 the one read", "k16 through an alias",
+                       "k17 key fn through an alias", "k18 frozen spread", "k20 imported spread", "k22 read", "k23 imported key fn args"].filter((k) => !asked(k));
+        expect(missing).toEqual([]);
+        /*  t's second argument is its default value or options, never a key;
+         *  a literal index reads its element, and a hole or past the end is nothing  */
+        expect(["k04 a default value", "k07 before a hole", "k14 not the one read", "k21 not read"].filter(asked))
+            .toEqual([]);
+        expect(r.out).not.toContain("which the reader cannot follow");
+        expect(main_lines(r.out)).toEqual([]);
     });
 
     test("a card is named `name || aria_label || id`: its id is a key only for a card with neither", () => {
@@ -1542,7 +1649,7 @@ describe("validate-locales", () => {
             expect(r.out).not.toContain(`defined in NO locale: ${JSON.stringify(k)}`);
         }
         expect(r.out).toContain("src/main.js:6: card_descriptor() [0.name] is given row.name, which the reader cannot follow");
-        expect(r.out).not.toMatch(/main\.js:5:/);
+        expect_lines_clean(r.out, [5]);
     });
 
     test("a menu item with no `name` is named by its key: the `id` the library falls back to is asked for", () => {

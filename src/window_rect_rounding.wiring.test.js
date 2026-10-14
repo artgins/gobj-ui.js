@@ -14,7 +14,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {describe, test, expect, beforeAll} from "vitest";
+import {describe, test, expect, beforeAll, vi} from "vitest";
 import {install_dom_double} from "../test/dom_double.js";
 
 install_dom_double();
@@ -116,6 +116,34 @@ describe("the saved rect of a window is whole pixels", () => {
         gobj_start(fresh);
         expect(logged.filter((l) => l.msg.includes("rect_none-rect"))).toEqual([]);
     });
+
+    /*  Not json at all, or the json `null`: kw_get_local_storage_value()
+     *  answers nothing for either (the first with a console.warn of its
+     *  own). Up to 7.26.46 the entry stayed, and was said on every open.  */
+    test.each([["not json", "garbage{"], ["json null", "null"]])(
+        "an entry that is %s is said once, forgotten, and the window opens where it would",
+        (label, text) => {
+            const name = label === "not json" ? "rect_text" : "rect_null";
+            window.localStorage.setItem(`${name}-rect`, text);
+            logged.length = 0;
+            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+            let win;
+            try {
+                win = gobj_create_service(name, "C_YUI_WINDOW", {
+                    header: name, body: ["div", {}, name], auto_save_size_and_position: true,
+                    x: 5, y: 6, width: 300, height: 200,
+                }, yuno);
+                gobj_start(win);
+            } finally {
+                warn.mockRestore();
+            }
+            expect(attrs_rect(win)).toEqual({x: 5, y: 6, width: 300, height: 200});
+            const warned = logged.filter((l) => l.level === "warning" && l.msg.includes(`${name}-rect`));
+            expect(warned.length, "the entry is said").toBe(1);
+            expect(window.localStorage.getItem(`${name}-rect`), "and forgotten").toBe(null);
+            expect(errors()).toEqual([]);
+        }
+    );
 
     /*  A rect with no size -- what the box of a window that is not
      *  drawn answers -- is no place to open in: the window was drawn at

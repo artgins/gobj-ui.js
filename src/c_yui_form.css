@@ -98,3 +98,12 @@
 .C_YUI_FORM input[type="color"] {
     vertical-align: middle;
 }
+
+/*--- A cell editor holding what is not a value yet (an incomplete date,
+ *    form_time_cell_editor.js): it stays open, and says so. Above
+ *    Tabulator's own `.tabulator-row .tabulator-cell.tabulator-editing
+ *    input {outline: none}`. ---*/
+.C_YUI_FORM .tabulator-cell.tabulator-editing input[aria-invalid="true"] {
+    outline: 2px solid var(--bulma-danger, #ff6685);
+    outline-offset: -2px;
+}

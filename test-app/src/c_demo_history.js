@@ -26,7 +26,7 @@ import {
     gobj_parent,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
-    gobj_create, gobj_start, gobj_send_event,
+    gobj_create, gobj_start, gobj_send_event, gobj_post_event,
     gobj_find_child,
     createElement2,
     refresh_language,
@@ -34,6 +34,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {yui_shell_of, yui_shell_navigate} from "@yuneta/gobj-ui/src/c_yui_shell.js";
+import {yui_shell_confirm_yesno} from "@yuneta/gobj-ui/src/shell_modals.js";
 
 import {lead_block} from "./demo_lead.js";
 
@@ -171,7 +172,9 @@ function build_ui(gobj)
                 action_button(gobj, "DEMO_HISTORY_OPEN", "open panel",
                     "yi-square", "EV_OPEN_PANEL"),
                 action_button(gobj, "DEMO_HISTORY_WRITE", "write position",
-                    "yi-location-dot", "EV_WRITE_POSITION")
+                    "yi-location-dot", "EV_WRITE_POSITION"),
+                action_button(gobj, "DEMO_HISTORY_RELOGIN", "log out and in",
+                    "yi-arrow-right", "EV_RELOGIN")
             ]]
         ]]
     );
@@ -263,6 +266,22 @@ function ac_close_and_click(gobj, event, kw, src)
 }
 
 /***************************************************************
+ *  A question up, and then -- on the next turn -- a logout and a new
+ *  login in one turn, the new shell opening the panel (C_DEMO's
+ *  ac_relogin). The stopped shell must not move the history: up to
+ *  gobj-ui 7.26.46 it retired the question's marker with a
+ *  history.back() that took the new panel's marker, and the next
+ *  Back left the app (Chromium).
+ ***************************************************************/
+function ac_relogin(gobj, event, kw, src)
+{
+    let shell = yui_shell_of(gobj);
+    yui_shell_confirm_yesno(shell, "log out and in?");     // answered by the stop
+    gobj_post_event(gobj_parent(shell), "EV_RELOGIN", {}, gobj);
+    return 0;
+}
+
+/***************************************************************
  *  Write the position in the URL, replacing the entry.
  ***************************************************************/
 function ac_write_position(gobj, event, kw, src)
@@ -305,7 +324,8 @@ function create_gclass(gclass_name)
             ["EV_OPEN_PANEL",       ac_open_panel,      null],
             ["EV_WRITE_POSITION",   ac_write_position,  null],
             ["EV_CLOSE_AND_GO",     ac_close_and_go,    null],
-            ["EV_CLOSE_AND_CLICK",  ac_close_and_click, null]
+            ["EV_CLOSE_AND_CLICK",  ac_close_and_click, null],
+            ["EV_RELOGIN",          ac_relogin,         null]
         ]]
     ];
 
@@ -313,7 +333,8 @@ function create_gclass(gclass_name)
         ["EV_OPEN_PANEL",       0],
         ["EV_WRITE_POSITION",   0],
         ["EV_CLOSE_AND_GO",     0],
-        ["EV_CLOSE_AND_CLICK",  0]
+        ["EV_CLOSE_AND_CLICK",  0],
+        ["EV_RELOGIN",          0]
     ];
 
     __gclass__ = gclass_create(

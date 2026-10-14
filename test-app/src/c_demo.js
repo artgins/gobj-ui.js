@@ -26,6 +26,7 @@ import {
     gobj_is_running,
     gobj_stop_tree,
     gobj_destroy,
+    gobj_find_child,
     createElement2,
     refresh_language,
 } from "@yuneta/gobj-js";
@@ -101,6 +102,62 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
+    create_shell(gobj);
+}
+
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
+function mt_start(gobj)
+{
+    let priv = gobj.priv;
+
+    apply_theme(current_theme());
+    gobj_start_tree(priv.shell);
+    yui_shell_refresh_avatars(priv.shell);
+
+    /*  Translate the freshly-built shell tree + initial view to the
+     *  current language (English on first load; keys map to themselves). */
+    refresh_language(document.body, t);
+
+    /*  Reopen the developer window if it was open last session (setup_dev
+     *  persists the flag), so it survives a refresh — handy on mobile. */
+    if(dev_window_was_open() && !gobj_find_service("Developer-Window", false)) {
+        setup_dev(gobj, true);
+    }
+}
+
+/***************************************************************
+ *          Framework Method: Stop
+ ***************************************************************/
+function mt_stop(gobj)
+{
+    detach_lead_handler(gobj);
+    gobj_stop_children(gobj);
+}
+
+/***************************************************************
+ *          Framework Method: Destroy
+ ***************************************************************/
+function mt_destroy(gobj)
+{
+}
+
+
+
+
+                    /***************************
+                     *      Local Methods
+                     ***************************/
+
+
+
+
+/***************************************************************
+ *  The shell, with what this service hangs on it.
+ ***************************************************************/
+function create_shell(gobj)
+{
     let priv = gobj.priv;
 
     let shell = gobj_create_pure_child(
@@ -155,36 +212,12 @@ function mt_create(gobj)
 }
 
 /***************************************************************
- *          Framework Method: Start
+ *  Detach what create_shell() attached: the listener outlives the
+ *  gobj otherwise, and its handler closes over it.
  ***************************************************************/
-function mt_start(gobj)
+function detach_lead_handler(gobj)
 {
     let priv = gobj.priv;
-
-    apply_theme(current_theme());
-    gobj_start_tree(priv.shell);
-    yui_shell_refresh_avatars(priv.shell);
-
-    /*  Translate the freshly-built shell tree + initial view to the
-     *  current language (English on first load; keys map to themselves). */
-    refresh_language(document.body, t);
-
-    /*  Reopen the developer window if it was open last session (setup_dev
-     *  persists the flag), so it survives a refresh — handy on mobile. */
-    if(dev_window_was_open() && !gobj_find_service("Developer-Window", false)) {
-        setup_dev(gobj, true);
-    }
-}
-
-/***************************************************************
- *          Framework Method: Stop
- ***************************************************************/
-function mt_stop(gobj)
-{
-    let priv = gobj.priv;
-
-    /*  Detach what mt_create attached: the listener outlives the gobj
-     *  otherwise, and its handler closes over it. */
     if(priv.lead_handler && priv.shell) {
         let $shell = gobj_read_attr(priv.shell, "$container");
         if($shell) {
@@ -192,25 +225,7 @@ function mt_stop(gobj)
         }
         priv.lead_handler = null;
     }
-    gobj_stop_children(gobj);
 }
-
-/***************************************************************
- *          Framework Method: Destroy
- ***************************************************************/
-function mt_destroy(gobj)
-{
-}
-
-
-
-
-                    /***************************
-                     *      Local Methods
-                     ***************************/
-
-
-
 
 /***************************************************************
  *  Light / dark theme via Bulma's data-theme on <html>.
@@ -248,6 +263,36 @@ function apply_theme(theme)
 
 
 
+
+/***************************************************************
+ *  A logout and a new login in ONE turn, as an app does when its
+ *  session is cut and taken again: the shell goes -- with whatever
+ *  it had open --, a new one is made, and the chapter it lands on
+ *  opens its panel. What scripts/qa-history.mjs case (i) drives,
+ *  from the history chapter's "log out and in" (with a question up).
+ ***************************************************************/
+function ac_relogin(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    detach_lead_handler(gobj);
+    gobj_stop_tree(priv.shell);
+    gobj_destroy(priv.shell);
+    priv.shell = null;
+
+    create_shell(gobj);
+    gobj_start_tree(priv.shell);
+    yui_shell_refresh_avatars(priv.shell);
+    refresh_language(document.body, t);
+
+    let view = gobj_find_child(priv.shell, {__gclass_name__: "C_DEMO_HISTORY"});
+    if(!view) {
+        log_error(`${GCLASS_NAME}: the new shell shows no history chapter to open the panel in`);
+        return -1;
+    }
+    gobj_send_event(view, "EV_OPEN_PANEL", {}, gobj);
+    return 0;
+}
 
 /***************************************************************
  *  A chapter's ⓘ (mobile): show its lead in the standard adaptive
@@ -539,7 +584,8 @@ function create_gclass(gclass_name)
             ["EV_OPEN_JSON_VIEWER",   ac_open_json_viewer,   null],
             ["EV_OPEN_SITEMAP",     ac_open_sitemap,     null],
             ["EV_OPEN_PREFS",       ac_open_prefs,       null],
-            ["EV_ABOUT",            ac_about,            null]
+            ["EV_ABOUT",            ac_about,            null],
+            ["EV_RELOGIN",          ac_relogin,          null]
         ]]
     ];
 
@@ -556,7 +602,8 @@ function create_gclass(gclass_name)
         ["EV_OPEN_JSON_VIEWER",   0],
         ["EV_OPEN_SITEMAP",     0],
         ["EV_OPEN_PREFS",       0],
-        ["EV_ABOUT",            0]
+        ["EV_ABOUT",            0],
+        ["EV_RELOGIN",          0]
     ];
 
     __gclass__ = gclass_create(
