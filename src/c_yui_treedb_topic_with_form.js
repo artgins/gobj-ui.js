@@ -79,6 +79,7 @@ import {yui_tabulator_lang, yui_tabulator_relocalize,
         yui_tabulator_name_filters,
         yui_tabulator_name_row_selects,
         yui_tabulator_name_editor} from "./yui_tabulator_i18n.js";
+import {yui_tabulator_keep_edit_on_redraw} from "./yui_tabulator_edit.js";
 
 import {
     yui_selection_column,
@@ -1782,6 +1783,7 @@ function create_tabulator(gobj)
              *  what it said before for an app that does not define the key).  */
             placeholder: t("no data available", {defaultValue: "No data available"})
         }));
+    yui_tabulator_keep_edit_on_redraw(tabulator);
 
     /*  "highlight" still paints the whole-row hover wash (and a pointer
      *  cursor), which reads as a selection. This table selects only via the

@@ -100,6 +100,7 @@ import {
     time_value_to_text
 } from "./form_time_value.js";
 import {form_time_cell_editor} from "./form_time_cell_editor.js";
+import {yui_tabulator_keep_edit_on_redraw} from "./yui_tabulator_edit.js";
 import {safe_locale} from "./yui_date_text.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
 import {
@@ -2485,6 +2486,7 @@ function create_tabulator(gobj, $extend, name, template, rows)
         $extend,
         tabulator_settings
     );
+    yui_tabulator_keep_edit_on_redraw(tabulator);
     /*  What the READER does to a table -- edits a cell, adds or deletes a
      *  row -- reaches the form only through `dataChanged`. Wired here, on
      *  every table, nested ones included (a row's formatter builds them
