@@ -494,7 +494,10 @@ function main()
     if(all.length) {
         console.log(`\ncheck-markup-strings: ${all.length} found ` +
             `(${Object.entries(by_rule).map(([k, v]) => `${k} ${v}`).join(", ")}) in ${files.length} files`);
-        process.exit(1);
+        /*  exitCode, not process.exit(): a long list written to a pipe is
+         *  still on its way, and up to gobj-ui 7.26.44 it was cut short  */
+        process.exitCode = 1;
+        return;
     }
     console.log(`check-markup-strings: OK (${files.length} files)`);
 }

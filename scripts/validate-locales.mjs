@@ -61,7 +61,8 @@
  *              name, an alias of one (`const translate = t`, a `.bind()`,
  *              a destructuring, `const {t: tt} = i18next` or a parameter
  *              `{t: tt}`, a re-export), called `t?.(k)`, `t.call(x, k)` or
- *              `t.apply(x, [k])`; an array there is i18next's list of
+ *              `t.apply(x, [k])` (`t["call"](x, k)` too, and a computed
+ *              `["bind"]`); an array there is i18next's list of
  *              fallback keys, each one a key (`t([k, "fallback"])`). A
  *              `.bind()` that binds a key (`const tk = t.bind(null, k)`)
  *              hands t() that key, read where the bind is written, and
@@ -259,13 +260,19 @@
  *          gobj_create().
  *
  *          Where the reader GIVES UP on a value it says so, with the file
- *          and the line, and that fails: a chain of consts, aliases or
- *          calls more than MAX_DEPTH (24) steps deep, a const that leads
- *          back to itself, an expression that can take more than
- *          MAX_VALUES (10000) values -- a key behind it would go unasked.
- *          Up to 7.26.42 it stopped there in silence, and a chain of consts
- *          that doubles at every link died with a RangeError naming no
- *          file. A const is read once, wherever it is read.
+ *          and the line of the READ (and the place it went past), and
+ *          that fails: a value read through more than MAX_DEPTH (24)
+ *          steps -- each const, alias, call, property, element and branch
+ *          of ?: / || / ?? is one --, a const that leads back to itself,
+ *          an expression that can take more than MAX_VALUES (10000)
+ *          values -- a key behind it would go unasked. Up to 7.26.42 it
+ *          stopped there in silence, and a chain of consts that doubles at
+ *          every link died with a RangeError naming no file. A const is
+ *          read once, wherever it is read, and keeps the steps it took, so
+ *          the verdict does not depend on what was read first. A chain of
+ *          aliases of a function or of a published list is followed to its
+ *          end, and is a give-up only when a translator, a key function or
+ *          a list can be there.
 
  *          Options (paths relative to the app's directory):
  *
@@ -360,12 +367,20 @@ function violation_count()
 }
 
 /***************************************************************
- *  A fatal problem of the setup, not a violation: said, exit 1
+ *  A fatal problem of the setup, not a violation: said, exit 1. It
+ *  ends the run by throwing Abort (caught where the script runs main()),
+ *  never by process.exit(): what was written before it to a pipe may
+ *  still be on its way, and process.exit() drops it.
  ***************************************************************/
+class Abort extends Error
+{
+}
+
 function abort(msg)
 {
     process.stderr.write(`validate-locales: ${msg}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    throw new Abort(msg);
 }
 
 /***************************************************************
@@ -384,8 +399,10 @@ let acorn_parse;
 try {
     ({parse: acorn_parse} = await import("acorn"));
 } catch(e) {
-    abort(`cannot load acorn (${e.message}): it is a dependency of @yuneta/gobj-ui, ` +
-          `so the install is incomplete: run npm install`);
+    /*  Nothing was said before: exit at once, the module cannot load  */
+    process.stderr.write(`validate-locales: cannot load acorn (${e.message}): it is a dependency of ` +
+                         `@yuneta/gobj-ui, so the install is incomplete: run npm install\n`);
+    process.exit(1);
 }
 
 /***************************************************************
@@ -774,8 +791,11 @@ async function main()
     }
 
     if(errors > 0) {
+        /*  exitCode, not process.exit(): a long list written to a pipe is
+         *  still on its way, and up to gobj-ui 7.26.44 it was cut short  */
         process.stderr.write(`validate-locales: ${errors} violation(s), see above\n`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
     }
 
     let n_keys = ref_plain.size + bases.size;
@@ -1769,18 +1789,48 @@ const TRANSLATOR = Object.freeze({kind: "t", name: "t"});
  *                                  an object, a function of a package
  *                                  the reader does not read
  ***************************************************************/
-function callee_of(node, scope, depth = 0)
+function callee_of(node, scope)
+{
+    return from_read(node, scope, () => {
+        let far = {past: null, lost: null, seen: new Set()};
+        let r = callee_at(node, scope, 0, far);
+        if(far.lost) {
+            give_up(far.lost.node, far.lost.scope, far.lost.why);
+            return null;
+        }
+        if(far.past && may_translate(r)) {
+            give_up(far.past.node, far.past.scope, GIVE_UP_DEEP);
+            return null;
+        }
+        return r;
+    });
+}
+
+/*  Can a callee (callee_of()) be a translator, or a key function of a
+ *  table -- a function of the library?  */
+function may_translate(r)
+{
+    return !!r && (r.kind === "t" || TRANSLATOR_NAMES.has(r.name) || lib_module_of(r.url) !== null);
+}
+
+/*  callee_of() `depth` steps down: past MAX_DEPTH it goes on, to see
+ *  what the chain ends in (`far.past`: where it went past); past
+ *  MAX_FOLLOW, or round a cycle, the end is not known (`far.lost`)  */
+function callee_at(node, scope, depth, far)
 {
     if(!node) {
         return null;
     }
-    if(depth > MAX_DEPTH) {
-        give_up(node, scope, GIVE_UP_DEEP);
+    if(depth > MAX_DEPTH && !far.past) {
+        far.past = {node, scope};
+    }
+    if(depth > MAX_FOLLOW) {
+        far.lost = far.lost || {node, scope, why: GIVE_UP_DEEP};
         return null;
     }
     switch(node.type) {
         case "ChainExpression":
-            return callee_of(node.expression, scope, depth + 1);
+            return callee_at(node.expression, scope, depth + 1, far);
 
         case "Identifier": {
             let named = TRANSLATOR_NAMES.has(node.name)? TRANSLATOR : null;
@@ -1799,13 +1849,20 @@ function callee_of(node, scope, depth = 0)
                     if(FUNCTION_RE.test(b.init.type)) {
                         return {kind: "fn", fn: b.init, scope: b.scope, name: b.name, url: url_of(b.scope)};
                     }
-                    return callee_of(b.init, b.scope, depth + 1) || named;
+                    if(far.seen.has(b.init)) {
+                        far.lost = far.lost || {node: b.init, scope: b.scope, why: GIVE_UP_CYCLE};
+                        return null;
+                    }
+                    far.seen.add(b.init);
+                    let r = callee_at(b.init, b.scope, depth + 1, far);
+                    far.seen.delete(b.init);
+                    return r || named;
                 case "var": {
                     let fn = var_function(b);
                     return fn? {kind: "fn", fn, scope: b.scope, name: b.name, url: url_of(b.scope)} : named;
                 }
                 case "import":
-                    return exported_callee(import_target(b), depth) || named;
+                    return exported_callee(import_target(b), depth, far) || named;
                 case "param":
                     /*  `function f({t: tt})` is `opts.t`, the same member  */
                     return /\.(?:t|tr)$/.test(b.path)? TRANSLATOR : named;
@@ -1825,7 +1882,7 @@ function callee_of(node, scope, depth = 0)
                 if(b && b.kind === "import" && b.imported === "*") {
                     let ns = import_target(b);
                     if(ns && ns.kind === "namespace") {
-                        let r = exported_callee(module_export(ns.url, step.prop), depth);
+                        let r = exported_callee(module_export(ns.url, step.prop), depth, far);
                         if(r) {
                             return r;
                         }
@@ -1843,7 +1900,7 @@ function callee_of(node, scope, depth = 0)
                     let p = map.init.properties.find((q) => q.type === "Property" && prop_name(q) === step.prop
                                                          && q.kind === "init" && !q.computed);
                     if(p) {
-                        let r = callee_of(p.value, [...map.scope, map.init, p], depth + 1);
+                        let r = callee_at(p.value, [...map.scope, map.init, p], depth + 1, far);
                         if(r) {
                             return r;
                         }
@@ -1857,11 +1914,10 @@ function callee_of(node, scope, depth = 0)
             /*  f.bind(x) is f; f.bind(x, a, ...) is f with its first arguments
              *  BOUND, so what a call of it is handed comes after them  */
             let c = node.callee;
-            if(c.type !== "MemberExpression" || c.computed || c.property.type !== "Identifier"
-                    || c.property.name !== "bind") {
+            if(c.type !== "MemberExpression" || member_step(c).prop !== "bind") {
                 return null;
             }
-            let inner = callee_of(c.object, scope, depth + 1);
+            let inner = callee_at(c.object, scope, depth + 1, far);
             let taken = node.arguments.slice(1);
             if(!inner || taken.length === 0) {
                 return inner;
@@ -1881,7 +1937,7 @@ function callee_of(node, scope, depth = 0)
  *  What an export (module_export()) is as a callee: a function, the
  *  i18next `t`, or a const that is an alias of one
  ***************************************************************/
-function exported_callee(x, depth)
+function exported_callee(x, depth, far)
 {
     if(!x) {
         return null;
@@ -1893,7 +1949,14 @@ function exported_callee(x, depth)
         return (x.source === "i18next" && x.imported === "t")? TRANSLATOR : null;
     }
     if(x.kind === "const" && x.steps.length === 0) {
-        return callee_of(x.init, x.scope, depth + 1);
+        if(far.seen.has(x.init)) {
+            far.lost = far.lost || {node: x.init, scope: x.scope, why: GIVE_UP_CYCLE};
+            return null;
+        }
+        far.seen.add(x.init);
+        let r = callee_at(x.init, x.scope, depth + 1, far);
+        far.seen.delete(x.init);
+        return r;
     }
     return null;
 }
@@ -1942,8 +2005,7 @@ function call_target(call, scope)
     }
     let r = null;
     let callee = call.callee;
-    let method = (callee.type === "MemberExpression" && !callee.computed && callee.property.type === "Identifier")?
-        callee.property.name : null;
+    let method = (callee.type === "MemberExpression")? member_step(callee).prop : null;
     if(method === "call" || method === "apply") {
         let inner = callee_of(callee.object, scope);
         if(inner) {
@@ -1987,8 +2049,7 @@ function call_target(call, scope)
 function bind_kind(call, scope, table = I18N_KEY_FUNCTIONS)
 {
     let c = call.callee;
-    if(c.type !== "MemberExpression" || c.computed || c.property.type !== "Identifier"
-            || c.property.name !== "bind" || call.arguments.length < 2) {
+    if(c.type !== "MemberExpression" || member_step(c).prop !== "bind" || call.arguments.length < 2) {
         return null;
     }
     let inner = callee_of(c.object, scope);
@@ -2092,6 +2153,9 @@ function is_translated_text(n, scope, depth = 0)
     }
     if(!n) {
         return false;
+    }
+    if(READ_AT.length === 0) {
+        return from_read(n, scope, () => is_translated_text(n, scope, depth));
     }
     if(depth > MAX_DEPTH) {
         give_up(n, scope, GIVE_UP_DEEP);
@@ -2206,17 +2270,23 @@ function is_key_function(target)
                      ***************************/
 
 
-/*  How far a chain of consts, aliases or calls is followed (a cycle stops
- *  here too), and how many values one expression may take. Past either the
- *  reader GIVES UP, and says so (give_up()): a key behind a value it does
- *  not follow would go unasked, and the build say OK  */
+/*  How many STEPS a value is read through (a cycle stops here too), and
+ *  how many values one expression may take. Past either the reader GIVES
+ *  UP, and says so (give_up()): a key behind a value it does not follow
+ *  would go unasked, and the build say OK  */
 const MAX_DEPTH = 24;
 const MAX_VALUES = 10000;
 
+/*  How far an alias of a FUNCTION (callee_of()) or of a published list
+ *  (list_mutations()) is followed past MAX_DEPTH, to see what it ends
+ *  in: only an end that can be a translator, a key function or a list
+ *  makes the reader give up. Past this, the end is not known  */
+const MAX_FOLLOW = 1000;
+
 /***************************************************************
- *  Where the reader GAVE UP on a value: a chain deeper than
- *  MAX_DEPTH, a const that leads back to itself, an expression that
- *  can take more than MAX_VALUES values. A key behind it would go
+ *  Where the reader GAVE UP on a value: one read through more than
+ *  MAX_DEPTH steps, a const that leads back to itself, an expression
+ *  that can take more than MAX_VALUES values. A key behind it would go
  *  unasked, so it is a violation, with the file and the line
  *  (collect_used_keys(); the library's own test holds the library to
  *  none). Up to 7.26.42 the reader stopped there in silence: a chain
@@ -2224,41 +2294,165 @@ const MAX_VALUES = 10000;
  *  that doubles at every step (`{...O, ...O}`) grew without end and
  *  died with a RangeError naming no file.
  *
+ *  It is said at the place the value is READ (READ_AT, the outermost
+ *  read in progress), with the node it went past: up to gobj-ui
+ *  7.26.44 it was said at the deepest link only, which can be in
+ *  another file than the read that needed it.
+ *
  *  `node` is the value it gave up on, `scope` the chain of its
  *  ancestors (the first one, the module: where it is said).
  ***************************************************************/
-const GAVE_UP = new Map();      // node -> {node, scope, why}
+const GAVE_UP = new Map();      // the read -> {node, scope, why, past: {node, scope} | null}
+const READ_AT = [];             // the reads in progress, the outermost first: {node, scope}
 
-const GIVE_UP_DEEP = `it is more than ${MAX_DEPTH} steps deep (a chain of consts, aliases or calls ` +
-    `that long): shorten the chain`;
+const GIVE_UP_DEEP = `it is read through more than ${MAX_DEPTH} steps (each const, alias, call, ` +
+    `property, element and branch of ?: / || / ?? it goes through is one): shorten the chain`;
 const GIVE_UP_CYCLE = `it is a const that leads back to itself: break the cycle`;
 const GIVE_UP_MANY = `it can take more than ${MAX_VALUES} values: split it`;
 
 function give_up(node, scope, why)
 {
-    if(node && !GAVE_UP.has(node)) {
-        GAVE_UP.set(node, {node, scope: scope || [], why});
+    let read = READ_AT[0] || {node, scope};
+    if(read.node && !GAVE_UP.has(read.node)) {
+        /*  A scope may be a walker's own chain, which goes on changing: copied  */
+        GAVE_UP.set(read.node, {node: read.node, scope: [...(read.scope || [])], why,
+                                past: (node && node !== read.node)? {node, scope: [...(scope || [])]} : null});
     }
 }
 
-/*  Where the reader gave up so far -- in one parsed file, when it is
- *  given: [{url, line, text, why}]  */
+/*  Run a read, as the READ every give_up() inside it is said at --
+ *  when no read is in progress already  */
+function from_read(node, scope, fn)
+{
+    if(READ_AT.length > 0) {
+        return fn();
+    }
+    READ_AT.push({node, scope});
+    try {
+        return fn();
+    } finally {
+        READ_AT.pop();
+    }
+}
+
+/*  Where the reader gave up so far -- on reads of one parsed file, when
+ *  it is given: [{url, line, text, why, past: {url, line, text} | null}]  */
 function gave_up(ast = null)
 {
-    let out = [];
-    for(let {node, scope, why} of GAVE_UP.values()) {
+    let where = (node, scope) => {
         let program = (scope.length > 0 && typeof scope[0].code === "string")? scope[0] : null;
-        if(ast && program !== ast) {
-            continue;
-        }
-        out.push({
+        return {
+            program,
             url: program? (PROGRAM_URL.get(program) || null) : null,
             line: program? line_of(program, node.start) : 0,
-            text: program? program.code.slice(node.start, node.end).replace(/\s+/g, " ").slice(0, 80) : "",
-            why
-        });
+            text: program? program.code.slice(node.start, node.end).replace(/\s+/g, " ").slice(0, 80) : ""
+        };
+    };
+    let out = [];
+    for(let {node, scope, why, past} of GAVE_UP.values()) {
+        let at = where(node, scope);
+        if(ast && at.program !== ast) {
+            continue;
+        }
+        let beyond = past? where(past.node, past.scope) : null;
+        out.push({url: at.url, line: at.line, text: at.text, why,
+                  past: beyond? {url: beyond.url, line: beyond.line, text: beyond.text} : null});
     }
     return out;
+}
+
+/***************************************************************
+ *  The DEPTH of a read of expand(), and the values kept for reuse.
+ *
+ *  A read counts its steps from the place the value is read: a const,
+ *  a property, an element, the returns of a function called, each
+ *  read ONCE and kept, keep the steps they took beside their values
+ *  (`height`), so a later read of them adds those steps to its own.
+ *  The verdict on a read is the same whatever was read before it: up
+ *  to gobj-ui 7.26.44 a const kept the values of its FIRST read, cut
+ *  at the depth that read had reached, so `t(J16); t(K10)` failed and
+ *  `t(K10); t(J16)` passed. A read that goes past MAX_DEPTH is given
+ *  up as a whole (TooDeep unwinds it to its outermost frame), and no
+ *  value read on the way is kept: each is kept only when it was read
+ *  to its end.
+ ***************************************************************/
+const FRAMES = [];      // the reads in progress, outermost first: {max: the deepest step reached}
+
+class TooDeep
+{
+    constructor(node, scope)
+    {
+        this.node = node;
+        this.scope = scope;
+    }
+}
+
+function note_depth(depth)
+{
+    if(FRAMES.length > 0 && depth > FRAMES[FRAMES.length - 1].max) {
+        FRAMES[FRAMES.length - 1].max = depth;
+    }
+}
+
+/*  Is a step past MAX_DEPTH? Inside a read it unwinds the read (TooDeep);
+ *  outside one, it is given up here and the caller stops: true  */
+function too_deep(depth, node, scope)
+{
+    note_depth(depth);
+    if(depth <= MAX_DEPTH) {
+        return false;
+    }
+    if(FRAMES.length > 0) {
+        throw new TooDeep(node, scope);
+    }
+    give_up(node, scope, GIVE_UP_DEEP);
+    return true;
+}
+
+/*  The OUTERMOST read of expand(): the one a TooDeep unwinds to, given
+ *  up there (`fallback()` is what it answers then)  */
+function outermost_read(node, scope, fn, fallback)
+{
+    return from_read(node, scope, () => {
+        FRAMES.push({max: 0});
+        try {
+            return fn();
+        } catch(e) {
+            if(!(e instanceof TooDeep)) {
+                throw e;
+            }
+            give_up(e.node, e.scope, GIVE_UP_DEEP);
+            return fallback();
+        } finally {
+            FRAMES.pop();
+        }
+    });
+}
+
+/*  What `compute()` answers for `key` of `cache`, read once and kept
+ *  with its height, read at `depth` by `node` (in `scope`)  */
+function kept_values(cache, key, depth, node, scope, compute, fallback)
+{
+    let known = cache.get(key);
+    if(known) {
+        too_deep(depth + known.height, node, scope);
+        return known.values;
+    }
+    if(FRAMES.length === 0) {
+        return outermost_read(node, scope, () => kept_values(cache, key, depth, node, scope, compute, fallback),
+                              fallback);
+    }
+    let frame = {max: depth};
+    FRAMES.push(frame);
+    let values;
+    try {
+        values = compute();
+    } finally {
+        FRAMES.pop();
+    }
+    note_depth(frame.max);
+    cache.set(key, {values, height: frame.max - depth});
+    return values;
 }
 
 /***************************************************************
@@ -2325,10 +2519,15 @@ function gave_up(ast = null)
  ***************************************************************/
 function expand(node, ctx, depth = 0)
 {
+    let unknown = () => [{kind: "unknown", node, scope: ctx.scope, via: ctx.off? ctx.via : [...ctx.via, node],
+                          off: ctx.off}];
+    if(FRAMES.length === 0) {
+        return outermost_read(node, ctx.scope, () => expand(node, ctx, depth), unknown);
+    }
     let out = expand_node(node, ctx, depth);
     if(out.length > MAX_VALUES) {
         give_up(node, ctx.scope, GIVE_UP_MANY);
-        return [{kind: "unknown", node, scope: ctx.scope, via: ctx.off? ctx.via : [...ctx.via, node], off: ctx.off}];
+        return unknown();
     }
     return out;
 }
@@ -2341,8 +2540,7 @@ function expand_node(node, ctx, depth)
     let via = ctx.off? ctx.via : [...ctx.via, node];
     let here = {scope: ctx.scope, via: via, off: ctx.off};
     let item = (kind, extra) => Object.assign({kind, node, scope: ctx.scope, via, off: ctx.off}, extra);
-    if(depth > MAX_DEPTH) {
-        give_up(node, ctx.scope, GIVE_UP_DEEP);
+    if(too_deep(depth, node, ctx.scope)) {
         return [item("unknown")];
     }
 
@@ -2374,7 +2572,7 @@ function expand_node(node, ctx, depth)
                 return [item("unknown")];
             }
             if(b.kind === "const") {
-                return const_values(b, node, via, depth);
+                return const_values(b, node, ctx.scope, via, depth);
             }
             if(b.kind === "each") {
                 let out = elements_of(b.of, {scope: b.scope, via: via, off: true}, depth + 1);
@@ -2396,7 +2594,7 @@ function expand_node(node, ctx, depth)
             if(b.kind === "import") {
                 let x = import_target(b);
                 if(x && x.kind === "const") {
-                    return const_values(x, node, via, depth);
+                    return const_values(x, node, ctx.scope, via, depth);
                 }
             }
             return [item("unknown", {binding: b})];
@@ -2423,7 +2621,7 @@ function expand_node(node, ctx, depth)
                     && node.arguments.length === 1 && binding_of("String", ctx.scope) === null) {
                 return expand(node.arguments[0], here, depth + 1);
             }
-            let r = local_call_values(node, ctx, via);
+            let r = local_call_values(node, ctx, via, depth);
             if(r && r.items) {
                 return r.items;
             }
@@ -2446,37 +2644,42 @@ function expand_node(node, ctx, depth)
  *  The values of a const (a binding of binding_of(), or a const
  *  module_export() found in another module): its value read where it
  *  is declared, the steps a destructuring reads from it, its default.
+ *  `node` reads it, in `scope`, at `depth`.
  *
- *  Its value is read ONCE, without repeats, and kept: a const is read
- *  where it is declared, so what it holds is the same wherever it is
- *  read -- only `via`, the place it is read from, differs, and it is
- *  the same for every value (the reader leaves the place for the
- *  declaration). Up to 7.26.42 a const was read again at every read,
- *  so `const O1 = c()? O0 : {...O0, ...O0}`, chained, took three
- *  times as long at every link (eleven links, 906 ms) and grew its
- *  values until a RangeError. A const met again while its value is
- *  being read leads back to itself: the reader gives up on it
- *  (give_up()).
+ *  Its value is read ONCE, without repeats, and kept with the steps it
+ *  took (kept_values()): a const is read where it is declared, so what
+ *  it holds is the same wherever it is read -- only `via`, the place it
+ *  is read from, differs, and it is the same for every value (the
+ *  reader leaves the place for the declaration). Up to 7.26.42 a const
+ *  was read again at every read, so `const O1 = c()? O0 : {...O0,
+ *  ...O0}`, chained, took three times as long at every link (eleven
+ *  links, 906 ms) and grew its values until a RangeError. A const met
+ *  again while its value is being read leads back to itself: the reader
+ *  gives up on it (give_up()).
  ***************************************************************/
-const CONST_VALUES = new WeakMap();     // the init of a const -> its values, `via` left out
+const CONST_VALUES = new WeakMap();     // the init of a const -> {values, height}, `via` left out
 const CONST_READING = new Set();        // the inits being read
 
-function const_values(b, node, via, depth)
+function const_values(b, node, scope, via, depth)
 {
     let ctx = {scope: b.scope, via: via, off: true};
-    if(!CONST_VALUES.has(b.init)) {
-        if(CONST_READING.has(b.init)) {
-            give_up(b.init, b.scope, GIVE_UP_CYCLE);
-            return [{kind: "unknown", node: b.init, scope: b.scope, via, off: true}];
-        }
+    let unknown = () => [{kind: "unknown", node: b.init, scope: b.scope, via, off: true}];
+    if(!CONST_VALUES.has(b.init) && CONST_READING.has(b.init)) {
+        give_up(b.init, b.scope, GIVE_UP_CYCLE);
+        return unknown();
+    }
+    let values = kept_values(CONST_VALUES, b.init, depth, node, scope, () => {
         CONST_READING.add(b.init);
         try {
-            CONST_VALUES.set(b.init, unique_values(expand(b.init, {scope: b.scope, via: [], off: true}, depth + 1)));
+            return unique_values(expand(b.init, {scope: b.scope, via: [], off: true}, depth + 1));
         } finally {
             CONST_READING.delete(b.init);
         }
+    }, () => null);
+    if(values === null) {
+        return unknown();
     }
-    let out = CONST_VALUES.get(b.init).map((v) => Object.assign({}, v, {via}));
+    let out = values.map((v) => Object.assign({}, v, {via}));
     for(let step of b.steps || []) {
         out = out.flatMap((o) => step_values(o, step, node, depth + 1));
     }
@@ -2517,7 +2720,7 @@ function member_values(node, step, ctx, via, item, depth)
     let ns = import_target(b);
     let x = (ns && ns.kind === "namespace")? module_export(ns.url, step.prop) : null;
     if(x && x.kind === "const") {
-        return const_values(x, node, via, depth);
+        return const_values(x, node, ctx.scope, via, depth);
     }
     return [item("unknown")];
 }
@@ -2542,13 +2745,13 @@ const KNOWN = new Set(["key", "nothing", "dom"]);
  *                  does not read, an async function, a generator, a
  *                  function being read already (a recursion)
  ***************************************************************/
-function local_call_values(call, ctx, via)
+function local_call_values(call, ctx, via, depth = 0)
 {
     let c = call_kind(call, ctx.scope);
     if(!c || !c.target || c.target.kind !== "fn") {
         return null;
     }
-    let r = fn_returns(c.target);
+    let r = fn_returns(c.target, call, ctx.scope, depth);
     if(!r) {
         return null;
     }
@@ -2575,47 +2778,48 @@ function local_call_values(call, ctx, via)
  *  of it, `label_of(n)` calling itself in two branches took more
  *  than two minutes, and in three it never ended (REV-CLOUD V22).
  *  A function that is not a plain one (async, a generator) is not
- *  followed.
+ *  followed. A call is a step of the read that makes it, and the
+ *  returns are read one step further (kept_values(): the steps they
+ *  take are kept with them); up to gobj-ui 7.26.44 a call started
+ *  the count again, so thirty nested calls were read through.
+ *  `call` makes it, in `scope`, at `depth`.
  ***************************************************************/
-const FN_RETURNS = new WeakMap();
+const FN_RETURNS = new WeakMap();       // a function -> {values: {items, complete, keys}, height}
 const FN_READING = new Set();
 
-function fn_returns(target)
+function fn_returns(target, call, scope, depth)
 {
     let fn = target.fn;
-    if(FN_RETURNS.has(fn)) {
-        return FN_RETURNS.get(fn);
-    }
-    if(FN_READING.has(fn) || fn.async || fn.generator) {
+    if(!FN_RETURNS.has(fn) && (FN_READING.has(fn) || fn.async || fn.generator)) {
         return null;
     }
-    FN_READING.add(fn);
-    let items = [];
-    try {
-        for(let r of returned_values(fn)) {
-            let values = expand(r.node, {scope: [...target.scope, fn, ...r.path], via: [], off: true}, 0);
-            items = unique_values(items.concat(values));
+    return kept_values(FN_RETURNS, fn, depth, call, scope, () => {
+        FN_READING.add(fn);
+        let items = [];
+        try {
+            for(let r of returned_values(fn)) {
+                let values = expand(r.node, {scope: [...target.scope, fn, ...r.path], via: [], off: true}, depth + 1);
+                items = unique_values(items.concat(values));
+            }
+        } finally {
+            FN_READING.delete(fn);
         }
-    } finally {
-        FN_READING.delete(fn);
-    }
-    let leaves = items.map(classify);
-    let keys = new Set();
-    for(let l of leaves) {
-        if(l.kind === "key") {
-            keys.add(l.value);
+        let leaves = items.map(classify);
+        let keys = new Set();
+        for(let l of leaves) {
+            if(l.kind === "key") {
+                keys.add(l.value);
+            }
+            for(let k of l.partial || []) {
+                keys.add(k);
+            }
         }
-        for(let k of l.partial || []) {
-            keys.add(k);
-        }
-    }
-    let result = {
-        items: items,
-        complete: leaves.length > 0 && leaves.every((l) => KNOWN.has(l.kind)),
-        keys: [...keys]
-    };
-    FN_RETURNS.set(fn, result);
-    return result;
+        return {
+            items: items,
+            complete: leaves.length > 0 && leaves.every((l) => KNOWN.has(l.kind)),
+            keys: [...keys]
+        };
+    }, () => null);
 }
 
 /***************************************************************
@@ -2756,10 +2960,11 @@ function assigned_properties(o, step, depth)
  *
  *  An object reached from a declaration (`o.off`: every value it
  *  gives carries the same `via`) is read once per property, without
- *  repeats, and kept -- as a const is (const_values()): a spread of the
- *  same object twice, `{...O, ...O}`, gives its values once.
+ *  repeats, and kept with the steps it took -- as a const is
+ *  (const_values()): a spread of the same object twice, `{...O, ...O}`,
+ *  gives its values once.
  ***************************************************************/
-const PROPERTY_VALUES = new WeakMap();  // an object literal -> Map(property -> its values, `via` left out)
+const PROPERTY_VALUES = new WeakMap();  // an object literal -> Map(property -> {values, height}, `via` left out)
 
 function property_values(o, name, depth)
 {
@@ -2771,11 +2976,11 @@ function property_values(o, name, depth)
         known = new Map();
         PROPERTY_VALUES.set(o.node, known);
     }
-    if(!known.has(name)) {
-        let values = unique_values(property_values_of(Object.assign({}, o, {via: []}), name, depth));
-        known.set(name, capped(Object.assign({}, o, {via: []}), values));
-    }
-    return known.get(name).map((v) => Object.assign({}, v, {via: o.via}));
+    let bare = Object.assign({}, o, {via: []});
+    let values = kept_values(known, name, depth, o.node, o.scope,
+        () => capped(bare, unique_values(property_values_of(bare, name, depth))),
+        () => [Object.assign({}, bare, {kind: "unknown", binding: null, var_root: null})]);
+    return values.map((v) => Object.assign({}, v, {via: o.via}));
 }
 
 /*  The values of a value, or the reader giving up on it when they are
@@ -2854,10 +3059,11 @@ function elements_of(node, ctx, depth)
  *  element of a rest parameter is another parameter: no position can
  *  name one, and the reader cannot follow it. The elements of an array
  *  literal (or of a `.map()` of one) reached from a declaration are
- *  read once, without repeats, and kept, as the properties of an
- *  object are (property_values()): `[...A, ...A]` gives A's once.
+ *  read once, without repeats, and kept with the steps they took, as
+ *  the properties of an object are (property_values()): `[...A, ...A]`
+ *  gives A's once.
  ***************************************************************/
-const ELEMENT_VALUES = new WeakMap();   // an array literal or a .map() -> its elements, `via` left out
+const ELEMENT_VALUES = new WeakMap();   // an array literal or a .map() -> {values, height}, `via` left out
 
 function element_values(v, depth)
 {
@@ -2868,11 +3074,11 @@ function element_values(v, depth)
     if(!v.off) {
         return capped(v, element_values_of(v, depth));
     }
-    if(!ELEMENT_VALUES.has(v.node)) {
-        let bare = Object.assign({}, v, {via: []});
-        ELEMENT_VALUES.set(v.node, capped(bare, unique_values(element_values_of(bare, depth))));
-    }
-    return ELEMENT_VALUES.get(v.node).map((x) => Object.assign({}, x, {via: v.via}));
+    let bare = Object.assign({}, v, {via: []});
+    let values = kept_values(ELEMENT_VALUES, v.node, depth, v.node, v.scope,
+        () => capped(bare, unique_values(element_values_of(bare, depth))),
+        () => [Object.assign({}, bare, {kind: "unknown", binding: null, var_root: null})]);
+    return values.map((x) => Object.assign({}, x, {via: v.via}));
 }
 
 function element_values_of(v, depth)
@@ -3159,6 +3365,9 @@ function values_at(call, path, scope = [], args = call.arguments, fallbacks = nu
     if(!arg) {
         return [];
     }
+    if(READ_AT.length === 0) {
+        return from_read(arg, call_scope, () => values_at(call, path, scope, args, fallbacks));
+    }
 
     let ctx = {scope: call_scope, via: [call], off: false};
     let cur = first[2]? elements_of(arg, ctx, 0) : expand(arg, ctx);
@@ -3340,8 +3549,7 @@ function assigned_values(binding, members = false)
         let b = binding_of(id.name, chain);
         return !!b && b.kind === "var" && b.declarators[0] === first;
     };
-    walk(root, (n, ancestors) => {
-        let chain = [...ancestors, n];
+    let visit = (n, chain) => {
         let into = (node) => (members? steps_to(node, (id) => is_it(id, chain)) : null);
         /*  `n` writes `target` with a value the reader does not read  */
         let opaque_write = (target) => {
@@ -3455,8 +3663,107 @@ function assigned_values(binding, members = false)
             default:
                 break;
         }
-    }, binding.scope.slice(0, -1));
+    };
+    let sites = write_sites(root);
+    let named = sites.by_name.get(binding.name) || [];
+    let prefix = binding.scope.slice(0, -1);
+    for(let i = 0, j = 0; i < named.length || j < sites.evals.length;) {
+        let take_named = j >= sites.evals.length || (i < named.length && named[i].order < sites.evals[j].order);
+        let site = take_named? named[i++] : sites.evals[j++];
+        visit(site.n, prefix.concat(site.chain));
+    }
     return {values, unknown};
+}
+
+/***************************************************************
+ *  The nodes of a scope that can WRITE a variable, by the name of
+ *  the variable a write is rooted at (`k = v`, `k.a = v`, `[k] = v`,
+ *  `k++`, `k.push(v)`, `Object.assign(k, v)`, `for(k of v)`, a
+ *  declarator of `k`), and every direct `eval()`, which can write
+ *  any: the only nodes assigned_values() reads. Found in ONE walk of
+ *  the scope, and kept: up to gobj-ui 7.26.44 the scope was walked
+ *  again for every variable read in it, so a module of 1600 `let`s
+ *  took 4 s, and twice as many four times as long.
+ *
+ *      -> {by_name: Map(name -> [site]), evals: [site]}, each list in
+ *         the order of the source; site: {n, chain, order}, `chain`
+ *         the nodes from the scope to `n`, both included
+ ***************************************************************/
+const WRITE_SITES = new WeakMap();      // a scope -> its write sites
+
+function write_sites(root)
+{
+    let known = WRITE_SITES.get(root);
+    if(known) {
+        return known;
+    }
+    let by_name = new Map();
+    let evals = [];
+    let order = 0;
+    let base_name = (target) => {
+        while(target && target.type === "MemberExpression") {
+            target = target.object;
+        }
+        return (target && target.type === "Identifier")? target.name : null;
+    };
+    walk(root, (n, ancestors) => {
+        let names = [];
+        switch(n.type) {
+            case "VariableDeclarator":
+                pattern_names(n.id, names);
+                break;
+            case "AssignmentExpression":
+                if(n.left.type === "Identifier" || n.left.type === "MemberExpression") {
+                    names.push(base_name(n.left));
+                } else {
+                    names.push(...write_targets(n.left).map(base_name));
+                }
+                break;
+            case "UpdateExpression":
+                names.push(base_name(n.argument));
+                break;
+            case "CallExpression": {
+                if(n.callee.type === "Identifier" && n.callee.name === "eval" && !n.optional) {
+                    evals.push({n, chain: [...ancestors, n], order: order++});
+                    return;
+                }
+                let c = n.callee;
+                if(c.type === "MemberExpression" && !c.computed && c.property.type === "Identifier"
+                        && ELEMENT_WRITERS.has(c.property.name)) {
+                    names.push(base_name(c.object));
+                } else if(is_object_call(n, "assign") && n.arguments.length > 0) {
+                    names.push(base_name(n.arguments[0]));
+                }
+                break;
+            }
+            case "ForOfStatement":
+            case "ForInStatement":
+                if(n.left.type === "VariableDeclaration") {
+                    for(let d of n.left.declarations) {
+                        pattern_names(d.id, names);
+                    }
+                } else {
+                    names.push(...write_targets(n.left).map(base_name));
+                }
+                break;
+            default:
+                return;
+        }
+        let site = null;
+        for(let name of new Set(names)) {
+            if(name === null) {
+                continue;
+            }
+            site = site || {n, chain: [...ancestors, n], order: order++};
+            if(!by_name.has(name)) {
+                by_name.set(name, []);
+            }
+            by_name.get(name).push(site);
+        }
+    });
+    known = {by_name, evals};
+    WRITE_SITES.set(root, known);
+    return known;
 }
 
 /***************************************************************
@@ -3479,6 +3786,9 @@ function assigned_values(binding, members = false)
  ***************************************************************/
 function var_leaves(root, seen = new Set(), depth = 0)
 {
+    if(READ_AT.length === 0) {
+        return from_read(root.binding.declarators[0], root.binding.scope, () => var_leaves(root, seen, depth));
+    }
     let b = root.binding;
     let steps = root.steps;
     let out = {leaves: [], complete: true, written: false, unread: [], opaque: [], lets: [b]};
@@ -3642,6 +3952,9 @@ function literal_values(n, scope, seen, depth = 0)
     if(!n) {
         return null;
     }
+    if(READ_AT.length === 0) {
+        return from_read(n, scope, () => literal_values(n, scope, seen, depth));
+    }
     if(depth > MAX_DEPTH) {
         give_up(n, scope, GIVE_UP_DEEP);
         return null;
@@ -3774,6 +4087,9 @@ function param_flows(node, scope, seen = new Set(), depth = 0)
     let unnamed = (flows) => flows.map((f) => (f.path === null)? f : {binding: f.binding, path: null, priv: f.priv});
     if(!node || typeof node.type !== "string") {
         return [];
+    }
+    if(READ_AT.length === 0) {
+        return from_read(node, scope, () => param_flows(node, scope, seen, depth));
     }
     if(depth > MAX_DEPTH) {
         give_up(node, scope, GIVE_UP_DEEP);
@@ -4508,17 +4824,38 @@ function list_mutations(ast, lists = [])
     /*
      *  The list a node names, as said in a message, or null: its name
      *  bound at the top of the module, a member of a namespace import,
-     *  or an alias of one of those
+     *  or an alias of one of those. A chain of aliases is followed past
+     *  MAX_DEPTH to its end, and the reader gives up only when a list is
+     *  on it: up to gobj-ui 7.26.44 thirty aliases of any array, written
+     *  into, failed a module that publishes a list. `far`: where it went
+     *  past MAX_DEPTH, where it lost the end (past MAX_FOLLOW, or round
+     *  a cycle of lets), and whether it met a list.
      */
-    let list_of = (n, chain, depth = 0) => {
+    let list_of = (n, chain) => from_read(n, chain, () => {
+        let far = {past: null, lost: null, list: false, seen: new Set()};
+        let r = list_at(n, chain, 0, far);
+        if(far.lost && (far.list || far.lost.why !== GIVE_UP_CYCLE)) {
+            give_up(far.lost.node, far.lost.scope, far.lost.why);
+            return null;
+        }
+        if(far.past && (r !== null || far.list)) {
+            give_up(far.past.node, far.past.scope, GIVE_UP_DEEP);
+            return null;
+        }
+        return r;
+    });
+    let list_at = (n, chain, depth, far) => {
         while(n && n.type === "ChainExpression") {
             n = n.expression;
         }
         if(!n) {
             return null;
         }
-        if(depth > MAX_DEPTH) {
-            give_up(n, chain, GIVE_UP_DEEP);
+        if(depth > MAX_DEPTH && !far.past) {
+            far.past = {node: n, scope: chain};
+        }
+        if(depth > MAX_FOLLOW) {
+            far.lost = far.lost || {node: n, scope: chain, why: GIVE_UP_DEEP};
             return null;
         }
         if(n.type === "MemberExpression") {
@@ -4527,7 +4864,11 @@ function list_mutations(ast, lists = [])
                 return null;
             }
             let b = binding_of(n.object.name, chain);
-            return (b && b.kind === "import" && b.imported === "*")? `${n.object.name}.${step.prop}` : null;
+            if(b && b.kind === "import" && b.imported === "*") {
+                far.list = true;
+                return `${n.object.name}.${step.prop}`;
+            }
+            return null;
         }
         if(n.type !== "Identifier") {
             return null;
@@ -4537,10 +4878,17 @@ function list_mutations(ast, lists = [])
             return null;
         }
         if(names.has(n.name) && b.scope.length === 1) {
+            far.list = true;
             return n.name;
         }
         if(b.kind === "const" && b.steps.length === 0) {
-            let inner = list_of(b.init, b.scope, depth + 1);
+            if(far.seen.has(b.init)) {
+                far.lost = far.lost || {node: b.init, scope: b.scope, why: GIVE_UP_CYCLE};
+                return null;
+            }
+            far.seen.add(b.init);
+            let inner = list_at(b.init, b.scope, depth + 1, far);
+            far.seen.delete(b.init);
             return inner? `${inner} (through its alias \`${n.name}\`)` : null;
         }
         if(b.kind === "var" && b.picks.size === 0) {
@@ -4548,13 +4896,24 @@ function list_mutations(ast, lists = [])
              *  first value asked first: `let out = []` is no alias, and costs
              *  no walk of its scope)  */
             let first = b.declarators[0];
-            let inner = (first && first.init)? list_of(first.init, b.scope, depth + 1) : null;
-            if(!inner) {
+            if(far.seen.has(first)) {
+                far.lost = far.lost || {node: first, scope: b.scope, why: GIVE_UP_CYCLE};
                 return null;
             }
-            let {values, unknown} = assigned_values(b);
-            if(unknown.length > 0 || values.some((v) => !v.node || list_of(v.node, v.scope, depth + 1) !== inner)) {
-                return null;
+            far.seen.add(first);
+            let inner = null;
+            try {
+                inner = first.init? list_at(first.init, b.scope, depth + 1, far) : null;
+                if(!inner) {
+                    return null;
+                }
+                let {values, unknown} = assigned_values(b);
+                if(unknown.length > 0
+                        || values.some((v) => !v.node || list_at(v.node, v.scope, depth + 1, far) !== inner)) {
+                    return null;
+                }
+            } finally {
+                far.seen.delete(first);
             }
             return `${inner} (through its alias \`${n.name}\`)`;
         }
@@ -4849,7 +5208,8 @@ function callback_leaves(call, callback, scope)
 {
     let via = [call, callback.arg];
     if(callback.how === "elements") {
-        return elements_of(callback.receiver, {scope, via, off: false}, 0).map(classify);
+        return from_read(callback.receiver, scope,
+            () => elements_of(callback.receiver, {scope, via, off: false}, 0).map(classify));
     }
     return [{kind: "unknown", node: call, scope: scope.slice(0, -1), via, off: false}];
 }
@@ -4861,15 +5221,17 @@ function callback_leaves(call, callback, scope)
  ***************************************************************/
 function key_list_leaves(node, scope, root)
 {
-    let out = [];
-    for(let v of expand(node, {scope, via: [root], off: false})) {
-        if(v.kind === "value" && v.node.type === "ArrayExpression") {
-            out.push(...element_values(v, 0).map(classify));
-        } else {
-            out.push(classify(v));
+    return from_read(node, scope, () => {
+        let out = [];
+        for(let v of expand(node, {scope, via: [root], off: false})) {
+            if(v.kind === "value" && v.node.type === "ArrayExpression") {
+                out.push(...element_values(v, 0).map(classify));
+            } else {
+                out.push(classify(v));
+            }
         }
-    }
-    return out;
+        return out;
+    });
 }
 
 /***************************************************************
@@ -5400,7 +5762,14 @@ function collect_used_keys(opts)
     for(let g of gave_up()) {
         let module = lib_module_of(g.url);
         let label = module? `gobj-ui/src/${module}` : g.url? relative(process.cwd(), fileURLToPath(g.url)) : "?";
-        fail(`${label}:${g.line}: the reader gave up on \`${g.text}\`, and a key behind it would go ` +
+        let past = "";
+        if(g.past) {
+            let past_module = lib_module_of(g.past.url);
+            let past_label = past_module? `gobj-ui/src/${past_module}` :
+                g.past.url? relative(process.cwd(), fileURLToPath(g.past.url)) : "?";
+            past = ` (past \`${g.past.text}\`, ${past_label}:${g.past.line})`;
+        }
+        fail(`${label}:${g.line}: the reader gave up on \`${g.text}\`${past}, and a key behind it would go ` +
              `unasked: ${g.why}`);
     }
 
@@ -5890,7 +6259,8 @@ export {
     source_files,
     lib_imports,
     find_plural_groups,
-    violation_count
+    violation_count,
+    Abort
 };
 
 /*
@@ -5907,5 +6277,11 @@ try {
     is_main = false;
 }
 if(is_main) {
-    await main();
+    try {
+        await main();
+    } catch(e) {
+        if(!(e instanceof Abort)) {
+            throw e;
+        }
+    }
 }

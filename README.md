@@ -164,6 +164,12 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 >   window the app opens on its own (the Developer window restored at start up
 >   from the last session) leaves the focus in the page, or a keyboard reader's
 >   first Tab lands in a window they did not open; a modal one takes it always.
+>   Nor does a window opened under an overlay that holds the focus -- a modal
+>   window, a dialog, the drawer, a toolbar menu, all drawn above every window
+>   that is not modal (7.26.45): it took the focus where it could not be seen,
+>   and the next Tab gave it back to the overlay. It opens under it, and is there
+>   when the overlay goes. A window placed by its host INSIDE that overlay
+>   (`$parent` in a modal's body) takes it as before.
 >   When it goes, the focus goes back where it was -- if it was in the window;
 > - **Escape closes it** (`keyboard`, `true` by default) when the focus is in
 >   it, the way its ✕ does: `EV_CLOSE_WINDOW`, so `EV_WINDOW_TO_CLOSE` still
@@ -172,8 +178,11 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 >   editor's search box), an input method composing, an inline editor that
 >   closed with the key (Tabulator cancels a cell edit by removing the box --
 >   the window then takes the focus back), a `textarea` or a
->   `contenteditable` (what is being written is not lost to one key). Turn it
->   off with `keyboard: false`; the key then goes on to the shell;
+>   `contenteditable` (what is being written is not lost to one key). Nor
+>   while an overlay of the shell opened AFTER the window is up (a toolbar
+>   menu, 7.26.45): the key goes on to the shell, which closes that overlay
+>   first (`yui_shell_escape_order()`). Turn it off with `keyboard: false`;
+>   the key then goes on to the shell;
 > - a **`modal`** one blocks the rest of the app: it hangs over a backdrop in
 >   the shell's dialog layer (`yui_shell_modal_layer()`; above the drawer, the
 >   dock and every other window, below the toasts, and a question it asks opens
@@ -195,7 +204,9 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > **The shell's Escape follows the same rule (7.26.43).** It closed the
 > overlay on top of its chain for any Escape: one typed in a table cell being
 > edited inside a dialog cancelled the edit and closed the dialog with it. The
-> rule is one function, `escape_is_taken()` (`src/escape_taken.js`).
+> rule is one function, `escape_is_taken()` (`src/escape_taken.js`). An
+> Escape that closed a cell editor took the focus with it, to `<body>`: the
+> dialog on top takes it back (7.26.45), as a window does.
 >
 > **The focus trap counts only what is drawn (7.26.43).** The adaptive dialog's
 > back arrow is the first control of every dialog and is `display:none` on a
@@ -3685,6 +3696,28 @@ its API. So the form applies `disabled` to those three, and the record is still
 read from a disabled control — it is collected by reading each marked control,
 never by submitting the form.
 
+### `C_YUI_FORM` — which rows a click selects
+
+A form's tables select no rows unless the host asks Tabulator for it in
+`tabulator_settings` (`selectableRows`: `true`, or how many). The form's
+`selectable` (`true` by default) then says whether a click selects: it is
+Tabulator's `selectableRowsCheck`, asked when a row is drawn and at each click,
+so it governs the row's own click, which toggles the row (a row drawn while it
+was `false` stays unselectable until it is drawn again). With the defaults
+nothing is selected.
+
+```js
+gobj_create("form", "C_YUI_FORM", {
+    template: template,
+    tabulator_settings: {selectableRows: 1},   // a click picks one row
+    selectable: true,                          // false: a click selects nothing
+}, parent);
+```
+
+Up to 7.26.44 the form toggled the row again in its `rowClick`, on top of
+Tabulator's own toggle: with `selectableRows: true` a click selected nothing,
+and with `selectable: false` it selected the row (7.26.45).
+
 ### Selecting rows in any table — `yui_table_select.js`
 
 Deleting twenty rows one confirmation at a time is not a workflow. Any view
@@ -3968,7 +4001,14 @@ range raised by hand), and leaves it when it did (the round run twice, a
 package.json two apps share): the package.json's git history says which, and
 one whose history cannot be read is refused (since `7.26.43`; up to `7.26.42`
 a refused app kept the files raised before the refusal, `--no-wait` could
-lower a range, and "already" deployed a new bundle under the old number).
+lower a range, and "already" deployed a new bundle under the old number). The
+commit that brought the range is the newest one whose parent has ANOTHER
+range, and a shallow clone is refused, since it may not hold that parent; its
+log line says `range  already ^x.y.z, version raised` (since `7.26.45`; up to
+`7.26.44` a commit that only reformatted the line was taken for the one, so a
+round run again raised the version twice, a shallow clone whose HEAD raised
+the range by hand was taken for "born with the range" and deployed under the
+old number, and the line said `range  raised`).
 
 ### Colour: a brand token as INK takes `-on-scheme`, as a FILL it does not
 
@@ -4329,7 +4369,10 @@ call of t()?" (since `7.26.32`; up to `7.26.31` it was a call NAMED `t` or
 `.bind()` (`i18next.t.bind(i18next)`), a destructuring (since `7.26.35`:
 `const {t: tt} = i18next`, a parameter `{t: tt}`), a re-export of a module the
 reader reads --, called as `t(k)`, `t?.(k)`, `t.call(x, k)` or
-`t.apply(x, [k])`. An ARRAY given to it is i18next's list of fallback keys, and
+`t.apply(x, [k])`, and `.call`, `.apply` and `.bind` written as computed
+members too (`t["call"](x, k)`, `t["bind"](null, k)`, since `7.26.45`; up to
+`7.26.44` those forms were not read, and a key handed that way went unasked).
+An ARRAY given to it is i18next's list of fallback keys, and
 each one is a key: `t([specific, "generic"])` asks for "generic". A `.bind()`
 that binds a KEY makes a translator whose calls hand i18next its options or its
 default value: `const tk = t.bind(null, "save"); tk({count: 2})` (since
@@ -4535,7 +4578,12 @@ One that may give neither (`{id: "x", name: row.name}`, a parameter) reaches
 it. The test of the table proves every `fallbacks` against the code: each
 hand-off of the position is the right side of a `||` whose left reads the
 positions named (or a key position of a key function whose `fallbacks` say as
-much). Up to `7.26.42` the id of a card was a key in every case. What is
+much). And the other way round (since `7.26.45`): a position the code reads
+first at EVERY hand-off is named, or the validator asks for the fallback where
+the function never reads it -- the toolbar brand's id reaches a key only
+behind its `aria_label` and its `name` (in `handle_toolbar_action()`), and up
+to `7.26.44` its entry named the `aria_label` alone. Up to `7.26.42` the id of
+a card was a key in every case. What is
 given at those positions is read like any other key (literals, consts,
 branches): in the app's own code, on a call that reaches that function of
 gobj-ui (an app function of the same name is not mistaken for it), and in
@@ -4546,7 +4594,8 @@ member): an import under any name, a re-export from a file of the app
 (`export {yui_shell_show_info as say} from "@yuneta/gobj-ui/src/shell_modals.js"`),
 a const alias (`const show = yui_shell_show_info`), a map in a const
 (`const API = {info: yui_shell_show_info}; API.info(...)`, imported too),
-`.call(x, ...)` and `.apply(x, [...])`; and a `.bind()` of it is read as the
+`.call(x, ...)` and `.apply(x, [...])` (also as computed members,
+`f["call"](x, ...)`, since `7.26.45`); and a `.bind()` of it is read as the
 call it prepares, at the positions it binds (since `7.26.43`):
 `yui_shell_show_info.bind(null, shell, "k")` asks for "k", and a parameter
 bound there fails the rule per call as it does when it is handed directly. Up
@@ -5084,15 +5133,33 @@ reading the page in another language:
   translator handed as a callback to one of the methods above over an array
   the reader cannot follow, or to `.then()` / `.catch()`, unmarked;
 - a value the reader GIVES UP on, with the file and the line (since
-  `7.26.43`): a chain of consts, aliases or calls more than 24 steps deep, a
-  const that leads back to itself, an expression that can take more than
-  10000 values. A key behind it would go unasked. Up to `7.26.42` the reader
-  stopped there in silence -- a chain of 24 aliases of a const, or of 12
-  consts that branch, asked for nothing at its far end, and the build passed
-  -- and a chain of consts that doubles at every link (`const O1 = c()? O0 :
-  {...O0, ...O0}`) grew three times at every link until it died with a
-  `RangeError` that named no file. A const is now read once, wherever it is
-  read, and a spread of the same object or array twice gives its values once.
+  `7.26.43`): a value read through more than 24 steps, a const that leads
+  back to itself, an expression that can take more than 10000 values. A key
+  behind it would go unasked. A STEP is each const, alias, call, property,
+  element, and branch of `?:` / `||` / `??` the read goes through, so twelve
+  consts that each branch (`const K1 = c()? K0 : "k1"`) are already 24; the
+  real apps read nothing deeper than 10. Up to `7.26.42` the reader stopped
+  there in silence -- a chain of 24 aliases of a const, or of 12 consts that
+  branch, asked for nothing at its far end, and the build passed -- and a
+  chain of consts that doubles at every link (`const O1 = c()? O0 : {...O0,
+  ...O0}`) grew three times at every link until it died with a `RangeError`
+  that named no file. A const is read once, wherever it is read, and a spread
+  of the same object or array twice gives its values once.
+
+  Since `7.26.45` the line said is the one of the READ, with the place the
+  count went past 24 (`src/main.js:30: the reader gave up on \`J16\` (past
+  \`K10\`, src/main.js:12), ...`), and the verdict does not depend on the
+  order of the code: a const, a property, an element and the returns of a
+  function are read once and keep the steps they took, so a later read of them
+  counts those steps too. Up to `7.26.44` a const kept what its FIRST read had
+  reached -- with `J0 = K10` and `J16` 28 consts away from the key, `t(J16);
+  t(K10)` failed and `t(K10); t(J16)` passed --, a call started the count
+  again (thirty nested calls were read through), and the line said was the
+  deepest link's. A chain of aliases of a FUNCTION, or of a published list
+  written into, is followed to its end, and only one that can end in a
+  translator, a key function (a function of gobj-ui) or a published list is a
+  give-up: up to `7.26.44` thirty aliases of any function (`const f1 = f0;
+  ... f30(1)`) failed the build with no i18n involved.
 
 Up to `7.26.27` the locale cases were "skipped" with an OK: one language less
 validated, and nobody told. A file of the locales directory with a locale's

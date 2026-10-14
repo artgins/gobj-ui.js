@@ -38,6 +38,12 @@ const {
 const {
     register_c_yui_shell, yui_shell_push_escape, yui_shell_pop_escape,
 } = await import("./c_yui_shell.js");
+const {activate_focus_trap_on} = await import("./shell_focus_trap.js");
+
+/*  focus() moves document.activeElement, as in a browser.  */
+FakeElement.prototype.focus = function() {
+    document.activeElement = this;
+};
 
 const logged = [];
 let shell = null;
@@ -138,5 +144,33 @@ describe("the shell's Escape", () => {
         yui_shell_pop_escape(shell, close_fn);
         $text.remove();
         $editable.remove();
+    });
+
+    /*  A cell editor that went with the key took the focus with it, to
+     *  <body>: a reader was left on the page, outside the dialog. A
+     *  window takes the focus back (7.26.43); the dialog on top of the
+     *  shell does now too.  */
+    test("one that went with a cell editor gives the focus back to the dialog on top", () => {
+        const $dialog = document.createElement("div");
+        const $cell = document.createElement("div");
+        const $editor = document.createElement("input");
+        $cell.appendChild($editor);
+        $dialog.appendChild($cell);
+        document.body.appendChild($dialog);
+        const release = activate_focus_trap_on($dialog);
+        $editor.focus();
+
+        $cell.removeChild($editor);         /*  the editor goes with the key  */
+        document.activeElement = document.body;
+        escape_at($editor);
+        expect(closed).toBe(0);
+        expect(document.activeElement === $dialog, "the dialog has the focus").toBe(true);
+        expect($dialog.getAttribute("tabindex")).toBe("-1");
+
+        escape_at($dialog);
+        expect(closed).toBe(1);
+        release();
+        yui_shell_pop_escape(shell, close_fn);
+        $dialog.remove();
     });
 });

@@ -1304,3 +1304,19 @@ yui_shell_pop_escape(shell, close_modal);
 `"overlay"`). It is informational today (the LIFO ordering is what
 drives priority); keep it accurate so the FSM trace is readable.
 
+An overlay that hears Escape ITSELF -- a `C_YUI_WINDOW` stops the key
+at its container -- asks the stack whether something was opened after
+it, and yields the key when it was (7.26.45). Every entry carries an
+order that only grows; `yui_shell_escape_order(shell)` is the order of
+the top entry, 0 when the stack is empty:
+
+```js
+import { yui_shell_escape_order } from "@yuneta/gobj-ui";
+
+priv.escape_order = yui_shell_escape_order(shell);  // when it opens
+// ... in its Escape handler:
+if(yui_shell_escape_order(shell) > priv.escape_order) {
+    return;     // a menu opened after it: the shell closes that first
+}
+```
+

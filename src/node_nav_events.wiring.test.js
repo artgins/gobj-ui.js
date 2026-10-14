@@ -234,6 +234,12 @@ describe("the item a node is showing, clicked again", () => {
         expect(tree.priv.navs[0]).not.toBe(nav);
         expect(gobj_read_attr(nav, "$container").parentNode).toBeFalsy();
 
+        /*  Off the page, it is heard no more: in the turn before it
+         *  goes it was still subscribed, and a click it published was
+         *  taken as one of the current nav's.  */
+        gobj_publish_event(nav, "EV_NAV_CLICKED", {route: "/tree/b", item_id: "b"});
+        expect(gobj_read_attr(shell, "current_route")).toBe("/tree/a");
+
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(gobj_is_destroying(nav)).toBe(true);
         expect(gobj_is_destroying(tree.priv.navs[0])).toBe(false);

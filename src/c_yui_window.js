@@ -80,10 +80,11 @@ import {
     yui_shell_window_layer,
     yui_shell_modal_layer,
     yui_shell_raise_window,
+    yui_shell_escape_order,
     yui_shell_watch_changes,
     yui_shell_unwatch_changes,
 } from "./c_yui_shell.js";
-import {activate_focus_trap_on, FOCUSABLE_SELECTOR} from "./shell_focus_trap.js";
+import {activate_focus_trap_on, focus_trap_panel, FOCUSABLE_SELECTOR} from "./shell_focus_trap.js";
 import {escape_is_taken} from "./escape_taken.js";
 
 import "./c_yui_window.css";
@@ -181,6 +182,9 @@ let PRIVATE_DATA = {
      *  release of its focus trap.  */
     $lock: null,
     release_focus: null,
+    /*  The top of the shell's Escape stack when the window started:
+     *  an overlay opened after it takes the key first.  */
+    escape_order: 0,
 };
 
 let __gclass__ = null;
@@ -313,6 +317,12 @@ function mt_create(gobj)
  *  the first Tab of a keyboard reader landed in a window they had
  *  not opened. A modal window takes it all the same: nothing else
  *  can be used while it is up.
+ *
+ *  Nor does one opened under an overlay that holds the focus (a
+ *  modal window, a dialog, a drawer, a menu: all are drawn above
+ *  the window layer). Up to gobj-ui 7.26.44 it took the focus where
+ *  it could not be seen, and the next Tab gave it back to the
+ *  overlay; it opens under it now, and is there when it goes.
  ***************************************************************/
 function mt_start(gobj)
 {
@@ -328,12 +338,16 @@ function mt_start(gobj)
     if(active && active !== document.body && !$container.contains(active)) {
         priv.opener = active;
     }
+    priv.escape_order = yui_shell_escape_order(yui_shell_of(gobj));
     let modal = gobj_read_bool_attr(gobj, "modal");
+    /*  Read before a modal one puts up its own.  */
+    let $trap = focus_trap_panel();
+    let under_an_overlay = !!$trap && !$trap.contains($container);
     if(modal && !priv.release_focus) {
         /*  Saves the opener itself, and gives it back on release.  */
         priv.release_focus = activate_focus_trap_on($container);
     }
-    if(modal || opened_by_the_reader()) {
+    if(modal || (opened_by_the_reader() && !under_an_overlay)) {
         focus_target(gobj, $container).focus();
     }
 }
@@ -641,8 +655,9 @@ function window_root(gobj)
 /************************************************************
  *   An Escape typed in the window. The callback only decides
  *   whether the key is the window's -- not when `keyboard` is
- *   off, nor one that what it was typed in took -- and sends
- *   the event: the close is the ✕'s, in the action.
+ *   off, nor one that what it was typed in took, nor while an
+ *   overlay of the shell opened after the window is up -- and
+ *   sends the event: the close is the ✕'s, in the action.
  ************************************************************/
 function on_escape_key(gobj, evt)
 {
@@ -663,6 +678,9 @@ function on_escape_key(gobj, evt)
             $container.focus();
         }
         return;
+    }
+    if(yui_shell_escape_order(yui_shell_of(gobj)) > gobj.priv.escape_order) {
+        return;     /*  a shell overlay opened after the window: the shell closes it  */
     }
     evt.preventDefault();
     evt.stopPropagation();
@@ -747,7 +765,12 @@ function build_ui(gobj)
      *----------------------------------------------*/
     if(gobj_read_bool_attr(gobj, "auto_save_size_and_position")) {
         if(gobj_is_service(gobj)) {
-            let rect = whole_rect(kw_get_local_storage_value(`${gobj_name(gobj)}-rect`));
+            let key = `${gobj_name(gobj)}-rect`;
+            let stored = kw_get_local_storage_value(key);
+            let rect = whole_rect(stored);
+            if(!rect && stored != null) {
+                log_warning(`${gobj_short_name(gobj)}: the saved position '${key}' is not a rect of four numbers: ignored`);
+            }
             if(rect) {
                 rect.x = rect.x<0?0:rect.x;
                 rect.y = rect.y<0?0:rect.y;
@@ -1689,6 +1712,8 @@ function ac_shell_changed(gobj, event, kw, src)
         gobj_write_attr(gobj, "back_overlay", null);
         priv.back_shell = null;
     }
+    /*  The order it kept is of the other shell's Escape stack.  */
+    priv.escape_order = going? 0 : yui_shell_escape_order(src);
 
     let $container = gobj_read_attr(gobj, "$container");
     if(!$container) {

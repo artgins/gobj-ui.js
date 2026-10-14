@@ -60,6 +60,13 @@ vi.mock("tabulator-tables", () => {
                 }
             };
             tables.push(this);
+            /*  The rows it is built with (`data`): drawn, and no
+             *  `dataChanged`, as Tabulator loads them.  */
+            if(settings && Array.isArray(settings.data)) {
+                for(const record of settings.data) {
+                    this.add(record, true);
+                }
+            }
             return new Proxy(this, {
                 get(target, prop) {
                     if(prop in target) {
@@ -80,7 +87,7 @@ vi.mock("tabulator-tables", () => {
                 fn([]);
             }
         }
-        add(record) {
+        add(record, silent) {
             /*  The row's element lives in the table's, as in Tabulator:
              *  a nested table drawn in it is inside the form.  */
             const $row = document.createElement("div");
@@ -90,7 +97,9 @@ vi.mock("tabulator-tables", () => {
                 this.settings.rowFormatter(row);
             }
             this.rows.push(row);
-            this.emit("dataChanged");
+            if(!silent) {
+                this.emit("dataChanged");
+            }
             return row;
         }
         addRow(record) {

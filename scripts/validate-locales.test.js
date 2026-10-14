@@ -11,7 +11,7 @@ import {describe, test, expect} from "vitest";
 import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, cpSync, symlinkSync} from "node:fs";
 import {join, dirname} from "node:path";
 import {tmpdir} from "node:os";
-import {spawnSync} from "node:child_process";
+import {spawnSync, spawn} from "node:child_process";
 import {fileURLToPath} from "node:url";
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "validate-locales.mjs");
@@ -769,7 +769,7 @@ describe("validate-locales", () => {
         }
     });
 
-    test("a const is read once: a chain of them that triples at every link is read fast, and its keys asked", () => {
+    test("a const is read once: a chain of them that spreads eight times at every link is read fast, and its keys asked", () => {
         let chain = (n, first, link, read) => {
             let lines = [first];
             for(let i = 1; i <= n; i++) {
@@ -778,11 +778,13 @@ describe("validate-locales", () => {
             lines.push(read(n));
             return lines.join("\n");
         };
-        let objects = chain(11, `const O0 = {title: "an object chain key"};`,
-            (i) => `const O${i} = c()? O${i - 1} : {...O${i - 1}, ...O${i - 1}, ...O${i - 1}};`,
+        /*  Eight links: 8^8 reads of the first one if a const were read at every read  */
+        let spread = (x, i) => new Array(8).fill(`...${x}${i - 1}`).join(", ");
+        let objects = chain(8, `const O0 = {title: "an object chain key"};`,
+            (i) => `const O${i} = c()? O${i - 1} : {${spread("O", i)}};`,
             (n) => `t(O${n}.title);`);
-        let arrays = chain(11, `const A0 = ["an array chain key"];`,
-            (i) => `const A${i} = c()? A${i - 1} : [...A${i - 1}, ...A${i - 1}, ...A${i - 1}];`,
+        let arrays = chain(8, `const A0 = ["an array chain key"];`,
+            (i) => `const A${i} = c()? A${i - 1} : [${spread("A", i)}];`,
             (n) => `t(A${n}[0]);`);
         for(let main of [objects, arrays]) {
             let t0 = Date.now();
@@ -793,6 +795,44 @@ describe("validate-locales", () => {
             expect(r.out).not.toMatch(/RangeError|gave up/);
         }
     });
+
+    test("a scope is walked once for the writes of its variables: 3000 lets read in one module stay fast", () => {
+        let lines = [];
+        let dict = {};
+        for(let i = 0; i < 3000; i++) {
+            lines.push(`let v${i} = "a let key ${i}";`, `if(c()) { v${i} = "another let key ${i}"; }`, `t(v${i});`);
+            dict[`a let key ${i}`] = "x";
+            dict[`another let key ${i}`] = "x";
+        }
+        let t0 = Date.now();
+        let r = run({...BOTH(dict), "src/main.js": lines.join("\n")});
+        expect(Date.now() - t0).toBeLessThan(5000);
+        expect(r.status).toBe(0);
+        expect(r.out).toContain("6000 used in the source");
+    });
+
+    test("a long list of violations reaches a reader that reads it late, whole (exit 1)", async () => {
+        let lines = [];
+        for(let i = 0; i < 3000; i++) {
+            lines.push(`t("a key no locale defines, long enough to fill a pipe ${i}");`);
+        }
+        let dir = mkdtempSync(join(tmpdir(), "vl-"));
+        write_files(dir, {...BOTH({}), "src/main.js": lines.join("\n")});
+        /*  A pipe holds 64 KB: up to gobj-ui 7.26.44 process.exit() dropped the rest  */
+        let child = spawn(process.execPath, [SCRIPT], {cwd: dir, stdio: ["ignore", "pipe", "pipe"]});
+        child.stderr.pause();
+        let closed = new Promise((resolve) => child.on("close", resolve));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        let out = "";
+        child.stderr.on("data", (d) => {
+            out += d;
+        });
+        child.stderr.resume();
+        child.stdout.resume();
+        expect(await closed).toBe(1);
+        expect((out.match(/defined in NO locale/g) || []).length).toBe(3000);
+        expect(out).toContain("3000 violation(s), see above");
+    }, 30000);
 
     test("where the reader gives up on a value it FAILS, with the file and the line: a key behind it is never skipped in silence", () => {
         let chain = (n, first, link, read) => {
@@ -807,28 +847,92 @@ describe("validate-locales", () => {
             /*  doubles at every link: up to 7.26.42 a RangeError naming no file  */
             [chain(12, `const O0 = {title: "a doubled key"};`,
                 (i) => `const O${i} = c()? O${i - 1} : {...O${i - 1}, ...O${i - 1}};`, (n) => `t(O${n}.title);`),
-             "src/main.js:2: the reader gave up on `O0`, and a key behind it would go unasked: it is more than " +
-             "24 steps deep (a chain of consts, aliases or calls that long): shorten the chain"],
+             "src/main.js:14: the reader gave up on `O12.title` (past `O0`, src/main.js:2), and a key behind it " +
+             "would go unasked: it is read through more than 24 steps (each const, alias, call, property, element " +
+             "and branch of ?: / || / ?? it goes through is one): shorten the chain"],
             /*  up to 7.26.42 it asked for nothing, and passed  */
             [chain(24, `const K0 = "an alias key";`, (i) => `const K${i} = K${i - 1};`, (n) => `t(K${n});`),
-             "src/main.js:1: the reader gave up on `\"an alias key\"`"],
+             "src/main.js:26: the reader gave up on `K24` (past `\"an alias key\"`, src/main.js:1)"],
             /*  up to 7.26.42 it asked for every key but the last one, and passed without it  */
             [chain(12, `const K0 = "a far key";`, (i) => `const K${i} = c()? K${i - 1} : "a near key ${i}";`,
                 (n) => `t(K${n});`),
-             "src/main.js:1: the reader gave up on `\"a far key\"`"],
+             "src/main.js:14: the reader gave up on `K12` (past `\"a far key\"`, src/main.js:1)"],
             [`const a = c()? a : "a looping key";\nt(a);`,
-             "src/main.js:1: the reader gave up on `c()? a : \"a looping key\"`, and a key behind it would go " +
-             "unasked: it is a const that leads back to itself: break the cycle"],
+             "src/main.js:2: the reader gave up on `a` (past `c()? a : \"a looping key\"`, src/main.js:1), and a " +
+             "key behind it would go unasked: it is a const that leads back to itself: break the cycle"],
             /*  an alias of t that far is no translator any more: up to 7.26.42 its key went unasked  */
             [chain(24, `const T0 = t;`, (i) => `const T${i} = T${i - 1};`,
                 (n) => `T${n}("a key handed to a far alias of t");`),
-             "src/main.js:1: the reader gave up on `t`"]
+             "src/main.js:26: the reader gave up on `T24` (past `t`, src/main.js:1)"],
+            /*  a call is a step: up to gobj-ui 7.26.44 a call started the count again  */
+            [chain(30, `function f0() { return "a far returned key"; }`, (i) => `function f${i}() { return f${i - 1}(); }`,
+                (n) => `t(f${n}());`),
+             "src/main.js:32: the reader gave up on `f30()` (past "]
         ];
         for(let [main, said] of cases) {
             let r = run({...BOTH({}), "src/main.js": main});
             expect(r.status).toBe(1);
             expect(r.out).toContain(said);
             expect(r.out).not.toMatch(/RangeError/);
+        }
+    });
+
+    test("the verdict on a deep read does not depend on what was read before it", () => {
+        let lines = [`const K0 = "a deep key";`];
+        for(let i = 1; i <= 10; i++) {
+            lines.push(`const K${i} = K${i - 1};`);
+        }
+        lines.push(`const J0 = K10;`);
+        for(let i = 1; i <= 16; i++) {
+            lines.push(`const J${i} = J${i - 1};`);
+        }
+        /*  J16 is read through 28 consts, K10 through 11: whichever is read first  */
+        for(let reads of [[`t(J16);`, `t(K10);`], [`t(K10);`, `t(J16);`]]) {
+            let main = [...lines, ...reads];
+            let r = run({...BOTH({}), "src/main.js": main.join("\n")});
+            expect(r.status).toBe(1);
+            let at = main.indexOf(`t(J16);`) + 1;
+            expect(r.out).toContain(`src/main.js:${at}: the reader gave up on \`J16\` (past `);
+            expect(r.out).toContain(`defined in NO locale: "a deep key"`);
+            expect(r.out.match(/gave up/g).length).toBe(1);
+        }
+    });
+
+    test("a chain of aliases is a give-up only when a translator, a key function or a published list can be at its end", () => {
+        let aliases = (first, read) => {
+            let lines = [first];
+            for(let i = 1; i <= 30; i++) {
+                lines.push(`const f${i} = f${i - 1};`);
+            }
+            lines.push(read);
+            return lines.join("\n");
+        };
+        /*  No i18n at its end: followed to it, nothing given up  */
+        for(let main of [aliases(`function f0(x) { return x; }`, `f30(1);`),
+                         aliases(`const f0 = (x) => x;`, `f30(1);`),
+                         `export const X_I18N_KEYS = ["a listed key"];\n` +
+                             aliases(`const f0 = [];`, `f30.push("an element");`)]) {
+            let r = run({...BOTH({"a listed key": "x"}), "src/main.js": main});
+            expect(r.out).not.toMatch(/gave up/);
+            expect(r.status).toBe(0);
+        }
+        /*  ...a function of the module that returns a key, read through the chain  */
+        let returned = run({...BOTH({}), "src/main.js": aliases(`function f0() { return "a returned key"; }`,
+                                                                 `$el.dataset.i18n = f30();`)});
+        expect(returned.out).toContain(`defined in NO locale: "a returned key"`);
+        /*  A translator, a key function or a list at its end: given up, at the read  */
+        let cases = [
+            [aliases(`const f0 = t;`, `f30("a key");`), "`f30`"],
+            [`import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";\n` +
+                aliases(`const f0 = yui_shell_show_info;`, `f30(shell, "a key");`), "`f30`"],
+            [`export const X_I18N_KEYS = ["a listed key"];\n` +
+                aliases(`const f0 = X_I18N_KEYS;`, `f30.push("a pushed key");`), "`f30`"]
+        ];
+        for(let [main, read] of cases) {
+            let r = run({...BOTH({"a listed key": "x"}), "src/main.js": main});
+            expect(r.status).toBe(1);
+            let lines = main.split("\n").length;
+            expect(r.out).toContain(`src/main.js:${lines}: the reader gave up on ${read} (past `);
         }
     });
 
@@ -1305,6 +1409,30 @@ describe("validate-locales", () => {
         expect(r.out).toContain("src/main.js:9: yui_shell_show_info() [1] is given msg, which the reader cannot follow");
         expect(r.out).toContain("src/main.js:14: yui_shell_show_info() [1] is given ...ARGS, which the reader cannot follow");
         expect(r.out).not.toMatch(/main\.js:(2|3|4|5|6|7|12):/);
+    });
+
+    test("`.bind()`, `.call()` and `.apply()` written as computed members are read as the plain ones", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `const tk = t["bind"](null, "a key bound by a computed bind");`,
+            `tk({count: 2});`,
+            `t["call"](null, "a key called by a computed call");`,
+            `t["apply"](null, ["a key applied by a computed apply"]);`,
+            `yui_shell_show_info["call"](null, shell, "a message called by a computed call");`,
+            `const say = yui_shell_show_info["bind"](null, shell, "a message bound by a computed bind");`,
+            `say();`,
+            `yui_shell_show_info["apply"](null, [shell, kw.comment]);`              // 9: fails, as unbound
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        for(let k of ["a key bound by a computed bind", "a key called by a computed call",
+                      "a key applied by a computed apply", "a message called by a computed call",
+                      "a message bound by a computed bind"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        expect(r.out).toContain("src/main.js:9: yui_shell_show_info() [1] is given kw.comment, which the reader " +
+            "cannot follow");
+        expect(r.out).not.toContain(`"count"`);
+        expect(r.out).not.toMatch(/main\.js:[2-8]:/);
     });
 
     test("a card is named `name || aria_label || id`: its id is a key only for a card with neither", () => {

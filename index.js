@@ -48,6 +48,7 @@ export {
     yui_shell_toggle_drawer,
     yui_shell_push_escape,
     yui_shell_pop_escape,
+    yui_shell_escape_order,
     yui_shell_set_avatar_provider,
     yui_shell_refresh_avatars,
     yui_shell_set_translator,

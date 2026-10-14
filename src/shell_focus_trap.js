@@ -123,6 +123,7 @@ export function activate_focus_trap_on($panel, doc)
             }
         }
     };
+    trap.$panel = $panel;
     doc.addEventListener("keydown", trap, true);
     __trap_stack__.push(trap);
 
@@ -148,4 +149,18 @@ export function activate_focus_trap_on($panel, doc)
             saved.focus();
         }
     };
+}
+
+
+/***************************************************************
+ *  The panel of the trap that holds the focus now (the top of the
+ *  stack), or null when none is up. What holds one -- a modal, a
+ *  dialog, a drawer, a menu -- is drawn above every window that is
+ *  not modal: such a window that took the focus would take it
+ *  where it cannot be seen, and the next Tab would give it back.
+ ***************************************************************/
+export function focus_trap_panel()
+{
+    let top = __trap_stack__[__trap_stack__.length - 1];
+    return top ? top.$panel : null;
 }

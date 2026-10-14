@@ -5,6 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.45
+
+- **fix(`C_YUI_FORM`): a click on a row did the opposite of what `selectable` says** (7.26.44). With `selectableRows` in `tabulator_settings`, Tabulator's SelectRow toggles the row on its own click, and the form's `rowClick` toggled it again: with `selectableRows: true` a click selected nothing, and with `selectable: false` it selected the row. `selectable` is now Tabulator's `selectableRowsCheck`, and the form toggles nothing; with the defaults nothing is selected, as before. Checked in Chromium with Tabulator 6.6.0. The test double now toggles a row on its click as Tabulator does: the test of 7.26.44 passed against a double that did not.
+- **fix(`C_YUI_FORM`): a reload, Undo, Clear or close with a cell editor open in any row but the first broke the table.** Tabulator 6.6.0 closes the editor while it wipes its rows, and the redraw that follows walks rows already wiped (*"Cannot read properties of undefined (reading 'add')"*): a reload left the old rows beside the new ones (6 rows for 3) with uncaught errors, the form's destroy then threw, and a close logged *"cannot destroy table"*. The editor is closed first now, dropping what is typed in it. In every published version.
+- **perf(`C_YUI_FORM`): a nested table is built with its rows**, not built empty and loaded after its build (a second layout and a redraw 30 ms later, per row). Chromium, Tabulator 6.6.0, one nested row each: 300 rows with a nested table each 3.2 s -> 2.4 s (7.26.42: 40 s), 7641 layouts instead of 12141. The growth is still more than linear (75 rows 0.4 s, 150 0.95 s): each nested table is a Tabulator, and each build forces layouts whose cost grows with the page.
+- **fix(`C_YUI_WINDOW`): Escape closed the window under a toolbar menu opened after it.** The window stops Escape at its container, so the shell's Escape stack never saw it. Each entry of the stack carries an order, and a window yields the key when an overlay was pushed after it started (new `yui_shell_escape_order()`).
+- **fix(`C_YUI_WINDOW`): a window opened under a modal took the focus where it could not be seen**, and Tab gave it back to the modal. A window that is not modal leaves the focus where it is while a focus trap that does not contain it is up (a modal window, a dialog, the drawer, a menu); it opens under the overlay and is there when it goes. New `focus_trap_panel()`.
+- **fix(`C_YUI_SHELL`): an Escape that closed a cell editor in a shell dialog left the focus on `<body>`.** The dialog on top takes it back, as a window does since 7.26.43.
+- **fix(`C_YUI_SCHEMA_EDITOR`, `C_YUI_NODE`): what they retire with `gobj_post_event()` (7.26.43) stayed subscribed until destroyed.** A click of the retired drawing with the editor in `ST_COLUMNS` was *"Event NOT DEFINED in state"*, and a click of a retired nav navigated. The host unsubscribes it when it takes it off the page.
+- **fix(`C_YUI_WINDOW`): a saved position that is not a rect of four numbers was dropped without a word**; it is a warning now.
+- **fix(`validate-locales`): the verdict on a deep read no longer depends on the order of the code.** A const kept the values of its FIRST read, cut at the depth that read had reached: with `J0 = K10` and J16 28 consts from the key, `t(J16); t(K10)` failed on `K2` and did not ask for K10's key, while `t(K10); t(J16)` passed. A const, a property, an element and the returns of a function are now read once and keep the steps they took (`kept_values()`). A read that goes past 24 steps is given up as a whole, and nothing read on the way is kept. A call is now a step: up to 7.26.44 it started the count again, so thirty nested calls were read through, although the README said "calls". The real apps read nothing deeper than 10 steps, and their key sets are unchanged.
+- **fix(`validate-locales`): a give-up is said at the READ, with the place the count went past** (`src/main.js:30: the reader gave up on \`J16\` (past \`K10\`, src/main.js:12)`). The message says what a step is: each const, alias, call, property, element and branch of `?:` / `||` / `??`. Up to 7.26.44 twelve consts that branch were "more than 24 steps deep (a chain of consts, aliases or calls that long)", and the line was the deepest link's, possibly in another file.
+- **fix(`validate-locales`): thirty aliases of any function failed the build** (`const f1 = f0; … f30(1)`: "gave up on `f5`"). A chain of aliases of a function is followed to its end; it is a give-up only when it can end in a translator or a function of gobj-ui. The same for aliases of an array written into, in a module that publishes a list (`list_mutations()`).
+- **fix(`validate-locales`): `.bind`, `.call` and `.apply` written as computed members were not read**: `t["bind"](null, "k")`, `t["call"](x, "k")`, `t["apply"](x, ["k"])`, `yui_shell_show_info["call"](null, shell, "k")`.
+- **perf(`validate-locales`): a module of many `let`s is no longer quadratic** (each read walked its whole scope for its writes): 3000 lets, 15 s -> 0.16 s (`write_sites()` indexes a scope's writes in one walk).
+- **fix(`validate-locales`, `check-markup-strings`): a long list of violations is no longer cut short.** Both called `process.exit(1)` right after writing it, dropping what was still on its way to a pipe (an app with 6000 violations read through `| grep` printed 1261 to 6000 of them; a late reader got none). They set `process.exitCode`; a setup error throws `Abort` (exported). test-app's validator and deploy-round's final exit likewise.
+- **fix(`I18N_KEY_FUNCTIONS`): the toolbar brand's id is the fallback of its `aria_label` AND its `name`** (where it reaches a key, `handle_toolbar_action()`); `build_toolbar`'s item id likewise. The fallbacks test checks both directions now.
+- **fix(`deploy-round`): the history of a range is read by its VALUE, and a shallow clone is refused.** The commit that brought the range is the newest whose parent has ANOTHER range (a reformat of the line made a repeated round raise the version twice); a shallow clone whose HEAD raised the range by hand went out under its old number (`git rev-parse --is-shallow-repository` refuses it). A range found already raised logs `range  already ^x.y.z, version raised` (it said `range  raised`).
+
 ## 7.26.44
 
 - **fix(`C_YUI_FORM`): a click on a row of a form's table WROTE the
@@ -20,7 +39,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   table selects rows (`selectableRows` true or a number in
   `tabulator_settings`, off by default): with the defaults, nothing is
   selected, as before. Test `form_table_rows.wiring.test.js` ("a click on a
-  row", red with gobj-js 7.26.22).
+  row", red with gobj-js 7.26.22). (It did the opposite -- Tabulator toggles the row on
+  its own click as well; fixed in 7.26.45.)
 - **test:** the suite runs against gobj-js `^7.26.22` (its devDependency was
   `^7.26.3`, so the library's own tests did not see what the runtime of its
   consumers does; that is how the line above reached a deployed app).
@@ -59,7 +79,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   once.** A row at a time (`addRow()`, a re-render plus a `dataChanged` that
   copied the whole table, and a redraw 30 ms later) was quadratic. Chromium,
   Tabulator 6.6.0: 150 flat rows 5.2 s -> 0.11 s, 300 flat 20.6 s -> 0.14 s,
-  300 with a nested table each 38.9 s -> 3.0 s. The form's own load is a new
+  300 with a nested table each 38.9 s -> 3.0 s (dev machine; the
+  growth is still more than linear: 75 rows 0.5 s, 150 1.3 s -- see 7.26.45). The form's own load is a new
   internal event, `EV_LOAD_TABLE_ROWS {table_id, rows}`; `EV_ADD_TABLE_ROW` is
   only the reader's new row now and lost its `loading` key. Both are internal:
   no host sends them.

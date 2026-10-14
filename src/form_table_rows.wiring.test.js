@@ -26,6 +26,9 @@
  *      getData() with copies and a row's getData() with the row itself,
  *      draws a row by running its formatter, says `dataChanged` per row
  *      added, synchronously, and builds itself a turn after it is made.
+ *      A click on a row toggles it before `rowClick`, as Tabulator's
+ *      SelectRow does when the table selects rows: a form that toggled
+ *      it again in `rowClick` (7.26.44) undid every click.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -62,12 +65,22 @@ vi.mock("tabulator-tables", () => {
                 localize: {
                     installLang: () => {
                     }
+                },
+                edit: {
+                    currentCell: false,
+                    cancelEdit: () => {
+                        this.modules.edit.currentCell = false;
+                    }
                 }
             };
             tables.push(this);
-            /*  Tabulator builds itself a turn after it is made.  */
+            /*  Tabulator builds itself a turn after it is made, with
+             *  the rows it was given (`data`), saying no `dataChanged`.  */
             setTimeout(() => {
                 if(!this.destroyed) {
+                    for(const record of (settings && settings.data) || []) {
+                        this.add(record, true);
+                    }
                     this.initialized = true;
                     this.emit("tableBuilt");
                 }
@@ -97,7 +110,7 @@ vi.mock("tabulator-tables", () => {
                 throw new Error("Table Not Initialized");
             }
         }
-        add(record) {
+        add(record, silent) {
             const $row = document.createElement("div");
             this.element.appendChild($row);
             const row = {data: record, $row: $row};
@@ -105,7 +118,7 @@ vi.mock("tabulator-tables", () => {
                 getElement: () => row.$row,
                 getData: () => row.data,
                 toggleSelect: () => {
-                    row.selected = !row.selected;
+                    this.toggle_row(row);
                 },
                 delete: () => {
                     this.delete_row(this.rows.indexOf(row));
@@ -115,7 +128,9 @@ vi.mock("tabulator-tables", () => {
                 this.settings.rowFormatter(row.component);
             }
             this.rows.push(row);
-            this.emit("dataChanged");
+            if(!silent) {
+                this.emit("dataChanged");
+            }
             return row.component;
         }
         addRow(record) {
@@ -127,6 +142,26 @@ vi.mock("tabulator-tables", () => {
             this.must_be_built();
             this.calls.addData++;
             return Promise.resolve(records.map((record) => this.add(record)));
+        }
+        /*  SelectRow's own toggle, gated by `selectableRowsCheck`.  */
+        toggle_row(row) {
+            let check = this.options.selectableRowsCheck || (() => true);
+            if(check(row.component)) {
+                row.selected = !row.selected;
+            }
+        }
+        /*  A click on a row: SelectRow toggles it on its own `click`
+         *  when the table selects rows, then Tabulator says `rowClick`.  */
+        click_row(index) {
+            const row = this.rows[index];
+            let selectable_rows = this.options.selectableRows;
+            if(selectable_rows === true || typeof selectable_rows === "number") {
+                this.toggle_row(row);
+            }
+            this.emit("rowClick", {
+                preventDefault: () => {
+                }
+            }, row.component);
         }
         getRows() {
             return this.rows.map((row) => row.component);
@@ -159,8 +194,23 @@ vi.mock("tabulator-tables", () => {
             }
             this.settings.rowFormatter(row.component);
         }
+        /*  A cell editor opened in a row, as a click on a cell does.  */
+        open_editor(index) {
+            this.modules.edit.currentCell = this.rows[index];
+        }
+        /*  What Tabulator 6.6.0 does when it wipes its rows with an
+         *  editor open: the row that holds it closes it, and the redraw
+         *  that follows walks the rows already wiped -- it throws when
+         *  any row came before.  */
+        wipe_rows() {
+            const editing = this.modules.edit.currentCell;
+            if(editing && this.rows.indexOf(editing) > 0) {
+                throw new TypeError("Cannot read properties of undefined (reading 'add')");
+            }
+        }
         clearData() {
             this.must_be_built();
+            this.wipe_rows();
             for(const row of this.rows) {
                 while(row.$row.firstChild) {
                     row.$row.removeChild(row.$row.firstChild);
@@ -178,6 +228,7 @@ vi.mock("tabulator-tables", () => {
         setLocale() {
         }
         destroy() {
+            this.wipe_rows();
             this.destroyed = true;
         }
     }
@@ -489,15 +540,33 @@ describe("a table is loaded in one call", () => {
         expect(close_asks(form)).toBe(false);
         expect(errors()).toEqual([]);
     });
+
+    /*  Up to 7.26.44 a nested table was built empty and loaded after
+     *  its build -- laid out twice and redrawn once more, per row: with
+     *  a nested table per row, most of the time of a load.  */
+    test("a nested table is BUILT with its rows: no load of its own, no redraw", async () => {
+        const host_record = record();
+        const {form, first} = build(host_record);
+        await settle();
+        await new Promise(resolve => setTimeout(resolve, 60));
+        const alarms = alarms_of(first);
+        const triggers = triggers_of(alarms, 0);
+        expect(triggers.rows.map((r) => r.data)).toEqual([{measure: "temperature", value: 30}]);
+        expect(triggers.calls.addData).toBe(0);
+        expect(triggers.calls.redraw).toBe(0);
+        /*  A copy: an edit there does not write into the record.  */
+        triggers.edit_cell(0, "value", 31);
+        expect(host_record.alarms[0].triggers[0].value).toBe(30);
+        expect(gobj_read_attr(form, "record").alarms[0].triggers[0].value).toBe(30);
+        expect(gobj_read_attr(form, "edited")).toBe(true);
+        expect(errors()).toEqual([]);
+    });
 });
 
 describe("a click on a row", () => {
     function click(alarms, index)
     {
-        alarms.emit("rowClick", {
-            preventDefault: () => {
-            }
-        }, alarms.rows[index].component);
+        alarms.click_row(index);
     }
 
     test("does not WRITE the `selectable` attribute, and selects nothing when Tabulator selects no rows", async () => {
@@ -516,6 +585,8 @@ describe("a click on a row", () => {
         const alarms = alarms_of(first);
         click(alarms, 1);
         expect(alarms.rows[1].selected).toBe(true);
+        click(alarms, 1);
+        expect(alarms.rows[1].selected).toBeFalsy();
         expect(errors()).toEqual([]);
     });
 
@@ -529,5 +600,46 @@ describe("a click on a row", () => {
         click(alarms, 1);
         expect(alarms.rows[1].selected).toBeFalsy();
         expect(errors()).toEqual([]);
+    });
+});
+
+describe("a cell editor open while its table goes", () => {
+    function warnings()
+    {
+        return logged.filter((l) => /warn|error/i.test(l.level) || /WARNING|ERROR/.test(l.msg));
+    }
+
+    test("a reload with an editor open in the second row reloads the rows", async () => {
+        const {form, first} = build(record());
+        await settle();
+        const alarms = alarms_of(first);
+        alarms.open_editor(1);
+        triggers_of(alarms, 1).open_editor(0);
+        gobj_send_event(form, "EV_LOAD_RECORD", {
+            template_version: 7,
+            alarms: [{name: "cold", triggers: [{measure: "temperature", value: 5}]}]
+        }, form);
+        await settle();
+        expect(shown(alarms)).toEqual([{name: "cold", values: [5]}]);
+        expect(warnings()).toEqual([]);
+    });
+
+    test("a destroy with an editor open in a second row destroys every table, silently", async () => {
+        const before = live();
+        const {form, first} = build({
+            template_version: 7,
+            alarms: [
+                {name: "a", triggers: [{measure: "m", value: 1}, {measure: "n", value: 2}]},
+                {name: "b", triggers: [{measure: "m", value: 3}]}
+            ]
+        });
+        await settle();
+        const alarms = alarms_of(first);
+        alarms.open_editor(1);
+        triggers_of(alarms, 0).open_editor(1);
+        gobj_stop(form);
+        gobj_destroy(form);
+        expect(live() - before).toBe(0);
+        expect(warnings()).toEqual([]);
     });
 });

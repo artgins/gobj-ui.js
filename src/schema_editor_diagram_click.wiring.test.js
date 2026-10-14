@@ -241,6 +241,34 @@ describe("a topic clicked in the editor's drawing", () => {
         expect(errors()).toEqual([]);
     });
 
+    /*  Between its retirement and its destroy the drawing was still
+     *  subscribed: what it published in that turn reached the editor
+     *  as if it were the current one -- a second click, with the
+     *  editor already in ST_COLUMNS, was "Event NOT DEFINED".  */
+    test("the drawing it leaves is heard no more, even in the turn before it goes", async () => {
+        const remote = gobj_create_service("gap_remote", "C_TEST_REMOTE", {}, yuno);
+        gobj_change_state(remote, "ST_SESSION");
+        const host = gobj_create("gap_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("gap_editor", "C_YUI_SCHEMA_EDITOR", {
+            gobj_remote_yuno: remote,
+            treedb_name: "treedb_system_schema",
+            base_route: "/schemas"
+        }, host);
+        gobj_start(editor);
+        gobj_send_event(editor, "EV_TRANSPORT_STATE", {connected: true}, host);
+        expect(answer_the_load(editor, remote)).toBe(3);
+        gobj_send_event(editor, "EV_SHOW", {subpath: "db/diagram"}, host);
+        const graph = graphs[graphs.length - 1];
+
+        graph.emit(NodeEvent.CLICK, {target: {id: "users"}});
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        graph.emit(NodeEvent.CLICK, {target: {id: "users"}});
+        expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
+        await turn();
+        expect(graph.destroyed).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+
     test("a drawing left on a stop goes with the stop", async () => {
         const remote = gobj_create_service("stop_remote", "C_TEST_REMOTE", {}, yuno);
         gobj_change_state(remote, "ST_SESSION");

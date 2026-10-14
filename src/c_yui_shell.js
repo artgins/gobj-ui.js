@@ -59,6 +59,7 @@ import {
 
 import {
     activate_focus_trap_on,
+    focus_trap_panel,
 } from "./shell_focus_trap.js";
 import {escape_is_taken} from "./escape_taken.js";
 
@@ -185,6 +186,10 @@ let PRIVATE_DATA = {
      *  pushes its close handler when it opens and pops it when
      *  it closes.  Escape calls the top handler only — LIFO. */
     escape_stack:    [],
+    /*  The order of the last entry pushed: every entry carries its
+     *  own (`seq`), so a window can tell an overlay opened after it
+     *  (yui_shell_escape_order). */
+    escape_seq:      0,
     /*  Overlay history integration (Back button ↔ modals/windows).
      *  Each history-participating overlay (modal, floating window)
      *  pushes a { id, close } record here when it opens, plus a
@@ -532,6 +537,7 @@ function mt_start(gobj)
             return;
         }
         if(escape_is_taken(ev)) {
+            take_back_focus(ev);
             return;
         }
         let top = priv.escape_stack[priv.escape_stack.length - 1];
@@ -2712,6 +2718,31 @@ function drawers(gobj, menu_id)
 }
 
 /************************************************************
+ *  An Escape that closed an inline editor (a table cell) took the
+ *  focus with it, to <body>: the overlay that holds the focus (the
+ *  top trap: a dialog, a drawer) takes it back, as a window does --
+ *  a reader was left on the page, outside the dialog it was in.
+ ************************************************************/
+function take_back_focus(ev)
+{
+    if(!ev.target || ev.target.isConnected !== false) {
+        return;
+    }
+    let active = document.activeElement;
+    if(active && active !== document.body) {
+        return;
+    }
+    let $panel = focus_trap_panel();
+    if(!$panel || $panel.isConnected === false) {
+        return;
+    }
+    if(!$panel.hasAttribute("tabindex")) {
+        $panel.setAttribute("tabindex", "-1");     /*  focusable, not in the Tab order  */
+    }
+    $panel.focus();
+}
+
+/************************************************************
  *  Escape priority chain helpers — push/pop a {layer, handler}
  *  record on `priv.escape_stack`.  Escape calls the top entry
  *  only and consumes the event; LIFO ordering naturally matches
@@ -2725,7 +2756,8 @@ function push_escape(gobj, layer, handler)
         log_warning(`C_YUI_SHELL: push_escape('${layer}') on a shell that is gone: Escape will not close it`);
         return;
     }
-    priv.escape_stack.push({ layer: layer, handler: handler });
+    priv.escape_seq += 1;
+    priv.escape_stack.push({ layer: layer, handler: handler, seq: priv.escape_seq });
 }
 
 function pop_escape(gobj, handler)
@@ -4430,6 +4462,27 @@ function yui_shell_pop_escape(shell_gobj, handler)
     pop_escape(shell_gobj, handler);
 }
 
+/*  The order of the overlay Escape closes first (the top of the
+ *  stack), 0 when there is none.  The orders only grow, so a window
+ *  that kept the answer when it opened knows, at its own Escape,
+ *  whether an overlay was opened after it -- and yields the key to
+ *  the shell, which closes that overlay first:
+ *
+ *      priv.escape_order = yui_shell_escape_order(shell);   // opened
+ *      ...
+ *      if(yui_shell_escape_order(shell) > priv.escape_order) {
+ *          return;     // not mine: the shell's
+ *      }
+ */
+function yui_shell_escape_order(shell_gobj)
+{
+    let priv = shell_gobj && shell_gobj.priv;
+    if(!priv || !priv.escape_stack || priv.escape_stack.length === 0) {
+        return 0;
+    }
+    return priv.escape_stack[priv.escape_stack.length - 1].seq;
+}
+
 /*  Overlay history integration — public API for overlays the shell does
  *  not own (modals from shell_modals.js, floating C_YUI_WINDOW popups).
  *
@@ -4819,6 +4872,7 @@ export {
     yui_shell_toggle_drawer,
     yui_shell_push_escape,
     yui_shell_pop_escape,
+    yui_shell_escape_order,
     yui_shell_register_overlay,
     yui_shell_overlay_dismissed,
     yui_shell_unpark_route,

@@ -1922,6 +1922,8 @@ function render_diagram(gobj)
  *  its own node click, which it publishes from inside G6's dispatch
  *  of that click: stopped there, the gobj went from under its own
  *  publication and the G6 graph from under its own event.
+ *  It is not heard from the moment it leaves: what it published in
+ *  that turn reached the editor as the current drawing's.
  ***************************************************************/
 function destroy_diagram(gobj)
 {
@@ -1937,6 +1939,7 @@ function destroy_diagram(gobj)
     if($d && $d.parentNode) {
         $d.parentNode.removeChild($d);
     }
+    gobj_unsubscribe_event(diagram, null, {}, gobj);
     priv.retired_diagrams.push(diagram);
     if(priv.retired_diagrams.length === 1) {
         gobj_post_event(gobj, "EV_DESTROY_DIAGRAMS", {}, gobj);

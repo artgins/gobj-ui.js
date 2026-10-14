@@ -155,6 +155,49 @@ describe("deploy-round: the range and the version", () => {
         expect([read(a).version, read(b).version, read(common).version]).toEqual(["0.7.1", "0.8.1", "0.5.1"]);
     });
 
+    test("a range found already raised says so: the version is what was raised, not the range", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let hand = consumer(root, "hand", "4.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+        edit(hand, (p) => {
+            p.dependencies["@yuneta/gobj-ui"] = `^${VERSION}`;
+        });
+        let r = round(root, {name: "hand", path: hand});
+        expect(read(hand).version).toBe("4.0.1");
+        expect(r.out).toContain(`range  already ^${VERSION}, version raised  (${join(hand, "package.json")})`);
+        expect(r.out).not.toMatch(/range {2}raised/);
+    });
+
+    test("a commit that only REFORMATS the range is not the one that brought it: a round run again raises nothing", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let dir = consumer(root, "fmt", "6.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+        round(root, {name: "fmt", path: dir});
+        expect(read(dir).version).toBe("6.0.1");
+        commit(dir, "the round");
+        writeFileSync(join(dir, "package.json"), JSON.stringify(read(dir), null, 2) + "\n");
+        commit(dir, "indented by two");
+        let r = round(root, {name: "fmt", path: dir});
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(dir).version).toBe("6.0.1");
+    });
+
+    test("a SHALLOW clone is refused: the commit before the one that brought the range is not there to read", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let full = consumer(root, "full", "7.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+        edit(full, (p) => {
+            p.dependencies["@yuneta/gobj-ui"] = `^${VERSION}`;
+        });
+        commit(full, "raised by hand, the version left");
+        let shallow = join(root, "shallow");
+        execFileSync("git", ["clone", "-q", "--depth", "1", `file://${full}`, shallow]);
+        let r = round(root, {name: "shallow", path: shallow});
+        expect(r.out).toMatch(/cannot tell whether its version was raised with the range \(a shallow clone/);
+        expect(r.out).toMatch(/FAILED in this round/);
+        expect(read(shallow).version).toBe("7.0.0");
+        /*  ...the full history of the same commit raises the version  */
+        r = round(root, {name: "full", path: full});
+        expect(read(full).version).toBe("7.0.1");
+    });
+
     test("a range already raised is held to the same rules: a version that is not x.y.z refuses the app", () => {
         let root = mkdtempSync(join(tmpdir(), "dr-"));
         let dir = consumer(root, "tmpl", "{{version}}", {"@yuneta/gobj-ui": `^${VERSION}`}, true);

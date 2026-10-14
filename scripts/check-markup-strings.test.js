@@ -119,5 +119,30 @@ describe("check-markup-strings", () => {
         expect(missing.stderr).toContain("no such file or directory");
         expect(missing.stderr).not.toContain("    at ");
     });
+
+    test("as a command: a long list of findings reaches a reader that reads it late, whole (exit 1)", async () => {
+        const {spawn} = await import("node:child_process");
+        const {fileURLToPath} = await import("node:url");
+        const script = fileURLToPath(new URL("./check-markup-strings.mjs", import.meta.url));
+        const dir = mkdtempSync(join(tmpdir(), "cms-long-"));
+        let lines = [];
+        for(let i = 0; i < 6000; i++) {
+            lines.push(`x(['span', {}, '<b>a line of markup long enough to fill a pipe ${i}</b>']);`);
+        }
+        writeFileSync(join(dir, "many.js"), lines.join("\n"));
+        /*  A pipe holds 64 KB: up to gobj-ui 7.26.44 process.exit() dropped the rest  */
+        const child = spawn(process.execPath, [script, dir], {cwd: tmpdir(), stdio: ["ignore", "pipe", "pipe"]});
+        child.stdout.pause();
+        const closed = new Promise((resolve) => child.on("close", resolve));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        let out = "";
+        child.stdout.on("data", (d) => {
+            out += d;
+        });
+        child.stdout.resume();
+        child.stderr.resume();
+        expect(await closed).toBe(1);
+        expect((out.match(/many\.js:\d+: literal:/g) || []).length).toBe(6000);
+    }, 30000);
 });
 

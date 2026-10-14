@@ -132,7 +132,7 @@ SDATA(data_type_t.DTP_STRING,   "pkey",             0,  "id",   "Primary key fie
 SDATA(data_type_t.DTP_STRING,   "topic_name",       0,  "",     "Treedb topic name: labels use the i18n cascade '<topic>.<col>' -> '<col>' -> header (like table headers)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",         0,  false,  "Default is editable, set false to readonly"),
 SDATA(data_type_t.DTP_BOOLEAN,  "readonly",         0,  false,  "Show EVERY field read-only, whatever its schema says: a record being LOOKED at, not edited. Independent of `editable`, which drives the TABLE rendering; this one drives the FORM"),
-SDATA(data_type_t.DTP_BOOLEAN,  "selectable",       0,  true,   "Rows selectable with 'click' (BAD with editable=true)"),
+SDATA(data_type_t.DTP_BOOLEAN,  "selectable",       0,  true,   "A click selects a row, when tabulator_settings selects rows (selectableRows)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_rownum",      0,  false,  "Print first column with row number"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_row_btn", 0,  false, "Print last column with delete row button"),
@@ -614,6 +614,22 @@ function destroy_widget(gobj, what, widget)
 }
 
 /************************************************************
+ *  Close the cell editor a table has open, dropping what is
+ *  typed in it, before its rows are wiped. Tabulator 6.6.0
+ *  closes it while it wipes them, and the redraw that follows
+ *  walks the rows already wiped: a reload, a Clear or a destroy
+ *  with an editor open in any row but the first threw, and left
+ *  the table half wiped.
+ ************************************************************/
+function close_table_editor(tabulator)
+{
+    let edit = tabulator.modules? tabulator.modules.edit : null;
+    if(edit && edit.currentCell) {
+        edit.cancelEdit();
+    }
+}
+
+/************************************************************
  *  A table element that is gone: its identity is no table now,
  *  and what was waiting to be loaded in it never will be.
  ************************************************************/
@@ -639,6 +655,7 @@ function destroy_row_tables(gobj, $row)
     $row.yui_nested = null;
     for(let $nested of nested) {
         if($nested.tabulator) {
+            close_table_editor($nested.tabulator);
             destroy_rows_tables(gobj, $nested.tabulator);
             destroy_widget(gobj, "nested table", $nested.tabulator);
             $nested.tabulator = null;
@@ -677,6 +694,7 @@ function destroy_widgets(gobj, $container)
             $el.jsoneditor = null;
         }
         if($el.tabulator) {
+            close_table_editor($el.tabulator);
             destroy_rows_tables(gobj, $el.tabulator);
             destroy_widget(gobj, "table", $el.tabulator);
             $el.tabulator = null;
@@ -2222,7 +2240,8 @@ function create_coordinates(gobj, attrs)
  *  Create tabulator
  *
  *  A row builds its nested tables the first time it is drawn, each
- *  loaded from the row's own data, and keeps them on its element
+ *  BUILT with the rows of the row's own data (`rows`, a copy: the
+ *  table keeps what it is given), and keeps them on its element
  *  (`yui_nested`) until the row goes (destroy_row_tables). A row
  *  drawn AGAIN -- a forced redraw, a column rebuilt -- has its
  *  children taken off by Tabulator before its formatter runs: they
@@ -2233,31 +2252,35 @@ function create_coordinates(gobj, attrs)
  *  `tableBuilt`, ONE per table (`yui_pending_rows`): a later load
  *  replaces it, a clear drops it. Each load used to hang a listener
  *  of its own, so two loads before the build drew the rows twice.
+ *
+ *  A nested table is not loaded after it is built, as the form's
+ *  own tables are (EV_LOAD_TABLE_ROWS): each such load laid it out
+ *  twice and redrew it once more, and with a nested table per row
+ *  that was most of the time of a load.
+ *
+ *  A table selects rows only when a host sets `selectableRows` (true
+ *  or a number) in `tabulator_settings`. Tabulator's SelectRow then
+ *  toggles a row on its own click, asking `selectableRowsCheck` --
+ *  the form's `selectable` -- first. Up to 7.26.44 the form toggled
+ *  the row again in `rowClick`, which undid every click. The default
+ *  `"highlight"` is left as it is, hover and all.
  ******************************************************************/
-function create_tabulator(gobj, $extend, name, template)
+function create_tabulator(gobj, $extend, name, template, rows)
 {
-    /*  A click selects a row only when the form is `selectable` AND its
-     *  table selects rows (`selectableRows`, off unless a host sets it in
-     *  `tabulator_settings`): toggleSelect() on a table that does not
-     *  select throws.  */
-    function get_selectable_state(row) {
-        let selectable_rows = tabulator.options.selectableRows;
-        return gobj_read_bool_attr(gobj, "selectable") &&
-            (selectable_rows === true || typeof selectable_rows === "number");
-    }
-
     $extend.template = template;
 
     let tabulator_settings = json_deep_copy(gobj_read_attr(gobj, "tabulator_settings"));
+    if(is_array(rows) && rows.length > 0) {
+        tabulator_settings.data = json_deep_copy(rows);
+    }
 
-    Object.assign(tabulator_settings, {
-        /*
-         *  HACK initially must be true, else doesn't work.
-         *  Later could be set to false
-         */
-        // selectableRows: true, // Rows selected with click, if selectableRowsCheck() return true
-        //selectableRowsCheck: get_selectable_state,
-    });
+    /*  Tabulator toggles the row on its own click: `selectable` only vetoes  */
+    let selectable_rows = tabulator_settings.selectableRows;
+    if(selectable_rows === true || typeof selectable_rows === "number") {
+        tabulator_settings.selectableRowsCheck = function() {
+            return gobj_read_bool_attr(gobj, "selectable");
+        };
+    }
 
     let columns = [];
     if(gobj_read_bool_attr(gobj, "with_rownum")) {
@@ -2294,13 +2317,12 @@ function create_tabulator(gobj, $extend, name, template)
                     }
                 ];
                 let $extend = createElement2(extend);
+                let rows = data[sub_element.name];
                 $extend.tabulator = create_tabulator(
-                    gobj, $extend, sub_element.name, sub_element.template
+                    gobj, $extend, sub_element.name, sub_element.template, rows
                 );
                 $row.appendChild($extend);
                 $row.yui_nested.push($extend);
-                let rows = data[sub_element.name];
-                load_tabulator_data(gobj, $extend, is_array(rows)? rows : []);
             }
         };
     }
@@ -2395,20 +2417,12 @@ function create_tabulator(gobj, $extend, name, template)
         //e - the click event object
         //row - row component
         e.preventDefault();
-        if(get_selectable_state(row)) {
-            row.toggleSelect();
-        }
     });
 
     tabulator.on("cellClick", function(e, cell) {
         //e - the click event object
         //cell - cell component
         e.preventDefault();
-        let row = cell.getRow();
-        // if(get_selectable_state(row)) {
-        //     // cannot set at same time with rowClick, one select and other de-select
-        //     row.toggleSelect();
-        // }
     });
 
     return tabulator;
@@ -3142,6 +3156,7 @@ function clear_data(gobj, $form)
     $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
         $table.yui_pending_rows = null;
         if($table.tabulator.initialized) {
+            close_table_editor($table.tabulator);
             destroy_rows_tables(gobj, $table.tabulator);
             $table.tabulator.clearData();
         }

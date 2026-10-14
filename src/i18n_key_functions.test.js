@@ -957,7 +957,11 @@ function table_errors(found, table = I18N_KEY_FUNCTIONS)
  *  function whose own fallbacks are positions of this one, handed
  *  there with it (`{...it}`, not `{id: it.id}`, which drops them). A
  *  fallback the code does not show would let the validator skip a key
- *  the function asks for.
+ *  the function asks for. And the other way round: a position the code
+ *  reads first at EVERY such place is named, or the validator asks for
+ *  the position where the function never reads it (the toolbar brand's
+ *  id, behind its aria_label and name, was listed behind its aria_label
+ *  alone up to gobj-ui 7.26.44).
  */
 function fallback_errors(table = I18N_KEY_FUNCTIONS, asts = ast_of)
 {
@@ -993,6 +997,7 @@ function fallback_errors(table = I18N_KEY_FUNCTIONS, asts = ast_of)
         return guards;
     };
     let modules = [...new Set(table.filter((e) => e.fallbacks).map((e) => e.module))];
+    let read_first = new Map();     // "<name>\n<position>" -> {e, pos, guards read first at every place}
     for(let module of modules) {
         let ast = asts(module);
         let entries = table.filter((e) => e.module === module && e.fallbacks);
@@ -1028,9 +1033,25 @@ function fallback_errors(table = I18N_KEY_FUNCTIONS, asts = ast_of)
                                  `is read without reading [${lacking.join(", ")}] first: its \`fallbacks\` in ` +
                                  `I18N_KEY_FUNCTIONS say otherwise`);
                     }
+                    let id = `${e.name}\n${pos}`;
+                    let seen = read_first.get(id);
+                    read_first.set(id, {e, pos, guards: seen? new Set([...seen.guards].filter((g) => guards.has(g))) : guards});
                 }
             }
         }
+        /*  ...and names every one the code reads first at EVERY place: one
+         *  it leaves out makes the validator ask for the position where the
+         *  function never reads it  */
+        for(let {e, pos, guards} of read_first.values()) {
+            let parent = pos.slice(0, pos.lastIndexOf(".") + 1);
+            let unnamed = [...guards].filter((g) => !e.fallbacks[pos].includes(g) && e.keys.includes(g)
+                && g.startsWith(parent) && !g.slice(parent.length).includes("."));
+            if(unnamed.length > 0) {
+                out.push(`${module} ${e.name}() reads [${unnamed.join(", ")}] before [${pos}] wherever it hands ` +
+                         `[${pos}] to a place a key is read: its \`fallbacks\` in I18N_KEY_FUNCTIONS do not say so`);
+            }
+        }
+        read_first.clear();
     }
     return [...new Set(out)];
 }
@@ -1114,7 +1135,18 @@ describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
             Object.assign({}, e, {fallbacks: {"0.id": ["0.name", "0.aria_label", "0.tooltip"]}}));
         expect(fallback_errors(wider)).toEqual([
             `${module}:55 card_descriptor() hands [0.id] to a place a key is read without reading [0.tooltip] ` +
-            `first: its \`fallbacks\` in I18N_KEY_FUNCTIONS say otherwise`
+            `first: its \`fallbacks\` in I18N_KEY_FUNCTIONS say otherwise`,
+            `${module} cards_grid_descriptor() reads [0[].tooltip] before [0[].id] wherever it hands [0[].id] ` +
+            `to a place a key is read: its \`fallbacks\` in I18N_KEY_FUNCTIONS do not say so`
+        ]);
+        /*  A fallback the code reads first and the table leaves out  */
+        let narrower = I18N_KEY_FUNCTIONS.map((e) => (e.name !== "card_descriptor")? e :
+            Object.assign({}, e, {fallbacks: {"0.id": ["0.aria_label"]}}));
+        expect(fallback_errors(narrower)).toEqual([
+            `${module}:94 cards_grid_descriptor() hands [0[].id] to a place a key is read without reading ` +
+            `[0[].name] first: its \`fallbacks\` in I18N_KEY_FUNCTIONS say otherwise`,
+            `${module} card_descriptor() reads [0.name] before [0.id] wherever it hands [0.id] ` +
+            `to a place a key is read: its \`fallbacks\` in I18N_KEY_FUNCTIONS do not say so`
         ]);
         let code = readFileSync(join(SRC, module), "utf8");
         let plain = code.replace('"data-disabled": it.disabled ? "1" : "0",',
@@ -1238,7 +1270,9 @@ describe("the reader never gives up on the library", () => {
         lines.push(`function f() { return t(K24); }`);
         let ast = parse_as(lines.join("\n"), "x.js");
         scan_ast(ast, {lib_module: "x.js"});
-        expect(gave_up(ast).map((g) => `${g.line} ${g.text}`)).toEqual([`1 "far"`]);
+        /*  At the read, and past where it went  */
+        expect(gave_up(ast).map((g) => `${g.line} ${g.text} past ${g.past.line} ${g.past.text}`))
+            .toEqual([`26 K24 past 1 "far"`]);
     });
 });
 

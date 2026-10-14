@@ -94,6 +94,28 @@ describe("the saved rect of a window is whole pixels", () => {
         expect(errors()).toEqual([]);
     });
 
+    test("an entry that is not a rect is said, and the window opens where it would", () => {
+        window.localStorage.setItem("rect_bad-rect", JSON.stringify({x: 10, y: "20", width: 400}));
+        logged.length = 0;
+        const win = gobj_create_service("rect_bad", "C_YUI_WINDOW", {
+            header: "bad", body: ["div", {}, "bad"], auto_save_size_and_position: true,
+            x: 5, y: 6, width: 300, height: 200,
+        }, yuno);
+        gobj_start(win);
+        expect(attrs_rect(win)).toEqual({x: 5, y: 6, width: 300, height: 200});
+        const warned = logged.filter((l) => l.level === "warning" && l.msg.includes("rect_bad-rect"));
+        expect(warned.length, "the bad entry is said").toBe(1);
+        expect(errors()).toEqual([]);
+
+        /*  No entry at all is nothing to say.  */
+        logged.length = 0;
+        const fresh = gobj_create_service("rect_none", "C_YUI_WINDOW", {
+            header: "none", body: ["div", {}, "none"], auto_save_size_and_position: true,
+        }, yuno);
+        gobj_start(fresh);
+        expect(logged.filter((l) => l.msg.includes("rect_none-rect"))).toEqual([]);
+    });
+
     test("a move saves whole pixels, and writes them into the attrs", () => {
         const win = gobj_create_service("rect_move", "C_YUI_WINDOW", {
             header: "move", body: ["div", {}, "move"], auto_save_size_and_position: true,

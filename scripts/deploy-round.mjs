@@ -55,8 +55,10 @@
  *          when nobody raised it with the range -- a range raised by hand,
  *          committed or not -- and leaves it when the version moved with
  *          it (the round run twice, or a package.json two apps share): the
- *          git history of the package.json says which. One whose history
- *          cannot be read is refused. Up to gobj-ui 7.26.42 "already" was
+ *          git history of the package.json says which: the version
+ *          before the commit whose parent had ANOTHER range. One whose
+ *          history cannot be read is refused, a shallow clone too (it may
+ *          not hold that parent). Up to gobj-ui 7.26.42 "already" was
  *          taken as done, and a range raised by hand went out in a new
  *          bundle under the old number.
  *
@@ -295,7 +297,8 @@ function specs_of(text)
 
 /************************************************************
  *  What raising the range of one package.json would write, checked
- *  and not written: {f, after (null: nothing to write), notes}, or
+ *  and not written: {f, after (null: nothing to write), range_raised
+ *  (false: only the version moves, or nothing), notes}, or
  *  an Error thrown for a file it cannot raise safely. `bump`: raise
  *  the package's own version too. A template's file has a marker for
  *  a version, and is raised without.
@@ -337,16 +340,16 @@ function plan_raise(f, bump)
     let after = before.replace(re, `$1^${VERSION}$2`);
     if(after === before) {
         if(!bump || version_raised_with_range(f)) {
-            return {f, after: null, notes: []};
+            return {f, after: null, range_raised: false, notes: []};
         }
         const b = bump_patch_version(f, before);
-        return {f, after: b.text, notes: [`${b.note}, raised by hand without its version`]};
+        return {f, after: b.text, range_raised: false, notes: [`${b.note}, raised by hand without its version`]};
     }
     if(!bump) {
-        return {f, after, notes: []};
+        return {f, after, range_raised: true, notes: []};
     }
     const b = bump_patch_version(f, after);
-    return {f, after: b.text, notes: [b.note]};
+    return {f, after: b.text, range_raised: true, notes: [b.note]};
 }
 
 /************************************************************
@@ -382,11 +385,18 @@ function bump_patch_version(f, text)
  *      first one;
  *    - it is committed: raised with it when the version differs from
  *      the one before the commit that brought the range (a package.json
- *      born with the range carries a version of its own).
+ *      born with the range carries a version of its own). The commit
+ *      that brought it is the newest one whose parent has ANOTHER
+ *      range: a commit that only reformats the line touches it too, and
+ *      up to gobj-ui 7.26.44 it was taken for the one, so a round run
+ *      again raised the version a second time.
  *
  *  A version that is not x.y.z, or a history it cannot read, refuses
  *  the app: "already" would deploy a new bundle under a number that
- *  may be the old one.
+ *  may be the old one. A SHALLOW clone is such a history: the commit
+ *  before the one that brought the range may not be there, and up to
+ *  gobj-ui 7.26.44 a parent missing was taken for "born with the
+ *  range" -- a range raised by hand went out under the old number.
  ************************************************************/
 function version_raised_with_range(f)
 {
@@ -398,24 +408,32 @@ function version_raised_with_range(f)
     }
     const git = (git_args) => run("git", git_args, dir);
     try {
+        const raised = (text) => {
+            const specs = specs_of(text);
+            return specs.length > 0 && specs.every((spec) => spec === `^${VERSION}`);
+        };
         const head = git(["show", `HEAD:${rel}`]);
-        const head_specs = specs_of(head);
-        if(head_specs.length === 0 || head_specs.some((spec) => spec !== `^${VERSION}`)) {
+        if(!raised(head)) {
             return version !== JSON.parse(head).version;
         }
+        if(git(["rev-parse", "--is-shallow-repository"]).trim() !== "false") {
+            throw new Error("a shallow clone: the history of the range is cut");
+        }
         const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const brought = git(["log", "-1", "--format=%H", "-G",
-                             `"${esc(PKG_NAME)}":[[:space:]]*"${esc("^" + VERSION)}"`, "--", rel]).trim();
-        if(!brought) {
-            throw new Error("no commit brought the range");
+        const touching = git(["log", "--format=%H", "-G",
+                              `"${esc(PKG_NAME)}":[[:space:]]*"${esc("^" + VERSION)}"`, "--", rel])
+            .split("\n").filter((h) => h.length > 0);
+        for(const commit of touching) {
+            const parents = git(["rev-list", "--parents", "-n", "1", commit]).trim().split(" ");
+            if(parents.length < 2 || git(["ls-tree", "--name-only", `${commit}^`, "--", rel]).trim() === "") {
+                return true;    // born with the range: no number of it went out with another one
+            }
+            const before = git(["show", `${commit}^:${rel}`]);
+            if(!raised(before)) {
+                return version !== JSON.parse(before).version;
+            }
         }
-        let before;
-        try {
-            before = git(["show", `${brought}^:${rel}`]);
-        } catch(e) {
-            return true;        // born with the range: no number of it went out with another one
-        }
-        return version !== JSON.parse(before).version;
+        throw new Error("no commit brought the range");
     } catch(e) {
         throw new Error(`${f}: its range is already ^${VERSION}, and the round cannot tell whether its ` +
                         `version was raised with the range (${String(e.message).split("\n")[0]}) -- ` +
@@ -469,7 +487,9 @@ function do_round(c)
                 if(p.after !== null) {
                     write_file(p.f, p.after);
                 }
-                console.log(`    range  ${p.after !== null? "raised" : "already"} ^${VERSION}  (${p.f})`);
+                const range = p.range_raised? "raised" : "already";
+                const and_version = (!p.range_raised && p.after !== null)? ", version raised" : "";
+                console.log(`    range  ${range} ^${VERSION}${and_version}  (${p.f})`);
             }
             if(c.install !== false) {
                 for(const d of dirs) {
@@ -623,4 +643,4 @@ for(const entry of done) {
     }
 }
 console.log("");
-process.exit(bad? 1 : 0);
+process.exitCode = bad? 1 : 0;

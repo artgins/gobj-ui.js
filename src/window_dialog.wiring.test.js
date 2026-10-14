@@ -52,7 +52,7 @@ const {
     gobj_start, gobj_read_attr, gobj_is_destroying, gobj_send_event,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
-const {register_c_yui_shell} = await import("./c_yui_shell.js");
+const {register_c_yui_shell, yui_shell_push_escape, yui_shell_pop_escape} = await import("./c_yui_shell.js");
 const {register_c_yui_window} = await import("./c_yui_window.js");
 const {register_c_yui_window_manager} = await import("./c_yui_window_manager.js");
 
@@ -338,6 +338,41 @@ describe("a window the reader did not open", () => {
             $of(win).querySelector(".WINDOW_CLOSE").click();
         });
     });
+
+    /*  Every overlay that holds the focus (a modal, a dialog, a drawer,
+     *  a menu) is drawn above the window layer: a window opened under
+     *  one took the focus where it could not be seen, and the next Tab
+     *  gave it back to the overlay.  */
+    test("one opened under a modal leaves the focus in the modal; it is there when the modal goes", () => {
+        const $opener = document.createElement("button");
+        document.body.appendChild($opener);
+        $opener.focus();
+        with_activation(true, () => {
+            const modal = open_window({modal: true});
+            const $field = $of(modal).querySelector(".TEST_FIRST");
+            $field.focus();
+            const win = open_window();
+            expect(document.activeElement === $field, "the focus stays in the modal").toBe(true);
+            expect($of(win).parentNode === shell.priv.window_layer ||
+                $of(win).parentNode === shell.priv.layers.overlay, "under the modal, in the window layer").toBe(true);
+
+            $of(modal).querySelector(".WINDOW_CLOSE").click();
+            expect(document.activeElement === $opener, "the focus is back on the opener").toBe(true);
+            expect(gobj_is_destroying(win)).toBe(false);
+            $of(win).querySelector(".WINDOW_CLOSE").click();
+        });
+        $opener.remove();
+    });
+
+    test("one opened in a modal's own body takes the focus", () => {
+        with_activation(true, () => {
+            const modal = open_window({modal: true});
+            const win = open_window({$parent: $of(modal).querySelector(".TEST_BODY")});
+            expect(document.activeElement === $of(win), "the focus is in the window").toBe(true);
+            $of(win).querySelector(".WINDOW_CLOSE").click();
+            $of(modal).querySelector(".WINDOW_CLOSE").click();
+        });
+    });
 });
 
 describe("Escape", () => {
@@ -410,6 +445,50 @@ describe("Escape", () => {
         expect(gobj_is_destroying(win)).toBe(false);
         expect(actions_run.filter((a) => a.event === "EV_CLOSE_WINDOW")).toEqual([]);
         $c.querySelector(".WINDOW_CLOSE").click();
+    });
+});
+
+describe("Escape, with an overlay of the shell open", () => {
+    /*  The window stops the key at its container, so the shell's own
+     *  Escape (an overlay stack, LIFO, heard on `window`) never saw
+     *  it: with the focus in the window, an overlay opened AFTER it --
+     *  the toolbar's user menu -- stayed open, and the window under
+     *  it closed.  */
+    test("one opened after the window is closed first; the window is next", () => {
+        const win = open_window();
+        const $input = $of(win).querySelector(".TEST_FIRST");
+        let overlay_open = true;
+        const close_overlay = () => {
+            overlay_open = false;
+            yui_shell_pop_escape(shell, close_overlay);
+        };
+        yui_shell_push_escape(shell, "popup", close_overlay);
+        $input.focus();
+
+        let ev = press($input, "Escape");
+        expect(overlay_open, "the overlay closed").toBe(false);
+        expect(gobj_is_destroying(win)).toBe(false);
+        expect(ev.defaultPrevented).toBe(true);
+
+        press($input, "Escape");
+        expect(gobj_is_destroying(win)).toBe(true);
+    });
+
+    test("one opened before the window stays: the window is closed first", () => {
+        let overlay_open = true;
+        const close_overlay = () => {
+            overlay_open = false;
+            yui_shell_pop_escape(shell, close_overlay);
+        };
+        yui_shell_push_escape(shell, "popup", close_overlay);
+        const win = open_window();
+        const $input = $of(win).querySelector(".TEST_FIRST");
+        $input.focus();
+
+        press($input, "Escape");
+        expect(gobj_is_destroying(win)).toBe(true);
+        expect(overlay_open, "the overlay is still open").toBe(true);
+        close_overlay();
     });
 });
 

@@ -623,7 +623,8 @@ function translate_own_dom(gobj, $el)
  *  A render can come from a click on one of them -- the active item
  *  clicked again is a navigation to the same hash, done in the same
  *  turn -- and that nav is still inside its publication of
- *  EV_NAV_CLICKED.
+ *  EV_NAV_CLICKED. They are not heard from the moment they leave:
+ *  what one published in that turn was taken as the current nav's.
  ************************************************************/
 function clear_navs(gobj)
 {
@@ -637,6 +638,7 @@ function clear_navs(gobj)
         if($nav && $nav.parentNode) {
             $nav.parentNode.removeChild($nav);
         }
+        gobj_unsubscribe_event(nav, null, {}, gobj);
         priv.retired_navs.push(nav);
     }
     priv.navs = [];

@@ -46,7 +46,8 @@ import {
     parse_source,
     prop_name,
     collect_used_keys,
-    violation_count
+    violation_count,
+    Abort
 } from "../../scripts/validate-locales.mjs";
 
 const SRC = new URL("../src/", import.meta.url);
@@ -145,11 +146,21 @@ function main()
     }
 
     if(errors > 0) {
+        /*  exitCode, not process.exit(): a long list written to a pipe is
+         *  still on its way, and process.exit() cuts it short  */
         process.stderr.write(`validate-locales: ${errors} violation(s), see above\n`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
     }
     process.stdout.write(`validate-locales: OK (${es.size} es keys, ${en.size} en keys, ` +
         `${keys.size} used in the source, ${lib_keys.size} of them by the library)\n`);
 }
 
-main();
+try {
+    main();
+} catch(e) {
+    /*  A fatal problem of the setup: already said, exitCode already 1  */
+    if(!(e instanceof Abort)) {
+        throw e;
+    }
+}
