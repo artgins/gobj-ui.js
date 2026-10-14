@@ -238,7 +238,7 @@ vi.mock("tabulator-tables", () => {
 const {
     SDATA_END, gclass_create,
     gobj_start_up, gobj_create_yuno, gobj_create_pure_child,
-    gobj_start, gobj_stop, gobj_destroy, gobj_send_event, gobj_read_attr,
+    gobj_start, gobj_stop, gobj_destroy, gobj_send_event, gobj_read_attr, gobj_write_attr,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_form} = await import("./c_yui_form.js");
@@ -603,6 +603,154 @@ describe("a click on a row", () => {
     });
 });
 
+/*  Tabulator 6.6.0's row checkbox goes through `selectableRowsCheck`
+ *  (toggleRow), but the box ticks on its own first, so a refused
+ *  toggle leaves it ticked over a row that is not selected; and its
+ *  header box calls selectRow(), which asks no check at all and
+ *  selects every row. Checked in Chromium: with `selectable: false`
+ *  the row box ticked and selected nothing, the header selected every
+ *  row; and with the default `selectableRows` ("highlight") the
+ *  `selectable` of the form was not asked at all.  */
+describe("the checkbox column", () => {
+    test("is not drawn when the form is not selectable", async () => {
+        const {first} = build(record(), null, {with_checkbox: true, selectable: false});
+        await settle();
+        const alarms = alarms_of(first);
+        expect(alarms.settings.rowHeader).toBeUndefined();
+        expect(triggers_of(alarms, 0).settings.rowHeader).toBeUndefined();
+        expect(errors()).toEqual([]);
+    });
+
+    test("is drawn when it is, and every toggle asks the form's `selectable`", async () => {
+        const {form, first} = build(record(), null, {with_checkbox: true});
+        await settle();
+        const alarms = alarms_of(first);
+        expect(alarms.settings.rowHeader.formatter).toBe("rowSelection");
+        expect(typeof alarms.settings.selectableRowsCheck).toBe("function");
+        expect(alarms.settings.selectableRowsCheck()).toBe(true);
+        gobj_write_attr(form, "selectable", false);
+        expect(alarms.settings.selectableRowsCheck()).toBe(false);
+        expect(errors()).toEqual([]);
+    });
+});
+
+/*  A cell half typed: Tabulator says `dataChanged` only when its editor
+ *  commits, and a host that reloads the form by code asks `edited`
+ *  first -- the reload dropped what was typed without a question.  */
+describe("typing in a cell editor", () => {
+    /*  The document double does not bubble: the event is handed to the
+     *  table's element with the box as its target, as a browser does.  */
+    function type_in(alarms, $box)
+    {
+        alarms.element.dispatchEvent({type: "input", target: $box, bubbles: true});
+    }
+
+    function editing_box($row, editing)
+    {
+        const $cell = document.createElement("div");
+        $cell.className = editing ? "tabulator-cell tabulator-editing" : "tabulator-col";
+        const $box = document.createElement("input");
+        $cell.appendChild($box);
+        $row.appendChild($cell);
+        return $box;
+    }
+
+    test("is `edited` at once, before the editor commits", async () => {
+        const {form, first} = build(record());
+        await settle();
+        const alarms = alarms_of(first);
+        expect(gobj_read_attr(form, "edited")).toBe(false);
+        type_in(alarms, editing_box(alarms.rows[0].$row, true));
+        expect(gobj_read_attr(form, "edited")).toBe(true);
+        expect(errors()).toEqual([]);
+    });
+
+    test("but not a box that edits no cell (a header filter)", async () => {
+        const {form, first} = build(record());
+        await settle();
+        const alarms = alarms_of(first);
+        type_in(alarms, editing_box(alarms.element, false));
+        expect(gobj_read_attr(form, "edited")).toBe(false);
+    });
+});
+
+/*  A time column was edited by Tabulator's `datetime` with a `format`,
+ *  which needs luxon, which nobody gives gobj-ui: in Chromium it said
+ *  "'date' editor 'format' param is dependant on luxon.js", opened
+ *  empty, and threw when committed.  */
+describe("a time column of a table", () => {
+    test("is edited by the form's own editor, which needs no luxon", async () => {
+        const first = tables.length;
+        const app = gobj_create_pure_child(`trapp${++seq}`, "C_TEST_TR_APP", {}, yuno);
+        gobj_start(app);
+        const form = gobj_create_pure_child(`trform${seq}`, "C_YUI_FORM", {
+            template: {
+                events: {
+                    type: "array",
+                    flag: ["writable", "persistent", "table"],
+                    table: {
+                        when: {type: "integer", flag: ["writable", "persistent", "time"]}
+                    }
+                }
+            },
+            record: {events: [{when: 1700000000}]},
+            editable: true,
+        }, app);
+        gobj_start(form);
+        await settle();
+        const column = tables[first].settings.columns.find((c) => c.field === "when");
+        expect(typeof column.editor).toBe("function");
+        const params = column.editorParams({getValue: () => 1700000000});
+        expect(params.format).toBeUndefined();
+        expect(params.elementAttributes["aria-label"]).toBe("when");
+        expect(params.elementAttributes.title).toBe("when");
+        gobj_stop(form);
+        gobj_destroy(form);
+        expect(errors()).toEqual([]);
+    });
+});
+
+/*  A click in a nested table is the nested table's: it bubbled up to
+ *  the row that holds it, and Tabulator 6.6.0's SelectRow -- listening
+ *  on that row's element -- toggled the outer row too (Chromium). So
+ *  does a Shift+press, which starts its range selection.  */
+describe("a click in a nested table", () => {
+    function event(type, init)
+    {
+        let stopped = 0;
+        const ev = Object.assign({
+            type: type,
+            bubbles: true,
+            preventDefault() {
+            },
+            stopPropagation() {
+                stopped++;
+            },
+        }, init || {});
+        return {ev, stopped: () => stopped};
+    }
+
+    test("does not reach the row that holds the table", async () => {
+        const {first} = build(record(), null, {tabulator_settings: {selectableRows: true}});
+        await settle();
+        const $nested = alarms_of(first).rows[0].$row.querySelector(".yui-tabulator-table-nested");
+
+        const click = event("click");
+        $nested.dispatchEvent(click.ev);
+        expect(click.stopped()).toBe(1);
+
+        const shift_press = event("mousedown", {shiftKey: true});
+        $nested.dispatchEvent(shift_press.ev);
+        expect(shift_press.stopped()).toBe(1);
+
+        /*  A plain press goes on: what closes a popup listens for it.  */
+        const press = event("mousedown", {shiftKey: false});
+        $nested.dispatchEvent(press.ev);
+        expect(press.stopped()).toBe(0);
+        expect(errors()).toEqual([]);
+    });
+});
+
 describe("a cell editor open while its table goes", () => {
     function warnings()
     {
@@ -641,5 +789,20 @@ describe("a cell editor open while its table goes", () => {
         gobj_destroy(form);
         expect(live() - before).toBe(0);
         expect(warnings()).toEqual([]);
+    });
+
+    /*  The guard reads Tabulator's edit module, which is no public
+     *  API: a Tabulator that moved it would leave the guard doing
+     *  nothing, and the crash back. That is said.  */
+    test("a Tabulator with no edit module is said, not trusted", async () => {
+        const {form, first} = build(record());
+        await settle();
+        const alarms = alarms_of(first);
+        alarms.modules.edit = {editingCell: false, cancel: () => {}};     /*  renamed  */
+        gobj_send_event(form, "EV_LOAD_RECORD", record(), form);
+        await settle();
+        const said = warnings().map((l) => l.msg);
+        expect(said.length).toBe(1);
+        expect(said[0]).toContain("has no modules.edit.currentCell/cancelEdit()");
     });
 });

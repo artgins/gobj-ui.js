@@ -105,6 +105,7 @@ describe("the saved rect of a window is whole pixels", () => {
         expect(attrs_rect(win)).toEqual({x: 5, y: 6, width: 300, height: 200});
         const warned = logged.filter((l) => l.level === "warning" && l.msg.includes("rect_bad-rect"));
         expect(warned.length, "the bad entry is said").toBe(1);
+        expect(window.localStorage.getItem("rect_bad-rect"), "and forgotten: said once").toBe(null);
         expect(errors()).toEqual([]);
 
         /*  No entry at all is nothing to say.  */
@@ -114,6 +115,28 @@ describe("the saved rect of a window is whole pixels", () => {
         }, yuno);
         gobj_start(fresh);
         expect(logged.filter((l) => l.msg.includes("rect_none-rect"))).toEqual([]);
+    });
+
+    /*  A rect with no size -- what the box of a window that is not
+     *  drawn answers -- is no place to open in: the window was drawn at
+     *  the CSS minimum while its attrs said 0 x 0, and every open
+     *  restored it again. It is said, forgotten, and the window opens
+     *  where it would. (A rect only OFF the screen is kept: the attrs
+     *  are the DESIRED place, clamped to the viewport on every resize,
+     *  so a window saved on a larger screen goes back there.)  */
+    test("an entry with no size is said once, forgotten, and the window opens where it would", () => {
+        window.localStorage.setItem("rect_zero-rect", JSON.stringify({x: 0, y: 0, width: 0, height: 0}));
+        logged.length = 0;
+        const win = gobj_create_service("rect_zero", "C_YUI_WINDOW", {
+            header: "zero", body: ["div", {}, "zero"], auto_save_size_and_position: true,
+            x: 5, y: 6, width: 300, height: 200,
+        }, yuno);
+        gobj_start(win);
+        expect(attrs_rect(win)).toEqual({x: 5, y: 6, width: 300, height: 200});
+        const warned = logged.filter((l) => l.level === "warning" && l.msg.includes("rect_zero-rect"));
+        expect(warned.length, "the empty entry is said").toBe(1);
+        expect(window.localStorage.getItem("rect_zero-rect")).toBe(null);
+        expect(errors()).toEqual([]);
     });
 
     test("a move saves whole pixels, and writes them into the attrs", () => {

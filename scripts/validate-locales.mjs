@@ -61,8 +61,11 @@
  *              name, an alias of one (`const translate = t`, a `.bind()`,
  *              a destructuring, `const {t: tt} = i18next` or a parameter
  *              `{t: tt}`, a re-export), called `t?.(k)`, `t.call(x, k)` or
- *              `t.apply(x, [k])` (`t["call"](x, k)` too, and a computed
- *              `["bind"]`); an array there is i18next's list of
+ *              `t.apply(x, [k])` (`t["call"](x, k)` too, a computed
+ *              `["bind"]`, a name a const gives, `t[M]`, or a template;
+ *              and a spread of an array the source writes out,
+ *              `t(...["k"])`, `t.apply(x, KEYS)` with KEYS a const
+ *              array); an array there is i18next's list of
  *              fallback keys, each one a key (`t([k, "fallback"])`). A
  *              `.bind()` that binds a key (`const tk = t.bind(null, k)`)
  *              hands t() that key, read where the bind is written, and
@@ -238,9 +241,12 @@
  *          alias of (a parameter `translate`, a `let` alias,
  *          `i18next.getFixedT()`), or called by what is no name of it --
  *          `(0, t)(k)`, `[t][0](k)`, `Reflect.apply(t, x, [k])`,
- *          `Function.prototype.call.call(t, x, k)` --; a parameter a closure
- *          returns (`const inner = () => key; t(inner())`: the search for
- *          the functions that forward a key does not see it); a translator
+ *          `Function.prototype.call.call(t, x, k)`, a computed name the
+ *          reader does not follow to one string --; a key in a spread of
+ *          what is no array the source writes out (`t(...args)`); a
+ *          parameter a closure returns (`const inner = () => key;
+ *          t(inner())`: the search for the functions that forward a key
+ *          does not see it); a translator
  *          handed to a function (`{t: t}`, `yui_tabulator_lang(t)`: it
  *          calls it with keys of its own), or to any method but those
  *          above (`keys.reduce(t)`, `keys.sort(t)`, an alias of a method,
@@ -249,10 +255,10 @@
  *          label`: the reader reads the literals of a `let`, not what it
  *          translates), or returned by a function (`{i18n:
  *          label_of(x)}`); a key function reached through a parameter, a
- *          `let` given more than one value, a computed member
- *          (`API[name](...)`); a data-i18n* attribute written through an
- *          alias of `dataset`, by Object.assign() into it, or named by a
- *          `let`; an export of a `let`; a published list mutated through a
+ *          `let` given more than one value, a computed member named by
+ *          no const (`API[name](...)`); a data-i18n* attribute written
+ *          through an alias of `dataset`, by Object.assign() into it, or
+ *          named by a `let`; an export of a `let`; a published list mutated through a
  *          function it is handed to, or by
  *          `Array.prototype.push.call(X_I18N_KEYS, k)`; a module of a
  *          package (gobj-js, i18next); what is written into a const table
@@ -988,20 +994,20 @@ function iteration_call(call, scope)
     if(c.type !== "MemberExpression") {
         return null;
     }
-    let name = member_step(c).prop;
+    let name = member_name(c, scope);
     if(ITERATION_METHODS.has(name)) {
         let cb = call.arguments[0];
         return (cb && cb.type !== "SpreadElement")? {method: name, receiver: c.object, callback: cb, form: ""} : null;
     }
     if(name === "call" || name === "apply") {
         let inner = unchain(c.object);
-        let method = (inner.type === "MemberExpression")? member_step(inner).prop : null;
+        let method = (inner.type === "MemberExpression")? member_name(inner, scope) : null;
         if(!ITERATION_METHODS.has(method)) {
             return null;
         }
-        let receiver = call.arguments[0];
-        let rest = call.arguments[1];
-        let cb = (name === "call")? rest : ((rest && rest.type === "ArrayExpression")? rest.elements[0] : null);
+        let [receiver, rest] = written_args(call.arguments, scope);
+        let listed = (name === "apply" && rest && rest.type !== "SpreadElement")? written_elements(rest, scope) : null;
+        let cb = (name === "call")? rest : (listed? listed[0] : null);
         if(!receiver || receiver.type === "SpreadElement" || !cb || cb.type === "SpreadElement") {
             return null;
         }
@@ -1872,7 +1878,7 @@ function callee_at(node, scope, depth, far)
         }
 
         case "MemberExpression": {
-            let step = member_step(node);
+            let step = {prop: member_name(node, scope), computed: !!node.computed};
             if(step.prop === null) {
                 return null;
             }
@@ -1914,17 +1920,19 @@ function callee_at(node, scope, depth, far)
             /*  f.bind(x) is f; f.bind(x, a, ...) is f with its first arguments
              *  BOUND, so what a call of it is handed comes after them  */
             let c = node.callee;
-            if(c.type !== "MemberExpression" || member_step(c).prop !== "bind") {
+            if(c.type !== "MemberExpression" || member_name(c, scope) !== "bind") {
                 return null;
             }
             let inner = callee_at(c.object, scope, depth + 1, far);
-            let taken = node.arguments.slice(1);
-            if(!inner || taken.length === 0) {
+            let given = written_args(node.arguments, scope);
+            let hidden = is_spread(given[0]);     // `f.bind(...X)`: what it binds is not known
+            let taken = given.slice(1);
+            if(!inner || (taken.length === 0 && !hidden)) {
                 return inner;
             }
             return Object.assign({}, inner, {
                 bound: (inner.bound || 0) + taken.length,
-                bound_spread: !!inner.bound_spread || taken.some((a) => a.type === "SpreadElement")
+                bound_spread: !!inner.bound_spread || hidden || taken.some(is_spread)
             });
         }
 
@@ -2005,21 +2013,23 @@ function call_target(call, scope)
     }
     let r = null;
     let callee = call.callee;
-    let method = (callee.type === "MemberExpression")? member_step(callee).prop : null;
+    let method = (callee.type === "MemberExpression")? member_name(callee, scope) : null;
     if(method === "call" || method === "apply") {
         let inner = callee_of(callee.object, scope);
         if(inner) {
-            let args = call.arguments.slice(1);
+            let given = written_args(call.arguments, scope);
+            let hidden = is_spread(given[0]);     // `f.call(...X)`: where its arguments start is not known
+            let args = hidden? [given[0]] : given.slice(1);
             if(method === "apply") {
-                let list = call.arguments[1];
-                args = !list? [] : (list.type === "ArrayExpression")? list.elements : null;
+                let list = given[1];
+                args = (hidden || is_spread(list))? null : !list? [] : written_elements(list, scope);
             }
             r = {target: inner, args};
         }
     }
     if(!r) {
         let target = callee_of(callee, scope);
-        r = target? {target, args: call.arguments} : null;
+        r = target? {target, args: written_args(call.arguments, scope)} : null;
     }
     if(r && r.target.bound) {
         /*  Up to 7.26.41 the bound arguments were not counted: what a call of
@@ -2049,14 +2059,19 @@ function call_target(call, scope)
 function bind_kind(call, scope, table = I18N_KEY_FUNCTIONS)
 {
     let c = call.callee;
-    if(c.type !== "MemberExpression" || member_step(c).prop !== "bind" || call.arguments.length < 2) {
+    if(c.type !== "MemberExpression" || member_name(c, scope) !== "bind") {
+        return null;
+    }
+    let given = written_args(call.arguments, scope);
+    let hidden = is_spread(given[0]);
+    if(given.length < 2 && !hidden) {
         return null;
     }
     let inner = callee_of(c.object, scope);
     if(!inner) {
         return null;
     }
-    let args = inner.bound_spread? null : [...new Array(inner.bound || 0).fill(null), ...call.arguments.slice(1)];
+    let args = (inner.bound_spread || hidden)? null : [...new Array(inner.bound || 0).fill(null), ...given.slice(1)];
     if(inner.kind === "t") {
         return {kind: "t", target: inner, args};
     }
@@ -2100,7 +2115,8 @@ function call_kind(call, scope, table = I18N_KEY_FUNCTIONS)
         let fns = module? key_fn_index(table).by_module.get(module) : null;
         let entry = (fns && call.callee.type === "Identifier" && !binding_of(call.callee.name, scope))?
             (fns.get(call.callee.name) || null) : null;
-        return entry? {kind: "key", entry, target: {kind: "unbound", name: entry.name}, args: call.arguments} : null;
+        return entry? {kind: "key", entry, target: {kind: "unbound", name: entry.name},
+                       args: written_args(call.arguments, scope)} : null;
     }
     let {target, args} = r;
     if(target.kind === "t") {
@@ -2246,7 +2262,7 @@ function translator_callback(call, scope)
             {how: "elements", method: it.method, form: it.form, receiver: it.receiver, arg: it.callback} : null;
     }
     let c = (call.callee.type === "ChainExpression")? call.callee.expression : call.callee;
-    let method = (c.type === "MemberExpression")? member_step(c).prop : null;
+    let method = (c.type === "MemberExpression")? member_name(c, scope) : null;
     if(SETTLE_METHODS.has(method)) {
         let arg = call.arguments.find(is_translator);
         return arg? {how: "settled", method, arg} : null;
@@ -2367,16 +2383,22 @@ function gave_up(ast = null)
  *  A read counts its steps from the place the value is read: a const,
  *  a property, an element, the returns of a function called, each
  *  read ONCE and kept, keep the steps they took beside their values
- *  (`height`), so a later read of them adds those steps to its own.
- *  The verdict on a read is the same whatever was read before it: up
- *  to gobj-ui 7.26.44 a const kept the values of its FIRST read, cut
- *  at the depth that read had reached, so `t(J16); t(K10)` failed and
- *  `t(K10); t(J16)` passed. A read that goes past MAX_DEPTH is given
- *  up as a whole (TooDeep unwinds it to its outermost frame), and no
- *  value read on the way is kept: each is kept only when it was read
- *  to its end.
+ *  (`steps`), so a later read of them takes those steps again from
+ *  where it stands. The verdict on a read is the same whatever was
+ *  read before it: up to gobj-ui 7.26.44 a const kept the values of
+ *  its FIRST read, cut at the depth that read had reached, so `t(J16);
+ *  t(K10)` failed and `t(K10); t(J16)` passed. A read that goes past
+ *  MAX_DEPTH is given up as a whole (TooDeep unwinds it to its
+ *  outermost frame), and no value read on the way is kept: each is
+ *  kept only when it was read to its end.
+ *
+ *  The place it went past is the same whatever was read before, too:
+ *  the first node reached at step MAX_DEPTH + 1 -- a kept read hands
+ *  on, for each of its steps, the first node it reached there (up to
+ *  gobj-ui 7.26.45 the place was the kept read itself, so `past K10`
+ *  or `past K2` depended on what had been read first).
  ***************************************************************/
-const FRAMES = [];      // the reads in progress, outermost first: {max: the deepest step reached}
+const FRAMES = [];      // the reads in progress, outermost first: {max, at}
 
 class TooDeep
 {
@@ -2387,10 +2409,17 @@ class TooDeep
     }
 }
 
-function note_depth(depth)
+/*  A step of the read in progress at `depth`: the first one there is
+ *  kept in `at[depth]`. Of its scope only the module is kept, which is
+ *  all gave_up() reads -- and a walker's own chain goes on changing  */
+function note_step(depth, node, scope)
 {
-    if(FRAMES.length > 0 && depth > FRAMES[FRAMES.length - 1].max) {
-        FRAMES[FRAMES.length - 1].max = depth;
+    let frame = FRAMES[FRAMES.length - 1];
+    if(frame && depth > frame.max) {
+        for(let d = frame.max + 1; d <= depth; d++) {
+            frame.at[d] = {node, scope: (scope || []).slice(0, 1)};
+        }
+        frame.max = depth;
     }
 }
 
@@ -2398,7 +2427,7 @@ function note_depth(depth)
  *  outside one, it is given up here and the caller stops: true  */
 function too_deep(depth, node, scope)
 {
-    note_depth(depth);
+    note_step(depth, node, scope);
     if(depth <= MAX_DEPTH) {
         return false;
     }
@@ -2414,7 +2443,7 @@ function too_deep(depth, node, scope)
 function outermost_read(node, scope, fn, fallback)
 {
     return from_read(node, scope, () => {
-        FRAMES.push({max: 0});
+        FRAMES.push({max: 0, at: []});
         try {
             return fn();
         } catch(e) {
@@ -2430,19 +2459,22 @@ function outermost_read(node, scope, fn, fallback)
 }
 
 /*  What `compute()` answers for `key` of `cache`, read once and kept
- *  with its height, read at `depth` by `node` (in `scope`)  */
+ *  with its steps, read at `depth` by `node` (in `scope`)  */
 function kept_values(cache, key, depth, node, scope, compute, fallback)
 {
-    let known = cache.get(key);
-    if(known) {
-        too_deep(depth + known.height, node, scope);
-        return known.values;
-    }
     if(FRAMES.length === 0) {
         return outermost_read(node, scope, () => kept_values(cache, key, depth, node, scope, compute, fallback),
                               fallback);
     }
-    let frame = {max: depth};
+    let known = cache.get(key);
+    if(known) {
+        let top = FRAMES[FRAMES.length - 1];
+        for(let i = Math.max(0, top.max - depth); i < known.steps.length; i++) {
+            too_deep(depth + 1 + i, known.steps[i].node, known.steps[i].scope);
+        }
+        return known.values;
+    }
+    let frame = {max: depth, at: []};
     FRAMES.push(frame);
     let values;
     try {
@@ -2450,8 +2482,11 @@ function kept_values(cache, key, depth, node, scope, compute, fallback)
     } finally {
         FRAMES.pop();
     }
-    note_depth(frame.max);
-    cache.set(key, {values, height: frame.max - depth});
+    let steps = frame.at.slice(depth + 1, frame.max + 1);
+    for(let i = 0; i < steps.length; i++) {
+        note_step(depth + 1 + i, steps[i].node, steps[i].scope);
+    }
+    cache.set(key, {values, steps});
     return values;
 }
 
@@ -2657,7 +2692,7 @@ function expand_node(node, ctx, depth)
  *  again while its value is being read leads back to itself: the reader
  *  gives up on it (give_up()).
  ***************************************************************/
-const CONST_VALUES = new WeakMap();     // the init of a const -> {values, height}, `via` left out
+const CONST_VALUES = new WeakMap();     // the init of a const -> {values, steps}, `via` left out
 const CONST_READING = new Set();        // the inits being read
 
 function const_values(b, node, scope, via, depth)
@@ -2784,7 +2819,7 @@ function local_call_values(call, ctx, via, depth = 0)
  *  the count again, so thirty nested calls were read through.
  *  `call` makes it, in `scope`, at `depth`.
  ***************************************************************/
-const FN_RETURNS = new WeakMap();       // a function -> {values: {items, complete, keys}, height}
+const FN_RETURNS = new WeakMap();       // a function -> {values: {items, complete, keys}, steps}
 const FN_READING = new Set();
 
 function fn_returns(target, call, scope, depth)
@@ -2867,8 +2902,103 @@ function member_step(node)
         name = node.property.name;
     } else if(node.computed && node.property.type === "Literal") {
         name = String(node.property.value);
+    } else if(node.computed && static_string(node.property) !== null) {
+        name = static_string(node.property);        // x[`a`]
     }
     return {prop: name, computed: !!node.computed};
+}
+
+/***************************************************************
+ *  The name of the METHOD a member names: member_step()'s, or the one
+ *  string a computed name is when the reader follows it to one -- `t[M]`
+ *  with `const M = "call"` (an import of one, a chain of them). Up to
+ *  gobj-ui 7.26.45 such a `.call` / `.apply` / `.bind` / `.map`, and
+ *  `i18next[T]`, were not read. Only for names of methods: a property
+ *  read by a computed name reads every property it may be.
+ ***************************************************************/
+function member_name(node, scope)
+{
+    let name = member_step(node).prop;
+    if(name !== null || !node.computed || !scope
+            || (node.property.type !== "Identifier" && node.property.type !== "MemberExpression")) {
+        return name;
+    }
+    let {keys, complete} = static_keys(node.property, scope);
+    return (complete && keys.length === 1)? keys[0] : null;
+}
+
+/***************************************************************
+ *  The arguments of a call as the callee receives them, a SPREAD of an
+ *  array the source writes out read as its elements: `t(...["k"])`,
+ *  `t(...KEYS)` with `const KEYS = ["k"]`. A spread of anything else
+ *  stays where it is: no position from it on is known. Up to gobj-ui
+ *  7.26.45 every spread did.
+ ***************************************************************/
+function written_args(list, scope)
+{
+    let out = [];
+    for(let i = 0; i < list.length; i++) {
+        let a = list[i];
+        if(a && a.type === "SpreadElement") {
+            let elements = written_elements(a.argument, scope);
+            if(elements === null) {
+                return [...out, ...list.slice(i)];
+            }
+            out.push(...elements);
+        } else {
+            out.push(a);
+        }
+    }
+    return out;
+}
+
+/***************************************************************
+ *  The elements of an array the source writes out, or null: an array
+ *  literal (its spreads read by written_args(), a hole is an argument
+ *  not given), or a const bound to one with no spread and no hole --
+ *  its elements read THROUGH it, as `X[0]`, `X[1]`... (element_ref()),
+ *  so each is read where the const is declared.
+ ***************************************************************/
+function written_elements(n, scope)
+{
+    if(!n) {
+        return null;
+    }
+    if(n.type === "ArrayExpression") {
+        return written_args(n.elements, scope);
+    }
+    if(n.type !== "Identifier") {
+        return null;
+    }
+    let b = binding_of(n.name, scope);
+    if(!b || b.kind !== "const" || b.steps.length > 0 || !b.init || b.init.type !== "ArrayExpression"
+            || b.init.elements.some((e) => e === null || e.type === "SpreadElement")) {
+        return null;
+    }
+    return b.init.elements.map((e, i) => element_ref(n, i));
+}
+
+function is_spread(n)
+{
+    return !!n && n.type === "SpreadElement";
+}
+
+/*  `X[i]` for the name X, a node of no source (at the place of X), made
+ *  once: what is said about it is said once  */
+const ELEMENT_REFS = new WeakMap();     // an Identifier -> [its X[i]]
+
+function element_ref(n, i)
+{
+    if(!ELEMENT_REFS.has(n)) {
+        ELEMENT_REFS.set(n, []);
+    }
+    let refs = ELEMENT_REFS.get(n);
+    if(!refs[i]) {
+        refs[i] = {type: "MemberExpression", object: n, computed: true, optional: false,
+                   property: {type: "Literal", value: i, raw: String(i), start: n.start, end: n.end},
+                   start: n.start, end: n.end};
+    }
+    return refs[i];
 }
 
 /***************************************************************
@@ -2964,7 +3094,7 @@ function assigned_properties(o, step, depth)
  *  (const_values()): a spread of the same object twice, `{...O, ...O}`,
  *  gives its values once.
  ***************************************************************/
-const PROPERTY_VALUES = new WeakMap();  // an object literal -> Map(property -> {values, height}, `via` left out)
+const PROPERTY_VALUES = new WeakMap();  // an object literal -> Map(property -> {values, steps}, `via` left out)
 
 function property_values(o, name, depth)
 {
@@ -3063,7 +3193,7 @@ function elements_of(node, ctx, depth)
  *  the properties of an object are (property_values()): `[...A, ...A]`
  *  gives A's once.
  ***************************************************************/
-const ELEMENT_VALUES = new WeakMap();   // an array literal or a .map() -> {values, height}, `via` left out
+const ELEMENT_VALUES = new WeakMap();   // an array literal or a .map() -> {values, steps}, `via` left out
 
 function element_values(v, depth)
 {
@@ -5192,6 +5322,9 @@ function may_take_a_callback(n)
         return false;
     }
     let m = member_step(c).prop;
+    if(m === null && c.computed) {
+        return true;        // a name translator_callback() may follow to one of them
+    }
     return ITERATION_METHODS.has(m) || SETTLE_METHODS.has(m) || ARRAY_BUILDERS.has(m) || m === "call" || m === "apply";
 }
 
@@ -6284,4 +6417,26 @@ if(is_main) {
             throw e;
         }
     }
+    exit_when_written();
+}
+
+/***************************************************************
+ *  End the run with its exitCode once what it wrote has left: a
+ *  locale is IMPORTED, and a timer its code leaves running holds the
+ *  process for ever, verdict or not (up to gobj-ui 7.26.45, also a run
+ *  that failed). process.exit() runs from the callbacks of a last
+ *  write to each stream, which come after every write before them, so
+ *  a long list on its way to a pipe still reaches it whole.
+ ***************************************************************/
+function exit_when_written()
+{
+    let pending = 2;
+    let written = () => {
+        pending--;
+        if(pending === 0) {
+            process.exit();
+        }
+    };
+    process.stdout.write("", written);
+    process.stderr.write("", written);
 }

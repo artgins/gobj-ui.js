@@ -181,7 +181,7 @@ let PRIVATE_DATA = {
     event_handlers:  {},
     hash_handler:    null,
     keydown_handler: null,
-    /*  Escape priority chain: array of { layer, handler }.  Each
+    /*  Escape priority chain: array of { layer, handler, teardown }.  Each
      *  interactive overlay (drawer today, modal/popup tomorrow)
      *  pushes its close handler when it opens and pops it when
      *  it closes.  Escape calls the top handler only — LIFO. */
@@ -579,9 +579,11 @@ function mt_stop(gobj)
         return 0;
     }
 
-    /*  Tear down any toolbar dropdown that was open at stop time so its
-     *  document-level mousedown listener and escape-stack entry don't
-     *  outlive the shell. */
+    /*  Tear down every overlay that was open at stop time -- drawers,
+     *  modals, questions, the toolbar dropdown -- so no focus trap,
+     *  document-level listener or escape-stack entry outlives the
+     *  shell. */
+    close_overlays(gobj);
     close_toolbar_dropdown(gobj);
 
     if(priv.hash_handler) {
@@ -654,7 +656,8 @@ function mt_destroy(gobj)
      *  dropdown; calling close_toolbar_dropdown here is idempotent
      *  (it returns early when nothing is open) and prevents a
      *  dangling document mousedown listener / escape-stack entry
-     *  when stop is skipped. */
+     *  when stop is skipped. The other overlays the same way.  */
+    close_overlays(gobj);
     close_toolbar_dropdown(gobj);
 
     let live_idx = __live_shells__.indexOf(gobj);
@@ -2533,7 +2536,7 @@ function open_toolbar_dropdown(gobj, item, action, $trigger)
     $panel.__yui_backdrop_handler__ = backdrop;
     $panel.__yui_dismiss_handler__  = dismiss;
     $panel.__yui_trigger__          = $trigger || null;
-    push_escape(gobj, "popup", close_fn);
+    push_escape(gobj, "popup", close_fn, close_fn);
 
     /*  Focus trap inside the panel — same module modals/drawers use. */
     $panel.__yui_focus_release__ = activate_focus_trap_on($panel);
@@ -2748,8 +2751,12 @@ function take_back_focus(ev)
  *  only and consumes the event; LIFO ordering naturally matches
  *  the z-index layering most apps use (drawer at the bottom,
  *  modal on top, popup on top of that).
+ *
+ *  `teardown` is the overlay's UNCONDITIONAL close, what the shell
+ *  runs when it stops with the overlay still up (close_overlays);
+ *  `handler` may be a guarded one (a modal's before_close).
  ************************************************************/
-function push_escape(gobj, layer, handler)
+function push_escape(gobj, layer, handler, teardown)
 {
     let priv = gobj.priv;
     if(!priv || !priv.escape_stack) {
@@ -2757,7 +2764,42 @@ function push_escape(gobj, layer, handler)
         return;
     }
     priv.escape_seq += 1;
-    priv.escape_stack.push({ layer: layer, handler: handler, seq: priv.escape_seq });
+    priv.escape_stack.push({
+        layer: layer,
+        handler: handler,
+        teardown: (typeof teardown === "function") ? teardown : null,
+        seq: priv.escape_seq
+    });
+}
+
+/************************************************************
+ *  Close every overlay still up, the top first, as if each had
+ *  been dismissed: a shell that stops -- a logout, a session cut
+ *  -- with a drawer, a modal or a question open. Up to gobj-ui
+ *  7.26.45 only the toolbar dropdown was closed: the others kept
+ *  their focus trap, and every window opened afterwards believed
+ *  itself under an overlay and took no focus; a question never
+ *  answered. Run before the views stop, so what an overlay's
+ *  on_close calls is still alive. An overlay pushed with no
+ *  teardown is left to its owner.
+ ************************************************************/
+function close_overlays(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv || !priv.escape_stack) {
+        return;
+    }
+    let entries = priv.escape_stack.slice().reverse();
+    for(let entry of entries) {
+        if(!entry.teardown) {
+            continue;
+        }
+        try {
+            entry.teardown();
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: closing the '${entry.layer}' overlay at stop failed: ${e}`);
+        }
+    }
 }
 
 function pop_escape(gobj, handler)
@@ -3170,7 +3212,7 @@ function open_drawer_one(gobj, $c)
     }
     let close_fn = () => close_drawer_one(gobj, $c);
     $c.__yui_close_handler__ = close_fn;
-    push_escape(gobj, "overlay", close_fn);
+    push_escape(gobj, "overlay", close_fn, close_fn);
     $c.classList.add("is-active");
     let panel = $c.querySelector(".yui-drawer-panel") || $c;
     $c.__yui_focus_release__ = activate_focus_trap_on(panel);
@@ -4452,10 +4494,15 @@ function yui_shell_toggle_drawer(shell_gobj, menu_id)
  *  `layer` is a free-form tag (e.g. "modal", "popup", "overlay").
  *  Today it is informational; the LIFO ordering of the stack is
  *  what determines Escape priority — and naturally matches the
- *  z-index layering most apps use (drawer < popup < modal). */
-function yui_shell_push_escape(shell_gobj, layer, handler)
+ *  z-index layering most apps use (drawer < popup < modal).
+ *
+ *  `teardown` (optional): the overlay's unconditional close, which
+ *  the shell runs if it stops with the overlay still up (a logout
+ *  with a modal open). Give it whenever `handler` may refuse to
+ *  close, or the overlay outlives its shell with its focus trap. */
+function yui_shell_push_escape(shell_gobj, layer, handler, teardown)
 {
-    push_escape(shell_gobj, layer, handler);
+    push_escape(shell_gobj, layer, handler, teardown);
 }
 function yui_shell_pop_escape(shell_gobj, handler)
 {

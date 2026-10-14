@@ -1304,6 +1304,21 @@ yui_shell_pop_escape(shell, close_modal);
 `"overlay"`). It is informational today (the LIFO ordering is what
 drives priority); keep it accurate so the FSM trace is readable.
 
+A fourth argument, `teardown`, is the overlay's UNCONDITIONAL close:
+what the shell runs when it stops with the overlay still up (a logout,
+a session cut). The shell closes every overlay of the stack that has
+one, the top first, before its views stop (7.26.46); the drawers, the
+toolbar dropdown and the modals and questions of `shell_modals.js`
+all pass one. Give it whenever the handler may refuse to close (a
+`before_close` that asks): without it the overlay outlives the shell,
+with its focus trap.
+
+```js
+let ask_then_close = () => my_modal.request_close();   // may refuse
+let close_now      = () => my_modal.close();           // never refuses
+yui_shell_push_escape(shell, "modal", ask_then_close, close_now);
+```
+
 An overlay that hears Escape ITSELF -- a `C_YUI_WINDOW` stops the key
 at its container -- asks the stack whether something was opened after
 it, and yields the key when it was (7.26.45). Every entry carries an

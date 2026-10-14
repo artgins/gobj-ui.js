@@ -1,0 +1,116 @@
+/***********************************************************************
+ *          form_time_cell_editor.test.js
+ *
+ *      The cell editor of a time column of C_YUI_FORM's tables. Up to
+ *      gobj-ui 7.26.45 it was Tabulator's `datetime` with a `format`,
+ *      which needs luxon -- nobody gives gobj-ui luxon: it opened empty,
+ *      said so in the console, and threw when committed.
+ *
+ *          Copyright (c) 2026, ArtGins.
+ *          All Rights Reserved.
+ ***********************************************************************/
+import {describe, test, expect} from "vitest";
+import {install_dom_double} from "../test/dom_double.js";
+
+install_dom_double();
+
+const {
+    form_time_cell_editor, time_to_datetime_local, datetime_local_to_time,
+} = await import("./form_time_cell_editor.js");
+const {date_to_datetime_local} = await import("./form_time_value.js");
+
+/*  A local wall time and its epoch, whatever the zone of the run.  */
+const WALL = "2026-03-14T09:26:53";
+const EPOCH = Math.floor(new Date(WALL).getTime() / 1000);
+
+function open_editor(value, real_type, params)
+{
+    const said = {success: [], cancel: 0, rendered: null};
+    const cell = {
+        getValue: () => value,
+        getType: () => "cell",
+    };
+    const $input = form_time_cell_editor(real_type)(
+        cell,
+        (fn) => {
+            said.rendered = fn;
+        },
+        (v) => {
+            said.success.push(v);
+            return true;
+        },
+        () => {
+            said.cancel++;
+        },
+        params || {}
+    );
+    return {$input, said};
+}
+
+function key(name)
+{
+    return {
+        type: "keydown", key: name,
+        stopPropagation() {}, stopImmediatePropagation() {}, preventDefault() {},
+    };
+}
+
+describe("a time column's cell editor", () => {
+    test("shows an epoch in seconds as a local time, to the second", () => {
+        const {$input} = open_editor(EPOCH, "integer");
+        expect($input.type).toBe("datetime-local");
+        expect($input.getAttribute("step")).toBe("1");
+        expect($input.value).toBe(WALL);
+    });
+
+    test("gives back an epoch in seconds", () => {
+        const {$input, said} = open_editor(EPOCH, "integer");
+        $input.value = "2026-03-14T10:00:00";
+        $input.dispatchEvent(key("Enter"));
+        expect(said.success).toEqual([Math.floor(new Date("2026-03-14T10:00:00").getTime() / 1000)]);
+    });
+
+    test("an ISO text column stays an ISO text", () => {
+        const iso = new Date(EPOCH * 1000).toISOString();
+        const {$input, said} = open_editor(iso, "string");
+        expect($input.value).toBe(WALL);
+        $input.value = "2026-03-14T10:00:00";
+        $input.dispatchEvent(key("Enter"));
+        expect(said.success).toEqual([new Date("2026-03-14T10:00:00").toISOString()]);
+    });
+
+    test("an unchanged value is a cancel, and so is Escape", () => {
+        const a = open_editor(EPOCH, "integer");
+        a.$input.dispatchEvent(key("Enter"));
+        expect(a.said.success).toEqual([]);
+        expect(a.said.cancel).toBe(1);
+
+        const b = open_editor(EPOCH, "integer");
+        b.$input.value = "2026-03-14T10:00:00";
+        b.$input.dispatchEvent(key("Escape"));
+        expect(b.said.success).toEqual([]);
+        expect(b.said.cancel).toBe(1);
+    });
+
+    test("an empty cell opens empty, and emptied commits null", () => {
+        const {$input, said} = open_editor(EPOCH, "integer");
+        $input.value = "";
+        $input.dispatchEvent(key("Enter"));
+        expect(said.success).toEqual([null]);
+        expect(open_editor(null, "integer").$input.value).toBe("");
+        expect(open_editor(undefined, "string").$input.value).toBe("");
+    });
+
+    test("writes the attributes it is given: the column's name", () => {
+        const {$input} = open_editor(EPOCH, "integer", {
+            elementAttributes: {"aria-label": "since", title: "since"}
+        });
+        expect($input.getAttribute("aria-label")).toBe("since");
+        expect($input.getAttribute("title")).toBe("since");
+    });
+
+    test("the conversions are each other's inverse", () => {
+        expect(datetime_local_to_time(time_to_datetime_local(EPOCH, "integer"), "integer")).toBe(EPOCH);
+        expect(time_to_datetime_local(EPOCH, "integer")).toBe(date_to_datetime_local(new Date(EPOCH * 1000)));
+    });
+});

@@ -24,13 +24,22 @@
  *      that wrapped to it, did nothing and was prevented -- the
  *      keyboard never got into the dialog.
  *
- *      Pure module — no gobj / Yuneta dependencies.  The optional
+ *      A trap whose panel left the document without being released
+ *      (its owner was torn down with it) is dropped, with its
+ *      listener, the next time the stack is read, and said. Up to
+ *      gobj-ui 7.26.45 it stayed the top: every window opened later
+ *      believed itself under an overlay and took no focus, and a
+ *      live trap under it no longer heard Tab.
+ *
+ *      No gobj dependency: only gobj-js's logger.  The optional
  *      second argument lets callers inject a mock document object
  *      for unit tests.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+
+import {log_warning} from "@yuneta/gobj-js";
 
 /*  Selector matching the elements typically considered focusable.
  *  Kept conservative: items that are explicitly removed from the tab
@@ -49,6 +58,23 @@ export const FOCUSABLE_SELECTOR =
  *  middle elements unreachable.  We keep one stack and only run the
  *  topmost trap; the rest short-circuit. */
 const __trap_stack__ = [];
+
+/*  Drop the traps whose panel is no longer in the document. Only a
+ *  panel that SAYS so (isConnected === false) is detached: a stub
+ *  that cannot say is taken as connected.  */
+function drop_detached_traps()
+{
+    for(let i = __trap_stack__.length - 1; i >= 0; i--) {
+        let trap = __trap_stack__[i];
+        if(trap.$panel.isConnected !== false) {
+            continue;
+        }
+        __trap_stack__.splice(i, 1);
+        trap.detach();
+        log_warning("focus trap: its panel left the document without releasing it; " +
+                    "dropped (the overlay's owner was torn down with it open)");
+    }
+}
 
 
 /*  Whether `el` is drawn, so focus() on it can take. An element that
@@ -100,6 +126,7 @@ export function activate_focus_trap_on($panel, doc)
          *  Earlier-registered listeners fire too (capture phase),
          *  but they short-circuit unless they own the top of the
          *  stack. */
+        drop_detached_traps();
         if(__trap_stack__[__trap_stack__.length - 1] !== trap) {
             return;
         }
@@ -124,6 +151,9 @@ export function activate_focus_trap_on($panel, doc)
         }
     };
     trap.$panel = $panel;
+    trap.detach = function() {
+        doc.removeEventListener("keydown", trap, true);
+    };
     doc.addEventListener("keydown", trap, true);
     __trap_stack__.push(trap);
 
@@ -161,6 +191,7 @@ export function activate_focus_trap_on($panel, doc)
  ***************************************************************/
 export function focus_trap_panel()
 {
+    drop_detached_traps();
     let top = __trap_stack__[__trap_stack__.length - 1];
     return top ? top.$panel : null;
 }

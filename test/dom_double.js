@@ -195,6 +195,16 @@ class FakeElement extends FakeNode {
     hasAttribute(k) {
         return this.getAttribute(k) !== null;
     }
+    getAttributeNames() {
+        const names = Object.keys(this.attributes);
+        if(this.className) {
+            names.unshift("class");
+        }
+        if(this.id && names.indexOf("id") < 0) {
+            names.push("id");
+        }
+        return names;
+    }
     /*  `type` reflects the attribute, as in a browser: the code asks
      *  `$input.type === 'color'`, never the attribute.  */
     get type() {

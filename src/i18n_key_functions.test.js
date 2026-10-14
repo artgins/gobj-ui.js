@@ -111,6 +111,10 @@ import {
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 
+/*  The tests that parse every module of the library take a second or
+ *  more alone, and brushed vitest's 5 s with the whole suite running.  */
+const SLOW_SCAN_MS = 30000;
+
 const MODULES = readdirSync(SRC)
     .filter((f) => f.endsWith(".js") && !f.endsWith(".test.js"))
     .sort();
@@ -1122,11 +1126,11 @@ describe("I18N_KEY_FUNCTIONS: the table", () => {
 describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
     test("every function that hands a parameter to a place a key is read, in every module", () => {
         expect(forwarders_report(find_forwarders())).toEqual([]);
-    });
+    }, SLOW_SCAN_MS);
 
     test("REV-CLOUD V22: the table is CORRECT -- every entry is a hand-off the library shows", () => {
         expect(table_errors(find_forwarders(MODULES, ast_of, []).found)).toEqual([]);
-    });
+    }, SLOW_SCAN_MS);
 
     test("every fallback of the table is one in the code, and the check fails when it is not", () => {
         expect(fallback_errors()).toEqual([]);
@@ -1222,7 +1226,7 @@ describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
         let unmarked = parse_as(code.replace(/\/\* i18n: data \*\/ /g, ""), module);
         expect(find_forwarders([module], () => unmarked).unmarked.map((u) => u.name))
             .toContain("ac_register_window");
-    });
+    }, SLOW_SCAN_MS);
 });
 
 describe("a `code` is a key where the library makes one", () => {
@@ -2081,7 +2085,7 @@ describe("REV-CLOUD V22.2: what the search for forwarders sees, and what fails i
         /*  ...as the real table was, before V22: an action label that went
          *  through a DOM property, a flag that hid an export  */
         expect(table_errors(found)).toEqual([]);
-    });
+    }, SLOW_SCAN_MS);
 });
 
 describe("REV-CLOUD V22.3-4: the data marker hides no key; one notion of a translator", () => {

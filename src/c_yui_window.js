@@ -50,6 +50,7 @@ import {
     is_gobj,
     kw_get_local_storage_value,
     kw_set_local_storage_value,
+    kw_remove_local_storage_value,
     gobj_read_attr,
     gobj_read_bool_attr,
     gobj_read_str_attr,
@@ -765,11 +766,24 @@ function build_ui(gobj)
      *----------------------------------------------*/
     if(gobj_read_bool_attr(gobj, "auto_save_size_and_position")) {
         if(gobj_is_service(gobj)) {
+            /*  A bad entry is said ONCE: forgotten, the next move or
+             *  resize saves a good one. A rect with no size is what the
+             *  box of a window not drawn answers. One only off the screen
+             *  is kept: x, y, width and height are the DESIRED place,
+             *  clamped to the viewport here and on every resize
+             *  (handleResize), so a window saved on a larger screen goes
+             *  back there when it is plugged in again.  */
             let key = `${gobj_name(gobj)}-rect`;
             let stored = kw_get_local_storage_value(key);
             let rect = whole_rect(stored);
             if(!rect && stored != null) {
                 log_warning(`${gobj_short_name(gobj)}: the saved position '${key}' is not a rect of four numbers: ignored`);
+                kw_remove_local_storage_value(key);
+            } else if(rect && (rect.width <= 0 || rect.height <= 0)) {
+                log_warning(`${gobj_short_name(gobj)}: the saved position '${key}' has no size ` +
+                            `(${rect.width} x ${rect.height}): ignored`);
+                kw_remove_local_storage_value(key);
+                rect = null;
             }
             if(rect) {
                 rect.x = rect.x<0?0:rect.x;

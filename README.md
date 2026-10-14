@@ -214,6 +214,24 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > the dialog), and every Tab after that "wrapped" to it, did nothing and was
 > prevented -- the keyboard never got into a dialog. It now skips a control
 > that is not drawn.
+>
+> **A shell that stops closes what it has open (7.26.46).** A logout, or a
+> session cut, with the drawer, a modal or a question up: the shell closes
+> each one, the top first, as if it had been dismissed -- a modal's `on_close`
+> runs (its `before_close` is not asked: that guard is for the reader), a
+> question answers what Escape answers. Up to 7.26.45 only the toolbar
+> dropdown was closed; the others kept their focus trap, and every window
+> opened afterwards believed itself under an overlay and took no focus. An
+> overlay of the app that uses the shell's Escape chain passes its
+> unconditional close as the fourth argument, or it is left to its owner:
+>
+> ```js
+> yui_shell_push_escape(shell, "modal", ask_then_close, close_now);
+> ```
+>
+> And a trap whose panel left the document without being released is dropped,
+> said in the log, the next time the stack is read: it no longer stands for an
+> overlay that is gone.
 
 ## Two maintained lines
 
@@ -3630,6 +3648,21 @@ opened changed did not hear its tables at all, so closing it lost a table edit
 without a question. And the titles of those tables change language with the
 shell's `EV_LANGUAGE_CHANGED` (7.26.41+), like the rest of the form.
 
+What the reader TYPES in a cell editor is `edited` at once (7.26.46+), as in a
+field of the form: Tabulator says `dataChanged` only when the editor commits,
+so up to 7.26.45 a half-typed cell was not edited, and a host that asks
+`edited` before it reloads or closes the form by code dropped it without a
+question. A reload or a close by code still discards the open editor (it is
+cancelled before the rows go): asking is the host's part, and `edited` is
+what tells it to.
+
+A `time` / `now` column of a table is edited in a `datetime-local` box, to the
+second, read and written as the form's own time field is (`form_time_value.js`:
+an epoch in seconds, or an ISO text for a string column). Up to 7.26.45 it was
+Tabulator's `datetime` editor with a luxon `format`, and nothing gives gobj-ui
+luxon: it opened empty and threw when committed. Luxon is not taken in for one
+editor.
+
 A table hears the reader through Tabulator's `dataChanged`, which Tabulator
 does not say for `setData()` / `replaceData()`, nor when its `history` module
 undoes or redoes a cell edit or a row move (`Ctrl+Z`; a row added or deleted
@@ -3705,6 +3738,12 @@ Tabulator's `selectableRowsCheck`, asked when a row is drawn and at each click,
 so it governs the row's own click, which toggles the row (a row drawn while it
 was `false` stays unselectable until it is drawn again). With the defaults
 nothing is selected.
+
+The checkbox column (`with_checkbox`) asks `selectable` too, and is not drawn
+when the form is not selectable (7.26.46): Tabulator's row box ticks before its
+toggle is refused, and its header box selects every row without asking. A
+click in a NESTED table selects in that table only; it bubbled up to the row
+holding the table, which toggled too.
 
 ```js
 gobj_create("form", "C_YUI_FORM", {
@@ -4001,14 +4040,24 @@ range raised by hand), and leaves it when it did (the round run twice, a
 package.json two apps share): the package.json's git history says which, and
 one whose history cannot be read is refused (since `7.26.43`; up to `7.26.42`
 a refused app kept the files raised before the refusal, `--no-wait` could
-lower a range, and "already" deployed a new bundle under the old number). The
-commit that brought the range is the newest one whose parent has ANOTHER
-range, and a shallow clone is refused, since it may not hold that parent; its
+lower a range, and "already" deployed a new bundle under the old number). Its
 log line says `range  already ^x.y.z, version raised` (since `7.26.45`; up to
-`7.26.44` a commit that only reformatted the line was taken for the one, so a
-round run again raised the version twice, a shallow clone whose HEAD raised
-the range by hand was taken for "born with the range" and deployed under the
-old number, and the line said `range  raised`).
+`7.26.44` it said `range  raised`, a commit that only reformatted the line made
+a round run again raise the version twice, and a shallow clone whose HEAD
+raised the range by hand deployed under the old number).
+
+The history is read by its VALUES (since `7.26.46`): the version is raised when
+ANY state the package.json had -- every branch merged in, a merge that combines
+two sides, a rename followed to the old name -- carries it with another range,
+since a number that stood beside another range may have gone out with it. A
+shallow clone is read as far as it goes when the oldest state it holds does not
+carry the range yet (a clone of depth 2 holding the commit before the raise);
+one cut where the range was already raised is refused, and the message says
+`git fetch --unshallow`. Up to `7.26.45` the round read ONE commit, the one
+that brought the range, so a merge of a branch that raised the range by hand,
+next to a version raised on main with the old range, deployed under that
+version, and a package.json MOVED after a hand raise was taken for one born
+with the range; and `7.26.45` refused every shallow clone.
 
 ### Colour: a brand token as INK takes `-on-scheme`, as a FILL it does not
 
@@ -4372,6 +4421,12 @@ reader reads --, called as `t(k)`, `t?.(k)`, `t.call(x, k)` or
 `t.apply(x, [k])`, and `.call`, `.apply` and `.bind` written as computed
 members too (`t["call"](x, k)`, `t["bind"](null, k)`, since `7.26.45`; up to
 `7.26.44` those forms were not read, and a key handed that way went unasked).
+Since `7.26.46` a computed member is read by a const name and by a template as
+well (``t[`call`](x, k)``, `t[M](x, k)` with `const M = "call"`, `i18next[T](k)`
+with `const T = "t"`), and so is a SPREAD of an array the source writes out:
+`t(...["k"])`, `t.call(x, ...["k"])`, `t(...KEYS)` and `t.apply(x, KEYS)` with
+`const KEYS = ["k"]` -- each element of the const read as `KEYS[0]`,
+`KEYS[1]`... (up to `7.26.45` none of them was read, and nothing failed).
 An ARRAY given to it is i18next's list of fallback keys, and
 each one is a key: `t([specific, "generic"])` asks for "generic". A `.bind()`
 that binds a KEY makes a translator whose calls hand i18next its options or its
@@ -4595,7 +4650,11 @@ member): an import under any name, a re-export from a file of the app
 a const alias (`const show = yui_shell_show_info`), a map in a const
 (`const API = {info: yui_shell_show_info}; API.info(...)`, imported too),
 `.call(x, ...)` and `.apply(x, [...])` (also as computed members,
-`f["call"](x, ...)`, since `7.26.45`); and a `.bind()` of it is read as the
+`f["call"](x, ...)`, since `7.26.45`; by a const name or a template, `f[M](x,
+...)`, and with a spread or an `.apply()` of an array the source writes out,
+`f(shell, ...["k"])`, `f.apply(x, ARGS)` with `const ARGS = [shell, "k"]`,
+since `7.26.46` -- up to `7.26.45` such a spread failed the rule per call, and
+`f[M](...)` was not read); and a `.bind()` of it is read as the
 call it prepares, at the positions it binds (since `7.26.43`):
 `yui_shell_show_info.bind(null, shell, "k")` asks for "k", and a parameter
 bound there fails the rule per call as it does when it is handed directly. Up
@@ -5068,7 +5127,13 @@ reading the page in another language:
   that no const or import makes an alias of -- a parameter `translate`, a
   `let` alias, `opts.translate(k)`, `i18next.getFixedT()` --, or one called
   through what is no name of it: `(0, t)(k)`, `[t][0](k)`,
-  `Reflect.apply(t, x, [k])`, `Function.prototype.call.call(t, x, k)`;
+  `Reflect.apply(t, x, [k])`, `Function.prototype.call.call(t, x, k)`, or by
+  a computed name the reader does not follow to ONE string (`t[m](x, k)` with
+  `m` a parameter or a `let`, `t[c()? "call" : "apply"]`);
+- a key handed to a translator in a spread of what is no array the source
+  writes out (`t(...args)`, `t.apply(x, args)` with `args` a parameter, a
+  `let`, or a const whose array holds a spread or a hole): from the spread on,
+  no position is known;
 - a translator handed to a FUNCTION (`{t: t}`, `yui_tabulator_lang(t)`,
   `run(t)`) or to any method but those listed above (`keys.reduce(t)`,
   `keys.sort(t)`, an alias of a method, `Reflect.apply()`): only those
@@ -5081,8 +5146,10 @@ reading the page in another language:
   not, and so does one a `const` holds (below);
 - a key function reached through a parameter (`apply(fn)` calling
   `fn(shell, "k")`), a `let` given more than one function, a map in a `let`,
-  a computed member (`API[name](...)`), or `.apply()` of an array the source
-  does not write out;
+  or a computed member whose name the reader does not follow to one string
+  (`API[name](...)` with `name` a parameter or a `let`). An `.apply()` of an
+  array the source does not write out, or a spread of one, is not invisible:
+  it FAILS the rule per call, since no position from it on is known;
 - a `data-i18n*` attribute written through an alias of `dataset`
   (`const ds = el.dataset; ds.i18nTitle = k`), by `Object.assign()` into it,
   or named by a `let`;
@@ -5148,8 +5215,11 @@ reading the page in another language:
 
   Since `7.26.45` the line said is the one of the READ, with the place the
   count went past 24 (`src/main.js:30: the reader gave up on \`J16\` (past
-  \`K10\`, src/main.js:12), ...`), and the verdict does not depend on the
-  order of the code: a const, a property, an element and the returns of a
+  \`K2\`, src/main.js:4), ...`): the first node the read reaches at step 25,
+  the same whatever was read before (since `7.26.46`; in `7.26.45` it was the
+  const read before, kept, when the count went past inside it -- `K10` with
+  `t(K10)` above the read, `K2` without). The verdict does not depend on the
+  order of the code either: a const, a property, an element and the returns of a
   function are read once and keep the steps they took, so a later read of them
   counts those steps too. Up to `7.26.44` a const kept what its FIRST read had
   reached -- with `J0 = K10` and `J16` 28 consts away from the key, `t(J16);
@@ -5166,7 +5236,10 @@ validated, and nobody told. A file of the locales directory with a locale's
 name that does not look like one (`app.js`, a helper that needs a browser to
 load) is said and skipped, as before. The script runs the same when it is
 reached through a symlinked package with `--preserve-symlinks-main` (also from
-`NODE_OPTIONS`): both sides of its "am I the script?" test are resolved.
+`NODE_OPTIONS`): both sides of its "am I the script?" test are resolved. A
+locale is IMPORTED, so its code runs: the script ends itself once what it wrote
+has left, and a timer a locale leaves running does not hold the build (since
+`7.26.46`; up to `7.26.45` it held it for ever, a failing run included).
 
 Up to `7.26.24` each app carried its own copy, and the copies had drifted into
 three families: only one read the codes of the schema editor, only the other

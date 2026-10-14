@@ -55,10 +55,12 @@
  *          when nobody raised it with the range -- a range raised by hand,
  *          committed or not -- and leaves it when the version moved with
  *          it (the round run twice, or a package.json two apps share): the
- *          git history of the package.json says which: the version
- *          before the commit whose parent had ANOTHER range. One whose
- *          history cannot be read is refused, a shallow clone too (it may
- *          not hold that parent). Up to gobj-ui 7.26.42 "already" was
+ *          git history of the package.json says which -- every state it
+ *          had, every branch merged in and a rename followed: the version
+ *          is raised when one of them carries it with ANOTHER range. One
+ *          whose history cannot be read is refused, and so is a shallow
+ *          clone cut where the range was already raised (it says `git
+ *          fetch --unshallow`). Up to gobj-ui 7.26.42 "already" was
  *          taken as done, and a range raised by hand went out in a new
  *          bundle under the old number.
  *
@@ -383,20 +385,21 @@ function bump_patch_version(f, text)
  *      with it when the version differs from HEAD's -- the round ran
  *      already, or a package.json two apps share was raised by the
  *      first one;
- *    - it is committed: raised with it when the version differs from
- *      the one before the commit that brought the range (a package.json
- *      born with the range carries a version of its own). The commit
- *      that brought it is the newest one whose parent has ANOTHER
- *      range: a commit that only reformats the line touches it too, and
- *      up to gobj-ui 7.26.44 it was taken for the one, so a round run
- *      again raised the version a second time.
+ *    - it is committed: raised with it when NO state of the file in
+ *      its history (range_history()) carries this version with
+ *      another range. A number that ever stood beside another range
+ *      may have gone out with it, so the bundle of the new range needs
+ *      a number of its own. Asked of the VALUES, not of a commit:
+ *      every branch merged in is read (up to gobj-ui 7.26.45 only the
+ *      newest commit whose parent had another range was, so a merge of
+ *      a branch that raised the range by hand next to a version raised
+ *      on main with the old one deployed under that version), and a
+ *      commit that only reformats the line changes nothing (a package.
+ *      json born with the range carries a version of its own).
  *
  *  A version that is not x.y.z, or a history it cannot read, refuses
  *  the app: "already" would deploy a new bundle under a number that
- *  may be the old one. A SHALLOW clone is such a history: the commit
- *  before the one that brought the range may not be there, and up to
- *  gobj-ui 7.26.44 a parent missing was taken for "born with the
- *  range" -- a range raised by hand went out under the old number.
+ *  may be the old one.
  ************************************************************/
 function version_raised_with_range(f)
 {
@@ -406,39 +409,158 @@ function version_raised_with_range(f)
     if(!/^\d+\.\d+\.\d+$/.test(version || "")) {
         throw new Error(`${f}: version '${version}' is not x.y.z -- not raised, not deployed`);
     }
-    const git = (git_args) => run("git", git_args, dir);
     try {
-        const raised = (text) => {
-            const specs = specs_of(text);
-            return specs.length > 0 && specs.every((spec) => spec === `^${VERSION}`);
-        };
-        const head = git(["show", `HEAD:${rel}`]);
-        if(!raised(head)) {
+        const head = run("git", ["show", `HEAD:${rel}`], dir);
+        if(!range_is_raised(head)) {
             return version !== JSON.parse(head).version;
         }
-        if(git(["rev-parse", "--is-shallow-repository"]).trim() !== "false") {
-            throw new Error("a shallow clone: the history of the range is cut");
-        }
-        const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const touching = git(["log", "--format=%H", "-G",
-                              `"${esc(PKG_NAME)}":[[:space:]]*"${esc("^" + VERSION)}"`, "--", rel])
-            .split("\n").filter((h) => h.length > 0);
-        for(const commit of touching) {
-            const parents = git(["rev-list", "--parents", "-n", "1", commit]).trim().split(" ");
-            if(parents.length < 2 || git(["ls-tree", "--name-only", `${commit}^`, "--", rel]).trim() === "") {
-                return true;    // born with the range: no number of it went out with another one
-            }
-            const before = git(["show", `${commit}^:${rel}`]);
-            if(!raised(before)) {
-                return version !== JSON.parse(before).version;
+        for(const text of range_history(dir, basename(f))) {
+            if(!range_is_raised(text) && version_of(text) === version) {
+                return false;
             }
         }
-        throw new Error("no commit brought the range");
+        return true;
     } catch(e) {
         throw new Error(`${f}: its range is already ^${VERSION}, and the round cannot tell whether its ` +
                         `version was raised with the range (${String(e.message).split("\n")[0]}) -- ` +
                         `not raised, not deployed`);
     }
+}
+
+/*  Does a package.json text carry ^VERSION in every spec of the package?  */
+function range_is_raised(text)
+{
+    const specs = specs_of(text);
+    return specs.length > 0 && specs.every((spec) => spec === `^${VERSION}`);
+}
+
+/*  The version a package.json text carries; a text that is not json
+ *  throws: a state it cannot read is a history it cannot read  */
+function version_of(text)
+{
+    return JSON.parse(text).version;
+}
+
+/************************************************************
+ *  Every state of a file in the history of HEAD (and of MERGE_HEAD
+ *  in a merge not yet committed), as texts: each one is what some
+ *  commit left there. `--full-history`: every branch merged in, and a
+ *  merge that differs from all its parents (two sides combined) is a
+ *  state of its own. A RENAME is followed to the old name, from the
+ *  parent of the commit that made it: up to gobj-ui 7.26.45 a
+ *  package.json moved was taken for one born with its range, and a
+ *  range raised by hand before the move went out under the old number.
+ *
+ *  A SHALLOW clone holds part of the history: the reading goes on as
+ *  long as what is cut away cannot matter, which is when the oldest
+ *  state it holds does not carry the range yet (a clone of depth 2
+ *  holding the commit before the raise is read). A state that carries
+ *  it at the cut throws, and says how to get the rest.
+ ************************************************************/
+function range_history(dir, file)
+{
+    const top = run("git", ["rev-parse", "--show-toplevel"], dir).trim();
+    const prefix = run("git", ["rev-parse", "--show-prefix"], dir).trim();
+    const git = (args, input) => execFileSync("git", args, {
+        cwd: top, env: child_env(), input: input, maxBuffer: 1 << 28,
+        stdio: ["pipe", "pipe", "pipe"]
+    });
+
+    const shallow_file = resolve(top, run("git", ["rev-parse", "--git-path", "shallow"], top).trim());
+    const cut = new Set(existsSync(shallow_file)?
+        readFileSync(shallow_file, "utf8").split("\n").filter((h) => h.length > 0) : []);
+
+    let revs = ["HEAD"];
+    try {
+        revs.push(run("git", ["rev-parse", "-q", "--verify", "MERGE_HEAD"], top).trim());
+    } catch(e) {
+        /*  no merge in progress  */
+    }
+
+    const texts = [];
+    const walked = new Set();
+    const walk = (path, from) => {
+        const key = `${path}\0${from.join(" ")}`;
+        if(walked.has(key)) {
+            return;
+        }
+        walked.add(key);
+        const commits = String(git(["log", "--full-history", "--format=%H %P", ...from,
+                                    "--", `:(top,literal)${path}`]))
+            .split("\n").filter((l) => l.length > 0).map((l) => l.split(" ").filter((h) => h.length > 0));
+        const blobs = read_blobs(git, commits.flatMap(([c, ...parents]) =>
+            [c, ...parents].map((x) => `${x}:${path}`)));
+        for(const [c, ...parents] of commits) {
+            const text = blobs.get(`${c}:${path}`);
+            if(text === null) {
+                continue;       // deleted there
+            }
+            texts.push(text);
+            if(parents.length === 0) {
+                if(cut.has(c) && range_is_raised(text)) {
+                    throw new Error(`a shallow clone: the history before ${c.slice(0, 10)} is not ` +
+                                    `here -- run git fetch --unshallow in ${top}`);
+                }
+                continue;       // born there
+            }
+            if(parents.some((p) => blobs.get(`${p}:${path}`) !== null)) {
+                continue;
+            }
+            for(const p of parents) {
+                const old = renamed_from(git, p, c, path);
+                if(old !== null) {
+                    walk(old, [p]);
+                }
+            }
+        }
+    };
+    walk(prefix + file, revs);
+    return texts;
+}
+
+/*  The texts of `<commit>:<path>` specs, in one `git cat-file`: a Map
+ *  spec -> text, null when the path is not in that commit  */
+function read_blobs(git, specs)
+{
+    const out = new Map();
+    if(specs.length === 0) {
+        return out;
+    }
+    const buf = git(["cat-file", "--batch"], specs.join("\n") + "\n");
+    let pos = 0;
+    for(const spec of specs) {
+        const eol = buf.indexOf(10, pos);
+        const header = buf.subarray(pos, eol).toString("utf8").split(" ");
+        pos = eol + 1;
+        if(header[header.length - 1] === "missing") {
+            out.set(spec, null);
+            continue;
+        }
+        const size = Number(header[2]);
+        out.set(spec, (header[1] === "blob")? buf.subarray(pos, pos + size).toString("utf8") : null);
+        pos += size + 1;
+    }
+    return out;
+}
+
+/*  The path `path` of `commit` had in its parent `parent` when the
+ *  commit renamed it, or null  */
+function renamed_from(git, parent, commit, path)
+{
+    const fields = String(git(["diff", "-z", "--name-status", "-M", parent, commit])).split("\0");
+    for(let i = 0; i < fields.length; i++) {
+        if(/^R\d*$/.test(fields[i])) {
+            if(fields[i + 2] === path) {
+                return fields[i + 1];
+            }
+            i += 2;
+        } else if(/^C\d*$/.test(fields[i])) {
+            i += 2;
+        } else if(/^[A-Z]\d*$/.test(fields[i])) {
+            i += 1;
+        }
+    }
+    return null;
 }
 
 /************************************************************

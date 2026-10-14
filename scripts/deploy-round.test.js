@@ -47,6 +47,17 @@ function commit(dir, msg)
     execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", msg], {cwd: dir});
 }
 
+function git(dir, ...args)
+{
+    return execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", ...args],
+                        {cwd: dir, encoding: "utf8"}).trim();
+}
+
+function merge(dir, branch)
+{
+    git(dir, "merge", "-q", "--no-edit", branch);
+}
+
 function edit(dir, fn)
 {
     let f = join(dir, "package.json");
@@ -196,6 +207,113 @@ describe("deploy-round: the range and the version", () => {
         /*  ...the full history of the same commit raises the version  */
         r = round(root, {name: "full", path: full});
         expect(read(full).version).toBe("7.0.1");
+    });
+
+    test("a SHALLOW clone that holds the commit before the raise is read; one that does not says how to get it", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let full = consumer(root, "full", "7.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+        edit(full, (p) => {
+            p.description = "a commit that does not touch the range";
+        });
+        commit(full, "another change");
+        edit(full, (p) => {
+            p.dependencies["@yuneta/gobj-ui"] = `^${VERSION}`;
+        });
+        commit(full, "raised by hand, the version left");
+        let two = join(root, "two");
+        execFileSync("git", ["clone", "-q", "--depth", "2", `file://${full}`, two]);
+        expect(git(two, "rev-parse", "--is-shallow-repository")).toBe("true");
+        let r = round(root, {name: "two", path: two});
+        expect(r.out).not.toMatch(/FAILED in this round/);
+        expect(read(two).version).toBe("7.0.1");
+        let one = join(root, "one");
+        execFileSync("git", ["clone", "-q", "--depth", "1", `file://${full}`, one]);
+        r = round(root, {name: "one", path: one});
+        expect(r.out).toMatch(/a shallow clone.*git fetch --unshallow/);
+        expect(r.out).toMatch(/FAILED in this round/);
+        expect(read(one).version).toBe("7.0.0");
+    });
+
+    test("a MERGE that brings a range raised by hand next to a version already out raises the version", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        /*  main raises the version with the old range (a bundle that went out),
+         *  a branch raises the range by hand: merged either way  */
+        for(let into of ["main", "branch"]) {
+            let dir = consumer(root, `merge-${into}`, "1.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+            let main = git(dir, "rev-parse", "--abbrev-ref", "HEAD");
+            git(dir, "checkout", "-qb", "branch");
+            edit(dir, (p) => {
+                p.dependencies["@yuneta/gobj-ui"] = `^${VERSION}`;
+            });
+            commit(dir, "the range raised by hand");
+            git(dir, "checkout", "-q", main);
+            edit(dir, (p) => {
+                p.version = "1.0.1";
+            });
+            commit(dir, "1.0.1, with the old range");
+            if(into === "main") {
+                merge(dir, "branch");
+            } else {
+                git(dir, "checkout", "-q", "branch");
+                merge(dir, main);
+            }
+            expect(read(dir)).toMatchObject({version: "1.0.1", dependencies: {"@yuneta/gobj-ui": `^${VERSION}`}});
+            let r = round(root, {name: `merge-${into}`, path: dir});
+            expect(r.out).toContain("version 1.0.1 -> 1.0.2");
+            expect(read(dir).version).toBe("1.0.2");
+        }
+
+        /*  A range the round raised, lowered by hand and shipped under the same
+         *  number, and raised again by a merge of a branch that raised it by hand  */
+        let dir = consumer(root, "revert", "2.0.0", {"@yuneta/gobj-ui": `^${OLDER}`}, true);
+        let main = git(dir, "rev-parse", "--abbrev-ref", "HEAD");
+        git(dir, "checkout", "-qb", "branch");
+        edit(dir, (p) => {
+            p.dependencies["@yuneta/gobj-ui"] = `^${VERSION}`;
+        });
+        commit(dir, "the range raised by hand");
+        git(dir, "checkout", "-q", main);
+        round(root, {name: "revert", path: dir});
+        commit(dir, "the round");
+        edit(dir, (p) => {
+            p.dependencies["@yuneta/gobj-ui"] = `^${OLDER}`;
+        });
+        commit(dir, "the range lowered, 2.0.1 shipped with it");
+        merge(dir, "branch");
+        expect(read(dir)).toMatchObject({version: "2.0.1", dependencies: {"@yuneta/gobj-ui": `^${VERSION}`}});
+        let r = round(root, {name: "revert", path: dir});
+        expect(r.out).toContain("version 2.0.1 -> 2.0.2");
+    });
+
+    test("a package.json MOVED after its range was raised by hand is followed to its old name", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        for(let same_commit of [false, true]) {
+            let repo = join(root, `repo-${same_commit}`);
+            consumer(repo, "old", "3.0.0", {"@yuneta/gobj-ui": `^${OLDER}`});
+            execFileSync("git", ["init", "-q"], {cwd: repo});
+            commit(repo, "init");
+            if(!same_commit) {
+                edit(join(repo, "old"), (p) => {
+                    p.dependencies["@yuneta/gobj-ui"] = `^${VERSION}`;
+                });
+                commit(repo, "the range raised by hand");
+            }
+            git(repo, "mv", "old", "new");
+            if(same_commit) {
+                edit(join(repo, "new"), (p) => {
+                    p.dependencies["@yuneta/gobj-ui"] = `^${VERSION}`;
+                });
+            }
+            commit(repo, "moved");
+            let r = round(root, {name: "moved", path: join(repo, "new")});
+            expect(r.out).toContain("version 3.0.0 -> 3.0.1");
+            expect(read(join(repo, "new")).version).toBe("3.0.1");
+        }
+        /*  ...and one BORN with the range is left as it is  */
+        let born = consumer(root, "born", "0.1.0", {"@yuneta/gobj-ui": `^${VERSION}`}, true);
+        let r = round(root, {name: "born", path: born});
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(born).version).toBe("0.1.0");
     });
 
     test("a range already raised is held to the same rules: a version that is not x.y.z refuses the app", () => {

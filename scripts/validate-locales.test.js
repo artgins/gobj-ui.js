@@ -834,6 +834,22 @@ describe("validate-locales", () => {
         expect(out).toContain("3000 violation(s), see above");
     }, 30000);
 
+    test("a locale that leaves a timer running does not hold the run: it ends with its verdict", () => {
+        let ticking = (code, dict) => locale(code, dict) + `setInterval(() => {}, 1000);\n`;
+        for(let [key, status] of [["a defined key", 0], ["a key no locale defines", 1]]) {
+            let t0 = Date.now();
+            let dir = mkdtempSync(join(tmpdir(), "vl-"));
+            write_files(dir, {
+                "src/locales/en.js": ticking("en", {"a defined key": "x"}),
+                "src/locales/es.js": ticking("es", {"a defined key": "x"}),
+                "src/main.js": `t(${JSON.stringify(key)});`
+            });
+            let r = spawnSync(process.execPath, [SCRIPT], {cwd: dir, encoding: "utf8", timeout: 10000});
+            expect(r.status).toBe(status);
+            expect(Date.now() - t0).toBeLessThan(10000);
+        }
+    }, 30000);
+
     test("where the reader gives up on a value it FAILS, with the file and the line: a key behind it is never skipped in silence", () => {
         let chain = (n, first, link, read) => {
             let lines = [first];
@@ -886,16 +902,37 @@ describe("validate-locales", () => {
         for(let i = 1; i <= 16; i++) {
             lines.push(`const J${i} = J${i - 1};`);
         }
-        /*  J16 is read through 28 consts, K10 through 11: whichever is read first  */
+        /*  J16 is read through 28 consts, K10 through 11: whichever is read first,
+         *  and the place it went past is the same (up to gobj-ui 7.26.45 `K10`
+         *  when K10 was read first, `K2` when it was not)  */
         for(let reads of [[`t(J16);`, `t(K10);`], [`t(K10);`, `t(J16);`]]) {
             let main = [...lines, ...reads];
             let r = run({...BOTH({}), "src/main.js": main.join("\n")});
             expect(r.status).toBe(1);
             let at = main.indexOf(`t(J16);`) + 1;
-            expect(r.out).toContain(`src/main.js:${at}: the reader gave up on \`J16\` (past `);
+            expect(r.out).toContain(`src/main.js:${at}: the reader gave up on \`J16\` (past \`K2\`, src/main.js:4)`);
             expect(r.out).toContain(`defined in NO locale: "a deep key"`);
             expect(r.out.match(/gave up/g).length).toBe(1);
         }
+
+        /*  A branch: the first one short, the second one past 24 -- the place is
+         *  on the second one, whatever was read before  */
+        let branched = [`const K0 = "a deep key";`];
+        for(let i = 1; i <= 10; i++) {
+            branched.push(`const K${i} = K${i - 1};`);
+        }
+        branched.push(`const S0 = "a near key";`, `const X = c()? S0 : K10;`, `const J0 = X;`);
+        for(let i = 1; i <= 16; i++) {
+            branched.push(`const J${i} = J${i - 1};`);
+        }
+        let said = [];
+        for(let reads of [[`t(J16);`, `t(X);`], [`t(X);`, `t(J16);`], [`t(K10);`, `t(X);`, `t(J16);`]]) {
+            let r = run({...BOTH({}), "src/main.js": [...branched, ...reads].join("\n")});
+            expect(r.status).toBe(1);
+            said.push(r.out.match(/gave up on `J16` \(past [^)]*\)/)[0]);
+        }
+        expect(said[0]).toMatch(/past `K\d+`/);
+        expect(new Set(said).size).toBe(1);
     });
 
     test("a chain of aliases is a give-up only when a translator, a key function or a published list can be at its end", () => {
@@ -1433,6 +1470,50 @@ describe("validate-locales", () => {
             "cannot follow");
         expect(r.out).not.toContain(`"count"`);
         expect(r.out).not.toMatch(/main\.js:[2-8]:/);
+    });
+
+    test("a method named by a const or a template, and a spread of an array the source writes out, are read", () => {
+        let r = run({...BOTH({}), "src/main.js": [
+            `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
+            `import i18next from "i18next";`,
+            `const M = "call";`,
+            `const A = "apply";`,
+            `const B = "bind";`,
+            `const MAP = "map";`,
+            `const T = "t";`,
+            `const X = ["k04 apply const"];`,
+            `const Y = ["k06 spread const"];`,
+            `const Z = [shell, "k14 key fn apply const"];`,
+            `t[M](null, "k01 const call");`,
+            "t[`call`](null, \"k02 template call\");",
+            `t.call(null, ...["k03 call spread"]);`,
+            `t.apply(null, X);`,
+            `t(...["k05 spread"]);`,
+            `t(...Y);`,
+            `const g = t[B](null, "k07 const bind");`,
+            "t[`apply`](null, [\"k08 template apply\"]);",
+            `t[A](null, ["k09 const apply"]);`,
+            `["k10 const map"][MAP](t);`,
+            `i18next[T]("k11 const t");`,
+            `yui_shell_show_info(shell, ...["k12 key fn spread"]);`,
+            `yui_shell_show_info[M](null, shell, "k13 key fn const call");`,
+            `yui_shell_show_info.apply(null, Z);`,
+            `t.bind(null, ...["k15 bind spread"]);`,
+            `t.call(...[null, "k16 this in a spread"]);`,
+            `t.apply(null, [...X, ...Y]);`,
+            `t(...REST);`,                                                         // 28: not read, not a failure
+            `yui_shell_show_info(shell, ...REST);`                                 // 29: fails
+        ].join("\n")});
+        expect(r.status).toBe(1);
+        for(let k of ["k01 const call", "k02 template call", "k03 call spread", "k04 apply const", "k05 spread",
+                      "k06 spread const", "k07 const bind", "k08 template apply", "k09 const apply",
+                      "k10 const map", "k11 const t", "k12 key fn spread", "k13 key fn const call",
+                      "k14 key fn apply const", "k15 bind spread", "k16 this in a spread"]) {
+            expect(r.out).toContain(`defined in NO locale: ${JSON.stringify(k)}`);
+        }
+        expect(r.out).toContain("src/main.js:29: yui_shell_show_info() [1] is given ...REST, which the reader " +
+            "cannot follow");
+        expect(r.out).not.toMatch(/main\.js:([0-9]|1[0-9]|2[0-8]):/);
     });
 
     test("a card is named `name || aria_label || id`: its id is a key only for a card with neither", () => {

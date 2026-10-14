@@ -518,7 +518,7 @@ export function yui_shell_show_modal(shell, content, opts)
     };
 
     escape_handler = request_close;
-    yui_shell_push_escape(shell, "modal", request_close);
+    yui_shell_push_escape(shell, "modal", request_close, do_close);
     /*  Browser Back closes the top-most modal (see overlay history in
      *  c_yui_shell.js).  Null when history integration is off. */
     overlay = yui_shell_register_overlay(shell, on_back);
@@ -693,7 +693,7 @@ function build_dialog(shell, message, buttons, opts)
         };
         close_fn = () => close(dismiss_value);
 
-        yui_shell_push_escape(shell, "modal", close_fn);
+        yui_shell_push_escape(shell, "modal", close_fn, close_fn);
         /*  Browser Back dismisses the dialog with the safe-default value,
          *  exactly like Escape. */
         overlay = yui_shell_register_overlay(shell, close_fn);

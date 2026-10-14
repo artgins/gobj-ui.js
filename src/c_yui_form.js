@@ -96,6 +96,7 @@ import "tabulator-tables/dist/css/tabulator_bulma.css";
 import "./tabulator.css";
 import {is_time_field} from "./json_view_helpers.js";
 import {date_to_datetime_local, datetime_local_to_epoch} from "./form_time_value.js";
+import {form_time_cell_editor} from "./form_time_cell_editor.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
 import {
     json_editor_menu_items,
@@ -133,7 +134,7 @@ SDATA(data_type_t.DTP_STRING,   "topic_name",       0,  "",     "Treedb topic na
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",         0,  false,  "Default is editable, set false to readonly"),
 SDATA(data_type_t.DTP_BOOLEAN,  "readonly",         0,  false,  "Show EVERY field read-only, whatever its schema says: a record being LOOKED at, not edited. Independent of `editable`, which drives the TABLE rendering; this one drives the FORM"),
 SDATA(data_type_t.DTP_BOOLEAN,  "selectable",       0,  true,   "A click selects a row, when tabulator_settings selects rows (selectableRows)"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",    0,  false,  "Show a first column with checkbox to select rows (not drawn when the form is not `selectable`)"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_rownum",      0,  false,  "Print first column with row number"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_row_btn", 0,  false, "Print last column with delete row button"),
 /*
@@ -620,13 +621,38 @@ function destroy_widget(gobj, what, widget)
  *  walks the rows already wiped: a reload, a Clear or a destroy
  *  with an editor open in any row but the first threw, and left
  *  the table half wiped.
+ *
+ *  Tabulator has no public way to ask which cell is edited: this
+ *  reads its edit module (`modules.edit`, `currentCell`,
+ *  `cancelEdit()`), names pinned against the installed Tabulator
+ *  by tabulator_edit_internals.test.js. A Tabulator without them
+ *  is said: the guard would do nothing, and the crash come back.
  ************************************************************/
-function close_table_editor(tabulator)
+function close_table_editor(gobj, tabulator)
 {
     let edit = tabulator.modules? tabulator.modules.edit : null;
-    if(edit && edit.currentCell) {
+    if(!edit || !("currentCell" in edit) || typeof edit.cancelEdit !== "function") {
+        log_warning(`${gobj_short_name(gobj)}: this Tabulator has no modules.edit.currentCell/cancelEdit(): ` +
+                    `an open cell editor is not closed before its table is wiped`);
+        return;
+    }
+    if(edit.currentCell) {
         edit.cancelEdit();
     }
+}
+
+/************************************************************
+ *  The element of the table (`.tabulator` kept on it) that holds
+ *  $el, the innermost one.
+ ************************************************************/
+function table_element_of($el)
+{
+    for(let $n = $el; $n; $n = $n.parentNode) {
+        if($n.tabulator) {
+            return $n;
+        }
+    }
+    return null;
 }
 
 /************************************************************
@@ -655,7 +681,7 @@ function destroy_row_tables(gobj, $row)
     $row.yui_nested = null;
     for(let $nested of nested) {
         if($nested.tabulator) {
-            close_table_editor($nested.tabulator);
+            close_table_editor(gobj, $nested.tabulator);
             destroy_rows_tables(gobj, $nested.tabulator);
             destroy_widget(gobj, "nested table", $nested.tabulator);
             $nested.tabulator = null;
@@ -694,7 +720,7 @@ function destroy_widgets(gobj, $container)
             $el.jsoneditor = null;
         }
         if($el.tabulator) {
-            close_table_editor($el.tabulator);
+            close_table_editor(gobj, $el.tabulator);
             destroy_rows_tables(gobj, $el.tabulator);
             destroy_widget(gobj, "table", $el.tabulator);
             $el.tabulator = null;
@@ -2264,6 +2290,17 @@ function create_coordinates(gobj, attrs)
  *  the form's `selectable` -- first. Up to 7.26.44 the form toggled
  *  the row again in `rowClick`, which undid every click. The default
  *  `"highlight"` is left as it is, hover and all.
+ *
+ *  The checkbox column (`with_checkbox`) asks `selectable` too, and is
+ *  not drawn when the form is not selectable: Tabulator's row box ticks
+ *  before its toggle is refused (a ticked box over a row not selected),
+ *  and its header box selects every row asking nothing. Up to 7.26.45
+ *  the boxes were drawn and lied; with the default `selectableRows`
+ *  they selected whatever `selectable` said.
+ *
+ *  A click in a nested table stays there: it bubbled to the row that
+ *  holds the table, whose own click listener (SelectRow's) toggled
+ *  that row too.
  ******************************************************************/
 function create_tabulator(gobj, $extend, name, template, rows)
 {
@@ -2275,8 +2312,9 @@ function create_tabulator(gobj, $extend, name, template, rows)
     }
 
     /*  Tabulator toggles the row on its own click: `selectable` only vetoes  */
+    let with_checkbox = gobj_read_bool_attr(gobj, "with_checkbox");
     let selectable_rows = tabulator_settings.selectableRows;
-    if(selectable_rows === true || typeof selectable_rows === "number") {
+    if(selectable_rows === true || typeof selectable_rows === "number" || with_checkbox) {
         tabulator_settings.selectableRowsCheck = function() {
             return gobj_read_bool_attr(gobj, "selectable");
         };
@@ -2317,6 +2355,15 @@ function create_tabulator(gobj, $extend, name, template, rows)
                     }
                 ];
                 let $extend = createElement2(extend);
+                /*  Widget plumbing, not an action: the event is the nested table's  */
+                $extend.addEventListener("click", function(ev) {
+                    ev.stopPropagation();
+                });
+                $extend.addEventListener("mousedown", function(ev) {
+                    if(ev.shiftKey) {
+                        ev.stopPropagation();
+                    }
+                });
                 let rows = data[sub_element.name];
                 $extend.tabulator = create_tabulator(
                     gobj, $extend, sub_element.name, sub_element.template, rows
@@ -2348,7 +2395,7 @@ function create_tabulator(gobj, $extend, name, template, rows)
         );
     }
 
-    if(gobj_read_bool_attr(gobj, "with_checkbox")) {
+    if(with_checkbox && gobj_read_bool_attr(gobj, "selectable")) {
         tabulator_settings.rowHeader = {
             formatter: "rowSelection",
             titleFormatter: "rowSelection",
@@ -2376,6 +2423,22 @@ function create_tabulator(gobj, $extend, name, template, rows)
      *  say nothing (`loading_rows`, ac_load_table_rows).  */
     tabulator.on("dataChanged", function() {
         if(gobj.priv.loading_rows > 0) {
+            return;
+        }
+        gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
+    });
+    /*  What the reader TYPES in a cell editor is `edited` at once, as in a
+     *  field of the form (its `input`): `dataChanged` comes only when the
+     *  editor commits, and a host that reloads or closes the form by code
+     *  asks `edited` first. Up to 7.26.45 a half-typed cell was not
+     *  edited, and such a reload dropped it without a question. Only the
+     *  editor of a cell of THIS table: not a header filter, not the
+     *  selection box, not a nested table's editor (that table says it).  */
+    $extend.addEventListener("input", function(ev) {
+        let $target = ev.target;
+        if(!$target || typeof $target.closest !== "function" ||
+                !$target.closest(".tabulator-cell.tabulator-editing") ||
+                table_element_of($target) !== $extend) {
             return;
         }
         gobj_send_event(gobj, "EV_RECORD_CHANGED", {}, gobj);
@@ -2644,25 +2707,13 @@ function template2columns(gobj, columns, template, sub_elements)
 
             case "now":
             case "time":
-                // field_conf.tag = 'input';
-                // field_conf.inputType = 'datetime-local';
-                column.editor = "datetime";
+                /*  Tabulator's `datetime` with a `format` needs luxon: see
+                 *  form_time_cell_editor.js. Named after its column
+                 *  (yui_tabulator_name_editor, below).  */
+                column.editor = form_time_cell_editor(field_desc.real_type);
                 column.editorParams = {
-                    format: "dd/MM/yyyy hh:mm", // the format of the date value stored in the cell
                     verticalNavigation: "table", //navigate cursor around table without changing the value
-                    elementAttributes: {
-                        /*  Tabulator writes this attribute once, when the
-                         *  editor opens, so it is translated then -- which
-                         *  is also when it is read.  */
-                        title: t("slide bar to choose option")
-                    }
                 };
-                switch(field_desc.real_type) {
-                    case "string":
-                        break;
-                    case "integer":
-                        break;
-                }
                 break;
 
             case "color":
@@ -3156,7 +3207,7 @@ function clear_data(gobj, $form)
     $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
         $table.yui_pending_rows = null;
         if($table.tabulator.initialized) {
-            close_table_editor($table.tabulator);
+            close_table_editor(gobj, $table.tabulator);
             destroy_rows_tables(gobj, $table.tabulator);
             $table.tabulator.clearData();
         }

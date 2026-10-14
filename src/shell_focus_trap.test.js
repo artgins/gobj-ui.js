@@ -9,6 +9,7 @@ import { test, expect } from "vitest";
 import {
     FOCUSABLE_SELECTOR,
     activate_focus_trap_on,
+    focus_trap_panel,
 } from "./shell_focus_trap.js";
 
 
@@ -380,4 +381,98 @@ test("Tab and Shift+Tab wrap to the first and last DRAWN controls", () => {
     expect(b.focus_calls).toEqual(["b.focus"]);
     expect(x.focus_calls).toEqual([]);
     release();
+});
+
+
+/***************************************************************
+ *  A trap whose panel left the document without being released
+ *  (its owner was torn down with it: a shell destroyed with a
+ *  drawer or a dialog open) holds the focus of nothing. Kept on
+ *  the stack it was the "overlay" every later window opened
+ *  under, so none of them took the focus; and above a live trap
+ *  it left that one deaf to Tab. It is dropped, with its
+ *  listener, the first time the stack is read.
+ ***************************************************************/
+function connected_panel(focusables)
+{
+    let panel = make_panel(focusables);
+    panel.isConnected = true;
+    return panel;
+}
+
+test("a trap whose panel left the document is no longer the top", () => {
+    let a_first = make_focusable("a-first");
+    let panel_a = connected_panel([a_first]);
+    let panel_b = connected_panel([make_focusable("b-first")]);
+    let doc = make_doc(null);
+
+    let release_a = activate_focus_trap_on(panel_a, doc);
+    activate_focus_trap_on(panel_b, doc);
+    expect(focus_trap_panel()).toBe(panel_b);
+
+    panel_b.isConnected = false;
+    expect(focus_trap_panel()).toBe(panel_a);
+    expect(doc.listeners.length).toBe(1);
+
+    /*  And the live one under it hears Tab again.  */
+    a_first.focus_calls.length = 0;
+    doc.activeElement = make_focusable("outside");
+    let prevented = false;
+    doc.listeners[0]({
+        key: "Tab",
+        shiftKey: false,
+        preventDefault() {
+            prevented = true;
+        }
+    });
+    expect(prevented).toBe(true);
+    expect(a_first.focus_calls).toEqual(["a-first.focus"]);
+
+    release_a();
+    expect(doc.listeners.length).toBe(0);
+});
+
+test("a detached trap above a live one does not leave the live one deaf to Tab", () => {
+    let a_first = make_focusable("a-first");
+    let panel_a = connected_panel([a_first]);
+    let panel_b = connected_panel([make_focusable("b-first")]);
+    let doc = make_doc(null);
+
+    let release_a = activate_focus_trap_on(panel_a, doc);
+    activate_focus_trap_on(panel_b, doc);
+    panel_b.isConnected = false;
+
+    /*  Nobody asked for the top: the Tab itself finds the stale one.  */
+    a_first.focus_calls.length = 0;
+    doc.activeElement = make_focusable("outside");
+    let prevented = false;
+    let ev = {
+        key: "Tab",
+        shiftKey: false,
+        preventDefault() {
+            prevented = true;
+        }
+    };
+    for(let fn of doc.listeners.slice()) {
+        fn(ev);
+    }
+    expect(prevented).toBe(true);
+    expect(a_first.focus_calls).toEqual(["a-first.focus"]);
+    expect(doc.listeners.length).toBe(1);
+
+    release_a();
+});
+
+test("the release of a dropped trap still gives the focus back", () => {
+    let prev = make_focusable("prev");
+    let panel = connected_panel([make_focusable("first")]);
+    let doc = make_doc(prev);
+
+    let release = activate_focus_trap_on(panel, doc);
+    panel.isConnected = false;
+    expect(focus_trap_panel()).not.toBe(panel);
+    expect(doc.listeners.length).toBe(0);
+
+    release();
+    expect(prev.focus_calls).toEqual(["prev.focus"]);
 });
