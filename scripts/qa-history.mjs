@@ -48,6 +48,13 @@
  *            gobj-ui 7.26.46 the stopped shell retired that marker with
  *            a history.back() that took the panel's: in Chromium the
  *            panel stayed up with no entry and Back left the chapter.
+ *        (j) the preferences up on their action route (/prefs, `stay`),
+ *            then the same logout and login: the new shell opens the
+ *            panel on the chapter, not the preferences again, and Back
+ *            closes the panel without bringing them back. Up to gobj-ui
+ *            7.26.47 the preferences' on_close took the URL off /prefs
+ *            with a history.back(), which landed on the action entry
+ *            under their marker: the URL stayed on /prefs.
  *
  *      Besides the cases, a warning of the shell (C_YUI_SHELL: ...) in
  *      the console is a failure: the false "did not land ... dropped" of
@@ -377,6 +384,35 @@ async function case_i(page)
     return {ok, relogged, after_back, left, backs};
 }
 
+async function case_j(page)
+{
+    await fresh(page);
+    await page.evaluate(() => {
+        location.hash = "#/prefs";
+    });
+    await page.waitForSelector(".DEMO_PREFS", {timeout: 5000});
+    await settle(page);
+    const parked = await snap(page);
+    /*  The relogin button is under the modal: a DOM click, as the app's
+     *  own logout would come from code, not from a pointer.  */
+    await page.evaluate(() => {
+        document.querySelector(".DEMO_HISTORY_RELOGIN").click();
+    });
+    await page.waitForSelector(".DEMO_HISTORY_PANEL", {timeout: 5000});
+    await page.waitForTimeout(800);
+    const relogged = await snap(page);
+    const prefs_after = await page.evaluate(() => !!document.querySelector(".DEMO_PREFS"));
+    await page.goBack();
+    await settle(page);
+    const after_back = await snap(page);
+    const prefs_after_back = await page.evaluate(() => !!document.querySelector(".DEMO_PREFS"));
+
+    const ok = parked.hash === "#/prefs" &&
+        relogged.panel && relogged.hash === "#/history" && !prefs_after &&
+        !after_back.panel && after_back.hash === "#/history" && !prefs_after_back;
+    return {ok, parked, relogged, prefs_after, after_back, prefs_after_back};
+}
+
 /*
  *  Main
  */
@@ -398,7 +434,8 @@ try {
                                       ["f: link from the position", case_f],
                                       ["g: close and click", case_g],
                                       ["h: reload, open again, Back", case_h],
-                                      ["i: log out and in, Back", case_i]]) {
+                                      ["i: log out and in, Back", case_i],
+                                      ["j: preferences up, log out and in", case_j]]) {
                 const context = await browser.newContext({viewport: {width: 1250, height: 850}});
                 const page = await context.newPage();
                 page.on("pageerror", (e) => {

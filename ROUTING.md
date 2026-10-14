@@ -363,7 +363,10 @@ reads as an accident.
 > the URL: the app's overlay close path owns it. So `stay` is only correct when
 > whatever opens the overlay also takes the URL back off the route on close —
 > and it must do so **guarded**: call `yui_shell_unpark_route(route)`, which
-> `history.back()`s only while the URL still sits on the route. A blind
+> `history.back()`s only while the URL still sits on the route (and, when the
+> close comes from a shell that stops, rewrites the URL to the resting route in
+> place instead of going back: a stopped shell never hears where a `back()`
+> lands, 7.26.48). A blind
 > `history.back()` breaks when the shell's overlay **drain** closes the modal
 > (the user navigated to another resting route while it was open): the URL has
 > already moved, so the back() lands on the stranded action entries and

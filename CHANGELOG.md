@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.48
+
+- **fix(`yui_shell_unpark_route`): an action route parked under an overlay (`redirect: "stay"`) no longer opens the overlay again after a logout and a login in the same turn.** A shell that stops closes its overlays, and their `on_close` unparks the route; it did so with a `history.back()`, which is asynchronous. 7.26.47 left the overlay's own marker in place at stop (so the stopped shell moves no history), and that single `back()` landed on the action entry under the marker, on the same hash: the URL stayed on the action route, and the new shell read it at start and fired the action -- the test-app opened its preferences again instead of the view. When the close comes from a shell that stops, the URL is now rewritten in place to the resting route under the overlay (`history.replaceState()`), and nothing goes back. A close by the user unparks with a `back()` as before. New qa-history case (j), red with 7.26.47 in Chromium. Checked in Chromium and Firefox.
+
 ## 7.26.47
 
 - **fix(`C_YUI_SHELL`): a shell that stops no longer moves the browser history.** 7.26.46 retired the markers of the overlays it closed at stop with `history.back()`, which is asynchronous, and a stopped shell no longer hears where it lands. With a logout and a new login in the same turn, Chromium took the new shell's first window marker (the window stayed up with no entry, and the next Back left the app); Firefox dropped the `back()`. The markers are now left in place, inert, as a drained overlay's are: a later Back lands on one and is absorbed. New qa-history case (i). Checked in Chromium and Firefox.

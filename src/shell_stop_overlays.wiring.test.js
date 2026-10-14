@@ -20,10 +20,10 @@ install_dom_double();
 
 const {
     SDATA_END, gclass_create,
-    gobj_start_up, gobj_create_yuno, gobj_create, gobj_start, gobj_stop, gobj_destroy,
+    gobj_start_up, gobj_create_yuno, gobj_create, gobj_start, gobj_stop, gobj_destroy, gobj_read_attr,
     set_log_callback,
 } = await import("@yuneta/gobj-js");
-const {register_c_yui_shell, yui_shell_open_drawer} = await import("./c_yui_shell.js");
+const {register_c_yui_shell, yui_shell_open_drawer, yui_shell_unpark_route} = await import("./c_yui_shell.js");
 const {register_c_yui_nav} = await import("./c_yui_nav.js");
 const {yui_shell_show_modal, yui_shell_confirm_yesno} = await import("./shell_modals.js");
 const {focus_trap_panel} = await import("./shell_focus_trap.js");
@@ -171,5 +171,58 @@ describe("a shell stopped with an overlay up", () => {
         expect(document.querySelectorAll(".TEST_STOP_SHEET").length).toBe(0);
         expect(focus_trap_panel()).toBe(null);
         expect(errors()).toEqual([]);
+    });
+
+    test("an action route the app parked is taken off in place, not with a back()", async () => {
+        window.location.hash = "#/home";
+        const shell = make_shell(true);
+        const resting = gobj_read_attr(shell, "current_route") || "/";
+
+        /*  `redirect:"stay"`: the URL sits on the action route while
+         *  the overlay is up, and the app's on_close takes it off.  */
+        window.history.pushState(null, "", "#/prefs");
+        let closed = 0;
+        yui_shell_show_modal(shell, "the prefs", {
+            dialog: true, logical_class: "TEST_STOP_PREFS", title: "preferences",
+            on_close: () => {
+                closed++;
+                yui_shell_unpark_route("/prefs");
+            }
+        });
+
+        /*  The back() landed on the action entry (the marker above it
+         *  keeps its hash): the URL stayed on #/prefs, and a shell built
+         *  next read it and opened the overlay again.  */
+        const back = vi.spyOn(window.history, "back");
+        try {
+            gobj_stop(shell);
+            gobj_destroy(shell);
+            await settle();
+            expect(closed).toBe(1);
+            expect(back).not.toHaveBeenCalled();
+            expect(window.location.hash).toBe(`#${resting.startsWith("/") ? resting : "/" + resting}`);
+        } finally {
+            back.mockRestore();
+            window.location.hash = "";
+        }
+        expect(errors()).toEqual([]);
+    });
+
+    test("closed by the user, an overlay still unparks with a back()", async () => {
+        window.location.hash = "#/home";
+        const shell = make_shell(true);
+        window.history.pushState(null, "", "#/prefs");
+        const back = vi.spyOn(window.history, "back");
+        try {
+            yui_shell_unpark_route("/prefs");
+            expect(back).toHaveBeenCalledTimes(1);
+            yui_shell_unpark_route("/other");
+            expect(back).toHaveBeenCalledTimes(1);
+        } finally {
+            back.mockRestore();
+            gobj_stop(shell);
+            gobj_destroy(shell);
+            window.location.hash = "";
+        }
     });
 });

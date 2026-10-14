@@ -234,7 +234,13 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > later Back lands on one and is absorbed. In 7.26.46 the stop retired them with
 > `history.back()`, which is asynchronous, and a stopped shell no longer hears
 > where it lands: a logout followed by a new shell in the same turn had it take
-> the new shell's first marker (Chromium), and the next Back left the app. A
+> the new shell's first marker (Chromium), and the next Back left the app. An
+> overlay parked on an action route (`redirect: "stay"`) whose `on_close` calls
+> `yui_shell_unpark_route()` has the URL rewritten in place to the resting
+> route, not taken back (7.26.48): a single `back()` landed on the action entry
+> under the marker left in place, and the next shell opened the overlay again.
+> An app that unparks with its OWN `history.back()` has the same defect: call
+> `yui_shell_unpark_route()` instead. A
 > question open at the stop answers what Escape answers -- `false` for a yes/no
 > or a danger question, `"cancel"` for yes/no/cancel --; a
 > `yui_shell_confirm_ok()` resolves as on every close, so code awaiting it runs

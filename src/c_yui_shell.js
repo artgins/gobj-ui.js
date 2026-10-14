@@ -94,6 +94,11 @@ const GCLASS_NAME = "C_YUI_SHELL";
  *  that remained -- up to 7.26.41. They go to that shell now. */
 let __live_shells__ = [];
 
+/*  The shell whose overlays are being closed because it stops, while
+ *  they close: their close paths run inside it (yui_shell_unpark_route
+ *  reads it).  */
+let __retiring_shell__ = null;
+
 /*  The gobjs that keep DOM in a shell's layers without being its
  *  children: a C_YUI_WINDOW parented to the app, the dock of
  *  C_YUI_WINDOW_MANAGER. Each is sent EV_SHELL_CHANGED when a shell is
@@ -2822,7 +2827,13 @@ function retire_overlays(gobj)
     if(priv && priv.overlay_stack) {
         priv.overlay_stack.splice(0);
     }
-    close_overlays(gobj);
+    let outer = __retiring_shell__;
+    __retiring_shell__ = gobj;
+    try {
+        close_overlays(gobj);
+    } finally {
+        __retiring_shell__ = outer;
+    }
 }
 
 function pop_escape(gobj, handler)
@@ -4588,12 +4599,47 @@ function yui_shell_overlay_dismissed(shell_gobj, overlay)
  *  stranded action entries and RE-FIRES the action, reopening
  *  the overlay and hijacking the navigation the user asked
  *  for.  Only back() while the URL still sits on the route.
+ *
+ *  A close that comes from a shell that STOPS (a logout with the
+ *  overlay up) does not go back: the URL is rewritten in place,
+ *  to the resting route under the overlay. A back() is
+ *  asynchronous and the stopped shell would never hear where it
+ *  lands -- the overlay's own marker is left in place, so a
+ *  single back() landed on the action entry, the URL stayed on
+ *  the action route, and a new shell built in the same turn read
+ *  it and opened the overlay again (up to gobj-ui 7.26.47).
  ************************************************************/
 function yui_shell_unpark_route(route)
 {
-    if(window.location.hash === route_to_hash(normalize_route(route))) {
-        window.history.back();
+    let hash = route_to_hash(normalize_route(route));
+    if(window.location.hash !== hash) {
+        return;
     }
+    let shell = __retiring_shell__;
+    if(shell) {
+        let resting = resting_route_of(shell);
+        try {
+            window.history.replaceState(window.history.state, "", route_to_hash(resting));
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: unparking '${route}' at stop failed: ${e}`);
+        }
+        return;
+    }
+    window.history.back();
+}
+
+/************************************************************
+ *  The resting route a shell shows under its overlays: the
+ *  current one (only ever written for a RESTING route), else
+ *  the main stage's, else the default.
+ ************************************************************/
+function resting_route_of(gobj)
+{
+    let priv = gobj.priv || {};
+    return gobj_read_attr(gobj, "current_route") ||
+           (priv.stages && priv.stages.main && priv.stages.main.active_route) ||
+           gobj_read_attr(gobj, "default_route") ||
+           "/";
 }
 
 /************************************************************
