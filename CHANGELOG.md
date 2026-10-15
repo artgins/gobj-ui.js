@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.59
+
+- **fix: 7.26.58 cancelled the cell editor of `C_YUI_TREEDB_TOPIC_WITH_FORM` on ANY update of its row**, so the backend echo of the reader's own write of the previous cell, arriving while Tab had opened the next one, closed it and lost what was being typed. Tabulator 6.6.0 redraws only the cells whose value changes and throws only when one of them is the cell in edition (the 7.26.58 entry overstated it): the editor is cancelled now only when the update changes ITS field, with a WARNING that says so.
+- **fix: `yui_tabulator_keep_edit_on_redraw()`**: a wrapped call that THROWS (`setColumns(null)`) is said in a WARNING and thrown on (it cancelled the edit in silence); the same cell opened again by the code before a promise answered is left open with nothing said (it was reported as *"another cell ('a') was opened"*).
+- **fix (scripts): the demo guard refused a MARK, not a change.** A clean file marked assume-unchanged or skip-worktree, every file under `core.ignoreStat`, and every sparse checkout were refused; now a marked file is refused only when its bytes on disk are not the blob of its index entry (hashed as `git add` would; a file not on disk is skipped), and the refusal names the files. `git status` runs with `core.fsmonitor=false`, so a hook that answers "nothing changed" is not believed. A filter that cleans a change away is still not seen (it is what `git add` would stage). A sibling `gobj-js` that is a file is said as such.
+- **fix (scripts): `deploy-round` accepted a flag given twice** (`--check --check`); exit 2 now, as the 7.26.58 entry said.
+- **test:** `qa-cell-editor` case (k) changes the edited field with the changed `name` after it in the record (where a half painted row shows), and the new case (l) is the echo that leaves the editor open; `treedb_topic_editor_guard.wiring.test.js` covers both. The tests of 7.26.58 (that vitest and the cases (j) and (k)) were not listed in its entry. The args test of `deploy-round` puts its `curl` stub on the PATH.
+
 ## 7.26.58
 
 - **fix: `C_YUI_TREEDB_TOPIC_WITH_FORM` updated the edited row under an open cell editor.** The backend echo of the reader's own write (`EV_LOAD_NODE_UPDATED`, arriving while Tab had opened the next cell of the same row) made Tabulator throw (*"Update Error - Unable to update row"*, unhandled) and left the row half painted. The view now **cancels** the editor of that row first (the typed text is lost) and logs a refused `updateData` as an error.

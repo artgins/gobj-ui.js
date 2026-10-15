@@ -31,8 +31,9 @@
  *          log says why, when: the cell is out of the page (a row the
  *          virtual DOM does not render, or a filter hides), its column is
  *          gone or has no editor any more, the call answered a REFUSAL
- *          (it rebuilt nothing), or -- before a promise answers -- the
- *          table was destroyed or another cell's editor was opened.
+ *          (it rebuilt nothing) or threw, or -- before a promise answers
+ *          -- the table was destroyed or another cell's editor was opened
+ *          (the same cell opened again by the code is left as it is).
  *
  *          A call that WIPES the rows (setData, replaceData, clearData,
  *          destroy) cancels the edit first with
@@ -110,8 +111,10 @@ function yui_tabulator_keep_edit_on_redraw(tabulator)
         }
         let $open = editing? editing.getElement() : null;
         if($open && $open.classList.contains("tabulator-editing")) {
-            stays_closed(field, `another cell ('${editing.getField()}') was opened after ${name}()`);
-            return;
+            if(editing.getRow() !== row || editing.getField() !== field) {
+                stays_closed(field, `another cell ('${editing.getField()}') was opened after ${name}()`);
+            }
+            return;     // else the code opened this same cell again: it is open
         }
         /*  A row the page does not draw keeps the cells of the old
          *  columns, so it answers no cell for a column that does exist.  */
@@ -154,7 +157,13 @@ function yui_tabulator_keep_edit_on_redraw(tabulator)
             let row = cell.getRow();
             let field = cell.getField();
             cell.cancelEdit();
-            let ret = original(...args);
+            let ret;
+            try {
+                ret = original(...args);
+            } catch(e) {
+                stays_closed(field, `${name}() threw: ${e}`);
+                throw e;
+            }
             if(ret && typeof ret.then === "function") {
                 return ret.then(
                     (value) => {

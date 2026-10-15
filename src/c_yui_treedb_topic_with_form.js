@@ -3927,11 +3927,19 @@ function ac_load_node_updated(gobj, event, kw, src)
              */
             let row = tabulator.getRow(record.id);
             if(row) {
-                /*  The echo of the reader's own write lands while the
-                 *  next cell's editor is open: Tabulator 6.6.0 throws
-                 *  updating a row with an open editor, and paints half of it.  */
+                /*  Tabulator 6.6.0 redraws only the cells whose value changes
+                 *  (strict !==, as below), and throws, painting half the row,
+                 *  when one of them is the cell in edition. So the editor is
+                 *  cancelled only then: the echo of the reader's own write of
+                 *  the previous cell, arriving while Tab has opened the next
+                 *  one, leaves it open and what is being typed in it.  */
                 let $row = row.getElement();
-                if($row && $row.querySelector(".tabulator-editing")) {
+                let $ed = $row? $row.querySelector(".tabulator-editing") : null;
+                let ed_field = $ed? $ed.getAttribute("tabulator-field") : null;
+                if(ed_field && Object.hasOwn(record, ed_field) &&
+                        record[ed_field] !== row.getData()[ed_field]) {
+                    log_warning(`${gobj_short_name(gobj)}: row '${record.id}' changed ` +
+                        `'${ed_field}' under its open editor: the edit is cancelled`);
                     yui_tabulator_close_editor(tabulator, gobj_short_name(gobj));
                 }
                 tabulator.updateData([record]).catch((e) => {

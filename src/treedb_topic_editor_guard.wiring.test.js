@@ -4,9 +4,10 @@
  *      C_YUI_TREEDB_TOPIC_WITH_FORM cancels an open cell editor before
  *      each call of its table that would throw under it in Tabulator
  *      6.6.0: setData (EV_LOAD_NODES), replaceData (EV_REPULL_PAGE),
- *      destroy (mt_stop), and updateData (EV_LOAD_NODE_UPDATED) of the
- *      row being edited -- the backend echo of a write the reader just
- *      made, which arrives while the next cell's editor is open. A
+ *      destroy (mt_stop), and updateData (EV_LOAD_NODE_UPDATED) that
+ *      changes the cell being edited -- not the backend echo of the
+ *      write the reader just made of the previous cell, which arrives
+ *      while the next cell's editor is open and must leave it. A
  *      refused updateData is logged, not left unhandled. The table is a
  *      double that records the order of the calls; that the real
  *      Tabulator throws without this is proved in a browser by
@@ -31,7 +32,7 @@ if(typeof globalThis.ResizeObserver === "undefined") {
     };
 }
 
-const state = vi.hoisted(() => ({tables: [], calls: [], edited_row: null, refuse: false}));
+const state = vi.hoisted(() => ({tables: [], calls: [], edited_row: null, edited_field: "age", refuse: false}));
 vi.mock("tabulator-tables", () => {
     class FakeTabulator {
         constructor($el, settings) {
@@ -61,9 +62,13 @@ vi.mock("tabulator-tables", () => {
         off() {
         }
         getRow(id) {
-            return {getElement: () => ({
-                querySelector: (s) => (s === ".tabulator-editing" && state.edited_row === id)? {} : null,
-            })};
+            return {
+                getElement: () => ({
+                    querySelector: (s) => (s === ".tabulator-editing" && state.edited_row === id)?
+                        {getAttribute: (a) => (a === "tabulator-field")? state.edited_field : null} : null,
+                }),
+                getData: () => ({id, name: `${id}0`, age: 41}),
+            };
         }
         getDataCount() {
             return 2;
@@ -152,15 +157,23 @@ describe("an open cell editor of a treedb topic's table", () => {
         expect(state.calls).toEqual(["cancel b", "destroy edited=null"]);
     });
 
-    test("is cancelled before updateData of ITS row, left alone for another row", () => {
+    test("is cancelled, with a WARNING, before updateData changes ITS cell; left alone otherwise", () => {
         const view = make_view();
         state.edited_row = "b";
-        gobj_send_event(view, "EV_LOAD_NODE_UPDATED", [{id: "a", name: "A"}], view);
+        gobj_send_event(view, "EV_LOAD_NODE_UPDATED", [{id: "a", age: 99}], view);
+        /*  The echo of the reader's own write of the previous cell (7.26.58 cancelled here)  */
         gobj_send_event(view, "EV_LOAD_NODE_UPDATED", [{id: "b", name: "B"}], view);
+        gobj_send_event(view, "EV_LOAD_NODE_UPDATED", [{id: "b", name: "B", age: 41}], view);
+        expect(logged.filter((l) => /under its open editor/.test(l.msg)).length).toBe(0);
+        gobj_send_event(view, "EV_LOAD_NODE_UPDATED", [{id: "b", age: 99}], view);
         expect(state.calls).toEqual([
             "updateData a edited=b",
+            "updateData b edited=b",
+            "updateData b edited=b",
             "cancel b", "updateData b edited=null",
         ]);
+        expect(logged.filter((l) => /row 'b' changed 'age' under its open editor: the edit is cancelled/
+            .test(l.msg)).length).toBe(1);
     });
 
     test("a refused updateData is logged as an error, not left unhandled", async () => {

@@ -786,7 +786,19 @@ describe("deploy-round: the public demo", () => {
                 git(js, "update-index", "--skip-worktree", "src/index.js");
                 writeFileSync(join(js, "src", "index.js"), "export {x};\n");
             }, /of \S*\/gobj-js marked assume-unchanged or skip-worktree/],
-            ["no sibling gobj-js", () => execFileSync("rm", ["-rf", js]), /there is no gobj-js at /]
+            ["no sibling gobj-js", () => execFileSync("rm", ["-rf", js]), /there is no gobj-js directory at /],
+            ["a sibling gobj-js that is a file", () => {
+                execFileSync("rm", ["-rf", js]);
+                writeFileSync(js, "x\n");
+            }, /there is no gobj-js directory at /],
+            /*  Up to gobj-ui 7.26.58 an fsmonitor hook answered for `git status`  */
+            ["a changed file an fsmonitor hook says nothing of", () => {
+                writeFileSync(join(root, "bin", "fsmon"), "#!/bin/sh\nprintf 'tok\\0'\n");
+                chmodSync(join(root, "bin", "fsmon"), 0o755);
+                git(ui, "config", "core.fsmonitor", join(root, "bin", "fsmon"));
+                git(ui, "status", "--porcelain");
+                writeFileSync(join(ui, "package.json"), JSON.stringify({name: "@yuneta/gobj-ui", version: VERSION, x: 1}));
+            }, "changes in the working tree"]
         ];
         for(let [what, make, says] of refused) {
             ({root, ui, js} = repo_copy());
@@ -808,11 +820,14 @@ describe("deploy-round: the public demo", () => {
             [["--only", "--no-wait"], "--only needs a name"],
             [["--pkg"], "--pkg needs a name"],
             [["--check=yes"], "--check takes no value"],
+            [["--check", "--check"], "--check given twice"],
             [["--only", "test-app", "--only=x"], "--only given twice"]
         ];
         for(let [argv, says] of bad) {
             let r = spawnSync(process.execPath, [join(ui, "scripts", "deploy-round.mjs"), ...argv], {
-                encoding: "utf8", timeout: 60000, env: Object.assign({}, process.env, {HOME: join(root, "home")})
+                encoding: "utf8", timeout: 60000,
+                env: Object.assign({}, process.env,
+                                   {HOME: join(root, "home"), PATH: join(root, "bin") + delimiter + process.env.PATH})
             });
             expect(r.status, argv.join(" ")).toBe(2);
             expect(r.stderr, argv.join(" ")).toContain(says);
@@ -820,10 +835,38 @@ describe("deploy-round: the public demo", () => {
         expect(existsSync(join(root, "deployed"))).toBe(false);
         /*  The `=` form is read  */
         let r = spawnSync(process.execPath, [join(ui, "scripts", "deploy-round.mjs"), "--only=demo", "--no-wait"], {
-            encoding: "utf8", timeout: 60000, env: Object.assign({}, process.env, {HOME: join(root, "home")})
+            encoding: "utf8", timeout: 60000,
+            env: Object.assign({}, process.env,
+                               {HOME: join(root, "home"), PATH: join(root, "bin") + delimiter + process.env.PATH})
         });
         expect(r.status).toBe(2);
         expect(r.stderr).toContain(`no target named "demo"`);
+    });
+
+    test("a mark alone is no change: a clean file marked, core.ignoreStat, a sparse checkout (up to 7.26.58 refused)", () => {
+        let goes = [
+            ["a clean file marked assume-unchanged", (ui) => git(ui, "update-index", "--assume-unchanged", "package.json")],
+            ["a clean file marked skip-worktree", (ui) => git(ui, "update-index", "--skip-worktree", "package.json")],
+            ["core.ignoreStat", (ui) => {
+                git(ui, "config", "core.ignoreStat", "true");
+                git(ui, "update-index", "--really-refresh");
+                git(ui, "add", "-A");
+            }],
+            ["a sparse checkout with a file out of the cone", (ui) => {
+                mkdirSync(join(ui, "docs"));
+                writeFileSync(join(ui, "docs", "a.md"), "x\n");
+                commit(ui, "docs");
+                git(ui, "push", "-q", "origin", "main");
+                git(ui, "sparse-checkout", "set", "--no-cone", "/*", "!/docs/");
+            }],
+        ];
+        for(let [what, make] of goes) {
+            let {root, ui} = repo_copy();
+            make(ui);
+            let r = demo_round(root, ui);
+            expect(r.out, what).not.toContain("NOT DEPLOYED");
+            expect(r.deployed, what).toBe("--no-build\nniyamaka.com --no-build\n");
+        }
     });
 
     test("--only with a name that is no target names the targets, the demo among them", () => {

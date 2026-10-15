@@ -148,6 +148,9 @@ const OPTIONS = (() => {
             if(value !== null) {
                 refuse(`${arg} takes no value`);
             }
+            if(opts[arg]) {
+                refuse(`${arg} given twice`);
+            }
             opts[arg] = true;
         } else if(valued.has(arg)) {
             if(value === null) {
@@ -1007,6 +1010,35 @@ function demo_problem()
     return tree_problem(ROOT) || tree_problem(resolve(ROOT, "..", "gobj-js"));
 }
 
+/*  The files `git status` does not look at -- marked assume-unchanged
+ *  (a lower-case tag: also every file under core.ignoreStat) or
+ *  skip-worktree (`S`: also what a sparse checkout leaves out) -- whose
+ *  bytes on disk are not the blob of the index. A mark alone is no
+ *  change, and a file that is not on disk (out of a sparse cone) is
+ *  not built from. Hashed as `git add` would (its filters applied).  */
+function changed_behind_marks(dir)
+{
+    let marked = [];
+    for(const entry of run("git", ["ls-files", "-v", "-s", "-z"], dir).split("\0")) {
+        const m = /^([a-z]|S) (\d+) ([0-9a-f]+) \d\t(.*)$/s.exec(entry);
+        if(!m || m[2] === "160000" || m[2] === "120000") {
+            continue;       /*  not marked, a gitlink or a symlink  */
+        }
+        if(existsSync(join(dir, m[4]))) {
+            marked.push({path: m[4], blob: m[3]});
+        }
+    }
+    if(!marked.length) {
+        return [];
+    }
+    const hashes = execFileSync("git", ["hash-object", "--stdin-paths"], {
+        cwd: dir, encoding: "utf8", env: child_env(),
+        input: marked.map((f) => f.path).join("\n") + "\n",
+        stdio: ["pipe", "pipe", "pipe"]
+    }).trim().split("\n");
+    return marked.filter((f, i) => hashes[i] !== f.blob).map((f) => f.path);
+}
+
 function tree_problem(dir)
 {
     const rule = "the demo goes out only from clean trees at origin/main";
@@ -1015,16 +1047,15 @@ function tree_problem(dir)
     let hidden;
     let head;
     let main;
-    if(!existsSync(dir)) {
-        return `there is no ${basename(dir)} at ${dir}: ${rule}`;
+    if(!existsSync(dir) || !statSync(dir).isDirectory()) {
+        return `there is no ${basename(dir)} directory at ${dir}: ${rule}`;
     }
     try {
         top = run("git", ["rev-parse", "--show-toplevel"], dir).trim();
-        changes = run("git", ["status", "--porcelain", "--untracked-files=all"], dir).trim();
-        /*  `git status` does not look at a file marked assume-unchanged
-         *  (lower-case tag) or skip-worktree (`S`): such a file may hold
-         *  any change  */
-        hidden = run("git", ["ls-files", "-v"], dir).split("\n").filter((l) => /^([a-z]|S) /.test(l));
+        /*  An fsmonitor hook answers for `git status`: it is not asked  */
+        changes = run("git", ["-c", "core.fsmonitor=false", "status", "--porcelain",
+                              "--untracked-files=all"], dir).trim();
+        hidden = changed_behind_marks(dir);
         head = run("git", ["rev-parse", "HEAD"], dir).trim();
     } catch(e) {
         return `${dir} is not a git tree it can read (${String(e.message).split("\n")[0]})`;
@@ -1038,8 +1069,9 @@ function tree_problem(dir)
                `\`git status\`): ${rule}`;
     }
     if(hidden.length) {
-        return `${hidden.length} file(s) of ${dir} marked assume-unchanged or skip-worktree ` +
-               `(\`git ls-files -v\`), which \`git status\` does not look at: ${rule}`;
+        return `${hidden.length} changed file(s) of ${dir} marked assume-unchanged or ` +
+               `skip-worktree (\`git ls-files -v\`), which \`git status\` does not look at ` +
+               `(${hidden.slice(0, 3).join(", ")}): ${rule}`;
     }
     try {
         main = run("git", ["ls-remote", "origin", "refs/heads/main"], dir).split(/\s/)[0];

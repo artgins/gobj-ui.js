@@ -45,7 +45,7 @@ function make_cell(row, field, editing)
         },
         edit(force) {
             calls.push(`edit ${field} ${force}`);
-            if(!editors[field]) {
+            if(!editors[field] || editors[field] === "throws") {
                 throw new TypeError("Cannot read properties of undefined (reading 'blocked')");
             }
         },
@@ -78,6 +78,9 @@ function make_table()
                        "moveColumn"]) {
         table[name] = function(...args) {
             calls.push(`${name}(${args.join(",")})`);
+            if(args[0] === null) {
+                throw new TypeError(`${name}(null)`);
+            }
             return `${name} done`;
         };
     }
@@ -252,6 +255,41 @@ describe("a cell the call left out of the page", () => {
         expect(table.setColumns(["defs"])).toBe("setColumns done");
         expect(calls).toEqual(["cancel when", "setColumns(defs)", "getCell when"]);
         expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: its row is not in the page after setColumns\(\)/);
+        warn.mockRestore();
+    });
+});
+
+describe("what the re-open does not let through", () => {
+    test("an editor that throws when opened: caught, and said", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        editors.when = "throws";
+        const table = make_table();
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        expect(table.setHeight(300)).toBe("setHeight done");
+        expect(calls).toEqual(["cancel when", "setHeight(300)", "getCell when", "edit when true"]);
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: Tabulator refused to open it after setHeight\(\): TypeError/);
+        warn.mockRestore();
+    });
+
+    test("a call that throws: not opened again, said, and thrown on", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const table = make_table();
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        expect(() => table.setColumns(null)).toThrow("setColumns(null)");
+        expect(calls).toEqual(["cancel when", "setColumns()"]);
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: setColumns\(\) threw: TypeError: setColumns\(null\)/);
+        warn.mockRestore();
+    });
+
+    test("the same cell opened again by the code before the answer: left open, nothing said", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const table = make_table();
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        const ret = table.addColumn("x");
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        await ret;
+        expect(calls).toEqual(["cancel when", "addColumn(x)", "addColumn resolved"]);
+        expect(warn).not.toHaveBeenCalled();
         warn.mockRestore();
     });
 });
