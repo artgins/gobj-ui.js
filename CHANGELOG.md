@@ -5,8 +5,12 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 7.27.0
 
+The number follows SDK 7.27.0 (its first two indexes are the SDK's). No change
+of the library's code over 7.26.59:
+
+- **test (scripts):** `deploy-round.test.js` made its "older version" by taking 1 from the third index, which at `x.y.0` gave `7.27.-1`; at `x.y.0` it takes the minor before.
 - **fix (scripts, not published): the demo guard of 7.26.59 let a DELETED file behind a mark through.** It skipped every marked file missing from disk as if a sparse checkout had left it out, so a file deleted under `core.ignoreStat`, or marked assume-unchanged or skip-worktree with no sparse checkout, deployed the demo without it. A missing marked file is a change now, unless it is skip-worktree with `core.sparseCheckout` on. A marked symlink is compared by its target and a marked submodule by its `HEAD` (both were skipped), and the paths go to `git hash-object` as arguments (a path with a newline broke `--stdin-paths`, and a clean one was refused). Tests in `deploy-round.test.js`.
 
 ## 7.26.59

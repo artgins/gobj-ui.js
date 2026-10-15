@@ -23,12 +23,13 @@ const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "deploy-round.mjs")
 const PKG = JSON.parse(readFileSync(join(dirname(SCRIPT), "..", "package.json"), "utf8"));
 const VERSION = PKG.version;
 const [MAJOR, MINOR, PATCH] = VERSION.split(".").map(Number);
-const OLDER = `${MAJOR}.${MINOR}.${PATCH - 1}`;
+/*  An older version of the same major: at x.y.0 the one before is of the minor before  */
+const OLDER = PATCH > 0? `${MAJOR}.${MINOR}.${PATCH - 1}` : `${MAJOR}.${MINOR - 1}.99`;
 const NEWER = `${MAJOR}.${MINOR}.${PATCH + 8}`;
 /*  The runtime, a round of its own (`--pkg @yuneta/gobj-js`) on the same consumers  */
 const JS_VERSION = JSON.parse(readFileSync(join(dirname(SCRIPT), "..", "..", "gobj-js", "package.json"), "utf8")).version;
 const [JS_MAJOR, JS_MINOR, JS_PATCH] = JS_VERSION.split(".").map(Number);
-const JS_OLDER = `${JS_MAJOR}.${JS_MINOR}.${JS_PATCH - 1}`;
+const JS_OLDER = JS_PATCH > 0? `${JS_MAJOR}.${JS_MINOR}.${JS_PATCH - 1}` : `${JS_MAJOR}.${JS_MINOR - 1}.99`;
 const JS_ROUND = ["--no-wait", "--pkg", "@yuneta/gobj-js"];
 const CACHE_FORMAT = 2;
 
