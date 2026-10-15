@@ -47,7 +47,7 @@
 /*  The text of a moment lives in a module of its own, which carries no
  *  i18n key: a view that formats a time must not make the validator ask
  *  an app for the keys of the period picker, which live here.  */
-import {safe_locale, fmt_date_time} from "./yui_date_text.js";
+import {safe_locale, date_time_format, fmt_date_time} from "./yui_date_text.js";
 
 /***************************************************************
  *              Constants
@@ -140,12 +140,7 @@ function tr(t, key, params)
  ***************************************************************/
 function fmt_intl(date, locale, opts)
 {
-    try {
-        return new Intl.DateTimeFormat(safe_locale(locale), opts).format(date);
-    } catch(e) {
-        /*  A locale Intl refuses is not worth a broken screen.  */
-        return date.toDateString();
-    }
+    return date_time_format(locale, opts).format(date);
 }
 
 

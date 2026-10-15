@@ -27,7 +27,7 @@
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {fmt_date_time, safe_locale} from "./yui_date_text.js";
+import {fmt_date_time, safe_locale, date_time_format} from "./yui_date_text.js";
 
 /*  The legend's stamp, as uPlot 1.6 writes it (_timeSeriesStamp).  */
 const LEGEND_STAMP = "{YYYY}-{MM}-{DD} {h}:{mm}{aa}";
@@ -43,11 +43,7 @@ function intl(locale, opts)
     let key = locale + "|" + JSON.stringify(opts);
     let f = __formatters__.get(key);
     if(!f) {
-        try {
-            f = new Intl.DateTimeFormat(locale, opts);
-        } catch(e) {
-            f = new Intl.DateTimeFormat("en", opts);
-        }
+        f = date_time_format(locale, opts);
         __formatters__.set(key, f);
     }
     return f;

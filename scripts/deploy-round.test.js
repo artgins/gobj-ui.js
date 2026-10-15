@@ -540,6 +540,24 @@ describe("deploy-round: the range and the version", () => {
         expect(read(join(repo, "app")).version).toBe("1.0.0");
         expect(JSON.parse(readFileSync(cache_file, "utf8"))).toEqual(
             {format: CACHE_FORMAT, entries: {[`@yuneta/gobj-ui ${parent}`]: []}});
+
+        /*  An entry of this format that is not a list of {specs: [string], versions: [string]} is
+         *  said, read again from git and written again (up to 7.26.54 `[null]` refused the app on
+         *  every round, naming no file)  */
+        let bad_entries = [[null], {}, "x", [{specs: "^1.0.0", versions: []}], [{specs: [1], versions: []}],
+            [{specs: [], versions: [null]}], [{specs: []}], [[]]];
+        for(let bad of bad_entries) {
+            writeFileSync(cache_file, JSON.stringify({format: CACHE_FORMAT,
+                entries: {[`@yuneta/gobj-ui ${parent}`]: bad}}));
+            r = round(root, {name: "app", path: join(repo, "app")});
+            let what = JSON.stringify(bad);
+            expect(r.out, what).toContain(`${cache_file}: `);
+            expect(r.out, what).toContain("read again from git");
+            expect(r.out, what).toMatch(/range {2}already/);
+            expect(read(join(repo, "app")).version, what).toBe("1.0.0");
+            expect(JSON.parse(readFileSync(cache_file, "utf8")), what).toEqual(
+                {format: CACHE_FORMAT, entries: {[`@yuneta/gobj-ui ${parent}`]: []}});
+        }
     });
 
     test("what is kept is kept per PACKAGE: a round of the runtime after one of the library reads its own states", () => {
@@ -642,5 +660,73 @@ describe("deploy-round: the range and the version", () => {
         expect(r.out).toMatch(/cannot tell whether its version was raised with the range/);
         expect(r.out).toMatch(/FAILED in this round/);
         expect(read(dir).version).toBe("1.2.3");
+    });
+});
+
+describe("deploy-round: the public demo", () => {
+    /*  A copy of the repo: the script, a package.json, a test-app whose build is `true` and whose
+     *  deploy.sh writes a line in `deployed`; an `origin` it was pushed to; curl that answers nothing  */
+    function repo_copy()
+    {
+        let root = mkdtempSync(join(tmpdir(), "dr-demo-"));
+        let ui = join(root, "ui");
+        mkdirSync(join(ui, "scripts"), {recursive: true});
+        mkdirSync(join(ui, "test-app"), {recursive: true});
+        mkdirSync(join(root, "home"), {recursive: true});
+        mkdirSync(join(root, "bin"), {recursive: true});
+        writeFileSync(join(ui, "scripts", "deploy-round.mjs"), readFileSync(SCRIPT));
+        writeFileSync(join(ui, "package.json"), JSON.stringify({name: "@yuneta/gobj-ui", version: VERSION}));
+        writeFileSync(join(ui, "test-app", "package.json"), JSON.stringify({name: "test-app", scripts: {build: "true"}}));
+        writeFileSync(join(ui, "test-app", "deploy.sh"), `#!/bin/sh\necho "$@" >> ${join(root, "deployed")}\n`);
+        chmodSync(join(ui, "test-app", "deploy.sh"), 0o755);
+        writeFileSync(join(root, "bin", "curl"), "#!/bin/sh\nexit 7\n");
+        chmodSync(join(root, "bin", "curl"), 0o755);
+        execFileSync("git", ["init", "-q", "-b", "main"], {cwd: ui});
+        commit(ui, "the repo");
+        execFileSync("git", ["clone", "-q", "--bare", ui, join(root, "origin.git")]);
+        git(ui, "remote", "add", "origin", join(root, "origin.git"));
+        git(ui, "fetch", "-q", "origin");
+        return {root, ui};
+    }
+    function demo_round(root, ui)
+    {
+        let r = spawnSync(process.execPath, [join(ui, "scripts", "deploy-round.mjs"), "--only", "test-app", "--no-wait"], {
+            encoding: "utf8", timeout: 60000,
+            env: Object.assign({}, process.env,
+                               {HOME: join(root, "home"), PATH: join(root, "bin") + delimiter + process.env.PATH})
+        });
+        let deployed = "";
+        try {
+            deployed = readFileSync(join(root, "deployed"), "utf8");
+        } catch(e) {
+            deployed = "";
+        }
+        return {status: r.status, out: r.stdout + r.stderr, deployed};
+    }
+
+    test("it is deployed only from a clean tree at origin/main (up to 7.26.54 from any copy, in any state)", () => {
+        let {root, ui} = repo_copy();
+        let r = demo_round(root, ui);
+        expect(r.deployed).toBe("--no-build\nniyamaka.com --no-build\n");
+
+        let refused = [
+            ["a changed file", () => writeFileSync(join(ui, "package.json"),
+                JSON.stringify({name: "@yuneta/gobj-ui", version: VERSION, x: 1})), "changes in the working tree"],
+            ["a new file", () => writeFileSync(join(ui, "test-app", "new.js"), "x\n"), "changes in the working tree"],
+            ["a commit origin/main does not have", () => {
+                writeFileSync(join(ui, "test-app", "new.js"), "x\n");
+                commit(ui, "not pushed");
+            }, "is not origin/main"],
+            ["no origin", () => git(ui, "remote", "remove", "origin"), "cannot read origin/main"]
+        ];
+        for(let [what, make, says] of refused) {
+            ({root, ui} = repo_copy());
+            make();
+            r = demo_round(root, ui);
+            expect(r.deployed, what).toBe("");
+            expect(r.out, what).toContain("NOT DEPLOYED");
+            expect(r.out, what).toContain(says);
+            expect(r.status, what).toBe(1);
+        }
     });
 });

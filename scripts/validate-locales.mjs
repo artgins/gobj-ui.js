@@ -341,6 +341,7 @@
  ***********************************************************************/
 import {readdirSync, readFileSync, existsSync, statSync, realpathSync} from "fs";
 import {spawnSync} from "child_process";
+import {randomBytes} from "crypto";
 import {resolve, relative} from "path";
 import {pathToFileURL, fileURLToPath} from "url";
 import {I18N_KEY_FUNCTIONS} from "../src/i18n_key_functions.js";
@@ -581,6 +582,13 @@ function load_locales(locales_dir)
  *  in the locales' process, is a violation; that process ending
  *  before its report, or not reporting in LOCALES_TIMEOUT_MS, aborts
  *  the run: no language could be checked.
+ *
+ *  The report must carry a nonce the process reads on its stdin
+ *  before it imports any locale, so a report a locale writes to the
+ *  channel itself is refused (up to gobj-ui 7.26.54 it was the
+ *  verdict). This stops accidents and the shapes named here, not
+ *  deliberate malice: a locale is the app's own code, and the
+ *  process is no sandbox.
  ***************************************************************/
 const LOCALES_TIMEOUT_MS = 60000;
 
@@ -590,9 +598,11 @@ function import_locales(locales_dir, codes)
         dir: locales_dir.href,
         codes: codes.map((code) => [code, locale_export_names(code)])
     });
+    let nonce = randomBytes(16).toString("hex");
     let r = spawnSync(process.execPath,
         [...process.execArgv, "-e", `(${report_locales.toString()})(${request});`], {
-            stdio: ["ignore", "inherit", "inherit", "pipe"],
+            input: nonce,
+            stdio: ["pipe", "inherit", "inherit", "pipe"],
             timeout: LOCALES_TIMEOUT_MS,
             killSignal: "SIGKILL",
             maxBuffer: 1 << 30
@@ -615,7 +625,8 @@ function import_locales(locales_dir, codes)
             report = null;
         }
     }
-    if(r.status !== 0 || !report || typeof report.locales !== "object" || !Array.isArray(report.problems)) {
+    if(r.status !== 0 || !report || report.nonce !== nonce ||
+            typeof report.locales !== "object" || !Array.isArray(report.problems)) {
         let how = r.signal? `killed by ${r.signal}` : `exit code ${r.status}`;
         abort(`${AT} ended (${how}) before it reported what they export` +
               `${text? ", or reported what is not its report" : ""}: ${WHY} (a top-level await that ` +
@@ -635,9 +646,12 @@ function import_locales(locales_dir, codes)
 /***************************************************************
  *  The code of the locales' process (import_locales()), run there
  *  from its text: it can use nothing of this module but its
- *  argument. What it calls after the locales ran is taken BEFORE
- *  them, so a locale that replaces process.reallyExit or
- *  JSON.stringify does not reach the report. It reports after a
+ *  argument and the nonce on its stdin. What it calls after the
+ *  locales ran is taken BEFORE them, so a locale that replaces
+ *  process.reallyExit or JSON.stringify does not reach the report,
+ *  and the report is written by hand from strings (JSON.stringify of
+ *  a primitive string reads no toJSON): a toJSON a locale puts on
+ *  Object.prototype or Array.prototype is never called. It reports after a
  *  timer of 0 and an immediate: a promise a locale rejects in such
  *  a timer, with nothing to handle it, is told first. Its own end is
  *  process.reallyExit(0): no exit handler of a locale runs, and a
@@ -645,47 +659,75 @@ function import_locales(locales_dir, codes)
  ***************************************************************/
 async function report_locales(request)
 {
-    const {writeSync} = await import("node:fs");
+    const {writeSync, readFileSync} = await import("node:fs");
+    const nonce = readFileSync(0, "utf8");
     const really_exit = process.reallyExit.bind(process);
     const stringify = JSON.stringify;
     const keys_of = Object.keys;
     const set_timeout = setTimeout;
     const set_immediate = setImmediate;
     const buffer_from = Buffer.from.bind(Buffer);
+    const define = Object.defineProperty;
+    const has_own = Object.hasOwn;
     const problems = [];
+    const add_problem = (text) => {
+        define(problems, problems.length, {value: String(text), enumerable: true});
+    };
+    const list_text = (list) => {
+        let text = "[";
+        for(let i = 0; i < list.length; i++) {
+            text += (i? "," : "") + stringify(String(list[i]));
+        }
+        return text + "]";
+    };
     process.on("unhandledRejection", (reason) => {
-        problems.push(`a promise was rejected and nothing handled it: ${(reason && reason.stack) || reason}`);
+        add_problem(`a promise was rejected and nothing handled it: ${(reason && reason.stack) || reason}`);
     });
     process.on("uncaughtException", (e) => {
-        problems.push(`an exception was thrown and nothing caught it: ${(e && e.stack) || e}`);
+        add_problem(`an exception was thrown and nothing caught it: ${(e && e.stack) || e}`);
     });
     const locales = {};
-    for(const [code, names] of request.codes) {
+    const set_locale = (code, value) => {
+        define(locales, code, {value, enumerable: true});
+    };
+    for(let c = 0; c < request.codes.length; c++) {
+        const code = request.codes[c][0];
+        const names = request.codes[c][1];
         try {
             const mod = await import(new URL(`${code}.js`, request.dir).href);
             let locale = null;
-            for(const name of names) {
-                if(mod[name]) {
-                    locale = mod[name];
+            for(let n = 0; n < names.length; n++) {
+                if(mod[names[n]]) {
+                    locale = mod[names[n]];
                     break;
                 }
             }
             locale = locale || mod.default;
             if(!locale || !locale.translation || typeof locale.translation !== "object") {
-                locales[code] = {none: true};
+                set_locale(code, {none: true});
             } else {
-                locales[code] = {
+                set_locale(code, {
                     keys: keys_of(locale.translation),
                     name: (typeof locale.name === "string" && locale.name)? locale.name : null
-                };
+                });
             }
         } catch(e) {
-            locales[code] = {error: String((e && e.message) || e)};
+            set_locale(code, {error: String((e && e.message) || e)});
         }
     }
     set_timeout(() => {
         set_immediate(() => {
-            const buf = buffer_from(stringify({locales, problems}) + "\n", "utf8");
+            let text = `{"nonce":${stringify(nonce)},"problems":${list_text(problems)},"locales":{`;
+            for(let i = 0; i < request.codes.length; i++) {
+                const code = request.codes[i][0];
+                const one = locales[code];
+                text += (i? "," : "") + stringify(code) + ":" + (
+                    has_own(one, "none")? `{"none":true}` :
+                    has_own(one, "error")? `{"error":${stringify(one.error)}}` :
+                    `{"keys":${list_text(one.keys)},"name":${one.name === null? "null" : stringify(one.name)}}`
+                );
+            }
+            const buf = buffer_from(text + "}}\n", "utf8");
             let done = 0;
             while(done < buf.length) {
                 done += writeSync(3, buf, done, buf.length - done);

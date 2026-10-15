@@ -314,3 +314,31 @@ describe("a time in the repeated hour of autumn, saved with nothing touched", ()
         });
     });
 });
+
+describe("a stored value the box cannot show", () => {
+    test("is not saved back from the empty box: an empty box is no time", () => {
+        const app = gobj_create_pure_child("tapp6", "C_TEST_TIME_APP", {}, yuno);
+        gobj_start(app);
+        const form = gobj_create_pure_child("tform6", "C_YUI_FORM", {
+            template: {
+                as_epoch: {type: "integer", flag: ["writable", "persistent", "time"]},
+                as_text:  {type: "string",  flag: ["writable", "persistent", "time"]},
+            },
+            record: {as_epoch: "rubbish", as_text: "rubbish"},
+            editable: true,
+        }, app);
+        gobj_start(form);
+
+        expect(box(form, "as_epoch").value).toBe("");
+        expect(box(form, "as_text").value).toBe("");
+        gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
+        expect(saved[0].as_epoch).toBe(null);
+        expect(saved[0].as_text).toBe(null);
+
+        /*  A date typed and cleared again: the box is empty too.  */
+        box(form, "as_epoch").value = WALL;
+        box(form, "as_epoch").value = "";
+        gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
+        expect(saved[1].as_epoch).toBe(null);
+    });
+});

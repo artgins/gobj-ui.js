@@ -1,7 +1,8 @@
 /****************************************************************************
  *          yui_tabulator_edit.js
  *
- *          An open cell editor survives a FORCED redraw of its table.
+ *          An open cell editor survives a FORCED redraw of its table,
+ *          and the other calls that build its cells again.
  *
  *          `table.redraw(true)` builds every row's cells again, the one
  *          being edited too, and leaves Tabulator's edit pointing at the
@@ -16,7 +17,12 @@
  *          does not blur, and throws at the next edit. Any editor, ours
  *          (form_time_cell_editor.js) or Tabulator's own.
  *
- *          So the edit is ended BEFORE the forced redraw, while its cell
+ *          `setColumns()` (a language change of
+ *          C_YUI_TREEDB_TOPIC_WITH_FORM runs it) and `setHeight`,
+ *          `setMaxHeight` and `setMinHeight` build the cells again the
+ *          same way, and Tabulator throws the same.
+ *
+ *          So the edit is ended BEFORE each of those calls, while its cell
  *          is alive, and opened again on the new cell of the same row
  *          and column after it. What was typed in the box is lost; the
  *          editor stays open under the reader.
@@ -27,8 +33,10 @@
 import {log_warning} from "@yuneta/gobj-js";
 
 /************************************************************
- *  Wrap `tabulator.redraw` so that a forced redraw ends the
- *  open edit first and opens it again after.
+ *  Wrap the calls of `tabulator` that build the cells again --
+ *  a forced `redraw`, `setColumns` and the three height setters
+ *  -- so that each ends the open edit first and opens it again
+ *  after.
  ************************************************************/
 function yui_tabulator_keep_edit_on_redraw(tabulator)
 {
@@ -43,27 +51,35 @@ function yui_tabulator_keep_edit_on_redraw(tabulator)
         editing = null;
     });
 
-    let redraw = tabulator.redraw.bind(tabulator);
-    tabulator.redraw = function(force) {
-        let cell = editing;
-        /*  A success() with the value unchanged fires no cellEdited:
-         *  the cell's class says whether it is still being edited.  */
-        let $cell = cell? cell.getElement() : null;
-        if(!force || !$cell || !$cell.classList.contains("tabulator-editing")) {
-            return redraw(force);
-        }
-        let row = cell.getRow();
-        let field = cell.getField();
-        cell.cancelEdit();
-        let ret = redraw(force);
-        let again = row.getCell(field);
-        if(!again) {
-            log_warning(`yui_tabulator_keep_edit_on_redraw: no cell '${field}' after the redraw`);
+    function keep_edit_around(name, rebuilds)
+    {
+        let original = tabulator[name].bind(tabulator);
+        tabulator[name] = function(...args) {
+            let cell = editing;
+            /*  A success() with the value unchanged fires no cellEdited:
+             *  the cell's class says whether it is still being edited.  */
+            let $cell = cell? cell.getElement() : null;
+            if(!rebuilds(args) || !$cell || !$cell.classList.contains("tabulator-editing")) {
+                return original(...args);
+            }
+            let row = cell.getRow();
+            let field = cell.getField();
+            cell.cancelEdit();
+            let ret = original(...args);
+            let again = row.getCell(field);
+            if(!again) {
+                log_warning(`yui_tabulator_keep_edit_on_redraw: no cell '${field}' after ${name}()`);
+                return ret;
+            }
+            again.edit(true);
             return ret;
-        }
-        again.edit(true);
-        return ret;
-    };
+        };
+    }
+
+    keep_edit_around("redraw", (args) => !!args[0]);
+    for(const name of ["setColumns", "setHeight", "setMaxHeight", "setMinHeight"]) {
+        keep_edit_around(name, () => true);
+    }
 }
 
 export {yui_tabulator_keep_edit_on_redraw};

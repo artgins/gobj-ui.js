@@ -3526,9 +3526,11 @@ function set_form_values(gobj, template, $form, record)
                         /*  value is a Date (see treedb_value_2_form_value).
                          *  The text kept is the one READ BACK: the browser
                          *  drops seconds of :00, so the text written never
-                         *  matches it (get_form_values).  */
+                         *  matches it (get_form_values). An empty box keeps
+                         *  nothing: it is no time, whatever was stored.  */
                         $input.value = date_to_datetime_local(value);
-                        $input.yui_time_kept = {value: stored, shown: $input.value};
+                        $input.yui_time_kept = ($input.value !== "")?
+                            {value: stored, shown: $input.value} : null;
                         break;
                     case "color":
                         $input.value = convertColor(value);

@@ -908,7 +908,7 @@ describe("validate-locales", () => {
         }
     }, 30000);
 
-    test("a locale is imported in a process of its own: nothing it does reaches the verdict", () => {
+    test("a locale is imported in a process of its own: what it does by accident, or by these shapes, does not reach the verdict", () => {
         const ENDED = "the locales are imported in a process of their own, and it ended";
         const MISSING = "a key no locale defines";
         const DEFINED = "a defined key";
@@ -944,6 +944,21 @@ describe("validate-locales", () => {
              `${ENDED} (killed by SIGTERM) before it reported`],
             ["a timer throws", `setTimeout(() => { throw new Error("a locale threw in a timer"); }, 0);`, DEFINED, 1,
              "an exception was thrown and nothing caught it"],
+            /*  Up to gobj-ui 7.26.54 a report the locale wrote, or its toJSON, was the verdict  */
+            ["the top writes a report of its own", `import {writeSync} from "node:fs";
+writeSync(3, JSON.stringify({locales: {en: {keys: [${JSON.stringify(MISSING)}], name: null},
+    es: {keys: [${JSON.stringify(MISSING)}], name: null}}, problems: []}) + "\\n");
+process.reallyExit(0);`, MISSING, 1, "reported what is not its report"],
+            ["a timer writes a report of its own", `import {writeSync} from "node:fs";
+setTimeout(() => { writeSync(3, JSON.stringify({locales: {en: {keys: [${JSON.stringify(MISSING)}], name: null},
+    es: {keys: [${JSON.stringify(MISSING)}], name: null}}, problems: []}) + "\\n"); process.reallyExit(0); }, 0);`,
+             MISSING, 1, "reported what is not its report"],
+            ["Object.prototype.toJSON adds the key", `Object.defineProperty(Object.prototype, "toJSON", {configurable: true,
+    value() { if(this && this.keys && Array.isArray(this.keys)) { this.keys.push(${JSON.stringify(MISSING)}); }
+        return this; }});`, MISSING, 1, "1 violation(s)"],
+            ["Array.prototype.toJSON adds the key", `Object.defineProperty(Array.prototype, "toJSON", {configurable: true,
+    value() { return this.length && typeof this[0] === "string"? [...this, ${JSON.stringify(MISSING)}] : [...this]; }});`,
+             MISSING, 1, "1 violation(s)"],
             /*  What runs after the locales are read is not the catalogue: in a browser it never runs  */
             ["an exit handler throws, nothing missing", `process.on("exit", () => { throw new Error("x"); });`,
              DEFINED, 0, "validate-locales: OK"],

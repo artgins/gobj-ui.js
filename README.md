@@ -4199,6 +4199,10 @@ and reads back the bundle each host serves (`--check` only reads back,
 `--only <name>` does one app, `--no-wait` skips the registry). The private
 consumers are listed in `~/.yuneta/gobj-ui-consumers.json` (see
 `scripts/gobj-ui-consumers.example.json`); the demo (`test-app/`) is built in.
+It is built from the working tree, so it goes out only from a clean tree whose
+HEAD is the commit `origin/main` holds on the remote; otherwise it is `NOT
+DEPLOYED`, with the reason, and the round exits 1 (since `7.26.55`; up to
+`7.26.54` any copy of the repo, on any commit, deployed the public demo).
 
 An app whose range cannot be raised safely is refused and left as it was --
 every package.json of it, since all are checked before any is written: a
@@ -4256,7 +4260,10 @@ one of `@yuneta/gobj-ui` on the same HEAD read the library's states -- and
 said "already" for an app born with both new ranges whose number had gone out
 with the runtime's old range (deploying a new bundle under that number), or
 raised a version for nothing. A file of another format (one of those rounds)
-is not read, and is written again; the 64 entries used last are kept. A
+is not read, and is written again; the 64 entries used last are kept. An
+entry that is not a list of `{specs: [string], versions: [string]}` is said,
+read again from git and written again (since `7.26.55`; up to `7.26.54` an
+entry `[null]` refused the app on every round, naming no file). A
 package.json born with the range in the ROOT of a
 history joined to another one (`--allow-unrelated-histories`) is asked of the
 other history, by version, as one born in a commit with parents is. The
@@ -4606,7 +4613,11 @@ This tree asks for "admin" (a root with children and no `label`), for
 dependency of this package since `7.26.29`: an app need not declare it). A
 LOCALE is not a source: it is parsed, and then imported, so its top-level code
 runs -- the app's own code, but code, and in a process of its own (since
-`7.26.51`), so nothing it does reaches the verdict. Comments are not code. A key is read
+`7.26.51`), so what a locale does by ACCIDENT does not reach the verdict:
+ending the process, an exit handler, a timer, a report of its own written to
+the channel or a `toJSON` on a prototype (refused or never read since
+`7.26.55`). That process is no sandbox against a locale written to cheat it.
+Comments are not code. A key is read
 where it is WRITTEN -- given to a translator, as an `i18n` or `data-i18n*`
 value of an object literal, by `setAttribute()`, or (since `7.26.29`) written
 as a member, `attrs.i18n = "save"`, `attrs["data-i18n-title"] = "save"` -- and
@@ -5574,8 +5585,9 @@ nothing else should.
 - `epoch_to_local_input` / `local_input_to_epoch` / `fmt_epoch` / `epoch_to_ms`
   / `ms_to_epoch` — every conversion crosses the producer's unit flag
   (`ms`: seconds unless a topic's `system_flag` says milliseconds).
-- `fmt_date_time(date, locale)` — a moment as a view shows it as text, in the
-  app's language, 24 hours (see *Dates: a time shown as text*).
+- `fmt_date_time(date, locale)` and `safe_locale(locale)` are re-exported
+  here, but they live in `yui_date_text.js`: import them from THERE (see
+  *Dates: a time shown as text*).
 - `period_bounds` / `period_shift` / `period_start` / `period_label` /
   `infer_period` / `is_current_period` — the algebra of **periods**.
 
@@ -5633,19 +5645,35 @@ scripts with the UI around it.
 
 **Every time a view shows as text is in the APP's language, with a clock of 24
 hours** (7.26.52). One function writes it, `fmt_date_time(date, locale)` in
-`yui_time.js` -- day, short month, year, then hours, minutes and seconds --,
-and the views pass it `i18next.language`, never `navigator.language`:
+`yui_date_text.js` -- day, short month, year, then hours, minutes and seconds --,
+and the views pass it `i18next.language`, never `navigator.language`. Import it
+from `yui_date_text.js`, not from `yui_time.js`: `validate-locales` follows the
+modules an app imports, and `yui_time.js` makes the app owe every key of the
+period picker.
 
 ```js
-import {fmt_date_time, safe_locale} from "@yuneta/gobj-ui/src/yui_time.js";
+import {fmt_date_time, safe_locale} from "@yuneta/gobj-ui/src/yui_date_text.js";
 import i18next from "i18next";
 
 fmt_date_time(new Date(2026, 9, 14, 15, 5, 9), safe_locale(i18next.language));
 // es  "14 oct 2026, 15:05:09"
 // en  "Oct 14, 2026, 15:05:09"      (en-US too: 24 hours, no AM/PM)
 // midnight "00:00:00", never "24:00:00" (hourCycle "h23", not hour12: false)
-// not a valid Date -> ""; a locale Intl refuses -> "2026-10-14 15:05:09"
+// not a valid Date -> ""
 ```
+
+Three facts the text does not show:
+
+- **The zone is the browser's**, and the text names no zone and no offset. Two
+  readers in two zones see two different clocks for the same record.
+- **The hour that repeats in autumn reads the same in its two passes**: in
+  Europe/Madrid, `1792888200` and `1792891800` both read
+  `25 oct 2026, 02:30:00`.
+- **A locale the environment cannot use writes in the environment's
+  language.** A well-formed one Intl does not know (`xx`, `cimode`, `dev`) does
+  it by Intl's own rule, silently. A malformed one Intl refuses (`en_US`) does
+  it through `date_time_format()` (`yui_date_text.js`), which says it once per
+  locale in a WARNING. The ticks of a chart's time axis fall back the same way.
 
 What writes it, and follows the language button (`EV_LANGUAGE_CHANGED`):
 

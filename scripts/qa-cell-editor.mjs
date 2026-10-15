@@ -3,7 +3,8 @@
  *          qa-cell-editor.mjs
  *
  *      A cell editor of a C_YUI_FORM table survives a FORCED redraw of
- *      its table, in a REAL browser (Chromium and Firefox).
+ *      its table, and setColumns() and setHeight(), in a REAL browser
+ *      (Chromium and Firefox).
  *
  *      Tabulator redraws a table with `force` the first time a table
  *      built out of sight comes into view (ResizeTable's
@@ -28,6 +29,9 @@
  *        (b) a forced redraw while the editor is open: it is still
  *            open, on the same cell.
  *        (c) Escape closes it, and the cell opens again.
+ *        (d) setColumns() and (e) setHeight() while the editor is open
+ *            (they build the cells again too): still open, on the same
+ *            cell. Run before (c).
  *      Any pageerror or console error is a failure.
  *
  *      It starts the test-app's vite dev server on its own port and
@@ -99,16 +103,25 @@ async function cell_state(page, sel)
     }));
 }
 
-/*  table.redraw(true), as ResizeTable issues it.  */
-async function force_redraw(page, sel)
+/*  A call that builds the cells again: table.redraw(true), as
+ *  ResizeTable issues it, setColumns(), as a language change of
+ *  C_YUI_TREEDB_TOPIC_WITH_FORM issues it, or a height setter.  */
+async function rebuild(page, sel, how)
 {
-    await page.evaluate(async (s) => {
+    await page.evaluate(async ([s, how]) => {
         const url = performance.getEntriesByType("resource").map((r) => r.name)
             .find((n) => n.includes("tabulator-tables.js"));
         const mod = await import(url);
         const T = mod.TabulatorFull || mod.default;
-        T.findTable(document.querySelector(s).closest(".tabulator"))[0].redraw(true);
-    }, sel);
+        const table = T.findTable(document.querySelector(s).closest(".tabulator"))[0];
+        if(how === "redraw") {
+            table.redraw(true);
+        } else if(how === "setColumns") {
+            table.setColumns(table.getColumnDefinitions());
+        } else {
+            table.setHeight(table.element.offsetHeight);
+        }
+    }, [sel, how]);
 }
 
 function is_open(st)
@@ -140,9 +153,17 @@ async function run_browser(name, bt)
         await page.waitForTimeout(400);
         results.push(["(a) open after the first-view redraw", is_open(await cell_state(page, sel))]);
 
-        await force_redraw(page, sel);
+        await rebuild(page, sel, "redraw");
         await page.waitForTimeout(300);
         results.push(["(b) open after a forced redraw", is_open(await cell_state(page, sel))]);
+
+        await rebuild(page, sel, "setColumns");
+        await page.waitForTimeout(300);
+        results.push(["(d) open after setColumns()", is_open(await cell_state(page, sel))]);
+
+        await rebuild(page, sel, "setHeight");
+        await page.waitForTimeout(300);
+        results.push(["(e) open after setHeight()", is_open(await cell_state(page, sel))]);
 
         await page.keyboard.press("Escape");
         await page.waitForTimeout(200);

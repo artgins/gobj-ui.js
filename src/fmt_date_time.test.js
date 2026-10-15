@@ -12,6 +12,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {describe, test, expect} from "vitest";
+import {set_log_callback} from "@yuneta/gobj-js";
 import {fmt_date_time, safe_locale} from "./yui_time.js";
 import {time_value_to_text} from "./form_time_value.js";
 import {format_epoch} from "./json_view_helpers.js";
@@ -72,8 +73,36 @@ describe("fmt_date_time", () => {
         expect(fmt_date_time(D, "")).toBe(fallback);
     });
 
-    test("a locale Intl refuses gives the language-free clock, not a broken screen", () => {
-        expect(fmt_date_time(D, "xx_YY")).toBe("2026-10-14 15:05:09");
+    test("a locale Intl refuses writes in the environment's, as one it does not know, and says so once", () => {
+        const warnings = [];
+        set_log_callback((level, msg) => {
+            if(String(level) === "warning" && /date_time_format/.test(String(msg))) {
+                warnings.push(String(msg));
+            }
+        });
+        try {
+            const env = fmt_date_time(D, "xx");     /*  well-formed, unknown: Intl's own fallback  */
+            expect(env).toBe(new Intl.DateTimeFormat(undefined, {
+                day: "numeric", month: "short", year: "numeric",
+                hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+            }).format(D));
+            expect(warnings).toEqual([]);
+            expect(fmt_date_time(D, "xx_YY")).toBe(env);
+            expect(fmt_date_time(D, "xx_YY")).toBe(env);
+            expect(fmt_date_time(D, "zz_ZZ")).toBe(env);
+            expect(warnings.length).toBe(2);
+            expect(warnings[0]).toMatch(/'xx_YY'/);
+            expect(warnings[1]).toMatch(/'zz_ZZ'/);
+
+            /*  The axis of a chart falls back the same way, and says it once.  */
+            const month = yui_uplot_fmt_date(() => "yy_QQ")("{MMM}");
+            expect(month(D)).toBe(new Intl.DateTimeFormat(undefined, {month: "short"}).format(D));
+            expect(month(D)).toBe(new Intl.DateTimeFormat(undefined, {month: "short"}).format(D));
+            expect(warnings.length).toBe(3);
+            expect(warnings[2]).toMatch(/'yy_QQ'/);
+        } finally {
+            set_log_callback(null);
+        }
     });
 });
 

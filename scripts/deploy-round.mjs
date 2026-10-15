@@ -134,9 +134,13 @@ if(PKG.name !== PKG_NAME) {
  *  The DEMO. In the repo, so it is described here and not in the
  *  manifest: it runs the working tree (`file:..`), which is why it needs
  *  no range and no registry -- and why it is the one that gets skipped.
+ *  And why it goes out only from a clean tree at origin/main
+ *  (demo_problem()): up to gobj-ui 7.26.54 any copy of the repo, on any
+ *  commit, with any change, deployed the public demo.
  */
 const DEMO = {
     name: "test-app",
+    demo: true,
     path: join(ROOT, "test-app"),
     worktree: true,                     /*  no range to raise  */
     deploys: [["./deploy.sh", "--no-build"], ["./deploy.sh", "niyamaka.com", "--no-build"]],
@@ -686,7 +690,11 @@ function package_states(dir, parents)
     const shallow = run("git", ["rev-parse", "--is-shallow-repository"], top).trim() === "true";
     const key = `${PKG_NAME} ${shas.join(" ")}`;
     const cache = shallow? null : read_history_cache();
-    if(cache && Array.isArray(cache.entries[key])) {
+    if(cache && key in cache.entries && !are_states(cache.entries[key])) {
+        console.error(`    ${HISTORY_CACHE}: the entry of ${key} is not a list of states, read again from git`);
+        delete cache.entries[key];
+    }
+    if(cache && key in cache.entries) {
         const kept = cache.entries[key];
         if(Object.keys(cache.entries).at(-1) !== key) {
             delete cache.entries[key];
@@ -749,6 +757,16 @@ function package_states(dir, parents)
  *       entries: {"<package> <sha> ...": [state]}}, oldest first
  ************************************************************/
 const HISTORY_CACHE_FORMAT = 2;
+
+/*  Is a kept entry what package_states() returns, a list of
+ *  {specs: [string], versions: [string]}? Anything else is a miss:
+ *  up to gobj-ui 7.26.54 `[null]` refused the app on every round  */
+function are_states(v)
+{
+    const strings = (list) => Array.isArray(list) && list.every((x) => typeof x === "string");
+    return Array.isArray(v) && v.every((st) => st !== null && typeof st === "object" && !Array.isArray(st)
+        && strings(st.specs) && strings(st.versions));
+}
 const HISTORY_CACHE_ENTRIES = 64;
 
 function read_history_cache()
@@ -866,6 +884,12 @@ function do_round(c)
         console.log("    absent on this machine -- skipped");
         return {name: c.name, urls: c.urls || [], worktree: c.worktree, state: "skipped"};
     }
+    const refused = c.demo? demo_problem() : null;
+    if(refused) {
+        console.log(`    NOT DEPLOYED: ${refused}`);
+        return {name: c.name, urls: c.urls || [], path: c.path, worktree: c.worktree, state: "refused",
+                why: refused};
+    }
 
     try {
         if(!c.worktree) {
@@ -919,6 +943,39 @@ function do_round(c)
     return {name: c.name, urls: c.urls || [], path: c.path, worktree: c.worktree, state: "deployed"};
 }
 
+/*  Why the demo must not go out from this tree, or null: it is built
+ *  from the working tree, so only a clean one at the commit origin/main
+ *  holds now (asked of the remote, not of a local ref that may be old)  */
+function demo_problem()
+{
+    let changes;
+    let head;
+    let main;
+    try {
+        changes = run("git", ["status", "--porcelain"], ROOT).trim();
+        head = run("git", ["rev-parse", "HEAD"], ROOT).trim();
+    } catch(e) {
+        return `${ROOT} is not a git tree it can read (${String(e.message).split("\n")[0]})`;
+    }
+    if(changes) {
+        return `changes in the working tree of ${ROOT} (${changes.split("\n").length} file(s), ` +
+               "`git status`): the demo goes out only from a clean tree at origin/main";
+    }
+    try {
+        main = run("git", ["ls-remote", "origin", "refs/heads/main"], ROOT).split(/\s/)[0];
+    } catch(e) {
+        main = "";
+    }
+    if(!main) {
+        return `cannot read origin/main of ${ROOT}: the demo goes out only from a clean tree at origin/main`;
+    }
+    if(main !== head) {
+        return `HEAD ${head.slice(0, 12)} is not origin/main ${main.slice(0, 12)}: ` +
+               "the demo goes out only from a clean tree at origin/main";
+    }
+    return null;
+}
+
 /************************************************************
  *  Is the local build one of THIS version?
  *
@@ -969,6 +1026,7 @@ function verify(entry)
 {
     const local = local_bundle(entry.path || "");
     const problem = (entry.state === "failed")? "FAILED in this round" :
+                    (entry.state === "refused")? `NOT DEPLOYED (${entry.why})` :
                                                 local_build_problem(entry);
     const rows = [];
     if(!(entry.urls || []).length) {
