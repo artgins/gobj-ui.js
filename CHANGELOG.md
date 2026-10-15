@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.26.56
+
+- **deps: peer floors raised to i18next `^26.4.5` and maplibre-gl `^6.14.0`; vite `^8.3.4` for the build.** What they bring, read against this library and its apps:
+    - **i18next 26.4.4 is a security release**: an interpolated value holding an unclosed `$t(` made the nesting regexp backtrack exponentially (a ~25-character value hung `t()` for minutes), and a `$t(...)` arriving inside a variable was resolved by the outer nesting. Both are reachable here (the views interpolate names that come from devices and users). The second fix changes behaviour only for a `$t(` nested inside a variable, which no locale of the library or of the apps writes. 26.4.3/26.4.5: performance and a `hasLoadedNamespace()` fix for react-i18next, not used here.
+    - **maplibre-gl 6.13/6.14**: bug fixes (`load`/`idle` that never fired when the last tile failed with a status other than 404, a crash removing feature state, `setStyle` with a lost WebGL context, camera fixes on terrain and globe); since 6.13.0 the worker is self-contained and `maplibre-gl-shared.mjs` is an empty file. The worker copy of the apps keeps working (estadodelaire already served 6.14.0, console clean).
+    - **vite 8.3.4**: build and dev-server fixes (the preload helper waits for in-flight stylesheets; chunk preloads with a non-root base), no API change.
+  No code change. Tests, build, `qa-history` and `qa-cell-editor` pass on the new versions.
+
 ## 7.26.55
 
 - **fix(`C_YUI_FORM`): a time field could not clear a stored value the box cannot show.** A value that is not a time (`"rubbish"` in a time column) leaves the box empty, and since 7.26.51 the field kept `{value: stored, shown: ""}`, so a save with the box empty -- untouched, or a date typed and cleared again -- wrote the rubbish back (7.26.50 wrote `null`). An empty box now keeps nothing: it saves `null`. Test in `form_time_field.wiring.test.js`, red with 7.26.54.

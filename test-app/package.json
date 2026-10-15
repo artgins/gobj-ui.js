@@ -14,7 +14,7 @@
         "@yuneta/gobj-js": "file:../../gobj-js",
         "@yuneta/gobj-ui": "file:..",
         "bulma": "^1.0.4",
-        "i18next": "^26.3.6",
+        "i18next": "^26.4.5",
         "luxon": "^3.7.2",
         "tom-select": "^2.6.2",
         "tabulator-tables": "^6.6.0"
@@ -23,7 +23,7 @@
         "@rollup/plugin-terser": "^1.0.0",
         "@vitest/coverage-v8": "^4.1.10",
         "playwright": "^1.62.0",
-        "vite": "^8.3.3",
+        "vite": "^8.3.4",
         "vitest": "^4.1.10"
     }
 }
