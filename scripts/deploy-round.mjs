@@ -103,7 +103,8 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {execFileSync} from "node:child_process";
-import {readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync, realpathSync} from "node:fs";
+import {readFileSync, existsSync, statSync, lstatSync, readlinkSync, writeFileSync, renameSync, mkdirSync,
+        realpathSync} from "node:fs";
 import {basename, dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {homedir} from "node:os";
@@ -1012,31 +1013,82 @@ function demo_problem()
 
 /*  The files `git status` does not look at -- marked assume-unchanged
  *  (a lower-case tag: also every file under core.ignoreStat) or
- *  skip-worktree (`S`: also what a sparse checkout leaves out) -- whose
- *  bytes on disk are not the blob of the index. A mark alone is no
- *  change, and a file that is not on disk (out of a sparse cone) is
- *  not built from. Hashed as `git add` would (its filters applied).  */
+ *  skip-worktree (`S`/`s`: also what a sparse checkout leaves out) --
+ *  that are not what the index holds. A mark alone is no change. A file
+ *  missing from disk is a change (a deletion), unless it is skip-worktree
+ *  in a sparse checkout: then it is out of the cone, and not built from.
+ *  A file is hashed as `git add` would (its filters applied), a symlink
+ *  by its target, a submodule by its HEAD.  */
 function changed_behind_marks(dir)
 {
-    let marked = [];
+    let sparse = false;
+    try {
+        sparse = run("git", ["config", "--bool", "core.sparseCheckout"], dir).trim() === "true";
+    } catch(e) {
+        sparse = false;     /*  unset: git config exits 1  */
+    }
+    let changed = [];
+    let files = [];
     for(const entry of run("git", ["ls-files", "-v", "-s", "-z"], dir).split("\0")) {
-        const m = /^([a-z]|S) (\d+) ([0-9a-f]+) \d\t(.*)$/s.exec(entry);
-        if(!m || m[2] === "160000" || m[2] === "120000") {
-            continue;       /*  not marked, a gitlink or a symlink  */
+        const m = /^([a-zS]) (\d+) ([0-9a-f]+) \d\t(.*)$/s.exec(entry);
+        if(!m) {
+            continue;
         }
-        if(existsSync(join(dir, m[4]))) {
-            marked.push({path: m[4], blob: m[3]});
+        const [, tag, mode, blob, path] = m;
+        if(tag === "H") {
+            continue;       /*  not marked  */
+        }
+        const full = join(dir, path);
+        let st = null;
+        try {
+            st = lstatSync(full);
+        } catch(e) {
+            st = null;
+        }
+        if(!st) {
+            if(!(sparse && (tag === "S" || tag === "s"))) {
+                changed.push(path);
+            }
+            continue;
+        }
+        if(mode === "120000") {
+            let target = null;
+            if(st.isSymbolicLink()) {
+                target = readlinkSync(full);
+            }
+            const hash = (target === null)? "" : execFileSync("git", ["hash-object", "--stdin"], {
+                cwd: dir, encoding: "utf8", env: child_env(), input: target,
+                stdio: ["pipe", "pipe", "pipe"]
+            }).trim();
+            if(hash !== blob) {
+                changed.push(path);
+            }
+        } else if(mode === "160000") {
+            let head = "";
+            try {
+                head = run("git", ["rev-parse", "HEAD"], full).trim();
+            } catch(e) {
+                head = "";
+            }
+            if(head !== blob) {
+                changed.push(path);
+            }
+        } else {
+            files.push({path, blob});
         }
     }
-    if(!marked.length) {
-        return [];
+    if(files.length) {
+        /*  The paths as arguments, not one a line: a path may hold a newline  */
+        const hashes = execFileSync("git", ["hash-object", "--", ...files.map((f) => f.path)], {
+            cwd: dir, encoding: "utf8", env: child_env(), stdio: ["ignore", "pipe", "pipe"]
+        }).trim().split("\n");
+        for(let i = 0; i < files.length; i++) {
+            if(hashes[i] !== files[i].blob) {
+                changed.push(files[i].path);
+            }
+        }
     }
-    const hashes = execFileSync("git", ["hash-object", "--stdin-paths"], {
-        cwd: dir, encoding: "utf8", env: child_env(),
-        input: marked.map((f) => f.path).join("\n") + "\n",
-        stdio: ["pipe", "pipe", "pipe"]
-    }).trim().split("\n");
-    return marked.filter((f, i) => hashes[i] !== f.blob).map((f) => f.path);
+    return changed;
 }
 
 function tree_problem(dir)

@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **fix (scripts, not published): the demo guard of 7.26.59 let a DELETED file behind a mark through.** It skipped every marked file missing from disk as if a sparse checkout had left it out, so a file deleted under `core.ignoreStat`, or marked assume-unchanged or skip-worktree with no sparse checkout, deployed the demo without it. A missing marked file is a change now, unless it is skip-worktree with `core.sparseCheckout` on. A marked symlink is compared by its target and a marked submodule by its `HEAD` (both were skipped), and the paths go to `git hash-object` as arguments (a path with a newline broke `--stdin-paths`, and a clean one was refused). Tests in `deploy-round.test.js`.
+
 ## 7.26.59
 
 - **fix: 7.26.58 cancelled the cell editor of `C_YUI_TREEDB_TOPIC_WITH_FORM` on ANY update of its row**, so the backend echo of the reader's own write of the previous cell, arriving while Tab had opened the next one, closed it and lost what was being typed. Tabulator 6.6.0 redraws only the cells whose value changes and throws only when one of them is the cell in edition (the 7.26.58 entry overstated it): the editor is cancelled now only when the update changes ITS field, with a WARNING that says so.

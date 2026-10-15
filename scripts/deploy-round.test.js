@@ -13,7 +13,7 @@ import {describe, test, expect, vi} from "vitest";
 
 /*  Each test spawns node (and git): under a loaded machine 5 s is not enough.  */
 vi.setConfig({testTimeout: 30000});
-import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, existsSync} from "node:fs";
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, existsSync, symlinkSync} from "node:fs";
 import {join, dirname, delimiter} from "node:path";
 import {tmpdir} from "node:os";
 import {spawnSync, execFileSync} from "node:child_process";
@@ -786,6 +786,31 @@ describe("deploy-round: the public demo", () => {
                 git(js, "update-index", "--skip-worktree", "src/index.js");
                 writeFileSync(join(js, "src", "index.js"), "export {x};\n");
             }, /of \S*\/gobj-js marked assume-unchanged or skip-worktree/],
+            /*  Up to gobj-ui 7.26.59 a marked file missing from disk was taken as out of a sparse cone  */
+            ["a file deleted under core.ignoreStat", () => {
+                writeFileSync(join(ui, "test-app", "x.js"), "x\n");
+                commit(ui, "x");
+                git(ui, "push", "-q", "origin", "main");
+                git(ui, "config", "core.ignoreStat", "true");
+                git(ui, "update-index", "--really-refresh");
+                execFileSync("rm", [join(ui, "test-app", "x.js")]);
+            }, "marked assume-unchanged or skip-worktree"],
+            ["a file marked assume-unchanged, deleted", () => {
+                git(ui, "update-index", "--assume-unchanged", "test-app/deploy.sh");
+                execFileSync("rm", [join(ui, "test-app", "deploy.sh")]);
+            }, "marked assume-unchanged or skip-worktree"],
+            ["a file marked skip-worktree, deleted, with no sparse checkout", () => {
+                git(js, "update-index", "--skip-worktree", "src/index.js");
+                execFileSync("rm", [join(js, "src", "index.js")]);
+            }, /of \S*\/gobj-js marked assume-unchanged or skip-worktree/],
+            ["a symlink marked assume-unchanged, pointing elsewhere", () => {
+                symlinkSync("package.json", join(ui, "link"));
+                commit(ui, "a link");
+                git(ui, "push", "-q", "origin", "main");
+                git(ui, "update-index", "--assume-unchanged", "link");
+                execFileSync("rm", [join(ui, "link")]);
+                symlinkSync("test-app", join(ui, "link"));
+            }, "marked assume-unchanged or skip-worktree"],
             ["no sibling gobj-js", () => execFileSync("rm", ["-rf", js]), /there is no gobj-js directory at /],
             ["a sibling gobj-js that is a file", () => {
                 execFileSync("rm", ["-rf", js]);
@@ -851,6 +876,12 @@ describe("deploy-round: the public demo", () => {
                 git(ui, "config", "core.ignoreStat", "true");
                 git(ui, "update-index", "--really-refresh");
                 git(ui, "add", "-A");
+            }],
+            ["a clean marked file whose path holds a newline", (ui) => {
+                writeFileSync(join(ui, "a\nb.txt"), "x\n");
+                commit(ui, "a newline in a path");
+                git(ui, "push", "-q", "origin", "main");
+                git(ui, "update-index", "--assume-unchanged", "a\nb.txt");
             }],
             ["a sparse checkout with a file out of the cone", (ui) => {
                 mkdirSync(join(ui, "docs"));
