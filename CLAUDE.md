@@ -56,9 +56,9 @@ from the DEPLOYED DOM and switch language.**
 
 - Two maintained lines: **`main`/v2** (declarative shell
   `C_YUI_SHELL/NAV/PAGER/WIZARD` — all new work lands here) and **`v1`**
-  (frozen legacy stack, maintenance-only; hidraulia consumes the published
-  npm `@yuneta/gobj-ui@^1.x` -- estadodelaire moved to v2 on 2026-10-13, and
-  hidraulia is next).
+  (frozen legacy stack, maintenance-only, with no consumer left:
+  estadodelaire moved to v2 on 2026-10-13, and hidraulia, the last one, on
+  2026-10-15).
 - **Every app takes this package from the npm REGISTRY.** Since 2026-08-03
   there is no `file:` consumer left: wattyzer moved on 2026-07-25 and the
   in-repo `yunos/js/*` yunos (gui_agent, gui_treedb) followed, as did the
