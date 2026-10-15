@@ -646,9 +646,14 @@ function import_locales(locales_dir, codes)
 /***************************************************************
  *  The code of the locales' process (import_locales()), run there
  *  from its text: it can use nothing of this module but its
- *  argument and the nonce on its stdin. What it calls after the
- *  locales ran is taken BEFORE them, so a locale that replaces
+ *  argument and the nonce on its stdin. What it calls by name after
+ *  the locales ran is taken BEFORE them, so a locale that replaces
  *  process.reallyExit or JSON.stringify does not reach the report,
+ *  and the text is encoded by a TextEncoder taken then too, not by
+ *  Buffer (which looks Buffer.prototype.utf8Write up when it runs).
+ *  That covers what this code names, not every lookup Node makes
+ *  inside it: a locale that sets out to forge the report can (the
+ *  README says what is out of reach),
  *  and the report is written by hand from strings (JSON.stringify of
  *  a primitive string reads no toJSON): a toJSON a locale puts on
  *  Object.prototype or Array.prototype is never called. It reports after a
@@ -666,7 +671,8 @@ async function report_locales(request)
     const keys_of = Object.keys;
     const set_timeout = setTimeout;
     const set_immediate = setImmediate;
-    const buffer_from = Buffer.from.bind(Buffer);
+    const encoder = new TextEncoder();
+    const encode = encoder.encode.bind(encoder);
     const define = Object.defineProperty;
     const has_own = Object.hasOwn;
     const to_string = String;
@@ -728,7 +734,7 @@ async function report_locales(request)
                     `{"keys":${list_text(one.keys)},"name":${one.name === null? "null" : stringify(one.name)}}`
                 );
             }
-            const buf = buffer_from(text + "}}\n", "utf8");
+            const buf = encode(text + "}}\n");
             let done = 0;
             while(done < buf.length) {
                 done += writeSync(3, buf, done, buf.length - done);

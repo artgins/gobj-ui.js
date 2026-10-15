@@ -91,6 +91,8 @@
  *              node scripts/deploy-round.mjs --only test-app   # the demo
  *              node scripts/deploy-round.mjs --no-wait  # skip the registry wait
  *              node scripts/deploy-round.mjs --pkg @yuneta/gobj-js
+ *          (`--only=x` / `--pkg=x` too). Anything else is exit 2,
+ *          before anything is done.
  *
  *          The demo is deployed only when this repo AND the sibling
  *          gobj-js are each a clean tree of their own at the commit of
@@ -118,10 +120,55 @@ const HISTORY_CACHE = join(homedir(), ".yuneta", "deploy-round-history.json");
  *  it is already serving, which is precisely what the wait below exists
  *  to stop trusting.
  */
-const PKG_NAME = (() => {
-    const i = process.argv.indexOf("--pkg");
-    return i >= 0? process.argv[i + 1] : "@yuneta/gobj-ui";
+/*
+ *  The arguments are read STRICTLY: a misspelt option (`--chek`), an
+ *  `--only=x` read as nothing, or an `--only` with no name used to run
+ *  the WHOLE round, real deploys included. Anything not understood is
+ *  exit 2 before anything is done.
+ */
+const OPTIONS = (() => {
+    const flags = new Set(["--check", "--no-wait"]);
+    const valued = new Set(["--only", "--pkg"]);
+    const opts = {"--check": false, "--no-wait": false, "--only": null, "--pkg": null};
+    const argv = process.argv.slice(2);
+    const refuse = (why) => {
+        console.error(`deploy-round: ${why}; the options are --check, --no-wait, ` +
+                      `--only <name>, --pkg <name>`);
+        process.exit(2);
+    };
+    for(let i = 0; i < argv.length; i++) {
+        let arg = argv[i];
+        let value = null;
+        const eq = arg.indexOf("=");
+        if(arg.startsWith("--") && eq > 0) {
+            value = arg.slice(eq + 1);
+            arg = arg.slice(0, eq);
+        }
+        if(flags.has(arg)) {
+            if(value !== null) {
+                refuse(`${arg} takes no value`);
+            }
+            opts[arg] = true;
+        } else if(valued.has(arg)) {
+            if(value === null) {
+                i++;
+                value = (i < argv.length)? argv[i] : null;
+            }
+            if(!value || value.startsWith("--")) {
+                refuse(`${arg} needs a name`);
+            }
+            if(opts[arg] !== null) {
+                refuse(`${arg} given twice`);
+            }
+            opts[arg] = value;
+        } else {
+            refuse(`unknown argument "${argv[i]}"`);
+        }
+    }
+    return opts;
 })();
+
+const PKG_NAME = OPTIONS["--pkg"] || "@yuneta/gobj-ui";
 const PKG_DIR = (PKG_NAME === "@yuneta/gobj-ui")?
     ROOT : resolve(ROOT, "..", PKG_NAME.replace(/^@[^/]+\//, ""));
 
@@ -154,13 +201,9 @@ const DEMO = {
     urls: ["https://demo.yuneta.io/", "https://niyamaka.com/"],
 };
 
-const args = process.argv.slice(2);
-const CHECK_ONLY = args.includes("--check");
-const NO_WAIT = args.includes("--no-wait");
-const ONLY = (() => {
-    const i = args.indexOf("--only");
-    return i >= 0? args[i + 1] : null;
-})();
+const CHECK_ONLY = OPTIONS["--check"];
+const NO_WAIT = OPTIONS["--no-wait"];
+const ONLY = OPTIONS["--only"];
 
 /************************************************************
  *  Shell helpers
@@ -969,11 +1012,19 @@ function tree_problem(dir)
     const rule = "the demo goes out only from clean trees at origin/main";
     let top;
     let changes;
+    let hidden;
     let head;
     let main;
+    if(!existsSync(dir)) {
+        return `there is no ${basename(dir)} at ${dir}: ${rule}`;
+    }
     try {
         top = run("git", ["rev-parse", "--show-toplevel"], dir).trim();
         changes = run("git", ["status", "--porcelain", "--untracked-files=all"], dir).trim();
+        /*  `git status` does not look at a file marked assume-unchanged
+         *  (lower-case tag) or skip-worktree (`S`): such a file may hold
+         *  any change  */
+        hidden = run("git", ["ls-files", "-v"], dir).split("\n").filter((l) => /^([a-z]|S) /.test(l));
         head = run("git", ["rev-parse", "HEAD"], dir).trim();
     } catch(e) {
         return `${dir} is not a git tree it can read (${String(e.message).split("\n")[0]})`;
@@ -985,6 +1036,10 @@ function tree_problem(dir)
     if(changes) {
         return `changes in the working tree of ${dir} (${changes.split("\n").length} file(s), ` +
                `\`git status\`): ${rule}`;
+    }
+    if(hidden.length) {
+        return `${hidden.length} file(s) of ${dir} marked assume-unchanged or skip-worktree ` +
+               `(\`git ls-files -v\`), which \`git status\` does not look at: ${rule}`;
     }
     try {
         main = run("git", ["ls-remote", "origin", "refs/heads/main"], dir).split(/\s/)[0];

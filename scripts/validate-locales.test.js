@@ -981,6 +981,20 @@ setTimeout(() => { writeSync(3, JSON.stringify({locales: {en: {keys: [${JSON.str
         }
     }, 60000);
 
+    test("a locale that replaces Buffer.prototype.utf8Write does not rewrite the report (up to 7.26.57 it did on a node whose Buffer.from looks it up; 24.18 does not)", () => {
+        let hook = `const o = Buffer.prototype.utf8Write;
+Buffer.prototype.utf8Write = function(s, ...a) {
+    return o.call(this, typeof s === "string"? s.replaceAll('"bbbb"', '"aaaa"') : s, ...a);
+};`;
+        let r = run({
+            "src/locales/en.js": hook + "\n" + locale("en", {"bbbb": "x"}),
+            "src/locales/es.js": locale("es", {"bbbb": "x"}),
+            "src/main.js": `t("aaaa");`
+        });
+        expect(r.status).toBe(1);
+        expect(r.out).toContain("1 violation(s)");
+    }, 30000);
+
     test("a locale that ends its process in a timer cuts nothing the run writes to a pipe read late", async () => {
         let lines = [];
         for(let i = 0; i < 3000; i++) {

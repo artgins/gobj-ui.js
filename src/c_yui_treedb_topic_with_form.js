@@ -3925,8 +3925,18 @@ function ac_load_node_updated(gobj, event, kw, src)
              *  it is not news: its rows are read when the topic is shown. A
              *  row missing from a table that IS loaded is.
              */
-            if(tabulator.getRow(record.id)) {
-                tabulator.updateData([record]);
+            let row = tabulator.getRow(record.id);
+            if(row) {
+                /*  The echo of the reader's own write lands while the
+                 *  next cell's editor is open: Tabulator 6.6.0 throws
+                 *  updating a row with an open editor, and paints half of it.  */
+                let $row = row.getElement();
+                if($row && $row.querySelector(".tabulator-editing")) {
+                    yui_tabulator_close_editor(tabulator, gobj_short_name(gobj));
+                }
+                tabulator.updateData([record]).catch((e) => {
+                    log_error(`${gobj_short_name(gobj)}: cannot update row '${record.id}': ${e}`);
+                });
             } else if(tabulator.getDataCount() > 0) {
                 log_error(`${gobj_short_name(gobj)}: updated node is not in ` +
                     `the loaded table: ${record.id}`);

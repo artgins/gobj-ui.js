@@ -27,12 +27,15 @@
  *          is alive, and opened again on the new cell of the same row
  *          and column after it (after the promise, for the calls that
  *          answer one). What was typed in the box is lost; the editor
- *          stays open under the reader. A cell the call left out of the
- *          page (a row the virtual DOM no longer renders) is not opened:
- *          the edit stays closed, and the log says so.
+ *          stays open under the reader. It is NOT opened again, and the
+ *          log says why, when: the cell is out of the page (a row the
+ *          virtual DOM does not render, or a filter hides), its column is
+ *          gone or has no editor any more, the call answered a REFUSAL
+ *          (it rebuilt nothing), or -- before a promise answers -- the
+ *          table was destroyed or another cell's editor was opened.
  *
  *          A call that WIPES the rows (setData, replaceData, clearData,
- *          destroy) closes the edit first with
+ *          destroy) cancels the edit first with
  *          `yui_tabulator_close_editor()`: there is no cell to open it
  *          on again.
  *
@@ -89,21 +92,52 @@ function yui_tabulator_keep_edit_on_redraw(tabulator)
         editing = null;
     });
 
+    function stays_closed(field, why)
+    {
+        log_warning(`yui_tabulator_keep_edit_on_redraw: the edit of '${field}' stays closed: ${why}`);
+    }
+
+    function has_column(field)
+    {
+        return tabulator.getColumns().some((c) => c.getField() === field);
+    }
+
     function edit_again(row, field, name)
     {
+        if(tabulator.destroyed) {
+            stays_closed(field, `the table was destroyed after ${name}()`);
+            return;
+        }
+        let $open = editing? editing.getElement() : null;
+        if($open && $open.classList.contains("tabulator-editing")) {
+            stays_closed(field, `another cell ('${editing.getField()}') was opened after ${name}()`);
+            return;
+        }
+        /*  A row the page does not draw keeps the cells of the old
+         *  columns, so it answers no cell for a column that does exist.  */
         let again = row.getCell(field);
         if(!again) {
-            log_warning(`yui_tabulator_keep_edit_on_redraw: the edit of '${field}' stays closed: ` +
-                        `no column '${field}' after ${name}()`);
+            if(has_column(field)) {
+                stays_closed(field, `its row is not in the page after ${name}()`);
+            } else {
+                stays_closed(field, `no column '${field}' after ${name}()`);
+            }
             return;
         }
         let $again = again.getElement();
         if(!$again || !$again.isConnected) {
-            log_warning(`yui_tabulator_keep_edit_on_redraw: the edit of '${field}' stays closed: ` +
-                        `its row is not in the page after ${name}()`);
+            stays_closed(field, `its row is not in the page after ${name}()`);
             return;
         }
-        again.edit(true);
+        if(!again.getColumn().getDefinition().editor) {
+            stays_closed(field, `the column has no editor after ${name}()`);
+            return;
+        }
+        try {
+            again.edit(true);
+        } catch(e) {
+            stays_closed(field, `Tabulator refused to open it after ${name}(): ${e}`);
+        }
     }
 
     function keep_edit_around(name, rebuilds)
@@ -128,7 +162,9 @@ function yui_tabulator_keep_edit_on_redraw(tabulator)
                         return value;
                     },
                     (reason) => {
-                        edit_again(row, field, name);
+                        /*  The edit had to be ended before asking; a refused
+                         *  call rebuilt nothing, so nothing is opened again.  */
+                        stays_closed(field, `${name}() was refused: ${reason}`);
                         throw reason;
                     }
                 );

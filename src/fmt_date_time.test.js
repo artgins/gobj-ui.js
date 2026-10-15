@@ -13,7 +13,7 @@
  ***********************************************************************/
 import {describe, test, expect} from "vitest";
 import {set_log_callback} from "@yuneta/gobj-js";
-import {fmt_date_time, safe_locale} from "./yui_time.js";
+import {fmt_date_time, safe_locale} from "./yui_date_text.js";
 import {time_value_to_text} from "./form_time_value.js";
 import {format_epoch} from "./json_view_helpers.js";
 import {yui_uplot_fmt_date} from "./yui_uplot_time.js";

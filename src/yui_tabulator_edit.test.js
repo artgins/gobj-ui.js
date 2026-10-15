@@ -19,6 +19,8 @@ import {yui_tabulator_keep_edit_on_redraw} from "./yui_tabulator_edit.js";
 
 let calls = [];
 let connected = true;
+let drawn = true;           /*  an undrawn row answers no cell  */
+let editors = {};           /*  field -> its definition's editor; absent: no column  */
 
 function make_cell(row, field, editing)
 {
@@ -38,8 +40,14 @@ function make_cell(row, field, editing)
             calls.push(`cancel ${field}`);
             cell.classes.delete("tabulator-editing");
         },
+        getColumn() {
+            return {getDefinition: () => ({editor: editors[field]})};
+        },
         edit(force) {
             calls.push(`edit ${field} ${force}`);
+            if(!editors[field]) {
+                throw new TypeError("Cannot read properties of undefined (reading 'blocked')");
+            }
         },
     };
     return cell;
@@ -51,11 +59,14 @@ function make_table()
     const row = {
         getCell(field) {
             calls.push(`getCell ${field}`);
-            return field === "gone"? false : make_cell(row, field, false);
+            return (field in editors && drawn)? make_cell(row, field, false) : false;
         },
     };
     const table = {
         row,
+        getColumns() {
+            return Object.keys(editors).map((f) => ({getField: () => f}));
+        },
         on(name, fn) {
             handlers[name] = fn;
         },
@@ -89,6 +100,8 @@ function make_table()
 beforeEach(() => {
     calls = [];
     connected = true;
+    drawn = true;
+    editors = {when: "input", note: "input"};
 });
 
 describe("an open edit around a call that builds the cells again", () => {
@@ -143,7 +156,9 @@ describe("what it leaves alone", () => {
 
     test("a column the new columns do not have: the edit stays closed", () => {
         const table = make_table();
+        editors.gone = "input";
         table.emit("cellEditing", make_cell(table.row, "gone", true));
+        delete editors.gone;
         expect(table.setColumns(["other"])).toBe("setColumns done");
         expect(calls).toEqual(["cancel gone", "setColumns(other)", "getCell gone"]);
     });
@@ -164,11 +179,56 @@ describe("a call that answers a promise", () => {
         });
     }
 
-    test("a refusal still opens it again, and is passed on", async () => {
+    test("a refusal rebuilt nothing: not opened again, said, and passed on", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
         const table = make_table();
         table.emit("cellEditing", make_cell(table.row, "when", true));
         await expect(table.updateColumnDefinition("reject")).rejects.toThrow("refused");
-        expect(calls.slice(-2)).toEqual(["getCell when", "edit when true"]);
+        expect(calls).toEqual(["cancel when", "updateColumnDefinition(reject)",
+                               "updateColumnDefinition resolved"]);
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: updateColumnDefinition\(\) was refused/);
+        warn.mockRestore();
+    });
+
+    test("another edit opened before the answer keeps the edit", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const table = make_table();
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        const ret = table.addColumn("x");
+        table.emit("cellEditing", make_cell(table.row, "note", true));
+        await ret;
+        expect(calls).toEqual(["cancel when", "addColumn(x)", "addColumn resolved"]);
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: another cell \('note'\) was opened after addColumn\(\)/);
+        warn.mockRestore();
+    });
+
+    test("a table destroyed before the answer: not opened, and said so", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const table = make_table();
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        const ret = table.updateColumnDefinition("when");
+        table.destroyed = true;
+        await ret;
+        expect(calls).toEqual(["cancel when", "updateColumnDefinition(when)",
+                               "updateColumnDefinition resolved"]);
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: the table was destroyed after updateColumnDefinition\(\)/);
+        warn.mockRestore();
+    });
+});
+
+describe("a column the call left with no editor", () => {
+    test("not opened (no throw), and the log says why", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const table = make_table();
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        editors.when = false;
+        expect(table.setColumns(["defs"])).toBe("setColumns done");
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        expect(await table.updateColumnDefinition("when")).toBe("updateColumnDefinition done");
+        expect(calls.filter((c) => c.startsWith("edit"))).toEqual([]);
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: the column has no editor after setColumns\(\)/);
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/after updateColumnDefinition\(\)/);
+        warn.mockRestore();
     });
 });
 
@@ -181,6 +241,17 @@ describe("a cell the call left out of the page", () => {
         expect(table.setHeight(50)).toBe("setHeight done");
         expect(calls).toEqual(["cancel when", "setHeight(50)", "getCell when"]);
         expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: its row is not in the page after setHeight\(\)/);
+        warn.mockRestore();
+    });
+
+    test("an undrawn row answers no cell: said as out of the page, not as no column", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const table = make_table();
+        table.emit("cellEditing", make_cell(table.row, "when", true));
+        drawn = false;
+        expect(table.setColumns(["defs"])).toBe("setColumns done");
+        expect(calls).toEqual(["cancel when", "setColumns(defs)", "getCell when"]);
+        expect(warn.mock.calls.flat().join(" ")).toMatch(/'when' stays closed: its row is not in the page after setColumns\(\)/);
         warn.mockRestore();
     });
 });

@@ -38,11 +38,16 @@
  *
  *      And C_YUI_TREEDB_TOPIC_WITH_FORM (chapter /treedb), with an
  *      editor open in the SECOND row (Tabulator 6.6.0 survives the
- *      first): (i) a reload (EV_LOAD_NODES, setData) and (j) a stop
- *      of the view (gobj_stop, the table destroyed) close it without
- *      a pageerror or an exception. Up to gobj-ui 7.26.56 the reload
- *      threw four times ("reading 'add'") and the stop threw out of
- *      mt_stop.
+ *      first): (i) a reload (EV_LOAD_NODES, setData), (j) a stop of
+ *      the view (gobj_stop, the table destroyed: the view no longer
+ *      runs and no cell is left in edition) and (k) the backend echo of
+ *      a write to `name` (EV_LOAD_NODE_UPDATED, updateData) while the
+ *      `age` editor of the same row is open cancel it without a
+ *      pageerror or an exception, and (k) paints the whole row. Up to
+ *      gobj-ui 7.26.56 the reload threw four times ("reading 'add'")
+ *      and the stop threw out of mt_stop; up to 7.26.57 the echo threw
+ *      ("Update Error - Unable to update row", unhandled) and left the
+ *      row half painted.
  *
  *      It starts the test-app's vite dev server on its own port and
  *      stops it at the end. Exit 0 when every case passes, 1 otherwise.
@@ -222,6 +227,7 @@ async function run_browser(name, bt)
     }
     failures += await run_treedb(name, browser, "reload");
     failures += await run_treedb(name, browser, "stop");
+    failures += await run_treedb(name, browser, "update");
     await browser.close();
     return failures;
 }
@@ -241,6 +247,7 @@ async function run_treedb(name, browser, how)
         }
     });
     const sel = `.tabulator-row .tabulator-cell[tabulator-field="name"]`;
+    const open_sel = `.tabulator-row .tabulator-cell[tabulator-field="${how === "update"? "age" : "name"}"]`;
     await page.goto(BASE + "#/treedb");
     await page.waitForSelector(sel);
     await page.waitForTimeout(400);
@@ -260,7 +267,7 @@ async function run_treedb(name, browser, how)
         g.gobj_send_event(topic, "EV_EDITION_MODE", {}, topic);
     });
     await page.waitForTimeout(300);
-    await (await page.$$(sel))[1].click();
+    await (await page.$$(open_sel))[1].click();
     await page.waitForTimeout(300);
     const opened = await page.$$eval(".tabulator-cell.tabulator-editing", (e) => e.length) === 1;
     let thrown = "";
@@ -271,6 +278,9 @@ async function run_treedb(name, browser, how)
             if(how === "reload") {
                 g.gobj_send_event(topic, "EV_LOAD_NODES",
                     [{id: "x", name: "X"}, {id: "y", name: "Y"}], topic);
+            } else if(how === "update") {
+                g.gobj_send_event(topic, "EV_LOAD_NODE_UPDATED",
+                    [{id: "alan", name: "Alan M. Turing", age: 99}], topic);
             } else {
                 g.gobj_stop(topic);
             }
@@ -279,14 +289,30 @@ async function run_treedb(name, browser, how)
         thrown = e.message.split("\n")[0];
     }
     await page.waitForTimeout(400);
-    let after = true;
+    let after = false;
     if(how === "reload") {
         after = await page.$$eval(sel, (e) => e.map((c) => c.textContent).join(",")) === "X,Y";
+    } else if(how === "update") {
+        after = await page.evaluate(() => {
+            const $row = document.querySelectorAll(".tabulator-row")[1];
+            const text = (f) => $row.querySelector(`.tabulator-cell[tabulator-field="${f}"]`).textContent.trim();
+            return text("name") === "Alan M. Turing" && text("age") === "99" &&
+                !document.querySelector(".tabulator-cell.tabulator-editing");
+        });
+    } else {
+        after = await page.evaluate(() => !window.qa_g.gobj_is_running(window.qa_topic) &&
+            !document.querySelector(".tabulator-cell.tabulator-editing"));
     }
+    const CASES = {
+        reload: ["i", "EV_LOAD_NODES", "the new rows drawn"],
+        stop: ["j", "gobj_stop", "stopped, no cell in edition"],
+        update: ["k", "EV_LOAD_NODE_UPDATED", "the whole row painted, the edit cancelled"],
+    };
+    const [letter, what, outcome] = CASES[how];
     const results = [
-        [`(${how === "reload"? "i" : "j"}) an editor open in row 2`, opened],
-        [`    ${how === "reload"? "EV_LOAD_NODES" : "gobj_stop"}: no exception`, !thrown],
-        [`    ${how === "reload"? "the new rows drawn" : "stopped"}`, after],
+        [`(${letter}) an editor open in row 2`, opened],
+        [`    ${what}: no exception`, !thrown],
+        [`    ${outcome}`, after],
         ["    no pageerror / console error", problems.length === 0],
     ];
     let failures = 0;

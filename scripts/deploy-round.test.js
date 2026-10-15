@@ -13,7 +13,7 @@ import {describe, test, expect, vi} from "vitest";
 
 /*  Each test spawns node (and git): under a loaded machine 5 s is not enough.  */
 vi.setConfig({testTimeout: 30000});
-import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync} from "node:fs";
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, existsSync} from "node:fs";
 import {join, dirname, delimiter} from "node:path";
 import {tmpdir} from "node:os";
 import {spawnSync, execFileSync} from "node:child_process";
@@ -772,7 +772,21 @@ describe("deploy-round: the public demo", () => {
             ["a commit the sibling gobj-js's origin/main does not have", () => {
                 writeFileSync(join(js, "src", "index.js"), "export {x};\n");
                 commit(js, "not pushed");
-            }, /HEAD \w+ of \S*\/gobj-js is not origin\/main/]
+            }, /HEAD \w+ of \S*\/gobj-js is not origin\/main/],
+            /*  Up to gobj-ui 7.26.57 these four went out: `git status` does not look at them  */
+            ["a changed file marked assume-unchanged", () => {
+                git(ui, "update-index", "--assume-unchanged", "package.json");
+                writeFileSync(join(ui, "package.json"), JSON.stringify({name: "@yuneta/gobj-ui", version: VERSION, x: 1}));
+            }, "marked assume-unchanged or skip-worktree"],
+            ["a changed file marked skip-worktree", () => {
+                git(ui, "update-index", "--skip-worktree", "package.json");
+                writeFileSync(join(ui, "package.json"), JSON.stringify({name: "@yuneta/gobj-ui", version: VERSION, x: 1}));
+            }, "marked assume-unchanged or skip-worktree"],
+            ["a changed file of the sibling gobj-js marked skip-worktree", () => {
+                git(js, "update-index", "--skip-worktree", "src/index.js");
+                writeFileSync(join(js, "src", "index.js"), "export {x};\n");
+            }, /of \S*\/gobj-js marked assume-unchanged or skip-worktree/],
+            ["no sibling gobj-js", () => execFileSync("rm", ["-rf", js]), /there is no gobj-js at /]
         ];
         for(let [what, make, says] of refused) {
             ({root, ui, js} = repo_copy());
@@ -783,6 +797,33 @@ describe("deploy-round: the public demo", () => {
             expect(r.out, what).toMatch(says);
             expect(r.status, what).toBe(1);
         }
+    });
+
+    test("an argument it does not understand stops the round before anything is done (up to 7.26.57 the WHOLE round ran)", () => {
+        let {root, ui} = repo_copy();
+        let bad = [
+            [["--chek"], 'unknown argument "--chek"'],
+            [["--only"], "--only needs a name"],
+            [["--only="], "--only needs a name"],
+            [["--only", "--no-wait"], "--only needs a name"],
+            [["--pkg"], "--pkg needs a name"],
+            [["--check=yes"], "--check takes no value"],
+            [["--only", "test-app", "--only=x"], "--only given twice"]
+        ];
+        for(let [argv, says] of bad) {
+            let r = spawnSync(process.execPath, [join(ui, "scripts", "deploy-round.mjs"), ...argv], {
+                encoding: "utf8", timeout: 60000, env: Object.assign({}, process.env, {HOME: join(root, "home")})
+            });
+            expect(r.status, argv.join(" ")).toBe(2);
+            expect(r.stderr, argv.join(" ")).toContain(says);
+        }
+        expect(existsSync(join(root, "deployed"))).toBe(false);
+        /*  The `=` form is read  */
+        let r = spawnSync(process.execPath, [join(ui, "scripts", "deploy-round.mjs"), "--only=demo", "--no-wait"], {
+            encoding: "utf8", timeout: 60000, env: Object.assign({}, process.env, {HOME: join(root, "home")})
+        });
+        expect(r.status).toBe(2);
+        expect(r.stderr).toContain(`no target named "demo"`);
     });
 
     test("--only with a name that is no target names the targets, the demo among them", () => {
