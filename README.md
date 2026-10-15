@@ -4199,10 +4199,14 @@ and reads back the bundle each host serves (`--check` only reads back,
 `--only <name>` does one app, `--no-wait` skips the registry). The private
 consumers are listed in `~/.yuneta/gobj-ui-consumers.json` (see
 `scripts/gobj-ui-consumers.example.json`); the demo (`test-app/`) is built in.
-It is built from the working tree, so it goes out only from a clean tree whose
-HEAD is the commit `origin/main` holds on the remote; otherwise it is `NOT
-DEPLOYED`, with the reason, and the round exits 1 (since `7.26.55`; up to
-`7.26.54` any copy of the repo, on any commit, deployed the public demo).
+It is built from the working trees of this repo and of the sibling `gobj-js`
+(`test-app/vite.config.js` bundles `../../gobj-js/src`), so it goes out only
+when each is a clean tree of its own (untracked files count; a copy with no
+`.git` inside another repo is refused) whose HEAD is the commit `origin/main`
+holds on the remote; otherwise it is `NOT DEPLOYED`, with the reason, and the
+round exits 1 (since `7.26.55`, the sibling `gobj-js` since `7.26.57`; up to
+`7.26.54` any copy of the repo, on any commit, deployed the public demo). The
+demo's target is named `test-app` (`--only test-app`).
 
 An app whose range cannot be raised safely is refused and left as it was --
 every package.json of it, since all are checked before any is written: a

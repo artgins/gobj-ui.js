@@ -102,7 +102,11 @@ from the DEPLOYED DOM and switch language.**
   **The demo is built into the runner, not a line of its manifest**, and that
   is deliberate: it is the one surface that needs no registry (it consumes the
   working tree), so it falls outside the rhythm of the others and was skipped
-  twice — a config nobody can forget to fill in is the fix. The other
+  twice — a config nobody can forget to fill in is the fix. **And it deploys only from a clean tree at
+  `origin/main`** (7.26.55+), of this repo AND of the sibling `../gobj-js`,
+  whose `src/` it bundles: a dirty or unpushed tree prints `NOT DEPLOYED`
+  and the round exits 1. Commit and push both before the round; it has no
+  option to skip the check. To deploy only the demo: `--only test-app`. The other
   consumers are private repos, so they come from
   `~/.yuneta/gobj-ui-consumers.json` (see `scripts/gobj-ui-consumers.example.json`)
   and nothing about them is committed here.

@@ -100,7 +100,7 @@ import {
     time_value_to_text
 } from "./form_time_value.js";
 import {form_time_cell_editor} from "./form_time_cell_editor.js";
-import {yui_tabulator_keep_edit_on_redraw} from "./yui_tabulator_edit.js";
+import {yui_tabulator_keep_edit_on_redraw, yui_tabulator_close_editor} from "./yui_tabulator_edit.js";
 import {safe_locale} from "./yui_date_text.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
 import {
@@ -653,33 +653,6 @@ function destroy_widget(gobj, what, widget)
 }
 
 /************************************************************
- *  Close the cell editor a table has open, dropping what is
- *  typed in it, before its rows are wiped. Tabulator 6.6.0
- *  closes it while it wipes them, and the redraw that follows
- *  walks the rows already wiped: a reload, a Clear or a destroy
- *  with an editor open in any row but the first threw, and left
- *  the table half wiped.
- *
- *  Tabulator has no public way to ask which cell is edited: this
- *  reads its edit module (`modules.edit`, `currentCell`,
- *  `cancelEdit()`), names pinned against the installed Tabulator
- *  by tabulator_edit_internals.test.js. A Tabulator without them
- *  is said: the guard would do nothing, and the crash come back.
- ************************************************************/
-function close_table_editor(gobj, tabulator)
-{
-    let edit = tabulator.modules? tabulator.modules.edit : null;
-    if(!edit || !("currentCell" in edit) || typeof edit.cancelEdit !== "function") {
-        log_warning(`${gobj_short_name(gobj)}: this Tabulator has no modules.edit.currentCell/cancelEdit(): ` +
-                    `an open cell editor is not closed before its table is wiped`);
-        return;
-    }
-    if(edit.currentCell) {
-        edit.cancelEdit();
-    }
-}
-
-/************************************************************
  *  The element of the table (`.tabulator` kept on it) that holds
  *  $el, the innermost one.
  ************************************************************/
@@ -719,7 +692,7 @@ function destroy_row_tables(gobj, $row)
     $row.yui_nested = null;
     for(let $nested of nested) {
         if($nested.tabulator) {
-            close_table_editor(gobj, $nested.tabulator);
+            yui_tabulator_close_editor($nested.tabulator, gobj_short_name(gobj));
             destroy_rows_tables(gobj, $nested.tabulator);
             destroy_widget(gobj, "nested table", $nested.tabulator);
             $nested.tabulator = null;
@@ -758,7 +731,7 @@ function destroy_widgets(gobj, $container)
             $el.jsoneditor = null;
         }
         if($el.tabulator) {
-            close_table_editor(gobj, $el.tabulator);
+            yui_tabulator_close_editor($el.tabulator, gobj_short_name(gobj));
             destroy_rows_tables(gobj, $el.tabulator);
             destroy_widget(gobj, "table", $el.tabulator);
             $el.tabulator = null;
@@ -2532,7 +2505,7 @@ function create_tabulator(gobj, $extend, name, template, rows)
     });
     tabulator.on("cellEditCancelled", function() {
         if(gobj_is_destroying(gobj)) {
-            return;     // closed by the teardown (close_table_editor)
+            return;     // closed by the teardown (yui_tabulator_close_editor)
         }
         gobj_send_event(gobj, "EV_CELL_EDIT_CANCELLED",
             {table_id: table_identity(gobj, $extend)}, gobj);
@@ -2613,7 +2586,7 @@ const TIME_CELL_FORMATTERS = new WeakSet();
 
 /******************************************************************
  *  The formatter of a time cell: the local clock, 24 hours, in the
- *  APP's language (fmt_date_time of yui_time.js, as the cells of
+ *  APP's language (fmt_date_time of yui_date_text.js, as the cells of
  *  C_YUI_TREEDB_TOPIC_WITH_FORM): es "14 oct 2026, 15:05:09".
  ******************************************************************/
 function time_cell_formatter(real_type)
@@ -3403,7 +3376,7 @@ function clear_data(gobj, $form)
     $form.querySelectorAll('.yui-tabulator-table').forEach($table => {
         $table.yui_pending_rows = null;
         if($table.tabulator.initialized) {
-            close_table_editor(gobj, $table.tabulator);
+            yui_tabulator_close_editor($table.tabulator, gobj_short_name(gobj));
             destroy_rows_tables(gobj, $table.tabulator);
             $table.tabulator.clearData();
         }
@@ -3531,6 +3504,11 @@ function set_form_values(gobj, template, $form, record)
                         $input.value = date_to_datetime_local(value);
                         $input.yui_time_kept = ($input.value !== "")?
                             {value: stored, shown: $input.value} : null;
+                        if($input.value === "" && stored !== null && stored !== "") {
+                            log_warning(`${gobj_short_name(gobj)}: '${path}' holds ` +
+                                        `${JSON.stringify(stored)}, which the time box cannot show: ` +
+                                        `a save writes it as null`);
+                        }
                         break;
                     case "color":
                         $input.value = convertColor(value);

@@ -545,7 +545,7 @@ describe("deploy-round: the range and the version", () => {
          *  said, read again from git and written again (up to 7.26.54 `[null]` refused the app on
          *  every round, naming no file)  */
         let bad_entries = [[null], {}, "x", [{specs: "^1.0.0", versions: []}], [{specs: [1], versions: []}],
-            [{specs: [], versions: [null]}], [{specs: []}], [[]]];
+            [{specs: [], versions: [1]}], [{specs: []}], [[]]];
         for(let bad of bad_entries) {
             writeFileSync(cache_file, JSON.stringify({format: CACHE_FORMAT,
                 entries: {[`@yuneta/gobj-ui ${parent}`]: bad}}));
@@ -558,6 +558,32 @@ describe("deploy-round: the range and the version", () => {
             expect(JSON.parse(readFileSync(cache_file, "utf8")), what).toEqual(
                 {format: CACHE_FORMAT, entries: {[`@yuneta/gobj-ui ${parent}`]: []}});
         }
+    });
+
+    test("a state with no version of text is kept and read back as kept, with no warning", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let repo = join(root, "repo");
+        mkdirSync(join(repo, "old"), {recursive: true});
+        mkdirSync(join(repo, "num"), {recursive: true});
+        execFileSync("git", ["init", "-q"], {cwd: repo});
+        writeFileSync(join(repo, "old", "package.json"),
+                      JSON.stringify({name: "old", dependencies: {"@yuneta/gobj-ui": `^${OLDER}`}}));
+        writeFileSync(join(repo, "num", "package.json"),
+                      JSON.stringify({name: "num", version: 1, dependencies: {"@yuneta/gobj-ui": `^${OLDER}`}}));
+        commit(repo, "two package.json with no version of text");
+        let parent = git(repo, "rev-parse", "HEAD");
+        consumer(repo, "app", "1.0.0", {"@yuneta/gobj-ui": `^${VERSION}`});
+        commit(repo, "a new app, born with the range");
+        let cache_file = join(root, "home", ".yuneta", "deploy-round-history.json");
+        let r = round(root, {name: "app", path: join(repo, "app")});
+        expect(r.out).toMatch(/range {2}already/);
+        let kept = JSON.parse(readFileSync(cache_file, "utf8")).entries[`@yuneta/gobj-ui ${parent}`];
+        expect(kept.map((st) => st.versions)).toEqual([[null]]);
+        /*  Up to gobj-ui 7.26.56 the round refused what it had written, on every round  */
+        r = round(root, {name: "app", path: join(repo, "app")});
+        expect(r.out).not.toContain("read again from git");
+        expect(r.out).toMatch(/range {2}already/);
+        expect(read(join(repo, "app")).version).toBe("1.0.0");
     });
 
     test("what is kept is kept per PACKAGE: a round of the runtime after one of the library reads its own states", () => {
@@ -686,7 +712,16 @@ describe("deploy-round: the public demo", () => {
         execFileSync("git", ["clone", "-q", "--bare", ui, join(root, "origin.git")]);
         git(ui, "remote", "add", "origin", join(root, "origin.git"));
         git(ui, "fetch", "-q", "origin");
-        return {root, ui};
+        /*  The sibling gobj-js the demo bundles from its working tree (test-app/vite.config.js)  */
+        let js = join(root, "gobj-js");
+        mkdirSync(join(js, "src"), {recursive: true});
+        writeFileSync(join(js, "src", "index.js"), "export {};\n");
+        execFileSync("git", ["init", "-q", "-b", "main"], {cwd: js});
+        commit(js, "the runtime");
+        execFileSync("git", ["clone", "-q", "--bare", js, join(root, "js-origin.git")]);
+        git(js, "remote", "add", "origin", join(root, "js-origin.git"));
+        git(js, "fetch", "-q", "origin");
+        return {root, ui, js};
     }
     function demo_round(root, ui)
     {
@@ -705,7 +740,7 @@ describe("deploy-round: the public demo", () => {
     }
 
     test("it is deployed only from a clean tree at origin/main (up to 7.26.54 from any copy, in any state)", () => {
-        let {root, ui} = repo_copy();
+        let {root, ui, js} = repo_copy();
         let r = demo_round(root, ui);
         expect(r.deployed).toBe("--no-build\nniyamaka.com --no-build\n");
 
@@ -717,16 +752,45 @@ describe("deploy-round: the public demo", () => {
                 writeFileSync(join(ui, "test-app", "new.js"), "x\n");
                 commit(ui, "not pushed");
             }, "is not origin/main"],
-            ["no origin", () => git(ui, "remote", "remove", "origin"), "cannot read origin/main"]
+            ["no origin", () => git(ui, "remote", "remove", "origin"), "cannot read origin/main"],
+            /*  Up to gobj-ui 7.26.56 these four went out  */
+            ["a new file, untracked files hidden by the config", () => {
+                git(ui, "config", "status.showUntrackedFiles", "no");
+                writeFileSync(join(ui, "test-app", "new.js"), "x\n");
+            }, "changes in the working tree"],
+            ["a copy with no git of its own, ignored by a clean repo around it", () => {
+                execFileSync("rm", ["-rf", join(ui, ".git")]);
+                writeFileSync(join(root, ".gitignore"), "*\n!.gitignore\n");
+                execFileSync("git", ["init", "-q", "-b", "main"], {cwd: root});
+                commit(root, "around the copy");
+                execFileSync("git", ["clone", "-q", "--bare", root, join(root, "around.git")]);
+                git(root, "remote", "add", "origin", join(root, "around.git"));
+                git(root, "fetch", "-q", "origin");
+            }, "is not the top of its own git tree"],
+            ["a changed file in the sibling gobj-js", () => writeFileSync(join(js, "src", "index.js"), "export {x};\n"),
+             /changes in the working tree of \S*\/gobj-js /],
+            ["a commit the sibling gobj-js's origin/main does not have", () => {
+                writeFileSync(join(js, "src", "index.js"), "export {x};\n");
+                commit(js, "not pushed");
+            }, /HEAD \w+ of \S*\/gobj-js is not origin\/main/]
         ];
         for(let [what, make, says] of refused) {
-            ({root, ui} = repo_copy());
+            ({root, ui, js} = repo_copy());
             make();
             r = demo_round(root, ui);
             expect(r.deployed, what).toBe("");
             expect(r.out, what).toContain("NOT DEPLOYED");
-            expect(r.out, what).toContain(says);
+            expect(r.out, what).toMatch(says);
             expect(r.status, what).toBe(1);
         }
+    });
+
+    test("--only with a name that is no target names the targets, the demo among them", () => {
+        let {root, ui} = repo_copy();
+        let r = spawnSync(process.execPath, [join(ui, "scripts", "deploy-round.mjs"), "--only", "demo", "--no-wait"], {
+            encoding: "utf8", timeout: 60000, env: Object.assign({}, process.env, {HOME: join(root, "home")})
+        });
+        expect(r.status).toBe(2);
+        expect(r.stderr).toContain(`no target named "demo"; the targets are: test-app (the demo)`);
     });
 });

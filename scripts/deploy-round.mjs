@@ -88,14 +88,20 @@
  *              node scripts/deploy-round.mjs            # the whole loop
  *              node scripts/deploy-round.mjs --check    # only read what is live
  *              node scripts/deploy-round.mjs --only gui_treedb
+ *              node scripts/deploy-round.mjs --only test-app   # the demo
  *              node scripts/deploy-round.mjs --no-wait  # skip the registry wait
  *              node scripts/deploy-round.mjs --pkg @yuneta/gobj-js
+ *
+ *          The demo is deployed only when this repo AND the sibling
+ *          gobj-js are each a clean tree of their own at the commit of
+ *          origin/main (untracked files count); otherwise it is reported
+ *          NOT DEPLOYED, and there is no option to skip that check.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {execFileSync} from "node:child_process";
-import {readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync} from "node:fs";
+import {readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync, realpathSync} from "node:fs";
 import {basename, dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {homedir} from "node:os";
@@ -134,9 +140,10 @@ if(PKG.name !== PKG_NAME) {
  *  The DEMO. In the repo, so it is described here and not in the
  *  manifest: it runs the working tree (`file:..`), which is why it needs
  *  no range and no registry -- and why it is the one that gets skipped.
- *  And why it goes out only from a clean tree at origin/main
- *  (demo_problem()): up to gobj-ui 7.26.54 any copy of the repo, on any
- *  commit, with any change, deployed the public demo.
+ *  And why it goes out only from a clean tree at origin/main, this
+ *  repo's and the sibling gobj-js's (demo_problem()): up to gobj-ui
+ *  7.26.54 any copy of the repo, on any commit, with any change,
+ *  deployed the public demo, and up to 7.26.56 any gobj-js beside it.
  */
 const DEMO = {
     name: "test-app",
@@ -557,7 +564,8 @@ function package_json_of(f, text)
 function versions_of(text)
 {
     try {
-        return [parse_json(text).version];
+        const v = parse_json(text).version;
+        return [typeof v === "string"? v : null];
     } catch(e) {
         return [...text.matchAll(/"version"\s*:\s*"([^"]*)"/g)].map((m) => m[1]);
     }
@@ -759,13 +767,16 @@ function package_states(dir, parents)
 const HISTORY_CACHE_FORMAT = 2;
 
 /*  Is a kept entry what package_states() returns, a list of
- *  {specs: [string], versions: [string]}? Anything else is a miss:
- *  up to gobj-ui 7.26.54 `[null]` refused the app on every round  */
+ *  {specs: [string], versions: [string or null]} (null: a package.json
+ *  with no version of text)? Anything else is a miss: up to gobj-ui
+ *  7.26.54 `[null]` refused the app on every round, and up to 7.26.56
+ *  an entry it had written itself was refused on every round  */
 function are_states(v)
 {
     const strings = (list) => Array.isArray(list) && list.every((x) => typeof x === "string");
+    const versions = (list) => Array.isArray(list) && list.every((x) => typeof x === "string" || x === null);
     return Array.isArray(v) && v.every((st) => st !== null && typeof st === "object" && !Array.isArray(st)
-        && strings(st.specs) && strings(st.versions));
+        && strings(st.specs) && versions(st.versions));
 }
 const HISTORY_CACHE_ENTRIES = 64;
 
@@ -943,35 +954,48 @@ function do_round(c)
     return {name: c.name, urls: c.urls || [], path: c.path, worktree: c.worktree, state: "deployed"};
 }
 
-/*  Why the demo must not go out from this tree, or null: it is built
- *  from the working tree, so only a clean one at the commit origin/main
- *  holds now (asked of the remote, not of a local ref that may be old)  */
+/*  Why the demo must not go out, or null: it is built from the working
+ *  trees of this repo AND of the sibling gobj-js (test-app/vite.config.js
+ *  bundles ../../gobj-js/src), so each must be clean and at the commit
+ *  origin/main holds now (asked of the remote, not of a local ref that
+ *  may be old)  */
 function demo_problem()
 {
+    return tree_problem(ROOT) || tree_problem(resolve(ROOT, "..", "gobj-js"));
+}
+
+function tree_problem(dir)
+{
+    const rule = "the demo goes out only from clean trees at origin/main";
+    let top;
     let changes;
     let head;
     let main;
     try {
-        changes = run("git", ["status", "--porcelain"], ROOT).trim();
-        head = run("git", ["rev-parse", "HEAD"], ROOT).trim();
+        top = run("git", ["rev-parse", "--show-toplevel"], dir).trim();
+        changes = run("git", ["status", "--porcelain", "--untracked-files=all"], dir).trim();
+        head = run("git", ["rev-parse", "HEAD"], dir).trim();
     } catch(e) {
-        return `${ROOT} is not a git tree it can read (${String(e.message).split("\n")[0]})`;
+        return `${dir} is not a git tree it can read (${String(e.message).split("\n")[0]})`;
+    }
+    /*  A copy with no .git inside another repo: git would answer for that one  */
+    if(top !== realpathSync(dir)) {
+        return `${dir} is not the top of its own git tree (git answers for ${top}): ${rule}`;
     }
     if(changes) {
-        return `changes in the working tree of ${ROOT} (${changes.split("\n").length} file(s), ` +
-               "`git status`): the demo goes out only from a clean tree at origin/main";
+        return `changes in the working tree of ${dir} (${changes.split("\n").length} file(s), ` +
+               `\`git status\`): ${rule}`;
     }
     try {
-        main = run("git", ["ls-remote", "origin", "refs/heads/main"], ROOT).split(/\s/)[0];
+        main = run("git", ["ls-remote", "origin", "refs/heads/main"], dir).split(/\s/)[0];
     } catch(e) {
         main = "";
     }
     if(!main) {
-        return `cannot read origin/main of ${ROOT}: the demo goes out only from a clean tree at origin/main`;
+        return `cannot read origin/main of ${dir}: ${rule}`;
     }
     if(main !== head) {
-        return `HEAD ${head.slice(0, 12)} is not origin/main ${main.slice(0, 12)}: ` +
-               "the demo goes out only from a clean tree at origin/main";
+        return `HEAD ${head.slice(0, 12)} of ${dir} is not origin/main ${main.slice(0, 12)}: ${rule}`;
     }
     return null;
 }
@@ -1056,9 +1080,11 @@ function verify(entry)
  ************************************************************/
 let targets = [...read_consumers(), DEMO];
 if(ONLY) {
+    const all = targets;
     targets = targets.filter((c) => c.name === ONLY);
     if(!targets.length) {
-        console.error(`no target named "${ONLY}"`);
+        const names = all.map((c) => c.demo? `${c.name} (the demo)` : c.name);
+        console.error(`no target named "${ONLY}"; the targets are: ${names.join(", ")}`);
         process.exit(2);
     }
 }

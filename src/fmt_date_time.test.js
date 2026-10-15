@@ -1,7 +1,7 @@
 /***********************************************************************
  *          fmt_date_time.test.js
  *
- *      fmt_date_time() of yui_time.js: a moment as a view shows it as
+ *      fmt_date_time() of yui_date_text.js: a moment as a view shows it as
  *      text -- day, short month, year, and a clock of 24 hours with its
  *      seconds -- in the language it is given (the app's), and the two
  *      readers built on it: time_value_to_text() (the time cells of the

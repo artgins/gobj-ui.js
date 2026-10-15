@@ -669,14 +669,15 @@ async function report_locales(request)
     const buffer_from = Buffer.from.bind(Buffer);
     const define = Object.defineProperty;
     const has_own = Object.hasOwn;
+    const to_string = String;
     const problems = [];
     const add_problem = (text) => {
-        define(problems, problems.length, {value: String(text), enumerable: true});
+        define(problems, problems.length, {value: to_string(text), enumerable: true});
     };
     const list_text = (list) => {
         let text = "[";
         for(let i = 0; i < list.length; i++) {
-            text += (i? "," : "") + stringify(String(list[i]));
+            text += (i? "," : "") + stringify(to_string(list[i]));
         }
         return text + "]";
     };
@@ -712,7 +713,7 @@ async function report_locales(request)
                 });
             }
         } catch(e) {
-            set_locale(code, {error: String((e && e.message) || e)});
+            set_locale(code, {error: to_string((e && e.message) || e)});
         }
     }
     set_timeout(() => {

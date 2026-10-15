@@ -959,6 +959,9 @@ setTimeout(() => { writeSync(3, JSON.stringify({locales: {en: {keys: [${JSON.str
             ["Array.prototype.toJSON adds the key", `Object.defineProperty(Array.prototype, "toJSON", {configurable: true,
     value() { return this.length && typeof this[0] === "string"? [...this, ${JSON.stringify(MISSING)}] : [...this]; }});`,
              MISSING, 1, "1 violation(s)"],
+            /*  Up to gobj-ui 7.26.56 the report called the global String  */
+            ["String replaced renames the keys", `globalThis.String = (x) => x === ${JSON.stringify(DEFINED)}?
+    ${JSON.stringify(MISSING)} : "" + x;`, MISSING, 1, "1 violation(s)"],
             /*  What runs after the locales are read is not the catalogue: in a browser it never runs  */
             ["an exit handler throws, nothing missing", `process.on("exit", () => { throw new Error("x"); });`,
              DEFINED, 0, "validate-locales: OK"],

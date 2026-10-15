@@ -112,7 +112,7 @@ function epoch_to_time_value(epoch, real_type)
 /************************************************************
  *  The value of a time column as a table cell shows it: the
  *  local clock, 24 hours, in the APP's language `locale`
- *  (fmt_date_time() of yui_time.js: es "14 oct 2026, 15:05:09").
+ *  (fmt_date_time() of yui_date_text.js: es "14 oct 2026, 15:05:09").
  *  Up to gobj-ui 7.26.51 the form wrote "2026-10-14 15:05:09" and
  *  the treedb table "14 oct 2026, 03:05:09 p. m.", in the
  *  browser's language. "" for no time; a value that is not one is

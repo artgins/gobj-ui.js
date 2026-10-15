@@ -93,8 +93,10 @@ function main()
      *  the emitted .js explicitly. setWorkerUrl() resolves its value against
      *  location.href (the page, e.g. /#/map), NOT the bundle, so pass an
      *  absolute URL built from import.meta.url — the entry chunk in /assets/,
-     *  right where the worker sits. Dev keeps maplibre's own node_modules
-     *  resolution. */
+     *  right where the worker sits. In dev the map has NO worker: vite
+     *  pre-bundles maplibre into node_modules/.vite/deps/, maplibre's
+     *  resolver asks for maplibre-gl-worker.mjs beside it, and vite answers
+     *  504 ("Worker failed to load"). The /map chapter works in the build. */
     if(import.meta.env.PROD) {
         maplibregl.setWorkerUrl(
             new URL(/* @vite-ignore */ __MAPLIBRE_WORKER_FILE__, import.meta.url).href

@@ -86,6 +86,11 @@ function errors()
     return logged.filter(l => /error/i.test(l.level) || /ERROR/.test(l.msg));
 }
 
+function warnings()
+{
+    return logged.filter(l => /warn/i.test(l.level) || /WARNING/.test(l.msg));
+}
+
 function box(form, name)
 {
     const $container = gobj_read_attr(form, "$container");
@@ -114,6 +119,8 @@ describe("the time field of a form", () => {
         expect(saved[0].as_text).toBe(ISO);
         expect(saved[0].no_time).toBe(null);
         expect(errors()).toEqual([]);
+        /*  A column that holds no time loses nothing: nothing to say.  */
+        expect(warnings()).toEqual([]);
     });
 
     /*  The template grammar defaults a spec with no real type to
@@ -331,6 +338,11 @@ describe("a stored value the box cannot show", () => {
 
         expect(box(form, "as_epoch").value).toBe("");
         expect(box(form, "as_text").value).toBe("");
+        /*  ...but the loss is said when it is loaded, not left silent.  */
+        const said = warnings().map((l) => l.msg);
+        expect(said.length).toBe(2);
+        expect(said[0]).toMatch(/'as_epoch' holds "rubbish", which the time box cannot show: a save writes it as null/);
+        expect(said[1]).toMatch(/'as_text' holds "rubbish"/);
         gobj_send_event(form, "EV_SAVE_RECORD", {}, form);
         expect(saved[0].as_epoch).toBe(null);
         expect(saved[0].as_text).toBe(null);

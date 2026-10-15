@@ -4,7 +4,7 @@
  *      The texts uPlot writes for a moment -- the ticks of a time axis
  *      and the reading of the legend -- in the APP's language, with a
  *      clock of 24 hours, as every other time a gobj-ui view shows
- *      (fmt_date_time of yui_time.js).
+ *      (fmt_date_time of yui_date_text.js).
  *
  *      uPlot writes them from templates of its own, in English and
  *      12 hours: "3pm", "3:05pm", "10/14" (month first), "Oct", and

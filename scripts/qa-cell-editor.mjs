@@ -29,10 +29,20 @@
  *        (b) a forced redraw while the editor is open: it is still
  *            open, on the same cell.
  *        (c) Escape closes it, and the cell opens again.
- *        (d) setColumns() and (e) setHeight() while the editor is open
- *            (they build the cells again too): still open, on the same
- *            cell. Run before (c).
+ *        (d) setColumns(), (e) setHeight(), (f) addColumn(),
+ *            (g) updateColumnDefinition() of the edited column and
+ *            (h) moveColumn() while the editor is open (they build the
+ *            cells again too): still open, on the same cell. Run
+ *            before (c).
  *      Any pageerror or console error is a failure.
+ *
+ *      And C_YUI_TREEDB_TOPIC_WITH_FORM (chapter /treedb), with an
+ *      editor open in the SECOND row (Tabulator 6.6.0 survives the
+ *      first): (i) a reload (EV_LOAD_NODES, setData) and (j) a stop
+ *      of the view (gobj_stop, the table destroyed) close it without
+ *      a pageerror or an exception. Up to gobj-ui 7.26.56 the reload
+ *      threw four times ("reading 'add'") and the stop threw out of
+ *      mt_stop.
  *
  *      It starts the test-app's vite dev server on its own port and
  *      stops it at the end. Exit 0 when every case passes, 1 otherwise.
@@ -106,7 +116,16 @@ async function cell_state(page, sel)
 /*  A call that builds the cells again: table.redraw(true), as
  *  ResizeTable issues it, setColumns(), as a language change of
  *  C_YUI_TREEDB_TOPIC_WITH_FORM issues it, or a height setter.  */
-async function rebuild(page, sel, how)
+async function rebuild(page, sel, how, problems)
+{
+    try {
+        await rebuild_in_page(page, sel, how);
+    } catch(e) {
+        problems.push(`${how}() threw: ${e.message.split("\n")[0]}`);
+    }
+}
+
+async function rebuild_in_page(page, sel, how)
 {
     await page.evaluate(async ([s, how]) => {
         const url = performance.getEntriesByType("resource").map((r) => r.name)
@@ -118,6 +137,14 @@ async function rebuild(page, sel, how)
             table.redraw(true);
         } else if(how === "setColumns") {
             table.setColumns(table.getColumnDefinitions());
+        } else if(how === "addColumn") {
+            await table.addColumn({title: "Extra", field: "qa_extra"});
+        } else if(how === "updateColumnDefinition") {
+            const field = document.querySelector(s).getAttribute("tabulator-field");
+            await table.updateColumnDefinition(field, {title: field.toUpperCase()});
+        } else if(how === "moveColumn") {
+            const fields = table.getColumns().map((c) => c.getField()).filter((f) => f);
+            table.moveColumn(fields[0], fields[fields.length - 1], true);
         } else {
             table.setHeight(table.element.offsetHeight);
         }
@@ -153,17 +180,25 @@ async function run_browser(name, bt)
         await page.waitForTimeout(400);
         results.push(["(a) open after the first-view redraw", is_open(await cell_state(page, sel))]);
 
-        await rebuild(page, sel, "redraw");
+        await rebuild(page, sel, "redraw", problems);
         await page.waitForTimeout(300);
         results.push(["(b) open after a forced redraw", is_open(await cell_state(page, sel))]);
 
-        await rebuild(page, sel, "setColumns");
+        await rebuild(page, sel, "setColumns", problems);
         await page.waitForTimeout(300);
         results.push(["(d) open after setColumns()", is_open(await cell_state(page, sel))]);
 
-        await rebuild(page, sel, "setHeight");
+        await rebuild(page, sel, "setHeight", problems);
         await page.waitForTimeout(300);
         results.push(["(e) open after setHeight()", is_open(await cell_state(page, sel))]);
+
+        for(const [label, how] of [["(f)", "addColumn"],
+                                   ["(g)", "updateColumnDefinition"],
+                                   ["(h)", "moveColumn"]]) {
+            await rebuild(page, sel, how, problems);
+            await page.waitForTimeout(300);
+            results.push([`${label} open after ${how}()`, is_open(await cell_state(page, sel))]);
+        }
 
         await page.keyboard.press("Escape");
         await page.waitForTimeout(200);
@@ -185,7 +220,89 @@ async function run_browser(name, bt)
         }
         await ctx.close();
     }
+    failures += await run_treedb(name, browser, "reload");
+    failures += await run_treedb(name, browser, "stop");
     await browser.close();
+    return failures;
+}
+
+/*
+ *  C_YUI_TREEDB_TOPIC_WITH_FORM: wipe the table with an editor open
+ */
+async function run_treedb(name, browser, how)
+{
+    const ctx = await browser.newContext({locale: "es-ES", timezoneId: "Europe/Madrid"});
+    const page = await ctx.newPage();
+    const problems = [];
+    page.on("pageerror", (e) => problems.push(`pageerror: ${e.message}`));
+    page.on("console", (m) => {
+        if(m.type() === "error") {
+            problems.push(`console.error: ${m.text()}`);
+        }
+    });
+    const sel = `.tabulator-row .tabulator-cell[tabulator-field="name"]`;
+    await page.goto(BASE + "#/treedb");
+    await page.waitForSelector(sel);
+    await page.waitForTimeout(400);
+    await page.evaluate(async () => {
+        const url = performance.getEntriesByType("resource").map((r) => r.name)
+            .find((n) => /gobj-js\/src\/gobj\.js/.test(n));
+        const g = await import(url);
+        let topic = null;
+        g.gobj_walk_gobj_children_tree(g.gobj_yuno(), 3, (child) => {
+            if(g.gobj_name(child) === "demo_treedb_topic") {
+                topic = child;
+            }
+            return 0;
+        });
+        window.qa_g = g;
+        window.qa_topic = topic;
+        g.gobj_send_event(topic, "EV_EDITION_MODE", {}, topic);
+    });
+    await page.waitForTimeout(300);
+    await (await page.$$(sel))[1].click();
+    await page.waitForTimeout(300);
+    const opened = await page.$$eval(".tabulator-cell.tabulator-editing", (e) => e.length) === 1;
+    let thrown = "";
+    try {
+        await page.evaluate((how) => {
+            const g = window.qa_g;
+            const topic = window.qa_topic;
+            if(how === "reload") {
+                g.gobj_send_event(topic, "EV_LOAD_NODES",
+                    [{id: "x", name: "X"}, {id: "y", name: "Y"}], topic);
+            } else {
+                g.gobj_stop(topic);
+            }
+        }, how);
+    } catch(e) {
+        thrown = e.message.split("\n")[0];
+    }
+    await page.waitForTimeout(400);
+    let after = true;
+    if(how === "reload") {
+        after = await page.$$eval(sel, (e) => e.map((c) => c.textContent).join(",")) === "X,Y";
+    }
+    const results = [
+        [`(${how === "reload"? "i" : "j"}) an editor open in row 2`, opened],
+        [`    ${how === "reload"? "EV_LOAD_NODES" : "gobj_stop"}: no exception`, !thrown],
+        [`    ${how === "reload"? "the new rows drawn" : "stopped"}`, after],
+        ["    no pageerror / console error", problems.length === 0],
+    ];
+    let failures = 0;
+    for(const [label, ok] of results) {
+        console.log(`${ok? "PASS" : "FAIL"}  ${name} treedb: ${label}`);
+        if(!ok) {
+            failures++;
+        }
+    }
+    if(thrown) {
+        console.log(`      thrown: ${thrown}`);
+    }
+    for(const p of problems) {
+        console.log(`      ${p}`);
+    }
+    await ctx.close();
     return failures;
 }
 

@@ -79,7 +79,7 @@ import {yui_tabulator_lang, yui_tabulator_relocalize,
         yui_tabulator_name_filters,
         yui_tabulator_name_row_selects,
         yui_tabulator_name_editor} from "./yui_tabulator_i18n.js";
-import {yui_tabulator_keep_edit_on_redraw} from "./yui_tabulator_edit.js";
+import {yui_tabulator_keep_edit_on_redraw, yui_tabulator_close_editor} from "./yui_tabulator_edit.js";
 
 import {
     yui_selection_column,
@@ -2021,7 +2021,12 @@ function table__destroy(gobj)
 {
     let tabulator = gobj_read_attr(gobj, "tabulator");
     if(tabulator) {
-        tabulator.destroy();
+        yui_tabulator_close_editor(tabulator, gobj_short_name(gobj));
+        try {
+            tabulator.destroy();
+        } catch(e) {
+            log_warning(`${gobj_short_name(gobj)}: cannot destroy the table: ${e}`);
+        }
         gobj_write_attr(gobj, "tabulator", null);
     }
 }
@@ -3840,6 +3845,7 @@ function ac_load_nodes(gobj, event, kw, src)
          *  Guard: defer until tableBuilt fires if Tabulator isn't ready yet.
          */
         if(tabulator._ready) {
+            yui_tabulator_close_editor(tabulator, gobj_short_name(gobj));
             tabulator.setData(data);
         } else {
             tabulator._pendingData = data;
@@ -4980,6 +4986,7 @@ function ac_repull_page(gobj, event, kw, src)
     if(!tabulator) {
         return 0;
     }
+    yui_tabulator_close_editor(tabulator, gobj_short_name(gobj));
     try {
         tabulator.replaceData();
     } catch(e) {

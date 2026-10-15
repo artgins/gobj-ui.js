@@ -217,7 +217,7 @@ export {TIME_FIELDS};
 /************************************************************
  *   Format an epoch value as a local wall-clock string, 24
  *   hours, in the APP's language `locale` (fmt_date_time() of
- *   yui_time.js, as the time cells of the forms and tables;
+ *   yui_date_text.js, as the time cells of the forms and tables;
  *   up to gobj-ui 7.26.51 it was toLocaleString(): the
  *   browser's language, and 12 hours in English).
  *   Accepts seconds or milliseconds; returns null when the

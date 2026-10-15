@@ -1,14 +1,15 @@
 /***********************************************************************
  *          tabulator_edit_internals.test.js
  *
- *      C_YUI_FORM closes a table's open cell editor before it wipes
- *      the rows (close_table_editor): Tabulator 6.6.0 closes it while
+ *      C_YUI_FORM and C_YUI_TREEDB_TOPIC_WITH_FORM close a table's
+ *      open cell editor before they wipe the rows
+ *      (yui_tabulator_close_editor): Tabulator 6.6.0 closes it while
  *      it wipes them and throws. Tabulator has no public way to ask
- *      which cell is being edited, so the form reads its edit module:
+ *      which cell is being edited, so the helper reads its edit module:
  *      `table.modules.edit`, its `currentCell` and its `cancelEdit()`.
  *      This pins those names against the Tabulator INSTALLED: an
  *      upgrade that renames them fails here, not in a reader's
- *      reload. (The form also says so in the log when they are
+ *      reload. (The helper also says so in the log when they are
  *      missing.)
  *
  *          Copyright (c) 2026, ArtGins.
