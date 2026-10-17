@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.5
+
+- **Icons `yi-bell` and `yi-filter`** (FontAwesome Free 7.3.1), for the alarms of the yunovatios GUIs: the bell is the icon of an alarms section and of its counter in Grafana, Prometheus Alertmanager, AWS CloudWatch and the SCADA HMIs, where the triangle is the STATE "warning" -- and the triangle is the icon of a warning dialog of this library (`shell_modals.js`). The funnel is the filter "only active".
+
 ## 7.27.4
 
 - **Icon `yi-list-check`** (FontAwesome Free 7.3.1), for "go to the chosen ones" in the zone picker of the yunovatios map: a list with its marks, the drawing of "show the selected" in a picker of checkboxes. The crosshairs it used mean "my location" in those apps (the map's geolocate button).
