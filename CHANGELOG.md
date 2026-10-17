@@ -5,6 +5,11 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.9
+
+- **Icons `yi-robot`, `yi-user-clock`, `yi-clipboard-list`, `yi-inbox`, `yi-user-plus`, `yi-headset`, `yi-wand-magic-sparkles`, `yi-layer-group`, `yi-window-maximize`, `yi-clock-rotate-left` and `yi-folder`** (FontAwesome Free 7.3.1): automations (Home Assistant's robot), shifts, a shift handover, an in-app inbox (the envelope is e-mail), add a user, the operations desk, a wizard, a stack of pages, ONE window (two overlapping frames say copy), history (the arrow turning back alone is undo) and a tab (Material's `tab`).
+- **test-app (demo.yuneta.io, niyamaka.com): every icon says what its entry is**, with the icons the yunovatios GUIs settled on: the alerts are the bell, preferences the sliders, the map the folded map, TreeDB the database, the chart a chart, the cards a grid, the windows one window, the JSON graph a tree and the JSON tree the code; a hall is a place and a tank a droplet. The eye, the cog, the copy, the plain square and the checked box had been standing in for entries that are none of those.
+
 ## 7.27.8
 
 - **Icons `yi-microchip` and `yi-server`** (FontAwesome Free 7.3.1), for the devices section of the yunovatios GUIs: the chip of "devices" in the IoT platforms (AWS IoT, Azure IoT Hub), and the server of a controller, a box in the field.

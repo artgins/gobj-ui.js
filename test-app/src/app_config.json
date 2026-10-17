@@ -103,7 +103,7 @@
             },
             {
                 "id": "alerts",
-                "icon": "yi-triangle-exclamation",
+                "icon": "yi-bell",
                 "align": "end",
                 "aria_label": "Alerts",
                 "tooltip": "Alerts — click to cycle the badge",
@@ -149,7 +149,7 @@
                         {
                             "id": "d-tabs",
                             "name": "Go to Tabs",
-                            "icon": "yi-square-check",
+                            "icon": "yi-folder",
                             "action": {
                                 "type": "navigate",
                                 "route": "/tabs"
@@ -158,7 +158,7 @@
                         {
                             "id": "d-cards",
                             "name": "Go to Cards",
-                            "icon": "yi-square",
+                            "icon": "yi-table-cells-large",
                             "action": {
                                 "type": "navigate",
                                 "route": "/cards"
@@ -227,7 +227,7 @@
                         {
                             "id": "d-prefs",
                             "name": "Preferences",
-                            "icon": "yi-gear",
+                            "icon": "yi-sliders",
                             "action": {
                                 "type": "navigate",
                                 "route": "/prefs"
@@ -277,7 +277,7 @@
                 {
                     "id": "tabs",
                     "name": "Tabs",
-                    "icon": "yi-square-check",
+                    "icon": "yi-folder",
                     "tooltip": "Secondary nav as a horizontal tab strip (top-sub)",
                     "route": "/tabs",
                     "submenu": {
@@ -350,7 +350,7 @@
                 {
                     "id": "submenu",
                     "name": "Side submenu",
-                    "icon": "yi-arrow-right",
+                    "icon": "yi-columns",
                     "tooltip": "Secondary nav as a titled vertical list on the right",
                     "route": "/submenu",
                     "submenu": {
@@ -434,7 +434,7 @@
                 {
                     "id": "cards",
                     "name": "Cards",
-                    "icon": "yi-square",
+                    "icon": "yi-table-cells-large",
                     "tooltip": "A tree of node gobjs shown with cards and stacked tabs",
                     "route": "/cards",
                     "_comment": "A tree of C_YUI_NODE gobjs on ONE declared route: the shell resolves it and hands everything below as a subpath, so depth is unbounded. The two chapters carry the SAME tree; only the root's nav_mode differs, which is what the panel's 'stack, back or path' button cycles at runtime (yui_node_set_nav_mode). Here: the default mode 'stack' -- cards for the index, one tab strip per ancestor.",
@@ -572,7 +572,7 @@
                                         {
                                             "id": "north",
                                             "label": "North hall",
-                                            "icon": "yi-table",
+                                            "icon": "yi-location-dot",
                                             "projection": {
                                                 "index": {
                                                     "layout": "cards"
@@ -624,7 +624,7 @@
                                         {
                                             "id": "south",
                                             "label": "South hall",
-                                            "icon": "yi-table",
+                                            "icon": "yi-location-dot",
                                             "projection": {
                                                 "index": {
                                                     "layout": "cards"
@@ -847,7 +847,7 @@
                                         {
                                             "id": "north",
                                             "label": "North hall",
-                                            "icon": "yi-table",
+                                            "icon": "yi-location-dot",
                                             "projection": {
                                                 "index": {
                                                     "layout": "cards"
@@ -899,7 +899,7 @@
                                         {
                                             "id": "south",
                                             "label": "South hall",
-                                            "icon": "yi-table",
+                                            "icon": "yi-location-dot",
                                             "projection": {
                                                 "index": {
                                                     "layout": "cards"
@@ -990,7 +990,7 @@
                 {
                     "id": "sectionindex",
                     "name": "Section index",
-                    "icon": "yi-table",
+                    "icon": "yi-list",
                     "tooltip": "The shell's own submenu.index landing (two levels)",
                     "route": "/sectionindex",
                     "submenu": {
@@ -1084,7 +1084,7 @@
                 {
                     "id": "accordion",
                     "name": "Accordion",
-                    "icon": "yi-copy",
+                    "icon": "yi-chevron-down",
                     "tooltip": "Collapsible groups — a primary-zone layout, shown here as a live illustration",
                     "route": "/accordion",
                     "target": {
@@ -1102,7 +1102,7 @@
                                 {
                                     "id": "acc-tabs",
                                     "name": "Tabs",
-                                    "icon": "yi-square-check",
+                                    "icon": "yi-folder",
                                     "route": "/tabs",
                                     "submenu": {
                                         "items": [
@@ -1127,7 +1127,7 @@
                                 {
                                     "id": "acc-submenu",
                                     "name": "Side submenu",
-                                    "icon": "yi-arrow-right",
+                                    "icon": "yi-columns",
                                     "route": "/submenu",
                                     "submenu": {
                                         "items": [
@@ -1154,7 +1154,7 @@
                                 {
                                     "id": "acc-cards",
                                     "name": "Cards",
-                                    "icon": "yi-square",
+                                    "icon": "yi-table-cells-large",
                                     "route": "/cards",
                                     "submenu": {
                                         "items": [
@@ -1210,7 +1210,7 @@
                 {
                     "id": "treedb",
                     "name": "TreeDB",
-                    "icon": "yi-hexagon-nodes",
+                    "icon": "yi-database",
                     "tooltip": "A treedb topic table whose edit dialog hosts C_YUI_FORM",
                     "route": "/treedb",
                     "target": {
@@ -1226,7 +1226,7 @@
                 {
                     "id": "chart",
                     "name": "Chart",
-                    "icon": "yi-eye",
+                    "icon": "yi-chart-line",
                     "tooltip": "A uPlot time-series chart",
                     "route": "/chart",
                     "target": {
@@ -1274,7 +1274,7 @@
                 {
                     "id": "json",
                     "name": "JSON graph",
-                    "icon": "yi-square-js",
+                    "icon": "yi-sitemap",
                     "tooltip": "Any JSON value as a hierarchical G6 graph",
                     "route": "/json",
                     "target": {
@@ -1290,7 +1290,7 @@
                 {
                     "id": "jsontree",
                     "name": "JSON tree",
-                    "icon": "yi-square-js",
+                    "icon": "yi-code",
                     "tooltip": "C_YUI_JSON: the lazy JSON tree viewer",
                     "route": "/jsontree",
                     "target": {
@@ -1306,7 +1306,7 @@
                 {
                     "id": "wizard",
                     "name": "Wizard",
-                    "icon": "yi-cog",
+                    "icon": "yi-wand-magic-sparkles",
                     "tooltip": "A multi-step wizard (Back / Next / Confirm)",
                     "route": "/wizard",
                     "target": {
@@ -1322,7 +1322,7 @@
                 {
                     "id": "pager",
                     "name": "Pager",
-                    "icon": "yi-bars",
+                    "icon": "yi-layer-group",
                     "tooltip": "A drill-down page stack (← back)",
                     "route": "/pager",
                     "target": {
@@ -1373,7 +1373,7 @@
                 {
                     "id": "windows",
                     "name": "Windows",
-                    "icon": "yi-square",
+                    "icon": "yi-window-maximize",
                     "tooltip": "Floating C_YUI_WINDOWs + the C_YUI_WINDOW_MANAGER dock",
                     "route": "/windows",
                     "target": {
@@ -1389,7 +1389,7 @@
                 {
                     "id": "history",
                     "name": "History",
-                    "icon": "yi-arrow-rotate-left",
+                    "icon": "yi-clock-rotate-left",
                     "tooltip": "A panel over a view that writes its position in the URL",
                     "route": "/history",
                     "target": {
@@ -1405,7 +1405,7 @@
                 {
                     "id": "map",
                     "name": "Map",
-                    "icon": "yi-location-dot",
+                    "icon": "yi-map",
                     "tooltip": "A MapLibre map with markers (needs network)",
                     "route": "/map",
                     "target": {
@@ -1429,19 +1429,19 @@
                 {
                     "id": "tabs",
                     "name": "Tabs",
-                    "icon": "yi-square-check",
+                    "icon": "yi-folder",
                     "route": "/tabs"
                 },
                 {
                     "id": "submenu",
                     "name": "Side submenu",
-                    "icon": "yi-arrow-right",
+                    "icon": "yi-columns",
                     "route": "/submenu"
                 },
                 {
                     "id": "cards",
                     "name": "Cards",
-                    "icon": "yi-square",
+                    "icon": "yi-table-cells-large",
                     "route": "/cards"
                 },
                 {
@@ -1453,13 +1453,13 @@
                 {
                     "id": "sectionindex",
                     "name": "Section index",
-                    "icon": "yi-table",
+                    "icon": "yi-list",
                     "route": "/sectionindex"
                 },
                 {
                     "id": "accordion",
                     "name": "Accordion",
-                    "icon": "yi-copy",
+                    "icon": "yi-chevron-down",
                     "route": "/accordion"
                 },
                 {
@@ -1477,13 +1477,13 @@
                 {
                     "id": "treedb",
                     "name": "TreeDB",
-                    "icon": "yi-hexagon-nodes",
+                    "icon": "yi-database",
                     "route": "/treedb"
                 },
                 {
                     "id": "chart",
                     "name": "Chart",
-                    "icon": "yi-eye",
+                    "icon": "yi-chart-line",
                     "route": "/chart"
                 },
                 {
@@ -1501,25 +1501,25 @@
                 {
                     "id": "json",
                     "name": "JSON graph",
-                    "icon": "yi-square-js",
+                    "icon": "yi-sitemap",
                     "route": "/json"
                 },
                 {
                     "id": "jsontree",
                     "name": "JSON tree",
-                    "icon": "yi-square-js",
+                    "icon": "yi-code",
                     "route": "/jsontree"
                 },
                 {
                     "id": "wizard",
                     "name": "Wizard",
-                    "icon": "yi-cog",
+                    "icon": "yi-wand-magic-sparkles",
                     "route": "/wizard"
                 },
                 {
                     "id": "pager",
                     "name": "Pager",
-                    "icon": "yi-bars",
+                    "icon": "yi-layer-group",
                     "route": "/pager"
                 },
                 {
@@ -1539,13 +1539,13 @@
                 {
                     "id": "windows",
                     "name": "Windows",
-                    "icon": "yi-square",
+                    "icon": "yi-window-maximize",
                     "route": "/windows"
                 },
                 {
                     "id": "map",
                     "name": "Map",
-                    "icon": "yi-location-dot",
+                    "icon": "yi-map",
                     "route": "/map"
                 }
             ]

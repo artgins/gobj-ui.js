@@ -96,7 +96,7 @@
                         {
                             "id": "north",
                             "label": "North hall",
-                            "icon": "yi-table",
+                            "icon": "yi-location-dot",
                             "projection": {
                                 "index": {
                                     "layout": "cards"
@@ -144,7 +144,7 @@
                         {
                             "id": "south",
                             "label": "South hall",
-                            "icon": "yi-table",
+                            "icon": "yi-location-dot",
                             "projection": {
                                 "index": {
                                     "layout": "cards"
@@ -202,7 +202,7 @@
                         {
                             "id": "tank1",
                             "label": "Tank 1",
-                            "icon": "yi-plug",
+                            "icon": "yi-droplet",
                             "link": {
                                 "kind": "tranger",
                                 "gclass": "C_DEMO_TRANGER_LINK",
@@ -215,7 +215,7 @@
                         {
                             "id": "tank2",
                             "label": "Tank 2",
-                            "icon": "yi-plug",
+                            "icon": "yi-droplet",
                             "link": {
                                 "kind": "tranger",
                                 "gclass": "C_DEMO_TRANGER_LINK",
@@ -230,7 +230,7 @@
                 {
                     "id": "alarms",
                     "label": "Alarms",
-                    "icon": "yi-triangle-exclamation",
+                    "icon": "yi-bell",
                     "content": {
                         "gclass": "C_TEST_VIEW",
                         "kw": {
