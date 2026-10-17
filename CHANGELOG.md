@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.3
+
+- **Icon `yi-arrow-up-right-from-square`** (FontAwesome Free 7.3.1), for "open in a window" in the yunovatios GUIs: a box with an arrow leaving it, the "open in a new window" of Material (`open_in_new`), Gmail, Teams and Slack. Two overlapping frames, which the apps used, say COPY in the market.
+
 ## 7.27.2
 
 - **Icons `yi-map`, `yi-list`, `yi-table-cells-large`, `yi-file-csv` and `yi-file-code`** (FontAwesome Free 7.3.1), for the toolbar of the yunovatios map view: a view switch of map / list / grid, the trio of the market (a folded map for the map view, as Airbnb, Zillow and Idealista; lines and squares for list and grid, as Google Drive), and an export per FORMAT -- two download buttons side by side were two equal icons the moment the label hid on a phone.
