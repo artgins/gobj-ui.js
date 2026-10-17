@@ -74,7 +74,7 @@ const TRIGGERS = [
         }
     },
     {
-        id: "shell-ok", label: "confirm ok", icon: "yi-square-check",
+        id: "shell-ok", label: "confirm ok", icon: "yi-circle-check",
         run: (echo, gobj) => {
             yui_shell_confirm_ok(
                 yui_shell_of(gobj),

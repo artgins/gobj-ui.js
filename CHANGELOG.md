@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.15
+
+Icon review of the library, icons only:
+
+- **Icon `yi-circle-check`** (FontAwesome Free 7.3.1): success, the check in a circle of every success notice (Bulma, Bootstrap, Material's `check_circle`). The success dialog of `shell_modals` wears it, beside its circle-info and circle-exclamation; the checked square says selected.
+- **The site map window wears the site map** (`shell_route_map`), as every app's user menu opens it: it wore the hamburger, which is the menu.
+- **Raw JSON is the code**, as in `C_YUI_TREEDB_TOPICS` since 7.27.10: the raw json button and window of `C_YUI_TREEDB_TOPIC_WITH_FORM` and of `C_YUI_TREEDB_GRAPH` wore the eye (show / hide), and a JSON cell wore the eye and its window the JavaScript logo.
+- **Exporting the table is the CSV file** (`C_YUI_TREEDB_TOPIC_WITH_FORM`), as in gui_treedb and yunovatios; **the schema editor exports a code file** (`yi-file-code`, C or JSON) and **checks with the check** (the checked square says selected).
+- One glyph, one name: the form's clear is `yi-broom` (`yi-broom-wide` is an alias of it), and `lib_icons.js` names `yi-floppy-disk` (`yi-save` is its alias).
+- **test-app (not published):** the "confirm ok" demo button wears the circle check.
+
 ## 7.27.14
 
 - **`C_YUI_JSON`: the tree view is the folder tree** (`yi-folder-tree`, the foldable tree of the VS Code or Windows explorer). It wore the site map, which every app's user menu now opens with that glyph -- the same menu that opens the JSON viewer. The text view stays the code (raw JSON) and the graph the graph. Icon only.

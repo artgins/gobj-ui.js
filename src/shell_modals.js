@@ -569,7 +569,7 @@ export function yui_shell_show_modal(shell, content, opts)
 const CONFIRM_TYPE_ICONS = {
     "info":     "yi-circle-info",
     "question": "yi-question",
-    "success":  "yi-square-check",
+    "success":  "yi-circle-check",
     "warning":  "yi-triangle-exclamation",
     "error":    "yi-circle-exclamation",
 };

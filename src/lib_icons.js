@@ -4,7 +4,7 @@
  *      Two icon systems are managed here:
  *
  *      1. FA-style CSS icons (yui_icons.css)
- *         Usage: <i class="yi-save"></i>
+ *         Usage: <i class="yi-floppy-disk"></i>
  *         Color: inherits currentColor from parent via CSS mask.
  *
  *      2. SVG symbol icons for G6 toolbar (and any other component

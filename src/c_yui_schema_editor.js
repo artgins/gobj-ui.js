@@ -1190,9 +1190,9 @@ function render_toolbar(gobj)
          *  `hexagon-nodes` it wore is the graph of the DATA.  */
         $right.push(toolbar_button("SCHEMA_DIAGRAM_BTN", "yi-compass-drafting",
             priv.diagram ? "topics" : "diagram", "EV_TOGGLE_DIAGRAM", false));
-        $right.push(toolbar_button("SCHEMA_VALIDATE_BTN", "yi-square-check",
+        $right.push(toolbar_button("SCHEMA_VALIDATE_BTN", "yi-check",
             "check", "EV_VALIDATE", false));
-        $right.push(toolbar_button("SCHEMA_EXPORT_BTN", "yi-download",
+        $right.push(toolbar_button("SCHEMA_EXPORT_BTN", "yi-file-code",
             "export", "EV_EXPORT", false));
         if(!readonly) {
             $right.push(toolbar_button("SCHEMA_IMPORT_BTN", "yi-upload",

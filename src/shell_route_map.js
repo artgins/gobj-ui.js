@@ -542,7 +542,7 @@ export function yui_shell_show_route_map(shell, opts)
             height:     640,
             logical_class: "ROUTEMAP_WINDOW",
             title:      "site map",
-            icon:       "yi-bars",
+            icon:       "yi-sitemap",
             body:       $body,
             /*  Opt into the dock/taskbar if the app provides one: null = no
              *  dock (gobj_find_service() answers null for an absent service

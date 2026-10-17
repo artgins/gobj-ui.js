@@ -901,7 +901,7 @@ function build_ui(gobj)
             ['button', {class: 'TREEDB_TABLE_JSON button mr-1',
                         title: t('raw json'), 'data-i18n-title': 'raw json',
                         'aria-label': t('raw json'), 'data-i18n-aria-label': 'raw json'}, [
-                yui_toolbar_icon('yi-eye'),
+                yui_toolbar_icon('yi-code'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'raw json', style: 'padding-left:5px;'}, 'raw json']
             ], {
                 'click': (event) => {
@@ -922,7 +922,7 @@ function build_ui(gobj)
                         title: t('download the rows loaded in this table as csv'),
                         'data-i18n-title': 'download the rows loaded in this table as csv',
                         'aria-label': t('export'), 'data-i18n-aria-label': 'export'}, [
-                yui_toolbar_icon('yi-download'),
+                yui_toolbar_icon('yi-file-csv'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'export', style: 'padding-left:5px;'}, 'export']
             ], {
                 'click': (event) => {
@@ -2181,7 +2181,7 @@ function build_json_cell_preview(value)
             'aria-label': t('show json'),
             'data-i18n-aria-label': 'show json'
         }, [
-            ['span', {class: 'JSON_CELL_ICON icon yi-eye'}],
+            ['span', {class: 'JSON_CELL_ICON icon yi-code'}],
             ['span', {class: 'JSON_CELL_PREVIEW'}, text_node(text)]
         ]]
     );
@@ -2831,7 +2831,7 @@ function open_cell_json_dialog(gobj, row_id, col_id)
         logical_class: "TREEDB_CELL_JSON",
         title_prefix:  String(row_id),
         title:         col_id,
-        icon:          "yi-js-square",
+        icon:          "yi-code",
         forget_window: function() {
             priv.cell_json_win = null;
         },
@@ -5339,7 +5339,7 @@ function open_table_json_dialog(gobj, records)
         logical_class: "TREEDB_TABLE_JSON",
         title_prefix:  gobj_read_str_attr(gobj, "topic_name"),
         title:         "raw json",
-        icon:          "yi-eye",
+        icon:          "yi-code",
         forget_window: function() {
             priv.table_json_win = null;
         },

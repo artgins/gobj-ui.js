@@ -990,7 +990,7 @@ function make_toolbar(gobj)
         ['button', {class: 'button ml-2 TREEDB_JSON_BTN',
                     title: t('raw json'), 'aria-label': t('raw json'),
                     'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
-            yui_toolbar_icon('yi-eye'),
+            yui_toolbar_icon('yi-code'),
             ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'raw json'}, 'raw json']
         ], {
             click: (evt) => {
@@ -1268,7 +1268,7 @@ function open_json_viewer(gobj)
                 logical_class: "TREEDB_JSON_WINDOW",
                 title_prefix: priv.treedb_name,
                 title:      "raw json",
-                icon:       "yi-eye",
+                icon:       "yi-code",
                 body:       $box,
                 manager:    null,
                 on_close: () => {

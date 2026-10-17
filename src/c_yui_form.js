@@ -440,7 +440,7 @@ function toolbar_button(gobj, name)
             }];
         case "clear":
             return ['button', {class: 'button p-1 button-clear', title: t('clear'), 'data-i18n-title': 'clear', 'aria-label': t('clear'), 'data-i18n-aria-label': 'clear'}, [
-                ['span', {class: 'icon m-0'}, html_markup('<i class="yi-broom-wide"></i>')],
+                ['span', {class: 'icon m-0'}, html_markup('<i class="yi-broom"></i>')],
                 ['span', {class: 'is-hidden-mobile pl-1 pr-1', i18n: 'clear'}, 'clear']
             ], {
                 click: function(evt) {
