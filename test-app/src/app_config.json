@@ -1290,7 +1290,7 @@
                 {
                     "id": "jsontree",
                     "name": "JSON tree",
-                    "icon": "yi-code",
+                    "icon": "yi-folder-tree",
                     "tooltip": "C_YUI_JSON: the lazy JSON tree viewer",
                     "route": "/jsontree",
                     "target": {
@@ -1507,7 +1507,7 @@
                 {
                     "id": "jsontree",
                     "name": "JSON tree",
-                    "icon": "yi-code",
+                    "icon": "yi-folder-tree",
                     "route": "/jsontree"
                 },
                 {

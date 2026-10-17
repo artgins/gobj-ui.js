@@ -5,6 +5,11 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.14
+
+- **`C_YUI_JSON`: the tree view is the folder tree** (`yi-folder-tree`, the foldable tree of the VS Code or Windows explorer). It wore the site map, which every app's user menu now opens with that glyph -- the same menu that opens the JSON viewer. The text view stays the code (raw JSON) and the graph the graph. Icon only.
+- **test-app (not published):** the "JSON tree" entry is the folder tree too; the code is the raw JSON.
+
 ## 7.27.13
 
 - **Icon `yi-user-shield`** (FontAwesome Free 7.3.1): the roles and permissions of the users -- a treedb of authorizations -- as the shield of Microsoft Entra's "Roles and administrators" and Google Admin's admin roles. The yunovatios GUIs wore the padlock, which says locked.

@@ -154,7 +154,7 @@ const MAX_LABEL_CHARS = 40;
  */
 const VIEWS = [
     {mode: "text",  icon: "yi-code",          key: "text view"},
-    {mode: "tree",  icon: "yi-sitemap",       key: "tree view"},
+    {mode: "tree",  icon: "yi-folder-tree",   key: "tree view"},
     {mode: "graph", icon: "yi-hexagon-nodes", key: "graph view"},
 ];
 
