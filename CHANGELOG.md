@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.2
+
+- **Icons `yi-map`, `yi-list`, `yi-table-cells-large`, `yi-file-csv` and `yi-file-code`** (FontAwesome Free 7.3.1), for the toolbar of the yunovatios map view: a view switch of map / list / grid, the trio of the market (a folded map for the map view, as Airbnb, Zillow and Idealista; lines and squares for list and grid, as Google Drive), and an export per FORMAT -- two download buttons side by side were two equal icons the moment the label hid on a phone.
+
 ## 7.27.1
 
 - **Icons `yi-draw-polygon` and `yi-up-down-left-right`** (FontAwesome Free 7.3.1), for the map controls of the yunovatios GUIs: draw a perimeter and move a marker. They are the drawings the map-editing libraries give those tools (Mapbox GL Draw, Leaflet-Geoman, Leaflet.draw), so a reader who has used one of them knows the button.
