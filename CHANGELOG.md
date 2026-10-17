@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.1
+
+- **Icons `yi-draw-polygon` and `yi-up-down-left-right`** (FontAwesome Free 7.3.1), for the map controls of the yunovatios GUIs: draw a perimeter and move a marker. They are the drawings the map-editing libraries give those tools (Mapbox GL Draw, Leaflet-Geoman, Leaflet.draw), so a reader who has used one of them knows the button.
+
 ## 7.27.0
 
 The number follows SDK 7.27.0 (its first two indexes are the SDK's). No change
