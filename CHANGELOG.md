@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.4
+
+- **Icon `yi-list-check`** (FontAwesome Free 7.3.1), for "go to the chosen ones" in the zone picker of the yunovatios map: a list with its marks, the drawing of "show the selected" in a picker of checkboxes. The crosshairs it used mean "my location" in those apps (the map's geolocate button).
+
 ## 7.27.3
 
 - **Icon `yi-arrow-up-right-from-square`** (FontAwesome Free 7.3.1), for "open in a window" in the yunovatios GUIs: a box with an arrow leaving it, the "open in a new window" of Material (`open_in_new`), Gmail, Teams and Slack. Two overlapping frames, which the apps used, say COPY in the market.
