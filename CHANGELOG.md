@@ -5,6 +5,11 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.16
+
+- **Icon `yi-message`** (FontAwesome Free 7.3.1): a message to the user, a dialog -- the message box of every desktop.
+- **test-app (not published):** the Modals entry wears it; it wore the checked square, which since 7.27.15 says selected only.
+
 ## 7.27.15
 
 Icon review of the library, icons only:

@@ -1354,7 +1354,7 @@
                 {
                     "id": "modals",
                     "name": "Modals",
-                    "icon": "yi-square-check",
+                    "icon": "yi-message",
                     "tooltip": "Shell confirm/notification helpers",
                     "route": "/modals",
                     "badge": 3,
@@ -1531,7 +1531,7 @@
                 {
                     "id": "modals",
                     "name": "Modals",
-                    "icon": "yi-square-check",
+                    "icon": "yi-message",
                     "route": "/modals",
                     "badge": 3,
                     "badge_tone": "info"
