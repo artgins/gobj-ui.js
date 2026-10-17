@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.13
+
+- **Icon `yi-user-shield`** (FontAwesome Free 7.3.1): the roles and permissions of the users -- a treedb of authorizations -- as the shield of Microsoft Entra's "Roles and administrators" and Google Admin's admin roles. The yunovatios GUIs wore the padlock, which says locked.
+
 ## 7.27.12
 
 - **Icon `yi-folder-tree`** (FontAwesome Free 7.3.1): a hierarchy of groups to file things in -- the zones of a map, the group a device is filed in -- as the tree of folders of Windows Explorer, VS Code or Drive. The yunovatios map wore the site map for its zones, in the same app whose user menu now opens the site map with it.
