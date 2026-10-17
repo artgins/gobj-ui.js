@@ -54,9 +54,9 @@ const GCLASS_NAME = "C_DEMO_TRANGER_LINK";
 /*  The shapes a timeranger is read as — each deserves its own
  *  viewer; here they are three renderings of the same fake rows. */
 const MODES = [
-    {id: "series", label: "series/time", icon: "yi-calendar-days"},
+    {id: "series", label: "series/time", icon: "yi-chart-line"},
     {id: "kv",     label: "key/value",   icon: "yi-table"},
-    {id: "raw",    label: "raw records", icon: "yi-terminal"}
+    {id: "raw",    label: "raw records", icon: "yi-align-left"}
 ];
 
 const KEYS = ["kwh_total", "kwh_p1", "voltage_l1"];

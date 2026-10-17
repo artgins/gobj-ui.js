@@ -203,8 +203,8 @@ function build_ui(gobj)
             ["div", {class: "LAB_ACTIONS buttons"}, [
                 button_descriptor("LAB_ADD", "yi-plus", "add node"),
                 button_descriptor("LAB_REMOVE", "yi-trash", "remove last added"),
-                button_descriptor("LAB_PROJECTION", "yi-table", "cycle projection"),
-                button_descriptor("LAB_NAV_MODE", "yi-arrows-rotate", "stack, back or path")
+                button_descriptor("LAB_PROJECTION", "yi-table-cells-large", "cycle projection"),
+                button_descriptor("LAB_NAV_MODE", "yi-route", "stack, back or path")
             ]],
             ["p", {class: "LAB_STATUS is-size-7"}, ""]
         ]]

@@ -206,7 +206,7 @@
                         {
                             "id": "d-sitemap",
                             "name": "Site map",
-                            "icon": "yi-bars",
+                            "icon": "yi-sitemap",
                             "action": {
                                 "type": "navigate",
                                 "route": "/sitemap"
@@ -237,7 +237,7 @@
                         {
                             "id": "d-about",
                             "name": "About",
-                            "icon": "yi-question",
+                            "icon": "yi-circle-info",
                             "action": {
                                 "type": "event",
                                 "event": "EV_ABOUT"
@@ -307,7 +307,7 @@
                             {
                                 "id": "b",
                                 "name": "Tab B",
-                                "icon": "yi-cog",
+                                "icon": "yi-gear",
                                 "route": "/tabs/b",
                                 "badge": 2,
                                 "target": {
@@ -384,7 +384,7 @@
                             {
                                 "id": "sessions",
                                 "name": "Sessions",
-                                "icon": "yi-eye",
+                                "icon": "yi-display",
                                 "route": "/submenu/sessions",
                                 "target": {
                                     "stage": "main",
@@ -410,7 +410,7 @@
                             {
                                 "id": "tokens",
                                 "name": "Tokens",
-                                "icon": "yi-lock",
+                                "icon": "yi-key",
                                 "route": "/submenu/tokens",
                                 "badge": 1,
                                 "badge_tone": "danger",
@@ -489,7 +489,7 @@
                                 {
                                     "id": "beta",
                                     "label": "Beta",
-                                    "icon": "yi-cog",
+                                    "icon": "yi-gear",
                                     "projection": {
                                         "index": {
                                             "layout": "cards"
@@ -715,7 +715,7 @@
                 {
                     "id": "crumbs",
                     "name": "Breadcrumb",
-                    "icon": "yi-chevron-right",
+                    "icon": "yi-route",
                     "tooltip": "The same tree, shown with a breadcrumb instead of stacked tabs",
                     "route": "/crumbs",
                     "_comment": "A tree of C_YUI_NODE gobjs on ONE declared route: the shell resolves it and hands everything below as a subpath, so depth is unbounded. The two chapters carry the SAME tree; only the root's nav_mode differs. This one declares BY HAND what nav_mode 'path' does in one word -- chrome_depth 0 (no strips at all) plus projection.path, one breadcrumb line drawn from the tree root -- because that is what the mode is made of, and a chapter that only showed the shortcut would hide the model.",
@@ -764,7 +764,7 @@
                                 {
                                     "id": "beta",
                                     "label": "Beta",
-                                    "icon": "yi-cog",
+                                    "icon": "yi-gear",
                                     "projection": {
                                         "index": {
                                             "layout": "cards"
@@ -1022,7 +1022,7 @@
                             {
                                 "id": "beta",
                                 "name": "Beta",
-                                "icon": "yi-cog",
+                                "icon": "yi-gear",
                                 "route": "/sectionindex/beta",
                                 "badge": 5,
                                 "badge_tone": "warning",
@@ -1354,7 +1354,7 @@
                 {
                     "id": "modals",
                     "name": "Modals",
-                    "icon": "yi-circle-info",
+                    "icon": "yi-square-check",
                     "tooltip": "Shell confirm/notification helpers",
                     "route": "/modals",
                     "badge": 3,
@@ -1447,7 +1447,7 @@
                 {
                     "id": "crumbs",
                     "name": "Breadcrumb",
-                    "icon": "yi-chevron-right",
+                    "icon": "yi-route",
                     "route": "/crumbs"
                 },
                 {
@@ -1531,7 +1531,7 @@
                 {
                     "id": "modals",
                     "name": "Modals",
-                    "icon": "yi-circle-info",
+                    "icon": "yi-square-check",
                     "route": "/modals",
                     "badge": 3,
                     "badge_tone": "info"

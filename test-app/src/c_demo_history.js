@@ -170,13 +170,13 @@ function build_ui(gobj)
             ["div", {class: "DEMO_HEAD"}, head],
             ["div", {class: "DEMO_HISTORY_ACTIONS buttons"}, [
                 action_button(gobj, "DEMO_HISTORY_OPEN", "open panel",
-                    "yi-square", "EV_OPEN_PANEL"),
+                    "yi-window-maximize", "EV_OPEN_PANEL"),
                 action_button(gobj, "DEMO_HISTORY_WRITE", "write position",
-                    "yi-location-dot", "EV_WRITE_POSITION"),
+                    "yi-link", "EV_WRITE_POSITION"),
                 action_button(gobj, "DEMO_HISTORY_RELOGIN", "log out and in",
-                    "yi-arrow-right", "EV_RELOGIN"),
+                    "yi-arrows-rotate", "EV_RELOGIN"),
                 action_button(gobj, "DEMO_HISTORY_RELOGIN_LATER", "log out, and in later",
-                    "yi-arrow-right", "EV_RELOGIN_LATER")
+                    "yi-right-from-bracket", "EV_RELOGIN_LATER")
             ]]
         ]]
     );
@@ -217,11 +217,11 @@ function ac_open_panel(gobj, event, kw, src)
                     t("Back closes this panel; a route change does not.")],
                 ['div', {class: 'DEMO_HISTORY_PANEL_ACTIONS buttons'}, [
                     action_button(gobj, "DEMO_HISTORY_CLOSE_AND_GO", "close and go to table",
-                        "yi-arrow-right", "EV_CLOSE_AND_GO"),
+                        "yi-table", "EV_CLOSE_AND_GO"),
                     action_button(gobj, "DEMO_HISTORY_CLOSE_AND_CLICK", "close and click the menu",
-                        "yi-arrow-right", "EV_CLOSE_AND_CLICK"),
+                        "yi-bars", "EV_CLOSE_AND_CLICK"),
                     action_button(gobj, "DEMO_HISTORY_CLOSE_AND_RELOGIN", "close, log out and in",
-                        "yi-arrow-right", "EV_CLOSE_AND_RELOGIN")
+                        "yi-arrows-rotate", "EV_CLOSE_AND_RELOGIN")
                 ]]
             ]],
             x: 760,
