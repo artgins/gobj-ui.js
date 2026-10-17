@@ -440,7 +440,7 @@ function build_ui(gobj)
                     ['div', {class: source_url?
                                 'TREEDB_TOPICS_SOURCE' : 'TREEDB_TOPICS_SOURCE is-hidden',
                              title: source_url, 'aria-label': source_url}, [
-                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-cloudversify')]],
+                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-server')]],
                         ['span', {class: 'TREEDB_TOPICS_SOURCE_URL'}, text_node(source_url)]
                     ]],
                     ...graph_items,
@@ -453,7 +453,7 @@ function build_ui(gobj)
                                 style: graph_href? '' : 'margin-left:auto;',
                                 title: t('raw json'), 'aria-label': t('raw json'),
                                 'data-i18n-title': 'raw json', 'data-i18n-aria-label': 'raw json'}, [
-                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-eye')]],
+                        ['span', {class: 'icon'}, [yui_toolbar_icon('yi-code')]],
                         ['span', {i18n: 'raw json'}, 'raw json']
                     ], {
                         click: (evt) => {
@@ -2120,7 +2120,7 @@ function open_json_viewer(gobj, opts)
                 logical_class: "TREEDB_JSON_WINDOW",
                 title_prefix: priv.treedb_name,
                 title:      schema? "schema json" : "raw json",
-                icon:       schema? "yi-code" : "yi-eye",
+                icon:       "yi-code",
                 body:       $box,
                 manager:    null,
                 on_close: () => {

@@ -5,9 +5,12 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 7.27.10
 
-- **test-app (not published):** Table is the list and Section index the site map: Cards' grid and Table's grid were two equal icons in the menu at its size (the yunovatios map view settled the same clash the same way). The JSON graph takes the boxes joined by lines, so the menu does not show three equal graphs in a row.
+- **Icons `yi-bug`, `yi-display`, `yi-cube`, `yi-heart-pulse`, `yi-route`, `yi-code-compare` and `yi-align-left`** (FontAwesome Free 7.3.1): debugging (VS Code, IntelliJ, Xcode), the console screen of a yuno's TTY (vSphere and OpenStack's "Console"), a yuno as a deployable unit (the container or pod of Docker, Portainer and Kubernetes), a live feed, a breadcrumb, the differences between two versions (GitHub's compare) and plain text.
+- **The developer window wears the bug.** Its `>_` was also the agent console's command line and the TTY of a yuno, three things with one shape in `gui_agent`; debugging is the bug in every IDE.
+- **`C_YUI_TREEDB_TOPICS`: the backend is the server and the raw json is the code.** The url of the backend wore `yi-cloudversify`, a brand's logo that says nothing; a backend is a server, as a node is in the rest of the apps. The raw json button and its window wore the eye, which `gui_treedb` also gives the rows of a topic in the same row of buttons; a JSON document is the code, as the schema json already was.
+- **test-app (not published):** the developer window takes the bug. Table is the list and Section index the site map: Cards' grid and Table's grid were two equal icons in the menu at its size (the yunovatios map view settled the same clash the same way). The JSON graph takes the boxes joined by lines, so the menu does not show three equal graphs in a row.
 
 ## 7.27.9
 

@@ -1872,7 +1872,7 @@ function setup_dev(self, show)
                 auto_save_size_and_position: true,
                 center: false,
                 title: "developer",
-                icon: "yi-terminal",
+                icon: "yi-bug",
                 /*  Opt into the dock/taskbar if the app provides one; null =
                  *  no dock. (gobj_find_service() answers null for an absent
                  *  service since gobj-js 7.12.0; the `|| null` is from when it
