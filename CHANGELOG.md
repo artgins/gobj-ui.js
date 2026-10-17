@@ -5,6 +5,11 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.11
+
+- **`C_YUI_TREEDB_GRAPH`: the default tab icon is the graph** (`yi-hexagon-nodes`, the icon `gui_treedb` gives its graphs workspace and every app its frontend view). It was the question mark, which is help.
+- **test-app (not published):** each icon says what its control does. The site map is the site map (the hamburger is the button that opens the menu); About is the circle-info, the "About" of Google, Apple and Microsoft, and the question mark stays for help; the breadcrumb is the route, Tokens the key (GitHub, GitLab), Sessions the display (devices), Modals the checked square. The History demo had five equal arrows for five actions: open panel is a window, write position the link, log out and in the rotating arrows, log out and in later the sign-out, close and go to the table the table, close and click the menu the menu. Node lab: cycle projection is the cards grid, the navigation mode the route. Tranger link: series/time is the line chart, raw records plain text. `yi-cog` becomes `yi-gear` (one glyph, one name).
+
 ## 7.27.10
 
 - **Icons `yi-bug`, `yi-display`, `yi-cube`, `yi-heart-pulse`, `yi-route`, `yi-code-compare` and `yi-align-left`** (FontAwesome Free 7.3.1): debugging (VS Code, IntelliJ, Xcode), the console screen of a yuno's TTY (vSphere and OpenStack's "Console"), a yuno as a deployable unit (the container or pod of Docker, Portainer and Kubernetes), a live feed, a breadcrumb, the differences between two versions (GitHub's compare) and plain text.
