@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.8
+
+- **Icons `yi-microchip` and `yi-server`** (FontAwesome Free 7.3.1), for the devices section of the yunovatios GUIs: the chip of "devices" in the IoT platforms (AWS IoT, Azure IoT Hub), and the server of a controller, a box in the field.
+
 ## 7.27.7
 
 - **Icons `yi-house`, `yi-gauge-high`, `yi-gears`, `yi-sliders`, `yi-user-check`, `yi-user-slash` and `yi-key`** (FontAwesome Free 7.3.1), for the home, dashboards and administration of the yunovatios GUIs: the house of "home", the speedometer of a dashboard (AdminLTE, CoreUI), two gears for system internals (one gear is the admin section), the sliders of personal preferences (Material's `tune`), a person checked or crossed out to enable or disable an account (the eye is show / hide), and the key of granting access.
