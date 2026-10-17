@@ -837,7 +837,7 @@ function build_ui(gobj)
             ['button', {class: 'TREEDB_TABLE_SCHEMA button mr-1',
                         title: t('schema'), 'data-i18n-title': 'schema',
                         'aria-label': t('schema'), 'data-i18n-aria-label': 'schema'}, [
-                yui_toolbar_icon('yi-hexagon-nodes'),
+                yui_toolbar_icon('yi-compass-drafting'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'schema', style: 'padding-left:5px;'}, 'schema']
             ], {
                 'click': (event) => {
@@ -880,7 +880,7 @@ function build_ui(gobj)
                         title: t('choose the columns to show'),
                         'data-i18n-title': 'choose the columns to show',
                         'aria-label': t('columns'), 'data-i18n-aria-label': 'columns'}, [
-                yui_toolbar_icon('yi-table'),
+                yui_toolbar_icon('yi-columns'),
                 ['span', {class: 'is-hidden-mobile', i18n: 'columns', style: 'padding-left:5px;'}, 'columns']
             ], {
                 'click': (event) => {
@@ -2704,7 +2704,7 @@ function open_schema_dialog(gobj)
         logical_class: "TREEDB_SCHEMA",
         title_prefix:  gobj_read_str_attr(gobj, "topic_name"),
         title:         "schema",
-        icon:          "yi-table",
+        icon:          "yi-compass-drafting",
         forget_window: function() {
             priv.schema_win = null;
         },

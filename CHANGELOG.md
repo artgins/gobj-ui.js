@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.18
+
+- **`C_YUI_TREEDB_TOPIC_WITH_FORM`, from the final icon audit of every app:** the schema button and its window wear the compass, as every door to a schema does (they wore the graph of the data and a table); choosing the columns wears the columns, as in gui_treedb (it wore a table, which is the rows). Icons only.
+
 ## 7.27.17
 
 - **`C_G6_NODES_TREE`, its context menu:** unlinking an edge wears the broken link (`g6-icon-unlink`, already in the sprite and unused): it removes a link, it deletes nothing, and the bin promised a delete. Expanding / collapsing ONE node wears the chevron down / up (two new symbols in the sprite), a chevron being what opens or closes one thing; the four corners it wore are full screen, which the toolbar above has too. Icons only.
