@@ -9528,9 +9528,9 @@ function build_node_context_menu(gobj, node_id)
     /*  Open or close THIS node against the mode: the door a finger
      *  has to it (a double click is the mouse's).  */
     if(node_is_compact(gobj, node_id)) {
-        items.push(ctx_item('g6-icon-fullscreen', t('expand node'), 'toggle_node_mode'));
+        items.push(ctx_item('g6-icon-chevron-down', t('expand node'), 'toggle_node_mode'));
     } else {
-        items.push(ctx_item('g6-icon-fullscreen-exit', t('collapse node'), 'toggle_node_mode'));
+        items.push(ctx_item('g6-icon-chevron-up', t('collapse node'), 'toggle_node_mode'));
     }
 
     if(gobj.priv.edit_mode && !node_is_compact(gobj, node_id)) {
@@ -9584,7 +9584,7 @@ function build_edge_context_menu(gobj)
     if(gobj.priv.edit_mode) {
         inject_svg_icons();
         items.push(ctx_item('g6-icon-edit', t('edge properties'), 'edge_properties'));
-        items.push(ctx_item('g6-icon-delete', t('unlink'), 'unlink_edge'));
+        items.push(ctx_item('g6-icon-unlink', t('unlink'), 'unlink_edge'));
         items.push(ctx_item('g6-icon-undo', t('reset edge'), 'reset_edge'));
         items.push(ctx_item('g6-icon-undo', t('reset same type edges'), 'reset_same_type_edges'));
         items.push(ctx_item('g6-icon-undo', t('reset all edges'), 'reset_all_edges'));

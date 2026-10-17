@@ -5,6 +5,11 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.17
+
+- **`C_G6_NODES_TREE`, its context menu:** unlinking an edge wears the broken link (`g6-icon-unlink`, already in the sprite and unused): it removes a link, it deletes nothing, and the bin promised a delete. Expanding / collapsing ONE node wears the chevron down / up (two new symbols in the sprite), a chevron being what opens or closes one thing; the four corners it wore are full screen, which the toolbar above has too. Icons only.
+- **test-app (not published):** the toolbar's theme icon follows the theme -- a sun in light, a moon in dark, as the apps draw it; it was always the moon.
+
 ## 7.27.16
 
 - **Icon `yi-message`** (FontAwesome Free 7.3.1): a message to the user, a dialog -- the message box of every desktop.

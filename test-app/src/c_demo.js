@@ -36,6 +36,7 @@ import {
     yui_shell_refresh_avatars,
     yui_shell_set_translator,
     yui_shell_set_toolbar_item_badge,
+    yui_shell_set_toolbar_item_icon,
     yui_shell_set_nav_item_badge,
     yui_shell_language_changed,
     yui_shell_unpark_route,
@@ -118,6 +119,7 @@ function mt_start(gobj)
 
     apply_theme(current_theme());
     gobj_start_tree(priv.shell);
+    update_theme_icon(gobj);
     yui_shell_refresh_avatars(priv.shell);
 
     /*  Translate the freshly-built shell tree + initial view to the
@@ -258,6 +260,20 @@ function apply_theme(theme)
     return t;
 }
 
+/***************************************************************
+ *  Theme toolbar icon, MyST-style: a SUN while in light, a MOON
+ *  while in dark (the icon shows the current theme), as the apps
+ *  draw it.  No-op if the shell is not up.
+ ***************************************************************/
+function update_theme_icon(gobj)
+{
+    let shell = gobj.priv.shell;
+    if(shell) {
+        let icon = (current_theme() === "light") ? "yi-sun" : "yi-moon";
+        yui_shell_set_toolbar_item_icon(shell, "theme", icon);
+    }
+}
+
 
 
 
@@ -367,6 +383,7 @@ function ac_show_lead(gobj, event, kw, src)
 function ac_toggle_theme(gobj, event, kw, src)
 {
     apply_theme(current_theme() === "dark" ? "light" : "dark");
+    update_theme_icon(gobj);
     return 0;
 }
 
