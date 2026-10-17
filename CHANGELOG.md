@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.6
+
+- **Icons `yi-chart-simple`, `yi-chart-line` and `yi-chart-column`** (FontAwesome Free 7.3.1), for the reports of the yunovatios GUIs: the bars of a reports section (Google Analytics, Shopify), the lines of a history of measures over time (Home Assistant's History) and the columns of a consumption compared year by year. They replace a table, which several other entries of those menus wear, and a calendar, which is the button of `C_YUI_PERIOD`.
+
 ## 7.27.5
 
 - **Icons `yi-bell` and `yi-filter`** (FontAwesome Free 7.3.1), for the alarms of the yunovatios GUIs: the bell is the icon of an alarms section and of its counter in Grafana, Prometheus Alertmanager, AWS CloudWatch and the SCADA HMIs, where the triangle is the STATE "warning" -- and the triangle is the icon of a warning dialog of this library (`shell_modals.js`). The funnel is the filter "only active".
