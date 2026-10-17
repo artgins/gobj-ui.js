@@ -990,7 +990,7 @@
                 {
                     "id": "sectionindex",
                     "name": "Section index",
-                    "icon": "yi-list",
+                    "icon": "yi-sitemap",
                     "tooltip": "The shell's own submenu.index landing (two levels)",
                     "route": "/sectionindex",
                     "submenu": {
@@ -1194,7 +1194,7 @@
                 {
                     "id": "table",
                     "name": "Table",
-                    "icon": "yi-table",
+                    "icon": "yi-list",
                     "tooltip": "A real Tabulator data table with sortable columns",
                     "route": "/table",
                     "target": {
@@ -1274,7 +1274,7 @@
                 {
                     "id": "json",
                     "name": "JSON graph",
-                    "icon": "yi-sitemap",
+                    "icon": "yi-diagram-project",
                     "tooltip": "Any JSON value as a hierarchical G6 graph",
                     "route": "/json",
                     "target": {
@@ -1453,7 +1453,7 @@
                 {
                     "id": "sectionindex",
                     "name": "Section index",
-                    "icon": "yi-list",
+                    "icon": "yi-sitemap",
                     "route": "/sectionindex"
                 },
                 {
@@ -1471,7 +1471,7 @@
                 {
                     "id": "table",
                     "name": "Table",
-                    "icon": "yi-table",
+                    "icon": "yi-list",
                     "route": "/table"
                 },
                 {
@@ -1501,7 +1501,7 @@
                 {
                     "id": "json",
                     "name": "JSON graph",
-                    "icon": "yi-sitemap",
+                    "icon": "yi-diagram-project",
                     "route": "/json"
                 },
                 {

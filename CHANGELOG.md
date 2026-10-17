@@ -5,6 +5,10 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **test-app (not published):** Table is the list and Section index the site map: Cards' grid and Table's grid were two equal icons in the menu at its size (the yunovatios map view settled the same clash the same way). The JSON graph takes the boxes joined by lines, so the menu does not show three equal graphs in a row.
+
 ## 7.27.9
 
 - **Icons `yi-robot`, `yi-user-clock`, `yi-clipboard-list`, `yi-inbox`, `yi-user-plus`, `yi-headset`, `yi-wand-magic-sparkles`, `yi-layer-group`, `yi-window-maximize`, `yi-clock-rotate-left` and `yi-folder`** (FontAwesome Free 7.3.1): automations (Home Assistant's robot), shifts, a shift handover, an in-app inbox (the envelope is e-mail), add a user, the operations desk, a wizard, a stack of pages, ONE window (two overlapping frames say copy), history (the arrow turning back alone is undo) and a tab (Material's `tab`).
