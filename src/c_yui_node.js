@@ -931,10 +931,25 @@ function render_self(gobj)
 function render_child(gobj, child)
 {
     let priv = gobj.priv;
+    let $child = gobj_read_attr(child, "$container");
+
+    /*  The child already hanging in my body is left where it is: only
+     *  the chrome (the navs, the path) follows the route. Every change
+     *  of url below me -- a tab of a treedb view is one -- re-activates
+     *  this level, and re-hanging the child took its whole subtree out
+     *  of the document and put it back, which drops the scroll of every
+     *  element in it: a table came back at 0 with its rows still drawn
+     *  for where the reader was, and showed only the padding above
+     *  them.  */
+    let in_place = !!$child && !!$child.parentNode &&
+        $child.parentNode.classList.contains("NODE_CHILD") &&
+        $child.parentNode.parentNode === priv.$body;
 
     clear_navs(gobj);
     priv.$chrome.replaceChildren();
-    priv.$body.replaceChildren();
+    if(!in_place) {
+        priv.$body.replaceChildren();
+    }
 
     /*  Every ancestor painting its own chrome stacks one strip per
      *  level.  `chrome_depth` is how a node caps that for its corner
@@ -948,8 +963,10 @@ function render_child(gobj, child)
     }
     render_path(gobj, priv.$chrome);
 
+    if(in_place) {
+        return;
+    }
     let $slot = createElement2(["div", {class: "NODE_CHILD"}]);
-    let $child = gobj_read_attr(child, "$container");
     if($child) {
         $slot.appendChild($child);
     }

@@ -2050,6 +2050,19 @@ function watch_table_size(gobj, tabulator)
     });
     ro.observe(tabulator.element);
     priv.table_resize_observer = ro;
+
+    /*  Where the reader is, kept for the next sight: a browser drops the
+     *  scroll of an element that goes `display:none`, and gives it back
+     *  at 0 -- the rows Tabulator drew for the old position are still
+     *  there, under 0, and the view shows only the padding above them.
+     *  Plumbing, not an action: one per scrolled pixel.  */
+    priv.table_scroll = {top: 0, left: 0};
+    tabulator.on("scrollVertical", (top) => {
+        priv.table_scroll.top = top;
+    });
+    tabulator.on("scrollHorizontal", (left) => {
+        priv.table_scroll.left = left;
+    });
 }
 
 function unwatch_table_size(gobj)
@@ -5463,7 +5476,8 @@ function close_table_json_dialog(gobj)
  *  another tab.
  *
  *  The redraw is done when the table is SEEN again, where the
- *  rows have their real offsets and the scroll is kept. It is
+ *  rows have their real offsets, after giving back the scroll the
+ *  browser dropped with the `display:none` (watch_table_size). It is
  *  needed there even at the same size: Tabulator does not draw
  *  the data that arrives while it is hidden (a node event, a
  *  refresh), it leaves that to its next sight.
@@ -5493,6 +5507,13 @@ function ac_table_resized(gobj, event, kw, src)
     if(!last) {
         tabulator.redraw(true);     /*  built hidden: never laid out  */
         return 0;
+    }
+    if(was_hidden) {
+        let $holder = tabulator.element.querySelector(".tabulator-tableholder");
+        if($holder) {
+            $holder.scrollTop = priv.table_scroll.top;
+            $holder.scrollLeft = priv.table_scroll.left;
+        }
     }
     if(was_hidden ||
             last.width !== kw.width || last.height !== kw.height) {

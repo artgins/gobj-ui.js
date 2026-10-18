@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.20
+
+The topic table came back EMPTY on the yunovatios central after 7.27.19, at a deep scroll position. Two causes, one per layer:
+
+- **`C_YUI_NODE` no longer takes a child that is on screen out of the document.** Every route change below a node re-activated it, and `render_child()` emptied its body and hung the child again: the subtree left the document and came back, and a browser drops the scroll of every element that does. A tab change of a treedb view is a route change, so the table's scroll went to 0 with its virtual rows still drawn for the bottom of the page, under 7896px of padding. The chrome (navs, path) is still rebuilt; the body is left alone when the active child already hangs in it.
+- **`C_YUI_TREEDB_TOPIC_WITH_FORM` gives the scroll back when it is seen again**, before its redraw: a host that does take the table out of the document while it is hidden no longer brings it back blank. The position is kept from Tabulator's own `scrollVertical` / `scrollHorizontal`.
+
+Verified against the real central (`npm run qa -- --local --check tabreturn`, new in yunovatios), with `admin`, `topics`, `section`, `landing`, `navmode`, `schemaback`, `hooks` and `sitemap` still green.
+
 ## 7.27.19
 
 `C_YUI_TREEDB_TOPIC_WITH_FORM`, three faults of the topic table found on the yunovatios central:

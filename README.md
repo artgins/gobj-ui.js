@@ -598,6 +598,14 @@ Back out of a deep data position land on it. Below a link there are no nodes:
 `link` + `children` (or `link` + `content`) is a config error, because a silent
 winner in "who owns the subpath" would be the worst outcome.
 
+**A child already on screen stays in the document** (7.27.20+). Every change of
+url below a node re-activates it, and the node used to hang its active child
+again each time -- out of the document and back in, which a browser answers by
+dropping the scroll of every element inside it. A topic table under a treedb
+view came back at the top of a page whose rows were drawn for the bottom, and
+showed nothing. Now only the node's chrome (navs, path) is rebuilt when the
+active child is the one already hanging in its body.
+
 **The tree is a contract, not runtime state.** Once published, a node's path
 is a url a client may have bookmarked, scripted, or been sold as another door
 into the system. So there is deliberately **no reparent/move API**: the shape
