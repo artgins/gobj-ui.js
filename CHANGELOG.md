@@ -5,6 +5,15 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **The lockfile and the test-app on `maplibre-gl` 6.15.0.** No release: the
+  peer floor stays `^6.14.0`. 6.15.0 lists no breaking change and no change of
+  the worker protocol; it deprecates `dragRotate.aroundCenter`, which nothing
+  here uses, and fixes `load`/`idle` firing before the other tiles finish when
+  one tile fails (`C_YUI_MAP` waits on `load`). The test-app emits
+  `maplibre-gl-worker-6.15.0.js` alone.
+
 ## 7.27.21
 
 **`EV_VIEW_SHOWN`: a view shown again after being hidden is told so.** The yunovatios map lost its camera every time the app went to another option and back, because every view of the app was `lazy_destroy`. `keep_alive` keeps the view, but also the data it read when it was created, and the views that read their data only then (and get no events from the backend) would show the first visit's until a Reload. Now:
