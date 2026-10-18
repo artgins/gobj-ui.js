@@ -116,6 +116,17 @@
     background: transparent !important;
 }
 
+/*  The edit / delete buttons of a row (the Op column of edition mode):
+ *  no taller than a line of text. Bulma's `2.5em` button made every row
+ *  drawn while the column was shown 14px taller than the rows drawn
+ *  before it -- rows of two heights in one table, the text of the tall
+ *  ones sitting at the top of the row.  */
+.ROW_OP.button {
+    height: auto;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
 
 /*  Cell of a col flagged `icon`: the glyph is a CSS mask sized in `em`,
  *  so it comes out at the row's font size -- smaller than the 18px the

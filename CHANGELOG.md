@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.19
+
+`C_YUI_TREEDB_TOPIC_WITH_FORM`, three faults of the topic table found on the yunovatios central:
+
+- **A table under a hidden tab keeps its place.** `C_YUI_TREEDB_TOPICS` hides the other topics with `display:none`, and Tabulator's `autoResize` took that 0x0 for a resize: it redrew a table with no layout, where every row reads `offsetTop` 0, so each visit to another tab and back moved the reader about a dozen rows up the page (and a column could be measured at its header's width). The table now watches its own size (`EV_TABLE_RESIZED`): a hidden table is left alone and is redrawn when it is seen again, with its scroll kept, or when its size really changes. `autoResize` is forced off.
+- **A click on an fkey to several parents opens the record.** `place` and `device_type` are `array` fkeys: the row click asked the column's REAL type, found `array` among the cells with a viewer of their own, and gave way to a click the cell does not have. It asks the field type only, the one the cell's own click is chosen by.
+- **Edition mode: rows keep their height, and leaving it clears the selection.** The Op column's buttons were Bulma's `2.5em`, so every row drawn while it was shown was 55px beside rows of 41px; they are a line of text tall now (`ROW_OP`). And a row left ticked stayed painted after edition, with no checkbox on screen to untick it.
+
 ## 7.27.18
 
 - **`C_YUI_TREEDB_TOPIC_WITH_FORM`, from the final icon audit of every app:** the schema button and its window wear the compass, as every door to a schema does (they wore the graph of the data and a table); choosing the columns wears the columns, as in gui_treedb (it wore a table, which is the rows). Icons only.

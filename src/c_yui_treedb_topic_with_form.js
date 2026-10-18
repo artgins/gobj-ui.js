@@ -1061,9 +1061,8 @@ function render_selection_state(gobj)
  *
  *   Only while the table is EDITABLE: outside edition its checkbox
  *   column is hidden (`hideColumn`), and a count of rows nobody can
- *   see or untick is a count you cannot act on. The selection itself
- *   is left alone -- coming back to edition finds it, and the bar
- *   recounts from the table.
+ *   see or untick is a count you cannot act on. Leaving edition also
+ *   drops the selection (ac_edition_mode).
  ************************************************************/
 function render_selection_bar(gobj)
 {
@@ -1592,12 +1591,12 @@ function create_tabulator(gobj)
 
     function operateFormatter(cell, formatterParams, onRendered) {
         return [
-            `<button class="button without-border px-2 edit" ` +
+            `<button class="ROW_OP ROW_OP_EDIT button without-border px-2 edit" ` +
                 `title="${attr_text(t("edit"))}" ` +
                 `aria-label="${attr_text(t("edit"))}">`,
                 '<i style="" class="yi-pen has-text-link"></i>',
             '</button>',
-            `<button class="button without-border px-2 remove" ` +
+            `<button class="ROW_OP ROW_OP_DELETE button without-border px-2 remove" ` +
                 `title="${attr_text(t("delete"))}" ` +
                 `aria-label="${attr_text(t("delete"))}">`,
                 '<i style="" class="yi-trash has-text-danger"></i>',
@@ -1755,6 +1754,13 @@ function create_tabulator(gobj)
         footerElement: "<span class='yui-tabulator-rowcount yui-text-quiet' " +
             "style='display:block;text-align:right;font-size:0.8rem;" +
             "padding:0 0.6rem;'></span>",
+        /*  The size of the table is watched HERE (watch_table_size), not by
+         *  Tabulator. Its own observers took a hidden tab -- `display:none`,
+         *  0x0 -- for a resize, and redrew a table that had no layout: a row
+         *  reads `offsetTop` 0 there, so the redraw put the top of the
+         *  virtual buffer at the top of the view, and every visit to another
+         *  tab and back moved the reader a dozen rows up the page.  */
+        autoResize: false,
     });
 
     /*
@@ -1784,6 +1790,7 @@ function create_tabulator(gobj)
             placeholder: t("no data available", {defaultValue: "No data available"})
         }));
     yui_tabulator_keep_edit_on_redraw(tabulator);
+    watch_table_size(gobj, tabulator);
 
     /*  "highlight" still paints the whole-row hover wash (and a pointer
      *  cursor), which reads as a selection. This table selects only via the
@@ -2015,10 +2022,55 @@ function create_tabulator(gobj)
 }
 
 /************************************************************
+ *   Tell the machine when the table changes size.
+ *
+ *   What Tabulator's `autoResize` did, minus its mistake: a
+ *   table under a hidden tab measures 0x0, and that is not a
+ *   size to lay a table out to (ac_table_resized ignores it).
+ *   One event per frame, as the graphs do.
+ ************************************************************/
+function watch_table_size(gobj, tabulator)
+{
+    let priv = gobj.priv;
+    unwatch_table_size(gobj);
+    priv.table_size = null;
+    if(typeof ResizeObserver === "undefined") {
+        return;
+    }
+    let ro = new ResizeObserver((entries) => {
+        let rect = entries[entries.length - 1].contentRect;
+        let size = {width: Math.floor(rect.width), height: Math.floor(rect.height)};
+        if(priv.table_resize_raf) {
+            cancelAnimationFrame(priv.table_resize_raf);
+        }
+        priv.table_resize_raf = requestAnimationFrame(() => {
+            priv.table_resize_raf = 0;
+            gobj_send_event(gobj, "EV_TABLE_RESIZED", size, gobj);
+        });
+    });
+    ro.observe(tabulator.element);
+    priv.table_resize_observer = ro;
+}
+
+function unwatch_table_size(gobj)
+{
+    let priv = gobj.priv;
+    if(priv.table_resize_raf) {
+        cancelAnimationFrame(priv.table_resize_raf);
+        priv.table_resize_raf = 0;
+    }
+    if(priv.table_resize_observer) {
+        priv.table_resize_observer.disconnect();
+        priv.table_resize_observer = null;
+    }
+}
+
+/************************************************************
  *   Destroy Tabulator instance
  ************************************************************/
 function table__destroy(gobj)
 {
+    unwatch_table_size(gobj);
     let tabulator = gobj_read_attr(gobj, "tabulator");
     if(tabulator) {
         yui_tabulator_close_editor(tabulator, gobj_short_name(gobj));
@@ -3357,6 +3409,11 @@ function show_edit_form(gobj, row)
  *  on a photo opened the popup AND the record on top of it: Tabulator
  *  fires `rowClick` from its own dispatcher, and the cell's
  *  stopPropagation() does not reach it.
+ *
+ *  Asked of the field TYPE only, the one the column's `cellClick` is
+ *  chosen by (create_tabulator). It also asked the REAL type, and an
+ *  fkey to several parents is an `array` that draws as text with no
+ *  click of its own: a click on it opened nothing at all.
  ************************************************************/
 const CELL_WITH_ACTION = [
     "hook", "object", "dict", "template", "array", "list",
@@ -3373,8 +3430,7 @@ function cell_has_its_own_action(gobj, field)
         return false;
     }
     const field_desc = treedb_get_field_desc(col);
-    return CELL_WITH_ACTION.includes(field_desc.type) ||
-           CELL_WITH_ACTION.includes(field_desc.real_type);
+    return CELL_WITH_ACTION.includes(field_desc.type);
 }
 
 /************************************************************
@@ -4080,6 +4136,11 @@ function ac_edition_mode(gobj, event, kw, src)
 
         tabulator.hideColumn('_operation');
         tabulator.hideColumn('_check_box_state_');
+
+        /*  The selection belongs to edition: outside it the checkbox
+         *  column is hidden, and a row left ticked stayed painted with
+         *  nothing on screen to untick it or to act on it.  */
+        yui_clear_selection(tabulator);
 
         if($button_copy_record) {
             $button_copy_record.setAttribute("disabled", true);
@@ -5392,6 +5453,55 @@ function close_table_json_dialog(gobj)
 }
 
 /************************************************************
+ *  {width, height}: the table's new size (watch_table_size).
+ *
+ *  0x0 is a HIDDEN table -- its tab, or the whole view, is
+ *  `display:none` -- and nothing is laid out to it: a redraw
+ *  there reads every row at `offsetTop` 0 and puts the top of
+ *  the virtual buffer at the top of the view, which is what
+ *  moved the reader a dozen rows up the page on every visit to
+ *  another tab.
+ *
+ *  The redraw is done when the table is SEEN again, where the
+ *  rows have their real offsets and the scroll is kept. It is
+ *  needed there even at the same size: Tabulator does not draw
+ *  the data that arrives while it is hidden (a node event, a
+ *  refresh), it leaves that to its next sight.
+ ************************************************************/
+function ac_table_resized(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(!tabulator) {
+        log_error(`${gobj_short_name(gobj)}: a size of a table that is gone`);
+        return -1;
+    }
+
+    if(!kw.width || !kw.height) {
+        priv.table_hidden = true;
+        return 0;
+    }
+    let was_hidden = priv.table_hidden;
+    priv.table_hidden = false;
+
+    let last = priv.table_size;
+    priv.table_size = {width: kw.width, height: kw.height};
+
+    if(!tabulator._ready) {
+        return 0;   /*  Tabulator lays its first build out itself, at this size  */
+    }
+    if(!last) {
+        tabulator.redraw(true);     /*  built hidden: never laid out  */
+        return 0;
+    }
+    if(was_hidden ||
+            last.width !== kw.width || last.height !== kw.height) {
+        tabulator.redraw();
+    }
+    return 0;
+}
+
+/************************************************************
  *  {
  *      href: href
  *  }
@@ -5496,6 +5606,7 @@ function create_gclass(gclass_name)
             ["EV_EXPORT_TABLE",         ac_export_table,       null],
             ["EV_SHOW_TABLE_JSON",      ac_show_table_json,    null],
             ["EV_JSON_LOADED",          ac_json_loaded,        null],
+            ["EV_TABLE_RESIZED",        ac_table_resized,      null],
             ["EV_SHOW",                 ac_show,               null],
             ["EV_HIDE",                 ac_hide,               null]
         ]]
@@ -5564,6 +5675,7 @@ function create_gclass(gclass_name)
         ["EV_DELETE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_REFRESH_TOPIC",        event_flag_t.EVF_OUTPUT_EVENT],
 
+        ["EV_TABLE_RESIZED",        0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0]
     ];

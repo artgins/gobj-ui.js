@@ -1213,6 +1213,18 @@ or they render as the key itself in every language:
     "Some records no longer existed when the delete was confirmed; they were not deleted",
 ```
 
+### A topic table under a hidden tab keeps its place
+
+`C_YUI_TREEDB_TOPICS` hides the tables of the other topics with `display:none`,
+and Tabulator's own `autoResize` took that 0x0 for a resize: it redrew a table
+with no layout, where every row reads `offsetTop` 0, and each visit to another
+tab and back moved the reader about a dozen rows up the page. Since 7.27.19
+`C_YUI_TREEDB_TOPIC_WITH_FORM` watches the size of its table itself
+(`EV_TABLE_RESIZED`): a hidden table is left alone, and it is redrawn when it
+is seen again (where the scroll is kept), or when its size really changes.
+**`autoResize` is forced off** — a host's `tabulator_settings.autoResize` is
+not honoured.
+
 ### Reading a topic table: filters, columns, CSV
 
 `C_YUI_TREEDB_TOPIC_WITH_FORM` had one global search box over the loaded rows.
@@ -3995,8 +4007,10 @@ It is off by default because the bar takes its words from the HOST's i18n, and
 a host that has not defined `"{{n}} selected"` and `"clear selection"` renders
 the keys. It shows only while the table is in **edition mode** — outside it the
 checkbox column is hidden, and a count of rows nobody can see or untick is a
-count you cannot act on. The bar carries no action there: the table's own
-toolbar already has Delete and Copy, and they act on the selection.
+count you cannot act on. For the same reason, **leaving edition mode clears the
+selection** (7.27.19+; it used to stay, painted, with nothing on screen to untick
+it). The bar carries no action there: the table's own toolbar already has Delete
+and Copy, and they act on the selection.
 
 `yui_selection_column({visible: false})` is for a table that reveals the column
 only in an edit mode — `C_YUI_TREEDB_TOPIC_WITH_FORM` shows it with
