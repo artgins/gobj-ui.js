@@ -657,6 +657,27 @@ When a route is activated, the shell:
 
 Recommended default: `keep_alive`.
 
+**A view shown again is told so: `EV_VIEW_SHOWN`** (7.27.21+). A `keep_alive`
+view keeps what it had -- a camera, a scroll, a half-filled form -- and also the
+data it read when it was created. A view that reads its data only then, and gets
+no events from the backend, declares `EV_VIEW_SHOWN` and reads it again there,
+keeping the rest. The shell sends it after `EV_ROUTE_CHANGED`, so the view is
+already at its position, and only to a view that declares it: one that does not
+is not told. A move inside the view (a subpath) is not a new showing.
+
+```js
+// the view's FSM: the same action as its Reload button
+["ST_READY", [
+    ["EV_VIEW_SHOWN",   ac_refresh,     null],
+    ["EV_REFRESH",      ac_refresh,     null]
+]]
+// kw: {route, base, subpath}
+```
+
+`C_YUI_SERVICE_VIEW` hands it on to the view it hosts, and a `C_YUI_NODE` tree
+hands it down its path to the content on screen -- and sends it itself when a
+node comes back to a content it already built.
+
 ---
 
 ## 5. Navigation

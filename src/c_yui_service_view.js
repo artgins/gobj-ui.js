@@ -45,6 +45,10 @@
  *        - flags EVF_PUBLIC_EVENT on what arrives from the backend
  *          (EV_MT_COMMAND_ANSWER and anything the remote publishes): the
  *          ievent drops events that are not public.
+ *        - MAY declare EV_VIEW_SHOWN: the shell (or a C_YUI_NODE) sends
+ *          it here when it shows a hidden view again, and this host
+ *          hands it on -- the place to read again the data the view
+ *          read only when it was created.
  *
  *      NAMES: the service name must be UNIQUE per mount.  A duplicate is
  *      not fatal and that is the danger — gobj-js logs "service ALREADY
@@ -75,6 +79,8 @@ import {
     gobj_stop,
     gobj_is_running,
     gobj_short_name,
+    gobj_has_event,
+    gobj_send_event,
     is_gobj,
     is_string,
     empty_string,
@@ -307,6 +313,29 @@ function mt_destroy(gobj)
 
 
                     /***************************
+                     *      Actions
+                     ***************************/
+
+
+
+
+/************************************************************
+ *  The shell shows me again after hiding me (`keep_alive`):
+ *  the hosted view is the one that may want to know.
+ ************************************************************/
+function ac_view_shown(gobj, event, kw, src)
+{
+    const view = gobj.priv.view;
+    if(view && gobj_has_event(view, event)) {
+        gobj_send_event(view, event, kw, gobj);
+    }
+    return 0;
+}
+
+
+
+
+                    /***************************
                      *          FSM
                      ***************************/
 
@@ -328,10 +357,14 @@ function create_gclass(gclass_name)
     }
 
     const states = [
-        ["ST_IDLE", []]
+        ["ST_IDLE", [
+            ["EV_VIEW_SHOWN",   ac_view_shown,  null]
+        ]]
     ];
 
-    const event_types = [];
+    const event_types = [
+        ["EV_VIEW_SHOWN",   0]
+    ];
 
     __gclass__ = gclass_create(
         gclass_name,

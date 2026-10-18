@@ -1010,6 +1010,7 @@ function build_ui(gobj)
         priv.stages[stage_name] = {
             el: priv.zones[zone],
             items: {},
+            shown: {},      /*  routes whose view has been on screen  */
             active_route: null
         };
         if(priv.zones[zone]) {
@@ -1023,7 +1024,7 @@ function build_ui(gobj)
         if(m) {
             let name = m[1];
             if(!priv.stages[name]) {
-                priv.stages[name] = { el: priv.zones[id], items: {}, active_route: null };
+                priv.stages[name] = { el: priv.zones[id], items: {}, shown: {}, active_route: null };
                 if(priv.zones[id]) {
                     priv.zones[id].classList.add("yui-stage", `yui-stage-${name}`);
                 }
@@ -1031,7 +1032,7 @@ function build_ui(gobj)
         }
     }
     if(!priv.stages.main && priv.zones.center) {
-        priv.stages.main = { el: priv.zones.center, items: {}, active_route: null };
+        priv.stages.main = { el: priv.zones.center, items: {}, shown: {}, active_route: null };
         priv.zones.center.classList.add("yui-stage", "yui-stage-main");
     }
 
@@ -1812,11 +1813,16 @@ function navigate_to(gobj, route, depth, no_drain)
                 $prev.parentNode.removeChild($prev);
             }
             delete stage.items[prev_route];
+            delete stage.shown[prev_route];
         }
     }
 
     /*  Show or create current (keyed by base route) */
     let cur = stage.items[matched_route];
+    /*  Shown before, hidden since, and on screen again: what EV_VIEW_SHOWN
+     *  tells it, below. A move inside the view (a subpath) is not one.  */
+    let reshown = !!cur && !!stage.shown[matched_route] &&
+        prev_route !== matched_route;
     if(!cur) {
         cur = build_view_gobj(gobj, entry, matched_route, stage);
         if(!cur) {
@@ -1830,6 +1836,7 @@ function navigate_to(gobj, route, depth, no_drain)
     }
 
     stage.active_route = matched_route;
+    stage.shown[matched_route] = true;
     gobj_write_attr(gobj, "current_route", route);
     remember_position(gobj, route);
     remember_route(gobj, route);
@@ -1883,6 +1890,21 @@ function navigate_to(gobj, route, depth, no_drain)
         stage: stage_name,
         menu_id: entry.menu_id || ""
     });
+
+    /*  A `keep_alive` (or `eager`) view is hidden on exit, not destroyed,
+     *  so it keeps what it had -- a camera, a scroll, a half-filled form --
+     *  and also the data it read when it was created. A view that reads
+     *  its data only then and gets no events from the backend declares
+     *  EV_VIEW_SHOWN and reads it again here, keeping the rest. Sent after
+     *  EV_ROUTE_CHANGED, so the view is already at its position. A view
+     *  that does not declare it is not told.  */
+    if(reshown && gobj_has_event(cur, "EV_VIEW_SHOWN")) {
+        gobj_send_event(cur, "EV_VIEW_SHOWN", {
+            route: route,
+            base: matched_route,
+            subpath: subpath
+        }, gobj);
+    }
 }
 
 function build_view_gobj(gobj, entry, route, stage)
@@ -4218,6 +4240,7 @@ function prune_route(shell_gobj, route)
             log_warning(`C_YUI_SHELL: prune_route destroy '${route}' failed: ${e}`);
         }
         delete stage.items[route];
+        delete stage.shown[route];
         if(stage.active_route === route) {
             stage.active_route = "";
         }

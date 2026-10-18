@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.21
+
+**`EV_VIEW_SHOWN`: a view shown again after being hidden is told so.** The yunovatios map lost its camera every time the app went to another option and back, because every view of the app was `lazy_destroy`. `keep_alive` keeps the view, but also the data it read when it was created, and the views that read their data only then (and get no events from the backend) would show the first visit's until a Reload. Now:
+
+- **`C_YUI_SHELL`** sends `EV_VIEW_SHOWN {route, base, subpath}` to a view it shows again (`keep_alive` / `eager`), after `EV_ROUTE_CHANGED`, and only if the view declares it. A subpath move is not a new showing.
+- **`C_YUI_SERVICE_VIEW`** hands it on to the view it hosts.
+- **`C_YUI_NODE`** hands it down its path to the content on screen, and sends it itself when a node comes back to a content it already built.
+
+A view that does not declare the event sees no change. SHELL.md §4 has the contract, with an example.
+
 ## 7.27.20
 
 The topic table came back EMPTY on the yunovatios central after 7.27.19, at a deep scroll position. Two causes, one per layer:

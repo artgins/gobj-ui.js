@@ -113,6 +113,7 @@ import {
     gobj_unsubscribe_event,
     gobj_send_event,
     gobj_post_event,
+    gobj_has_event,
     gobj_change_state,
     gobj_current_state,
     createElement2,
@@ -1070,6 +1071,9 @@ function activate(gobj, subpath, inherited_depth)
 {
     let priv = gobj.priv;
     let {head, tail} = head_tail(subpath);
+    /*  Coming back to a content I already built: it is told (EV_VIEW_SHOWN)  */
+    let back_to_content = !!priv.content_gobj &&
+        gobj_current_state(gobj) !== "ST_SELF";
 
     let info = resolve_path_info(gobj, subpath, inherited_depth);
     priv.distance = info.distance;
@@ -1100,6 +1104,9 @@ function activate(gobj, subpath, inherited_depth)
             render_self(gobj);
         }
         forward_subpath(gobj, subpath);
+        if(back_to_content) {
+            tell_content_shown(gobj);
+        }
         return "ST_SELF";
     }
 
@@ -1109,6 +1116,9 @@ function activate(gobj, subpath, inherited_depth)
             priv.active_child = null;
         }
         render_self(gobj);
+        if(back_to_content) {
+            tell_content_shown(gobj);
+        }
         return "ST_SELF";
     }
 
@@ -1159,6 +1169,21 @@ function activate(gobj, subpath, inherited_depth)
         chrome_depth: priv.chrome_depth
     }, gobj);
     return "ST_CHILD";
+}
+
+/************************************************************
+ *  My content is on screen again after being hidden: a node
+ *  keeps the content it built, as the shell keeps a
+ *  `keep_alive` view, so the content may want to read again
+ *  what it read when it was created. Only a content that
+ *  declares EV_VIEW_SHOWN is told.
+ ************************************************************/
+function tell_content_shown(gobj)
+{
+    let content = gobj.priv.content_gobj;
+    if(content && gobj_has_event(content, "EV_VIEW_SHOWN")) {
+        gobj_send_event(content, "EV_VIEW_SHOWN", {route: route_of(gobj)}, gobj);
+    }
 }
 
 /************************************************************
@@ -1292,6 +1317,24 @@ function ac_route_changed(gobj, event, kw, src)
 function ac_activate(gobj, event, kw, src)
 {
     gobj_change_state(gobj, activate(gobj, kw.subpath || "", kw.chrome_depth));
+    return 0;
+}
+
+/************************************************************
+ *  The shell (or my parent) shows the tree again after hiding
+ *  it: down the path to the node on screen, which tells its
+ *  content.
+ ************************************************************/
+function ac_view_shown(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(gobj_current_state(gobj) === "ST_CHILD") {
+        if(priv.active_child) {
+            gobj_send_event(priv.active_child, event, kw, gobj);
+        }
+        return 0;
+    }
+    tell_content_shown(gobj);
     return 0;
 }
 
@@ -1812,6 +1855,7 @@ function create_gclass(gclass_name)
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
+            ["EV_VIEW_SHOWN",           ac_view_shown,          null],
             ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
         ]],
         ["ST_CHILD", [
@@ -1828,6 +1872,7 @@ function create_gclass(gclass_name)
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
+            ["EV_VIEW_SHOWN",           ac_view_shown,          null],
             ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
         ]]
     ];
@@ -1849,6 +1894,8 @@ function create_gclass(gclass_name)
         ["EV_SET_NAV_MODE",         0],
         ["EV_SET_CONTENT",          0],
         ["EV_NODE_TREE_CHANGED",    0],
+        /*  the shell or the parent shows the tree again (keep_alive)  */
+        ["EV_VIEW_SHOWN",           0],
         /*  internal: posted to itself, the navs a render left  */
         ["EV_DESTROY_NAVS",         0]
     ];

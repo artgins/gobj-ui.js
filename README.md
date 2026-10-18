@@ -606,6 +606,12 @@ view came back at the top of a page whose rows were drawn for the bottom, and
 showed nothing. Now only the node's chrome (navs, path) is rebuilt when the
 active child is the one already hanging in its body.
 
+**A content shown again is told so** (7.27.21+). A node keeps the content it
+built, as the shell keeps a `keep_alive` view, so a content that reads its data
+only when it is created declares `EV_VIEW_SHOWN` and reads it again there: the
+node sends it when it comes back to that content, and forwards the shell's down
+its path when the whole tree is shown again (SHELL.md §4).
+
 **The tree is a contract, not runtime state.** Once published, a node's path
 is a url a client may have bookmarked, scripted, or been sold as another door
 into the system. So there is deliberately **no reparent/move API**: the shape
