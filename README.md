@@ -3419,18 +3419,22 @@ child and publishes `EV_SET_GCLASS_TRACE {gclass, levels, set}` to it, which
 goes out as `EV_SET_TRACE_LEVEL {scope: "gclass"}`.
 
 Note what the C runtime does with them: a gclass or yuno level is saved by the
-yuno (`trace_levels`) and **survives a restart**; a gobj level is saved too but
-only the gclass and global scopes are re-applied at start up, so it **ends with
-the yuno**. The blocks say so. The traces go to the yuno's log, not to the
-Developer window.
+yuno (`trace_levels`) and **survives a restart**. A gobj level survives too
+when the gobj is a named **service** (SDK 7.27.3+: it is saved under its service
+name, the only name `set_user_gobj_traces()` can find at start up); any other
+gobj's level **ends with the yuno**. The card says which of the two its gobj
+is, and the gclass viewer that the gclass' levels survive. The traces go to the
+yuno's log, not to the Developer window.
 
 Consumer i18n keys (every app that mounts the tree): `traces of this gobj`,
 `kernel levels`, `this gobj`, `the whole yuno`, `all of the gclass`,
 `on for the whole yuno`, `on for all of the gclass`, `traces of the yuno`,
 `remove the traces of this gobj`, `remove the traces of the gclass`,
 `remove the traces of the yuno`, `the yuno's traces survive a restart`,
-`gclass traces survive a restart, gobj traces end with the yuno` (plus
-`yuno`, `level`, `loading` and `gclass`, which every app has).
+`the traces of a service survive a restart`,
+`the traces of a gobj that is not a service end with the yuno`,
+`the traces of a gclass survive a restart` (plus `yuno`, `level`, `loading`
+and `gclass`, which every app has).
 
 ### The gclass viewer — `yui_gclass_view.js`
 

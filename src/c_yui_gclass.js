@@ -1036,8 +1036,8 @@ function build_trace_toggles(gobj, model, traces)
             ['tbody', {}, trs]
         ]]),
         ['div', {class: 'GCLASS_TRACES_NOTE',
-                 i18n: 'gclass traces survive a restart, gobj traces end with the yuno'},
-         t('gclass traces survive a restart, gobj traces end with the yuno')],
+                 i18n: 'the traces of a gclass survive a restart'},
+         t('the traces of a gclass survive a restart')],
         ['div', {class: 'GCLASS_TRACES_TOOLS'}, [$clear]]
     ]]};
 }

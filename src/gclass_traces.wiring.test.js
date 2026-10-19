@@ -169,6 +169,12 @@ describe("C_YUI_GCLASS: the gclass' trace levels, set from the viewer", () => {
         expect(problems()).toEqual([]);
     });
 
+    test("the zone says the gclass' traces survive a restart", () => {
+        const view = open({traces: {info: INFO, pending: false}});
+        expect(gobj_read_attr(view, "$container").querySelector(".GCLASS_TRACES_NOTE").getAttribute("data-i18n"))
+            .toBe("the traces of a gclass survive a restart");
+    });
+
     test("remove the traces of the gclass turns off its own, not the yuno's", () => {
         const view = open({traces: {info: INFO, pending: false}});
         gobj_read_attr(view, "$container").querySelector(".GCLASS_TRACES_CLEAR").click();

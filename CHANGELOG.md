@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.28
+
+- **The trace notes say what the C runtime keeps.** The card of a gobj said
+  "gobj traces end with the yuno" for every gobj; since SDK 7.27.3 the traces
+  of a named service are saved under its service name and re-applied at start
+  up, and only any other gobj's end with the yuno. The card now says which of
+  the two its gobj is (`the traces of a service survive a restart` /
+  `the traces of a gobj that is not a service end with the yuno`), and the
+  gclass viewer `the traces of a gclass survive a restart`. Three new consumer
+  i18n keys; the old combined one is no longer used.
+
 ## 7.27.27
 
 **Traces, and the gclass viewer, reviewed.** The remote gobj tree mixed the

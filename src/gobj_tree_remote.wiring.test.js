@@ -253,6 +253,20 @@ describe("C_YUI_GOBJ_TREE_JS, source remote", () => {
         expect(problems()).toEqual([]);
     });
 
+    test("a card says whether its gobj's traces survive a restart: a service's do", async () => {
+        const view = await mount("remote", host);
+        await open_tcp_card(view);
+        gobj_send_event(view, "EV_TRACE_INFO", TCP_INFO, host);
+        const note = () => view.priv.$popover.querySelector(".GOBJ_TREE_TRACES_NOTE").getAttribute("data-i18n");
+        expect(note()).toBe("the traces of a gobj that is not a service end with the yuno");
+
+        const tree = JSON.parse(JSON.stringify(TREE));
+        tree["C_YUNO^gate"].children["C_TCP^tcp1"].service = true;
+        gobj_send_event(view, "EV_LOAD_TREE", {tree: tree}, host);
+        expect(note()).toBe("the traces of a service survive a restart");
+        expect(problems()).toEqual([]);
+    });
+
     test("a level the whole yuno traces is locked in a card, said as the yuno's", async () => {
         const view = await mount("remote", host);
         await open_tcp_card(view);

@@ -49,7 +49,8 @@
  *                              carries them like every other one.
  *
  *            A gclass or yuno level is saved by the yuno and survives a
- *            restart; a gobj level lasts until the yuno ends.
+ *            restart; so does a gobj level of a named service (SDK
+ *            7.27.3+). Any other gobj's level lasts until the yuno ends.
  *
  *          The output events are published ONLY in "remote", so a host
  *          of a local tree (the Frontend view) declares none of them.
@@ -2343,10 +2344,17 @@ function build_traces_block(gobj, d)
         ['tbody', {}, trs]
     ]]);
 
-    kids.push(['div', {class: 'GOBJ_TREE_TRACES_NOTE',
-                       i18n: 'gclass traces survive a restart, gobj traces end with the yuno',
-                       style: TRACES_NOTE_STYLE},
-        t('gclass traces survive a restart, gobj traces end with the yuno')]);
+    /*  What the yuno keeps of them (SDK 7.27.3+): the traces of a named
+     *  service are saved and re-applied at start up, any other gobj's are
+     *  not -- they could never be found again.  */
+    kids.push(d.service?
+        ['div', {class: 'GOBJ_TREE_TRACES_NOTE',
+                 i18n: 'the traces of a service survive a restart', style: TRACES_NOTE_STYLE},
+            t('the traces of a service survive a restart')]:
+        ['div', {class: 'GOBJ_TREE_TRACES_NOTE',
+                 i18n: 'the traces of a gobj that is not a service end with the yuno',
+                 style: TRACES_NOTE_STYLE},
+            t('the traces of a gobj that is not a service end with the yuno')]);
 
     kids.push(traces_remove_button(gobj, "gobj", {
         title: t('remove the traces of this gobj'),
