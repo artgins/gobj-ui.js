@@ -5,14 +5,28 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 7.27.22
 
-- **The lockfile and the test-app on `maplibre-gl` 6.15.0.** No release: the
-  peer floor stays `^6.14.0`. 6.15.0 lists no breaking change and no change of
-  the worker protocol; it deprecates `dragRotate.aroundCenter`, which nothing
-  here uses, and fixes `load`/`idle` firing before the other tiles finish when
-  one tile fails (`C_YUI_MAP` waits on `load`). The test-app emits
-  `maplibre-gl-worker-6.15.0.js` alone.
+**The Developer window shows the traffic one line per message again.** The VIEW
+group of the traffic gets a third mode, **`Line`**, before `Collapsed` and
+`Expanded`: one row per message -- arrow, event, command, where it went
+through, size and time -- and no payload. It is the old `Name only`, removed in
+September because the selector then shaped the traces too; since the selector
+is the traffic's alone, that reason is gone. Use it to see WHICH messages go
+and come (a reading of a yuno is 3 requests and 3 answers), and switch to
+`Collapsed` or `Expanded` to read one. The browser console and the Copy button
+follow it: one line per message.
+
+New consumer i18n keys: `one line` (the button) and
+`traffic one line per message` (its title). `validate-locales` asks for them
+in every app that mounts the window.
+
+Also in this release: **the lockfile and the test-app on `maplibre-gl`
+6.15.0.** The peer floor stays `^6.14.0`. 6.15.0 lists no breaking change and no change of
+the worker protocol; it deprecates `dragRotate.aroundCenter`, which nothing
+here uses, and fixes `load`/`idle` firing before the other tiles finish when
+one tile fails (`C_YUI_MAP` waits on `load`). The test-app emits
+`maplibre-gl-worker-6.15.0.js` alone.
 
 ## 7.27.21
 

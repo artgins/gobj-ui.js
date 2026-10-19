@@ -19,10 +19,11 @@ import {install_dom_double} from "../test/dom_double.js";
 
 let entry_shown_lines;
 let render_detailed;
+let render_name;
 
 beforeAll(async () => {
     install_dom_double();
-    ({entry_shown_lines, render_detailed} = await import("./yui_dev.js"));
+    ({entry_shown_lines, render_detailed, render_name} = await import("./yui_dev.js"));
 });
 
 function painted(kw)
@@ -57,5 +58,20 @@ describe("entry_shown_lines", () => {
             "        • count: 2",
             "        ▸ rows [2]",
         ]);
+    });
+});
+
+describe("render_name (the line view)", () => {
+    it("paints the head of the message alone, in one row", () => {
+        const $e = render_name({
+            kind: "traffic", dir: "in", event: "EV_YUNO_STATS", command: "",
+            title: "gui_agent_yuno <== wss://cc:1996", ts: "09:19:03.421", size: 1024,
+            kw: {result: 0, data: {yuno_id: "2046", kind: "cpu"}},
+        });
+        expect($e.classList.contains("TRAFFIC_NAME")).toBe(true);
+        expect($e.querySelector(".TRAFFIC_EVENT").textContent).toBe("EV_YUNO_STATS");
+        expect($e.querySelector(".TRAFFIC_KW")).toBe(null);
+        expect($e.querySelector(".TRAFFIC_FULL")).toBe(null);
+        expect(entry_shown_lines($e)).toEqual([]);
     });
 });

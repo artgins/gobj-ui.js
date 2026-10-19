@@ -86,7 +86,7 @@ export const YUI_DEV_I18N_KEYS = [
     "dev window and browser console", "dev window only", "developer",
     "clear the filter", "errors", "expand", "expanded",
     "filter events / payload", "find", "i18n", "i18next debug output",
-    "incoming", "log", "machine trace shape", "metadata", "outgoing",
+    "incoming", "log", "machine trace shape", "metadata", "one line", "outgoing",
     "output", "payload", "periodic", "schema", "show",
     "show the payload of the traces",
     "show this section in the expanded view", "simple mach", "start / stop",
@@ -95,7 +95,7 @@ export const YUI_DEV_I18N_KEYS = [
     "trace the creation and destruction of gobjs",
     "trace the messages to and from the backend",
     "trace the periodic timer event", "trace the start and stop of gobjs",
-    "traces", "traffic", "traffic payload folded",
+    "traces", "traffic", "traffic one line per message", "traffic payload folded",
     "traffic payload laid out", "view", "window", "yuno monitor"
 ];
 
@@ -202,13 +202,21 @@ function dev_num(key, def)
  *  the traffic's lives in the VIEW group, the traces' in the TRACES row,
  *  beside the chip that picks the machine-trace shape.
  *
- *  The traffic payload is ALWAYS there; the view says whether it is folded.
- *  The old `dev_view_mode` key is left where it is and simply stops being
- *  read (same as SIMPLE_MACH_KEY below).  */
+ *  The view says how much room a message takes: `line` (its event name
+ *  alone, one row per message), `collapsed` (the payload folded) or
+ *  `expanded` (the payload laid out). `line` is the old `Name only`, back
+ *  in 7.27.22 now that the selector is the traffic's alone: it is what you
+ *  want to see WHICH messages go and come, and open one of the other two
+ *  to read them. The old `dev_view_mode` key is left where it is and simply
+ *  stops being read (same as SIMPLE_MACH_KEY below).  */
+function traffic_view_of(v)
+{
+    return (v === "expanded" || v === "line") ? v : "collapsed";
+}
+
 function dev_traffic_view()
 {
-    let v = kw_get_local_storage_value("dev_traffic_view", "collapsed", false);
-    return (v === "expanded") ? "expanded" : "collapsed";
+    return traffic_view_of(kw_get_local_storage_value("dev_traffic_view", "collapsed", false));
 }
 
 /*  Whether the trace's PAYLOAD lines (level `json`: the kw a trace dumps
@@ -274,7 +282,7 @@ function apply_console_route()
  *  It follows the VIEW, because the window and the console are two sinks of
  *  ONE feed and may not disagree about what they are showing: `expanded`
  *  prints the payload laid out, `collapsed` hands the object to the console
- *  and lets it fold it. The same promise the log filter made in 7.23.33 --
+ *  and lets it fold it, `line` prints the head alone. The same promise the log filter made in 7.23.33 --
  *  one rule, two sinks -- which the traffic half had never kept. */
 function console_traffic(title, jn, direction, size)
 {
@@ -284,7 +292,12 @@ function console_traffic(title, jn, direction, size)
     let head = "%c" + dir_arrow(direction) + " " + (title ? "[" + title + "] " : "") + event +
             (size ? "  (" + size + "b)" : "");
 
-    if(dev_traffic_view() === "expanded") {
+    let view = dev_traffic_view();
+    if(view === "line") {
+        window.console.log(head, "color:" + color);
+        return;
+    }
+    if(view === "expanded") {
         let text;
         try {
             text = JSON.stringify(full_sections(kw), null, 4);
@@ -300,7 +313,7 @@ function console_traffic(title, jn, direction, size)
 
 function set_traffic_view(v)
 {
-    kw_set_local_storage_value("dev_traffic_view", (v === "expanded") ? "expanded" : "collapsed");
+    kw_set_local_storage_value("dev_traffic_view", traffic_view_of(v));
     rerender_all();
     refresh_dev_chrome();
 }
@@ -508,6 +521,9 @@ function ensure_dev_style()
 .TRAFFIC_ENTRY.dir-out { border-left-color: #2563eb; }
 .TRAFFIC_ENTRY.dir-in { border-left-color: #059669; }
 .TRAFFIC_ENTRY.dir-err { border-left-color: #dc2626; }
+/*  The line view: one row per message, no margin between rows, so a burst
+    of messages reads as a list.  */
+.TRAFFIC_ENTRY.TRAFFIC_NAME { margin: 1px 0; padding: 1px 8px; line-height: 1.45; display: flex; align-items: baseline; gap: 8px; }
 .TRAFFIC_HEADER { display: flex; align-items: baseline; gap: 8px; }
 .TRAFFIC_ARROW { font-weight: 700; }
 .TRAFFIC_EVENT { font-weight: 700; }
@@ -895,6 +911,14 @@ function render_full(e)
     return createElement2(['div', {class: 'TRAFFIC_ENTRY ' + dir_class(e.dir)}, children]);
 }
 
+/*  Line view: the message's head and nothing else.  */
+function render_name(e)
+{
+    let kids = event_spans(e);
+    kids.push(['span', {class: 'TRAFFIC_META'}, `${traffic_size(e.size)} · ${e.ts}`]);
+    return createElement2(['div', {class: 'TRAFFIC_ENTRY TRAFFIC_NAME ' + dir_class(e.dir)}, kids]);
+}
+
 /*  A mirrored framework log line (error/warning/info/debug/msg). */
 function render_log(e)
 {
@@ -923,8 +947,9 @@ function render_log(e)
     return $row;
 }
 
-/*  A TRAFFIC entry always shows its payload -- folded (`collapsed`, the
- *  bullets) or laid out (`expanded`, the JSON). A trace line is written by
+/*  A TRAFFIC entry shows its head alone (`line`), or with its payload --
+ *  folded (`collapsed`, the bullets) or laid out (`expanded`, the JSON).
+ *  A trace line is written by
  *  the runtime and is painted as it comes; what shapes it is the TRACES row
  *  (the machine-trace format chip and the payload chip), not this.  */
 function render_entry(e)
@@ -932,7 +957,11 @@ function render_entry(e)
     if(e.kind === "log") {
         return render_log(e);
     }
-    if(dev_traffic_view() === "expanded") {
+    let view = dev_traffic_view();
+    if(view === "line") {
+        return render_name(e);
+    }
+    if(view === "expanded") {
         return render_full(e);
     }
     return render_detailed(e);
@@ -1478,7 +1507,8 @@ function entry_shown_lines($entry)
 /*  Serialize the currently-visible (filtered) traffic to plain text:
  *  one header line per entry (time · direction · title · event/command)
  *  followed by its payload AS THE VIEW SHOWS IT -- folded, what is on
- *  screen (entry_shown_lines()); laid out, the whole payload. Honours the
+ *  screen (entry_shown_lines()); laid out, the whole payload; in the line
+ *  view, none (the header line alone, no blank line). Honours the
  *  active filters and search so the copy matches exactly what is on
  *  screen. */
 function traffic_to_text()
@@ -1499,7 +1529,11 @@ function traffic_to_text()
             `${e.title ? "[" + e.title + "] " : ""}${e.event}` +
             `${e.command ? " " + e.command : ""}`;
         out.push(head);
-        if(dev_traffic_view() !== "expanded" && e.$node) {
+        let view = dev_traffic_view();
+        if(view === "line") {
+            continue;
+        }
+        if(view !== "expanded" && e.$node) {
             out.push(...entry_shown_lines(e.$node));
             out.push("");
             continue;
@@ -1609,6 +1643,7 @@ function build_control_bar()
      *  in the TRACES row (the machine-trace chip and `payload`), because
      *  both feeds can be on at once and neither may steer the other.  */
     let VIEW_TITLES = {
+        line:      'traffic one line per message',
         collapsed: 'traffic payload folded',
         expanded:  'traffic payload laid out',
     };
@@ -1625,6 +1660,7 @@ function build_control_bar()
     }];
 
     let view_seg = ['div', {class: 'YDEV_SEG', id: 'ydev-seg'}, [
+        mk_view('line', 'one line'),
         mk_view('collapsed', 'collapsed'),
         mk_view('expanded', 'expanded'),
     ]];
@@ -1964,4 +2000,6 @@ export {
     object_preview, object_preview_parts,
     /*  And the copy of the folded view, with the renderer it reads.  */
     entry_shown_lines, render_detailed,
+    /*  And the line view's row.  */
+    render_name,
 };

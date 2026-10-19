@@ -5077,7 +5077,7 @@ whose keys `validate-locales` reads in its `app_config.json`.
 **A key the reader cannot follow is PUBLISHED by its module** (since
 `7.26.27`): an exported `<NAME>_I18N_KEYS` array of string literals, which
 `validate-locales` reads in every module the app mounts and asks the locales
-for. `yui_dev.js` publishes the 51 keys of the Developer window
+for. `yui_dev.js` publishes the 53 keys of the Developer window
 (`YUI_DEV_I18N_KEYS`) -- they used to be a comment each consumer copied, and
 one consumer lacked 35 --, `c_g6_nodes_tree.js` those of its shape tables,
 popover labels, floating buttons and error messages
