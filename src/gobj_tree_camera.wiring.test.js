@@ -31,7 +31,7 @@ if(typeof globalThis.ResizeObserver === "undefined") {
 }
 
 const camera = vi.hoisted(() => ({zoom: NaN, position: [NaN, NaN], zoomed: [], moved: [],
-                                   size: null, viewport: null}));
+                                   size: null, viewport: null, plugins: []}));
 vi.mock("@antv/g6", async (importOriginal) => {
     const real = await importOriginal();
     class FakeGraph {
@@ -93,8 +93,16 @@ vi.mock("@antv/g6", async (importOriginal) => {
         getEdgeData() {
             return [];
         }
+        /*  The plugins the view asked for, kept so a test can read
+         *  them (camera.plugins).  */
         getPlugins() {
-            return [];
+            return camera.plugins;
+        }
+        setPlugins(arg) {
+            camera.plugins = (typeof arg === "function")? arg(camera.plugins) : arg;
+        }
+        getPluginInstance(key) {
+            return camera.plugins.some((p) => p.key === key)? {destroyed: false} : undefined;
         }
         getBehaviors() {
             return [];
@@ -119,6 +127,7 @@ const {
     gobj_start, gobj_read_attr, gobj_send_event, set_log_callback, register_c_timer,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_gobj_tree_js} = await import("./c_yui_gobj_tree_js.js");
+const {describe_js_gobj} = await import("./gobj_tree_model.js");
 
 const logged = [];
 let yuno = null;
@@ -146,6 +155,7 @@ beforeEach(() => {
     camera.moved = [];
     camera.size = null;
     camera.viewport = null;
+    camera.plugins = [];
 });
 
 function errors()
@@ -153,10 +163,10 @@ function errors()
     return logged.filter((l) => l.level === "error").map((l) => l.msg);
 }
 
-async function mount(name)
+async function mount(name, kw)
 {
     const view = gobj_create_pure_child(name, "C_YUI_GOBJ_TREE_JS",
-        {$container: document.createElement("div")}, yuno);
+        {$container: document.createElement("div"), ...(kw || {})}, yuno);
     document.body.appendChild(gobj_read_attr(view, "$container"));
     gobj_start(view);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -257,5 +267,35 @@ describe("C_YUI_GOBJ_TREE_JS opens centred on its root", () => {
         expect(camera.moved.length).toBeGreaterThan(0);
         expect(camera.moved[0]).toEqual([400, 300]);
         expect(errors()).toEqual([]);
+    });
+});
+
+describe("C_YUI_GOBJ_TREE_JS shows a minimap when the tree is big enough", () => {
+    test("from minimap_min_nodes cards on, anchored by css at the bottom left", async () => {
+        await mount(`camera_${++seq}`, {minimap_min_nodes: 1});
+        const minimap = camera.plugins.find((p) => p.key === "minimap");
+        expect(minimap).toBeTruthy();
+        expect(minimap.type).toBe("minimap");
+        expect(minimap.containerStyle).toMatchObject({top: "auto", bottom: "12px", left: "12px"});
+        expect(typeof minimap.shape).toBe("function");
+        expect(errors()).toEqual([]);
+    });
+
+    test("none below the threshold, and none at all with 0", async () => {
+        await mount(`camera_${++seq}`, {minimap_min_nodes: 100000});
+        expect(camera.plugins.some((p) => p.key === "minimap")).toBe(false);
+        await mount(`camera_${++seq}`, {minimap_min_nodes: 0});
+        expect(camera.plugins.some((p) => p.key === "minimap")).toBe(false);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("a gobj of this browser says whether play and pause mean anything to it", () => {
+    test("play_methods follows the gclass' mt_play / mt_pause", () => {
+        gclass_create("C_TEST_WITH_PLAY", [], [["ST_IDLE", []]],
+            {mt_play: () => 0}, 0, [SDATA_END()], {}, 0, 0, 0, 0);
+        const player = gobj_create_pure_child(`player_${++seq}`, "C_TEST_WITH_PLAY", {}, yuno);
+        expect(describe_js_gobj(player, false).play_methods).toBe(true);
+        expect(describe_js_gobj(yuno, true).play_methods).toBe(false);
     });
 });

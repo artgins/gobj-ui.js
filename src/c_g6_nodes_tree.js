@@ -159,7 +159,7 @@ import {
     Polyline,
 } from '@antv/g6';
 
-import {Circle as CircleGeometry, Rect as RectGeometry} from '@antv/g';
+import {Circle as CircleGeometry} from '@antv/g';
 import {t} from "i18next";
 
 import {inject_svg_icons} from "./lib_icons.js";
@@ -179,6 +179,11 @@ import {yui_shell_show_error} from "./shell_modals.js";
 import {g6_event_kw} from "./g6_event_kw.js";
 import {css_color_or_null} from "./yui_data_color.js";
 import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
+import {
+    yui_graph_minimap_options,
+    yui_graph_minimap_block,
+    yui_graph_minimap_repaint,
+} from "./yui_graph_minimap.js";
 
 /***************************************************************
  *  The markup of one toolbar item. Everything that goes into it is
@@ -8051,13 +8056,8 @@ function auto_layout(gobj)
  ************************************************************/
 function repaint_minimap(gobj)
 {
-    let plugin = graph_get_plugin(gobj, "minimap");
-    if(!plugin || plugin.destroyed) {
-        return;
-    }
     try {
-        plugin.renderMinimap();
-        plugin.renderMask();
+        yui_graph_minimap_repaint(graph_get_plugin(gobj, "minimap"));
     } catch(e) {
         log_error(`${gobj_short_name(gobj)}: repaint_minimap failed: ${e}`);
     }
@@ -8107,97 +8107,37 @@ function refresh_minimap(gobj)
     graph_add_plugin(
         gobj,
         "minimap",
-        {
-            size: [200, 140],
-            position: "bottom-left",
-            /*
-             *  The anchor has to be CSS, not the pixels G6 computes.
-             *
-             *  `createPluginCanvas` turns `position` into `left`/`top`
-             *  in PIXELS, once, from the canvas size at creation
-             *  (`xRatio * (W - width)`). The container then grows --
-             *  full screen, a window resize, a panel closing -- and the
-             *  minimap stays at the `top` it was given: measured going
-             *  full screen, `top` was still `511px` over a container
-             *  that had become 768 tall, which put it floating halfway
-             *  up the left edge, on top of the graph it is there to
-             *  explain.
-             *
-             *  `containerStyle` is merged AFTER those pixels, so
-             *  `top: auto` + `bottom` is a real anchor the browser
-             *  keeps for every size the container ever takes.
-             *
-             *  And it follows the theme: G6's default is a `#fff` box
-             *  with a `#ddd` border in BOTH themes, which over a
-             *  near-black canvas is the brightest thing on screen.
-             */
-            containerStyle: {
-                top:          "auto",
-                bottom:       "12px",
-                left:         "12px",
-                background:   "var(--bulma-scheme-main, #fff)",
-                /*  A mid grey and not a `--bulma-border-*` token: those
-                 *  are made for a line INSIDE a surface, and this one has
-                 *  to separate a floating panel from the CANVAS behind
-                 *  it -- which is near-black in one scheme and white in
-                 *  the other. `border-weak` was 1.43:1 over the dark
-                 *  canvas and 1.18 over the light one; every border token
-                 *  fails at least one of them. This one is 4.6 on both.
-                 *  (The box-shadow below separates it only where there
-                 *  is light to cast a shadow on.)  */
-                border:       "1px solid var(--bulma-text-weak, #94a3b8)",
-                borderRadius: "6px",
-                boxShadow:    "0 2px 8px rgba(0, 0, 0, 0.15)",
-            },
-            /*  The viewport rectangle: G6 washes it in black, which is
-             *  invisible over a dark minimap. A link-coloured outline
-             *  reads on both.  */
-            maskStyle: {
-                border:     "2px solid var(--bulma-link-on-scheme, var(--bulma-link, #3b82f6))",
-                background: "rgba(59, 130, 246, 0.12)",
-            },
-            shape: (id, element_type, element) => {
-                if(element_type !== "node") {
-                    return element;     /*  edges clone themselves fine  */
-                }
-                try {
-                    let nd = graph.getNodeData(id);
-                    let size = (nd && nd.style && nd.style.size) || [120, 60];
-                    /*  The topic's colour PUSHED TOWARDS THE SURFACE, the
-                     *  same treatment a port's rim takes: a block here is
-                     *  the topic colour on the panel's own background, and
-                     *  on the light scheme the palette's yellow was 1.61:1
-                     *  on white -- a minimap whose content could not be
-                     *  told from its paper. 3.80 in light, 9.11 in dark.  */
-                    let color = port_rim(
-                        (nd && nd.data && nd.data.desc && nd.data.desc.color) || "#94a3b8",
-                        priv.theme
-                    );
-                    if(is_more_node(nd)) {
-                        /*  A `+N` chip is a cut, not a card: quieter than a
-                         *  block, and still visible. The slate had to become
-                         *  a DARK slate on a white panel -- raising the alpha
-                         *  of the light one only ever reached 1.86.  */
-                        color = (priv.theme === "dark")
-                            ? "rgba(148, 163, 184, 0.60)"    /*  3.35:1  */
-                            : "rgba(71, 85, 105, 0.65)";     /*  3.19:1  */
-                    }
-                    return new RectGeometry({
-                        style: {
-                            x: -size[0] / 2,
-                            y: -size[1] / 2,
-                            width: size[0],
-                            height: size[1],
-                            fill: color,
-                            radius: 4
-                        }
-                    });
-                } catch(e) {
-                    log_error(`${gobj_short_name(gobj)}: minimap shape failed: ${e}`);
-                    return element;
-                }
+        yui_graph_minimap_options((id, element_type, element) => {
+            if(element_type !== "node") {
+                return element;     /*  edges clone themselves fine  */
             }
-        }
+            try {
+                let nd = graph.getNodeData(id);
+                /*  The topic's colour PUSHED TOWARDS THE SURFACE, the
+                 *  same treatment a port's rim takes: a block here is
+                 *  the topic colour on the panel's own background, and
+                 *  on the light scheme the palette's yellow was 1.61:1
+                 *  on white -- a minimap whose content could not be
+                 *  told from its paper. 3.80 in light, 9.11 in dark.  */
+                let color = port_rim(
+                    (nd && nd.data && nd.data.desc && nd.data.desc.color) || "#94a3b8",
+                    priv.theme
+                );
+                if(is_more_node(nd)) {
+                    /*  A `+N` chip is a cut, not a card: quieter than a
+                     *  block, and still visible. The slate had to become
+                     *  a DARK slate on a white panel -- raising the alpha
+                     *  of the light one only ever reached 1.86.  */
+                    color = (priv.theme === "dark")
+                        ? "rgba(148, 163, 184, 0.60)"    /*  3.35:1  */
+                        : "rgba(71, 85, 105, 0.65)";     /*  3.19:1  */
+                }
+                return yui_graph_minimap_block(nd, color);
+            } catch(e) {
+                log_error(`${gobj_short_name(gobj)}: minimap shape failed: ${e}`);
+                return element;
+            }
+        })
     );
 }
 

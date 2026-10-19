@@ -4,6 +4,7 @@ import {
     node_status,
     node_status_symbol,
     node_status_key,
+    node_can_pause,
     node_badge_keys,
     node_info_rows,
     describe_backend_node,
@@ -120,6 +121,26 @@ describe("node_status", () => {
     it("a gobj that plays without running cannot happen, and reads stopped", () => {
         expect(node_status({running: false, playing: true})).toBe("stopped");
     });
+
+    it("never says paused for a gobj with nothing to play", () => {
+        let d = {running: true, playing: false, play_methods: false};
+        expect(node_can_pause(d)).toBe(false);
+        expect(node_status(d)).toBe("running");
+        expect(node_status_key(d)).toBe("running");
+        expect(node_status_symbol(d)).toBe("\u25CF");
+        /*  Played anyway, it says so; stopped is stopped.  */
+        expect(node_status_key({running: true, playing: true, play_methods: false}))
+            .toBe("playing");
+        expect(node_status_key({running: false, play_methods: false}))
+            .toBe("stopped");
+    });
+
+    it("an unknown play_methods keeps the old word: paused", () => {
+        expect(node_can_pause({running: true, play_methods: null})).toBe(true);
+        expect(node_can_pause({running: true})).toBe(true);
+        expect(node_status_key({running: true, playing: false, play_methods: true}))
+            .toBe("running (paused)");
+    });
 });
 
 describe("node_badge_keys", () => {
@@ -219,6 +240,19 @@ describe("node_info_rows", () => {
         let r = rows_of(describe_backend_tree(BACKEND_TREE));
         expect(r["traces"]).toBe("machine");
         expect(r["flags"]).toBe("gobj_flag_yuno, gobj_flag_service");
+    });
+
+    it("reads play_methods from the backend only when it answers a boolean", () => {
+        expect(describe_backend_node("C_X^x", {play_methods: false}, false).play_methods)
+            .toBe(false);
+        expect(describe_backend_node("C_X^x", {play_methods: true}, false).play_methods)
+            .toBe(true);
+        expect(describe_backend_node("C_X^x", {}, false).play_methods).toBe(null);
+        expect(describe_backend_node("C_X^x", {play_methods: 1}, false).play_methods)
+            .toBe(null);
+        let r = rows_of(describe_backend_node("C_TCP^x",
+            {gclass: "C_TCP", running: true, playing: false, play_methods: false}, false));
+        expect(r["status"]).toBe("\u25CF running");
     });
 
     it("omits every row whose fact is absent", () => {

@@ -3292,7 +3292,7 @@ because opening a popover per node to learn it is not reading a tree:
 | On the card | Says |
 |---|---|
 | Colour (border + left bar) | the ROLE: sky = the yuno, emerald = a service, amber = a pure child, pink = a volatil one, violet = a plain child |
-| Status pill | a SYMBOL and, where there is room, the word: `▶` playing, `‖` running but not playing (PAUSED, which is what the popover calls it in full), `■` stopped, `⊘` disabled. The symbol and not only a colour, because a dot has one shape and stopped is the state that has to be seen |
+| Status pill | a SYMBOL and, where there is room, the word: `▶` playing, `‖` running but not playing (PAUSED, which is what the popover calls it in full), `●` running in green for a gobj whose gclass has neither `mt_play` nor `mt_pause` (nothing to play, so not paused: the descriptor's `play_methods`, which a backend answers from the SDK after 7.27.1 and which reads as unknown, so paused, before it), `■` stopped, `⊘` disabled. The symbol and not only a colour, because a dot has one shape and stopped is the state that has to be seen |
 | Badges | `service`, `pure child`, `volatil child`, `disabled`, `bottom` (it has a bottom gobj), `commands` (its gclass exposes commands) |
 | Its own line | the FSM state |
 | Dashed border, dimmed | disabled — that branch is out of the game |
@@ -3354,7 +3354,15 @@ and it declares the four output events in its FSM:
 | in | `EV_GCLASS_DESCRIPTION` | `{gclass, description}` | — opens the gclass viewer on that description |
 
 The host loads the **first** tree itself (it opened the view); after that the
-view asks only on Refresh. A local tree publishes none of these, so the
+view asks only on Refresh. Ask `view-gobj-tree` for the fields the view reads,
+by name (`options=[...]`): its default leaves out `gclass` and `fullname`, and
+`play_methods` is what keeps a gobj with nothing to play from reading paused.
+
+**A minimap** appears from `minimap_min_nodes` cards on (default `20`, `0`
+never), in either source. The tree opens at actual size rather than fitted, so
+a reader is past its edge sooner than in the treedb graph (`30`). Its frame and
+anchor are the treedb graph's, shared in `yui_graph_minimap.js`; its blocks
+wear their card's role colour. A local tree publishes none of these, so the
 Frontend view and every existing host declare nothing new.
 
 `open_gobj_tree_view()` (`yui_gobj_tree_view.js`) opens such a tree in a window

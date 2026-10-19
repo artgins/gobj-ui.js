@@ -15,10 +15,11 @@
  *          the field names are the ones `gobj2json()` writes in
  *          `kernel/c/gobj-c/src/gobj.c` (fullname, shortname, gclass,
  *          name, parent, state, running, playing, service, disabled,
- *          volatil, bottom_gobj, gobj_flags, commands, gobj_trace_level).
- *          Anything the browser runtime cannot answer is simply absent,
- *          and every reader here treats absent as "not known", never as
- *          false.
+ *          volatil, bottom_gobj, gobj_flags, commands, gobj_trace_level,
+ *          play_methods). Anything the browser runtime cannot answer is
+ *          simply absent, and every reader here treats absent as "not
+ *          known", never as false -- `play_methods` included, which a
+ *          backend built before it was added does not answer.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -88,6 +89,25 @@ function node_status(d)
     return d.playing? "playing": "running";
 }
 
+/************************************************************
+ *  Whether play and pause MEAN something to the node: its
+ *  gclass has an mt_play or an mt_pause.
+ *
+ *  Most gclasses have neither -- a C_TCP, a C_TIMER, a C_NODE
+ *  -- and nothing ever plays them, so a gobj of theirs that
+ *  runs is doing all it can. Calling it paused painted almost
+ *  every card of a backend yuno amber, which is the colour of
+ *  something to look at.
+ *
+ *  `play_methods` is unknown (null) for a backend yuno that does
+ *  not answer it in `view-gobj-tree`, and then the node is taken
+ *  as one that can be paused, which is what was said before.
+ ************************************************************/
+function node_can_pause(d)
+{
+    return !d || d.play_methods !== false;
+}
+
 /*
  *  What the status LOOKS like, before any word is read.
  *
@@ -110,6 +130,10 @@ const STATUS_SYMBOLS = {
     "stopped": "\u25A0\uFE0E",     /*  stop                */
 };
 
+/*  Running, for a gobj with nothing to play: ON, a shape of its own,
+ *  neither the play it never gets nor the pause it is not in.  */
+const RUNNING_SYMBOL = "\u25CF";   /*  a filled circle     */
+
 const DISABLED_SYMBOL = "\u2298";  /*  a slashed circle    */
 
 /************************************************************
@@ -122,13 +146,18 @@ function node_status_symbol(d)
     if(d && d.disabled) {
         return DISABLED_SYMBOL;
     }
-    return STATUS_SYMBOLS[node_status(d)] || STATUS_SYMBOLS.stopped;
+    let status = node_status(d);
+    if(status === "running" && !node_can_pause(d)) {
+        return RUNNING_SYMBOL;
+    }
+    return STATUS_SYMBOLS[status] || STATUS_SYMBOLS.stopped;
 }
 
 /************************************************************
  *  The i18n key of the status, which is NOT the status itself:
  *  a gobj that runs and does not play is PAUSED to the reader,
- *  and "running" alone never said which of the two it was.
+ *  and "running" alone never said which of the two it was --
+ *  unless play and pause mean nothing to it (node_can_pause()).
  ************************************************************/
 function node_status_key(d)
 {
@@ -136,7 +165,7 @@ function node_status_key(d)
         case "playing":
             return "playing";
         case "running":
-            return "running (paused)";
+            return node_can_pause(d)? "running (paused)": "running";
         default:
             return "stopped";
     }
@@ -185,6 +214,8 @@ function describe_js_gobj(target_gobj, is_root)
 
         bottom_gobj: bottom? (gobj_short_name(bottom) || ""): "",
         commands:   !!(target_gobj.gclass && target_gobj.gclass.command_table),
+        play_methods: !!(target_gobj.gclass && target_gobj.gclass.gmt &&
+                        (target_gobj.gclass.gmt.mt_play || target_gobj.gclass.gmt.mt_pause)),
         is_yuno:    !!is_root,
         children:   [],
     };
@@ -233,6 +264,8 @@ function describe_backend_node(shortname, node, is_root)
         disabled:   !!node.disabled,
         bottom_gobj: node.bottom_gobj || "",
         commands:   !!node.commands,
+        /*  Unknown (null) for a yuno that does not answer it.  */
+        play_methods: (typeof node.play_methods === "boolean")? node.play_methods: null,
         gobj_flags: flags,
         gobj_trace_level: Array.isArray(node.gobj_trace_level)?
                             node.gobj_trace_level: [],
@@ -365,6 +398,7 @@ function node_labels(t)
         status: {
             "playing":           t("playing"),
             "running (paused)":  t("running (paused)"),
+            "running":           t("running"),
             "stopped":           t("stopped"),
         },
         /*  The glanceable ones, for the pill on the card, which has
@@ -571,6 +605,7 @@ export {
     STATUS_SYMBOLS,
     node_role,
     node_status,
+    node_can_pause,
     node_status_key,
     node_status_symbol,
     node_badge_keys,

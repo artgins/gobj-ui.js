@@ -61,6 +61,7 @@ import {
     kw_set_local_storage_value,
     gobj_write_str_attr,
     gobj_read_str_attr,
+    gobj_read_integer_attr,
     gobj_yuno,
     gobj_yuno_name,
     gobj_short_name,
@@ -83,6 +84,7 @@ import {
     node_status,
     node_status_key,
     node_status_symbol,
+    node_can_pause,
     trace_rows,
     own_trace_levels,
 } from "./gobj_tree_model.js";
@@ -123,6 +125,7 @@ import { ensure_pinch_zoom_patch } from "./g6_touch_gestures.js";
 import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
 import {g6_event_kw} from "./g6_event_kw.js";
 import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
+import {yui_graph_minimap_options, yui_graph_minimap_block} from "./yui_graph_minimap.js";
 
 /***************************************************************
  *              Constants
@@ -148,6 +151,7 @@ SDATA(data_type_t.DTP_STRING,   "yuno_name",        0,  "",     "remote: the nam
 SDATA(data_type_t.DTP_STRING,   "wide",             0,  "40px", "Height of header. 40px and not 36: it is what an untouched Bulma control measures, so the find box stood 4px taller than every button beside it, and it is what the third graph of the family (C_YUI_TREEDB_GRAPH) uses"),
 SDATA(data_type_t.DTP_STRING,   "layout",           0,  "vertical-compact", "Current layout key"),
 SDATA(data_type_t.DTP_INTEGER,  "collapse_threshold", 0, 10, "Auto-collapse a node whose direct children exceed this number. 0 disables auto-collapse."),
+SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes", 0, 20,    "Show the minimap from this many cards on (0 = never). Lower than the treedb graph's 30: this tree opens at actual size, not fitted, so the reader is past its edge sooner"),
 
 SDATA_END()
 ];
@@ -569,7 +573,13 @@ function status_card_style(d, dark)
     if(d.disabled) {
         return table.disabled;
     }
-    return table[node_status(d)] || table.stopped;
+    let status = node_status(d);
+    if(status === "running" && !node_can_pause(d)) {
+        /*  Nothing to play: running is all it does, so it wears the
+         *  green of a gobj at work, not the amber of a pause.  */
+        return table.playing;
+    }
+    return table[status] || table.stopped;
 }
 
 /***************************************************************
@@ -1417,6 +1427,76 @@ function apply_layout(gobj)
 }
 
 /************************************************************
+ *  The minimap plugin of the graph, or null when it has none.
+ ************************************************************/
+function minimap_plugin(gobj)
+{
+    let graph = gobj.priv.graph;
+    let plugins = graph.getPlugins() || [];
+    if(!plugins.some((p) => typeof p === "object" && p.key === "minimap")) {
+        return null;
+    }
+    return graph.getPluginInstance("minimap") || null;
+}
+
+/************************************************************
+ *  Show or hide the minimap, deciding by the number of cards
+ *  about to be drawn (`n`).
+ *
+ *  A minimap of a tree that fits on screen is decoration; one of
+ *  a yuno with a thousand gobjs is the only way to know where you
+ *  are. So it is not a setting the reader has to find: it appears
+ *  from `minimap_min_nodes` cards on.
+ *
+ *  Called BEFORE the render, not after it: the minimap builds its
+ *  canvas off the graph's render events, so one added after the
+ *  last render is bound and never painted. Its frame and anchor
+ *  are the library's (yui_graph_minimap.js); its blocks wear the
+ *  ROLE colour of their card, the one the card's border wears --
+ *  read at each paint, so a change of theme repaints them with
+ *  the tree.
+ ************************************************************/
+function refresh_minimap(gobj, n)
+{
+    let graph = gobj.priv.graph;
+    let threshold = gobj_read_integer_attr(gobj, "minimap_min_nodes");
+    let plugin = minimap_plugin(gobj);
+
+    if(!threshold || n < threshold) {
+        if(plugin) {
+            graph.setPlugins((graph.getPlugins() || []).filter(
+                (p) => !(typeof p === "object" && p.key === "minimap")
+            ));
+            if(!plugin.destroyed && plugin.destroy) {
+                plugin.destroy();
+            }
+        }
+        return;
+    }
+    if(plugin) {
+        return;     /*  already up  */
+    }
+
+    let shape = (id, element_type, element) => {
+        if(element_type !== "node") {
+            return element;     /*  edges clone themselves fine  */
+        }
+        try {
+            let nd = graph.getNodeData(id);
+            let colors = get_role_colors(nd && nd.data);
+            return yui_graph_minimap_block(nd, yui_is_dark()? colors.accent: colors.stroke);
+        } catch(e) {
+            log_error(`${gobj_short_name(gobj)}: minimap shape failed: ${e}`);
+            return element;
+        }
+    };
+    graph.setPlugins((plugins) => [
+        ...plugins,
+        {key: "minimap", type: "minimap", ...yui_graph_minimap_options(shape)}
+    ]);
+}
+
+/************************************************************
  *  The role colours of a node.
  *
  *  Note the ORDER: volatil before service. A volatil gobj that
@@ -1837,6 +1917,12 @@ function load_tree(gobj)
     let edges = [];
 
     build_gobj_nodes(gobj, root, nodes, edges, null, layout_cfg.compact, labels);
+
+    try {
+        refresh_minimap(gobj, nodes.length);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: refresh_minimap failed: ${e}`);
+    }
 
     if(nodes.length > 0) {
         let root_id = nodes[0].id;      /*  built before its children  */

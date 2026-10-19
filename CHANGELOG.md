@@ -5,7 +5,25 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
-## Unreleased
+## 7.27.26
+
+- **The gobj tree has a minimap**, from `minimap_min_nodes` cards on
+  (default 20, 0 = never), in a local tree and a remote one. Its frame,
+  anchor and viewport rectangle are the treedb graph's, moved to
+  `yui_graph_minimap.js` so the two graphs draw the same minimap (the
+  treedb graph's values did not change); its blocks wear the card's role
+  colour.
+- **A running gobj with nothing to play is no longer called paused.** A gobj
+  whose gclass has neither `mt_play` nor `mt_pause` (a C_TCP, a C_TIMER, a
+  C_NODE: most of them) and that runs reads `● running`, green, instead of
+  `‖ running (paused)`, amber -- which painted almost every card of a
+  backend yuno the colour of something to look at (15 of the 18 gclasses
+  of a db_history_ce). The descriptor carries `play_methods`: read from
+  the gclass in a local tree, and from the new `play_methods` field of the
+  C SDK's `gobj2json()` in a remote one. A backend built before that field
+  does not answer it, and its gobjs keep reading paused.
+
+### Also in this release (development only)
 
 - **Development tooling on vitest 5** (`vitest` and `@vitest/coverage-v8`
   5.0.5) in gobj-ui and in the test-app. The development copies of the
