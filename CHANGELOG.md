@@ -5,6 +5,14 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.25
+
+- The gobj tree **replaces a refused camera** with the one it frames the
+  tree with. 7.27.24 refused a saved camera that showed no card, but left
+  it saved until the reader moved the graph, so every opening refused it
+  again and warned again. Now it warns once, on the opening that heals it
+  (checked on the deployed page: one warning, then clean openings).
+
 ## 7.27.24
 
 **The gobj tree opened on a blank canvas, and the graphs never centred their

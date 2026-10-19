@@ -261,6 +261,7 @@ function restore_view_state(gobj)
             `${Object.keys(priv.node_by_id || {}).length} gobjs, framed again`);
         zoom = null;
         position = null;
+        priv.view_refused = true;   /*  the framing saves its camera over it  */
     }
 
     let done = false;
@@ -446,6 +447,7 @@ let PRIVATE_DATA = {
     remote_root:    null,   // the descriptor of the backend tree, as last loaded
     trace_info:     {},     // gclass -> {gclass_levels, global_levels, gclass_on, global_on, error}
     trace_pending:  false,  // a trace was set: the block is locked until the host answers
+    view_refused:   false,  // the saved camera showed no card: the opening's framing replaces it
 };
 
 let __gclass__ = null;
@@ -1894,6 +1896,12 @@ function load_tree(gobj)
                 }
                 priv.last_zoom = 1;
                 yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);
+                /*  A refused camera is replaced now, not at the reader's
+                 *  next move: left saved, every opening refused it again.  */
+                if(priv.view_refused) {
+                    priv.view_refused = false;
+                    save_view_state(gobj);
+                }
             });
         });
     }

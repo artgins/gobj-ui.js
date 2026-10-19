@@ -215,10 +215,16 @@ describe("C_YUI_GOBJ_TREE_JS does not restore a camera that shows nothing", () =
             JSON.stringify({layout: "", collapsed: {}, anchor: "", zoom: 0.18, position: [-20000, -20000]}));
         camera.size = [800, 600];
         camera.viewport = [-5000, -5000];
+        /*  what G6 answers once the opening has framed the tree  */
+        camera.zoom = 1;
+        camera.position = [5, 6];
         await mount(name);
         await new Promise((resolve) => setTimeout(resolve, 0));
         /*  judged before it is applied: only the opening's own framing  */
         expect(camera.zoomed).toEqual([1]);
+        /*  and the refused camera is replaced by the framing's, so the
+         *  next opening does not refuse it again  */
+        expect(saved(name)).toMatchObject({zoom: 1, position: [5, 6]});
         expect(logged.filter((l) => l.level === "warning").map((l) => l.msg).join(" "))
             .toMatch(/the saved view shows none of the/);
         expect(errors()).toEqual([]);
