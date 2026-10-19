@@ -8,6 +8,8 @@ import {
     node_info_rows,
     describe_backend_node,
     describe_backend_tree,
+    trace_rows,
+    own_trace_levels,
 } from "./gobj_tree_model.js";
 
 /*  A `view-gobj-tree` answer, trimmed to what the view reads.  */
@@ -123,7 +125,7 @@ describe("node_status", () => {
 describe("node_badge_keys", () => {
     it("marks the role and every extra fact, in a fixed order", () => {
         let root = describe_backend_tree(BACKEND_TREE);
-        expect(node_badge_keys(root)).toEqual(["yuno", "commands"]);
+        expect(node_badge_keys(root)).toEqual(["yuno", "commands", "traces"]);
 
         let tcp = root.children.find(c => c.gclass === "C_TCP");
         expect(node_badge_keys(tcp))
@@ -132,6 +134,55 @@ describe("node_badge_keys", () => {
 
     it("a plain child carries no role badge", () => {
         expect(node_badge_keys({})).toEqual([]);
+    });
+
+    it("a gobj that traces says so, last", () => {
+        expect(node_badge_keys({gobj_trace_level: ["machine"]})).toEqual(["traces"]);
+        expect(node_badge_keys({gobj_trace_level: []})).toEqual([]);
+    });
+});
+
+describe("trace_rows", () => {
+    const INFO = {
+        gclass_levels: {traffic: "dump", connections: "connections"},
+        global_levels: {machine: "machine", connections: "never listed twice"},
+        gclass_on: ["connections", "machine"],     /*  OR'ed with the global ones  */
+        global_on: ["machine"],
+    };
+    const by_level = (rows) => {
+        let map = {};
+        for(let r of rows) {
+            map[r.level] = r;
+        }
+        return map;
+    };
+
+    it("lists the gclass levels first, then the global ones, each once", () => {
+        let rows = trace_rows({gobj_trace_level: []}, INFO);
+        expect(rows.map((r) => [r.level, r.group])).toEqual([
+            ["traffic", "gclass"], ["connections", "gclass"], ["machine", "global"]
+        ]);
+    });
+
+    it("locks a level held by a wider scope, and says which", () => {
+        let r = by_level(trace_rows({gobj_trace_level: ["traffic", "connections", "machine"]}, INFO));
+        expect(r.traffic).toMatchObject({gobj_on: true, gobj_locked: false,
+            gclass_on: false, gclass_locked: false, origin: ""});
+        expect(r.connections).toMatchObject({gobj_on: true, gobj_locked: true,
+            gclass_on: true, gclass_locked: false, origin: "gclass"});
+        expect(r.machine).toMatchObject({gobj_on: true, gobj_locked: true,
+            gclass_on: true, gclass_locked: true, origin: "global"});
+    });
+
+    it("what each scope holds on its own is what its remove turns off", () => {
+        let rows = trace_rows({gobj_trace_level: ["traffic", "connections", "machine"]}, INFO);
+        expect(own_trace_levels(rows, "gobj")).toEqual(["traffic"]);
+        expect(own_trace_levels(rows, "gclass")).toEqual(["connections"]);
+    });
+
+    it("no info, no rows", () => {
+        expect(trace_rows({gobj_trace_level: ["machine"]}, null)).toEqual([]);
+        expect(own_trace_levels(null, "gobj")).toEqual([]);
     });
 });
 

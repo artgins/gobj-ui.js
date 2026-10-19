@@ -1,7 +1,42 @@
 /***********************************************************************
  *          c_yui_gobj_tree_js.js
  *
- *          Hierarchical tree graph (G6) of the gobj tree of the own yuno.
+ *          Hierarchical tree graph (G6) of the gobj tree of a yuno.
+ *
+ *          Two sources (`source`):
+ *
+ *            - "local" (default): the yuno of THIS browser, read live.
+ *            - "remote": a BACKEND yuno. The view cannot ask a backend
+ *              anything -- it has no transport, and which link reaches
+ *              the yuno is the host's business -- so it publishes what
+ *              it WANTS and the host answers with the data:
+ *
+ *              out  EV_TREE_WANTED       {}       Refresh pressed
+ *              in   EV_LOAD_TREE         {tree}   the `view-gobj-tree` answer
+ *              out  EV_TRACE_INFO_WANTED {gclass} a card was opened
+ *              in   EV_TRACE_INFO        {gclass, gclass_levels, global_levels,
+ *                                         gclass_on, global_on, error}
+ *              out  EV_SET_TRACE_LEVEL   {scope: "gobj"|"gclass", gobj,
+ *                                         gclass, levels: [...], set}
+ *              out  EV_GCLASS_WANTED     {gclass} the gclass button
+ *              in   EV_GCLASS_DESCRIPTION {gclass, description}
+ *
+ *              The host loads the FIRST tree on its own (it opened the
+ *              view); the view asks again only when Refresh is pressed.
+ *              After a trace is set the host loads the tree and the
+ *              trace info again: the card the reader is on stays open.
+ *
+ *            In "remote" the popover of a card has a TRACES block: one
+ *            row per level (the gclass' own, then the global ones), a
+ *            checkbox for THIS gobj (`set-gobj-trace`) and one for every
+ *            gobj of its gclass (`set-gclass-trace`). A level that is on
+ *            for the gclass, or globally, is shown on and locked in the
+ *            gobj column, with where it comes from: it cannot be turned
+ *            off from one gobj. A gclass level is saved by the yuno and
+ *            survives a restart; a gobj level lasts until the yuno ends.
+ *
+ *          The output events are published ONLY in "remote", so a host
+ *          of a local tree (the Frontend view) declares none of them.
  *
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
@@ -35,10 +70,12 @@ import {
     escapeHtml,
     log_warning,
     refresh_language,
+    gobj_publish_event,
 } from "@yuneta/gobj-js";
 
 import {
     describe_js_gobj,
+    describe_backend_tree,
     node_badge_keys,
     node_info_rows,
     node_labels,
@@ -46,7 +83,10 @@ import {
     node_status,
     node_status_key,
     node_status_symbol,
+    trace_rows,
+    own_trace_levels,
 } from "./gobj_tree_model.js";
+import {text_node} from "./yui_text.js";
 import {
     close_gclass_view,
     gclass_view_available,
@@ -99,6 +139,10 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of o
 /*---------------- Sub-container ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Container element"),
 SDATA(data_type_t.DTP_STRING,   "canvas_id",        0,  "",     "Canvas ID"),
+
+/*---------------- Source ----------------*/
+SDATA(data_type_t.DTP_STRING,   "source",           0,  "local", "Whose tree: local (this browser yuno, read live) | remote (a backend yuno, loaded by the host with EV_LOAD_TREE)"),
+SDATA(data_type_t.DTP_STRING,   "yuno_name",        0,  "",     "remote: the name the yuno is shown by (the gclass window says it before the gclass)"),
 
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_STRING,   "wide",             0,  "40px", "Height of header. 40px and not 36: it is what an untouched Bulma control measures, so the find box stood 4px taller than every button beside it, and it is what the third graph of the family (C_YUI_TREEDB_GRAPH) uses"),
@@ -334,6 +378,11 @@ let PRIVATE_DATA = {
     restoring:      false,  // guards the store against its own restore
     restored:       false,  // the saved arrangement is applied ONCE
     last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
+
+    /*---------------- source "remote" ----------------*/
+    remote_root:    null,   // the descriptor of the backend tree, as last loaded
+    trace_info:     {},     // gclass -> {gclass_levels, global_levels, gclass_on, global_on, error}
+    trace_pending:  false,  // a trace was set: the block is locked until the host answers
 };
 
 let __gclass__ = null;
@@ -1688,14 +1737,17 @@ function load_tree(gobj)
     /*
      *  The tree, as data.
      *
-     *  The graph draws DESCRIPTORS, so this is the one line that
-     *  says which yuno is on screen. A backend yuno enters here:
-     *  describe_backend_tree(<the `view-gobj-tree` answer>) in
-     *  place of describe_js_gobj(gobj_yuno(), true), and nothing
-     *  below this point changes.
+     *  The graph draws DESCRIPTORS, so this is the one place that
+     *  says which yuno is on screen: this browser's, read live, or
+     *  a backend's, as the host last loaded it (EV_LOAD_TREE).
+     *  Nothing below this point knows the difference.
      */
-    let root = describe_js_gobj(gobj_yuno(), true);
+    let remote = is_remote(gobj);
+    let root = remote? priv.remote_root: describe_js_gobj(gobj_yuno(), true);
     if(!root) {
+        if(remote) {
+            return;     /*  not loaded yet: the host loads the first tree  */
+        }
         log_error(`${gobj_short_name(gobj)}: no yuno to draw`);
         return;
     }
@@ -1912,6 +1964,220 @@ function render_popover_body(gobj, node_data)
     `).join("");
 
     $body.innerHTML = rows_html;
+
+    if(is_remote(gobj)) {
+        $body.appendChild(build_traces_block(gobj, node_data));
+    }
+}
+
+/************************************************************
+ *  Whose tree this is.
+ ************************************************************/
+function is_remote(gobj)
+{
+    return gobj_read_str_attr(gobj, "source") === "remote";
+}
+
+/************************************************************
+ *  The TRACES block of a backend gobj's popover.
+ *
+ *  Two columns of checkboxes, THIS gobj and every gobj of its
+ *  gclass, one row per level (trace_rows() in the model says
+ *  what each row holds). A box is an action: its change is
+ *  sent to the FSM, which publishes it to the host, and the
+ *  block stays locked until the host has loaded what the
+ *  backend says now -- the box shows the backend's state, not
+ *  the click.
+ ************************************************************/
+const TRACES_NOTE_STYLE = 'color:var(--bulma-text-weak, #6B7280); margin:4px 0;';
+const TRACES_CELL_STYLE = 'padding:1px 4px; text-align:center;';
+
+function build_traces_block(gobj, d)
+{
+    let priv = gobj.priv;
+    let info = priv.trace_info[d.gclass] || null;
+
+    let kids = [
+        ['div', {class: 'GOBJ_TREE_TRACES_HEAD', i18n: 'traces',
+                 style: 'font-weight:700; margin:8px 0 2px 0; ' +
+                        'padding-top:6px; border-top:1px solid var(--bulma-border-weak, #E5E7EB);'},
+            t('traces')]
+    ];
+
+    if(!info) {
+        kids.push(['div', {class: 'GOBJ_TREE_TRACES_NOTE', i18n: 'loading',
+                           style: TRACES_NOTE_STYLE}, t('loading')]);
+        return createElement2(['div', {class: 'GOBJ_TREE_TRACES'}, kids]);
+    }
+    if(info.error) {
+        kids.push(['div', {class: 'GOBJ_TREE_TRACES_ERROR',
+                           style: 'color:var(--bulma-danger, #dc2626); margin:4px 0;'},
+            text_node(info.error)]);
+        return createElement2(['div', {class: 'GOBJ_TREE_TRACES'}, kids]);
+    }
+
+    let rows = trace_rows(d, info);
+    let pending = !!priv.trace_pending;
+
+    let trs = [];
+    let group = "";
+    for(let r of rows) {
+        if(r.group !== group) {
+            group = r.group;
+            let $label = (group === "gclass")?
+                text_node(d.gclass):
+                createElement2(['span', {i18n: 'global'}, t('global')]);
+            trs.push(['tr', {class: 'GOBJ_TREE_TRACES_GROUP'}, [
+                ['td', {colspan: 3, style: 'padding:4px 4px 1px 4px; font-weight:600; ' +
+                        'color:var(--bulma-text-weak, #6B7280);'}, [$label]]
+            ]]);
+        }
+        let origin = null;
+        if(r.origin === "global") {
+            origin = ['span', {class: 'GOBJ_TREE_TRACES_ORIGIN', i18n: 'global',
+                               style: 'margin-left:6px; color:var(--bulma-text-weak, #6B7280);'},
+                t('global')];
+        } else if(r.origin === "gclass") {
+            origin = ['span', {class: 'GOBJ_TREE_TRACES_ORIGIN', i18n: 'gclass',
+                               style: 'margin-left:6px; color:var(--bulma-text-weak, #6B7280);'},
+                t('gclass')];
+        }
+        let $level = createElement2(['td', {class: 'GOBJ_TREE_TRACES_LEVEL',
+                                            style: 'padding:1px 4px; word-break:break-all;'}, []]);
+        $level.appendChild(text_node(r.level));
+        if(origin) {
+            $level.appendChild(createElement2(origin));
+        }
+        /*  What the level does is the backend's text: data, not a key.  */
+        $level.setAttribute('title', r.description);
+
+        trs.push(['tr', {class: 'GOBJ_TREE_TRACES_ROW'}, [
+            $level,
+            ['td', {style: TRACES_CELL_STYLE}, [
+                trace_checkbox(gobj, "gobj", r.level, r.gobj_on, pending || r.gobj_locked)
+            ]],
+            ['td', {style: TRACES_CELL_STYLE}, [
+                trace_checkbox(gobj, "gclass", r.level, r.gclass_on, pending || r.gclass_locked)
+            ]],
+        ]]);
+    }
+
+    kids.push(['table', {class: 'GOBJ_TREE_TRACES_TABLE',
+                         style: 'width:100%; border-collapse:collapse;'}, [
+        ['thead', {}, [
+            ['tr', {}, [
+                ['th', {i18n: 'level', style: 'padding:1px 4px; text-align:left;'}, t('level')],
+                ['th', {i18n: 'this gobj', style: TRACES_CELL_STYLE}, t('this gobj')],
+                ['th', {i18n: 'all of the gclass', style: TRACES_CELL_STYLE}, t('all of the gclass')],
+            ]]
+        ]],
+        ['tbody', {}, trs]
+    ]]);
+
+    kids.push(['div', {class: 'GOBJ_TREE_TRACES_NOTE',
+                       i18n: 'gclass traces survive a restart, gobj traces end with the yuno',
+                       style: TRACES_NOTE_STYLE},
+        t('gclass traces survive a restart, gobj traces end with the yuno')]);
+
+    let none_gobj = pending || own_trace_levels(rows, "gobj").length === 0;
+    let none_gclass = pending || own_trace_levels(rows, "gclass").length === 0;
+    let btn_style = 'padding:0 8px; height:22px; font-size:11px; white-space:nowrap;';
+    let clear = (scope) => {
+        return {
+            click: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_TRACES_CLEARED", {scope: scope}, gobj);
+            }
+        };
+    };
+    let $clear_gobj = createElement2(['button', {
+        type: 'button', class: 'GOBJ_TREE_TRACES_CLEAR_GOBJ button is-small', style: btn_style,
+        i18n: 'remove the traces of this gobj',
+        title: t('remove the traces of this gobj'),
+        'data-i18n-title': 'remove the traces of this gobj',
+        'aria-label': t('remove the traces of this gobj'),
+        'data-i18n-aria-label': 'remove the traces of this gobj',
+    }, t('remove the traces of this gobj'), clear("gobj")]);
+    let $clear_gclass = createElement2(['button', {
+        type: 'button', class: 'GOBJ_TREE_TRACES_CLEAR_GCLASS button is-small', style: btn_style,
+        i18n: 'remove the traces of the gclass',
+        title: t('remove the traces of the gclass'),
+        'data-i18n-title': 'remove the traces of the gclass',
+        'aria-label': t('remove the traces of the gclass'),
+        'data-i18n-aria-label': 'remove the traces of the gclass',
+    }, t('remove the traces of the gclass'), clear("gclass")]);
+    $clear_gobj.disabled = none_gobj;
+    $clear_gclass.disabled = none_gclass;
+    kids.push(['div', {class: 'GOBJ_TREE_TRACES_TOOLS',
+                       style: 'display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;'},
+        [$clear_gobj, $clear_gclass]]);
+
+    return createElement2(['div', {class: 'GOBJ_TREE_TRACES'}, kids]);
+}
+
+/*  One box of the block. `checked` and `disabled` are set as
+ *  PROPERTIES: createElement2 writes attributes, and an attribute
+ *  `checked="false"` is a checked box.  */
+function trace_checkbox(gobj, scope, level, on, locked)
+{
+    let $cb = null;
+    if(scope === "gobj") {
+        $cb = createElement2(['input', {
+            type: 'checkbox', class: 'GOBJ_TREE_TRACE_GOBJ',
+            title: t('this gobj'), 'data-i18n-title': 'this gobj',
+            'aria-label': t('this gobj'), 'data-i18n-aria-label': 'this gobj',
+        }]);
+    } else {
+        $cb = createElement2(['input', {
+            type: 'checkbox', class: 'GOBJ_TREE_TRACE_GCLASS',
+            title: t('all of the gclass'), 'data-i18n-title': 'all of the gclass',
+            'aria-label': t('all of the gclass'), 'data-i18n-aria-label': 'all of the gclass',
+        }]);
+    }
+    $cb.setAttribute('data-level', level);
+    $cb.checked = !!on;
+    $cb.disabled = !!locked;
+    $cb.addEventListener('change', (evt) => {
+        evt.stopPropagation();
+        gobj_send_event(gobj, "EV_TRACE_TOGGLED",
+            {scope: scope, level: level, set: !!evt.target.checked}, gobj);
+    });
+    return $cb;
+}
+
+/************************************************************
+ *  Rebuild the graph and leave the popover where it was, on
+ *  the same gobj -- by full name, the node ids are new. A
+ *  reader who just ticked a trace is still reading that card.
+ ************************************************************/
+function reload_keeping_popover(gobj, opts)
+{
+    let priv = gobj.priv;
+    let $popover = priv.$popover;
+    let keep = (priv.popover_node && $popover && $popover.style.display === "block")?
+        priv.popover_node.full_name: null;
+    let left = $popover? $popover.style.left: "";
+    let top = $popover? $popover.style.top: "";
+
+    refresh_tree(gobj, opts);   /*  hides the popover  */
+
+    if(!keep || !priv.node_by_id) {
+        return;
+    }
+    for(let id of Object.keys(priv.node_by_id)) {
+        let d = priv.node_by_id[id];
+        if(d.full_name === keep) {
+            priv.popover_node = d;
+            priv.$popover_title.textContent = d.short_name ||
+                (d.gclass + (d.name ? "^" + d.name : ""));
+            priv.$popover_title.title = priv.$popover_title.textContent;
+            render_popover_body(gobj, d);
+            $popover.style.left = left;
+            $popover.style.top = top;
+            $popover.style.display = "block";
+            return;
+        }
+    }
 }
 
 /************************************************************
@@ -2370,6 +2636,11 @@ function ac_find_nodes(gobj, event, kw, src)
 function ac_refresh(gobj, event, kw, src)
 {
     save_view_state(gobj);
+    if(is_remote(gobj)) {
+        /*  The backend has the tree: the host fetches it and loads it.  */
+        gobj_publish_event(gobj, "EV_TREE_WANTED", {});
+        return 0;
+    }
     refresh_tree(gobj);
     return 0;
 }
@@ -2806,6 +3077,12 @@ function ac_node_click(gobj, event, kw, src)
     let client_y = kw.client_y || 0;
     show_popover(gobj, node_data, client_x, client_y);
 
+    /*  Asked on every opening, not cached for good: another reader,
+     *  or a restart, may have changed what the gclass traces.  */
+    if(is_remote(gobj)) {
+        gobj_publish_event(gobj, "EV_TRACE_INFO_WANTED", {gclass: node_data.gclass});
+    }
+
     return 0;
 }
 
@@ -2895,25 +3172,62 @@ function ac_open_gclass(gobj, event, kw, src)
         return -1;
     }
 
+    /*  A backend gclass is not in this registry (or worse, one of the
+     *  same name is, and describes the BROWSER's): its `view-gclass`
+     *  is fetched by the host and comes back as EV_GCLASS_DESCRIPTION.  */
+    if(is_remote(gobj)) {
+        gobj_publish_event(gobj, "EV_GCLASS_WANTED", {gclass: node_data.gclass});
+        return 0;
+    }
+
+    open_gclass_window(gobj, node_data.gclass, null, node_data.state || "");
+
+    return 0;
+}
+
+/************************************************************
+ *  remote: the `view-gclass` answer the host fetched.
+ ************************************************************/
+function ac_gclass_description(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(!kw || !kw.gclass || !kw.description || typeof kw.description !== "object") {
+        log_error(`${gobj_short_name(gobj)}: EV_GCLASS_DESCRIPTION without a gclass description`);
+        return -1;
+    }
+    let d = priv.popover_node;
+    open_gclass_window(gobj, kw.gclass, kw.description,
+        (d && d.gclass === kw.gclass)? (d.state || ""): "");
+    return 0;
+}
+
+/*  One window at a time: a second gclass replaces the first.  */
+function open_gclass_window(gobj, gclass, description, state)
+{
+    let priv = gobj.priv;
+
     close_gclass_view(priv.gclass_view);
     priv.gclass_view = null;
 
-    priv.gclass_view = open_gclass_view(gobj, /* i18n: data */ node_data.gclass, {
-        title_prefix: gobj_yuno_name() || "",
+    let opts = {
+        title_prefix: is_remote(gobj)?
+            (gobj_read_str_attr(gobj, "yuno_name") || ""): (gobj_yuno_name() || ""),
         /*  Which state THIS gobj is in. The description describes the
          *  CLASS and cannot carry it, and the tree is the only party
          *  that knows -- so the machine lights the column the reader
          *  is actually standing in.  */
-        current_state: node_data.state || "",
+        current_state: state,
         on_close: () => {
             if(gobj_is_destroying(gobj)) {
                 return;
             }
             gobj_send_event(gobj, "EV_GCLASS_CLOSED", {}, gobj);
         },
-    });
-
-    return 0;
+    };
+    if(description) {
+        opts.description = description;
+    }
+    priv.gclass_view = open_gclass_view(gobj, /* i18n: data */ gclass, opts);
 }
 
 /************************************************************
@@ -2927,6 +3241,119 @@ function ac_gclass_closed(gobj, event, kw, src)
 {
     gobj.priv.gclass_view = null;
     return 0;
+}
+
+/************************************************************
+ *  remote: the host loaded the tree (`view-gobj-tree`).
+ *
+ *  The first one is framed like any opening; the next ones
+ *  keep the camera and the card the reader is on.
+ ************************************************************/
+function ac_load_tree(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(!is_remote(gobj)) {
+        log_error(`${gobj_short_name(gobj)}: EV_LOAD_TREE on a tree whose source is not remote`);
+        return -1;
+    }
+    let root = describe_backend_tree(kw && kw.tree);
+    if(!root) {
+        log_warning(`${gobj_short_name(gobj)}: what was loaded is not a view-gobj-tree answer`);
+        return -1;
+    }
+    let first = !priv.remote_root;
+    priv.remote_root = root;
+    priv.trace_pending = false;
+    reload_keeping_popover(gobj, first? {}: {preserve_view: true});
+    return 0;
+}
+
+/************************************************************
+ *  remote: the trace levels of a gclass, as the backend has
+ *  them now (or why they could not be read).
+ ************************************************************/
+function ac_trace_info(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(!kw || !kw.gclass) {
+        log_error(`${gobj_short_name(gobj)}: EV_TRACE_INFO without a gclass`);
+        return -1;
+    }
+    let list = (x) => Array.isArray(x)? x: [];
+    priv.trace_info[kw.gclass] = {
+        gclass_levels:  kw.gclass_levels || {},
+        global_levels:  kw.global_levels || {},
+        gclass_on:      list(kw.gclass_on),
+        global_on:      list(kw.global_on),
+        error:          kw.error || "",
+    };
+    priv.trace_pending = false;
+
+    let d = priv.popover_node;
+    if(d && d.gclass === kw.gclass && priv.$popover && priv.$popover.style.display === "block") {
+        render_popover_body(gobj, d);
+    }
+    return 0;
+}
+
+/************************************************************
+ *  A box of the TRACES block was ticked or cleared.
+ ************************************************************/
+function ac_trace_toggled(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let d = priv.popover_node;
+    if(!is_remote(gobj) || !d) {
+        log_error(`${gobj_short_name(gobj)}: a trace set with no backend card open`);
+        return -1;
+    }
+    if(!kw.level || (kw.scope !== "gobj" && kw.scope !== "gclass")) {
+        log_error(`${gobj_short_name(gobj)}: a trace set of no level or scope: ` +
+            `'${kw.scope}' '${kw.level}'`);
+        return -1;
+    }
+    set_trace_levels(gobj, d, kw.scope, [kw.level], !!kw.set);
+    return 0;
+}
+
+/************************************************************
+ *  "Remove the traces" of the gobj or of its gclass: every
+ *  level that scope holds on its own.
+ ************************************************************/
+function ac_traces_cleared(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let d = priv.popover_node;
+    if(!is_remote(gobj) || !d) {
+        log_error(`${gobj_short_name(gobj)}: traces removed with no backend card open`);
+        return -1;
+    }
+    let rows = trace_rows(d, priv.trace_info[d.gclass]);
+    let levels = own_trace_levels(rows, kw.scope);
+    if(!levels.length) {
+        /*  The button is off when there is nothing: reaching here is
+         *  a button that did not follow the block.  */
+        log_error(`${gobj_short_name(gobj)}: no ${kw.scope} trace of ${d.full_name} to remove`);
+        return -1;
+    }
+    set_trace_levels(gobj, d, kw.scope, levels, false);
+    return 0;
+}
+
+/*  Lock the block and hand the change to the host. The block is
+ *  repainted from what the backend says next, never from here.  */
+function set_trace_levels(gobj, d, scope, levels, set)
+{
+    let priv = gobj.priv;
+    priv.trace_pending = true;
+    render_popover_body(gobj, d);
+    gobj_publish_event(gobj, "EV_SET_TRACE_LEVEL", {
+        scope:  scope,
+        gobj:   d.full_name,
+        gclass: d.gclass,
+        levels: levels,
+        set:    set,
+    });
 }
 
 /************************************************************
@@ -3004,6 +3431,11 @@ function create_gclass(gclass_name)
             ["EV_OPEN_GCLASS",          ac_open_gclass,         null],
             ["EV_GCLASS_CLOSED",        ac_gclass_closed,       null],
             ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null],
+            ["EV_LOAD_TREE",            ac_load_tree,           null],
+            ["EV_TRACE_INFO",           ac_trace_info,          null],
+            ["EV_TRACE_TOGGLED",        ac_trace_toggled,       null],
+            ["EV_TRACES_CLEARED",       ac_traces_cleared,      null],
+            ["EV_GCLASS_DESCRIPTION",   ac_gclass_description,  null],
         ]]
     ];
 
@@ -3031,6 +3463,16 @@ function create_gclass(gclass_name)
         ["EV_OPEN_GCLASS",          0],
         ["EV_GCLASS_CLOSED",        0],
         ["EV_LANGUAGE_CHANGED",     0],
+        ["EV_LOAD_TREE",            0],
+        ["EV_TRACE_INFO",           0],
+        ["EV_TRACE_TOGGLED",        0],
+        ["EV_TRACES_CLEARED",       0],
+        ["EV_GCLASS_DESCRIPTION",   0],
+        /*  Published only when `source` is "remote" (see the header).  */
+        ["EV_TREE_WANTED",          event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_TRACE_INFO_WANTED",    event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_SET_TRACE_LEVEL",      event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_GCLASS_WANTED",        event_flag_t.EVF_OUTPUT_EVENT],
     ];
 
     __gclass__ = gclass_create(

@@ -3331,9 +3331,75 @@ let root = describe_js_gobj(gobj_yuno(), true);      /*  this browser yuno   */
 let root = describe_backend_tree(answer);            /*  `view-gobj-tree`    */
 ```
 
-`load_tree()` calls the first one, on one line. Swapping it for the second is
-the whole of showing a remote yuno; nothing below that line changes. (The
-remote fetch itself is not wired yet.)
+`load_tree()` calls the first one when `source` is `"local"` and the second
+one, on what the host loaded, when it is `"remote"`; nothing below that line
+changes.
+
+### A backend yuno's tree — `source: "remote"`, `open_gobj_tree_view`
+
+The same view shows the gobj tree of a **backend** yuno (7.27.23). It cannot
+fetch it: it has no transport, and which link reaches that yuno is the host's
+business. So it **publishes what it wants** and the host answers with the
+data. The host is the tree's subscriber (it is created as the host's child),
+and it declares the four output events in its FSM:
+
+| Direction | Event | kw | The host does |
+|---|---|---|---|
+| out | `EV_TREE_WANTED` | `{}` | `view-gobj-tree`, then `EV_LOAD_TREE` (Refresh was pressed) |
+| in | `EV_LOAD_TREE` | `{tree}` | — the `view-gobj-tree` answer's `data` |
+| out | `EV_TRACE_INFO_WANTED` | `{gclass}` | `info-gclass-trace gclass=G`, `info-global-trace`, `get-gclass-trace gclass=G`, `get-global-trace`, then `EV_TRACE_INFO` (a card was opened) |
+| in | `EV_TRACE_INFO` | `{gclass, gclass_levels, global_levels, gclass_on, global_on, error}` | — the four answers (`{name: description}`, `{name: description}`, `[name]`, `[name]`), or `error` |
+| out | `EV_SET_TRACE_LEVEL` | `{scope, gobj, gclass, levels, set}` | per level `set-gobj-trace gobj=<gobj> level=L set=0\|1` (scope `gobj`) or `set-gclass-trace gclass=G level=L set=0\|1` (scope `gclass`), then the tree and the trace info again |
+| out | `EV_GCLASS_WANTED` | `{gclass}` | `view-gclass gclass=G`, then `EV_GCLASS_DESCRIPTION` |
+| in | `EV_GCLASS_DESCRIPTION` | `{gclass, description}` | — opens the gclass viewer on that description |
+
+The host loads the **first** tree itself (it opened the view); after that the
+view asks only on Refresh. A local tree publishes none of these, so the
+Frontend view and every existing host declare nothing new.
+
+`open_gobj_tree_view()` (`yui_gobj_tree_view.js`) opens such a tree in a window
+— a sheet on a phone — with an optional status line of the host above it:
+
+```js
+import {open_gobj_tree_view, close_gobj_tree_view}
+    from "@yuneta/gobj-ui/src/yui_gobj_tree_view.js";
+
+priv.view = open_gobj_tree_view(gobj, {
+    name:         "controller-2046",     /*  names the window, the tree and its saved arrangement  */
+    source:       "remote",
+    yuno_name:    "gate_energia^2046",   /*  before the gclass in the gclass window's title  */
+    title_prefix: "gate_energia^2046",
+    title:        "gobj tree",           /*  an i18n KEY  */
+    $header:      priv.$status,
+    on_close:     () => gobj_send_event(gobj, "EV_VIEW_CLOSED", {}, gobj),
+});
+/*  ... the `view-gobj-tree` answer arrives:  */
+gobj_send_event(priv.view.tree, "EV_LOAD_TREE", {tree: answer.data}, gobj);
+/*  ... in mt_stop:  */
+close_gobj_tree_view(priv.view);
+```
+
+**The TRACES block.** In a remote tree the popover of a card carries a table:
+one row per level the gobj can trace (its gclass' own, then the global ones),
+a box for **this gobj** and one for **all of the gclass**. A level that is on
+for the gclass or globally shows on and **locked** in the gobj column, with
+where it comes from (`gclass` / `global`): one gobj cannot turn it off. A box
+is an action: the block locks until the host has loaded what the backend says
+next, so a box shows the backend, never the click. **Remove the traces** of the
+gobj, or of the gclass, turns off what that scope holds on its own. The card
+of a gobj that traces anything wears a `traces` badge.
+
+Note what the C runtime does with them: a gclass level is saved by the yuno
+(`trace_levels`) and **survives a restart**; a gobj level is saved too but only
+the gclass and global scopes are re-applied at start up, so it **ends with the
+yuno**. The block says so. The traces go to the yuno's log, not to the
+Developer window.
+
+Consumer i18n keys (every app that mounts the tree): `global`, `this gobj`,
+`all of the gclass`, `remove the traces of this gobj`,
+`remove the traces of the gclass`,
+`gclass traces survive a restart, gobj traces end with the yuno` (plus
+`traces`, `level`, `loading` and `gclass`, which every app has).
 
 ### The gclass viewer — `yui_gclass_view.js`
 

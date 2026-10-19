@@ -331,6 +331,11 @@ function node_badge_keys(d)
     if(d.commands) {
         badges.push("commands");
     }
+    /*  Only a backend answers it (`view-gobj-tree`): a card that traces
+     *  is the one a reader is looking for when the log fills up.  */
+    if(Array.isArray(d.gobj_trace_level) && d.gobj_trace_level.length > 0) {
+        badges.push("traces");
+    }
 
     return badges;
 }
@@ -379,6 +384,7 @@ function node_labels(t)
             "disabled":      t("disabled"),
             "bottom":        t("bottom"),
             "commands":      t("commands"),
+            "traces":        t("traces"),
         },
         field: {
             gclass:      t("gclass"),
@@ -463,6 +469,102 @@ function node_info_rows(d, t)
     return rows;
 }
 
+
+
+                    /******************************
+                     *      Trace levels
+                     ******************************/
+
+
+/************************************************************
+ *  The rows of the TRACES block of a backend gobj, one per
+ *  level it can trace: the gclass' own levels first (the ones
+ *  that are about this gobj), then the global ones.
+ *
+ *  `d` is the descriptor (its `gobj_trace_level` is what the
+ *  gobj traces NOW, whatever the reason). `info` is what the
+ *  host fetched for its gclass:
+ *
+ *      gclass_levels  {name: description}   info-gclass-trace
+ *      global_levels  {name: description}   info-global-trace
+ *      gclass_on      [name, ...]           get-gclass-trace
+ *      global_on      [name, ...]           get-global-trace
+ *
+ *  `get-gclass-trace` answers the gclass' levels OR'ed with the
+ *  global ones (gobj_get_gclass_trace_level), so a level on in
+ *  both is counted as global: that is the one that would still
+ *  hold it on if the gclass let go.
+ *
+ *  Each row says, for the two columns of the block:
+ *
+ *      gobj_on, gobj_locked      the gobj traces it; locked when
+ *                                that comes from its gclass or
+ *                                from the global level -- turning
+ *                                the gobj's own bit off would not
+ *                                stop it
+ *      gclass_on, gclass_locked  every gobj of the gclass traces
+ *                                it; locked when it is global
+ *      origin                    "global" | "gclass" | ""
+ ************************************************************/
+function trace_rows(d, info)
+{
+    let rows = [];
+    if(!d || !info) {
+        return rows;
+    }
+    let list = (x) => Array.isArray(x)? x: [];
+    let now = list(d.gobj_trace_level);
+    let global_on = list(info.global_on);
+    let gclass_on = list(info.gclass_on);
+    let seen = {};
+
+    let add = (group, levels) => {
+        if(!levels || typeof levels !== "object") {
+            return;
+        }
+        for(let level of Object.keys(levels)) {
+            if(seen[level]) {
+                continue;
+            }
+            seen[level] = true;
+            let by_global = global_on.indexOf(level) >= 0;
+            let by_gclass = !by_global && gclass_on.indexOf(level) >= 0;
+            rows.push({
+                level:          level,
+                description:    String(levels[level] || ""),
+                group:          group,
+                gobj_on:        now.indexOf(level) >= 0 || by_global || by_gclass,
+                gobj_locked:    by_global || by_gclass,
+                gclass_on:      by_global || by_gclass,
+                gclass_locked:  by_global,
+                origin:         by_global? "global": (by_gclass? "gclass": ""),
+            });
+        }
+    };
+    add("gclass", info.gclass_levels);
+    add("global", info.global_levels);
+    return rows;
+}
+
+/************************************************************
+ *  The levels a scope holds ON ITS OWN -- what "remove the
+ *  traces" of that scope has to turn off. Not the locked ones:
+ *  they are held by a wider scope, and turning them off here
+ *  would change nothing.
+ ************************************************************/
+function own_trace_levels(rows, scope)
+{
+    let out = [];
+    for(let r of (rows || [])) {
+        if(scope === "gobj" && r.gobj_on && !r.gobj_locked) {
+            out.push(r.level);
+        } else if(scope === "gclass" && r.gclass_on && !r.gclass_locked) {
+            out.push(r.level);
+        }
+    }
+    return out;
+}
+
 export {
     ROLES,
     STATUSES,
@@ -478,4 +580,6 @@ export {
     describe_js_gobj,
     describe_backend_node,
     describe_backend_tree,
+    trace_rows,
+    own_trace_levels,
 };

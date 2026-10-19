@@ -160,6 +160,8 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
         fallbacks: {"0[].id": ["0[].name", "0[].aria_label"]}},
     /*  yui_gclass_view.js -- the dialog's title is the gclass name  */
     {module: "yui_gclass_view.js", name: "open_gclass_view", exported: true, keys: ["1"]},
+    /*  yui_gobj_tree_view.js -- the window's title is a key  */
+    {module: "yui_gobj_tree_view.js", name: "open_gobj_tree_view", exported: true, keys: ["1.title"]},
     /*  g6_canvas_tab_order.js -- the name of a graph's main canvas, the
      *  one control of the graph in the Tab order  */
     {module: "g6_canvas_tab_order.js", name: "set_canvas_tab_order", exported: true, keys: ["2"]},

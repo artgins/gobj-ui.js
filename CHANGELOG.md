@@ -5,6 +5,44 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.23
+
+**The gobj tree shows a BACKEND yuno, and turns its traces on and off.**
+`C_YUI_GOBJ_TREE_JS` gets a `source` attr: `"local"` (the browser's yuno, as
+before) or `"remote"`. A remote tree cannot fetch anything: it publishes what
+it wants and its host answers with the data.
+
+- The host loads the tree (`EV_LOAD_TREE {tree}`, the `view-gobj-tree`
+  answer). Refresh publishes `EV_TREE_WANTED`.
+- Opening a card publishes `EV_TRACE_INFO_WANTED {gclass}`. The host answers
+  `EV_TRACE_INFO` with the gclass' levels and the global ones, and what is on
+  for each.
+- The popover then carries a **TRACES** block, one row per level, with a box
+  for *this gobj* and one for *all of the gclass*. A level on for the gclass
+  or globally is shown on and locked in the gobj column, with where it comes
+  from. A box publishes `EV_SET_TRACE_LEVEL {scope, gobj, gclass, levels,
+  set}` and the block stays locked until the host loads what the backend says
+  next. Two buttons remove the traces the gobj, or the gclass, holds on its
+  own. The card stays open across the reload.
+- The gclass button publishes `EV_GCLASS_WANTED {gclass}`, and the host opens
+  the backend's description with `EV_GCLASS_DESCRIPTION`. The browser's
+  registry could hold a same-named gclass (`C_TIMER`) and describe the wrong
+  one.
+- A card whose gobj traces something wears a `traces` badge.
+- The four output events are published **only** in `"remote"`, so the
+  Frontend view and every existing host declare nothing new.
+
+`yui_gobj_tree_view.js` (new): `open_gobj_tree_view(host, opts)` /
+`close_gobj_tree_view(handle)` open such a tree in a window (a sheet on a
+phone), with an optional status line of the host above it, and handle the ✕
+the way the gclass viewer does. `gobj_tree_model.js` adds `trace_rows()` and
+`own_trace_levels()`. The README has the contract, with an example.
+
+New consumer i18n keys (every app that mounts the tree): `global`,
+`this gobj`, `all of the gclass`, `remove the traces of this gobj`,
+`remove the traces of the gclass`,
+`gclass traces survive a restart, gobj traces end with the yuno`.
+
 ## 7.27.22
 
 **The Developer window shows the traffic one line per message again.** The VIEW
