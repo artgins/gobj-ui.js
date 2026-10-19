@@ -5,6 +5,17 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- **Development tooling on vitest 5** (`vitest` and `@vitest/coverage-v8`
+  5.0.5) in gobj-ui and in the test-app. The development copies of the
+  peers were refreshed within their majors (i18next 26.5.2,
+  tabulator-tables 6.6.1). The test-app's dependencies were updated (vite
+  8.3.4, playwright 1.64.1) and `npm audit fix` cleared its 4 advisories
+  (`@vitest/mocker`, `source-map-js`: build and test tools, nothing in the
+  bundle). No published code changes, so there is no release. 1866 tests
+  pass.
+
 ## 7.27.25
 
 - The gobj tree **replaces a refused camera** with the one it frames the
