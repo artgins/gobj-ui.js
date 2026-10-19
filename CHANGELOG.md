@@ -5,6 +5,50 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.27
+
+**Traces, and the gclass viewer, reviewed.** The remote gobj tree mixed the
+two families of trace levels with the three scopes, and the gclass viewer laid
+itself out by the width of the screen.
+
+- **Each trace scope where it belongs.** The kernel's levels (`machine`,
+  `create_delete`, `ev_kw`...) are valid for one gobj, for a gclass and for
+  the whole yuno; a gclass' own levels for the first two. The popover of a
+  card now sets **this gobj** only (`set-gobj-trace`); **every gobj of the
+  gclass** is set from the gclass viewer's *trace levels* zone
+  (`set-gclass-trace`); **the whole yuno** from the toolbar's new *traces of
+  the yuno* (`set-global-trace`), which could be set nowhere before. A level
+  a wider scope holds is locked in a narrower one, saying which (`C_TCP` /
+  `yuno`). The kernel's levels are grouped as *kernel levels*: they were
+  under *Global*, the word that also meant "on for the whole yuno".
+- **Remote hosts:** `EV_SET_TRACE_LEVEL` takes `scope: "global"`; the yuno's
+  levels are read with `EV_TRACE_INFO_WANTED` of the root's gclass. No new
+  output event of the tree. `C_YUI_GCLASS` publishes `EV_SET_GCLASS_TRACE`
+  to its host when it is handed `traces` (the gobj tree declares it) and
+  takes `EV_SET_TRACES`, `EV_SHOW_ALL` and the attrs `traces` and
+  `instance_name`.
+- **The gclass viewer's layout follows the VIEWER's width**, a container
+  query: a media query on the screen gave a 720px window two columns of
+  330px, and the attributes table scrolled its defaults and descriptions
+  out of sight (rows grew tall around descriptions nobody could see). The
+  short zones come first (machine and trace levels, side by side from
+  70rem), then the attributes and commands across the whole width, each
+  showing 20 entries and a *show all N* button (a search shows every
+  match). C_YUNO's methods and trace levels were 7000px down.
+- **Smaller, in the same viewer:** the methods are chips in the head; the
+  state lit in the machine says whose it is (`tranger_tracks: ST_IDLE`);
+  `1 instance` / `4 instances`; the machine's count says `1 state · 2
+  events` instead of `1 · 2`; the legend draws the mark of an action the
+  backend does not name, and the hatch only when an empty cell is drawn;
+  *publishes* is one event a row, its flags in a quieter type; an
+  attribute's flags stay on one line.
+- New consumer i18n keys: `traces of this gobj`, `kernel levels`,
+  `the whole yuno`, `on for the whole yuno`, `on for all of the gclass`,
+  `traces of the yuno`, `remove the traces of the yuno`,
+  `the yuno's traces survive a restart`, `machine states` and
+  `machine events` (plurals), `instances_one`, `show all {{n}}`,
+  `action, its name not given by the backend`.
+
 ## 7.27.26
 
 - **The gobj tree has a minimap**, from `minimap_min_nodes` cards on

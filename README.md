@@ -3387,27 +3387,50 @@ gobj_send_event(priv.view.tree, "EV_LOAD_TREE", {tree: answer.data}, gobj);
 close_gobj_tree_view(priv.view);
 ```
 
-**The TRACES block.** In a remote tree the popover of a card carries a table:
-one row per level the gobj can trace (its gclass' own, then the global ones),
-a box for **this gobj** and one for **all of the gclass**. A level that is on
-for the gclass or globally shows on and **locked** in the gobj column, with
-where it comes from (`gclass` / `global`): one gobj cannot turn it off. A box
-is an action: the block locks until the host has loaded what the backend says
-next, so a box shows the backend, never the click. **Remove the traces** of the
-gobj, or of the gclass, turns off what that scope holds on its own. The card
-of a gobj that traces anything wears a `traces` badge.
+**TRACES: three scopes, each where it belongs** (7.27.27). The C kernel has
+two families of levels and three scopes, and the first version of this view
+mixed them: its popover grouped the kernel's levels under *Global* -- the name
+of their table in `gobj.c` -- while *global* also marked a level on for the
+whole yuno, and it offered an *all of the gclass* column on every card while
+the yuno's own scope could be set nowhere. The kernel's levels (`machine`,
+`create_delete`, `ev_kw`...) are valid in every scope -- `set-gclass-trace
+gclass=C_TCP level=machine` is the way to trace one gclass' machine -- and a
+gclass' own levels in the first two:
 
-Note what the C runtime does with them: a gclass level is saved by the yuno
-(`trace_levels`) and **survives a restart**; a gobj level is saved too but only
-the gclass and global scopes are re-applied at start up, so it **ends with the
-yuno**. The block says so. The traces go to the yuno's log, not to the
+| Scope | Command | Set from |
+|---|---|---|
+| this gobj | `set-gobj-trace` | the popover of its card: one box per level |
+| every gobj of the gclass | `set-gclass-trace` | the gclass viewer the card's GClass button opens: its *trace levels* zone |
+| the whole yuno | `set-global-trace` | the toolbar's **traces of the yuno**, in the popover |
+
+A level a wider scope holds is shown on and **locked** in a narrower one,
+saying which (`C_TCP` / `yuno`): unticking the narrower bit would not stop it.
+A box is an action: the block locks until the host has loaded what the backend
+says next, so a box shows the backend, never the click. **Remove the traces**
+turns off what that scope holds on its own. The card of a gobj that traces
+anything wears a `traces` badge.
+
+For the host, it is still one event: `EV_SET_TRACE_LEVEL` with `scope` `"gobj"`,
+`"gclass"` or `"global"`, after which it reads the tree and the trace info of
+`gclass` again. The yuno's levels are read with `EV_TRACE_INFO_WANTED` of the
+ROOT's gclass, whose answer carries them like every other one; for a set of the
+yuno's scope `gclass` is that root's gclass. The gclass viewer is this view's
+child and publishes `EV_SET_GCLASS_TRACE {gclass, levels, set}` to it, which
+goes out as `EV_SET_TRACE_LEVEL {scope: "gclass"}`.
+
+Note what the C runtime does with them: a gclass or yuno level is saved by the
+yuno (`trace_levels`) and **survives a restart**; a gobj level is saved too but
+only the gclass and global scopes are re-applied at start up, so it **ends with
+the yuno**. The blocks say so. The traces go to the yuno's log, not to the
 Developer window.
 
-Consumer i18n keys (every app that mounts the tree): `global`, `this gobj`,
-`all of the gclass`, `remove the traces of this gobj`,
-`remove the traces of the gclass`,
+Consumer i18n keys (every app that mounts the tree): `traces of this gobj`,
+`kernel levels`, `this gobj`, `the whole yuno`, `all of the gclass`,
+`on for the whole yuno`, `on for all of the gclass`, `traces of the yuno`,
+`remove the traces of this gobj`, `remove the traces of the gclass`,
+`remove the traces of the yuno`, `the yuno's traces survive a restart`,
 `gclass traces survive a restart, gobj traces end with the yuno` (plus
-`traces`, `level`, `loading` and `gclass`, which every app has).
+`yuno`, `level`, `loading` and `gclass`, which every app has).
 
 ### The gclass viewer — `yui_gclass_view.js`
 
@@ -3434,7 +3457,12 @@ gclass of a **backend** yuno the host passes the answer of `view-gclass` as
 `opts.current_state` is the state the INSTANCE the reader came from is in. The
 description describes the CLASS and cannot carry it, so the host supplies it —
 the gobj tree passes `node_data.state` — and the machine lights that column.
-Omitted, nothing is lit.
+Omitted, nothing is lit. `opts.instance_name` names that instance beside its
+state in the head (`tranger_tracks: ST_IDLE`): a gclass has several, and a
+state with no name said whose it was to nobody.
+
+`opts.traces` (`{info, pending}`) says the host can SET this gclass' traces for
+every gobj of it; see C_YUI_GCLASS below.
 
 `close_gclass_view(handle)` is the host-driven teardown, and the ✕ runs it too:
 the window destroys itself, but the viewer hangs from the HOST, so nothing else
@@ -3453,11 +3481,35 @@ import {register_c_yui_gclass} from "@yuneta/gobj-ui/src/c_yui_gclass.js";
 ```
 
 Attrs: `description` (the document), `gclass_name` (heads the view when the
-document carries no `id`), `current_state`, `view_mode` (`"zones"` | `"raw"`),
-`$container`. Events in: `EV_SET_DESCRIPTION {description, current_state}`,
-`EV_SET_VIEW_MODE {mode}`, `EV_TOGGLE_ZONE {zone}`, `EV_SEARCH {text}`,
-`EV_COPY_ALL`, `EV_LANGUAGE_CHANGED`, `EV_REFRESH`, `EV_SHOW`, `EV_HIDE`. It
-publishes nothing, so hosting it adds no declaration to a host's FSM.
+document carries no `id`), `current_state`, `instance_name`, `traces`,
+`view_mode` (`"zones"` | `"raw"`), `$container`. Events in:
+`EV_SET_DESCRIPTION {description, current_state}`, `EV_SET_VIEW_MODE {mode}`,
+`EV_TOGGLE_ZONE {zone}`, `EV_SEARCH {text}`, `EV_SHOW_ALL {zone}`,
+`EV_SET_TRACES {info, pending}`, `EV_COPY_ALL`, `EV_LANGUAGE_CHANGED`,
+`EV_REFRESH`, `EV_SHOW`, `EV_HIDE`. It publishes `EV_SET_GCLASS_TRACE {gclass,
+levels, set}` -- only when the host handed it `traces`, which is the host that
+can set them and declares it (the gobj tree, 7.27.27).
+
+**The layout** (7.27.27): the head says what the gclass is called, how many
+gobjs of it there are (`1 instance`, `4 instances`), the instance the reader
+came from with its state, and the methods it implements as chips. Then the
+SHORT zones, the machine and the trace levels, side by side when the VIEWER is
+at least `70rem` wide; then the long tables, attributes and commands, across
+the whole width with their descriptions visible, each showing 20 entries and a
+**show all N** button (a search shows every match, capped or not). The width
+is the VIEWER's, a container query: up to 7.27.26 it was a media query on the
+screen, so a 720px window on a wide screen got two columns of 330px, and the
+attributes table scrolled its defaults and descriptions out of sight. The
+order is new too: C_YUNO's 64 attributes and hundred commands came first and
+pushed its methods and trace levels 7000px down, beside a machine of two
+events.
+
+**Its traces, when `traces` is given** (`{info, pending}`, `info` the four
+answers `{gclass_levels, global_levels, gclass_on, global_on, error}`): the
+trace levels zone has one box per level for **every gobj of the gclass**, its
+own levels and the kernel's; a level the whole yuno traces is locked. A box
+publishes `EV_SET_GCLASS_TRACE` and locks the zone until `EV_SET_TRACES` hands
+back what the backend says. Without `traces` the levels are only listed.
 
 `gclass_view_model.js` is where the document becomes the view, and it reads
 **both dialects of it**. The C kernel and the browser registry answer the same
@@ -3494,7 +3546,11 @@ well as 86 commands against one. Two things it says that a JSON dump cannot:
 
 Events declared but handled in no state are OUTPUT events: they leave the
 matrix (one empty row per column says nothing) and are listed under
-*publishes*. The `raw` view keeps the description verbatim — it is the
+*publishes*, one a row with its flags after it in their own quiet type (as a
+line of chips, `OUTPUT_EVENT` and `PUBLIC_EVENT` read as two more events). The
+count of the zone says what it counts, `1 state · 2 events`, and the legend
+draws only what is on screen: the hatch when an empty cell is drawn, and the
+mark of an action the backend does not name when there is one. The `raw` view keeps the description verbatim — it is the
 authoritative answer of the backend and is never thrown away.
 
 ### C_YUI_FSM_GRAPH — the machine, drawn
@@ -3503,8 +3559,8 @@ The machine zone's second view, switched from a pair of buttons inside the
 zone (the zone heading is itself a button, and a button inside a button is not
 a control). The matrix stays the default; the graph earns its place where the
 matrix is worst — many states, few events each — and in graph mode the machine
-takes the whole width and the other zones stack under it, because 600px of a
-1200px viewer is where six states stop fitting.
+takes the whole width and its pair, the trace levels, goes under it, because
+half of a viewer is where six states stop fitting.
 
 Attrs: `fsm` (the `fsm` block of the view model), `current_state`,
 `$container`, `canvas_id`, `wide`, `layout` (`dagre-lr` | `dagre-tb`). Events

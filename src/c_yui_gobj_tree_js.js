@@ -16,24 +16,40 @@
  *              out  EV_TRACE_INFO_WANTED {gclass} a card was opened
  *              in   EV_TRACE_INFO        {gclass, gclass_levels, global_levels,
  *                                         gclass_on, global_on, error}
- *              out  EV_SET_TRACE_LEVEL   {scope: "gobj"|"gclass", gobj,
- *                                         gclass, levels: [...], set}
+ *              out  EV_SET_TRACE_LEVEL   {scope: "gobj"|"gclass"|"global",
+ *                                         gobj, gclass, levels: [...], set}
  *              out  EV_GCLASS_WANTED     {gclass} the gclass button
  *              in   EV_GCLASS_DESCRIPTION {gclass, description}
  *
  *              The host loads the FIRST tree on its own (it opened the
  *              view); the view asks again only when Refresh is pressed.
  *              After a trace is set the host loads the tree and the
- *              trace info again: the card the reader is on stays open.
+ *              trace info of `gclass` again: what the reader is on stays
+ *              open.
  *
- *            In "remote" the popover of a card has a TRACES block: one
- *            row per level (the gclass' own, then the global ones), a
- *            checkbox for THIS gobj (`set-gobj-trace`) and one for every
- *            gobj of its gclass (`set-gclass-trace`). A level that is on
- *            for the gclass, or globally, is shown on and locked in the
- *            gobj column, with where it comes from: it cannot be turned
- *            off from one gobj. A gclass level is saved by the yuno and
- *            survives a restart; a gobj level lasts until the yuno ends.
+ *            TRACES, in "remote": three scopes, each where it belongs.
+ *            The kernel's levels (`machine`, `create_delete`...; the
+ *            table gobj.c calls "global") are valid in all three, a
+ *            gclass' own levels in the first two:
+ *
+ *              this gobj       the popover of its card: one box per
+ *                              level (`set-gobj-trace`). A level its
+ *                              gclass or the yuno holds is on and
+ *                              locked, saying which.
+ *              every gobj of   the gclass viewer the card's GClass
+ *              the gclass      button opens: its `trace levels` zone
+ *                              (`set-gclass-trace`). The viewer is this
+ *                              view's child and publishes
+ *                              EV_SET_GCLASS_TRACE {gclass, levels, set},
+ *                              which goes out as EV_SET_TRACE_LEVEL.
+ *              the whole yuno  the toolbar's `traces of the yuno`, in
+ *                              the popover (`set-global-trace`). Its
+ *                              levels are read with EV_TRACE_INFO_WANTED
+ *                              of the ROOT's gclass, whose answer
+ *                              carries them like every other one.
+ *
+ *            A gclass or yuno level is saved by the yuno and survives a
+ *            restart; a gobj level lasts until the yuno ends.
  *
  *          The output events are published ONLY in "remote", so a host
  *          of a local tree (the Frontend view) declares none of them.
@@ -86,6 +102,7 @@ import {
     node_status_symbol,
     node_can_pause,
     trace_rows,
+    global_trace_rows,
     own_trace_levels,
 } from "./gobj_tree_model.js";
 import {text_node} from "./yui_text.js";
@@ -451,6 +468,8 @@ let PRIVATE_DATA = {
     remote_root:    null,   // the descriptor of the backend tree, as last loaded
     trace_info:     {},     // gclass -> {gclass_levels, global_levels, gclass_on, global_on, error}
     trace_pending:  false,  // a trace was set: the block is locked until the host answers
+    popover_mode:   "",     // what the popover shows: "node" (a card) | "yuno" (the yuno's traces)
+    viewer_stale:   "",     // a gclass whose open viewer must be asked again after a yuno set
     view_refused:   false,  // the saved camera showed no card: the opening's framing replaces it
 };
 
@@ -1243,6 +1262,28 @@ function make_toolbar(gobj)
         }]
     );
     priv.$layout_select = $wrap.querySelector("select");
+
+    /*  The yuno's own scope of traces (`set-global-trace`) is the
+     *  yuno's, not any one gobj's: it opens from here, not from a card.
+     *  Its label goes on mobile -- the row is full there.  */
+    if(is_remote(gobj)) {
+        right_items.push(createElement2(['button', {
+            type: 'button',
+            class: 'GOBJ_TREE_YUNO_TRACES_BUTTON button',
+            style: {height: toolbar_wide, "margin-left": "0.5em"},
+            title: t("traces of the yuno"), 'data-i18n-title': "traces of the yuno",
+            'aria-label': t("traces of the yuno"), 'data-i18n-aria-label': "traces of the yuno",
+        }, [
+            ['span', {class: 'icon'}, [['i', {class: 'yi-list-check'}]]],
+            ['span', {class: 'is-hidden-mobile', i18n: "traces of the yuno"},
+             t("traces of the yuno")]
+        ], {
+            click: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_OPEN_YUNO_TRACES", {}, gobj);
+            }
+        }]));
+    }
     right_items.push($wrap);
 
     const $toolbar = yui_toolbar({}, [
@@ -2146,40 +2187,116 @@ function is_remote(gobj)
 }
 
 /************************************************************
- *  The TRACES block of a backend gobj's popover.
+ *  Paint again whatever the popover is showing: a card, or
+ *  the yuno's traces.
+ ************************************************************/
+function render_current_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv.$popover || priv.$popover.style.display !== "block") {
+        return;
+    }
+    if(priv.popover_mode === "yuno") {
+        priv.$popover_body.textContent = "";
+        priv.$popover_body.appendChild(build_yuno_traces_block(gobj));
+    } else if(priv.popover_node) {
+        render_popover_body(gobj, priv.popover_node);
+    }
+}
+
+/************************************************************
+ *  The TRACES block of a backend gobj's popover: what THIS
+ *  gobj traces (`set-gobj-trace`), one row per level -- the
+ *  gclass' own, then the kernel's (trace_rows() in the model).
  *
- *  Two columns of checkboxes, THIS gobj and every gobj of its
- *  gclass, one row per level (trace_rows() in the model says
- *  what each row holds). A box is an action: its change is
- *  sent to the FSM, which publishes it to the host, and the
- *  block stays locked until the host has loaded what the
- *  backend says now -- the box shows the backend's state, not
- *  the click.
+ *  ONE scope here, the gobj's. The other two live where they
+ *  belong: every gobj of the gclass in the gclass viewer (its
+ *  `trace levels` zone), the whole yuno behind the toolbar's
+ *  `traces of the yuno`. A level one of them holds is shown on
+ *  and LOCKED here, saying which one, because unticking the
+ *  gobj's own bit would not stop it.
+ *
+ *  A box is an action: its change goes to the FSM, which
+ *  publishes it to the host, and the block stays locked until
+ *  the host has loaded what the backend says now -- the box
+ *  shows the backend's state, not the click.
  ************************************************************/
 const TRACES_NOTE_STYLE = 'color:var(--bulma-text-weak, #6B7280); margin:4px 0;';
 const TRACES_CELL_STYLE = 'padding:1px 4px; text-align:center;';
+const TRACES_ORIGIN_STYLE = 'margin-left:6px; color:var(--bulma-text-weak, #6B7280);';
+const TRACES_BUTTON_STYLE = 'padding:0 8px; height:22px; font-size:11px; white-space:nowrap;';
+
+/*  What the block says while the levels are not in, or could not be
+ *  read. Null when they are.  */
+function traces_state_note(info)
+{
+    if(!info) {
+        return ['div', {class: 'GOBJ_TREE_TRACES_NOTE', i18n: 'loading',
+                        style: TRACES_NOTE_STYLE}, t('loading')];
+    }
+    if(info.error) {
+        return ['div', {class: 'GOBJ_TREE_TRACES_ERROR',
+                        style: 'color:var(--bulma-danger, #dc2626); margin:4px 0;'},
+            text_node(info.error)];
+    }
+    return null;
+}
+
+/*  The level cell: its name, the backend's own text for it as the
+ *  tooltip (data, not a key), and where an inherited level comes
+ *  from.  */
+function trace_level_cell(level, description, $origin)
+{
+    let $level = createElement2(['td', {class: 'GOBJ_TREE_TRACES_LEVEL',
+                                        style: 'padding:1px 4px; word-break:break-all;'}, []]);
+    $level.appendChild(text_node(level));
+    if($origin) {
+        $level.appendChild($origin);
+    }
+    $level.setAttribute('title', description);
+    return $level;
+}
+
+function trace_group_row(span, $label)
+{
+    return ['tr', {class: 'GOBJ_TREE_TRACES_GROUP'}, [
+        ['td', {colspan: span, style: 'padding:4px 4px 1px 4px; font-weight:600; ' +
+                'color:var(--bulma-text-weak, #6B7280);'}, [$label]]
+    ]];
+}
+
+/*  `names` are the button's i18n, title and aria-label, written by the
+ *  caller with its literal key; `$label` its text.  */
+function traces_remove_button(gobj, scope, names, $label, disabled)
+{
+    let $b = createElement2(['button', Object.assign({
+        type: 'button',
+        class: `GOBJ_TREE_TRACES_CLEAR_${scope.toUpperCase()} button is-small`,
+        style: TRACES_BUTTON_STYLE,
+    }, names), [$label], {
+        click: (evt) => {
+            evt.stopPropagation();
+            gobj_send_event(gobj, "EV_TRACES_CLEARED", {scope: scope}, gobj);
+        }
+    }]);
+    $b.disabled = !!disabled;
+    return createElement2(['div', {class: 'GOBJ_TREE_TRACES_TOOLS',
+                                   style: 'display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;'},
+        [$b]]);
+}
 
 function build_traces_block(gobj, d)
 {
     let priv = gobj.priv;
     let info = priv.trace_info[d.gclass] || null;
 
-    let kids = [
-        ['div', {class: 'GOBJ_TREE_TRACES_HEAD', i18n: 'traces',
-                 style: 'font-weight:700; margin:8px 0 2px 0; ' +
-                        'padding-top:6px; border-top:1px solid var(--bulma-border-weak, #E5E7EB);'},
-            t('traces')]
-    ];
-
-    if(!info) {
-        kids.push(['div', {class: 'GOBJ_TREE_TRACES_NOTE', i18n: 'loading',
-                           style: TRACES_NOTE_STYLE}, t('loading')]);
-        return createElement2(['div', {class: 'GOBJ_TREE_TRACES'}, kids]);
-    }
-    if(info.error) {
-        kids.push(['div', {class: 'GOBJ_TREE_TRACES_ERROR',
-                           style: 'color:var(--bulma-danger, #dc2626); margin:4px 0;'},
-            text_node(info.error)]);
+    let kids = [['div', {class: 'GOBJ_TREE_TRACES_HEAD', i18n: 'traces of this gobj',
+                         style: 'font-weight:700; margin:8px 0 2px 0; padding-top:6px; ' +
+                                'border-top:1px solid var(--bulma-border-weak, #E5E7EB);'},
+        t('traces of this gobj')]];
+    let state = traces_state_note(info);
+    if(state) {
+        kids.push(state);
         return createElement2(['div', {class: 'GOBJ_TREE_TRACES'}, kids]);
     }
 
@@ -2191,40 +2308,26 @@ function build_traces_block(gobj, d)
     for(let r of rows) {
         if(r.group !== group) {
             group = r.group;
-            let $label = (group === "gclass")?
+            trs.push(trace_group_row(2, (group === "gclass")?
                 text_node(d.gclass):
-                createElement2(['span', {i18n: 'global'}, t('global')]);
-            trs.push(['tr', {class: 'GOBJ_TREE_TRACES_GROUP'}, [
-                ['td', {colspan: 3, style: 'padding:4px 4px 1px 4px; font-weight:600; ' +
-                        'color:var(--bulma-text-weak, #6B7280);'}, [$label]]
-            ]]);
+                createElement2(['span', {i18n: 'kernel levels'}, t('kernel levels')])));
         }
-        let origin = null;
+        let $origin = null;
         if(r.origin === "global") {
-            origin = ['span', {class: 'GOBJ_TREE_TRACES_ORIGIN', i18n: 'global',
-                               style: 'margin-left:6px; color:var(--bulma-text-weak, #6B7280);'},
-                t('global')];
+            $origin = createElement2(['span', {
+                class: 'GOBJ_TREE_TRACES_ORIGIN', i18n: 'yuno', style: TRACES_ORIGIN_STYLE,
+                title: t('on for the whole yuno'), 'data-i18n-title': 'on for the whole yuno',
+            }, t('yuno')]);
         } else if(r.origin === "gclass") {
-            origin = ['span', {class: 'GOBJ_TREE_TRACES_ORIGIN', i18n: 'gclass',
-                               style: 'margin-left:6px; color:var(--bulma-text-weak, #6B7280);'},
-                t('gclass')];
+            $origin = createElement2(['span', {
+                class: 'GOBJ_TREE_TRACES_ORIGIN', style: TRACES_ORIGIN_STYLE,
+                title: t('on for all of the gclass'), 'data-i18n-title': 'on for all of the gclass',
+            }, [text_node(d.gclass)]]);
         }
-        let $level = createElement2(['td', {class: 'GOBJ_TREE_TRACES_LEVEL',
-                                            style: 'padding:1px 4px; word-break:break-all;'}, []]);
-        $level.appendChild(text_node(r.level));
-        if(origin) {
-            $level.appendChild(createElement2(origin));
-        }
-        /*  What the level does is the backend's text: data, not a key.  */
-        $level.setAttribute('title', r.description);
-
         trs.push(['tr', {class: 'GOBJ_TREE_TRACES_ROW'}, [
-            $level,
+            trace_level_cell(r.level, r.description, $origin),
             ['td', {style: TRACES_CELL_STYLE}, [
                 trace_checkbox(gobj, "gobj", r.level, r.gobj_on, pending || r.gobj_locked)
-            ]],
-            ['td', {style: TRACES_CELL_STYLE}, [
-                trace_checkbox(gobj, "gclass", r.level, r.gclass_on, pending || r.gclass_locked)
             ]],
         ]]);
     }
@@ -2235,7 +2338,6 @@ function build_traces_block(gobj, d)
             ['tr', {}, [
                 ['th', {i18n: 'level', style: 'padding:1px 4px; text-align:left;'}, t('level')],
                 ['th', {i18n: 'this gobj', style: TRACES_CELL_STYLE}, t('this gobj')],
-                ['th', {i18n: 'all of the gclass', style: TRACES_CELL_STYLE}, t('all of the gclass')],
             ]]
         ]],
         ['tbody', {}, trs]
@@ -2246,61 +2348,93 @@ function build_traces_block(gobj, d)
                        style: TRACES_NOTE_STYLE},
         t('gclass traces survive a restart, gobj traces end with the yuno')]);
 
-    let none_gobj = pending || own_trace_levels(rows, "gobj").length === 0;
-    let none_gclass = pending || own_trace_levels(rows, "gclass").length === 0;
-    let btn_style = 'padding:0 8px; height:22px; font-size:11px; white-space:nowrap;';
-    let clear = (scope) => {
-        return {
-            click: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, "EV_TRACES_CLEARED", {scope: scope}, gobj);
-            }
-        };
-    };
-    let $clear_gobj = createElement2(['button', {
-        type: 'button', class: 'GOBJ_TREE_TRACES_CLEAR_GOBJ button is-small', style: btn_style,
-        i18n: 'remove the traces of this gobj',
+    kids.push(traces_remove_button(gobj, "gobj", {
         title: t('remove the traces of this gobj'),
         'data-i18n-title': 'remove the traces of this gobj',
         'aria-label': t('remove the traces of this gobj'),
         'data-i18n-aria-label': 'remove the traces of this gobj',
-    }, t('remove the traces of this gobj'), clear("gobj")]);
-    let $clear_gclass = createElement2(['button', {
-        type: 'button', class: 'GOBJ_TREE_TRACES_CLEAR_GCLASS button is-small', style: btn_style,
-        i18n: 'remove the traces of the gclass',
-        title: t('remove the traces of the gclass'),
-        'data-i18n-title': 'remove the traces of the gclass',
-        'aria-label': t('remove the traces of the gclass'),
-        'data-i18n-aria-label': 'remove the traces of the gclass',
-    }, t('remove the traces of the gclass'), clear("gclass")]);
-    $clear_gobj.disabled = none_gobj;
-    $clear_gclass.disabled = none_gclass;
-    kids.push(['div', {class: 'GOBJ_TREE_TRACES_TOOLS',
-                       style: 'display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;'},
-        [$clear_gobj, $clear_gclass]]);
+    }, createElement2(['span', {i18n: 'remove the traces of this gobj'},
+        t('remove the traces of this gobj')]),
+    pending || own_trace_levels(rows, "gobj").length === 0));
 
     return createElement2(['div', {class: 'GOBJ_TREE_TRACES'}, kids]);
 }
 
-/*  One box of the block. `checked` and `disabled` are set as
+/************************************************************
+ *  The yuno's traces (`set-global-trace`): the kernel's levels,
+ *  and whether every gobj of the yuno traces each one. Drawn in
+ *  the popover, opened from the toolbar, and read from the
+ *  answer for the ROOT's gclass -- the yuno itself, whose
+ *  answer carries the yuno's levels like every other one.
+ ************************************************************/
+function build_yuno_traces_block(gobj)
+{
+    let priv = gobj.priv;
+    let root = priv.remote_root;
+    let info = (root && priv.trace_info[root.gclass]) || null;
+
+    let kids = [];
+    let state = traces_state_note(info);
+    if(state) {
+        kids.push(state);
+        return createElement2(['div', {class: 'GOBJ_TREE_YUNO_TRACES'}, kids]);
+    }
+
+    let rows = global_trace_rows(info);
+    let pending = !!priv.trace_pending;
+
+    let trs = rows.map((r) => ['tr', {class: 'GOBJ_TREE_TRACES_ROW'}, [
+        trace_level_cell(r.level, r.description, null),
+        ['td', {style: TRACES_CELL_STYLE}, [
+            trace_checkbox(gobj, "global", r.level, r.global_on, pending)
+        ]],
+    ]]);
+
+    kids.push(['table', {class: 'GOBJ_TREE_TRACES_TABLE',
+                         style: 'width:100%; border-collapse:collapse;'}, [
+        ['thead', {}, [
+            ['tr', {}, [
+                ['th', {i18n: 'kernel levels', style: 'padding:1px 4px; text-align:left;'},
+                 t('kernel levels')],
+                ['th', {i18n: 'the whole yuno', style: TRACES_CELL_STYLE}, t('the whole yuno')],
+            ]]
+        ]],
+        ['tbody', {}, trs]
+    ]]);
+
+    kids.push(['div', {class: 'GOBJ_TREE_TRACES_NOTE',
+                       i18n: "the yuno's traces survive a restart",
+                       style: TRACES_NOTE_STYLE},
+        t("the yuno's traces survive a restart")]);
+
+    kids.push(traces_remove_button(gobj, "global", {
+        title: t('remove the traces of the yuno'),
+        'data-i18n-title': 'remove the traces of the yuno',
+        'aria-label': t('remove the traces of the yuno'),
+        'data-i18n-aria-label': 'remove the traces of the yuno',
+    }, createElement2(['span', {i18n: 'remove the traces of the yuno'},
+        t('remove the traces of the yuno')]),
+    pending || own_trace_levels(rows, "global").length === 0));
+
+    return createElement2(['div', {class: 'GOBJ_TREE_YUNO_TRACES'}, kids]);
+}
+
+/*  One box of a block. `checked` and `disabled` are set as
  *  PROPERTIES: createElement2 writes attributes, and an attribute
  *  `checked="false"` is a checked box.  */
+const TRACE_BOX = {
+    gobj:   {cls: 'GOBJ_TREE_TRACE_GOBJ',   key: 'this gobj'},
+    global: {cls: 'GOBJ_TREE_TRACE_GLOBAL', key: 'the whole yuno'},
+};
+
 function trace_checkbox(gobj, scope, level, on, locked)
 {
-    let $cb = null;
-    if(scope === "gobj") {
-        $cb = createElement2(['input', {
-            type: 'checkbox', class: 'GOBJ_TREE_TRACE_GOBJ',
-            title: t('this gobj'), 'data-i18n-title': 'this gobj',
-            'aria-label': t('this gobj'), 'data-i18n-aria-label': 'this gobj',
-        }]);
-    } else {
-        $cb = createElement2(['input', {
-            type: 'checkbox', class: 'GOBJ_TREE_TRACE_GCLASS',
-            title: t('all of the gclass'), 'data-i18n-title': 'all of the gclass',
-            'aria-label': t('all of the gclass'), 'data-i18n-aria-label': 'all of the gclass',
-        }]);
-    }
+    const box = TRACE_BOX[scope];
+    let $cb = createElement2(['input', {
+        type: 'checkbox', class: box.cls,
+        title: t(box.key), 'data-i18n-title': box.key,
+        'aria-label': t(box.key), 'data-i18n-aria-label': box.key,
+    }]);
     $cb.setAttribute('data-level', level);
     $cb.checked = !!on;
     $cb.disabled = !!locked;
@@ -2321,13 +2455,22 @@ function reload_keeping_popover(gobj, opts)
 {
     let priv = gobj.priv;
     let $popover = priv.$popover;
-    let keep = (priv.popover_node && $popover && $popover.style.display === "block")?
+    let shown = !!($popover && $popover.style.display === "block");
+    let keep = (shown && priv.popover_mode === "node" && priv.popover_node)?
         priv.popover_node.full_name: null;
+    let keep_yuno = shown && priv.popover_mode === "yuno";
     let left = $popover? $popover.style.left: "";
     let top = $popover? $popover.style.top: "";
 
     refresh_tree(gobj, opts);   /*  hides the popover  */
 
+    if(keep_yuno) {
+        open_popover_frame(gobj, "yuno", t("traces of the yuno"));
+        $popover.style.left = left;
+        $popover.style.top = top;
+        render_current_popover(gobj);
+        return;
+    }
     if(!keep || !priv.node_by_id) {
         return;
     }
@@ -2335,13 +2478,11 @@ function reload_keeping_popover(gobj, opts)
         let d = priv.node_by_id[id];
         if(d.full_name === keep) {
             priv.popover_node = d;
-            priv.$popover_title.textContent = d.short_name ||
-                (d.gclass + (d.name ? "^" + d.name : ""));
-            priv.$popover_title.title = priv.$popover_title.textContent;
+            open_popover_frame(gobj, "node", d.short_name ||
+                (d.gclass + (d.name ? "^" + d.name : "")));
             render_popover_body(gobj, d);
             $popover.style.left = left;
             $popover.style.top = top;
-            $popover.style.display = "block";
             return;
         }
     }
@@ -2363,10 +2504,8 @@ function show_popover(gobj, node_data, client_x, client_y)
     }
 
     priv.popover_node = node_data;
-
-    $title.textContent = node_data.short_name ||
-        (node_data.gclass + (node_data.name ? "^" + node_data.name : ""));
-    $title.title = $title.textContent;
+    open_popover_frame(gobj, "node", node_data.short_name ||
+        (node_data.gclass + (node_data.name ? "^" + node_data.name : "")));
 
     render_popover_body(gobj, node_data);
 
@@ -2418,6 +2557,51 @@ function hide_popover(gobj)
         priv.$popover_title.textContent = "";
     }
     priv.popover_node = null;
+    priv.popover_mode = "";
+}
+
+/************************************************************
+ *  The popover's frame for what it is about to show: its
+ *  title, and the gclass button only for a card -- the yuno's
+ *  traces are no gclass of their own.
+ ************************************************************/
+function open_popover_frame(gobj, mode, title)
+{
+    let priv = gobj.priv;
+    priv.popover_mode = mode;
+    priv.$popover_title.textContent = title;
+    priv.$popover_title.title = title;
+    if(priv.$popover_gclass) {
+        priv.$popover_gclass.classList.toggle("is-hidden", mode !== "node");
+    }
+    priv.$popover.style.display = "block";
+}
+
+/************************************************************
+ *  The yuno's traces, in the popover, under the toolbar
+ *  button that opened them.
+ ************************************************************/
+function show_yuno_traces(gobj)
+{
+    let priv = gobj.priv;
+    let $popover = priv.$popover;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$popover || !$container) {
+        return;
+    }
+
+    priv.popover_node = null;
+    open_popover_frame(gobj, "yuno", t("traces of the yuno"));
+    render_current_popover(gobj);
+
+    let rect = $container.getBoundingClientRect();
+    let $btn = $container.querySelector(".GOBJ_TREE_YUNO_TRACES_BUTTON");
+    let b = $btn? $btn.getBoundingClientRect(): null;
+    let pop = $popover.getBoundingClientRect();
+    let left = b? (b.right - rect.left - pop.width): (rect.width - pop.width - 8);
+    let top = b? (b.bottom - rect.top + 6): 8;
+    $popover.style.left = Math.max(4, left) + "px";
+    $popover.style.top = Math.max(4, top) + "px";
 }
 
 /************************************************************
@@ -3347,7 +3531,7 @@ function ac_open_gclass(gobj, event, kw, src)
         return 0;
     }
 
-    open_gclass_window(gobj, node_data.gclass, null, node_data.state || "");
+    open_gclass_window(gobj, node_data.gclass, null, node_data);
 
     return 0;
 }
@@ -3364,12 +3548,13 @@ function ac_gclass_description(gobj, event, kw, src)
     }
     let d = priv.popover_node;
     open_gclass_window(gobj, kw.gclass, kw.description,
-        (d && d.gclass === kw.gclass)? (d.state || ""): "");
+        (d && d.gclass === kw.gclass)? d: null);
     return 0;
 }
 
-/*  One window at a time: a second gclass replaces the first.  */
-function open_gclass_window(gobj, gclass, description, state)
+/*  One window at a time: a second gclass replaces the first. `d` is
+ *  the card the reader came from, or null.  */
+function open_gclass_window(gobj, gclass, description, d)
 {
     let priv = gobj.priv;
 
@@ -3383,7 +3568,10 @@ function open_gclass_window(gobj, gclass, description, state)
          *  CLASS and cannot carry it, and the tree is the only party
          *  that knows -- so the machine lights the column the reader
          *  is actually standing in.  */
-        current_state: state,
+        current_state: (d && d.state) || "",
+        /*  ...and which instance that is: a gclass has several, and a
+         *  state with no name beside it belongs to none of them.  */
+        instance_name: (d && d.name) || "",
         on_close: () => {
             if(gobj_is_destroying(gobj)) {
                 return;
@@ -3393,6 +3581,12 @@ function open_gclass_window(gobj, gclass, description, state)
     };
     if(description) {
         opts.description = description;
+    }
+    /*  A backend gclass' traces can be set for every gobj of it, from
+     *  the viewer: it is handed what the host read, and tells this
+     *  view what to set (EV_SET_GCLASS_TRACE).  */
+    if(is_remote(gobj)) {
+        opts.traces = viewer_traces(gobj, gclass);
     }
     priv.gclass_view = open_gclass_view(gobj, /* i18n: data */ gclass, opts);
 }
@@ -3457,10 +3651,49 @@ function ac_trace_info(gobj, event, kw, src)
     priv.trace_pending = false;
 
     let d = priv.popover_node;
-    if(d && d.gclass === kw.gclass && priv.$popover && priv.$popover.style.display === "block") {
-        render_popover_body(gobj, d);
+    let root = priv.remote_root;
+    if((priv.popover_mode === "node" && d && d.gclass === kw.gclass) ||
+            (priv.popover_mode === "yuno" && root && root.gclass === kw.gclass)) {
+        render_current_popover(gobj);
     }
+
+    let viewer = gclass_viewer_gobj(gobj);
+    if(viewer) {
+        let shown = gobj_read_str_attr(viewer, "gclass_name");
+        if(shown === kw.gclass) {
+            gobj_send_event(viewer, "EV_SET_TRACES", viewer_traces(gobj, shown), gobj);
+        } else if(priv.viewer_stale === shown) {
+            /*  A set of the YUNO's scope: what the viewer shows as held by
+             *  the yuno moved too, and the host refreshed only the root's
+             *  gclass.  */
+            gobj_publish_event(gobj, "EV_TRACE_INFO_WANTED", {gclass: shown});
+        }
+    }
+    priv.viewer_stale = "";
     return 0;
+}
+
+/************************************************************
+ *  The gclass viewer this view opened, while it is open.
+ ************************************************************/
+function gclass_viewer_gobj(gobj)
+{
+    let h = gobj.priv.gclass_view;
+    return (h && h.json_gobj && !gobj_is_destroying(h.json_gobj))? h.json_gobj: null;
+}
+
+/************************************************************
+ *  What the gclass viewer needs to draw the traces of `gclass`
+ *  for every gobj of it: the levels the host read, and whether a
+ *  set is still in flight. Plain json: it rides in a kw.
+ ************************************************************/
+function viewer_traces(gobj, gclass)
+{
+    let priv = gobj.priv;
+    return {
+        info:    priv.trace_info[gclass] || null,
+        pending: !!priv.trace_pending,
+    };
 }
 
 /************************************************************
@@ -3468,19 +3701,46 @@ function ac_trace_info(gobj, event, kw, src)
  ************************************************************/
 function ac_trace_toggled(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-    let d = priv.popover_node;
-    if(!is_remote(gobj) || !d) {
-        log_error(`${gobj_short_name(gobj)}: a trace set with no backend card open`);
+    if(!kw.level) {
+        log_error(`${gobj_short_name(gobj)}: a trace set of no level, scope '${kw.scope}'`);
         return -1;
     }
-    if(!kw.level || (kw.scope !== "gobj" && kw.scope !== "gclass")) {
-        log_error(`${gobj_short_name(gobj)}: a trace set of no level or scope: ` +
-            `'${kw.scope}' '${kw.level}'`);
-        return -1;
+    let target = trace_target(gobj, kw.scope);
+    if(!target) {
+        return -1;  // Error already logged
     }
-    set_trace_levels(gobj, d, kw.scope, [kw.level], !!kw.set);
+    set_trace_levels(gobj, target, kw.scope, [kw.level], !!kw.set);
     return 0;
+}
+
+/************************************************************
+ *  What a set of `scope` acts on: the card the popover is on
+ *  (gobj), or the yuno itself, the root (global). Null, and
+ *  logged, when the popover is not showing it.
+ ************************************************************/
+function trace_target(gobj, scope)
+{
+    let priv = gobj.priv;
+    if(!is_remote(gobj)) {
+        log_error(`${gobj_short_name(gobj)}: a trace set on a tree that is not remote`);
+        return null;
+    }
+    if(scope === "gobj") {
+        if(priv.popover_mode !== "node" || !priv.popover_node) {
+            log_error(`${gobj_short_name(gobj)}: a gobj trace set with no backend card open`);
+            return null;
+        }
+        return priv.popover_node;
+    }
+    if(scope === "global") {
+        if(priv.popover_mode !== "yuno" || !priv.remote_root) {
+            log_error(`${gobj_short_name(gobj)}: a yuno trace set with the yuno's traces closed`);
+            return null;
+        }
+        return priv.remote_root;
+    }
+    log_error(`${gobj_short_name(gobj)}: a trace set of no scope the popover has: '${scope}'`);
+    return null;
 }
 
 /************************************************************
@@ -3490,37 +3750,86 @@ function ac_trace_toggled(gobj, event, kw, src)
 function ac_traces_cleared(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let d = priv.popover_node;
-    if(!is_remote(gobj) || !d) {
-        log_error(`${gobj_short_name(gobj)}: traces removed with no backend card open`);
-        return -1;
+    let target = trace_target(gobj, kw.scope);
+    if(!target) {
+        return -1;  // Error already logged
     }
-    let rows = trace_rows(d, priv.trace_info[d.gclass]);
+    let info = priv.trace_info[target.gclass];
+    let rows = (kw.scope === "global")? global_trace_rows(info): trace_rows(target, info);
     let levels = own_trace_levels(rows, kw.scope);
     if(!levels.length) {
         /*  The button is off when there is nothing: reaching here is
          *  a button that did not follow the block.  */
-        log_error(`${gobj_short_name(gobj)}: no ${kw.scope} trace of ${d.full_name} to remove`);
+        log_error(`${gobj_short_name(gobj)}: no ${kw.scope} trace of ${target.full_name} to remove`);
         return -1;
     }
-    set_trace_levels(gobj, d, kw.scope, levels, false);
+    set_trace_levels(gobj, target, kw.scope, levels, false);
     return 0;
 }
 
-/*  Lock the block and hand the change to the host. The block is
- *  repainted from what the backend says next, never from here.  */
-function set_trace_levels(gobj, d, scope, levels, set)
+/************************************************************
+ *  The gclass viewer asked for a set of every gobj of its
+ *  gclass ({gclass, levels, set}).
+ ************************************************************/
+function ac_set_gclass_trace(gobj, event, kw, src)
+{
+    let levels = (kw && Array.isArray(kw.levels))? kw.levels: [];
+    if(!is_remote(gobj) || !kw.gclass || !levels.length) {
+        log_error(`${gobj_short_name(gobj)}: a gclass trace set of no gclass or level, ` +
+            `or on a tree that is not remote: '${kw && kw.gclass}'`);
+        return -1;
+    }
+    set_trace_levels(gobj, {full_name: "", gclass: kw.gclass}, "gclass", levels, !!kw.set);
+    return 0;
+}
+
+/*  Lock every block and hand the change to the host. The blocks are
+ *  repainted from what the backend says next, never from here.
+ *
+ *  `target.gclass` is the gclass whose levels the host reads again
+ *  afterwards: the card's, the viewer's, or the root's for a set of
+ *  the yuno's scope -- which also moves what an open viewer of
+ *  ANOTHER gclass shows as held by the yuno, so that one is asked
+ *  for again when the answer is in (ac_trace_info).  */
+function set_trace_levels(gobj, target, scope, levels, set)
 {
     let priv = gobj.priv;
     priv.trace_pending = true;
-    render_popover_body(gobj, d);
+    render_current_popover(gobj);
+
+    let viewer = gclass_viewer_gobj(gobj);
+    if(viewer) {
+        let shown = gobj_read_str_attr(viewer, "gclass_name");
+        if(scope === "global" && shown !== target.gclass) {
+            priv.viewer_stale = shown;
+        }
+        gobj_send_event(viewer, "EV_SET_TRACES", viewer_traces(gobj, shown), gobj);
+    }
+
     gobj_publish_event(gobj, "EV_SET_TRACE_LEVEL", {
         scope:  scope,
-        gobj:   d.full_name,
-        gclass: d.gclass,
+        gobj:   target.full_name || "",
+        gclass: target.gclass,
         levels: levels,
         set:    set,
     });
+}
+
+/************************************************************
+ *  The toolbar's "traces of the yuno": the popover shows the
+ *  yuno's scope, read from the answer for the root's gclass.
+ ************************************************************/
+function ac_open_yuno_traces(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let root = priv.remote_root;
+    if(!is_remote(gobj) || !root) {
+        log_error(`${gobj_short_name(gobj)}: the yuno's traces asked with no backend tree loaded`);
+        return -1;
+    }
+    show_yuno_traces(gobj);
+    gobj_publish_event(gobj, "EV_TRACE_INFO_WANTED", {gclass: root.gclass});
+    return 0;
 }
 
 /************************************************************
@@ -3603,6 +3912,8 @@ function create_gclass(gclass_name)
             ["EV_TRACE_TOGGLED",        ac_trace_toggled,       null],
             ["EV_TRACES_CLEARED",       ac_traces_cleared,      null],
             ["EV_GCLASS_DESCRIPTION",   ac_gclass_description,  null],
+            ["EV_OPEN_YUNO_TRACES",     ac_open_yuno_traces,    null],
+            ["EV_SET_GCLASS_TRACE",     ac_set_gclass_trace,    null],
         ]]
     ];
 
@@ -3635,6 +3946,9 @@ function create_gclass(gclass_name)
         ["EV_TRACE_TOGGLED",        0],
         ["EV_TRACES_CLEARED",       0],
         ["EV_GCLASS_DESCRIPTION",   0],
+        ["EV_OPEN_YUNO_TRACES",     0],
+        /*  From the gclass viewer this view opens (its child).  */
+        ["EV_SET_GCLASS_TRACE",     0],
         /*  Published only when `source` is "remote" (see the header).  */
         ["EV_TREE_WANTED",          event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_TRACE_INFO_WANTED",    event_flag_t.EVF_OUTPUT_EVENT],

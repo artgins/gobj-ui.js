@@ -16,6 +16,12 @@
  *  picked to stay legible on both grounds.
  */
 .C_YUI_GCLASS {
+    /*  The layout follows the VIEWER's width, not the screen's: a 720px
+     *  window on a 1440px screen is a narrow viewer, and a media query
+     *  gave it two columns of 330px with the attrs table scrolling
+     *  sideways inside one of them.  */
+    container-type: inline-size;
+    container-name: gclass-viewer;
     --gclass-attrs: #2D4EC8;
     --gclass-cmds: #0E6F63;
     --gclass-fsm: #6B4FA8;
@@ -75,17 +81,40 @@
 }
 
 /*
- *  The header: the name, and the two numbers a reader asks for before
- *  anything else.
+ *  The header: the name, how many gobjs of it there are, the instance
+ *  the reader came from and its state; then the methods.
  */
 .C_YUI_GCLASS .GCLASS_HEAD {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    padding-bottom: .6rem;
+    margin-bottom: .8rem;
+    border-bottom: 1px solid var(--gclass-rule);
+}
+
+.C_YUI_GCLASS .GCLASS_HEAD_ROW {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: .35rem .6rem;
-    padding-bottom: .6rem;
-    margin-bottom: .8rem;
-    border-bottom: 1px solid var(--gclass-rule);
+}
+
+.C_YUI_GCLASS .GCLASS_HEAD_LABEL {
+    font-size: .64rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gclass-muted);
+}
+
+.C_YUI_GCLASS .GCLASS_CURRENT_INSTANCE {
+    font-family: var(--gclass-mono);
+    margin-right: .35rem;
+}
+
+.C_YUI_GCLASS .GCLASS_CURRENT_INSTANCE::after {
+    content: ":";
 }
 
 .C_YUI_GCLASS .GCLASS_NAME {
@@ -109,38 +138,34 @@
 }
 
 /*
- *  Two columns while there is room for two: the machine grows sideways
- *  and everything else grows downwards, so they are the two that must
- *  not share a column.  Below the breakpoint they stack, which is also
- *  the order they are written in.
+ *  The SHORT zones (the machine, the trace levels) side by side when
+ *  the viewer has room for two; the long tables (attrs, commands)
+ *  always across the whole width, where a description fits beside its
+ *  name. In graph mode the machine takes the width and its pair goes
+ *  under it.
  */
-.C_YUI_GCLASS .GCLASS_COLS {
+.C_YUI_GCLASS .GCLASS_PAIR {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 1.2rem;
+    margin-bottom: 1.2rem;
+    align-items: start;
 }
 
-@media (min-width: 900px) {
-    .C_YUI_GCLASS .GCLASS_COLS {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+@container gclass-viewer (min-width: 70rem) {
+    .C_YUI_GCLASS .GCLASS_PAIR {
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
     }
 
-    /*  In graph mode the machine is above, across the whole width, and
-     *  what is left stacks in one column.  */
-    .C_YUI_GCLASS .GCLASS_COLS.is-stacked {
+    .C_YUI_GCLASS .GCLASS_PAIR.is-stacked {
         grid-template-columns: minmax(0, 1fr);
     }
 }
 
 .C_YUI_GCLASS .GCLASS_FULL {
-    margin-bottom: 1.2rem;
-}
-
-.C_YUI_GCLASS .GCLASS_COL {
     display: flex;
     flex-direction: column;
-    gap: 1.1rem;
-    min-width: 0;
+    gap: 1.2rem;
 }
 
 /*
@@ -269,6 +294,56 @@
 }
 
 .C_YUI_GCLASS .GCLASS_CELL_TYPE { white-space: nowrap; }
+
+/*  The flags of one attr on ONE line: wrapped, each one took a line
+ *  and every row with two flags was twice as tall as its neighbours.  */
+.C_YUI_GCLASS .GCLASS_CELL_FLAGS { white-space: nowrap; }
+
+.C_YUI_GCLASS .GCLASS_CELL_BOX {
+    width: 1%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.C_YUI_GCLASS .GCLASS_TRACE_GROUP td {
+    padding-top: .6rem;
+    font-size: .64rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gclass-muted);
+    border-bottom: 0;
+}
+
+.C_YUI_GCLASS .GCLASS_TRACE_ORIGIN {
+    margin-left: .45rem;
+    font-weight: 400;
+    color: var(--gclass-muted);
+}
+
+.C_YUI_GCLASS .GCLASS_TRACES_NOTE {
+    margin: .45rem 0 .3rem;
+    font-size: .76rem;
+    color: var(--gclass-muted);
+}
+
+.C_YUI_GCLASS .GCLASS_SHOW_ALL {
+    margin-top: .5rem;
+}
+
+.C_YUI_GCLASS .GCLASS_PUBLISHED {
+    width: auto;
+}
+
+.C_YUI_GCLASS .GCLASS_PUB_FLAGS .GCLASS_CHIP {
+    background: none;
+    padding: 0;
+}
+
+.C_YUI_GCLASS .GCLASS_PUB_FLAGS .GCLASS_CHIP + .GCLASS_CHIP::before {
+    content: "· ";
+    color: var(--gclass-muted);
+}
 
 .C_YUI_GCLASS .GCLASS_CMD_SECTION td {
     padding-top: .7rem;
@@ -472,6 +547,13 @@
 .C_YUI_GCLASS .GCLASS_LEGEND_SWATCH.is-unreachable {
     border-color: transparent;
     color: var(--gclass-warn);
+    width: auto;
+}
+
+/*  The same mark the matrix draws, in the colour it draws it.  */
+.C_YUI_GCLASS .GCLASS_LEGEND_SWATCH.is-unnamed {
+    border-color: transparent;
+    color: var(--gclass-fsm);
     width: auto;
 }
 

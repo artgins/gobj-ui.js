@@ -85,6 +85,15 @@ function gclass_view_available()
  *      current_state the state the INSTANCE the reader came
  *                    from is in, lit in the machine. Omitted,
  *                    nothing is lit.
+ *      instance_name the name of that instance, said beside its
+ *                    state (a gclass has several).
+ *      traces        {info, pending}: the host can set this
+ *                    gclass' traces for every gobj of it. The
+ *                    viewer then publishes EV_SET_GCLASS_TRACE
+ *                    {gclass, levels, set} to the HOST (it is its
+ *                    child), which declares it, and is handed what
+ *                    the backend says next with EV_SET_TRACES.
+ *                    Omitted: the levels are only listed.
  *      title_prefix  what the window says before the gclass
  *                    name (the yuno it belongs to).
  *      on_close      called when the reader dismisses it.
@@ -134,6 +143,8 @@ function open_gclass_view(host, gclass_name, opts)
              *  CLASS -- and the caller is the only party that knows,
              *  so an omitted one simply lights nothing.  */
             current_state: opts.current_state || "",
+            instance_name: opts.instance_name || "",
+            traces:        opts.traces || null,
             subscriber:    null,
         },
         host

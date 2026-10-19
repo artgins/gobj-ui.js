@@ -39,11 +39,29 @@
  *  the host mounts `$container` wherever it wants (a C_YUI_WINDOW body
  *  on desktop, a dialog on a phone). `yui_gclass_view.js` does both.
  *
+ *  THE LAYOUT. The head says what the gclass is called, how many gobjs
+ *  of it there are, the instance the reader came from with its state,
+ *  and the methods it implements. Then the short zones (the machine,
+ *  the trace levels), side by side when the VIEWER is wide -- a
+ *  container query: a 720px window on a wide screen is narrow -- and
+ *  the long tables (attributes, commands) across the whole width, each
+ *  showing ROWS_CAP entries and a button for the rest (a search shows
+ *  every match).
+ *
+ *  ITS TRACES, when the host can set them (`traces` attr, {info,
+ *  pending}): the trace levels zone has one box per level for every
+ *  gobj of the gclass, own levels and the kernel's; a level the yuno
+ *  holds is locked. A box publishes EV_SET_GCLASS_TRACE {gclass,
+ *  levels, set} to the host (this gclass is its child; the gobj tree
+ *  declares it) and locks the zone until EV_SET_TRACES hands back what
+ *  the backend says now. Without `traces` the levels are only listed.
+ *
  *  DOM is self-describing (UPPER_SNAKE logical classes): GCLASS_VIEWER /
  *  GCLASS_TOOLBAR / GCLASS_SEARCH / GCLASS_VIEW_SWITCH / GCLASS_ZONES /
- *  GCLASS_HEAD / GCLASS_ZONE / GCLASS_ZONE_TITLE / GCLASS_ZONE_BODY /
+ *  GCLASS_HEAD / GCLASS_METHODS / GCLASS_CURRENT / GCLASS_PAIR /
+ *  GCLASS_FULL / GCLASS_ZONE / GCLASS_ZONE_TITLE / GCLASS_ZONE_BODY /
  *  GCLASS_TABLE / GCLASS_MATRIX / GCLASS_CELL / GCLASS_PUBLISHED /
- *  GCLASS_RAW.
+ *  GCLASS_TRACE_TOGGLES / GCLASS_SHOW_ALL / GCLASS_RAW.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -52,6 +70,7 @@ import {
     SDATA,
     SDATA_END,
     data_type_t,
+    event_flag_t,
     gclass_create,
     gclass_find_by_name,
     log_error,
@@ -62,6 +81,7 @@ import {
     gobj_write_attr,
     gobj_read_str_attr,
     gobj_send_event,
+    gobj_publish_event,
     gobj_create_pure_child,
     gobj_start,
     gobj_stop,
@@ -76,6 +96,7 @@ import {
 } from "@yuneta/gobj-js";
 
 import {gclass_view_model} from "./gclass_view_model.js";
+import {trace_rows, own_trace_levels} from "./gobj_tree_model.js";
 import {register_c_yui_fsm_graph} from "./c_yui_fsm_graph.js";
 import {json_text_dump} from "./json_view_helpers.js";
 import {yui_toolbar} from "./yui_toolbar.js";
@@ -124,17 +145,28 @@ const MACHINE_VIEWS = [
 const MAX_RAW_CHARS = 2000000;
 
 /*
- *  The zones, in the order they are laid out. `col` is which of the two
- *  columns a zone belongs to on a wide container -- the machine has one
- *  to itself because it is the only zone that grows sideways.
+ *  The zones, in the order they are laid out: the SHORT ones first,
+ *  the long tables last. C_YUNO declares 64 attributes and a hundred
+ *  commands, about 7000px of them, and when those came first its
+ *  methods and its trace levels were at the bottom of all that, beside
+ *  a machine of two events. `pair` zones sit side by side when the
+ *  VIEWER is wide enough (a container query, not the screen's width:
+ *  a 720px window on a wide screen is a narrow viewer); the rest take
+ *  the whole width, which is what a table with a description needs.
+ *  The methods are not a zone: a handful of chips, in the head.
  */
 const ZONES = [
-    {id: "attrs",    key: "attributes",       col: "left"},
-    {id: "commands", key: "commands",         col: "left"},
-    {id: "methods",  key: "methods",          col: "left"},
-    {id: "traces",   key: "trace levels",     col: "left"},
-    {id: "machine",  key: "machine",          col: "right"},
+    {id: "machine",  key: "machine",          pair: true},
+    {id: "traces",   key: "trace levels",     pair: true},
+    {id: "attrs",    key: "attributes",       pair: false},
+    {id: "commands", key: "commands",         pair: false},
 ];
+
+/*
+ *  A long table shows this many entries, and a button for the rest. A
+ *  search lifts it: what matches is shown whatever its place.
+ */
+const ROWS_CAP = 20;
 
 /*  The keys of VIEWS, MACHINE_VIEWS and ZONES: they reach t() as data
  *  (`v.key`, `zone.key`), where no scan of the source reads them, so
@@ -158,6 +190,8 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of outpu
 SDATA(data_type_t.DTP_JSON,     "description",  0,  null,   "The gclass description, as `view-gclass` answers it or `describe_local_gclass()` builds it"),
 SDATA(data_type_t.DTP_STRING,   "gclass_name",  0,  "",     "Name to head the view with when the description carries none"),
 SDATA(data_type_t.DTP_STRING,   "current_state",0,  "",     "State of the INSTANCE the host is showing, lit in the machine. Empty when the host is not showing one"),
+SDATA(data_type_t.DTP_STRING,   "instance_name",0,  "",     "Name of that instance, said beside its state: a gclass has several"),
+SDATA(data_type_t.DTP_JSON,     "traces",       0,  null,   "{info, pending}: the host can set this gclass' traces for every gobj of it (EV_SET_GCLASS_TRACE). `info` is what it read: {gclass_levels, global_levels, gclass_on, global_on, error}, null while it reads. Null: the levels are only listed"),
 SDATA(data_type_t.DTP_STRING,   "view_mode",    0,  "zones","View: 'zones' or 'raw'"),
 
 /*---------------- UI ----------------*/
@@ -169,6 +203,7 @@ let PRIVATE_DATA = {
     model:      null,   // the view model built from the description
     search:     "",     // current filter term (lower-cased)
     collapsed:  null,   // Set<string> of collapsed zone ids
+    expanded:   null,   // Set<string> of zones showing every row (ROWS_CAP lifted)
     machine_view: "matrix", // how the machine zone is read
     graph_gobj: null,   // hosted C_YUI_FSM_GRAPH child (built on first use)
     $zones:     null,   // the scrollable zones body
@@ -198,6 +233,7 @@ function mt_create(gobj)
     let priv = gobj.priv;
 
     priv.collapsed = new Set();
+    priv.expanded = new Set();
     priv.search = "";
     priv.machine_view = "matrix";
     priv.model = gclass_view_model(gobj_read_attr(gobj, "description"));
@@ -511,16 +547,13 @@ function render_zones(gobj)
     /*
      *  The machine takes the WHOLE width in graph mode.
      *
-     *  Half a column is enough for a matrix, which grows downwards and
-     *  scrolls sideways inside its own box. A graph does not: it is
-     *  laid out left to right, and 600px of a 1200px viewer is where
-     *  six states stop fitting and start being panned. The rest of the
-     *  zones then stack in one column under it, which is what they do
-     *  on a phone anyway.
+     *  Half the viewer is enough for a matrix, which grows downwards
+     *  and scrolls sideways inside its own box. A graph does not: it is
+     *  laid out left to right, and half of a viewer is where six states
+     *  stop fitting and start being panned. Its pair then stacks.
      */
     let graph_mode = (priv.machine_view === "graph");
-    let left = [];
-    let right = [];
+    let pair = [];
     let full = [];
 
     for(let zone of ZONES) {
@@ -528,26 +561,18 @@ function render_zones(gobj)
         if(!$zone) {
             continue;
         }
-        if(zone.col === "right") {
-            if(graph_mode) {
-                full.push($zone);
-            } else {
-                right.push($zone);
-            }
+        if(zone.pair) {
+            pair.push($zone);
         } else {
-            left.push($zone);
+            full.push($zone);
         }
     }
 
     let $root = createElement2(
         ['div', {class: 'GCLASS_BODY'}, [
             build_head(gobj, model),
-            ['div', {class: 'GCLASS_FULL' + (graph_mode? '': ' is-hidden')}, full],
-            ['div', {class: 'GCLASS_COLS' + (graph_mode? ' is-stacked': '')}, [
-                ['div', {class: 'GCLASS_COL GCLASS_COL_LEFT'}, left],
-                ['div', {class: 'GCLASS_COL GCLASS_COL_RIGHT' +
-                                (graph_mode? ' is-hidden': '')}, right]
-            ]]
+            ['div', {class: 'GCLASS_PAIR' + (graph_mode? ' is-stacked': '')}, pair],
+            ['div', {class: 'GCLASS_FULL'}, full]
         ]]
     );
 
@@ -562,8 +587,11 @@ function render_zones(gobj)
 }
 
 /************************************************************
- *   The header: what this gclass is called, and the two
- *   numbers a reader asks for before anything else.
+ *   The header: what this gclass is called, how many gobjs
+ *   of it there are, which instance the reader came from and
+ *   the state it is in -- and the methods it implements, a
+ *   handful of chips that used to be a zone at the bottom of
+ *   every other.
  ************************************************************/
 function build_head(gobj, model)
 {
@@ -576,8 +604,8 @@ function build_head(gobj, model)
         items.push(
             ['span', {class: 'GCLASS_INSTANCES tag'}, [
                 ['span', {class: 'GCLASS_INSTANCES_N'}, String(model.instances)],
-                ['span', {class: 'GCLASS_INSTANCES_LABEL', i18n: 'instances'},
-                 t("instances")]
+                ['span', {class: 'GCLASS_INSTANCES_LABEL'},
+                 t("instances", {count: model.instances})]
             ]]);
     }
 
@@ -585,15 +613,41 @@ function build_head(gobj, model)
         items.push(['span', {class: 'GCLASS_CHIP GCLASS_GCFLAG'}, text_node(flag)]);
     }
 
+    /*  A state alone belongs to no instance: the gclass has several,
+     *  and the matrix lights the column of the one the reader came
+     *  from. So it goes with its name.  */
     let current = gobj_read_str_attr(gobj, "current_state");
     if(current) {
+        let instance = gobj_read_str_attr(gobj, "instance_name");
+        let parts = [];
+        if(instance) {
+            parts.push(['span', {class: 'GCLASS_CURRENT_INSTANCE'}, text_node(instance)]);
+        }
+        parts.push(['span', {class: 'GCLASS_CURRENT_STATE'}, text_node(current)]);
         items.push(
             ['span', {class: 'GCLASS_CHIP GCLASS_CURRENT',
                       title: t("current state"),
-                      'data-i18n-title': 'current state'}, text_node(current)]);
+                      'data-i18n-title': 'current state'}, parts]);
     }
 
-    return ['div', {class: 'GCLASS_HEAD'}, items];
+    let rows = [['div', {class: 'GCLASS_HEAD_ROW'}, items]];
+
+    let methods = function(names, cls, $label) {
+        if(!names.length) {
+            return;
+        }
+        rows.push(['div', {class: `GCLASS_HEAD_ROW ${cls}`}, [
+            $label,
+            ['span', {class: 'GCLASS_CHIPS'}, names.map((m) =>
+                ['span', row_attrs(m, {class: 'GCLASS_CHIP GCLASS_METHOD'}), text_node(m)])]
+        ]]);
+    };
+    methods(model.methods, 'GCLASS_METHODS',
+        ['span', {class: 'GCLASS_HEAD_LABEL', i18n: 'methods'}, t('methods')]);
+    methods(model.internal_methods, 'GCLASS_INTERNAL_METHODS',
+        ['span', {class: 'GCLASS_HEAD_LABEL', i18n: 'internal methods'}, t('internal methods')]);
+
+    return ['div', {class: 'GCLASS_HEAD'}, rows];
 }
 
 /************************************************************
@@ -611,31 +665,40 @@ function build_zone(gobj, zone)
 
     let body = null;
     let count = 0;
+    let more = null;
 
     switch(zone.id) {
         case "attrs":
             count = model.attrs.length;
             body = build_attrs(model.attrs);
+            more = show_all_button(gobj, zone.id, count);
             break;
         case "commands":
             count = model.commands.filter((c) => c.kind === "command").length;
             body = build_commands(model.commands);
+            more = show_all_button(gobj, zone.id, count);
             break;
-        case "methods":
-            count = model.methods.length + model.internal_methods.length;
-            body = build_methods(model);
+        case "traces": {
+            let traces = gobj_read_attr(gobj, "traces");
+            if(traces && typeof traces === "object") {
+                let built = build_trace_toggles(gobj, model, traces);
+                count = built.count;
+                body = built.body;
+            } else {
+                count = model.trace_levels.length;
+                body = build_traces(model.trace_levels);
+            }
             break;
-        case "traces":
-            count = model.trace_levels.length;
-            body = build_traces(model.trace_levels);
-            break;
+        }
         case "machine":
             /*  Two numbers, because one of them alone says nothing
              *  about the shape: 13 events across 1 state and 13
-             *  across 6 are different machines.  */
-            count = model.fsm.states.length? 
-                `${model.fsm.states.length} · ${model.fsm.rows.length}`:
-                model.fsm.rows.length;
+             *  across 6 are different machines -- and each says what
+             *  it counts, which "1 · 2" did not.  */
+            count = model.fsm.states.length?
+                `${t("machine states", {count: model.fsm.states.length})} · ` +
+                `${t("machine events", {count: model.fsm.rows.length})}`:
+                t("machine events", {count: model.fsm.rows.length});
             body = build_machine(gobj, model.fsm);
             break;
         default:
@@ -668,8 +731,30 @@ function build_zone(gobj, zone)
                      'data-zone': zone.id}, [
             $toggle,
             ['div', {class: 'GCLASS_ZONE_BODY' + (collapsed? ' is-hidden': '')},
-             [body]]
+             more? [body, more]: [body]]
         ]]);
+}
+
+/************************************************************
+ *   The button under a long table: the entries past ROWS_CAP
+ *   are drawn and hidden (apply_search() decides), so showing
+ *   them is a class, not a rebuild. Null when there are none.
+ ************************************************************/
+function show_all_button(gobj, zone_id, count)
+{
+    if(count <= ROWS_CAP || gobj.priv.expanded.has(zone_id)) {
+        return null;
+    }
+    return ['button', {class: 'GCLASS_SHOW_ALL button is-small', type: 'button',
+                       'data-zone': zone_id,
+                       title: t("show all {{n}}", {n: count}),
+                       'aria-label': t("show all {{n}}", {n: count})},
+        t("show all {{n}}", {n: count}), {
+            click: function(evt) {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_SHOW_ALL", {zone: zone_id}, gobj);
+            }
+        }];
 }
 
 /************************************************************
@@ -737,8 +822,9 @@ function build_attrs(attrs)
         return empty_line("no attributes declared");
     }
 
-    let rows = attrs.map(function(a) {
-        return ['tr', row_attrs(`${a.id} ${a.type} ${a.flags.join(" ")} ${a.description}`), [
+    let rows = attrs.map(function(a, i) {
+        return ['tr', row_attrs(`${a.id} ${a.type} ${a.flags.join(" ")} ${a.description}`,
+                                capped_attrs(i)), [
             ['td', {class: 'GCLASS_CELL_KEY'}, text_node(a.id)],
             ['td', {class: 'GCLASS_CELL_TYPE'}, text_node(a.type)],
             ['td', {class: 'GCLASS_CELL_FLAGS'}, flag_chips(a.flags)],
@@ -778,9 +864,17 @@ function build_commands(commands)
     }
 
     let rows = [];
+    let n = 0;
     for(let c of commands) {
+        if(c.kind === "command") {
+            n++;
+        }
+        /*  The cap counts COMMANDS: a section heading or a parameter
+         *  past it goes with the command it belongs to.  */
+        let capped = capped_attrs((c.kind === "command")? n - 1: n);
         if(c.kind === "section") {
-            rows.push(['tr', row_attrs(c.label, {class: 'GCLASS_ROW GCLASS_CMD_SECTION'}), [
+            rows.push(['tr', row_attrs(c.label, Object.assign(
+                    {class: 'GCLASS_ROW GCLASS_CMD_SECTION'}, capped)), [
                 ['td', {colspan: '2'}, text_node(c.label)]
             ]]);
             continue;
@@ -792,14 +886,14 @@ function build_commands(commands)
         }
         name_items = name_items.concat(flag_chips(c.flags));
 
-        rows.push(['tr', row_attrs(`${c.id} ${c.alias.join(" ")} ${c.description}`), [
+        rows.push(['tr', row_attrs(`${c.id} ${c.alias.join(" ")} ${c.description}`, capped), [
             ['td', {class: 'GCLASS_CELL_KEY'}, name_items],
             ['td', {class: 'GCLASS_CELL_DESC'}, text_node(c.description)]
         ]]);
 
         for(let p of c.parameters) {
             rows.push(['tr', row_attrs(`${c.id} ${p.id} ${p.description}`,
-                                       {class: 'GCLASS_ROW GCLASS_CMD_PARAM'}), [
+                                       Object.assign({class: 'GCLASS_ROW GCLASS_CMD_PARAM'}, capped)), [
                 ['td', {class: 'GCLASS_CELL_KEY'}, [
                     ['span', {class: 'GCLASS_PARAM_MARK'}, "↳"],
                     ['span', {class: 'GCLASS_PARAM_NAME'}, text_node(p.id)],
@@ -815,34 +909,11 @@ function build_commands(commands)
     ]]);
 }
 
-/************************************************************
- *   The methods zone: the ones the gclass IMPLEMENTS.
- *
- *   A table of every possible method, mostly empty, tells the
- *   reader nothing -- so both sides send only what is wired,
- *   and this draws them as chips.
- ************************************************************/
-function build_methods(model)
+/*  The extra attrs of the `i`-th entry of a long table: past the cap
+ *  it is marked, and apply_search() hides it until the reader asks.  */
+function capped_attrs(i)
 {
-    if(!model.methods.length && !model.internal_methods.length) {
-        return empty_line("no methods declared");
-    }
-
-    let blocks = [];
-    if(model.methods.length) {
-        blocks.push(['div', {class: 'GCLASS_CHIPS'},
-            model.methods.map((m) =>
-                ['span', row_attrs(m, {class: 'GCLASS_CHIP GCLASS_METHOD'}), text_node(m)])]);
-    }
-    if(model.internal_methods.length) {
-        blocks.push(['div', {class: 'GCLASS_SUBTITLE', i18n: 'internal methods'},
-                     t("internal methods")]);
-        blocks.push(['div', {class: 'GCLASS_CHIPS'},
-            model.internal_methods.map((m) =>
-                ['span', row_attrs(m, {class: 'GCLASS_CHIP GCLASS_METHOD'}), text_node(m)])]);
-    }
-
-    return ['div', {class: 'GCLASS_METHODS'}, blocks];
+    return (i >= ROWS_CAP)? {'data-capped': '1'}: {};
 }
 
 /************************************************************
@@ -864,6 +935,111 @@ function build_traces(levels)
     return scroller(['table', {class: 'GCLASS_TABLE GCLASS_TABLE_TRACES'}, [
         ['tbody', {}, rows]
     ]]);
+}
+
+/************************************************************
+ *   The trace levels zone of a gclass whose host can SET its
+ *   traces: every gobj of it at once (`set-gclass-trace`),
+ *   one box per level -- its own, then the kernel's, which
+ *   every gclass can trace on its own (the machine of C_TCP
+ *   alone). A level the whole yuno traces shows on and locked,
+ *   because unticking the gclass would not stop it; the yuno's
+ *   scope is set from the gobj tree, not from here.
+ *
+ *   A box is an action: the change goes to the FSM, which
+ *   tells the host, and the zone stays locked until the host
+ *   hands back what the backend says now (EV_SET_TRACES).
+ *
+ *   Returns {body, count}.
+ ************************************************************/
+function build_trace_toggles(gobj, model, traces)
+{
+    let info = traces.info;
+    if(!info) {
+        return {body: empty_line("loading"), count: 0};
+    }
+    if(info.error) {
+        return {body: ['div', {class: 'GCLASS_ZONE_EMPTY GCLASS_TRACES_ERROR'},
+                       text_node(info.error)], count: 0};
+    }
+
+    let gclass = model.id || gobj_read_str_attr(gobj, "gclass_name");
+    let rows = trace_rows({gobj_trace_level: []}, info);
+    let pending = !!traces.pending;
+
+    let trs = [];
+    let group = "";
+    for(let r of rows) {
+        if(r.group !== group) {
+            group = r.group;
+            trs.push(['tr', {class: 'GCLASS_TRACE_GROUP'}, [
+                ['td', {colspan: '3'}, (group === "gclass")?
+                    [text_node(gclass)]:
+                    [['span', {i18n: 'kernel levels'}, t('kernel levels')]]]
+            ]]);
+        }
+        let $cb = createElement2(['input', {
+            type: 'checkbox', class: 'GCLASS_TRACE_GCLASS',
+            title: t('all of the gclass'), 'data-i18n-title': 'all of the gclass',
+            'aria-label': t('all of the gclass'), 'data-i18n-aria-label': 'all of the gclass',
+        }]);
+        /*  Properties, not attributes: an attribute `checked="false"`
+         *  is a checked box.  */
+        $cb.setAttribute('data-level', r.level);
+        $cb.checked = !!r.gclass_on;
+        $cb.disabled = pending || !!r.gclass_locked;
+        $cb.addEventListener('change', function(evt) {
+            evt.stopPropagation();
+            gobj_send_event(gobj, "EV_GCLASS_TRACE_TOGGLED",
+                {level: r.level, set: !!evt.target.checked}, gobj);
+        });
+
+        let key_cell = [text_node(r.level)];
+        if(r.gclass_locked) {
+            key_cell.push(['span', {class: 'GCLASS_TRACE_ORIGIN', i18n: 'yuno',
+                                    title: t('on for the whole yuno'),
+                                    'data-i18n-title': 'on for the whole yuno'}, t('yuno')]);
+        }
+        trs.push(['tr', row_attrs(`${r.level} ${r.description}`), [
+            ['td', {class: 'GCLASS_CELL_KEY'}, key_cell],
+            ['td', {class: 'GCLASS_CELL_DESC'}, text_node(r.description)],
+            ['td', {class: 'GCLASS_CELL_BOX'}, [$cb]]
+        ]]);
+    }
+
+    let none = pending || own_trace_levels(rows, "gclass").length === 0;
+    let $clear = createElement2(['button', {
+        type: 'button', class: 'GCLASS_TRACES_CLEAR button is-small',
+        i18n: 'remove the traces of the gclass',
+        title: t('remove the traces of the gclass'),
+        'data-i18n-title': 'remove the traces of the gclass',
+        'aria-label': t('remove the traces of the gclass'),
+        'data-i18n-aria-label': 'remove the traces of the gclass',
+    }, t('remove the traces of the gclass'), {
+        click: function(evt) {
+            evt.stopPropagation();
+            gobj_send_event(gobj, "EV_GCLASS_TRACES_CLEARED", {}, gobj);
+        }
+    }]);
+    $clear.disabled = none;
+
+    return {count: rows.length, body: ['div', {class: 'GCLASS_TRACE_TOGGLES'}, [
+        scroller(['table', {class: 'GCLASS_TABLE GCLASS_TABLE_TRACES'}, [
+            ['thead', {}, [
+                ['tr', {}, [
+                    ['th', {i18n: 'level'}, t("level")],
+                    ['th', {i18n: 'description'}, t("description")],
+                    ['th', {class: 'GCLASS_CELL_BOX', i18n: 'all of the gclass'},
+                     t("all of the gclass")]
+                ]]
+            ]],
+            ['tbody', {}, trs]
+        ]]),
+        ['div', {class: 'GCLASS_TRACES_NOTE',
+                 i18n: 'gclass traces survive a restart, gobj traces end with the yuno'},
+         t('gclass traces survive a restart, gobj traces end with the yuno')],
+        ['div', {class: 'GCLASS_TRACES_TOOLS'}, [$clear]]
+    ]]};
 }
 
 /************************************************************
@@ -975,15 +1151,20 @@ function build_machine(gobj, fsm)
 
     blocks.push(build_legend(fsm, current));
 
+    /*  One event a row, its flags after it in their own quiet type:
+     *  as a line of chips, OUTPUT_EVENT and PUBLIC_EVENT read as two
+     *  more events.  */
     if(fsm.published.length) {
         blocks.push(['div', {class: 'GCLASS_SUBTITLE', i18n: 'publishes'},
                      t("publishes")]);
-        blocks.push(['div', {class: 'GCLASS_CHIPS GCLASS_PUBLISHED'},
-            fsm.published.map(function(p) {
-                return ['span', row_attrs(p.event, {class: 'GCLASS_PUB_ROW'}), [
-                    ['span', {class: 'GCLASS_CHIP GCLASS_PUB_EVENT'}, text_node(p.event)]
-                ].concat(event_flag_chips(p.flags))];
-            })]);
+        blocks.push(['table', {class: 'GCLASS_TABLE GCLASS_PUBLISHED'}, [
+            ['tbody', {}, fsm.published.map(function(p) {
+                return ['tr', row_attrs(p.event, {class: 'GCLASS_ROW GCLASS_PUB_ROW'}), [
+                    ['td', {class: 'GCLASS_CELL_KEY GCLASS_PUB_EVENT'}, text_node(p.event)],
+                    ['td', {class: 'GCLASS_PUB_FLAGS'}, event_flag_chips(p.flags)]
+                ]];
+            })]
+        ]]);
     }
 
     return ['div', {class: 'GCLASS_MACHINE'}, blocks];
@@ -1033,13 +1214,28 @@ function build_legend(fsm, current)
 {
     let items = [];
 
-    items.push(['span', {class: 'GCLASS_LEGEND_ITEM'}, [
-        ['i', {class: 'GCLASS_LEGEND_SWATCH is-none'}],
-        ['span', {i18n: 'not declared in this state'}, t("not declared in this state")]
-    ]]);
+    if(fsm.rows.some((row) => row.cells.some((cell) => !cell))) {
+        items.push(['span', {class: 'GCLASS_LEGEND_ITEM'}, [
+            ['i', {class: 'GCLASS_LEGEND_SWATCH is-none'}],
+            ['span', {i18n: 'not declared in this state'}, t("not declared in this state")]
+        ]]);
+    }
 
     /*  Only if there is one on screen: a legend for a mark nobody drew
      *  is noise, and most gclasses declare no actionless event.  */
+    /*  The mark of an action the backend does not name: every action
+     *  of a C gclass is one (`states2json()` cannot name them).  */
+    let has_unnamed = fsm.rows.some(
+        (row) => row.cells.some((cell) => cell && cell.has_action && !cell.action)
+    );
+    if(has_unnamed) {
+        items.push(['span', {class: 'GCLASS_LEGEND_ITEM'}, [
+            ['i', {class: 'GCLASS_LEGEND_SWATCH is-unnamed'}, "●"],
+            ['span', {i18n: 'action, its name not given by the backend'},
+             t("action, its name not given by the backend")]
+        ]]);
+    }
+
     let has_actionless = fsm.rows.some(
         (row) => row.cells.some((cell) => cell && !cell.has_action)
     );
@@ -1208,14 +1404,24 @@ function apply_search(gobj)
     $zones.querySelectorAll('.GCLASS_ZONE').forEach(function($zone) {
         let $rows = $zone.querySelectorAll('[data-find]');
         let visible = 0;
+        let all = priv.expanded.has($zone.getAttribute('data-zone'));
 
+        /*  A search shows every match, capped or not: the cap is for
+         *  READING a long table, and a reader who typed a name is not.  */
         $rows.forEach(function($row) {
-            let hit = !term || $row.getAttribute('data-find').indexOf(term) >= 0;
+            let hit = term?
+                $row.getAttribute('data-find').indexOf(term) >= 0:
+                (all || !$row.hasAttribute('data-capped'));
             $row.classList.toggle('is-hidden', !hit);
             if(hit) {
                 visible++;
             }
         });
+
+        let $more = $zone.querySelector('.GCLASS_SHOW_ALL');
+        if($more) {
+            $more.classList.toggle('is-hidden', !!term || all);
+        }
 
         /*  A zone whose every row is filtered out reads as broken
          *  unless it says what happened.  */
@@ -1408,6 +1614,108 @@ function ac_copy_all(gobj, event, kw, src)
 }
 
 /************************************************************
+ *   EV_SHOW_ALL {zone} -- the rows of a long table past the cap.
+ ************************************************************/
+function ac_show_all(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(!ZONES.some((z) => z.id === kw.zone)) {
+        log_error(`${GCLASS_NAME}: show all of no zone '${kw.zone}'`);
+        return -1;
+    }
+    priv.expanded.add(kw.zone);
+    apply_search(gobj);
+    return 0;
+}
+
+/************************************************************
+ *   EV_SET_TRACES {info, pending} -- the host, with what the
+ *   backend says the gclass traces now.
+ ************************************************************/
+function ac_set_traces(gobj, event, kw, src)
+{
+    gobj_write_attr(gobj, "traces", {
+        info:    (kw && kw.info && typeof kw.info === "object")? json_deep_copy(kw.info): null,
+        pending: !!(kw && kw.pending),
+    });
+    refresh_zone(gobj, "traces");
+    return 0;
+}
+
+/************************************************************
+ *   A box of the trace levels zone: {level, set}.
+ ************************************************************/
+function ac_gclass_trace_toggled(gobj, event, kw, src)
+{
+    if(!kw || !kw.level) {
+        log_error(`${GCLASS_NAME}: a gclass trace set of no level`);
+        return -1;
+    }
+    return ask_gclass_trace(gobj, [kw.level], !!kw.set);
+}
+
+/************************************************************
+ *   "Remove the traces of the gclass": every level it holds
+ *   on its own (not the yuno's, which it cannot let go).
+ ************************************************************/
+function ac_gclass_traces_cleared(gobj, event, kw, src)
+{
+    let traces = gobj_read_attr(gobj, "traces");
+    let info = traces && traces.info;
+    let levels = own_trace_levels(trace_rows({gobj_trace_level: []}, info), "gclass");
+    if(!levels.length) {
+        /*  The button is off when there is nothing: reaching here is a
+         *  button that did not follow the zone.  */
+        log_error(`${GCLASS_NAME}: no gclass trace to remove`);
+        return -1;
+    }
+    return ask_gclass_trace(gobj, levels, false);
+}
+
+/*  Lock the zone and tell the host. It is repainted from what the
+ *  backend says next (EV_SET_TRACES), never from the click.  */
+function ask_gclass_trace(gobj, levels, set)
+{
+    let priv = gobj.priv;
+    let traces = gobj_read_attr(gobj, "traces");
+    if(!traces || typeof traces !== "object") {
+        log_error(`${GCLASS_NAME}: a gclass trace set, and no host that can set it`);
+        return -1;
+    }
+    gobj_write_attr(gobj, "traces", {info: traces.info || null, pending: true});
+    refresh_zone(gobj, "traces");
+    gobj_publish_event(gobj, "EV_SET_GCLASS_TRACE", {
+        gclass: (priv.model && priv.model.id) || gobj_read_str_attr(gobj, "gclass_name"),
+        levels: levels,
+        set:    set,
+    });
+    return 0;
+}
+
+/************************************************************
+ *   Draw ONE zone again, in place. The others stay as they
+ *   are: the machine's graph keeps its camera, and a table
+ *   keeps its scroll.
+ ************************************************************/
+function refresh_zone(gobj, zone_id)
+{
+    let priv = gobj.priv;
+    const zone = ZONES.find((z) => z.id === zone_id);
+    let $old = priv.$zones?
+        priv.$zones.querySelector(`.GCLASS_ZONE[data-zone="${zone_id}"]`): null;
+    if(!zone || !$old || !priv.model) {
+        return;     /*  not drawn (raw view, no description): drawn on the next render  */
+    }
+    let $new = build_zone(gobj, /* i18n: C_YUI_GCLASS_I18N_KEYS */ zone);
+    if(!$new) {
+        return;     // Error already logged
+    }
+    $old.replaceWith($new);
+    refresh_language($new, t);
+    apply_search(gobj);
+}
+
+/************************************************************
  *   EV_LANGUAGE_CHANGED -- re-translate chrome + re-render
  *
  *   The tables are BUILT with t(): their headers and their
@@ -1506,7 +1814,11 @@ function create_gclass(gclass_name)
             ["EV_LANGUAGE_CHANGED", ac_language_changed,    null],
             ["EV_REFRESH",          ac_refresh,             null],
             ["EV_SHOW",             ac_show,                null],
-            ["EV_HIDE",             ac_hide,                null]
+            ["EV_HIDE",             ac_hide,                null],
+            ["EV_SHOW_ALL",         ac_show_all,            null],
+            ["EV_SET_TRACES",       ac_set_traces,          null],
+            ["EV_GCLASS_TRACE_TOGGLED", ac_gclass_trace_toggled, null],
+            ["EV_GCLASS_TRACES_CLEARED", ac_gclass_traces_cleared, null]
         ]]
     ];
 
@@ -1523,7 +1835,14 @@ function create_gclass(gclass_name)
         ["EV_LANGUAGE_CHANGED", 0],
         ["EV_REFRESH",          0],
         ["EV_SHOW",             0],
-        ["EV_HIDE",             0]
+        ["EV_HIDE",             0],
+        ["EV_SHOW_ALL",         0],
+        ["EV_SET_TRACES",       0],
+        ["EV_GCLASS_TRACE_TOGGLED", 0],
+        ["EV_GCLASS_TRACES_CLEARED", 0],
+        /*  Only when the host handed `traces`: it is the one that can
+         *  set them, and it declares this event (the gobj tree).  */
+        ["EV_SET_GCLASS_TRACE", event_flag_t.EVF_OUTPUT_EVENT]
     ];
 
     __gclass__ = gclass_create(

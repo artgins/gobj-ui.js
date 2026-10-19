@@ -511,9 +511,19 @@ function node_info_rows(d, t)
 
 
 /************************************************************
- *  The rows of the TRACES block of a backend gobj, one per
- *  level it can trace: the gclass' own levels first (the ones
- *  that are about this gobj), then the global ones.
+ *  The trace levels of a backend gobj, one row per level it
+ *  can trace: the gclass' own levels first (the ones that are
+ *  about this gobj), then the KERNEL's (`machine`,
+ *  `create_delete`, `ev_kw`...).
+ *
+ *  Two families of levels and three scopes, and the words must
+ *  not mix them. The kernel's levels are the table of gobj.c
+ *  that the C side calls "global" -- but they are not global
+ *  TRACES: every one of them can be set for one gobj
+ *  (`set-gobj-trace`), for every gobj of a gclass
+ *  (`set-gclass-trace`, the way to trace the machine of C_TCP
+ *  alone) or for the whole yuno (`set-global-trace`). A
+ *  gclass' own levels have only the first two scopes.
  *
  *  `d` is the descriptor (its `gobj_trace_level` is what the
  *  gobj traces NOW, whatever the reason). `info` is what the
@@ -525,19 +535,21 @@ function node_info_rows(d, t)
  *      global_on      [name, ...]           get-global-trace
  *
  *  `get-gclass-trace` answers the gclass' levels OR'ed with the
- *  global ones (gobj_get_gclass_trace_level), so a level on in
- *  both is counted as global: that is the one that would still
+ *  yuno's (gobj_get_gclass_trace_level), so a level on in both
+ *  is counted as the yuno's: that is the one that would still
  *  hold it on if the gclass let go.
  *
- *  Each row says, for the two columns of the block:
+ *  Each row says, for each scope:
  *
+ *      group                     "gclass" | "kernel"
  *      gobj_on, gobj_locked      the gobj traces it; locked when
  *                                that comes from its gclass or
- *                                from the global level -- turning
- *                                the gobj's own bit off would not
+ *                                from the yuno -- turning the
+ *                                gobj's own bit off would not
  *                                stop it
  *      gclass_on, gclass_locked  every gobj of the gclass traces
- *                                it; locked when it is global
+ *                                it; locked when the yuno does
+ *      global_on                 the whole yuno traces it
  *      origin                    "global" | "gclass" | ""
  ************************************************************/
 function trace_rows(d, info)
@@ -571,12 +583,38 @@ function trace_rows(d, info)
                 gobj_locked:    by_global || by_gclass,
                 gclass_on:      by_global || by_gclass,
                 gclass_locked:  by_global,
+                global_on:      by_global,
                 origin:         by_global? "global": (by_gclass? "gclass": ""),
             });
         }
     };
     add("gclass", info.gclass_levels);
-    add("global", info.global_levels);
+    add("kernel", info.global_levels);
+    return rows;
+}
+
+/************************************************************
+ *  The rows of the YUNO's scope: the kernel's levels, and
+ *  whether the whole yuno traces each one (`set-global-trace`).
+ *  A gclass' own levels have no such scope.
+ ************************************************************/
+function global_trace_rows(info)
+{
+    let rows = [];
+    if(!info) {
+        return rows;
+    }
+    let global_on = Array.isArray(info.global_on)? info.global_on: [];
+    let levels = (info.global_levels && typeof info.global_levels === "object")?
+        info.global_levels: {};
+    for(let level of Object.keys(levels)) {
+        rows.push({
+            level:          level,
+            description:    String(levels[level] || ""),
+            group:          "kernel",
+            global_on:      global_on.indexOf(level) >= 0,
+        });
+    }
     return rows;
 }
 
@@ -593,6 +631,8 @@ function own_trace_levels(rows, scope)
         if(scope === "gobj" && r.gobj_on && !r.gobj_locked) {
             out.push(r.level);
         } else if(scope === "gclass" && r.gclass_on && !r.gclass_locked) {
+            out.push(r.level);
+        } else if(scope === "global" && r.global_on) {
             out.push(r.level);
         }
     }
@@ -616,5 +656,6 @@ export {
     describe_backend_node,
     describe_backend_tree,
     trace_rows,
+    global_trace_rows,
     own_trace_levels,
 };

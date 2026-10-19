@@ -10,6 +10,7 @@ import {
     describe_backend_node,
     describe_backend_tree,
     trace_rows,
+    global_trace_rows,
     own_trace_levels,
 } from "./gobj_tree_model.js";
 
@@ -178,10 +179,10 @@ describe("trace_rows", () => {
         return map;
     };
 
-    it("lists the gclass levels first, then the global ones, each once", () => {
+    it("lists the gclass levels first, then the kernel's, each once", () => {
         let rows = trace_rows({gobj_trace_level: []}, INFO);
         expect(rows.map((r) => [r.level, r.group])).toEqual([
-            ["traffic", "gclass"], ["connections", "gclass"], ["machine", "global"]
+            ["traffic", "gclass"], ["connections", "gclass"], ["machine", "kernel"]
         ]);
     });
 
@@ -192,7 +193,8 @@ describe("trace_rows", () => {
         expect(r.connections).toMatchObject({gobj_on: true, gobj_locked: true,
             gclass_on: true, gclass_locked: false, origin: "gclass"});
         expect(r.machine).toMatchObject({gobj_on: true, gobj_locked: true,
-            gclass_on: true, gclass_locked: true, origin: "global"});
+            gclass_on: true, gclass_locked: true, global_on: true, origin: "global"});
+        expect(r.connections.global_on).toBe(false);
     });
 
     it("what each scope holds on its own is what its remove turns off", () => {
@@ -204,6 +206,15 @@ describe("trace_rows", () => {
     it("no info, no rows", () => {
         expect(trace_rows({gobj_trace_level: ["machine"]}, null)).toEqual([]);
         expect(own_trace_levels(null, "gobj")).toEqual([]);
+        expect(global_trace_rows(null)).toEqual([]);
+    });
+
+    it("the yuno's scope has the kernel's levels only, and what it traces", () => {
+        let rows = global_trace_rows(INFO);
+        expect(rows.map((r) => [r.level, r.global_on])).toEqual([
+            ["machine", true], ["connections", false]
+        ]);
+        expect(own_trace_levels(rows, "global")).toEqual(["machine"]);
     });
 });
 

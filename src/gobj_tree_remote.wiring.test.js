@@ -191,10 +191,22 @@ function row_of(view, level)
     const $pop = view.priv.$popover;
     const $gobj = $pop.querySelectorAll(".GOBJ_TREE_TRACE_GOBJ")
         .find((b) => b.getAttribute("data-level") === level);
-    const $gclass = $pop.querySelectorAll(".GOBJ_TREE_TRACE_GCLASS")
+    const $global = $pop.querySelectorAll(".GOBJ_TREE_TRACE_GLOBAL")
         .find((b) => b.getAttribute("data-level") === level);
-    return {$gobj, $gclass};
+    const $row = ($gobj || $global) ? ($gobj || $global).closest("tr") : null;
+    const $origin = $row ? $row.querySelector(".GOBJ_TREE_TRACES_ORIGIN") : null;
+    return {$gobj, $global, origin: $origin ? $origin.textContent : ""};
 }
+
+/*  What the host fetched for the root's gclass: it carries the yuno's
+ *  own scope (`machine` on for every gobj).  */
+const YUNO_INFO = {
+    gclass: "C_YUNO",
+    gclass_levels: {},
+    global_levels: {machine: "Trace machine", ev_kw: "Trace event keywords"},
+    gclass_on: ["machine"],
+    global_on: ["machine"],
+};
 
 async function open_tcp_card(view)
 {
@@ -228,13 +240,78 @@ describe("C_YUI_GOBJ_TREE_JS, source remote", () => {
         const machine = row_of(view, "machine");
 
         /*  only tcp1: its own, so it can be turned off here  */
-        expect([traffic.$gobj.checked, traffic.$gobj.disabled]).toEqual([true, false]);
-        expect([traffic.$gclass.checked, traffic.$gclass.disabled]).toEqual([false, false]);
-        /*  the gclass holds it: on and locked for the gobj  */
-        expect([connections.$gobj.checked, connections.$gobj.disabled]).toEqual([true, true]);
-        expect([connections.$gclass.checked, connections.$gclass.disabled]).toEqual([true, false]);
+        expect([traffic.$gobj.checked, traffic.$gobj.disabled, traffic.origin]).toEqual([true, false, ""]);
+        /*  the gclass holds it: on and locked for the gobj, saying which  */
+        expect([connections.$gobj.checked, connections.$gobj.disabled, connections.origin])
+            .toEqual([true, true, "C_TCP"]);
         /*  nobody  */
         expect([machine.$gobj.checked, machine.$gobj.disabled]).toEqual([false, false]);
+        /*  ONE scope in a card: the gclass' is the gclass viewer's, the
+         *  yuno's is the toolbar's.  */
+        expect(view.priv.$popover.querySelectorAll(".GOBJ_TREE_TRACE_GCLASS").length).toBe(0);
+        expect(view.priv.$popover.querySelector(".GOBJ_TREE_TRACES_CLEAR_GCLASS")).toBe(null);
+        expect(problems()).toEqual([]);
+    });
+
+    test("a level the whole yuno traces is locked in a card, said as the yuno's", async () => {
+        const view = await mount("remote", host);
+        await open_tcp_card(view);
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO,
+            {gclass_on: ["connections", "machine"], global_on: ["machine"]}), host);
+        const machine = row_of(view, "machine");
+        expect([machine.$gobj.checked, machine.$gobj.disabled, machine.origin])
+            .toEqual([true, true, "yuno"]);
+        expect(problems()).toEqual([]);
+    });
+
+    test("the yuno's traces open from the toolbar, from the root's gclass", async () => {
+        const view = await mount("remote", host);
+        gobj_send_event(view, "EV_LOAD_TREE", {tree: TREE}, host);
+        wanted.length = 0;
+
+        const $btn = gobj_read_attr(view, "$container").querySelector(".GOBJ_TREE_YUNO_TRACES_BUTTON");
+        expect($btn).toBeTruthy();
+        $btn.click();
+        expect(wanted.map((w) => [w.event, w.kw.gclass])).toEqual([["EV_TRACE_INFO_WANTED", "C_YUNO"]]);
+        expect(view.priv.popover_mode).toBe("yuno");
+
+        gobj_send_event(view, "EV_TRACE_INFO", YUNO_INFO, host);
+        const machine = row_of(view, "machine");
+        const ev_kw = row_of(view, "ev_kw");
+        expect([machine.$global.checked, machine.$global.disabled]).toEqual([true, false]);
+        expect([ev_kw.$global.checked, ev_kw.$global.disabled]).toEqual([false, false]);
+        expect(view.priv.$popover.querySelectorAll(".GOBJ_TREE_TRACE_GOBJ").length).toBe(0);
+        /*  no gclass button: the yuno's traces are no gclass  */
+        expect(view.priv.$popover_gclass.classList.contains("is-hidden")).toBe(true);
+
+        wanted.length = 0;
+        ev_kw.$global.checked = true;
+        ev_kw.$global.dispatchEvent(fake_event("change"));
+        expect(wanted).toEqual([{event: "EV_SET_TRACE_LEVEL", kw: {
+            scope: "global", gobj: "C_YUNO^gate", gclass: "C_YUNO",
+            levels: ["ev_kw"], set: true
+        }}]);
+        expect(row_of(view, "machine").$global.disabled).toBe(true);
+
+        /*  The host reloads the tree: the yuno's traces stay open.  */
+        gobj_send_event(view, "EV_LOAD_TREE", {tree: TREE}, host);
+        expect(view.priv.popover_mode).toBe("yuno");
+        expect(view.priv.$popover.style.display).toBe("block");
+
+        wanted.length = 0;
+        view.priv.$popover.querySelector(".GOBJ_TREE_TRACES_CLEAR_GLOBAL").click();
+        expect(wanted.map((w) => [w.kw.scope, w.kw.levels, w.kw.set])).toEqual([["global", ["machine"], false]]);
+        expect(problems()).toEqual([]);
+    });
+
+    test("the gclass viewer's set reaches the host as a set of the gclass", async () => {
+        const view = await mount("remote", host);
+        await open_tcp_card(view);
+        wanted.length = 0;
+        gobj_send_event(view, "EV_SET_GCLASS_TRACE", {gclass: "C_TCP", levels: ["machine"], set: true}, view);
+        expect(wanted).toEqual([{event: "EV_SET_TRACE_LEVEL", kw: {
+            scope: "gclass", gobj: "", gclass: "C_TCP", levels: ["machine"], set: true
+        }}]);
         expect(problems()).toEqual([]);
     });
 
