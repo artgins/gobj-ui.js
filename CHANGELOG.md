@@ -15,6 +15,10 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   (`@vitest/mocker`, `source-map-js`: build and test tools, nothing in the
   bundle). No published code changes, so there is no release. 1866 tests
   pass.
+- The ranges caught up with what was installed (`ncu -u`): the development
+  `@yuneta/gobj-js` `^7.27.0`, and the test-app's i18next `^26.5.2`,
+  tabulator-tables `^6.6.1` and playwright `^1.64.1`. `npm update` had
+  moved the lockfiles and left `package.json` behind.
 
 ## 7.27.25
 
