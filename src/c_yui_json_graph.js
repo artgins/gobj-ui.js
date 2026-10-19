@@ -1520,9 +1520,15 @@ function load_json(gobj)
              *  -- never parked at the layout's origin, which is a corner
              *  with nothing in it and is where `1:1` used to land.
              */
-            Promise.resolve(graph.zoomTo(1)).then(() => {
-                if(!yui_graph_center_on(graph, priv.anchor_id)) {
-                    yui_graph_center_on(graph, root_id);
+            Promise.resolve(graph.zoomTo(1)).then(async () => {
+                /*  yui_graph_center_on() is ASYNC: unawaited, its answer
+                 *  is a promise, always truthy, so `!` of it was always
+                 *  false and the root was never centred -- the opening
+                 *  stayed wherever the camera happened to be.  */
+                let on_anchor = priv.anchor_id?
+                    await yui_graph_center_on(graph, priv.anchor_id): false;
+                if(!on_anchor) {
+                    await yui_graph_center_on(graph, root_id);
                 }
                 priv.last_zoom = 1;
                 yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);

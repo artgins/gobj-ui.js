@@ -295,4 +295,20 @@ describe("C_YUI_GOBJ_TREE_JS, source local", () => {
         expect(wanted).toEqual([]);
         expect(problems()).toEqual([]);
     });
+
+    test("an empty graph saves no camera: a fit before the tree loads frames nothing", async () => {
+        const view = await mount("remote", host);
+        const key = `yui_gobj_tree_view:tree_${seq}`;
+        gobj_send_event(view, "EV_REFRESH", {}, view);
+        const saved = JSON.parse(window.localStorage.getItem(key) || "null");
+        expect(saved).not.toBe(null);
+        expect("zoom" in saved).toBe(false);
+        expect("position" in saved).toBe(false);
+
+        gobj_send_event(view, "EV_LOAD_TREE", {tree: TREE}, host);
+        gobj_send_event(view, "EV_REFRESH", {}, view);
+        const after = JSON.parse(window.localStorage.getItem(key));
+        expect(after.zoom).toBe(1);
+        expect(problems()).toEqual([]);
+    });
 });

@@ -242,19 +242,37 @@ function restore_view_state(gobj)
         return false;
     }
 
+    /*  A camera saved by an older version can hold nulls (a NaN written
+     *  as json): what is not a number is not restored.  */
+    let zoom = (Number.isFinite(state.zoom) && state.zoom > 0)? state.zoom: null;
+    let position = (Array.isArray(state.position) && state.position.length >= 2 &&
+            Number.isFinite(state.position[0]) && Number.isFinite(state.position[1]))?
+        [state.position[0], state.position[1]]: null;
+
+    /*  Nor a camera that would show none of the tree. One was saved from
+     *  an EMPTY graph -- a remote tree is empty until its host loads it,
+     *  and a fit pressed then frames nothing -- and every opening after
+     *  it went back to the same blank canvas. It is judged from the
+     *  numbers BEFORE it is applied, so a refused camera never moves the
+     *  graph: the opening frames the tree as a first one does, and the
+     *  next move saves a good camera.  */
+    if((zoom !== null || position !== null) && !camera_shows_a_card(gobj, zoom, position)) {
+        log_warning(`${gobj_short_name(gobj)}: the saved view shows none of the ` +
+            `${Object.keys(priv.node_by_id || {}).length} gobjs, framed again`);
+        zoom = null;
+        position = null;
+    }
+
     let done = false;
     priv.restoring = true;
     try {
-        /*  A camera saved by an older version can hold nulls (a NaN
-         *  written as json): what is not a number is not restored.  */
-        if(Number.isFinite(state.zoom) && state.zoom > 0) {
-            graph.zoomTo(state.zoom);
-            priv.last_zoom = state.zoom;
+        if(zoom !== null) {
+            graph.zoomTo(zoom);
+            priv.last_zoom = zoom;
             done = true;
         }
-        if(Array.isArray(state.position) && state.position.length >= 2 &&
-                Number.isFinite(state.position[0]) && Number.isFinite(state.position[1])) {
-            graph.translateTo([state.position[0], state.position[1]]);
+        if(position !== null) {
+            graph.translateTo(position);
             done = true;
         }
         if(state.anchor) {
@@ -276,6 +294,46 @@ function restore_view_state(gobj)
     return done;
 }
 
+/*  Would the centre of at least one card land inside the canvas under
+ *  this camera? `zoom` and `position` are what getZoom()/getPosition()
+ *  answer (a null one: the current). A camera absolute-translated to T
+ *  at zoom Z puts a point n of the graph at (n - C) * Z + T + C on the
+ *  canvas, C its centre -- the closed form of G6's own
+ *  getTranslateOptions(), the one yui_graph_center_on() relies on.
+ *  True when there is nothing to show or it cannot be computed: only a
+ *  camera KNOWN to show nothing is refused.  */
+function camera_shows_a_card(gobj, zoom, position)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let ids = Object.keys(priv.node_by_id || {});
+    if(!graph || !ids.length) {
+        return true;
+    }
+    try {
+        let size = graph.getSize();
+        let c = graph.getCanvasCenter();
+        let z = (zoom !== null)? zoom: graph.getZoom();
+        let t = (position !== null)? position: graph.getPosition();
+        let w = size[0];
+        let h = size[1];
+        if(!(w > 0 && h > 0) || !(z > 0)) {
+            return true;
+        }
+        for(let id of ids) {
+            let n = graph.getElementPosition(id);
+            let vx = (n[0] - c[0]) * z + t[0] + c[0];
+            let vy = (n[1] - c[1]) * z + t[1] + c[1];
+            if(vx >= 0 && vx <= w && vy >= 0 && vy <= h) {
+                return true;
+            }
+        }
+    } catch(e) {
+        return true;
+    }
+    return false;
+}
+
 function save_view_state(gobj)
 {
     let priv = gobj.priv;
@@ -291,8 +349,13 @@ function save_view_state(gobj)
         anchor: (priv.anchor_state === "on")? priv.anchor_name: "",
     };
     let camera = null;
+    /*  The camera of an EMPTY graph frames nothing: a remote tree before
+     *  its host loads it, where a fit or a zoom would save a view of no
+     *  card that every later opening goes back to. Not saved; the one
+     *  saved before stays (below).  */
+    let has_nodes = !!priv.node_by_id && Object.keys(priv.node_by_id).length > 0;
     try {
-        camera = camera_of(graph.getZoom(), graph.getPosition());
+        camera = has_nodes ? camera_of(graph.getZoom(), graph.getPosition()) : null;
     } catch(e) {
         /*  between renders: keep the rest, the camera is not readable  */
     }
@@ -1815,9 +1878,19 @@ function load_tree(gobj)
              *  -- never parked at the layout's origin, which is a
              *  corner with nothing in it.
              */
-            Promise.resolve(graph.zoomTo(1)).then(() => {
-                if(!yui_graph_center_on(graph, priv.anchor_id)) {
-                    yui_graph_center_on(graph, root_id);
+            Promise.resolve(graph.zoomTo(1)).then(async () => {
+                /*  yui_graph_center_on() is ASYNC: unawaited, its answer
+                 *  is a promise, always truthy, so `!` of it was always
+                 *  false and the root was never centred -- the opening
+                 *  stayed wherever the camera happened to be. (And the
+                 *  root is at y = 0, a camera coordinate @antv/g-lite
+                 *  below 2.7.2 could not reach: its createVec3() read
+                 *  `x[1] || y`, so a 0 kept the old value. package.json
+                 *  holds the antv floors that bring 2.7.2.)  */
+                let on_anchor = priv.anchor_id?
+                    await yui_graph_center_on(graph, priv.anchor_id): false;
+                if(!on_anchor) {
+                    await yui_graph_center_on(graph, root_id);
                 }
                 priv.last_zoom = 1;
                 yui_graph_update_zoom(gobj_read_attr(gobj, "$container"), priv.graph);

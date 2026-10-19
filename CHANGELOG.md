@@ -5,6 +5,31 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## 7.27.24
+
+**The gobj tree opened on a blank canvas, and the graphs never centred their
+root.** Three defects, found from a remote tree that showed nothing:
+
+- **@antv/g-lite below 2.7.2 drops a camera coordinate of exactly 0.** Its
+  `createVec3()` read `x[1] || y`, so a translate that had to land the
+  camera on y = 0 (or x = 0) kept the old value. Centring a tree's root is
+  always that case, because the layout puts the root at y = 0: the root
+  ended up cut off at the top edge. And a camera far off could not be
+  brought back in y. 2.7.2 reads `??`. `@antv/g`, `@antv/g-canvas` and
+  `@antv/g-plugin-dragndrop` pin g-lite EXACTLY, so gobj-ui now declares
+  their releases that pin 2.7.2 (`^6.3.3`, `^2.2.2`, `^2.1.3`), all inside
+  G6's own ranges. An app that installs this version gets one g-lite 2.7.2
+  (checked in gui_agent). It reaches every G6 graph of the library.
+- **The opening never centred the root** (`C_YUI_GOBJ_TREE_JS`,
+  `C_YUI_JSON_GRAPH`). `if(!yui_graph_center_on(...))` tested a PROMISE,
+  always truthy, so the root fallback never ran. It is awaited now.
+- **A camera saved from an empty graph showed nothing on every later
+  opening.** A remote tree is empty until its host loads it, and a fit or a
+  zoom pressed then saved a camera that framed no card. The camera of an
+  empty graph is not saved any more, and a saved camera that would show
+  none of the tree is refused from the numbers before it is applied (with a
+  warning), so the opening frames the tree as a first one does.
+
 ## 7.27.23
 
 **The gobj tree shows a BACKEND yuno, and turns its traces on and off.**

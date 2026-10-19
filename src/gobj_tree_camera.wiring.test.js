@@ -30,7 +30,8 @@ if(typeof globalThis.ResizeObserver === "undefined") {
     };
 }
 
-const camera = vi.hoisted(() => ({zoom: NaN, position: [NaN, NaN], zoomed: [], moved: []}));
+const camera = vi.hoisted(() => ({zoom: NaN, position: [NaN, NaN], zoomed: [], moved: [],
+                                   size: null, viewport: null}));
 vi.mock("@antv/g6", async (importOriginal) => {
     const real = await importOriginal();
     class FakeGraph {
@@ -61,6 +62,27 @@ vi.mock("@antv/g6", async (importOriginal) => {
         translateTo(p) {
             camera.moved.push(p);
             return Promise.resolve();
+        }
+        /*  Where a card lands on screen: `camera.viewport` for every one
+         *  of them, and the canvas `camera.size`. Unset, the camera cannot
+         *  be read, which is what the older tests expect.  */
+        getSize() {
+            if(!camera.size) {
+                throw new Error("no size");
+            }
+            return camera.size;
+        }
+        getElementPosition() {
+            return [0, 0];
+        }
+        getElementData() {
+            return {};
+        }
+        getCanvasCenter() {
+            return [400, 300];
+        }
+        getViewportByCanvas() {
+            return camera.viewport;
         }
         getData() {
             return {nodes: [], edges: [], combos: []};
@@ -122,6 +144,8 @@ beforeEach(() => {
     camera.position = [NaN, NaN];
     camera.zoomed = [];
     camera.moved = [];
+    camera.size = null;
+    camera.viewport = null;
 });
 
 function errors()
@@ -180,6 +204,52 @@ describe("C_YUI_GOBJ_TREE_JS saves only a camera of numbers", () => {
         /*  zoomTo(1) is the view's own first framing, not the restore.  */
         expect(camera.zoomed.every((z) => Number.isFinite(z))).toBe(true);
         expect(camera.moved).toEqual([]);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("C_YUI_GOBJ_TREE_JS does not restore a camera that shows nothing", () => {
+    test("a saved camera with every card off the canvas is framed again", async () => {
+        const name = `camera_${++seq}`;
+        window.localStorage.setItem(`yui_gobj_tree_view:${name}`,
+            JSON.stringify({layout: "", collapsed: {}, anchor: "", zoom: 0.18, position: [-20000, -20000]}));
+        camera.size = [800, 600];
+        camera.viewport = [-5000, -5000];
+        await mount(name);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        /*  judged before it is applied: only the opening's own framing  */
+        expect(camera.zoomed).toEqual([1]);
+        expect(logged.filter((l) => l.level === "warning").map((l) => l.msg).join(" "))
+            .toMatch(/the saved view shows none of the/);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a saved camera that shows a card is kept", async () => {
+        const name = `camera_${++seq}`;
+        window.localStorage.setItem(`yui_gobj_tree_view:${name}`,
+            JSON.stringify({layout: "", collapsed: {}, anchor: "", zoom: 0.5, position: [10, 20]}));
+        camera.size = [800, 600];
+        camera.viewport = [400, 300];
+        await mount(name);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(camera.zoomed).toEqual([0.5]);
+        expect(camera.moved).toEqual([[10, 20]]);
+        expect(errors()).toEqual([]);
+    });
+});
+
+describe("C_YUI_GOBJ_TREE_JS opens centred on its root", () => {
+    test("with nothing saved, the camera is moved onto the root", async () => {
+        /*  yui_graph_center_on() is async, and its answer was read
+         *  unawaited -- a promise, always truthy -- so the root was never
+         *  centred and the opening stayed where the camera happened to be.  */
+        const name = `camera_${++seq}`;
+        camera.viewport = [0, 0];       /*  the root, 400x300 off the centre  */
+        await mount(name);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(camera.zoomed).toEqual([1]);
+        expect(camera.moved.length).toBeGreaterThan(0);
+        expect(camera.moved[0]).toEqual([400, 300]);
         expect(errors()).toEqual([]);
     });
 });
