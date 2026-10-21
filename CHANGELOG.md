@@ -5,6 +5,16 @@ runtime). This file tracks the **v2 line** (`main`); the frozen v1 GClass GUI
 stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 `legacy`).
 
+## Unreleased
+
+- Development dependencies refreshed within their majors: vite 8.3.5, and the
+  peers installed for the tests, i18next 26.5.4 and tabulator-tables 6.7.0
+  (the test-app's ranges with them). Nothing in them changes how the library
+  works: Tabulator 6.7.0 only touches `selectableRange` keyboard navigation
+  (not used here), and i18next 26.5.4 keeps a `{{placeholder}}` that arrives
+  inside an interpolated VALUE literal. The peer floors stay where they are.
+  No published code changes, so there is no release. 1887 tests pass.
+
 ## 7.27.28
 
 - **The trace notes say what the C runtime keeps.** The card of a gobj said
