@@ -7,13 +7,40 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.27.29
+
+- **`C_YUI_UPDATE_WATCH`: "a new version is available".** Every route of the
+  SPAs is a hash, and neither a login nor a logout reloads the page, so a tab
+  opened before a deploy ran the old bundle until somebody reloaded it by
+  hand. A fix seemed not to work, and an old page broke the first time it
+  opened a lazy chunk that the deploy had removed. The new service compares
+  the page's build with the one the server hands out (the page fetched again,
+  `no-store`) and shows a bar with the new version, a reload button and a ✕.
+  It asks at start, when the tab comes back or the window gets the focus
+  (60 s minimum), when the browser is online again, when a lazy chunk fails
+  (`vite:preloadError`), every hour (a user-approved exception to *no
+  polling*, for screens that never get the focus), and when the app sends
+  `EV_CHECK_BUILD`, which every app does on its backend's `EV_ON_OPEN`. A
+  rollback takes the bar away again, and the ✕ hides it for that build only.
+  `before_reload` lets a host veto the reload, and `EV_NEW_BUILD` /
+  `EV_BUILD_CURRENT` are published to optional subscribers. It is created
+  outside the shell, so it also covers the login, and its bar follows the
+  shell across a logout. New consumer i18n keys: `new version available`,
+  `reload`.
+- **`yunetaHtmlPlugin` writes a build stamp** into the emitted `index.html`,
+  at build time only: `<meta name="yuneta-build" content="<stamp>"
+  data-version="<version>">`. The stamp is a hash of the names of the
+  bundle's files, which carry the hash of their content, so the same code
+  built twice has the same stamp, and the deploy round's rebuilds announce
+  nothing. `src/yui_build_stamp.js` reads it back.
+- `yui_shell_notification_layer(shell)` (`shell_modals.js`): the toasts'
+  layer, for a notice that stays until it is answered.
 - Development dependencies refreshed within their majors: vite 8.3.5, and the
   peers installed for the tests, i18next 26.5.4 and tabulator-tables 6.7.0
   (the test-app's ranges with them). Nothing in them changes how the library
   works: Tabulator 6.7.0 only touches `selectableRange` keyboard navigation
   (not used here), and i18next 26.5.4 keeps a `{{placeholder}}` that arrives
   inside an interpolated VALUE literal. The peer floors stay where they are.
-  No published code changes, so there is no release. 1887 tests pass.
 
 ## 7.27.28
 

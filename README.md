@@ -3739,6 +3739,72 @@ a.close();          // still shown: b holds it
 b.close();          // gone
 ```
 
+### A new build is deployed — `C_YUI_UPDATE_WATCH`
+
+Every route of these apps is a hash, and neither a login nor a logout reloads
+the page: a tab opened before a deploy runs the old bundle until somebody
+reloads it by hand. It is wrong in two ways. A fix seems "not to work". And
+the deploy removed the old lazy chunks, so the old page breaks the first time
+it opens a view it had not loaded yet.
+
+`C_YUI_UPDATE_WATCH` (7.27.29) compares the build of the page with the build
+the server hands out now, and when they differ it shows a bar: *A new version
+is available · 2.0.42 · Reload · ✕*. It never reloads by itself. Create it
+once, OUTSIDE the shell, so it also covers the login:
+
+```js
+import {register_c_yui_update_watch} from "@yuneta/gobj-ui/src/c_yui_update_watch.js";
+
+register_c_yui_update_watch();
+// ... after gobj_create_yuno():
+gobj_start(gobj_create_service("__update_watch__", "C_YUI_UPDATE_WATCH", {}, yuno));
+
+// in the app's EV_ON_OPEN: a backend deploy often comes with a SPA deploy
+let update_watch = gobj_find_service("__update_watch__", true);
+if(update_watch) {
+    gobj_send_event(update_watch, "EV_CHECK_BUILD", {}, gobj);
+}
+```
+
+- **What identifies a build** is the `<meta name="yuneta-build">` that
+  `yunetaHtmlPlugin` writes into `index.html` at build time (see *index.html*
+  below): a hash of the names of the bundle's files, which carry the hash of
+  their content. The same code built twice has the same stamp, so the deploy
+  round's rebuilds announce nothing. The deployed stamp is read from the page
+  itself, fetched again with `cache: "no-store"`. A page with no stamp
+  (`vite dev`) watches nothing. A served page with no stamp (an error page, a
+  hotel wifi's login) is not taken as a new build.
+- **When it asks**: at start; when the tab is shown again, or the window gets
+  the focus (at most once per `min_interval_ms`, 60 s); when the browser is
+  online again; when a lazy chunk fails to load (`vite:preloadError`); every
+  `period_ms` (1 h); and when the app sends `EV_CHECK_BUILD`. The periodic
+  check is for a screen that is always in view and never gets the focus. It
+  is a deliberate exception to *no polling*, approved for every SPA.
+- **The bar**: in the shell's notification layer, above the dialogs, and in
+  `document.body` when there is no shell. It follows the shell across a logout.
+  The ✕ hides it for that build only, and a later deploy shows it again. A
+  rollback to the running build takes it away.
+- **Attributes**: `min_interval_ms`, `period_ms` (0 = off), `with_bar`
+  (false: no bar, the app listens to `EV_NEW_BUILD`), `$parent`, and
+  `before_reload`, a function that can veto the reload when there are unsaved
+  edits:
+
+  ```js
+  gobj_create_service("__update_watch__", "C_YUI_UPDATE_WATCH", {
+      before_reload: () => !form_is_dirty() ||
+          yui_shell_confirm_yesno(shell, "all changes will be lost")
+  }, yuno);
+  ```
+
+- **Output events** (optional subscribers, `subscriber` attr):
+  `EV_NEW_BUILD {running, deployed, version}` and
+  `EV_BUILD_CURRENT {running}`.
+- **Consumer i18n keys**: `new version available`, `reload`, `close`.
+- **The deploy scripts** upload with `rsync --delete-after --delay-updates`:
+  the new files appear together at the end, and the old ones are removed only
+  after them, so a page loaded during the upload never gets an `index.html`
+  whose chunks are not there yet.
+
 ### Modals — `yui_shell_show_modal` and the `before_close` veto
 
 `yui_shell_show_modal(shell, $box, opts)` is the standard popup: pass
@@ -4350,6 +4416,11 @@ export default { plugins: [ yunetaHtmlPlugin({ defaultTitle: "My App" }) ] };
   `style-src 'self' 'unsafe-inline'`, and `blob:`/`data:` where workers,
   images, media and fonts need them.
 - Every text from `config.json` is escaped where it lands in the markup.
+- **The build stamp** (7.27.29, build only): the plugin adds
+  `<meta name="yuneta-build" content="<stamp>" data-version="<version>">` to
+  the emitted `index.html`. `<stamp>` is a sha256 (16 hex characters) of the
+  sorted names of the bundle's files, source maps excluded. `<version>` is the
+  app's `package.json` version. `C_YUI_UPDATE_WATCH` reads it.
 
 ### Releasing
 

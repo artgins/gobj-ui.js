@@ -104,6 +104,14 @@ export function yui_shell_popup_layer(shell)
     return (priv && priv.layers && priv.layers.popup) || null;
 }
 
+/*  Public: the toasts' layer (z 120), above the dialogs, for a notice
+ *  that is not a toast and stays until it is answered (the bar of
+ *  C_YUI_UPDATE_WATCH).  Null when there is no shell.  */
+export function yui_shell_notification_layer(shell)
+{
+    return notification_layer(shell) || null;
+}
+
 
 /***************************************************************
  *  i18n bridge:

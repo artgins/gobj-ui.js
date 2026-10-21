@@ -9,9 +9,21 @@
  *              (always emitted: connect-src 'self' alone when the
  *              list is missing, with a warning; an entry that is
  *              not one CSP source -- a `;`, `,` or space -- is refused)
+ *            - at build time only, the build stamp read by
+ *              C_YUI_UPDATE_WATCH (src/yui_build_stamp.js):
+ *                <meta name="yuneta-build" content="<stamp>" data-version="<version>">
+ *              <stamp> is a hash of the names of every file of the
+ *              bundle -- names that carry the hash of their content --
+ *              so the same code built twice has the same stamp;
+ *              <version> is the app's package.json version
  *
- *          Usage in vite.config.js (vendored copy):
- *            import { yunetaHtmlPlugin } from "./src/gobj-ui/vite-plugin-yuneta-html.js";
+ *          The title, the metadata and the policy are written before
+ *          Vite's own transforms ("pre"); the stamp needs the finished
+ *          bundle, so it is written into the emitted index.html in
+ *          generateBundle, after every other plugin ("post").
+ *
+ *          Usage in vite.config.js:
+ *            import { yunetaHtmlPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-html.js";
  *            plugins: [ yunetaHtmlPlugin({ defaultTitle: "My App" }) ]
  *
  *          Copyright (c) 2025-2026, ArtGins.
@@ -19,6 +31,7 @@
  ***********************************************************************/
 import fs from "fs";
 import path from "path";
+import {createHash} from "crypto";
 
 /*  config.json is build input, but its text lands inside markup.  */
 function escape_html(value) {
@@ -157,6 +170,51 @@ export function yunetaHtmlPlugin(options = {}) {
                     .replace("<!-- METADATA_PLACEHOLDER -->", metadataHtml)
                     .replace("<!-- CSP_PLACEHOLDER -->", cspHtml);
             }
+        },
+
+        /*------------------------------------------*
+         *  Build stamp (see the header)
+         *
+         *  The names of the bundle's files are known
+         *  only once it is complete. A source map is
+         *  left out: with `sourcemap: "hidden"` its
+         *  name only repeats its chunk's.
+         *------------------------------------------*/
+        generateBundle: {
+            order: "post",
+            handler(output_options, bundle) {
+                const names = Object.keys(bundle)
+                    .filter(name => !name.endsWith(".map") && !name.endsWith(".html"))
+                    .sort();
+                const pages = Object.keys(bundle).filter(name => name.endsWith(".html"));
+                if (names.length === 0 || pages.length === 0) {
+                    console.error("❌ yuneta-build-stamp: no bundle or no page, no build stamp written");
+                    return;
+                }
+                const stamp = createHash("sha256")
+                    .update(names.join("\n"))
+                    .digest("hex")
+                    .slice(0, 16);
+
+                let version = "";
+                const pkgPath = path.resolve(process.cwd(), "package.json");
+                if (fs.existsSync(pkgPath)) {
+                    version = JSON.parse(fs.readFileSync(pkgPath, "utf-8")).version || "";
+                }
+                const meta = `<meta name="yuneta-build" content="${stamp}" ` +
+                    `data-version="${escape_html(version)}">`;
+
+                for (const name of pages) {
+                    const page = bundle[name];
+                    const html = String(page.source);
+                    if (!html.includes("</head>")) {
+                        console.error(`❌ yuneta-build-stamp: ${name} has no </head>, no build stamp written`);
+                        continue;
+                    }
+                    page.source = html.replace("</head>", `  ${meta}\n  </head>`);
+                }
+            }
         }
     };
 }
+
