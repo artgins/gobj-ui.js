@@ -3,7 +3,9 @@
  *
  *      EV_VIEW_SHOWN: a view the shell shows AGAIN after hiding it
  *      (`keep_alive`) is told so, if it declares the event, and
- *      C_YUI_SERVICE_VIEW hands it on to the view it hosts.
+ *      C_YUI_SERVICE_VIEW hands it on to the view it hosts. A
+ *      C_YUI_NODE tree tells the content on screen once, from its own
+ *      route change, and the shell does not tell it again.
  *
  *      Driven through the real C_YUI_SHELL on a document double.
  *
@@ -23,6 +25,7 @@ const {
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_shell, yui_shell_navigate} = await import("./c_yui_shell.js");
 const {register_c_yui_service_view} = await import("./c_yui_service_view.js");
+const {register_c_yui_node} = await import("./c_yui_node.js");
 const {register_c_yui_nav} = await import("./c_yui_nav.js");
 
 const logged = [];
@@ -68,6 +71,7 @@ beforeAll(async () => {
     register_c_yui_shell();
     register_c_yui_nav();
     register_c_yui_service_view();
+    register_c_yui_node();
     yuno = gobj_create_yuno("view_shown_yuno", "C_TEST_SHOWN_HOST", {});
     gobj_start(yuno);
     gobj_create_service("test_transport", "C_TEST_SHOWN_HOST", {}, yuno);
@@ -112,6 +116,31 @@ function config()
                         target: target("C_TEST_PLAIN_VIEW", "keep_alive", "plain_view")},
                     {id: "gone", name: "gone", route: "/gone",
                         target: target("C_TEST_SHOWN_VIEW", "lazy_destroy", "gone_view")},
+                    {id: "tree", name: "tree", route: "/tree",
+                        target: {
+                            stage: "main", gclass: "C_YUI_NODE", lifecycle: "keep_alive",
+                            name: "the_tree",
+                            kw: {
+                                node_id: "tree", base_route: "/tree",
+                                content: {gclass: "C_TEST_SHOWN_VIEW", kw: {}},
+                                children: [
+                                    {id: "acc", label: "acc",
+                                        content: {gclass: "C_TEST_SHOWN_VIEW", kw: {}}},
+                                    {id: "deep", label: "deep", children: [
+                                        {id: "leaf", label: "leaf",
+                                            content: {gclass: "C_TEST_SHOWN_VIEW", kw: {}}}
+                                    ]},
+                                    {id: "svc", label: "svc", content: {
+                                        gclass: "C_YUI_SERVICE_VIEW",
+                                        kw: {
+                                            view_gclass: "C_TEST_SHOWN_VIEW",
+                                            service_name: "#tree_svc_view",
+                                            transport_service: "test_transport"
+                                        }
+                                    }}
+                                ]
+                            }
+                        }},
                     {id: "hosted", name: "hosted", route: "/hosted",
                         target: {
                             stage: "main", gclass: "C_YUI_SERVICE_VIEW", lifecycle: "keep_alive",
@@ -179,6 +208,47 @@ describe("EV_VIEW_SHOWN", () => {
         yui_shell_navigate(shell, "/kept");
         yui_shell_navigate(shell, "/gone");
         expect(shown.filter((s) => s.name === "gone_view")).toEqual([]);
+    });
+
+    /*  The tree is told by its own route change (each node on the path
+     *  comes back from ST_OFF to a content it already built), so the
+     *  shell must not tell it a second time: C_YUI_NODE does not declare
+     *  EV_VIEW_SHOWN. A view that asks for its data when shown and is
+     *  busy until the answer took the second one as "action in progress".  */
+    test("a keep_alive C_YUI_NODE tree tells the content on screen ONCE", () => {
+        const shell = new_shell();
+        yui_shell_navigate(shell, "/tree/acc");
+        expect(shown).toEqual([]);
+
+        yui_shell_navigate(shell, "/plain");
+        yui_shell_navigate(shell, "/tree/acc");
+        expect(shown.map((s) => s.kw.route)).toEqual(["/tree/acc"]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("the root's own content, and a content deeper down, are told once", () => {
+        const shell = new_shell();
+        yui_shell_navigate(shell, "/tree");
+        yui_shell_navigate(shell, "/plain");
+        yui_shell_navigate(shell, "/tree");
+        expect(shown.map((s) => s.kw.route)).toEqual(["/tree"]);
+
+        shown.length = 0;
+        yui_shell_navigate(shell, "/tree/deep/leaf");
+        expect(shown).toEqual([]);
+        yui_shell_navigate(shell, "/plain");
+        yui_shell_navigate(shell, "/tree/deep/leaf");
+        expect(shown.map((s) => s.kw.route)).toEqual(["/tree/deep/leaf"]);
+        expect(errors()).toEqual([]);
+    });
+
+    test("a C_YUI_SERVICE_VIEW content of a node hands it on, once", () => {
+        const shell = new_shell();
+        yui_shell_navigate(shell, "/tree/svc");
+        yui_shell_navigate(shell, "/plain");
+        yui_shell_navigate(shell, "/tree/svc");
+        expect(shown.map((s) => s.name)).toEqual(["#tree_svc_view"]);
+        expect(errors()).toEqual([]);
     });
 
     test("C_YUI_SERVICE_VIEW hands it on to the view it hosts", () => {

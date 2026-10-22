@@ -674,9 +674,14 @@ is not told. A move inside the view (a subpath) is not a new showing.
 // kw: {route, base, subpath}
 ```
 
-`C_YUI_SERVICE_VIEW` hands it on to the view it hosts, and a `C_YUI_NODE` tree
-hands it down its path to the content on screen -- and sends it itself when a
-node comes back to a content it already built.
+`C_YUI_SERVICE_VIEW` hands it on to the view it hosts. A `C_YUI_NODE` tree
+tells the content on screen itself, with kw `{route}` (the node's route), when
+a node comes back to a content it already built -- and that covers a tree the
+shell shows again, because every node on the path comes back with the shell's
+`EV_ROUTE_CHANGED`. So `C_YUI_NODE` does **not** declare `EV_VIEW_SHOWN`, and
+the shell does not send it a second one (7.27.30+; up to 7.27.29 the content
+was told twice, and a view busy with the first read took the second as an
+action in progress). Either way the event arrives once per showing.
 
 ---
 

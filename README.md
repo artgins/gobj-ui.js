@@ -609,8 +609,11 @@ active child is the one already hanging in its body.
 **A content shown again is told so** (7.27.21+). A node keeps the content it
 built, as the shell keeps a `keep_alive` view, so a content that reads its data
 only when it is created declares `EV_VIEW_SHOWN` and reads it again there: the
-node sends it when it comes back to that content, and forwards the shell's down
-its path when the whole tree is shown again (SHELL.md §4).
+node sends it, with kw `{route}`, when it comes back to that content. That also
+covers the whole tree shown again by the shell, because every node on the path
+comes back with the shell's route change, so the node itself does not declare
+`EV_VIEW_SHOWN` and the shell does not tell the tree a second time (7.27.30+).
+Once per showing (SHELL.md §4).
 
 **The tree is a contract, not runtime state.** Once published, a node's path
 is a url a client may have bookmarked, scripted, or been sold as another door

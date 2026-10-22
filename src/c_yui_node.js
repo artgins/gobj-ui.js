@@ -1177,6 +1177,12 @@ function activate(gobj, subpath, inherited_depth)
  *  `keep_alive` view, so the content may want to read again
  *  what it read when it was created. Only a content that
  *  declares EV_VIEW_SHOWN is told.
+ *
+ *  This is the ONLY way it is told: a tree the shell shows
+ *  again comes back here too (each node on the path leaves
+ *  ST_OFF with the shell's EV_ROUTE_CHANGED), so the node
+ *  does not declare EV_VIEW_SHOWN and the shell does not send
+ *  the tree a second one.
  ************************************************************/
 function tell_content_shown(gobj)
 {
@@ -1317,24 +1323,6 @@ function ac_route_changed(gobj, event, kw, src)
 function ac_activate(gobj, event, kw, src)
 {
     gobj_change_state(gobj, activate(gobj, kw.subpath || "", kw.chrome_depth));
-    return 0;
-}
-
-/************************************************************
- *  The shell (or my parent) shows the tree again after hiding
- *  it: down the path to the node on screen, which tells its
- *  content.
- ************************************************************/
-function ac_view_shown(gobj, event, kw, src)
-{
-    let priv = gobj.priv;
-    if(gobj_current_state(gobj) === "ST_CHILD") {
-        if(priv.active_child) {
-            gobj_send_event(priv.active_child, event, kw, gobj);
-        }
-        return 0;
-    }
-    tell_content_shown(gobj);
     return 0;
 }
 
@@ -1855,7 +1843,6 @@ function create_gclass(gclass_name)
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
-            ["EV_VIEW_SHOWN",           ac_view_shown,          null],
             ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
         ]],
         ["ST_CHILD", [
@@ -1872,7 +1859,6 @@ function create_gclass(gclass_name)
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
-            ["EV_VIEW_SHOWN",           ac_view_shown,          null],
             ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
         ]]
     ];
@@ -1894,8 +1880,6 @@ function create_gclass(gclass_name)
         ["EV_SET_NAV_MODE",         0],
         ["EV_SET_CONTENT",          0],
         ["EV_NODE_TREE_CHANGED",    0],
-        /*  the shell or the parent shows the tree again (keep_alive)  */
-        ["EV_VIEW_SHOWN",           0],
         /*  internal: posted to itself, the navs a render left  */
         ["EV_DESTROY_NAVS",         0]
     ];

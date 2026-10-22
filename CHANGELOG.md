@@ -7,6 +7,20 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **A `keep_alive` `C_YUI_NODE` tree tells its content once, not twice.** When
+  the shell showed such a tree again, every node on the path came back from
+  `ST_OFF` with the shell's `EV_ROUTE_CHANGED` and told the content on screen
+  (`EV_VIEW_SHOWN {route}`), and then the shell sent its own `EV_VIEW_SHOWN` to
+  the root, which handed it down to the same content. A view that asks for its
+  data when shown took the second one as an action in progress (yunovatios
+  `C_YV_ACCOUNTS`: "action in progress, wait" during the whole load).
+  `C_YUI_NODE` no longer declares `EV_VIEW_SHOWN`, so the shell skips it, and
+  the node's own route change is the one delivery: the tip's content, a
+  content deeper down, and a `C_YUI_SERVICE_VIEW` content (which hands it on)
+  are each told once per showing, with kw `{route}`. Nothing sends
+  `EV_VIEW_SHOWN` to a node any more; a host that did would now get *"Event
+  NOT DEFINED"* (none of the known apps does).
+
 ## 7.27.29
 
 - **`C_YUI_UPDATE_WATCH`: "a new version is available".** Every route of the
