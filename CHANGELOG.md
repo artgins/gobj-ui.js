@@ -7,6 +7,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- Development dependencies refreshed within their majors: the peers installed
+  for the tests, i18next 26.5.6 and tabulator-tables 6.7.1, and the test-app's
+  ranges with them (plus `@rollup/plugin-terser` `^1.0.2`). Nothing in them
+  changes how the library works: i18next 26.5.5/26.5.6 deep-copies the store
+  of `cloneInstance({forkResourceStore: true})` and keeps literal a
+  `{{placeholder}}` inside an unescaped `{{- var}}` value (neither is used
+  here); Tabulator 6.7.1 fixes Enter moving two rows with `selectableRange`
+  (not used). The peer floors stay where they are. No published code changes,
+  so there is no release. 1957 tests pass.
+
 ## 7.27.34
 
 - **A gclass viewer no longer stays locked when a newer set overtakes the

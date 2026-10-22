@@ -14,13 +14,13 @@
         "@yuneta/gobj-js": "file:../../gobj-js",
         "@yuneta/gobj-ui": "file:..",
         "bulma": "^1.0.4",
-        "i18next": "^26.5.4",
+        "i18next": "^26.5.6",
         "luxon": "^3.7.2",
-        "tabulator-tables": "^6.7.0",
+        "tabulator-tables": "^6.7.1",
         "tom-select": "^2.6.2"
     },
     "devDependencies": {
-        "@rollup/plugin-terser": "^1.0.0",
+        "@rollup/plugin-terser": "^1.0.2",
         "@vitest/coverage-v8": "^5.0.5",
         "playwright": "^1.64.1",
         "vite": "^8.3.5",
