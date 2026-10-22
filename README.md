@@ -3367,7 +3367,10 @@ in every other answer. Then a read asked BEFORE a set and answered after it
 does not unlock what the set locked: without it, a card's own read answered
 after a tick showed the levels before the set, enabled, for one round trip. A
 host that leaves `set_id` out of its answers keeps working as before: the view
-matches an answer by its gclass.
+matches an answer by its gclass. A host that echoes it is expected to REPLACE
+the pending read of a gclass with the read of a newer set of that gclass (as
+gui_agent does), so a newer set of the gclass an open viewer waits for moves
+the viewer's wait to the newer number (7.27.34): the older answer never comes.
 
 ```js
 /*  the host, after the last command of a set:  */
@@ -3376,7 +3379,9 @@ gobj_send_event(priv.view.tree, "EV_TRACE_INFO",
 /*  a plain read (a card was opened):  */
 gobj_send_event(priv.view.tree, "EV_TRACE_INFO",
     Object.assign({gclass: "C_TCP", set_id: null}, the_four_answers), gobj);
-``` Ask `view-gobj-tree` for the fields the view reads,
+```
+
+Ask `view-gobj-tree` for the fields the view reads,
 by name (`options=[...]`): its default leaves out `gclass` and `fullname`, and
 `play_methods` is what keeps a gobj with nothing to play from reading paused.
 

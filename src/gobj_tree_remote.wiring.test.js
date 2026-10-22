@@ -689,4 +689,42 @@ describe("C_YUI_GOBJ_TREE_JS, source remote: a host that says which set it answe
         expect(viewer_box(viewer, "traffic").disabled).toBe(false);
         expect(problems()).toEqual([]);
     });
+
+    /*  REV-CLOUD V41.2.1: the host REPLACES the pending read of a gclass
+     *  with the one of a newer set of that gclass, so the read the
+     *  viewer waits for (the yuno's, of an older set) never comes.  */
+    test("a newer set of the gclass the viewer waits for: it waits for the newer one", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        gobj_read_attr(view, "$container").querySelector(".GOBJ_TREE_YUNO_TRACES_BUTTON").click();
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, YUNO_INFO, {set_id: null}), host);
+
+        /*  S1: a set of the yuno's scope; the viewer of C_TCP waits for C_YUNO  */
+        const ev_kw = row_of(view, "ev_kw");
+        ev_kw.$global.checked = true;
+        ev_kw.$global.dispatchEvent(fake_event("change"));
+        const s1 = last_set_id();
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+        gobj_send_event(view, "EV_LOAD_TREE", {tree: TREE, set_id: s1}, host);
+
+        /*  S2: a gobj set on the root's card, before the C_YUNO read of S1  */
+        gobj_send_event(view, "EV_NODE_CLICK",
+            {id: node_id_of(view, "C_YUNO^gate"), client_x: 10, client_y: 10}, view);
+        const {$gobj} = row_of(view, "machine");
+        $gobj.checked = true;
+        $gobj.dispatchEvent(fake_event("change"));
+        const s2 = last_set_id();
+        expect(s2).not.toBe(s1);
+        wanted.length = 0;
+
+        /*  the host sends only the C_YUNO read of S2: S1's was replaced  */
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, YUNO_INFO,
+            {global_on: ["machine", "ev_kw"], set_id: s2}), host);
+        expect(wanted.map((w) => [w.event, w.kw.gclass, w.kw.set_id]))
+            .toEqual([["EV_TRACE_INFO_WANTED", "C_TCP", s2]]);
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO,
+            {global_levels: YUNO_INFO.global_levels,
+             gclass_on: ["connections", "ev_kw"], global_on: ["ev_kw"], set_id: s2}), host);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(false);
+        expect(problems()).toEqual([]);
+    });
 });

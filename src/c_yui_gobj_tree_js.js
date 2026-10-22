@@ -3910,6 +3910,11 @@ function set_trace_levels(gobj, target, scope, levels, set)
         let shown = gobj_read_str_attr(viewer, "gclass_name");
         if(lock_viewer_for_set(gobj, shown, priv.set_in_flight)) {
             gobj_send_event(viewer, "EV_SET_TRACES", viewer_traces(gobj, shown), gobj);
+        } else if(priv.viewer_awaits && priv.viewer_awaits === target.gclass) {
+            /*  The host replaces the pending read of a gclass with the one
+             *  of this newer set: the answer the viewer waited for will
+             *  come under this set's number, not the older one's.  */
+            priv.viewer_awaits_set = set_id;
         }
     }
 

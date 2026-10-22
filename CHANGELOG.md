@@ -7,6 +7,20 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.27.34
+
+- **A gclass viewer no longer stays locked when a newer set overtakes the
+  read it waits for.** 7.27.33 unlocked the viewer only with the answer of
+  the set it waited for, and gui_agent replaces the pending read of a gclass
+  with the read of a newer set of that gclass: with the viewer of `C_TCP`
+  waiting for the yuno's read of a set of the yuno's scope, a gobj set on
+  the root's card before that read took its place, and the viewer stayed
+  disabled until reopened. A newer set of the gclass the viewer waits for
+  now moves its wait to the newer number. (Review V41.2.1)
+- README: a code block of the remote tree section was closed on the line of
+  the next paragraph, so CommonMark read three paragraphs and the
+  `open_gobj_tree_view()` entry as code. (Review V41.2.2)
+
 ## 7.27.33
 
 **Review V40 fixes.**
