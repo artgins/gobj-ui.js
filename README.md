@@ -3349,15 +3349,34 @@ and it declares the four output events in its FSM:
 | Direction | Event | kw | The host does |
 |---|---|---|---|
 | out | `EV_TREE_WANTED` | `{}` | `view-gobj-tree`, then `EV_LOAD_TREE` (Refresh was pressed) |
-| in | `EV_LOAD_TREE` | `{tree}` | — the `view-gobj-tree` answer's `data` |
-| out | `EV_TRACE_INFO_WANTED` | `{gclass}` | `info-gclass-trace gclass=G`, `info-global-trace`, `get-gclass-trace gclass=G`, `get-global-trace`, then `EV_TRACE_INFO` (a card was opened) |
-| in | `EV_TRACE_INFO` | `{gclass, gclass_levels, global_levels, gclass_on, global_on, error}` | — the four answers (`{name: description}`, `{name: description}`, `[name]`, `[name]`), or `error` |
-| out | `EV_SET_TRACE_LEVEL` | `{scope, gobj, gclass, levels, set}` | per level `set-gobj-trace gobj=<gobj> level=L set=0\|1` (scope `gobj`) or `set-gclass-trace gclass=G level=L set=0\|1` (scope `gclass`), then the tree and the trace info again |
+| in | `EV_LOAD_TREE` | `{tree, set_id}` | — the `view-gobj-tree` answer's `data` |
+| out | `EV_TRACE_INFO_WANTED` | `{gclass, set_id}` | `info-gclass-trace gclass=G`, `info-global-trace`, `get-gclass-trace gclass=G`, `get-global-trace`, then `EV_TRACE_INFO` (a card was opened) |
+| in | `EV_TRACE_INFO` | `{gclass, gclass_levels, global_levels, gclass_on, global_on, error, set_id}` | — the four answers (`{name: description}`, `{name: description}`, `[name]`, `[name]`), or `error` |
+| out | `EV_SET_TRACE_LEVEL` | `{scope, gobj, gclass, levels, set, set_id}` | per level `set-gobj-trace gobj=<gobj> level=L set=0\|1` (scope `gobj`) or `set-gclass-trace gclass=G level=L set=0\|1` (scope `gclass`), then the tree and the trace info again |
 | out | `EV_GCLASS_WANTED` | `{gclass}` | `view-gclass gclass=G`, then `EV_GCLASS_DESCRIPTION` |
 | in | `EV_GCLASS_DESCRIPTION` | `{gclass, description}` | — opens the gclass viewer on that description |
 
 The host loads the **first** tree itself (it opened the view); after that the
-view asks only on Refresh. Ask `view-gobj-tree` for the fields the view reads,
+view asks only on Refresh.
+
+**`set_id` says which set an answer follows** (7.27.33). Every
+`EV_SET_TRACE_LEVEL` carries a new number. A host that echoes it puts it in the
+two answers it reads after that set (`EV_LOAD_TREE`, `EV_TRACE_INFO`) and in the
+answer of an `EV_TRACE_INFO_WANTED` that carried one, and puts `set_id: null`
+in every other answer. Then a read asked BEFORE a set and answered after it
+does not unlock what the set locked: without it, a card's own read answered
+after a tick showed the levels before the set, enabled, for one round trip. A
+host that leaves `set_id` out of its answers keeps working as before: the view
+matches an answer by its gclass.
+
+```js
+/*  the host, after the last command of a set:  */
+gobj_send_event(priv.view.tree, "EV_TRACE_INFO",
+    Object.assign({gclass: "C_TCP", set_id: kw_of_the_set.set_id}, the_four_answers), gobj);
+/*  a plain read (a card was opened):  */
+gobj_send_event(priv.view.tree, "EV_TRACE_INFO",
+    Object.assign({gclass: "C_TCP", set_id: null}, the_four_answers), gobj);
+``` Ask `view-gobj-tree` for the fields the view reads,
 by name (`options=[...]`): its default leaves out `gclass` and `fullname`, and
 `play_methods` is what keeps a gobj with nothing to play from reading paused.
 
@@ -4393,6 +4412,20 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
 
   `npm run check-markup` runs the check here, and `prebuild` / `pretest` run
   it, so a new markup literal fails the build.
+- **Data never goes into a CSS selector as it is.** A gobj name, a topic, a
+  route or a key may hold `~`, `.`, `%`, `"`... Pasted into
+  `querySelector()`, it changes what the selector says (`#a~b` matches no
+  element) or makes it invalid, and then `querySelector()` THROWS out of the
+  action that called it. Find an element by its id with `find_by_id($root,
+  id)`, and quote a value for an attribute selector with `css_string()`
+  (`yui_selector.js`, 7.27.33):
+
+  ```js
+  import {find_by_id, css_string} from "@yuneta/gobj-ui/src/yui_selector.js";
+
+  let $canvas = find_by_id($container, priv.canvas_id);
+  let $a = $c.querySelector(`a[data-route="${css_string(route)}"]`);
+  ```
 
 ### `index.html`: title, metadata and the Content-Security-Policy
 

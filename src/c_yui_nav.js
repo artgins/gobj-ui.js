@@ -109,6 +109,7 @@ import {
     bulma_hidden_class,
 } from "./shell_show_on.js";
 import {text_node} from "./yui_text.js";
+import {css_string} from "./yui_selector.js";
 import {badge_node, badge_tone, paint_badge, name_control_with_badge} from "./yui_badge.js";
 
 /***************************************************************
@@ -363,7 +364,7 @@ function apply_active_route(gobj)
     if(!$c || empty_string(route)) {
         return;
     }
-    let $a = $c.querySelector(`a[data-route="${css_escape(route)}"]`);
+    let $a = $c.querySelector(`a[data-route="${css_string(route)}"]`);
     if($a) {
         let $li = $a.closest("li");
         if($li) {
@@ -1088,7 +1089,7 @@ function ac_set_item_badge(gobj, event, kw, src)
         return 0;
     }
     let $badges = $c.querySelectorAll(
-        `[data-item-id="${css_escape(item_id)}"] .NAV_ITEM_BADGE`
+        `[data-item-id="${css_string(item_id)}"] .NAV_ITEM_BADGE`
     );
     for(let $badge of $badges) {
         paint_badge($badge, badge, tone);
@@ -1147,7 +1148,7 @@ function ac_route_changed(gobj, event, kw, src)
         return 0;
     }
 
-    let $a = $c.querySelector(`[data-item-id="${css_escape(id_to_mark)}"]`);
+    let $a = $c.querySelector(`[data-item-id="${css_string(id_to_mark)}"]`);
     if($a) {
         /*  For Bulma .tabs and .menu, 'is-active' goes on the <li> parent. */
         let $li = $a.closest("li");
@@ -1168,7 +1169,7 @@ function ac_route_changed(gobj, event, kw, src)
                 return;
             }
             let contains_active = !!$body.querySelector(
-                `[data-item-id="${css_escape(active_leaf_id)}"]`
+                `[data-item-id="${css_string(active_leaf_id)}"]`
             );
             $body.classList.toggle("is-hidden", !contains_active);
             $hd.classList.toggle("is-open", contains_active);
@@ -1176,13 +1177,6 @@ function ac_route_changed(gobj, event, kw, src)
         });
     }
     return 0;
-}
-
-function css_escape(s)
-{
-    /*  For a quoted attribute selector: a backslash too, or a route
-     *  carrying one makes querySelector throw.  */
-    return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 /***************************************************************

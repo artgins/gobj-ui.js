@@ -67,6 +67,7 @@ import {
     yui_graph_forward_wheel,
     yui_graph_update_zoom,
 } from "./yui_graph_camera.js";
+import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
 import {ensure_pinch_zoom_patch} from "./g6_touch_gestures.js";
 import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
 import {col_key_roles} from "./treedb_topic_keys.js";
@@ -143,7 +144,10 @@ let __gclass__ = null;
 
 function mt_create(gobj)
 {
-    /*  Pinch to zoom on a touch screen, as in the other graphs.  */
+    /*  The two touch fixes of the other graphs: a pan that follows a
+     *  finger, and pinch to zoom. Both, or as the FIRST graph of a page
+     *  the schema kept G6's own drag-canvas (REV-CLOUD V40.2).  */
+    ensure_drag_canvas_patch();
     ensure_pinch_zoom_patch();
 
     build_ui(gobj);

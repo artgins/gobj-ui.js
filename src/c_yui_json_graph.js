@@ -84,6 +84,7 @@ import {
 } from "./json_view_helpers.js";
 import {g6_event_kw} from "./g6_event_kw.js";
 import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
+import {find_by_id, css_string} from "./yui_selector.js";
 
 /***************************************************************
  *              Constants
@@ -470,7 +471,7 @@ function build_ui(gobj)
      *  and `mousedown` goes with them for a browser that still sends it.
      *  Measured by instrumenting the mount, not guessed.
      */
-    let $mount = $container.querySelector('#' + priv.canvas_id);
+    let $mount = find_by_id($container, priv.canvas_id);
     if($mount) {
         priv.fold_listener = function(evt) {
             let $handle = evt.target && evt.target.closest
@@ -518,7 +519,7 @@ function destroy_ui(gobj)
     let $container = gobj_read_attr(gobj, "$container");
 
     if(priv.fold_listener) {
-        let $mount = $container? $container.querySelector('#' + priv.canvas_id): null;
+        let $mount = find_by_id($container, priv.canvas_id);
         if($mount) {
             for(let type of FOLD_SWALLOWED_EVENTS) {
                 $mount.removeEventListener(type, priv.fold_listener, true);
@@ -716,7 +717,7 @@ function canvas_mount(gobj)
     if(!$container) {
         return null;
     }
-    return $container.querySelector("#" + gobj.priv.canvas_id);
+    return find_by_id($container, gobj.priv.canvas_id);
 }
 
 /************************************************************
@@ -2243,7 +2244,7 @@ function paint_anchor_mark(gobj)
         return;
     }
     let $it = $container.querySelector(
-        '.JSON_CARD[data-json-path="' + CSS.escape(priv.anchor_path) + '"]'
+        '.JSON_CARD[data-json-path="' + css_string(priv.anchor_path) + '"]'
     );
     if($it) {
         $it.classList.add('JSON_CARD_ANCHORED');

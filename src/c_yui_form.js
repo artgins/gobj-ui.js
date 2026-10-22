@@ -102,6 +102,7 @@ import {
 import {form_time_cell_editor} from "./form_time_cell_editor.js";
 import {yui_tabulator_keep_edit_on_redraw, yui_tabulator_close_editor} from "./yui_tabulator_edit.js";
 import {safe_locale} from "./yui_date_text.js";
+import {css_string} from "./yui_selector.js";
 import {parse_json_field, json_editor_value} from "./form_json_field.js";
 import {
     json_editor_menu_items,
@@ -1369,7 +1370,7 @@ function apply_form_mode(gobj, $form)
     }
 
     let pkey = gobj_read_str_attr(gobj, "pkey");
-    let $input = $form.querySelector(`[name="${pkey}"]`);
+    let $input = $form.querySelector(`[name="${css_string(pkey)}"]`);
     if(!$input) {
         log_error(sprintf("%s: form_mode '%s' but form has no pkey field '%s'",
             gobj_short_name(gobj), mode, pkey
@@ -2720,7 +2721,7 @@ function template2columns(gobj, columns, template, sub_elements)
                     cellClick: function(evt, cell) {
                         evt.stopPropagation();
                         let $row = cell.getRow().getElement();
-                        let $extend = $row.querySelector(`[name="${field_desc.name}"]`);
+                        let $extend = $row.querySelector(`[name="${css_string(field_desc.name)}"]`);
                         if(!$extend) {
                             log_error(`${gobj_short_name(gobj)}: nested table '${field_desc.name}' not found in its row`);
                             return;

@@ -86,6 +86,7 @@ import {
 
 import {t} from "i18next";
 import {text_node} from "./yui_text.js";
+import {css_string} from "./yui_selector.js";
 
 /***************************************************************
  *              Constants
@@ -671,7 +672,7 @@ function add_tab(gobj, gobj2, id, text, icon)
 function remove_tab(gobj, gobj2, id)
 {
     let $container = gobj_read_attr(gobj, "$container");
-    let $a = $container.querySelector(`a[href="${id}"]`);
+    let $a = $container.querySelector(`a[href="${css_string(id)}"]`);
     if($a) {
         let $li = $a.parentNode;
         if($li) {
@@ -687,7 +688,7 @@ function remove_tab(gobj, gobj2, id)
     }
     /*  Drop its landing card too, if any. */
     let $card = $container.querySelector(
-        `.TREEDB_TOPIC_CARD[data-topic-href="${id}"]`);
+        `.TREEDB_TOPIC_CARD[data-topic-href="${css_string(id)}"]`);
     if($card && $card.parentNode) {
         $card.parentNode.removeChild($card);
     }
@@ -2681,7 +2682,7 @@ function ac_show(gobj, event, kw, src)
 
     let $container = gobj_read_attr(gobj, "$container");
     let $current_item = gobj_read_attr(gobj, "$current_item");
-    let $a = $container.querySelector(`a[href="${href}"]`);
+    let $a = $container.querySelector(`a[href="${css_string(href)}"]`);
     if($a) {
         /*
          *  href pointing to inside gobj (with ? right part)

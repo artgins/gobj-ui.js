@@ -307,7 +307,7 @@ describe("C_YUI_GOBJ_TREE_JS, source remote", () => {
         ev_kw.$global.dispatchEvent(fake_event("change"));
         expect(wanted).toEqual([{event: "EV_SET_TRACE_LEVEL", kw: {
             scope: "global", gobj: "C_YUNO^gate", gclass: "C_YUNO",
-            levels: ["ev_kw"], set: true
+            levels: ["ev_kw"], set: true, set_id: expect.any(Number)
         }}]);
         expect(row_of(view, "machine").$global.disabled).toBe(true);
 
@@ -328,7 +328,8 @@ describe("C_YUI_GOBJ_TREE_JS, source remote", () => {
         wanted.length = 0;
         gobj_send_event(view, "EV_SET_GCLASS_TRACE", {gclass: "C_TCP", levels: ["machine"], set: true}, view);
         expect(wanted).toEqual([{event: "EV_SET_TRACE_LEVEL", kw: {
-            scope: "gclass", gobj: "", gclass: "C_TCP", levels: ["machine"], set: true
+            scope: "gclass", gobj: "", gclass: "C_TCP", levels: ["machine"], set: true,
+            set_id: expect.any(Number)
         }}]);
         expect(problems()).toEqual([]);
     });
@@ -344,7 +345,7 @@ describe("C_YUI_GOBJ_TREE_JS, source remote", () => {
         $gobj.dispatchEvent(fake_event("change"));
         expect(wanted).toEqual([{event: "EV_SET_TRACE_LEVEL", kw: {
             scope: "gobj", gobj: "C_YUNO^gate`C_TCP^tcp1", gclass: "C_TCP",
-            levels: ["machine"], set: true
+            levels: ["machine"], set: true, set_id: expect.any(Number)
         }}]);
         expect(row_of(view, "traffic").$gobj.disabled).toBe(true);
 
@@ -571,6 +572,121 @@ describe("C_YUI_GOBJ_TREE_JS, source local", () => {
         gobj_send_event(view, "EV_REFRESH", {}, view);
         const after = JSON.parse(window.localStorage.getItem(key));
         expect(after.zoom).toBe(1);
+        expect(problems()).toEqual([]);
+    });
+});
+
+/*  REV-CLOUD V40.2: a read asked BEFORE a set, answered after it, is
+ *  not the set's answer. A host that says which set an answer follows
+ *  (`set_id`, echoed from EV_SET_TRACE_LEVEL; null for a plain read)
+ *  is taken at its word; one that says nothing is matched by gclass,
+ *  as the tests above do.  */
+describe("C_YUI_GOBJ_TREE_JS, source remote: a host that says which set it answers", () => {
+    const last_set_id = () => {
+        const sets = wanted.filter((w) => w.event === "EV_SET_TRACE_LEVEL");
+        return sets.length ? sets[sets.length - 1].kw.set_id : undefined;
+    };
+
+    test("every set carries its own number", async () => {
+        const view = await mount("remote", host);
+        await open_tcp_card(view);
+        gobj_send_event(view, "EV_TRACE_INFO", TCP_INFO, host);
+        const {$gobj} = row_of(view, "machine");
+        $gobj.checked = true;
+        $gobj.dispatchEvent(fake_event("change"));
+        const one = last_set_id();
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO, {set_id: one}), host);
+        const again = row_of(view, "machine").$gobj;
+        again.checked = true;
+        again.dispatchEvent(fake_event("change"));
+        const two = last_set_id();
+        expect(typeof one).toBe("number");
+        expect(typeof two).toBe("number");
+        expect(two).not.toBe(one);
+        expect(problems()).toEqual([]);
+    });
+
+    test("the card's own read, answered after a tick, leaves the block locked", async () => {
+        const view = await mount("remote", host);
+        await open_tcp_card(view);          /*  the card asks: EV_TRACE_INFO_WANTED  */
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO, {set_id: null}), host);
+        gobj_send_event(view, "EV_NODE_CLICK",
+            {id: node_id_of(view, "C_YUNO^gate`C_TCP^tcp1"), client_x: 10, client_y: 10}, view);
+
+        /*  ticked before the second read is answered  */
+        const {$gobj} = row_of(view, "machine");
+        $gobj.checked = true;
+        $gobj.dispatchEvent(fake_event("change"));
+        const set_id = last_set_id();
+        expect(row_of(view, "traffic").$gobj.disabled).toBe(true);
+
+        /*  the read the click asked for: before the set  */
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO, {set_id: null}), host);
+        expect(row_of(view, "traffic").$gobj.disabled).toBe(true);
+        /*  a tree a Refresh asked for before the tick  */
+        gobj_send_event(view, "EV_LOAD_TREE", {tree: TREE, set_id: null}, host);
+        expect(row_of(view, "traffic").$gobj.disabled).toBe(true);
+
+        /*  what the backend says after the set  */
+        const tree = JSON.parse(JSON.stringify(TREE));
+        tree["C_YUNO^gate"].children["C_TCP^tcp1"].gobj_trace_level.push("machine");
+        gobj_send_event(view, "EV_LOAD_TREE", {tree: tree, set_id: set_id}, host);
+        expect([row_of(view, "machine").$gobj.checked, row_of(view, "machine").$gobj.disabled])
+            .toEqual([true, false]);
+        expect(problems()).toEqual([]);
+    });
+
+    test("the viewer is unlocked by its set's answer, not by a read asked before it", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        /*  the card asked for C_TCP again; not answered yet  */
+        gobj_send_event(view, "EV_NODE_CLICK",
+            {id: node_id_of(view, "C_YUNO^gate`C_TCP^tcp1"), client_x: 10, client_y: 10}, view);
+        gobj_send_event(view, "EV_SET_GCLASS_TRACE", {gclass: "C_TCP", levels: ["traffic"], set: true}, viewer);
+        const set_id = last_set_id();
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO, {set_id: null}), host);
+        expect([viewer_box(viewer, "traffic").checked, viewer_box(viewer, "traffic").disabled])
+            .toEqual([false, true]);
+        expect(view.priv.set_in_flight).not.toBe(null);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO,
+            {gclass_on: ["connections", "traffic"], set_id: set_id}), host);
+        expect([viewer_box(viewer, "traffic").checked, viewer_box(viewer, "traffic").disabled])
+            .toEqual([true, false]);
+        expect(view.priv.set_in_flight).toBe(null);
+        expect(problems()).toEqual([]);
+    });
+
+    test("a set of the yuno's scope: the viewer's own read is asked as part of the set", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        /*  a read of C_TCP asked before the set (the card, opened again)  */
+        gobj_send_event(view, "EV_NODE_CLICK",
+            {id: node_id_of(view, "C_YUNO^gate`C_TCP^tcp1"), client_x: 10, client_y: 10}, view);
+        gobj_read_attr(view, "$container").querySelector(".GOBJ_TREE_YUNO_TRACES_BUTTON").click();
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, YUNO_INFO, {set_id: null}), host);
+        wanted.length = 0;
+
+        const ev_kw = row_of(view, "ev_kw");
+        ev_kw.$global.checked = true;
+        ev_kw.$global.dispatchEvent(fake_event("change"));
+        const set_id = last_set_id();
+        wanted.length = 0;
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, YUNO_INFO,
+            {global_on: ["machine", "ev_kw"], set_id: set_id}), host);
+        expect(wanted.map((w) => [w.event, w.kw.gclass, w.kw.set_id]))
+            .toEqual([["EV_TRACE_INFO_WANTED", "C_TCP", set_id]]);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        /*  the read asked before the set: not the one the viewer waits for  */
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO, {set_id: null}), host);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO,
+            {global_levels: YUNO_INFO.global_levels,
+             gclass_on: ["connections", "ev_kw"], global_on: ["ev_kw"], set_id: set_id}), host);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(false);
         expect(problems()).toEqual([]);
     });
 });

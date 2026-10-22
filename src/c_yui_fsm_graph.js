@@ -72,6 +72,7 @@ import {yui_is_dark, yui_theme_now, yui_watch_theme} from "./yui_theme.js";
 import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
 import {ensure_pinch_zoom_patch} from "./g6_touch_gestures.js";
 import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
+import {find_by_id} from "./yui_selector.js";
 
 import {t} from "i18next";
 
@@ -360,7 +361,7 @@ function canvas_mount(gobj)
     if(!$container) {
         return null;
     }
-    return $container.querySelector("#" + gobj_read_str_attr(gobj, "canvas_id"));
+    return find_by_id($container, gobj_read_str_attr(gobj, "canvas_id"));
 }
 
 /************************************************************

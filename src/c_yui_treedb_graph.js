@@ -92,6 +92,7 @@ import {
     set_active_state,
     set_pressed_state,
 } from "./lib_graph.js";
+import {find_by_id} from "./yui_selector.js";
 import {yui_shell_show_error, yui_shell_show_modal} from "./shell_modals.js";
 import {yui_shell_of, yui_shell_set_sub_routes, yui_shell_navigate, yui_shell_previous_route}
     from "./c_yui_shell.js";
@@ -258,7 +259,7 @@ function mt_create(gobj)
     /*
      *  Get canvas container
      */
-    let $container_canvas = $container.querySelector(`#${priv.canvas_id}`);
+    let $container_canvas = find_by_id($container, priv.canvas_id);
 
     priv.gobj_nodes_tree = gobj_create_service(
         `${gobj_name(gobj)}-g6`,

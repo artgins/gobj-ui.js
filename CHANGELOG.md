@@ -7,6 +7,54 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.27.33
+
+**Review V40 fixes.**
+
+- **A gobj tree named with a `~`, a `%` or a `.` finds its canvas again.**
+  `C_YUI_GOBJ_TREE_JS` named its canvas mount after the gobj and found it
+  with `querySelector("#" + id)`. gui_agent 0.29.106 names its tree window
+  `<node>~<key>`, percent-encoded: the `~` is a CSS combinator, so the
+  lookup answered null -- every open logged *"no canvas mount, the graph
+  will never resize"* and the canvas never followed the window -- and a `^`
+  in the node or the key (`%5E`) made the selector INVALID, so
+  `querySelector()` threw out of `mt_start` and out of the host's action,
+  leaving the window behind: every later open of that card was *"service
+  ALREADY registered"*. A `.` (allowed in a node or a key) already broke it
+  before. The same lookup in `C_YUI_JSON_GRAPH` (which threw from
+  `mt_create`), `C_YUI_FSM_GRAPH`, `C_YUI_TREEDB_GRAPH` and
+  `C_YUI_TREEDB_TOPIC_WITH_FORM` goes by id now, with no selector. New
+  module `src/yui_selector.js`: `find_by_id($root, id)` and `css_string(v)`
+  (a value quoted for an attribute selector). Every attribute selector built
+  from data uses it: `C_YUI_FORM` (the pkey, a nested table's field),
+  `C_YUI_SCHEMA_EDITOR` (a change put back), `C_YUI_SHELL` (a toolbar
+  item's icon and badge), `C_YUI_TREEDB_TOPICS` (a topic's tab and card),
+  `C_YUI_NAV` (its own escaper, which missed a newline, is gone) and the
+  card anchors of the gobj tree and the json graph (`CSS.escape()`, which
+  does not exist in node). README, Conventions: *Data never goes into a CSS
+  selector as it is.*
+- **The schema graph pans under a finger when it is the first graph of the
+  page.** `C_YUI_TREEDB_SCHEMA` has `drag-canvas` in its behaviors but
+  applied only the pinch patch, so as the first graph of a page it kept
+  G6's own `drag-canvas` (which reads `movementX`, 0 on a touch screen). It
+  applies both now, as the other four graphs do; a test mounts each graph
+  alone on a fresh page and checks both.
+- **Remote gobj tree: an answer says which set it follows (`set_id`).**
+  Every `EV_SET_TRACE_LEVEL` carries a new `set_id`. A host that echoes it
+  -- in the tree and trace info it reads after the set, and in the answer of
+  an `EV_TRACE_INFO_WANTED` that carried one (the viewer's own read after a
+  set of the yuno's scope), with `set_id: null` in every other answer --
+  makes a read asked BEFORE a set, answered after it, unable to unlock what
+  the set locked. Before, the card's own read answered after a tick
+  unlocked the block, the gclass viewer and the set in flight, and showed
+  the levels from before the set, enabled, for one round trip. A host that
+  leaves `set_id` out of its answers is matched by gclass, as before: no
+  host has to change (gui_agent echoes it from its next version). README,
+  the remote table.
+- **Development dependency:** `jsdom` `^30.1.3`, for the test that mounts
+  the views in a DOM whose `querySelector()` throws on an invalid selector,
+  as a browser's does (the suite's document double does not).
+
 ## 7.27.32
 
 - **No more "has been registered before" warnings in the console.** gobj-ui

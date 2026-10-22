@@ -163,6 +163,7 @@ import {
 
 import {t} from "i18next";
 import {text_node} from "./yui_text.js";
+import {css_string} from "./yui_selector.js";
 
 
 /***************************************************************
@@ -2189,7 +2190,7 @@ function apply_form_changes(gobj, $form, changes)
         if(name === "flag") {
             continue;
         }
-        let $control = $form.querySelector(`[data-name="${name}"]`);
+        let $control = $form.querySelector(`[data-name="${css_string(name)}"]`);
         if(!$control) {
             log_warning(`${gobj_short_name(gobj)}: a change of '${name}' has no field ` +
                 `in the form opened again: not put back`);

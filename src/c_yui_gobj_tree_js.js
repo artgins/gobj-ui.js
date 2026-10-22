@@ -12,12 +12,13 @@
  *              it WANTS and the host answers with the data:
  *
  *              out  EV_TREE_WANTED       {}       Refresh pressed
- *              in   EV_LOAD_TREE         {tree}   the `view-gobj-tree` answer
- *              out  EV_TRACE_INFO_WANTED {gclass} a card was opened
+ *              in   EV_LOAD_TREE         {tree, set_id}  the `view-gobj-tree` answer
+ *              out  EV_TRACE_INFO_WANTED {gclass, set_id}  a card was opened
  *              in   EV_TRACE_INFO        {gclass, gclass_levels, global_levels,
- *                                         gclass_on, global_on, error}
+ *                                         gclass_on, global_on, error, set_id}
  *              out  EV_SET_TRACE_LEVEL   {scope: "gobj"|"gclass"|"global",
- *                                         gobj, gclass, levels: [...], set}
+ *                                         gobj, gclass, levels: [...], set,
+ *                                         set_id}
  *              out  EV_GCLASS_WANTED     {gclass} the gclass button
  *              in   EV_GCLASS_DESCRIPTION {gclass, description}
  *
@@ -26,6 +27,14 @@
  *              After a trace is set the host loads the tree and the
  *              trace info of `gclass` again: what the reader is on stays
  *              open.
+ *
+ *              `set_id` (7.27.33) numbers each set. A host that echoes
+ *              it says WHICH set an answer follows: the set_id of the
+ *              set in the two reads made after it (and in the answer of
+ *              a WANTED that carried one), null in any other answer. A
+ *              read asked BEFORE a set and answered after it then no
+ *              longer unlocks what the set locked. A host that leaves
+ *              it out is matched by gclass, as before.
  *
  *            TRACES, in "remote": three scopes, each where it belongs.
  *            The kernel's levels (`machine`, `create_delete`...; the
@@ -143,6 +152,7 @@ import { ensure_pinch_zoom_patch } from "./g6_touch_gestures.js";
 import { yui_is_dark, yui_theme_now, yui_watch_theme } from "./yui_theme.js";
 import {g6_event_kw} from "./g6_event_kw.js";
 import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
+import {find_by_id, css_string} from "./yui_selector.js";
 import {yui_graph_minimap_options, yui_graph_minimap_block} from "./yui_graph_minimap.js";
 
 /***************************************************************
@@ -498,7 +508,10 @@ let PRIVATE_DATA = {
     popover_mode:   "",     // what the popover shows: "node" (a card) | "yuno" (the yuno's traces)
     viewer_awaits:  "",     // the gclass whose answer unlocks the open viewer ("" = not locked)
     viewer_stale:   "",     // a gclass whose open viewer must be asked again after a yuno set
-    set_in_flight:  null,   // {gclass, scope}: the set whose answer (EV_TRACE_INFO of gclass) is owed
+    set_in_flight:  null,   // {gclass, scope, set_id}: the set whose answer (EV_TRACE_INFO of gclass) is owed
+    set_serial:     0,      // numbers the sets (set_id), so an answer can say which one it follows
+    pending_set_id: 0,      // the set the locked blocks wait for
+    viewer_awaits_set: 0,   // the set whose answer unlocks the open viewer
     view_refused:   false,  // the saved camera showed no card: the opening's framing replaces it
 };
 
@@ -1351,7 +1364,7 @@ function canvas_mount(gobj)
     if(!$container) {
         return null;
     }
-    return $container.querySelector("#" + gobj.priv.canvas_id);
+    return find_by_id($container, gobj.priv.canvas_id);
 }
 
 /************************************************************
@@ -3291,7 +3304,7 @@ function paint_anchor_mark(gobj)
         return;
     }
     let $it = $container.querySelector(
-        '.GOBJ_CARD[data-gobj-name="' + CSS.escape(priv.anchor_name) + '"]'
+        '.GOBJ_CARD[data-gobj-name="' + css_string(priv.anchor_name) + '"]'
     );
     if($it) {
         $it.classList.add('GOBJ_CARD_ANCHORED');
@@ -3667,7 +3680,9 @@ function ac_load_tree(gobj, event, kw, src)
     }
     let first = !priv.remote_root;
     priv.remote_root = root;
-    priv.trace_pending = false;
+    if(answers_set(kw, priv.pending_set_id)) {
+        priv.trace_pending = false;
+    }
     reload_keeping_popover(gobj, first? {}: {preserve_view: true});
     return 0;
 }
@@ -3691,8 +3706,11 @@ function ac_trace_info(gobj, event, kw, src)
         global_on:      list(kw.global_on),
         error:          kw.error || "",
     };
-    priv.trace_pending = false;
-    if(priv.set_in_flight && priv.set_in_flight.gclass === kw.gclass) {
+    if(answers_set(kw, priv.pending_set_id)) {
+        priv.trace_pending = false;
+    }
+    if(priv.set_in_flight && priv.set_in_flight.gclass === kw.gclass &&
+            answers_set(kw, priv.set_in_flight.set_id)) {
         priv.set_in_flight = null;
     }
 
@@ -3709,18 +3727,21 @@ function ac_trace_info(gobj, event, kw, src)
         /*  Only the answer the viewer waits for unlocks it: an answer
          *  for another gclass (another card's set) is none of its
          *  business.  */
-        if(priv.viewer_awaits === kw.gclass) {
+        if(priv.viewer_awaits === kw.gclass && answers_set(kw, priv.viewer_awaits_set)) {
             priv.viewer_awaits = "";
             if(priv.viewer_stale === shown && shown !== kw.gclass) {
                 /*  A set of the YUNO's scope: what the viewer shows as
                  *  held by the yuno moved too, and the host refreshed
-                 *  only the root's gclass. Locked until its own.  */
+                 *  only the root's gclass. Locked until its own -- a
+                 *  read that is part of the set, so it carries the
+                 *  set's number.  */
+                let set_id = priv.viewer_awaits_set;
                 priv.viewer_stale = "";
                 priv.viewer_awaits = shown;
                 /*  Owed like a set of its own: a viewer of it reopened
                  *  before the answer opens locked too.  */
-                priv.set_in_flight = {gclass: shown, scope: "gclass"};
-                gobj_publish_event(gobj, "EV_TRACE_INFO_WANTED", {gclass: shown});
+                priv.set_in_flight = {gclass: shown, scope: "gclass", set_id: set_id};
+                gobj_publish_event(gobj, "EV_TRACE_INFO_WANTED", {gclass: shown, set_id: set_id});
             }
         }
         if(shown === kw.gclass) {
@@ -3728,6 +3749,26 @@ function ac_trace_info(gobj, event, kw, src)
         }
     }
     return 0;
+}
+
+/************************************************************
+ *  Is this answer (EV_LOAD_TREE, EV_TRACE_INFO) the one that
+ *  follows the set `set_id`?
+ *
+ *  A host that echoes `set_id` says so itself: null for a read
+ *  that is no set's, which is a read asked BEFORE the set when
+ *  it arrives after it (REV-CLOUD V40.2: the card's own read,
+ *  answered after a tick, unlocked the block and showed the
+ *  levels before the set, enabled, for one round trip). A host
+ *  that leaves it out (before 7.27.33) cannot say: any answer
+ *  will do, and the caller matches by gclass.
+ ************************************************************/
+function answers_set(kw, set_id)
+{
+    if(!kw || kw.set_id === undefined) {
+        return true;
+    }
+    return !!set_id && kw.set_id === set_id;
 }
 
 /************************************************************
@@ -3852,7 +3893,9 @@ function ac_set_gclass_trace(gobj, event, kw, src)
 function set_trace_levels(gobj, target, scope, levels, set)
 {
     let priv = gobj.priv;
+    let set_id = ++priv.set_serial;
     priv.trace_pending = true;
+    priv.pending_set_id = set_id;
     render_current_popover(gobj);
 
     /*  The viewer is locked only by a set that moves what it shows:
@@ -3861,7 +3904,7 @@ function set_trace_levels(gobj, target, scope, levels, set)
      *  ends that set is not one the viewer would ever be sent. The set
      *  is remembered for a viewer opened before its answer, and only
      *  the LAST one: the host overtakes an earlier set in flight.  */
-    priv.set_in_flight = {gclass: target.gclass, scope: scope};
+    priv.set_in_flight = {gclass: target.gclass, scope: scope, set_id: set_id};
     let viewer = gclass_viewer_gobj(gobj);
     if(viewer) {
         let shown = gobj_read_str_attr(viewer, "gclass_name");
@@ -3876,6 +3919,7 @@ function set_trace_levels(gobj, target, scope, levels, set)
         gclass: target.gclass,
         levels: levels,
         set:    set,
+        set_id: set_id,
     });
 }
 
@@ -3891,6 +3935,7 @@ function lock_viewer_for_set(gobj, shown, set)
         return false;
     }
     priv.viewer_awaits = set.gclass;
+    priv.viewer_awaits_set = set.set_id;
     priv.viewer_stale = (shown !== set.gclass)? shown: "";
     return true;
 }

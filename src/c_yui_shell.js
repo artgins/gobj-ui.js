@@ -74,6 +74,7 @@ import {
     badge_node, badge_tone, badge_text, paint_badge, name_control_with_badge,
 } from "./yui_badge.js";
 import { build_nav_map } from "./route_map_model.js";
+import { css_string } from "./yui_selector.js";
 import {
     section_index_target,
     secondary_nav_renders,
@@ -5226,7 +5227,7 @@ function yui_shell_set_toolbar_item_icon(shell_gobj, item_id, icon_class)
         return;
     }
     let $i = $container.querySelector(
-        `[data-toolbar-item-id="${item_id}"] .icon i`
+        `[data-toolbar-item-id="${css_string(item_id)}"] .icon i`
     );
     if($i) {
         $i.className = icon_class;
@@ -5271,7 +5272,7 @@ function yui_shell_set_toolbar_item_badge(shell_gobj, item_id, value, tone)
         return;
     }
     let $badge = $container.querySelector(
-        `[data-toolbar-item-id="${item_id}"] .yui-toolbar-badge`
+        `[data-toolbar-item-id="${css_string(item_id)}"] .yui-toolbar-badge`
     );
     if(!$badge) {
         return;

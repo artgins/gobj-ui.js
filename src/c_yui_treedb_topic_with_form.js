@@ -115,6 +115,7 @@ import {
     yui_asset_ids, yui_asset_element, yui_asset_open_link, yui_asset_release
 } from "./yui_asset.js";
 import {delete_impact} from "./delete_impact.js";
+import {find_by_id} from "./yui_selector.js";
 import {parse_json_field} from "./form_json_field.js";
 
 import "./c_yui_treedb_topic_with_form.css";
@@ -808,7 +809,7 @@ function build_ui(gobj)
                 ]]
             ]]
         );
-        let $search_input = $search_box.querySelector(`#${search_id}`);
+        let $search_input = find_by_id($search_box, search_id);
         /*  NORM clear (✕): dispatches a synthetic `input`, so the tabulator
          *  filter below re-runs (empty term → clearFilter).  */
         attach_clear($search_box, $search_input);
@@ -983,7 +984,7 @@ function build_ui(gobj)
         gobj_write_attr(gobj, "selection_bar", bar);
         /*  Chrome too: it must not take height from the rows. */
         bar.$el.style.flex = "none";
-        $container.insertBefore(bar.$el, $container.querySelector(`#${table_id}`));
+        $container.insertBefore(bar.$el, find_by_id($container, table_id));
     }
 
     /*  The parent filter, when a hook of another row opened this table
@@ -1009,7 +1010,7 @@ function build_ui(gobj)
         ]]
     );
     gobj.priv.$parent_filter = $parent_filter;
-    $container.insertBefore($parent_filter, $container.querySelector(`#${table_id}`));
+    $container.insertBefore($parent_filter, find_by_id($container, table_id));
 
     let $toolbar_slot = $container.querySelector('.toolbar_tabulator_table');
     if($table_toolbar instanceof Element) {
@@ -1772,7 +1773,7 @@ function create_tabulator(gobj)
      */
     let $view_container = gobj_read_attr(gobj, "$container");
     let $table_el = $view_container ?
-        $view_container.querySelector(`#${table_id}`) : null;
+        find_by_id($view_container, table_id) : null;
     if(!$table_el) {
         log_error(`${gobj_short_name(gobj)}: table element '#${table_id}' not found in $container`);
         return;
