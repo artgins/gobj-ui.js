@@ -11,6 +11,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 **Review fixes of the 7.27.21-7.27.29 round.**
 
+- **Development dependency:** `@rollup/plugin-terser` `^1.0.2`.
+
 - **A `keep_alive` `C_YUI_NODE` tree tells its content once, not twice.** When
   the shell showed such a tree again, every node on the path came back from
   `ST_OFF` with the shell's `EV_ROUTE_CHANGED` and told the content on screen
