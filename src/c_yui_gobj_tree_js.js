@@ -470,6 +470,7 @@ let PRIVATE_DATA = {
     trace_info:     {},     // gclass -> {gclass_levels, global_levels, gclass_on, global_on, error}
     trace_pending:  false,  // a trace was set: the block is locked until the host answers
     popover_mode:   "",     // what the popover shows: "node" (a card) | "yuno" (the yuno's traces)
+    viewer_awaits:  "",     // the gclass whose answer unlocks the open viewer ("" = not locked)
     viewer_stale:   "",     // a gclass whose open viewer must be asked again after a yuno set
     view_refused:   false,  // the saved camera showed no card: the opening's framing replaces it
 };
@@ -3568,6 +3569,8 @@ function open_gclass_window(gobj, gclass, description, d)
 
     close_gclass_view(priv.gclass_view);
     priv.gclass_view = null;
+    priv.viewer_awaits = "";
+    priv.viewer_stale = "";
 
     let opts = {
         title_prefix: is_remote(gobj)?
@@ -3668,16 +3671,24 @@ function ac_trace_info(gobj, event, kw, src)
     let viewer = gclass_viewer_gobj(gobj);
     if(viewer) {
         let shown = gobj_read_str_attr(viewer, "gclass_name");
+        /*  Only the answer the viewer waits for unlocks it: an answer
+         *  for another gclass (another card's set) is none of its
+         *  business.  */
+        if(priv.viewer_awaits === kw.gclass) {
+            priv.viewer_awaits = "";
+            if(priv.viewer_stale === shown && shown !== kw.gclass) {
+                /*  A set of the YUNO's scope: what the viewer shows as
+                 *  held by the yuno moved too, and the host refreshed
+                 *  only the root's gclass. Locked until its own.  */
+                priv.viewer_stale = "";
+                priv.viewer_awaits = shown;
+                gobj_publish_event(gobj, "EV_TRACE_INFO_WANTED", {gclass: shown});
+            }
+        }
         if(shown === kw.gclass) {
             gobj_send_event(viewer, "EV_SET_TRACES", viewer_traces(gobj, shown), gobj);
-        } else if(priv.viewer_stale === shown) {
-            /*  A set of the YUNO's scope: what the viewer shows as held by
-             *  the yuno moved too, and the host refreshed only the root's
-             *  gclass.  */
-            gobj_publish_event(gobj, "EV_TRACE_INFO_WANTED", {gclass: shown});
         }
     }
-    priv.viewer_stale = "";
     return 0;
 }
 
@@ -3693,14 +3704,15 @@ function gclass_viewer_gobj(gobj)
 /************************************************************
  *  What the gclass viewer needs to draw the traces of `gclass`
  *  for every gobj of it: the levels the host read, and whether a
- *  set is still in flight. Plain json: it rides in a kw.
+ *  set that concerns it is still in flight. Plain json: it rides
+ *  in a kw.
  ************************************************************/
 function viewer_traces(gobj, gclass)
 {
     let priv = gobj.priv;
     return {
         info:    priv.trace_info[gclass] || null,
-        pending: !!priv.trace_pending,
+        pending: !!priv.viewer_awaits,
     };
 }
 
@@ -3805,13 +3817,19 @@ function set_trace_levels(gobj, target, scope, levels, set)
     priv.trace_pending = true;
     render_current_popover(gobj);
 
+    /*  The viewer is locked only by a set that moves what it shows:
+     *  one of its own gclass, or one of the yuno's scope. A gobj or
+     *  gclass set of ANOTHER gclass leaves it alone -- the answer that
+     *  ends that set is not one the viewer would ever be sent.  */
     let viewer = gclass_viewer_gobj(gobj);
     if(viewer) {
         let shown = gobj_read_str_attr(viewer, "gclass_name");
-        if(scope === "global" && shown !== target.gclass) {
-            priv.viewer_stale = shown;
+        let concerned = (shown === target.gclass) || scope === "global";
+        if(concerned) {
+            priv.viewer_awaits = target.gclass;
+            priv.viewer_stale = (shown !== target.gclass)? shown: "";
+            gobj_send_event(viewer, "EV_SET_TRACES", viewer_traces(gobj, shown), gobj);
         }
-        gobj_send_event(viewer, "EV_SET_TRACES", viewer_traces(gobj, shown), gobj);
     }
 
     gobj_publish_event(gobj, "EV_SET_TRACE_LEVEL", {

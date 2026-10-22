@@ -6,8 +6,10 @@
  *      wants (the tree, the trace levels of a gclass, a trace set) and
  *      the host loads the answers. Asserted here: what reaches the host,
  *      what the TRACES block of a card shows for each origin of a level,
- *      that a reload keeps the card open, and that a LOCAL tree publishes
- *      none of it (its hosts declare none of these events).
+ *      that a reload keeps the card open, that the open gclass viewer is
+ *      locked only by a set that moves what it shows (and unlocked by
+ *      the answer it waits for), and that a LOCAL tree publishes none of
+ *      it (its hosts declare none of these events).
  *
  *      The real gclass, on a G6 Graph double.
  *
@@ -94,6 +96,7 @@ const {
     gobj_start, gobj_read_attr, gobj_send_event, set_log_callback, register_c_timer,
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_gobj_tree_js} = await import("./c_yui_gobj_tree_js.js");
+const {register_c_yui_window} = await import("./c_yui_window.js");
 
 const logged = [];
 const wanted = [];
@@ -144,6 +147,7 @@ beforeAll(async () => {
     });
     register_c_timer();
     register_c_yui_gobj_tree_js();
+    register_c_yui_window();
     gclass_create("C_TEST_TREE_YUNO", [], [["ST_IDLE", []]], {}, 0,
         [SDATA_END()], {}, 0, 0, 0, 0);
     gclass_create("C_TEST_TREE_HOST",
@@ -376,6 +380,102 @@ describe("C_YUI_GOBJ_TREE_JS, source remote", () => {
         gobj_send_event(view, "EV_OPEN_GCLASS", {}, view);
         expect(wanted.map((w) => [w.event, w.kw.gclass])).toEqual([["EV_GCLASS_WANTED", "C_TCP"]]);
         expect(view.priv.gclass_view).toBe(null);
+    });
+});
+
+/*  The `view-gclass` answer for C_TCP, enough for the viewer.  */
+const TCP_DESCRIPTION = {
+    id: "C_TCP", gcflag: [], instances: 1, attrs: [], commands: [],
+    gclass_methods: [], internal_methods: [],
+    FSM: {events: [], states: {}},
+    info_gclass_trace: {traffic: "Trace dump traffic", connections: "Trace connections"},
+};
+
+/*  The tree with the gclass viewer of C_TCP open, and its levels read.  */
+async function open_tcp_viewer()
+{
+    const view = await mount("remote", host);
+    await open_tcp_card(view);
+    gobj_send_event(view, "EV_TRACE_INFO", TCP_INFO, host);
+    gobj_send_event(view, "EV_OPEN_GCLASS", {}, view);
+    gobj_send_event(view, "EV_GCLASS_DESCRIPTION",
+        {gclass: "C_TCP", description: TCP_DESCRIPTION}, host);
+    const viewer = view.priv.gclass_view && view.priv.gclass_view.json_gobj;
+    expect(viewer).toBeTruthy();
+    wanted.length = 0;
+    return {view, viewer};
+}
+
+function viewer_box(viewer, level)
+{
+    return gobj_read_attr(viewer, "$container").querySelectorAll(".GCLASS_TRACE_GCLASS")
+        .find((b) => b.getAttribute("data-level") === level);
+}
+
+describe("C_YUI_GOBJ_TREE_JS, source remote: the open gclass viewer", () => {
+    test("a set of the viewer's gclass locks it until ITS answer", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        expect(viewer_box(viewer, "traffic").disabled).toBe(false);
+        gobj_send_event(view, "EV_SET_GCLASS_TRACE", {gclass: "C_TCP", levels: ["traffic"], set: true}, viewer);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO, {gclass: "C_TIMER"}), host);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO,
+            {gclass_on: ["connections", "traffic"]}), host);
+        expect([viewer_box(viewer, "traffic").checked, viewer_box(viewer, "traffic").disabled])
+            .toEqual([true, false]);
+        expect(problems()).toEqual([]);
+    });
+
+    test("a gobj set on the card of ANOTHER gclass leaves the viewer alone", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        const root_id = node_id_of(view, "C_YUNO^gate");
+        gobj_send_event(view, "EV_NODE_CLICK", {id: root_id, client_x: 10, client_y: 10}, view);
+        gobj_send_event(view, "EV_TRACE_INFO", YUNO_INFO, host);
+
+        const {$gobj} = row_of(view, "ev_kw");
+        $gobj.checked = true;
+        $gobj.dispatchEvent(fake_event("change"));
+        expect(wanted.filter((w) => w.event === "EV_SET_TRACE_LEVEL").map((w) => [w.kw.scope, w.kw.gclass]))
+            .toEqual([["gobj", "C_YUNO"]]);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(false);
+
+        gobj_send_event(view, "EV_TRACE_INFO", YUNO_INFO, host);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(false);
+        expect(problems()).toEqual([]);
+    });
+
+    test("a set of the yuno's scope locks it until the yuno's answer AND its own", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        gobj_read_attr(view, "$container").querySelector(".GOBJ_TREE_YUNO_TRACES_BUTTON").click();
+        gobj_send_event(view, "EV_TRACE_INFO", YUNO_INFO, host);
+        wanted.length = 0;
+
+        const ev_kw = row_of(view, "ev_kw");
+        ev_kw.$global.checked = true;
+        ev_kw.$global.dispatchEvent(fake_event("change"));
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        /*  the answer of an unrelated gclass, arriving first  */
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO, {gclass: "C_TIMER"}), host);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+        wanted.length = 0;
+
+        /*  the yuno's: the viewer's own is asked for, still locked  */
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, YUNO_INFO,
+            {global_on: ["machine", "ev_kw"]}), host);
+        expect(wanted.map((w) => [w.event, w.kw.gclass])).toEqual([["EV_TRACE_INFO_WANTED", "C_TCP"]]);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO,
+            {global_levels: YUNO_INFO.global_levels,
+             gclass_on: ["connections", "ev_kw"], global_on: ["ev_kw"]}), host);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(false);
+        expect([viewer_box(viewer, "ev_kw").checked, viewer_box(viewer, "ev_kw").disabled])
+            .toEqual([true, true]);
+        expect(problems()).toEqual([]);
     });
 });
 

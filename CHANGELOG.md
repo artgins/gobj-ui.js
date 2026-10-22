@@ -20,6 +20,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   are each told once per showing, with kw `{route}`. Nothing sends
   `EV_VIEW_SHOWN` to a node any more; a host that did would now get *"Event
   NOT DEFINED"* (none of the known apps does).
+- **The gclass viewer is no longer left locked by another gclass's set.**
+  The remote gobj tree locked an open gclass viewer for every trace set, of
+  any gclass, and only the answer for the viewer's gclass unlocked it: with
+  the viewer of `C_TCP` open, a level ticked on the card of `C_YUNO` left its
+  boxes and its remove button disabled until it was opened again. With a set
+  of the yuno's scope, an answer for a third gclass that arrived first also
+  dropped the viewer's request for its own levels. Now the viewer is locked
+  only by a set that moves what it shows (its own gclass, or the yuno's
+  scope), the tree remembers which answer it waits for, and only that one
+  unlocks it (after a yuno set: the root's answer, then its own, asked for
+  then).
 
 ## 7.27.29
 
