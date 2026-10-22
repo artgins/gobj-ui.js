@@ -97,8 +97,10 @@ from the DEPLOYED DOM and switch language.**
   with no host: its ranges are raised and its `generate.sh --check` builds an
   app from it. `--check` only reads back; `--only <name>` does one;
   `--no-wait` skips the registry. The round commits nothing: each consumer's
-  commit (and its CHANGELOG line, and a tag where the repo tags its versions)
-  is made after it.
+  commit (its `package.json` AND its `package-lock.json`, which the install
+  rewrites -- every app commits its lockfile since 2026-10-22 --, its
+  CHANGELOG line, and a tag where the repo tags its versions) is made after
+  it.
   **The demo is built into the runner, not a line of its manifest**, and that
   is deliberate: it is the one surface that needs no registry (it consumes the
   working tree), so it falls outside the rhythm of the others and was skipped

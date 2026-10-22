@@ -4450,6 +4450,9 @@ and reads back the bundle each host serves (`--check` only reads back,
 `--only <name>` does one app, `--no-wait` skips the registry). The private
 consumers are listed in `~/.yuneta/gobj-ui-consumers.json` (see
 `scripts/gobj-ui-consumers.example.json`); the demo (`test-app/`) is built in.
+The round commits nothing: each app's commit carries its `package.json` and
+the `package-lock.json` the install rewrote (every app commits its lockfile,
+and a fresh checkout installs with `npm ci`).
 It is built from the working trees of this repo and of the sibling `gobj-js`
 (`test-app/vite.config.js` bundles `../../gobj-js/src`), so it goes out only
 when each is a clean tree of its own (untracked files count; a copy with no

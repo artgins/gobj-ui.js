@@ -34,6 +34,12 @@
  *          ran out of disk) was swallowed whole, and of a failing step
  *          only its last three lines were shown.
  *
+ *          THE INSTALL IS `npm install`, NOT `npm ci`: the range was just
+ *          raised, so the app's package-lock.json no longer matches it and
+ *          has to be rewritten. Every app commits its lockfile, so the
+ *          rewritten one goes into the app's commit with its package.json
+ *          (the round itself commits nothing).
+ *
  *          A TEMPLATE is a target too (the js_gui scaffold): its
  *          `range_files` are raised without a version of their own (it
  *          is a marker there), nothing is installed, its `build` is the
