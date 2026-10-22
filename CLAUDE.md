@@ -98,13 +98,17 @@ from the DEPLOYED DOM and switch language.**
   app from it. `--check` only reads back; `--only <name>` does one;
   `--no-wait` skips the registry. The round commits nothing: each consumer's
   commit (its `package.json` AND its `package-lock.json`, which the install
-  rewrites -- every app commits its lockfile since 2026-10-22 --, its
-  CHANGELOG line, and a tag where the repo tags its versions) is made after
-  it.
+  rewrites -- every app commits its lockfile since 2026-10-22, except the
+  demo, see below --, its CHANGELOG line, and a tag where the repo tags its
+  versions) is made after it.
   **The demo is built into the runner, not a line of its manifest**, and that
   is deliberate: it is the one surface that needs no registry (it consumes the
   working tree), so it falls outside the rhythm of the others and was skipped
-  twice — a config nobody can forget to fill in is the fix. **And it deploys only from a clean tree at
+  twice — a config nobody can forget to fill in is the fix. It is the one
+  app with NO lockfile in git, on purpose (`test-app/.gitignore` lists
+  `package-lock.json`): its gobj-ui and gobj-js are `file:` links to the
+  working trees, which a lockfile cannot pin, and the lockfile would change
+  with every version of either. **And it deploys only from a clean tree at
   `origin/main`** (7.26.55+), of this repo AND of the sibling `../gobj-js`,
   whose `src/` it bundles: a dirty or unpushed tree prints `NOT DEPLOYED`
   and the round exits 1. Commit and push both before the round; it has no

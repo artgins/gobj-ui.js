@@ -4449,10 +4449,12 @@ its third number, in the same edit), installs, builds, deploys
 and reads back the bundle each host serves (`--check` only reads back,
 `--only <name>` does one app, `--no-wait` skips the registry). The private
 consumers are listed in `~/.yuneta/gobj-ui-consumers.json` (see
-`scripts/gobj-ui-consumers.example.json`); the demo (`test-app/`) is built in.
-The round commits nothing: each app's commit carries its `package.json` and
-the `package-lock.json` the install rewrote (every app commits its lockfile,
-and a fresh checkout installs with `npm ci`).
+`scripts/gobj-ui-consumers.example.json`). The round commits nothing: each
+app's commit carries its `package.json` and the `package-lock.json` the
+install rewrote (every app commits its lockfile, and a fresh checkout installs
+with `npm ci`). The demo is the one exception (below).
+
+The demo (`test-app/`) is built in.
 It is built from the working trees of this repo and of the sibling `gobj-js`
 (`test-app/vite.config.js` bundles `../../gobj-js/src`), so it goes out only
 when each is a clean tree of its own (untracked files count; a copy with no
@@ -4460,7 +4462,11 @@ when each is a clean tree of its own (untracked files count; a copy with no
 holds on the remote; otherwise it is `NOT DEPLOYED`, with the reason, and the
 round exits 1 (since `7.26.55`, the sibling `gobj-js` since `7.26.57`; up to
 `7.26.54` any copy of the repo, on any commit, deployed the public demo). The
-demo's target is named `test-app` (`--only test-app`).
+demo's target is named `test-app` (`--only test-app`). The round does not
+install it, and its `package-lock.json` is not in git, on purpose
+(`test-app/.gitignore` lists it): its two Yuneta dependencies are `file:`
+links to those working trees, which a lockfile cannot pin, and the lockfile
+would change with every version of gobj-ui or gobj-js.
 
 An app whose range cannot be raised safely is refused and left as it was --
 every package.json of it, since all are checked before any is written: a
