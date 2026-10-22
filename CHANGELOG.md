@@ -41,6 +41,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   tree again at 1:1. The restore now translates to T = (S + C)·Z − C, and the
   check puts a card at (n + S)·Z. The stored format does not change, so a
   camera saved by an earlier version comes back right too.
+- **The gclass viewer's counted words change language.** 7.27.27 took the
+  key off "N instances", the machine's "N states · N events" and "show all
+  N" (with its `title` and `aria-label`) so that `refresh_language()` would
+  not write the bare word over the count; only a re-render changes them, and
+  nobody sent `C_YUI_GCLASS` the language switch (`open_gclass_view()`
+  creates it with no subscriber, and the gobj tree does not forward it). It
+  now subscribes to the shell's `EV_LANGUAGE_CHANGED` in `mt_start` and drops
+  it in `mt_stop`, as `C_YUI_JSON` does, and hands it on to the machine's
+  graph when that is built.
 
 ## 7.27.29
 

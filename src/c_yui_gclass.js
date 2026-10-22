@@ -77,6 +77,8 @@ import {
     gobj_read_pointer_attr,
     gobj_parent,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
+    gobj_is_destroying,
     gobj_read_attr,
     gobj_write_attr,
     gobj_read_str_attr,
@@ -102,6 +104,7 @@ import {json_text_dump} from "./json_view_helpers.js";
 import {yui_toolbar} from "./yui_toolbar.js";
 import {attach_clear} from "./yui_inputs.js";
 import {yui_copy_json, yui_button_mark_done} from "./yui_clipboard.js";
+import {yui_shell_of} from "./c_yui_shell.js";
 
 import {t} from "i18next";
 
@@ -211,6 +214,7 @@ let PRIVATE_DATA = {
     $raw_body:  null,   // the <pre> inside it
     $search:    null,   // the search input
     $mode_btns: null,   // Map<mode, HTMLElement> of the view switch
+    lang_shell: null,   // the shell whose EV_LANGUAGE_CHANGED we hear
 };
 
 let __gclass__ = null;
@@ -256,6 +260,21 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
+    let priv = gobj.priv;
+
+    /*  The counted words ("4 instances", "show all 25", the machine's
+     *  "3 states · 9 events") carry no key on purpose -- a key would
+     *  make refresh_language() write the bare word over the count --
+     *  so only a re-render changes their language. The viewer is
+     *  created by open_gclass_view() as a service with no subscriber,
+     *  and its host does not forward the language switch: it hears
+     *  the shell's itself, as C_YUI_JSON does.  */
+    let shell = yui_shell_of(gobj);
+    if(shell) {
+        gobj_subscribe_event(shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+        priv.lang_shell = shell;
+    }
+
     render_view(gobj);
 }
 
@@ -264,6 +283,15 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
+    /*  The shell it subscribed to, if it is still there: a logout may
+     *  have destroyed it, and its subscriptions with it.  */
+    if(priv.lang_shell && !gobj_is_destroying(priv.lang_shell)) {
+        gobj_unsubscribe_event(priv.lang_shell, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
+    priv.lang_shell = null;
+
     /*
      *  The graph child dies with this gobj's RUNNING state, not with
      *  its destruction: gobj_destroy() destroys the children BEFORE
@@ -1737,6 +1765,10 @@ function ac_language_changed(gobj, event, kw, src)
         apply_view_mode(gobj);
     }
     render_view(gobj);
+    /*  The machine's graph, when it is built, draws its own words.  */
+    if(priv.graph_gobj && gobj_is_running(priv.graph_gobj)) {
+        gobj_send_event(priv.graph_gobj, "EV_LANGUAGE_CHANGED", {}, gobj);
+    }
     return 0;
 }
 
