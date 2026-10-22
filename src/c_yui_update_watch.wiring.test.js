@@ -5,8 +5,11 @@
  *      with the server played by a fake fetch: the bar appears for
  *      another build and not for the same one, the ✕ hides it for THAT
  *      build only, a rollback takes it away, a check too soon or
- *      offline asks nothing, a failure is said once, and the reload
- *      asks the host first.
+ *      offline asks nothing (navigator.onLine is stubbed: vitest has
+ *      none, and the guard never ran) and coming back online asks at
+ *      once, a failure is said once, the reload asks the host first,
+ *      and with no shell (the login) the app's language switch reaches
+ *      the bar through yui_update_watch_language_changed().
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -22,7 +25,8 @@ const {
     gobj_destroy, gobj_is_running, gobj_send_event, gobj_current_state,
     set_log_callback, register_c_timer,
 } = await import("@yuneta/gobj-js");
-const {register_c_yui_update_watch} = await import("./c_yui_update_watch.js");
+const {register_c_yui_update_watch, yui_update_watch_language_changed} =
+    await import("./c_yui_update_watch.js");
 
 const RUNNING = "aaaaaaaaaaaaaaaa";
 
@@ -32,6 +36,15 @@ let yuno = null;
 let host = null;
 let watch = null;
 let seq = 0;
+let i18next = null;
+
+/*  navigator.onLine as the browser says it: vitest has no such
+ *  property, so `undefined` unless a test sets it.  */
+const network = {online: undefined};
+Object.defineProperty(globalThis.navigator, "onLine", {
+    configurable: true,
+    get: () => network.online,
+});
 
 /*  The server: what the next fetches answer, and what was asked.  */
 const server = {
@@ -85,8 +98,14 @@ function make_watch(kw)
 }
 
 beforeAll(async () => {
-    const i18next = (await import("i18next")).default;
-    await i18next.init({lng: "en", resources: {}});
+    i18next = (await import("i18next")).default;
+    await i18next.init({lng: "en", resources: {
+        es: {translation: {
+            "new version available": "hay una versión nueva",
+            "reload": "recargar",
+            "close": "cerrar",
+        }},
+    }});
 
     const $meta = document.createElement("meta");
     $meta.setAttribute("name", "yuneta-build");
@@ -131,6 +150,7 @@ beforeEach(() => {
     server.version = "1.0.0";
     server.fail = null;
     server.asked = 0;
+    network.online = undefined;
 });
 
 afterEach(() => {
@@ -237,6 +257,61 @@ describe("C_YUI_UPDATE_WATCH", () => {
         await new Promise((resolve) => setTimeout(resolve, 70));
         await settle();
         expect(server.asked).toBeGreaterThanOrEqual(3);
+    });
+
+    test("offline asks nothing, not even forced", async () => {
+        network.online = false;
+        make_watch({min_interval_ms: 0});
+        await settle();
+        gobj_send_event(watch, "EV_CHECK_BUILD", {force: true}, watch);
+        window.dispatchEvent(fake_event("focus"));
+        await settle();
+        expect(server.asked).toBe(0);
+    });
+
+    test("back online asks at once, inside min_interval_ms", async () => {
+        network.online = true;
+        make_watch({min_interval_ms: 60000});
+        await settle();
+        expect(server.asked).toBe(1);
+        window.dispatchEvent(fake_event("focus"));
+        await settle();
+        expect(server.asked).toBe(1);
+
+        network.online = false;
+        gobj_send_event(watch, "EV_CHECK_BUILD", {force: true}, watch);
+        await settle();
+        expect(server.asked).toBe(1);
+
+        network.online = true;
+        window.dispatchEvent(fake_event("online"));
+        await settle();
+        expect(server.asked).toBe(2);
+    });
+
+    test("with no shell, the app's language switch re-translates the bar", async () => {
+        server.stamp = "bbbbbbbbbbbbbbbb";
+        make_watch();
+        await settle();
+        const $bar = bar();
+        const $reload = $bar.querySelector(".UPDATE_RELOAD");
+        expect($reload.getAttribute("aria-label")).toBe("reload");
+
+        /*  The texts carry their key; the document double's text nodes
+         *  have no nodeValue for refresh_language() to write, so what it
+         *  rewrites is read from the attributes.  */
+        expect($bar.querySelector(".UPDATE_TEXT").getAttribute("data-i18n")).toBe("new version available");
+        await i18next.changeLanguage("es");
+        try {
+            expect($reload.getAttribute("aria-label")).toBe("reload");
+            yui_update_watch_language_changed();
+            expect([$reload.getAttribute("title"), $reload.getAttribute("aria-label")])
+                .toEqual(["recargar", "recargar"]);
+            expect($bar.querySelector(".UPDATE_DISMISS").getAttribute("aria-label")).toBe("cerrar");
+            expect($bar.querySelector(".UPDATE_VERSION").textContent).toBe("1.0.0");
+        } finally {
+            await i18next.changeLanguage("en");
+        }
     });
 
     test("stopped, the page events ask nothing", async () => {

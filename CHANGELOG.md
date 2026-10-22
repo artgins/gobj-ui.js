@@ -50,6 +50,22 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   now subscribes to the shell's `EV_LANGUAGE_CHANGED` in `mt_start` and drops
   it in `mt_stop`, as `C_YUI_JSON` does, and hands it on to the machine's
   graph when that is built.
+- **`yui_update_watch_language_changed()`: the update bar on the login
+  changes language.** `C_YUI_UPDATE_WATCH` re-translated its bar only with
+  the live shell's `EV_LANGUAGE_CHANGED`, and on the login there is no shell,
+  so the language buttons of the login screens never reached it (7.27.29 said
+  the bar covers the login; its language did not). The new export, from
+  `src/c_yui_update_watch.js` and the package index, sends
+  `EV_LANGUAGE_CHANGED` to every live watch, through its FSM. An app calls it
+  from its login language switch, after switching its i18next:
+  `yui_update_watch_language_changed()` (or `(gobj)`, the gobj that switched).
+  Calling it with a shell up too is harmless. `EV_LANGUAGE_CHANGED` is now
+  listed as an input event of the watch.
+- Tests: the update watch's "offline asks nothing" was claimed and never
+  run (vitest has no `navigator.onLine`, so the guard was never reached).
+  `navigator.onLine` is stubbed now, and two cases pin it: offline asks
+  nothing, not even forced, and the `online` event asks at once, inside
+  `min_interval_ms`.
 
 ## 7.27.29
 

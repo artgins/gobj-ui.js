@@ -3787,6 +3787,21 @@ if(update_watch) {
   `document.body` when there is no shell. It follows the shell across a logout.
   The ✕ hides it for that build only, and a later deploy shows it again. A
   rollback to the running build takes it away.
+- **Its language** follows the live shell's `EV_LANGUAGE_CHANGED`
+  (`yui_shell_language_changed()`). On the login there is no shell to publish
+  it, so the app's login language switch calls
+  **`yui_update_watch_language_changed()`** after switching its i18next
+  (7.27.30+). It sends `EV_LANGUAGE_CHANGED` to every live watch, so the bar
+  is re-translated through the watch's FSM. With a shell up too, the second
+  refresh is harmless:
+
+  ```js
+  import {yui_update_watch_language_changed} from "@yuneta/gobj-ui/src/c_yui_update_watch.js";
+
+  // the login's language button, after switching the i18next language:
+  switch_locale(locale);
+  yui_update_watch_language_changed();    // or (gobj), the gobj that switched
+  ```
 - **Attributes**: `min_interval_ms`, `period_ms` (0 = off), `with_bar`
   (false: no bar, the app listens to `EV_NEW_BUILD`), `$parent`, and
   `before_reload`, a function that can veto the reload when there are unsaved

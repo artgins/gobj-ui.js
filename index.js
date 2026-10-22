@@ -20,7 +20,7 @@
  */
 export { register_c_yui_window } from "./src/c_yui_window.js";
 export { register_c_yui_window_manager } from "./src/c_yui_window_manager.js";
-export { register_c_yui_update_watch } from "./src/c_yui_update_watch.js";
+export { register_c_yui_update_watch, yui_update_watch_language_changed } from "./src/c_yui_update_watch.js";
 export { register_c_yui_pager } from "./src/c_yui_pager.js";
 export { register_c_yui_wizard } from "./src/c_yui_wizard.js";
 export { register_c_yui_form } from "./src/c_yui_form.js";

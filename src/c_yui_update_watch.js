@@ -42,6 +42,13 @@
  *          next login) in document.body. It follows the shell across a
  *          logout (yui_shell_watch_changes()), as the dock does.
  *
+ *          Its language: it hears the live shell's EV_LANGUAGE_CHANGED
+ *          (yui_shell_language_changed()). With NO shell there is nobody
+ *          to publish that, so an app whose login switches language
+ *          calls yui_update_watch_language_changed() after switching its
+ *          i18next -- it sends EV_LANGUAGE_CHANGED to every live watch.
+ *          Calling it with a shell up too is harmless.
+ *
  *          Usage (an app, once, after creating the yuno):
  *
  *              register_c_yui_update_watch();
@@ -53,12 +60,21 @@
  *              // on its backend's EV_ON_OPEN:
  *              gobj_send_event(watch, "EV_CHECK_BUILD", {}, gobj);
  *
+ *              // the login's language switch (no shell yet):
+ *              switch_locale(locale);
+ *              yui_update_watch_language_changed();
+ *
  *          Input events:
  *              EV_CHECK_BUILD      {force?}    ask the server (force skips
  *                                              the minimum interval)
  *              EV_RELOAD           {}          the bar's reload button
  *              EV_DISMISS          {}          the bar's ✕: hidden for THIS
  *                                              build, a later one shows it
+ *              EV_LANGUAGE_CHANGED {}          the app's language changed:
+ *                                              the bar is re-translated
+ *                                              (the live shell publishes it;
+ *                                              with no shell,
+ *                                              yui_update_watch_language_changed())
  *
  *          Output events (optional subscribers):
  *              EV_NEW_BUILD        {running, deployed, version}
@@ -144,6 +160,11 @@ let PRIVATE_DATA = {
 
 let __gclass__ = null;
 
+/*  The watches alive (mt_create .. mt_destroy): what
+ *  yui_update_watch_language_changed() reaches when no shell can
+ *  publish the language switch.  */
+const __live_watches__ = [];
+
 
 
 
@@ -163,6 +184,7 @@ function mt_create(gobj)
 
     priv.running = running_build(typeof document !== "undefined" ? document : null);
     priv.dom_handlers = [];
+    __live_watches__.push(gobj);
 
     /*
      *  Create children
@@ -247,6 +269,10 @@ function mt_destroy(gobj)
 {
     let priv = gobj.priv;
 
+    let idx = __live_watches__.indexOf(gobj);
+    if(idx >= 0) {
+        __live_watches__.splice(idx, 1);
+    }
     yui_shell_unwatch_changes(gobj);
     if(priv.lang_shell) {
         if(!gobj_is_destroying(priv.lang_shell)) {
@@ -719,4 +745,25 @@ function register_c_yui_update_watch()
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_yui_update_watch };
+/***************************************************************
+ *  The app switched its language (call it AFTER switching the
+ *  i18next): every live watch re-translates its bar.
+ *
+ *  For the screens with no shell -- the login, the gap between a
+ *  logout and the next login -- where nobody publishes the
+ *  shell's EV_LANGUAGE_CHANGED that the watch hears otherwise.
+ *  It is an EVENT to each watch, so the switch is in its
+ *  machine trace. `src`: the gobj that switched, if the caller
+ *  has one.
+ ***************************************************************/
+function yui_update_watch_language_changed(src)
+{
+    for(let watch of __live_watches__.slice()) {
+        if(gobj_is_destroying(watch)) {
+            continue;
+        }
+        gobj_send_event(watch, "EV_LANGUAGE_CHANGED", {}, src || watch);
+    }
+}
+
+export { register_c_yui_update_watch, yui_update_watch_language_changed };
