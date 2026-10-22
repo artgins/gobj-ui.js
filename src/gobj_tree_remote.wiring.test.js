@@ -477,7 +477,78 @@ describe("C_YUI_GOBJ_TREE_JS, source remote: the open gclass viewer", () => {
             .toEqual([true, true]);
         expect(problems()).toEqual([]);
     });
+
+    test("reopened while a set of ITS gclass is in flight, it opens locked until that answer", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        gobj_send_event(view, "EV_SET_GCLASS_TRACE", {gclass: "C_TCP", levels: ["traffic"], set: true}, viewer);
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        /*  The card's gclass button, while the set is in flight: the
+         *  viewer is replaced by a new one of the same gclass.  */
+        const reopened = reopen_tcp_viewer(view);
+        expect(reopened).not.toBe(viewer);
+        expect(viewer_box(reopened, "traffic").disabled).toBe(true);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO, {gclass: "C_TIMER"}), host);
+        expect(viewer_box(reopened, "traffic").disabled).toBe(true);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO,
+            {gclass_on: ["connections", "traffic"]}), host);
+        expect([viewer_box(reopened, "traffic").checked, viewer_box(reopened, "traffic").disabled])
+            .toEqual([true, false]);
+        expect(problems()).toEqual([]);
+    });
+
+    test("reopened after the answer, or with a set of ANOTHER gclass in flight, it opens unlocked", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        gobj_send_event(view, "EV_SET_GCLASS_TRACE", {gclass: "C_TCP", levels: ["traffic"], set: true}, viewer);
+        gobj_send_event(view, "EV_TRACE_INFO", TCP_INFO, host);
+        expect(viewer_box(reopen_tcp_viewer(view), "traffic").disabled).toBe(false);
+
+        gobj_send_event(view, "EV_SET_GCLASS_TRACE", {gclass: "C_TIMER", levels: ["traffic"], set: true}, view);
+        expect(viewer_box(reopen_tcp_viewer(view), "traffic").disabled).toBe(false);
+        expect(problems()).toEqual([]);
+    });
+
+    test("reopened while a set of the yuno's scope is in flight, it waits for the yuno's answer AND its own", async () => {
+        const {view, viewer} = await open_tcp_viewer();
+        gobj_read_attr(view, "$container").querySelector(".GOBJ_TREE_YUNO_TRACES_BUTTON").click();
+        gobj_send_event(view, "EV_TRACE_INFO", YUNO_INFO, host);
+        const ev_kw = row_of(view, "ev_kw");
+        ev_kw.$global.checked = true;
+        ev_kw.$global.dispatchEvent(fake_event("change"));
+        expect(viewer_box(viewer, "traffic").disabled).toBe(true);
+
+        const reopened = reopen_tcp_viewer(view);
+        expect(viewer_box(reopened, "traffic").disabled).toBe(true);
+        wanted.length = 0;
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, YUNO_INFO,
+            {global_on: ["machine", "ev_kw"]}), host);
+        expect(wanted.map((w) => [w.event, w.kw.gclass])).toEqual([["EV_TRACE_INFO_WANTED", "C_TCP"]]);
+        expect(viewer_box(reopened, "traffic").disabled).toBe(true);
+
+        gobj_send_event(view, "EV_TRACE_INFO", Object.assign({}, TCP_INFO,
+            {global_levels: YUNO_INFO.global_levels,
+             gclass_on: ["connections", "ev_kw"], global_on: ["ev_kw"]}), host);
+        expect(viewer_box(reopened, "traffic").disabled).toBe(false);
+        expect(problems()).toEqual([]);
+    });
 });
+
+/*  The card of tcp1 again, and its gclass button: the host's answer
+ *  replaces the open viewer with a new one of C_TCP.  */
+function reopen_tcp_viewer(view)
+{
+    const id = node_id_of(view, "C_YUNO^gate`C_TCP^tcp1");
+    gobj_send_event(view, "EV_NODE_CLICK", {id: id, client_x: 10, client_y: 10}, view);
+    gobj_send_event(view, "EV_OPEN_GCLASS", {}, view);
+    gobj_send_event(view, "EV_GCLASS_DESCRIPTION",
+        {gclass: "C_TCP", description: TCP_DESCRIPTION}, host);
+    const viewer = view.priv.gclass_view && view.priv.gclass_view.json_gobj;
+    expect(viewer).toBeTruthy();
+    return viewer;
+}
 
 describe("C_YUI_GOBJ_TREE_JS, source local", () => {
     test("publishes nothing: its host declares none of the remote events", async () => {

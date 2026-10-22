@@ -498,6 +498,7 @@ let PRIVATE_DATA = {
     popover_mode:   "",     // what the popover shows: "node" (a card) | "yuno" (the yuno's traces)
     viewer_awaits:  "",     // the gclass whose answer unlocks the open viewer ("" = not locked)
     viewer_stale:   "",     // a gclass whose open viewer must be asked again after a yuno set
+    set_in_flight:  null,   // {gclass, scope}: the set whose answer (EV_TRACE_INFO of gclass) is owed
     view_refused:   false,  // the saved camera showed no card: the opening's framing replaces it
 };
 
@@ -3597,6 +3598,11 @@ function open_gclass_window(gobj, gclass, description, d)
     priv.gclass_view = null;
     priv.viewer_awaits = "";
     priv.viewer_stale = "";
+    /*  A viewer opened while a set that moves what it shows is still
+     *  in flight opens locked, as the one it replaces was.  */
+    if(priv.set_in_flight) {
+        lock_viewer_for_set(gobj, gclass, priv.set_in_flight);
+    }
 
     let opts = {
         title_prefix: is_remote(gobj)?
@@ -3686,6 +3692,9 @@ function ac_trace_info(gobj, event, kw, src)
         error:          kw.error || "",
     };
     priv.trace_pending = false;
+    if(priv.set_in_flight && priv.set_in_flight.gclass === kw.gclass) {
+        priv.set_in_flight = null;
+    }
 
     let d = priv.popover_node;
     let root = priv.remote_root;
@@ -3708,6 +3717,9 @@ function ac_trace_info(gobj, event, kw, src)
                  *  only the root's gclass. Locked until its own.  */
                 priv.viewer_stale = "";
                 priv.viewer_awaits = shown;
+                /*  Owed like a set of its own: a viewer of it reopened
+                 *  before the answer opens locked too.  */
+                priv.set_in_flight = {gclass: shown, scope: "gclass"};
                 gobj_publish_event(gobj, "EV_TRACE_INFO_WANTED", {gclass: shown});
             }
         }
@@ -3846,14 +3858,14 @@ function set_trace_levels(gobj, target, scope, levels, set)
     /*  The viewer is locked only by a set that moves what it shows:
      *  one of its own gclass, or one of the yuno's scope. A gobj or
      *  gclass set of ANOTHER gclass leaves it alone -- the answer that
-     *  ends that set is not one the viewer would ever be sent.  */
+     *  ends that set is not one the viewer would ever be sent. The set
+     *  is remembered for a viewer opened before its answer, and only
+     *  the LAST one: the host overtakes an earlier set in flight.  */
+    priv.set_in_flight = {gclass: target.gclass, scope: scope};
     let viewer = gclass_viewer_gobj(gobj);
     if(viewer) {
         let shown = gobj_read_str_attr(viewer, "gclass_name");
-        let concerned = (shown === target.gclass) || scope === "global";
-        if(concerned) {
-            priv.viewer_awaits = target.gclass;
-            priv.viewer_stale = (shown !== target.gclass)? shown: "";
+        if(lock_viewer_for_set(gobj, shown, priv.set_in_flight)) {
             gobj_send_event(viewer, "EV_SET_TRACES", viewer_traces(gobj, shown), gobj);
         }
     }
@@ -3865,6 +3877,22 @@ function set_trace_levels(gobj, target, scope, levels, set)
         levels: levels,
         set:    set,
     });
+}
+
+/*  The viewer of `shown` waits for the answer of `set` when the set
+ *  moves what it shows: one of its own gclass, or one of the yuno's
+ *  scope (then its own levels are asked for again after the yuno's,
+ *  see ac_trace_info). Returns whether it was locked.  */
+function lock_viewer_for_set(gobj, shown, set)
+{
+    let priv = gobj.priv;
+    let concerned = (shown === set.gclass) || set.scope === "global";
+    if(!concerned) {
+        return false;
+    }
+    priv.viewer_awaits = set.gclass;
+    priv.viewer_stale = (shown !== set.gclass)? shown: "";
+    return true;
 }
 
 /************************************************************
