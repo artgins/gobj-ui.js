@@ -7,7 +7,9 @@
  *      camera was saved as nulls (a NaN has no json text) and gobj-js
  *      7.26.27 refuses the whole value with an ERROR. Only real numbers
  *      are written now; a camera that is not readable keeps the one
- *      saved before, and a saved camera of nulls is not restored.
+ *      saved before, and a saved camera of nulls is not restored. What
+ *      is saved is getPosition(), and it is brought back with
+ *      translateTo() through G6's closed forms, at any zoom.
  *
  *      The real gclass, on a G6 Graph double whose camera the test sets.
  *
@@ -31,7 +33,14 @@ if(typeof globalThis.ResizeObserver === "undefined") {
 }
 
 const camera = vi.hoisted(() => ({zoom: NaN, position: [NaN, NaN], zoomed: [], moved: [],
-                                   size: null, viewport: null, plugins: []}));
+                                   size: null, viewport: null, plugins: [], g6: null}));
+
+/*  `camera.g6`, when set, is a camera that obeys G6 5.x's own closed
+ *  forms, with C the canvas centre, Z the zoom and P the camera's
+ *  position: getPosition() = C/Z - P, an absolute translateTo(T) leaves
+ *  P = C - T/Z, zoomTo() keeps P, and a point n lands at (n - P)*Z + C.
+ *  {Z, P, node}: `node` is where every card is.  */
+const CENTRE = [400, 300];
 vi.mock("@antv/g6", async (importOriginal) => {
     const real = await importOriginal();
     class FakeGraph {
@@ -50,17 +59,28 @@ vi.mock("@antv/g6", async (importOriginal) => {
         on() {
         }
         getZoom() {
-            return camera.zoom;
+            return camera.g6? camera.g6.Z: camera.zoom;
         }
         getPosition() {
+            const g = camera.g6;
+            if(g) {
+                return [CENTRE[0] / g.Z - g.P[0], CENTRE[1] / g.Z - g.P[1]];
+            }
             return camera.position;
         }
         zoomTo(z) {
             camera.zoomed.push(z);
+            if(camera.g6) {
+                camera.g6.Z = z;
+            }
             return Promise.resolve();
         }
         translateTo(p) {
             camera.moved.push(p);
+            const g = camera.g6;
+            if(g) {
+                g.P = [CENTRE[0] - p[0] / g.Z, CENTRE[1] - p[1] / g.Z];
+            }
             return Promise.resolve();
         }
         /*  Where a card lands on screen: `camera.viewport` for every one
@@ -73,15 +93,19 @@ vi.mock("@antv/g6", async (importOriginal) => {
             return camera.size;
         }
         getElementPosition() {
-            return [0, 0];
+            return camera.g6? camera.g6.node: [0, 0];
         }
         getElementData() {
             return {};
         }
         getCanvasCenter() {
-            return [400, 300];
+            return CENTRE;
         }
-        getViewportByCanvas() {
+        getViewportByCanvas(n) {
+            const g = camera.g6;
+            if(g) {
+                return [(n[0] - g.P[0]) * g.Z + CENTRE[0], (n[1] - g.P[1]) * g.Z + CENTRE[1]];
+            }
             return camera.viewport;
         }
         getData() {
@@ -156,6 +180,7 @@ beforeEach(() => {
     camera.size = null;
     camera.viewport = null;
     camera.plugins = [];
+    camera.g6 = null;
 });
 
 function errors()
@@ -249,8 +274,57 @@ describe("C_YUI_GOBJ_TREE_JS does not restore a camera that shows nothing", () =
         await mount(name);
         await new Promise((resolve) => setTimeout(resolve, 0));
         expect(camera.zoomed).toEqual([0.5]);
-        expect(camera.moved).toEqual([[10, 20]]);
+        /*  getPosition() handed back to translateTo() at zoom 0.5:
+         *  T = (S + C) * Z - C, not S itself  */
+        expect(camera.moved).toEqual([[(10 + 400) * 0.5 - 400, (20 + 300) * 0.5 - 300]]);
         expect(errors()).toEqual([]);
+    });
+});
+
+describe("C_YUI_GOBJ_TREE_JS brings the camera back where it was, at any zoom", () => {
+    async function round_trip(zoom, P)
+    {
+        const name = `camera_${++seq}`;
+        camera.size = [800, 600];
+        camera.g6 = {Z: 1, P: [400, 300], node: [100, 50]};
+        const first = await mount(name);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        /*  the reader zooms and pans; the move is saved  */
+        camera.g6.Z = zoom;
+        camera.g6.P = P.slice();
+        gobj_send_event(first, "EV_REFRESH", {}, first);
+        const S = [400 / zoom - P[0], 300 / zoom - P[1]];
+        expect(saved(name).zoom).toBe(zoom);
+        expect(saved(name).position[0]).toBeCloseTo(S[0], 6);
+        expect(saved(name).position[1]).toBeCloseTo(S[1], 6);
+        /*  (the refresh frames that view again, later: let it)  */
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        /*  a new opening, on a fresh camera  */
+        camera.g6 = {Z: 1, P: [400, 300], node: [100, 50]};
+        camera.zoomed = [];
+        await mount(name);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(camera.zoomed).toEqual([zoom]);
+        expect(camera.g6.Z).toBe(zoom);
+        expect(camera.g6.P[0]).toBeCloseTo(P[0], 6);
+        expect(camera.g6.P[1]).toBeCloseTo(P[1], 6);
+        expect(logged.filter((l) => l.level === "warning").map((l) => l.msg).join(" "))
+            .not.toMatch(/the saved view shows none of the/);
+        expect(errors()).toEqual([]);
+    }
+
+    test("at zoom 0.3: kept, not judged to show nothing", async () => {
+        await round_trip(0.3, [150, 80]);
+    });
+
+    test("at zoom 0.8: not shifted", async () => {
+        await round_trip(0.8, [180, 20]);
+    });
+
+    test("at zoom 2", async () => {
+        await round_trip(2, [90, 60]);
     });
 });
 

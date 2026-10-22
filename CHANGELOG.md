@@ -31,6 +31,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   scope), the tree remembers which answer it waits for, and only that one
   unlocks it (after a yuno set: the root's answer, then its own, asked for
   then).
+- **The gobj tree's saved camera comes back where it was, at any zoom.** It
+  saves G6's `getPosition()` and gave it back to `translateTo()` as it came,
+  but in G6 5.x the two are each other's inverse only at zoom 1
+  (`getPosition()` = C/Z − P, and `translateTo(T)` leaves P = C − T/Z). At
+  0.8 the view came back shifted, more on every close and open; at 0.3 the
+  check that refuses a camera showing no card made the same mistake, refused
+  a good camera ("the saved view shows none of the N gobjs") and framed the
+  tree again at 1:1. The restore now translates to T = (S + C)·Z − C, and the
+  check puts a card at (n + S)·Z. The stored format does not change, so a
+  camera saved by an earlier version comes back right too.
 
 ## 7.27.29
 

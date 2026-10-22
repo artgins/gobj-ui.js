@@ -295,7 +295,10 @@ function restore_view_state(gobj)
             done = true;
         }
         if(position !== null) {
-            graph.translateTo(position);
+            /*  What was saved is getPosition(), and translateTo() does
+             *  not take it back: see translate_of_position().  */
+            graph.translateTo(translate_of_position(graph, position,
+                (zoom !== null)? zoom: graph.getZoom()));
             done = true;
         }
         if(state.anchor) {
@@ -317,14 +320,38 @@ function restore_view_state(gobj)
     return done;
 }
 
+/*  The translateTo() argument that puts the camera back where
+ *  getPosition() answered `position`, at zoom `zoom` (the one the
+ *  camera has when the translate is applied).
+ *
+ *  The two are each other's inverse only at zoom 1. In G6 5.x, with C
+ *  the canvas centre, Z the zoom and P the camera's own position,
+ *  getPosition() answers S = C/Z - P, and an absolute translateTo(T)
+ *  leaves P = C - T/Z. So the same camera is T = (S + C) * Z - C.
+ *  Handing S to translateTo() as it came brought the zoom back and put
+ *  the graph elsewhere, further on every close and open (and a camera
+ *  saved at 0.3 was judged to show nothing, and framed again). The
+ *  treedb graph met the same pair (c_g6_nodes_tree.js, "A camera is
+ *  saved as a NODE at a VIEWPORT PIXEL").  */
+function translate_of_position(graph, position, zoom)
+{
+    let z = (zoom > 0)? zoom: 1;
+    let c = graph.getCanvasCenter();
+    return [
+        (position[0] + c[0]) * z - c[0],
+        (position[1] + c[1]) * z - c[1]
+    ];
+}
+
 /*  Would the centre of at least one card land inside the canvas under
  *  this camera? `zoom` and `position` are what getZoom()/getPosition()
- *  answer (a null one: the current). A camera absolute-translated to T
- *  at zoom Z puts a point n of the graph at (n - C) * Z + T + C on the
- *  canvas, C its centre -- the closed form of G6's own
- *  getTranslateOptions(), the one yui_graph_center_on() relies on.
- *  True when there is nothing to show or it cannot be computed: only a
- *  camera KNOWN to show nothing is refused.  */
+ *  answer (a null one: the current). Under that camera a point n of the
+ *  graph lands at (n + S) * Z on the canvas: from G6's closed forms
+ *  (translate_of_position() above), v = (n - P) * Z + C with
+ *  P = C/Z - S. NOT (n - C) * Z + S + C, which takes S for a translate
+ *  and is right only at zoom 1. True when there is nothing to show or
+ *  it cannot be computed: only a camera KNOWN to show nothing is
+ *  refused.  */
 function camera_shows_a_card(gobj, zoom, position)
 {
     let priv = gobj.priv;
@@ -335,9 +362,8 @@ function camera_shows_a_card(gobj, zoom, position)
     }
     try {
         let size = graph.getSize();
-        let c = graph.getCanvasCenter();
         let z = (zoom !== null)? zoom: graph.getZoom();
-        let t = (position !== null)? position: graph.getPosition();
+        let s = (position !== null)? position: graph.getPosition();
         let w = size[0];
         let h = size[1];
         if(!(w > 0 && h > 0) || !(z > 0)) {
@@ -345,8 +371,8 @@ function camera_shows_a_card(gobj, zoom, position)
         }
         for(let id of ids) {
             let n = graph.getElementPosition(id);
-            let vx = (n[0] - c[0]) * z + t[0] + c[0];
-            let vy = (n[1] - c[1]) * z + t[1] + c[1];
+            let vx = (n[0] + s[0]) * z;
+            let vy = (n[1] + s[1]) * z;
             if(vx >= 0 && vx <= w && vy >= 0 && vy <= h) {
                 return true;
             }
