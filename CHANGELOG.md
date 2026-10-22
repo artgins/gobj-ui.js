@@ -7,6 +7,32 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.27.31
+
+**Review fixes of 7.27.30.**
+
+- **A gclass viewer reopened while a set of its gclass is in flight opens
+  locked again.** 7.27.30 cleared the viewer's lock when a viewer was
+  opened, and the lock no longer came from the tree-wide "a set is in
+  flight" flag, so the card's gclass button pressed during a set of that
+  gclass opened a viewer with its boxes enabled and the levels from before
+  the set, until the answer came (up to 7.27.29 it opened locked). The tree
+  now remembers the last set in flight (the host answers only the last one)
+  and a viewer opened before its answer is locked by the same rule as an
+  open one: a set of its own gclass, or of the yuno's scope (then it waits
+  for the yuno's answer and then for its own). Only that answer unlocks it.
+- **A `C_YUI_NODE` tree stays on its path when a route of another stage
+  changes.** The root compared only the `base` of the shell's
+  `EV_ROUTE_CHANGED`, so with a second stage (SHELL.md §3, `right` as a
+  secondary stage) a route of that stage sent the main stage's tree to
+  `ST_OFF` and emptied it, while the shell kept it on screen. The root now
+  remembers the stage of its own route and ignores the routes of another
+  stage. A route of its own stage takes it off the path as before, and the
+  showing that follows tells the content `EV_VIEW_SHOWN` once.
+- **README "Releasing":** the demo paragraph is together again, and it says
+  that the demo is the one app without a lockfile in git, on purpose (its
+  gobj-ui and gobj-js are `file:` links to the working trees).
+
 ## 7.27.30
 
 **Review fixes of the 7.27.21-7.27.29 round.**
