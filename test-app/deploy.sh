@@ -51,8 +51,9 @@ ssh "yuneta@$SSH_HOST" "mkdir -p $DEST_DIR"
 # --delay-updates + --delete-after: the new files land together at the end
 # of the upload and the old ones are removed only after them, so a page
 # loaded during the upload never gets an index.html whose chunks are not
-# there yet. A tab still running the old build is told by its
-# C_YUI_UPDATE_WATCH bar (gobj-ui) to reload.
+# there yet. The demo carries no build stamp (it does not use
+# yunetaHtmlPlugin) and creates no C_YUI_UPDATE_WATCH, so a tab still
+# running the old build is NOT told: it is reloaded by hand.
 rsync -avzL --delete-after --delay-updates \
     --exclude \.webassets-cache --exclude \.sass-cache --exclude \.cache \
     ./dist/ \
