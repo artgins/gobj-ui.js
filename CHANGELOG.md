@@ -7,6 +7,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.27.32
+
+- **No more "has been registered before" warnings in the console.** gobj-ui
+  replaces G6's built-in `drag-canvas` and `zoom-canvas` on purpose (the
+  touch round of 7.23.9), and G6's `register()` warns whenever a type is
+  registered again -- twice on every page load, in every app that draws a
+  graph, and the gui_agent QA failed on them every run. The replacement is
+  now written into the live registry G6 hands out (`getExtensions()`), and
+  checked with `getExtension()`: if a later G6 handed out a copy, the
+  replacement would go through `register()` and its warning instead of
+  being lost. New module `src/g6_replace_behavior.js`.
+
 ## 7.27.31
 
 **Review fixes of 7.27.30.**

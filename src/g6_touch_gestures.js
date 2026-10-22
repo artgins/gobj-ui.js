@@ -61,11 +61,10 @@
 import {
     ZoomCanvas,
     CommonEvent,
-    ExtensionCategory,
-    register,
 } from '@antv/g6';
 
 import {press_moved, classify_press, LONG_PRESS_MS} from "./press_arbiter.js";
+import {replace_g6_behavior} from "./g6_replace_behavior.js";
 
 
 /***************************************************************
@@ -309,7 +308,7 @@ export function ensure_pinch_zoom_patch()
     if(__zoom_canvas_patched__) {
         return;
     }
-    register(ExtensionCategory.BEHAVIOR, 'zoom-canvas', ZoomCanvasPinch);
+    replace_g6_behavior('zoom-canvas', ZoomCanvasPinch);
     __zoom_canvas_patched__ = true;
 }
 

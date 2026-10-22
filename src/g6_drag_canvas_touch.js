@@ -53,11 +53,10 @@
 import {
     DragCanvas,
     CommonEvent,
-    ExtensionCategory,
-    register,
 } from '@antv/g6';
 
 import {is_pinching} from './g6_touch_gestures.js';
+import {replace_g6_behavior} from './g6_replace_behavior.js';
 
 /************************************************************
  *  Custom drag-canvas: same behavior, reliable delta source
@@ -155,7 +154,7 @@ function ensure_drag_canvas_patch()
     if(__drag_canvas_patched__) {
         return;
     }
-    register(ExtensionCategory.BEHAVIOR, 'drag-canvas', DragCanvasTouch);
+    replace_g6_behavior('drag-canvas', DragCanvasTouch);
     __drag_canvas_patched__ = true;
 }
 
