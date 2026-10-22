@@ -79,7 +79,9 @@
  *      Only the ROOT node (the one whose parent is not a C_YUI_NODE)
  *      talks to the shell: it subscribes to EV_ROUTE_CHANGED, resolves
  *      the subpath and activates the branch.  Inner nodes only ever
- *      hear their parent.
+ *      hear their parent.  A route of ANOTHER stage (a secondary stage,
+ *      SHELL.md §3) is not the root's business: the shell keeps showing
+ *      the tree in its own stage, so the tree stays on its path.
  *
  *      A path segment that names no living child is not silently
  *      swallowed: it logs and the URL is rewritten (replace) to the
@@ -198,6 +200,7 @@ let PRIVATE_DATA = {
     distance:       0,      /*  segments from me down to the tip           */
     chain:          null,   /*  nodes from my child down to the tip        */
     is_root:        false,
+    stage:          "",     /*  root: the shell stage that shows me ("" = not shown yet) */
     $chrome:        null,
     $body:          null
 };
@@ -1179,8 +1182,10 @@ function activate(gobj, subpath, inherited_depth)
  *  declares EV_VIEW_SHOWN is told.
  *
  *  This is the ONLY way it is told: a tree the shell shows
- *  again comes back here too (each node on the path leaves
- *  ST_OFF with the shell's EV_ROUTE_CHANGED), so the node
+ *  again comes back here too (the shell hides it only for a
+ *  route of its own stage, which takes the root to ST_OFF, and
+ *  each node on the path leaves ST_OFF with the shell's
+ *  EV_ROUTE_CHANGED that shows it again), so the node
  *  does not declare EV_VIEW_SHOWN and the shell does not send
  *  the tree a second one.
  ************************************************************/
@@ -1302,17 +1307,25 @@ function notify_tree_changed(gobj)
  ************************************************************/
 function ac_route_changed(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
     let base = kw.base || "";
     let my_base = gobj_read_attr(gobj, "base_route");
+    let stage = kw.stage || "main";
 
     if(base !== my_base) {
-        /*  Another view owns the URL now.  A keep_alive tree stays
+        /*  A route of ANOTHER stage changes what that stage shows, not
+         *  mine: the shell keeps showing me, so I stay on my path.  */
+        if(priv.stage && stage !== priv.stage) {
+            return 0;
+        }
+        /*  Another view owns my stage now.  A keep_alive tree stays
          *  created but must not keep painting a stale branch. */
         deactivate(gobj);
         gobj_change_state(gobj, "ST_OFF");
         return 0;
     }
 
+    priv.stage = stage;
     gobj_change_state(gobj, activate(gobj, kw.subpath || "", null));
     return 0;
 }
