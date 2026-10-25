@@ -42,7 +42,7 @@ const {
 } = await import("@yuneta/gobj-js");
 const {register_c_yui_uplot} = await import("./c_yui_uplot.js");
 const {
-    yui_uplot_axes, yui_uplot_axis_ink, yui_uplot_grid_ink,
+    yui_uplot_axes, yui_uplot_axis_ink, yui_uplot_grid_ink, yui_uplot_axis_size,
 } = await import("./yui_uplot_ink.js");
 
 const logged = [];
@@ -65,6 +65,35 @@ beforeEach(() => {
 
 afterEach(() => {
     document.documentElement.removeAttribute("data-theme");
+});
+
+describe("the width of a vertical axis", () => {
+    const fake = (px_per_char) => ({
+        ctx: {font: "", measureText: (t) => ({width: t.length * px_per_char})},
+        axes: [{}, {ticks: {size: 10}, gap: 5, font: ["12px sans-serif"]}]
+    });
+
+    test("the Y axes are sized by their labels, the X is not; a host's size stands", () => {
+        const axes = yui_uplot_axes([{}, {}, {side: 1}, {side: 2}, {size: 80}]);
+        expect(axes[0].size).toBeUndefined();
+        expect(axes[1].size).toBe(yui_uplot_axis_size);
+        expect(axes[2].size).toBe(yui_uplot_axis_size);
+        expect(axes[3].size).toBeUndefined();
+        expect(axes[4].size).toBe(80);
+    });
+
+    test("fits the longest label, never under uPlot's 50px", () => {
+        const self = fake(7);
+        expect(yui_uplot_axis_size(self, ["0", "50,000", "150,000"], 1, 0)).toBe(Math.ceil(15 + 7 * 7));
+        expect(yui_uplot_axis_size(fake(7), ["0", "5"], 1, 0)).toBe(50);
+        expect(yui_uplot_axis_size(fake(7), null, 1, 0)).toBe(50);
+    });
+
+    test("past the first cycle the size settled stands", () => {
+        const self = fake(7);
+        self.axes[1]._size = 66;
+        expect(yui_uplot_axis_size(self, ["1,000,000,000"], 1, 2)).toBe(66);
+    });
 });
 
 describe("yui_uplot_axes()", () => {

@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.28.1
+
+- **A vertical axis of a chart is as wide as its labels**
+  (`yui_uplot_axis_size()`, set by `yui_uplot_axes()` on every Y axis the
+  host did not size). uPlot gives a Y axis a fixed 50px, so any value past
+  five digits was cut at the left edge: `150,000` read `,0,000` in the
+  live charts of gui_agent at 35,000 msg/s. The size is the longest label
+  measured in the axis's own font plus its ticks and gap, never under
+  50px, and settles after uPlot's first cycle. An axis the host sized
+  (`size`) and the X axis are left as they were.
+
 ## 7.28.0
 
 The number follows SDK 7.28 (rule: when the SDK's minor moves, the next

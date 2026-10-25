@@ -28,6 +28,10 @@
  *              axes: yui_uplot_axes([{}]),     // X and Y, with the ink of the theme
  *          }, data, $el);
  *
+ *      A vertical axis is as wide as its longest label
+ *      (yui_uplot_axis_size, 7.28.1): uPlot's fixed 50px cut every
+ *      value past five digits.
+ *
  *      The palette is six colours that clear 3:1 on BOTH grounds
  *      (worst 3.39 on white, 3.71 on near-black), ordered so the first
  *      two are the pair that survives colour blindness -- blue and
@@ -64,6 +68,33 @@ const YUI_UPLOT_PALETTE = [
 ];
 
 /************************************************************
+ *  The width of a vertical axis: its longest label, measured
+ *  in its own font, plus its ticks and its gap. uPlot gives a
+ *  Y axis a fixed 50px, which cuts any label wider than ~5
+ *  digits ("150,000" was drawn as ",0,000"). uPlot asks again
+ *  while the size settles (`cycle`): past the first answer the
+ *  last size stands, or the layout never converges.
+ ************************************************************/
+function yui_uplot_axis_size(self, values, axis_idx, cycle)
+{
+    let axis = self.axes[axis_idx];
+    if(cycle > 1 && axis._size) {
+        return axis._size;
+    }
+    let size = ((axis.ticks && axis.ticks.size) || 10) + (axis.gap || 5);
+    let longest = (values || []).reduce((acc, v) => {
+        let txt = v == null ? "" : String(v);
+        return txt.length > acc.length ? txt : acc;
+    }, "");
+    if(longest && self.ctx) {
+        self.ctx.font = Array.isArray(axis.font) ? axis.font[0] : (axis.font || self.ctx.font);
+        let dpr = (typeof devicePixelRatio === "number" && devicePixelRatio > 0) ? devicePixelRatio : 1;
+        size += self.ctx.measureText(longest).width / dpr;
+    }
+    return Math.max(50, Math.ceil(size));
+}
+
+/************************************************************
  *  The axes the host asked for -- at least the X and the Y,
  *  the two uPlot always draws -- with the ink it did not ask
  *  about. A stroke, a grid or a ticks the host gave is kept.
@@ -75,10 +106,16 @@ function yui_uplot_axes(axes)
     while(list.length < 2) {
         list.push({});
     }
-    return list.map((ax) => {
+    return list.map((ax, i) => {
         let a = Object.assign({}, ax || {});
         if(a.stroke === undefined) {
             a.stroke = yui_uplot_axis_ink;
+        }
+        /*  A vertical axis (uPlot's sides 1 and 3; the Y default is 3)
+         *  as wide as its labels, unless the host sized it  */
+        let vertical = i > 0 && (a.side === undefined || a.side === 1 || a.side === 3);
+        if(vertical && a.size === undefined) {
+            a.size = yui_uplot_axis_size;
         }
         a.grid = Object.assign({stroke: yui_uplot_grid_ink}, a.grid || {});
         a.ticks = Object.assign({stroke: yui_uplot_grid_ink}, a.ticks || {});
@@ -88,6 +125,7 @@ function yui_uplot_axes(axes)
 
 export {
     yui_uplot_axes,
+    yui_uplot_axis_size,
     yui_uplot_axis_ink,
     yui_uplot_grid_ink,
     YUI_UPLOT_PALETTE,
