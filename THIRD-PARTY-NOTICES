@@ -1,0 +1,17 @@
+THIRD-PARTY NOTICES
+===================
+
+@yuneta/gobj-ui is under the MIT License of LICENSE. It carries the work of
+others below, under its own license.
+
+------------------------------------------------------------------------------
+Font Awesome Free (icons)
+------------------------------------------------------------------------------
+Most icons of src/yui_icons.css are the SVG paths of Font Awesome Free (6.x
+and 7.x, solid style), drawn as CSS masks; some are adjusted to their box.
+
+Font Awesome Free by Fonticons, Inc. - https://fontawesome.com
+Copyright (c) Fonticons, Inc.
+The icons are licensed under the Creative Commons Attribution 4.0
+International License (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+Font Awesome Free license: https://fontawesome.com/license/free

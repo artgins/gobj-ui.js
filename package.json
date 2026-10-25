@@ -1,6 +1,7 @@
 {
   "name": "@yuneta/gobj-ui",
   "version": "7.27.34",
+  "license": "MIT",
   "type": "module",
   "main": "dist/gobj-ui.cjs.js",
   "module": "dist/gobj-ui.es.js",
@@ -14,6 +15,7 @@
     "./src/*": "./src/*"
   },
   "files": [
+    "THIRD-PARTY-NOTICES",
     "dist/gobj-ui.es.js",
     "dist/gobj-ui.cjs.js",
     "index.js",

@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **`LICENSE`, `THIRD-PARTY-NOTICES` and `CONTRIBUTING.md`.** The package
+  was published with no license (`npm view @yuneta/gobj-ui license`
+  answered nothing): `package.json` says MIT and `LICENSE` carries it
+  (Niyamaka 2020-2021, ArtGins 2024-2026). Most icons of
+  `src/yui_icons.css` are paths of Font Awesome Free, under CC BY 4.0,
+  which asks for attribution: it is in the header of the file and in
+  `THIRD-PARTY-NOTICES`, which the package now ships. `CONTRIBUTING.md`
+  says how to contribute and asks for the CLA of the Yuneta projects.
 - **The lockfile and the test-app on `maplibre-gl` 6.16.0.** No release: the
   peer floor stays `^6.14.0`. 6.16.0 lists no breaking change; it adds
   `setMaxBounds` on one axis and `transformStyle` in the `Map` constructor

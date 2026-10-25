@@ -3,6 +3,11 @@
  * Custom icon set — replaces FontAwesome for this app.
  * Usage: <i class="yi-bars">  (same pattern as FA, without style prefix class)
  * Color: inherits currentColor from parent via CSS mask.
+ *
+ * Most icons are the SVG paths of Font Awesome Free (6.x and 7.x, solid),
+ * some adjusted to their box: Font Awesome Free by Fonticons, Inc.,
+ * https://fontawesome.com, icons under the CC BY 4.0 License
+ * (https://creativecommons.org/licenses/by/4.0/). See THIRD-PARTY-NOTICES.
  */
 
 [class^="yi-"]::before,
