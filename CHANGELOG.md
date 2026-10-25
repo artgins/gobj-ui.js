@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **The lockfile and the test-app on `maplibre-gl` 6.16.0.** No release: the
+  peer floor stays `^6.14.0`. 6.16.0 lists no breaking change; it adds
+  `setMaxBounds` on one axis and `transformStyle` in the `Map` constructor
+  (neither used here), and fixes a map that shrinks to one stretched pixel
+  when it resizes after the WebGL context is lost (a mobile browser coming
+  back from the background), and maps that stop loading after iOS shuts down
+  their workers. The test-app emits `maplibre-gl-worker-6.16.0.js` alone
+  (519 KB). 1957 tests pass.
 - Development dependencies refreshed within their majors: the peers installed
   for the tests, i18next 26.5.6 and tabulator-tables 6.7.1, and the test-app's
   ranges with them (plus `@rollup/plugin-terser` `^1.0.2`). Nothing in them
