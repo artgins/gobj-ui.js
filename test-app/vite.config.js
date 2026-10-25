@@ -21,6 +21,7 @@ import { defineConfig } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { existsSync, readFileSync } from "fs";
+import { yunetaLicensesPlugin } from "../vite-plugin-yuneta-licenses.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -158,7 +159,23 @@ const maplibre_worker_assets = () => {
 };
 
 export default defineConfig({
-    plugins: [maplibre_worker_assets()],
+    plugins: [
+        maplibre_worker_assets(),
+        /*
+         *  licenses.txt: gobj-ui and gobj-js are aliased to their source
+         *  trees, not under node_modules, so the plugin cannot find them:
+         *  their notices go in by hand.
+         */
+        yunetaLicensesPlugin({
+            extra: [["@yuneta/gobj-js", "../../gobj-js"], ["@yuneta/gobj-ui", ".."]].map(([name, dir]) => ({
+                name: `${name} ${read_version(`${dir}/package.json`)}`,
+                license: "MIT",
+                text: ["LICENSE", "THIRD-PARTY-NOTICES"]
+                    .map(f => readFileSync(path.resolve(__dirname, dir, f), "utf8"))
+                    .join("\n\n")
+            }))
+        })
+    ],
     define: {
         __PKG_VERSIONS__: JSON.stringify(pkg_versions),
         __MAPLIBRE_WORKER_FILE__: JSON.stringify(MAPLIBRE_WORKER_FILE),

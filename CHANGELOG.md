@@ -7,6 +7,21 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.28.0
+
+The number follows SDK 7.28 (rule: when the SDK's minor moves, the next
+release takes it). Every app takes the licenses plugin with it.
+
+- **dev:** `@yuneta/gobj-js ^7.28.0` (the peer floor stays `^7.26.3`).
+- **`vite-plugin-yuneta-licenses.js`: an app's bundle goes out with the
+  licenses of what it carries.** `yunetaLicensesPlugin()` writes
+  `dist/licenses.txt` at build time: every package with code in the bundle,
+  its version, declared license and source url, and the text of its
+  `LICENSE` / `NOTICE` / `THIRD-PARTY-NOTICES` files -- so the attribution of
+  the Font Awesome icons of `yui_icons.css`, which no minifier kept (Vite 8
+  drops even `/*!` comments), reaches every app. Exported as
+  `@yuneta/gobj-ui/vite-plugin-yuneta-licenses.js` and shipped in the
+  tarball. Tried on wattyzer's build: 63 packages listed.
 - **`LICENSE`, `THIRD-PARTY-NOTICES` and `CONTRIBUTING.md`.** The package
   was published with no license (`npm view @yuneta/gobj-ui license`
   answered nothing): `package.json` says MIT and `LICENSE` carries it

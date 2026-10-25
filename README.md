@@ -4478,6 +4478,48 @@ export default { plugins: [ yunetaHtmlPlugin({ defaultTitle: "My App" }) ] };
   sorted names of the bundle's files, source maps excluded. `<version>` is the
   app's `package.json` version. `C_YUI_UPDATE_WATCH` reads it.
 
+### `licenses.txt`: the notices of what the bundle carries
+
+The bundle of an app carries code of others (gobj-js, this library, G6,
+Tabulator, i18next, Bulma ...), and every browser that loads it receives a
+copy. Their licenses ask for their notices to go with it, and Vite's
+minifier drops them all, `/*!` comments included. The vite plugin
+`yunetaLicensesPlugin` (`vite-plugin-yuneta-licenses.js`, 7.28.0) writes them
+beside the bundle at build time: `dist/licenses.txt`, served at
+`/licenses.txt`.
+
+```js
+// vite.config.js
+import { yunetaHtmlPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-html.js";
+import { yunetaLicensesPlugin } from "@yuneta/gobj-ui/vite-plugin-yuneta-licenses.js";
+export default {
+    plugins: [
+        yunetaHtmlPlugin({ defaultTitle: "My App" }),
+        yunetaLicensesPlugin()
+    ]
+};
+```
+
+- **What is listed:** every package with a module that renders code in an
+  emitted chunk, and every package whose stylesheet the bundle imports. A
+  module tree-shaken to nothing is not in the bundle, so its package is not
+  listed. The app's own sources are not listed. Code a package ships inside
+  its own files (`@antv/layout` carries d3-force in `lib/node_modules/`) is
+  listed as that package.
+- **What of each:** name, version, the license its `package.json` declares,
+  its source url, and every `LICENSE` / `LICENCE` / `COPYING` / `NOTICE` /
+  `THIRD-PARTY-NOTICES` file at its root. That last one is how the notice of
+  `sprintf.js` (gobj-js) and the attribution of the Font Awesome icons of
+  `yui_icons.css` (this library) reach the app. A package with no license
+  file is listed with its declared license, and the build warns about it.
+- **Code of others that is no package** (vendored into the app's `src/`)
+  goes in with `extra`:
+  `yunetaLicensesPlugin({extra: [{name: "x.js (from ...)", license: "MIT", text: "..."}]})`.
+  `fileName` changes the name of the file.
+- Link it from the app's "About" so a user can find it. The obligations of a
+  closed app built with Yuneta are written in `OBLIGACIONES-LICENCIA.md` of
+  each app.
+
 ### Releasing
 
 `npm run build && npm test`, then `npm publish`. A published version reaches

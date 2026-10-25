@@ -1,6 +1,6 @@
 {
   "name": "@yuneta/gobj-ui",
-  "version": "7.27.34",
+  "version": "7.28.0",
   "license": "MIT",
   "type": "module",
   "main": "dist/gobj-ui.cjs.js",
@@ -12,6 +12,7 @@
     },
     "./index.js": "./index.js",
     "./vite-plugin-yuneta-html.js": "./vite-plugin-yuneta-html.js",
+    "./vite-plugin-yuneta-licenses.js": "./vite-plugin-yuneta-licenses.js",
     "./src/*": "./src/*"
   },
   "files": [
@@ -21,6 +22,7 @@
     "index.js",
     "src/",
     "vite-plugin-yuneta-html.js",
+    "vite-plugin-yuneta-licenses.js",
     "scripts/check-markup-strings.mjs",
     "scripts/validate-locales.mjs"
   ],
@@ -45,7 +47,7 @@
   "devDependencies": {
     "@rollup/plugin-terser": "^1.0.2",
     "@vitest/coverage-v8": "^5.0.5",
-    "@yuneta/gobj-js": "^7.27.0",
+    "@yuneta/gobj-js": "^7.28.0",
     "jsdom": "^30.1.3",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
