@@ -93,9 +93,10 @@ from the DEPLOYED DOM and switch language.**
   version is refused (a stale sibling tree lowered it); a registry serving a
   newer version than the tree stops the round; a range found already raised
   raises the app's version unless the git history of its `package.json` shows
-  the two moved together (a history it cannot read refuses the app). A TEMPLATE (`wattyzer/templates/js_gui`) is a target
-  with no host: its ranges are raised and its `generate.sh --check` builds an
-  app from it. `--check` only reads back; `--only <name>` does one;
+  the two moved together (a history it cannot read refuses the app). A TEMPLATE (the `gui/` of yunetas' project templates,
+  `utils/c/yuno-skeleton/skeletons/project_base/gui`) is a target with no
+  host: its ranges are raised and `check_project_gui.sh` builds an app from
+  it. `--check` only reads back; `--only <name>` does one;
   `--no-wait` skips the registry. The round commits nothing: each consumer's
   commit (its `package.json` AND its `package-lock.json`, which the install
   rewrites -- every app commits its lockfile since 2026-10-22, except the
