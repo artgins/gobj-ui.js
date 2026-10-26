@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.28.2
+
+- **Two icons for two more export formats: `yi-file-image` and
+  `yi-file-pdf`** (FontAwesome Free 7.3.1, solid), beside `yi-file-csv` and
+  `yi-file-code`. A window that exports its charts as an image and as a
+  document needs one icon per format: three downloads drawn with the same
+  arrow are three equal buttons once the labels hide on a phone.
+
 ## 7.28.1
 
 - **A vertical axis of a chart is as wide as its labels**
