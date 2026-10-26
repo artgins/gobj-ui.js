@@ -935,7 +935,7 @@ function render_log(e)
      *  createElement2() TRIMS a string content -- it has to, to decide
      *  whether the string is HTML by looking at its first character -- and
      *  the machine trace's leading spaces are its NESTING: gobj-js prefixes
-     *  every line with `tab()`, two spaces per level of __inside__, so an
+     *  every line with `tab()`, four spaces per level of __inside__, so an
      *  event sent from inside another one's action is indented under it.
      *  Passed through createElement2 that indentation was eaten, and the
      *  window showed a flat column where the console showed a tree. */
