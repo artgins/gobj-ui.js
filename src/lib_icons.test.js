@@ -152,7 +152,7 @@ test("a user icon lives in its own namespace", () => {
     expect(USER_ICON_PREFIX).toBe("yi-u-");
     expect(yui_user_icon_class("transformer")).toBe("yi-u-transformer");
     expect(yui_icons_is_svg_field(ICONS_TOPIC, "svg")).toBe(true);
-    expect(yui_icons_is_svg_field("device_types", "svg")).toBe(false);
+    expect(yui_icons_is_svg_field("models", "svg")).toBe(false);
     expect(yui_icons_is_svg_field(ICONS_TOPIC, "id")).toBe(false);
 });
 

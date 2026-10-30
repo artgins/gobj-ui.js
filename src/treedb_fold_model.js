@@ -28,7 +28,7 @@
  *
  *      - A node is visible when SOME visible parent shows it, or it is
  *        a shown root. A record with two parents (a device hangs from
- *        its place AND its controller) is drawn ONCE, under whichever
+ *        its site AND its building) is drawn ONCE, under whichever
  *        opened first, and folding one of the two leaves it where the
  *        other one shows it. The union, never the intersection.
  *
@@ -361,8 +361,8 @@ function count_levels(model)
 }
 
 /************************************************************
- *  A HIERARCHICAL topic: one hooked to ITSELF -- places inside
- *  places, groups inside groups, roles inside roles. It is the
+ *  A HIERARCHICAL topic: one hooked to ITSELF -- sites inside
+ *  sites, groups inside groups, roles inside roles. It is the
  *  only kind of topic a tree can hang from: a topic that only
  *  reaches OTHER topics is a list with children, and making it
  *  the trunk drew the agent's treedb from `yunos` instead of

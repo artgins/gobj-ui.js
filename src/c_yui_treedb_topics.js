@@ -636,7 +636,7 @@ function add_tab(gobj, gobj2, id, text, icon)
      *  initial text is the raw key (the topic_name).  Tabs are built
      *  lazily when topic descriptions arrive from the backend —
      *  AFTER the host's one-time refresh_language($container,t) —
-     *  so without this they stay as raw keys ("device_groups", …).
+     *  so without this they stay as raw keys ("groups", …).
      *  `t` is the i18next translator already imported here.
      */
     refresh_language($a, t);
@@ -2844,10 +2844,10 @@ function ac_set_landing_view(gobj, event, kw, src)
  *  Back from a topic to WHERE THE READER WAS.
  *
  *  Browser Back and this button must land on the same place, or the
- *  reader cannot tell which one to trust (2026-10-10). The button went to
- *  the landing whatever came before it, so "linked records" from
- *  `device_types` opened `devices`, and the arrow then showed the cards
- *  instead of `device_types`, where Back went.
+ *  reader cannot tell which one to trust. The button went to the
+ *  landing whatever came before it, so "linked records" from `models`
+ *  opened `devices`, and the arrow then showed the cards instead of
+ *  `models`, where Back went.
  *
  *  So it asks the shell for the route before this one
  *  (yui_shell_previous_route): the previous topic, the landing, or the

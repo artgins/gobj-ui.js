@@ -70,8 +70,8 @@ describe("yui_shell_last_route_under", () => {
 
 describe("yui_shell_previous_route", () => {
     it("answers the route before the current one, as browser Back does", () => {
-        const s = shell(["/topics", "/topics/device_types", "/topics/devices"]);
-        expect(yui_shell_previous_route(s)).toBe("/topics/device_types");
+        const s = shell(["/topics", "/topics/models", "/topics/devices"]);
+        expect(yui_shell_previous_route(s)).toBe("/topics/models");
     });
 
     it("goes back to the previous record, not past it", () => {

@@ -7,54 +7,58 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **The treedb examples are a sites / buildings / devices inventory.** The
+  fold-model tests, the README and the comments of `treedb_fold_model.js` and
+  `treedb_layout.js` use `sites` (a self-referent tree), `buildings` hanging
+  from a site, `devices` hanging from a site AND a building, and the lookups
+  `models` and `groups`; the window-title example is `raw_events · keys`;
+  the comment of `yi-server` says what the icon stands for. No code change.
+
 ## 7.29.5
 
-- **Neutral example ids.** The README, the comments and the tests use
-  `db_history^7301`/`7302` and `gate_probe^7701`, and say "main database"
-  where an example named a kind of node of an application. No code change.
+- **Example ids.** The README, the comments and the tests use
+  `db_history^7301`/`7302` and `gate_probe^7701`, and the untranslated strip
+  example reads `main database`. No code change.
 
 ## 7.29.4
 
-- **No citation of a notes store, and no word taken from an application.**
-  The CHANGELOG says the rule a line cited by name; the demo calls its
-  buildings `building1`/`b1`. No library code change.
+- **The CHANGELOG states each rule, and the demo calls its buildings
+  `building1`/`b1`.** No library code change.
 
 ## 7.29.3
 
-- **No figure and no word taken from an application.** The folded-graph
-  pill reads `▸ devices 200` / `▾ devices 24/200`, like the site with two
-  hundred devices it illustrates, and the landing-page note no longer gives a
-  record count; a place under a site is a `building` everywhere (it was a
-  `hall`), and the test-app tree says *North building* / *South building* and
-  *Meter N* in English and *Edificio norte* / *Edificio sur* and *Medidor N* in
-  Spanish; the yuno ids and ports of the tests and examples are `7302` and
-  `7301`; and a dead commented-out device image in `c_yui_map.js` is gone. No
-  library code change; the test-app labels change.
+- **Example wording.** The folded-graph pill reads `▸ devices 200` /
+  `▾ devices 24/200`, like the site with two hundred devices it illustrates,
+  and the landing-page note gives no record count; a place under a site is a
+  `building` everywhere (it was a `hall`), and the test-app tree says *North
+  building* / *South building* and *Meter N* in English and *Edificio norte* /
+  *Edificio sur* and *Medidor N* in Spanish; the tests and examples use
+  generic yuno ids and ports; and a dead commented-out device image in
+  `c_yui_map.js` is gone. No library code change; the test-app labels change.
 
 ## 7.29.2
 
-- **No review citation in words, and no example taken from an application.**
-  The CHANGELOG, the README, the comments and the tests say what each version
-  changed, not which check of which review it was; the example yuno of
-  `open_gobj_tree_view()` is `gate_probe^7701`, the shared package of the
+- **Examples and wording.** The CHANGELOG, the README, the comments and the
+  tests say what each version changed; the example yuno of
+  `open_gobj_tree_view()` has a generic id, the shared package of the
   `validate-locales` example is `../shared-gui`, the folded-graph example is a
   site with two hundred devices, and the trees and figures of the tests are
-  neutral (`region -> north/south -> site`). No code change.
+  generic (`region -> north/south -> site`). No code change.
 - Development install on `@yuneta/gobj-js` 7.29.1 (the range is unchanged).
 
 ## 7.29.1
 
-- **No review citation in the package.** Source comments, tests and the
-  CHANGELOG name what was fixed, not the review it came from. No code change.
+- **Source comments, tests and the CHANGELOG name what was fixed.** No code
+  change.
 
 ## 7.29.0
 
-- **No private name in the package.** The README, the package description,
-  the source comments, the tests, the docs (`ROUTING.md`, `SHELL.md`) and the
-  demo name the applications built on the library by their role, not by
-  name. `test-app/deploy.sh` takes its host from `DEMO_SSH_HOST` (it exits 2
-  without it); the demo's i18n key that named an application changed in
-  every locale. No code change. The number follows the SDK's minor (7.29).
+- **The README, the package description, the source comments, the tests,
+  the docs (`ROUTING.md`, `SHELL.md`) and the demo name the applications
+  built on the library by their role.** `test-app/deploy.sh` takes its host
+  from `DEMO_SSH_HOST` (it exits 2 without it); one i18n key of the demo
+  changed in every locale. No code change. The number follows the SDK's
+  minor (7.29).
 - Development install on `@yuneta/gobj-js` 7.29.0 and i18next 26.5.11 (the
   ranges are unchanged).
 
@@ -365,7 +369,7 @@ itself out by the width of the screen.
   showing 20 entries and a *show all N* button (a search shows every
   match). C_YUNO's methods and trace levels were 7000px down.
 - **Smaller, in the same viewer:** the methods are chips in the head; the
-  state lit in the machine says whose it is (`tranger_tracks: ST_IDLE`);
+  state lit in the machine says whose it is (`tranger_events: ST_IDLE`);
   `1 instance` / `4 instances`; the machine's count says `1 state · 2
   events` instead of `1 · 2`; the legend draws the mark of an action the
   backend does not name, and the hatch only when an empty cell is drawn;
@@ -529,7 +533,7 @@ Verified against that real node (`npm run qa -- --local --check tabreturn`, new 
 `C_YUI_TREEDB_TOPIC_WITH_FORM`, three faults of the topic table found on a node of app B:
 
 - **A table under a hidden tab keeps its place.** `C_YUI_TREEDB_TOPICS` hides the other topics with `display:none`, and Tabulator's `autoResize` took that 0x0 for a resize: it redrew a table with no layout, where every row reads `offsetTop` 0, so each visit to another tab and back moved the reader about a dozen rows up the page (and a column could be measured at its header's width). The table now watches its own size (`EV_TABLE_RESIZED`): a hidden table is left alone and is redrawn when it is seen again, with its scroll kept, or when its size really changes. `autoResize` is forced off.
-- **A click on an fkey to several parents opens the record.** `place` and `device_type` are `array` fkeys: the row click asked the column's REAL type, found `array` among the cells with a viewer of their own, and gave way to a click the cell does not have. It asks the field type only, the one the cell's own click is chosen by.
+- **A click on an fkey to several parents opens the record.** `site` and `model` are `array` fkeys: the row click asked the column's REAL type, found `array` among the cells with a viewer of their own, and gave way to a click the cell does not have. It asks the field type only, the one the cell's own click is chosen by.
 - **Edition mode: rows keep their height, and leaving it clears the selection.** The Op column's buttons were Bulma's `2.5em`, so every row drawn while it was shown was 55px beside rows of 41px; they are a line of text tall now (`ROW_OP`). And a row left ticked stayed painted after edition, with no checkbox on screen to untick it.
 
 ## 7.27.18
@@ -589,7 +593,7 @@ Icon review of the library, icons only:
 
 ## 7.27.8
 
-- **Icons `yi-microchip` and `yi-server`** (FontAwesome Free 7.3.1), for the devices section of the app B GUIs: the chip of "devices" in the IoT platforms (AWS IoT, Azure IoT Hub), and the server of a controller, a box in the field.
+- **Icons `yi-microchip` and `yi-server`** (FontAwesome Free 7.3.1), for a devices section: the chip that IoT platforms (AWS IoT, Azure IoT Hub) draw for a device, and a server for a machine that serves others.
 
 ## 7.27.7
 
@@ -2612,8 +2616,8 @@ app B SPAs (2026-10-10).
 
 - **treedb topics: the `←` of an open topic goes back to where the reader
   WAS**, the same place browser Back goes. It went to the landing whatever came
-  before, so "linked records" from `device_types` opened `devices`, and the
-  arrow then showed the topic cards while Back returned to `device_types`: two
+  before, so "linked records" from `models` opened `devices`, and the
+  arrow then showed the topic cards while Back returned to `models`: two
   controls that say "back" and land in different places. It now asks the shell
   for the last route outside the topic on screen
   (`yui_shell_last_route_outside()`) -- the previous topic, the landing, or the
@@ -2644,7 +2648,7 @@ Two fixes in the Developer window (`yui_dev.js`), plus the `maplibre-gl` and
   so one `list-map` answer put 1.4 MB of laid-out JSON on the clipboard while
   the window showed four folded lines -- too big to paste anywhere. Now, in
   the Collapsed view, each entry is copied as it is painted: one line per row,
-  a closed branch as its one-line summary (`▸ data {places:[…],devices:[…]}`)
+  a closed branch as its one-line summary (`▸ data {sites:[…],devices:[…]}`)
   and only an OPENED branch with its content, four characters further in
   (`entry_shown_lines()`, read from the DOM, because whether a branch is open
   lives only there). The Expanded view still copies the whole payload, which
@@ -2779,8 +2783,7 @@ moved).
   as well) is a warning, not a second error on the stub. Consumer i18n key
   `the connection dropped` (gui_agent already had it). Inherited: no host
   ever settled a drill on a transport edge.
-- This CHANGELOG no longer cites internal review rounds or finding ids: each
-  entry says what changed.
+- Each entry of this CHANGELOG says what changed.
 
 ## 7.25.21
 
@@ -3054,8 +3057,7 @@ moved).
   gets its own handle and its own time, and the toast stays until every
   caller has closed or timed out. `SHELL.md` still described the 7.25.7
   behaviour (one shared handle).
-- Comments and test titles no longer cite review rounds or states that were
-  never released. They say why the code is as it is.
+- Comments and test titles say why the code is as it is.
 
 Tests: `schema_editor_reload.wiring.test.js` (a move sent by the host while a
 dialog is up, 7 cases), `graph_save_plan.test.js` (a refused `__graphs__`
@@ -4108,8 +4110,8 @@ Three fixes of the treedb views.
   table loads of `C_YUI_TREEDB_TOPICS` (the first load, a page, a refresh)
   read with `hook_size`, so a hook comes back as `[{"size": N}]`. The cell only
   ever showed the number, and since 7.23.162 its click opens the child topic
-  filtered, so the ids were downloaded for nothing: in app B, every
-  device id once per device type, on every load of `device_types`.
+  filtered, so the ids were downloaded for nothing: every device id once
+  per model, on every load of `models`.
   - Only the loads change. The writes keep their options, and the node events
     still carry whole hooks (`c_node` publishes them with `list_dict`); the
     cell and the delete question count either shape.
@@ -4267,7 +4269,7 @@ Three fixes of the treedb views.
   has at that radius -- its own sector, less what its neighbours on the ring
   take up. A stack alone on its ring has the whole circle, and its rows are
   rings round the parent; one between neighbours fans out inside its sector.
-  On a treedb shaped like a real one, against the radial as it was:
+  On a test treedb, against the radial as it was:
 
   | fold state | radial | compact now |
   |---|---|---|
@@ -4322,13 +4324,13 @@ Three fixes of the treedb views.
   gained nothing where a treedb is usually looked at -- a whole level opened
   with the stepper -- because there every parent still needed the whole row
   of its children beside it: it drew exactly like `tree`. Now a run of three
-  or more consecutive LEAF children (a building's devices, a region's places
+  or more consecutive LEAF children (a building's devices, a region's sites
   when none is open) is STACKED: two columns under the parent, a corridor
   between them, row after row. The first row lines up with the depth's row; the
   columns line up against the corridor; the children keep their order (runs,
   not all the leaves of a parent); a child that has children stays in the
-  row. The tree grows taller instead of wider. On a treedb shaped like a
-  real one (one root, 25 regions), against `tree`:
+  row. The tree grows taller instead of wider. On a test treedb (one root,
+  25 regions), against `tree`:
 
   | fold state | `tree` | compact before | compact now |
   |---|---|---|---|
@@ -4484,9 +4486,9 @@ Three fixes of the treedb views.
   subtree's CONTOUR and slides every sibling against the outline of the ones
   before it: a closed branch sits beside an open one at the depth they share.
   Same spanning tree, same rows, same order as `tree`, so switching between
-  the two moves cards sideways and never reorders them. On a treedb shaped
-  like a real one (one root, 25 regions), one region open with a building of 24
-  devices is 70% of the tidy tree's width; a uniform tree is the same width.
+  the two moves cards sideways and never reorders them. On a test treedb
+  (one root, 25 regions), one region open with a building of 24 devices is
+  70% of the tidy tree's width; a uniform tree is the same width.
 - The contour arithmetic is Moen's ("Drawing dynamic trees", 1990) in the
   form mxGraph gave it in mxCompactTreeLayout (Copyright (c) 2006-2015 JGraph
   Ltd, Apache License 2.0), read in maxGraph's `CompactTreeLayout.ts`.
@@ -4578,7 +4580,7 @@ Three fixes of the treedb views.
 ## 7.23.142
 
 - **treedb graph: only a HIERARCHICAL topic can be the main one** -- a topic
-  hooked to itself (places inside places, roles inside roles). The trunk was
+  hooked to itself (sites inside sites, roles inside roles). The trunk was
   "the topic whose hooks reach the most others", which drew the agent's treedb
   from `yunos` instead of `realms`. Now: the reader's pick, if it is
   hierarchical; else the topic the schema MARKS (`main_topic: true`, sent in
@@ -5984,8 +5986,8 @@ the thing you read, the glyph is an affordance).
   block of its children, siblings stacked in record order) and
   `treedb-outline` is one node per row indented by depth — a JSON viewer's
   shape. Both take the same spanning tree of what is on screen: the roots,
-  the FIRST parent that reaches a node (a device under its place, not its
-  controller), the hooks in schema order, the records in theirs. So opening
+  the FIRST parent that reaches a node (a device under its site, not its
+  building), the hooks in schema order, the records in theirs. So opening
   a hook moves nothing that is not under or beside it, and the layout is
   O(n) with no crossing heuristic to reshuffle the siblings — which is what
   `dagre` did on every expansion, and what G6's own tree layouts cannot
@@ -6019,7 +6021,7 @@ the thing you read, the glyph is an affordance).
   whose hooks reach the most others, a self-referent hook breaking a tie,
   never an `extended` one — it is the trunk: its parentless records are the
   roots, and a parentless record of a topic the schema hangs from it is
-  LOOSE (a device with no place), counted on its chip and drawn only on
+  LOOSE (a device with no site), counted on its chip and drawn only on
   request instead of being a column of roots. A topic the schema does not
   tie to the main one is a tree of its own. The main topic cannot be hidden.
   *Places with their users and nothing else* is now two clicks.
@@ -6279,7 +6281,7 @@ the thing you read, the glyph is an affordance).
   said nothing about it. It went unseen while non-writable cols were dropped
   from the form altogether (7.23.54 put them back); the record opened to be
   READ made it plain -- a `devices` row opened by a row click offered its
-  place, its type, its controller, its photo and three checkboxes to change.
+  site, its model, its building, its photo and its checkboxes to change.
 
   `disabled` is safe here: the record is collected by reading each marked
   control's value, never by submitting the form, so a disabled control is
@@ -6325,7 +6327,7 @@ the thing you read, the glyph is an affordance).
 
 ## 7.23.53
 
-- **A col flagged `icon` draws the icon.** `device_types.icon` held `yi-bolt`
+- **A col flagged `icon` draws the icon.** `models.icon` held `yi-bolt`
   and the only thing on the list that came close was `image`, which is a
   different case: the table built an `<img src="yi-bolt">` and drew the
   browser's broken-image glyph. `icon` is now a treedb field type of its own
@@ -10578,7 +10580,7 @@ this release (still marked a prototype — its shape may move).
   `__yui_main__.theme` is unaffected.
 - **feat(window, modal): `title_prefix` — the data half of a title, so titles
   can change language.** Window and dialog titles are nearly always
-  "<what> · <kind>" (`raw_tracks · keys`), and every caller composed that into
+  "<what> · <kind>" (`raw_events · keys`), and every caller composed that into
   one string: `` `${topic} · ${t("keys")}` ``. The result is not an i18n key, so
   i18next answers it with itself and the title stays in the language it was
   built in for the life of the window — a string must carry its key to
@@ -10940,17 +10942,17 @@ this release (still marked a prototype — its shape may move).
   conversions (`treedb_value_2_form_value` / `form_value_2_treedb_value`) are
   mode-aware so the raw JSON round-trips. `C_YUI_TREEDB_TOPIC_WITH_FORM` now
   hosts the form with `render_mode:"edit"` — editing a topic record (e.g.
-  `device_types`) again shows its `template`/`table`/`coordinates` columns as
-  JSON editors instead of interpreting the stored schema into live widgets. This
-  also sidesteps the malformed-`enum_list` crash below for `device_types`: that
-  `enum` only existed as an interpreted sub-field of the template, which "edit"
-  mode no longer expands.
+  `models`) again shows its `template` column as a JSON editor instead of
+  interpreting the stored schema into live widgets. This also sidesteps the
+  malformed-`enum_list` crash below for `models`: that `enum` only existed
+  as an interpreted sub-field of the template, which "edit" mode no longer
+  expands.
 
 - **fix(form): a malformed enum no longer crashes the whole form.**
   `C_YUI_FORM`'s `select` / `select2` branches assumed `options` was always an
   array; an `enum` column whose `enum_list` was missing or non-array threw
   `options.map is not a function` and aborted building the entire record dialog
-  (seen editing a `device_types` row). They now render an empty select and
+  (seen editing a `models` row). They now render an empty select and
   `log_error` the offending field (topic/type/real_type) instead of crashing.
   Pre-existing since the v2 src move; unrelated to the clear-button/modal work
   below.

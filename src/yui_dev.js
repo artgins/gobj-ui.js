@@ -1455,7 +1455,7 @@ function refresh_dev_chrome()
 }
 
 /*  The payload of a FOLDED entry as text, the way it is on screen: one line
- *  per row, a closed branch as its one-line summary (`data {places: […], …}`)
+ *  per row, a closed branch as its one-line summary (`data {sites: […], …}`)
  *  and only an OPENED branch with its content, four characters further in.
  *
  *  Read from the painted DOM and not from the payload, because whether a

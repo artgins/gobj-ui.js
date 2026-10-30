@@ -475,7 +475,7 @@ function ensure_window_style()
  *   starts with '<', otherwise a yi-* class name.
  *
  *   The two halves are separate text nodes on purpose. Titles here are
- *   nearly always "<what> · <kind>" — `raw_tracks · keys` — and
+ *   nearly always "<what> · <kind>" — `raw_events · keys` — and
  *   composing that into one string is what makes a title untranslatable:
  *   `${topic} · ${t("keys")}` is not an i18n key, so i18next answers it
  *   with itself and it stays in the language it was built in for the

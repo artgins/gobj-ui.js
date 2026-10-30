@@ -72,12 +72,12 @@ describe("a modal of the shell is named", () => {
     test("by the two halves of its title, the kind half carrying its key", () => {
         const $box = document.createElement("div");
         const handle = yui_shell_show_modal(shell, $box,
-            {dialog: true, title: "keys", title_prefix: "raw_tracks", logical_class: "NAMED_SHEET"});
+            {dialog: true, title: "keys", title_prefix: "raw_events", logical_class: "NAMED_SHEET"});
         const $modal = document.querySelector(".NAMED_SHEET");
 
         const [$prefix, $kind] = named_by($modal, "aria-labelledby");
         expect($prefix.classList.contains("MODAL_TITLE_PREFIX")).toBe(true);
-        expect($prefix.textContent).toBe("raw_tracks");
+        expect($prefix.textContent).toBe("raw_events");
         expect($kind.classList.contains("MODAL_TITLE_KIND")).toBe(true);
         expect($kind.dataset.i18n || $kind.getAttribute("i18n")).toBe("keys");
         expect(named_by($modal, "aria-labelledby").length).toBe(2);

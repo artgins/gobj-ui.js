@@ -15,7 +15,7 @@
 import {describe, it, expect} from "vitest";
 import {topic_is_draft} from "./c_yui_schema_editor.js";
 
-const TOPIC = {id: "device_groups", topic_version: 5};
+const TOPIC = {id: "groups", topic_version: 5};
 
 describe("topic_is_draft", () => {
     it("says nothing about a topic this session never wrote", () => {
@@ -23,18 +23,18 @@ describe("topic_is_draft", () => {
     });
 
     it("a written topic is a draft, whatever its version says", () => {
-        expect(topic_is_draft({written: {device_groups: true}}, TOPIC)).toBe(true);
-        expect(topic_is_draft({written: {device_groups: true}},
-            {id: "device_groups", topic_version: 6})).toBe(true);
+        expect(topic_is_draft({written: {groups: true}}, TOPIC)).toBe(true);
+        expect(topic_is_draft({written: {groups: true}},
+            {id: "groups", topic_version: 6})).toBe(true);
     });
 
     it("a topic the host names is a draft too (EV_DRAFTS)", () => {
-        expect(topic_is_draft({written: {}, host_ids: {device_groups: true}}, TOPIC)).toBe(true);
+        expect(topic_is_draft({written: {}, host_ids: {groups: true}}, TOPIC)).toBe(true);
     });
 
     it("answers false rather than throwing on a missing half", () => {
         expect(topic_is_draft(null, TOPIC)).toBe(false);
-        expect(topic_is_draft({written: {device_groups: true}}, null)).toBe(false);
+        expect(topic_is_draft({written: {groups: true}}, null)).toBe(false);
         expect(topic_is_draft({}, TOPIC)).toBe(false);
     });
 });

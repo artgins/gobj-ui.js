@@ -698,14 +698,14 @@ describe("a chip of the dock", () => {
         gobj_start(dock);
         const w = gobj_create_service(`nwin${seq}`, "C_YUI_WINDOW", {
             header: "x", body: ["div", {}, "x"],
-            title: "keys", title_prefix: "raw_tracks", manager: dock
+            title: "keys", title_prefix: "raw_events", manager: dock
         }, yuno);
         gobj_start(w);
 
         const $toggle = chip(dock).querySelector(".DOCK_CHIP_TOGGLE");
         const names = ($toggle.getAttribute("aria-labelledby") || "").split(" ")
             .map((id) => $toggle.querySelector(`#${id}`).textContent);
-        expect(names).toEqual(["raw_tracks", "keys"]);
+        expect(names).toEqual(["raw_events", "keys"]);
     });
 
     test("its toggle minimises and brings back, through the FSM; its ✕ closes", () => {

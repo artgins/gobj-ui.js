@@ -1278,7 +1278,7 @@ it used to call `tabulator.setFilter` straight from the DOM handler, where the
 A hook cell shows how many children the row has (`[5675]`). A click on it
 opens the **child topic's table, filtered** to the rows whose fkey names this
 row (since `7.23.162`). Above the table, a chip says which filter is on,
-"filtered by device_types electric_bt", and its ✕ brings the whole topic back.
+"filtered by models model_a", and its ✕ brings the whole topic back.
 
 The child table already pages, searches, opens a record and exports. Until
 `7.23.162` the click opened a popup that listed every child id instead:
@@ -1290,16 +1290,16 @@ click inside, and the ids did nothing.
 
   ```c
   'devices': {
-      'header': 'Equipos',
+      'header': 'Devices',
       'type': 'object',
       'flag': ['hook'],
       'hook': {
-          'devices': 'place'
+          'devices': 'site'
       }
   }
   ```
 
-  A click on this hook opens `devices`, filtered to the rows whose `place`
+  A click on this hook opens `devices`, filtered to the rows whose `site`
   names the clicked row.
 - A hook whose children live in more than one topic asks which one, in the
   standardized dialog (Escape, Back and a click outside close it).
@@ -1319,8 +1319,8 @@ The table asks its host to switch, because the tabs belong to the host:
 
 ```
 C_YUI_TREEDB_TOPIC_WITH_FORM                      C_YUI_TREEDB_TOPICS
-  EV_OPEN_LINKED {topic_name: "devices", fkey: "place",
-                  parent_topic: "places", parent_id: "es", hook: "devices"}  ──►
+  EV_OPEN_LINKED {topic_name: "devices", fkey: "site",
+                  parent_topic: "sites", parent_id: "north", hook: "devices"}  ──►
                                           select the tab of `devices`
   EV_FILTER_BY_PARENT {fkey, parent_topic, parent_id, hook}  ◄──  to that topic's table
 ```
@@ -2086,7 +2086,7 @@ a level or two, with a count on every cut.
   are the records with no drawable parent, a node's children are the records
   whose fkey names it through a hook, and a node is visible when a visible
   parent shows it or it is a shown root — the **union**, so a device that hangs
-  from its place AND its controller is drawn once, under whichever opened
+  from its site AND its building is drawn once, under whichever opened
   first, and folding one of the two leaves it where the other shows it.
 - **`expand_depth`** (default `1` since `7.23.142`, `2` before) is how much
   opens on load until the reader steps: the roots alone. **`fold_page_size`** (default `24`) is how many children of
@@ -2109,14 +2109,14 @@ a level or two, with a count on every cut.
   JSON graph's fold handles are — G6 never reads the DOM `click`, it builds its
   own from the pointer pair.
 - **The toolbar's fold STEPPER** (since `7.23.141`; it replaced the *expand
-  all* / *collapse all* pair): `▸` · **`places level 2/4`** · `▾`. It walks the
+  all* / *collapse all* pair): `▸` · **`sites level 2/4`** · `▾`. It walks the
   **main tree** one level at a time, the way the frontend view opens one level
   per press: level 1 is the main topic's roots (and the loose records the
   reader asked to see), each `▾` opens the next level through every topic that
   is not hidden, each `▸` folds the deepest one. The readout says what the two
   buttons act on — the main topic's swatch and name (data, never translated;
   gone on a phone, the numbers stay) and `level N/M` — the WORD as well as the
-  numbers, because the legend chip under it says `places 2/4` too and there it
+  numbers, because the legend chip under it says `sites 2/4` too and there it
   means records on screen — and a button is disabled at either end. **A level is a floor, not a picture**: stepping down
   opens only what is folded above the new level and keeps the pages and pills
   already open; stepping up folds from the new level down and touches nothing
@@ -2158,9 +2158,9 @@ One consumer key came with it: `show more`, the chip's tooltip.
 ### Layouts: what G6 offers, and the two made for a treedb
 
 What a treedb graph IS, once folded: a **forest read top to bottom**. A main
-topic is a tree (places: country, region, site, building), the other topics hang
+topic is a tree (sites: country, region, campus), the other topics hang
 from its nodes through hooks, a record may hang from two parents (a device
-from its place AND its controller), and every visible node was reached from a
+from its site AND its building), and every visible node was reached from a
 root. Tens to a few hundred cards on screen, never the store.
 
 G6 5.1 registers these layouts, and this is how each meets that shape:
@@ -2242,8 +2242,8 @@ module defaults with every config it is given.
 
 Both take the **same spanning tree**, chosen deterministically: roots are the
 nodes with no incoming edge, in node order; a node belongs to the **first
-parent that reaches it** in a breadth-first walk (the place, not the
-controller, because the place's column came first) and its other links are
+parent that reaches it** in a breadth-first walk (the site, not the
+building, because the site's column came first) and its other links are
 drawn as edges across the tree; the children of a node are ordered by the
 **hook they hang from** (the parent's port order — the schema's column order)
 and then by node order (record order, the pages' order); a cycle nothing
@@ -2256,8 +2256,8 @@ node's `data.port_keys`, because a CLOSED node (below) has no ports on its
 style and its children still sit in schema order — so the adapter needs no
 model, only the G6 data.
 
-The walks are **iterative**, not recursive: a self-referent hook (a place
-inside a place inside a place) is as deep as the store says, and the stack is
+The walks are **iterative**, not recursive: a self-referent hook (a site
+inside a site inside a site) is as deep as the store says, and the stack is
 not. A 20000-node chain is a test.
 
 ### The three views of a record: card, pill, figure
@@ -2507,11 +2507,11 @@ them:
 |---|---|
 | the chip body | **show / hide** the topic. A hidden topic leaves the MODEL, not just the drawing: no card, no pill counts it, no edge reaches it, and whatever hung from it alone has no parent any more. The name is struck through and the count is the total. |
 | `★` / `☆` | the **main topic**: the trunk the tree hangs from, always a **hierarchical** topic (hooked to itself); the hollow star appears only on the other hierarchical topics, and only when there are two or more (`7.23.142`). Filled on the main one (a mark, not a button — the main topic cannot be hidden, because hiding the trunk turns everything into roots, which is the pile); hollow on the others, where it moves the star. |
-| `+N` | the topic's **loose records**: the ones that should hang from the main tree and do not (a device with no place). Counted here, shown only on request. |
+| `+N` | the topic's **loose records**: the ones that should hang from the main tree and do not (a device with no site). Counted here, shown only on request. |
 | `⌖` | **highlight** the topic — the focus, with `reveal: "all"`. |
 
 **Only a HIERARCHICAL topic can be the main one** (since `7.23.142`): a topic
-hooked to ITSELF — places inside places, groups inside groups, roles inside
+hooked to ITSELF — sites inside sites, groups inside groups, roles inside
 roles (`fold_is_hierarchical()`). A topic that only reaches OTHER topics is a
 list with children, and the old rule (*the topic whose hooks reach the most
 others*) drew the agent's treedb from `yunos` instead of `realms`. In order:
@@ -2524,8 +2524,8 @@ others*) drew the agent's treedb from `yunos` instead of `realms`. In order:
 3. the hierarchical topic that reaches the most other topics, schema order
    breaking a tie.
 
-In every treedb of the SDK and the apps there is exactly one hierarchical
-topic (`places`, `device_groups`, `systems`, `roles`, `realms`), so the mark
+In the treedbs of the SDK there is exactly one hierarchical topic each
+(`roles` in the authorization treedb, `realms` in the agent's), so the mark
 only has something to decide once a schema grows a second one. A treedb with
 no topic hooked to itself has no trunk, and every topic is a tree of its own.
 
@@ -2541,9 +2541,9 @@ What the main topic governs, in `treedb_fold_model.js`:
 - a topic the schema does not tie to the main one is its own tree, with its
   own roots, as before.
 
-So *places with their users and nothing else* is hiding `devices`,
-`controllers` and `device_types`; *places with their devices* is hiding
-`users` and `controllers`. Each combination is a user preference **per
+So *sites with their users and nothing else* is hiding `devices`,
+`buildings` and `models`; *sites with their devices* is hiding
+`users` and `buildings`. Each combination is a user preference **per
 treedb**: `hidden_topics`, `main_topic` and `loose_topics` are `SDF_PERSIST`
 attrs of `C_YUI_TREEDB_GRAPH`, saved under the view's name, and both hosts
 name the view after the treedb.
@@ -3489,7 +3489,7 @@ gclass of a **backend** yuno the host passes the answer of `view-gclass` as
 description describes the CLASS and cannot carry it, so the host supplies it —
 the gobj tree passes `node_data.state` — and the machine lights that column.
 Omitted, nothing is lit. `opts.instance_name` names that instance beside its
-state in the head (`tranger_tracks: ST_IDLE`): a gclass has several, and a
+state in the head (`tranger_events: ST_IDLE`): a gclass has several, and a
 state with no name said whose it was to nobody.
 
 `opts.traces` (`{info, pending}`) says the host can SET this gclass' traces for

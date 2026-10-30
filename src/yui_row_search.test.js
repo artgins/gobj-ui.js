@@ -4,23 +4,23 @@ import {row_matches, is_fkey_ref, is_hook_size} from "./yui_row_search.js";
 
 describe("row_matches", () => {
     const row = {
-        id: "E00000042",
+        id: "D00000042",
         name: "",
-        place: [
+        site: [
             {
-                id: "es.city.site-a.local-13-gate",
-                topic_name: "places",
+                id: "north.campus-a.room-13",
+                topic_name: "sites",
                 hook_name: "devices"
             }
         ],
-        tension: 400,
+        capacity: 400,
         enabled: true,
         _operation: "hidden",
         __md_treedb__: {topic_name: "devices"}
     };
 
     it("finds a plain field", () => {
-        expect(row_matches(row, "e00000042")).toBe(true);
+        expect(row_matches(row, "d00000042")).toBe(true);
     });
 
     it("finds a number", () => {
@@ -28,13 +28,13 @@ describe("row_matches", () => {
     });
 
     it("finds a value INSIDE an fkey, which is the whole point", () => {
-        expect(row_matches(row, "local-13-gate")).toBe(true);
+        expect(row_matches(row, "room-13")).toBe(true);
     });
 
     it("does NOT match the structural halves of an fkey", () => {
         /*  `topic_name`/`hook_name` are the same two words on every row:
          *  matching them turns the term into a wildcard.  */
-        expect(row_matches(row, "places")).toBe(false);
+        expect(row_matches(row, "sites")).toBe(false);
         expect(row_matches(row, "hook")).toBe(false);
     });
 
@@ -56,14 +56,14 @@ describe("row_matches, on a table loaded with hook_size", () => {
     /*  What a topic table gets since 7.23.163: the hook is the COUNT
      *  of its children, not their ids.  */
     const row = {
-        id: "places-madrid",
-        name: "Madrid",
+        id: "sites-north",
+        name: "North",
         devices: [{size: 400}],
-        __md_treedb__: {topic_name: "places"}
+        __md_treedb__: {topic_name: "sites"}
     };
 
     it("does NOT match the count of a hook", () => {
-        /*  It did, and "400" then answered every place holding 400
+        /*  It did, and "400" then answered every site holding 400
          *  devices together with the ones that really say 400.  */
         expect(row_matches(row, "400")).toBe(false);
         expect(row_matches(row, "40")).toBe(false);
@@ -71,19 +71,19 @@ describe("row_matches, on a table loaded with hook_size", () => {
     });
 
     it("still matches the rest of the row", () => {
-        expect(row_matches(row, "madrid")).toBe(true);
+        expect(row_matches(row, "north")).toBe(true);
     });
 
     it("still walks a hook that DID come with its children", () => {
         /*  A node event carries whole hooks whatever the table asked
          *  for, so both shapes reach this row.  */
         const loaded = {
-            id: "places-madrid",
+            id: "sites-north",
             devices: [
-                {id: "E00000042", topic_name: "devices", hook_name: "places"}
+                {id: "D00000042", topic_name: "devices", hook_name: "sites"}
             ]
         };
-        expect(row_matches(loaded, "e00000042")).toBe(true);
+        expect(row_matches(loaded, "d00000042")).toBe(true);
     });
 });
 

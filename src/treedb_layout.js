@@ -4,11 +4,11 @@
  *      Two layouts made for a treedb, and nothing else.
  *
  *      What a treedb graph IS, once it is folded (treedb_fold_model.js):
- *      a forest read top to bottom. A main topic is a tree (places:
- *      country, region, site, building), the other topics hang from its
- *      nodes through hooks (devices, users, controllers), a record may
- *      hang from two parents (a device from its place AND its
- *      controller), and every visible node was reached from a root.
+ *      a forest read top to bottom. A main topic is a tree (sites:
+ *      country, region, campus), the other topics hang from its nodes
+ *      through hooks (buildings, devices, users), a record may hang
+ *      from two parents (a device from its site AND its building), and
+ *      every visible node was reached from a root.
  *      Tens to a few hundred cards on screen, never the whole store.
  *
  *      G6's own layouts either do not know that or pay for not knowing:
@@ -30,8 +30,8 @@
  *
  *      - roots are the nodes with no incoming edge, in node order;
  *      - a node belongs to the FIRST parent that reaches it in a
- *        breadth-first walk from the roots -- the place, not the
- *        controller, because the place's column came first -- and the
+ *        breadth-first walk from the roots -- the site, not the
+ *        building, because the site's column came first -- and the
  *        other links are drawn as edges across the tree;
  *      - the children of a node are ordered by the HOOK they hang from
  *        (the parent's port order, which is the schema's column order)
