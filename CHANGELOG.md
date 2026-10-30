@@ -7,6 +7,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.1
+
+- **No review citation in the package.** Source comments, tests and the
+  CHANGELOG name what was fixed, not the review it came from. No code change.
+
 ## 7.29.0
 
 - **No private name in the package.** The README, the package description,
