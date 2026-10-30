@@ -56,13 +56,12 @@ from the DEPLOYED DOM and switch language.**
 
 - Two maintained lines: **`main`/v2** (declarative shell
   `C_YUI_SHELL/NAV/PAGER/WIZARD` — all new work lands here) and **`v1`**
-  (frozen legacy stack, maintenance-only, with no consumer left:
-  estadodelaire moved to v2 on 2026-10-13, and hidraulia, the last one, on
-  2026-10-15).
+  (frozen legacy stack, maintenance-only, with no consumer left: the last
+  two apps moved to v2 on 2026-10-13 and 2026-10-15).
 - **Every app takes this package from the npm REGISTRY.** Since 2026-08-03
-  there is no `file:` consumer left: wattyzer moved on 2026-07-25 and the
-  in-repo `yunos/js/*` yunos (gui_agent, gui_treedb) followed, as did the
-  three yunovatios GUIs. **So a local edit here reaches no app until it is
+  there is no `file:` consumer left: the first application moved on
+  2026-07-25 and the in-repo `yunos/js/*` yunos (gui_agent, gui_treedb)
+  followed, as did the other applications. **So a local edit here reaches no app until it is
   published** — that is the whole point of the model, and it is the thing to
   remember when a change "does not show up": publish, then raise the range in
   each consumer. The **tarball** is therefore on the critical path, not just
@@ -73,7 +72,9 @@ from the DEPLOYED DOM and switch language.**
   working tree with no publish. Try a change there — `npm run dev` — before
   spending a version on it. It deploys to `demo.yuneta.io` (the public demo
   linked from doc.yuneta.io) and to `niyamaka.com` (the mobile-test host) with
-  its own `deploy.sh`; both are the SAME bundle. Install it with npm 11: npm
+  its own `deploy.sh` (the node that serves them comes from the environment:
+  `DEMO_SSH_HOST=<node> ./deploy.sh`); both are the SAME bundle. Install it
+  with npm 11: npm
   10.9 fails on its `file:` dependencies (`Cannot read properties of null
   (reading 'edgesOut')`, a bug of npm's peer resolution).
 - **A published version reaches an app only through the deploy round, and the

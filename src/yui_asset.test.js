@@ -46,7 +46,7 @@ test("reads every id out of an array fkey, in order", () => {
 });
 
 /*
- *  `fkey_only_id` is a normal way to read a node -- yunovatios reads every
+ *  `fkey_only_id` is a normal way to read a node -- one app reads every
  *  device that way -- and it collapses a link to the bare id. Reading only
  *  the `topic^id^hook` form made every such link look like no link at all.
  */

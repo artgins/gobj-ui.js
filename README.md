@@ -302,8 +302,8 @@ consumers. They are independent snapshots (no shared git ancestry):
 
 | Line | Branch | Latest tag | Layout | Consumed by | How | Status |
 |------|--------|------------|--------|-------------|-----|--------|
-| **v2** | `main` | `7.26.x` | `src/` subdir | **gui_agent**, **gui_treedb**, **wattyzer**, the **yunovatios** GUIs, **yunomusica**, **estadodelaire** (since 2026-10-13), **hidraulia** (since 2026-10-15) | published npm `@yuneta/gobj-ui` (dist-tag `latest`) | active development |
-| **v1** | `v1` | `1.0.4` | `src/` subdir | nobody since 2026-10-15 (hidraulia was the last) | published npm `@yuneta/gobj-ui@^1.0.4` (dist-tag `legacy`) | frozen, maintenance-only |
+| **v2** | `main` | `7.26.x` | `src/` subdir | the in-repo yunos (**gui_agent**, **gui_treedb**) and the applications built on it | published npm `@yuneta/gobj-ui` (dist-tag `latest`) | active development |
+| **v1** | `v1` | `1.0.4` | `src/` subdir | nobody since 2026-10-15 (the last application moved to v2) | published npm `@yuneta/gobj-ui@^1.0.4` (dist-tag `legacy`) | frozen, maintenance-only |
 
 - **v2 / `main`** is the active development line: the declarative shell
   (legacy-stack-free since `3.0.0`). It is embedded as a git submodule in
@@ -317,8 +317,8 @@ consumers. They are independent snapshots (no shared git ancestry):
   it consumes the working tree (`file:..`), which is what it is for.
 - **v1 / `v1`** is the frozen legacy-only stack (the declarative shell is not on
   this line). It is **published to npm** (`@yuneta/gobj-ui@^1.0.4`), and no
-  app consumes it any more: estadodelaire left it for v2 on 2026-10-13, and
-  hidraulia, the last one, on 2026-10-15. Land only maintenance fixes here,
+  app consumes it any more: the last two left it for v2 on 2026-10-13 and
+  2026-10-15. Land only maintenance fixes here,
   then `npm publish` a new `1.x`.
 
 All new feature work lands on `main`/v2.
@@ -475,8 +475,8 @@ seen*:
   inside them — the agent console's strip of treedbs, each with its open topic.
   Since 6.2.0. **Declarable in a child spec since 7.23.140** (`"remember_position":
   true` next to its `id`): the attr existed, but the spec never passed it on,
-  so a node declared in a config could not turn it on. yunovatios turns it on
-  for its treedb nodes, so the graph tab returns to `<graph>/<topic>` with its
+  so a node declared in a config could not turn it on. An application turns
+  it on for its treedb nodes, so the graph tab returns to `<graph>/<topic>` with its
   focus and the data tab to the topic that was open.
 
 - **A node hears every event of the navs it projects** (they are its pure
@@ -1120,7 +1120,7 @@ transport edge (`form_writes_in_flight.js`), so the form comes back on what
 was typed instead of staying busy for ever.
 
 **Where the transport edge comes from** (7.25.5). Until 7.25.4 only from the
-host, as `EV_TRANSPORT_STATE` — and two hosts (wattyzer, yunovatios) never
+host, as `EV_TRANSPORT_STATE` — and two hosts (two applications) never
 forwarded it, so a websocket drop during a Save left Save and Cancel busy for
 ever. The view now also hears it from its SHELL: `yui_shell_set_connection_state()`
 — which every single-backend app already calls for the toolbar dot — publishes
@@ -4859,13 +4859,13 @@ or by a dynamic `import()`: **the library translates through the APP's
 i18next**, so every key it asks for must be defined by the app. The library it
 scans is the one it ships in, the package the app builds with. The app's own
 source is read recursively. Code and catalogs shared by several apps are named
-with `--src <dir>` (repeatable) and `--locales <dir>` (yunovatios:
+with `--src <dir>` (repeatable) and `--locales <dir>` (for instance:
 `--src ../gui-common/src --locales ../gui-common/src/locales`); `--config`
 names a shell declaration other than `src/app_config.json`.
 
 What is particular to an app goes in ITS `package.json`, not in the script:
 properties whose value is a key, and properties whose value is a list of keys
-(yunovatios hands its orchestrator `app_title: "central"` and
+(an application hands its orchestrator `app_title: "central"` and
 `welcome_features: [...]`):
 
 ```json
@@ -5905,7 +5905,7 @@ Up to `7.26.24` each app carried its own copy, and the copies had drifted into
 three families: only one read the codes of the schema editor, only the other
 two the barrel imports, and two read `t('topic') + ':'` as a key built by
 concatenation and skipped it -- so the treedb node graph's (`C_G6_NODES_TREE`)
-*"topic:"* went untranslated in wattyzer and yunovatios. No app keeps a copy
+*"topic:"* went untranslated in two applications. No app keeps a copy
 now. `test-app`, this library's own demo, has a catalog of another shape (one
 `src/locales.js`, English as the source: a key IS the English text, Title Case
 included), so its `test-app/scripts/validate-locales.mjs` loads that catalog

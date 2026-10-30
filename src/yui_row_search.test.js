@@ -4,11 +4,11 @@ import {row_matches, is_fkey_ref, is_hook_size} from "./yui_row_search.js";
 
 describe("row_matches", () => {
     const row = {
-        id: "E22003089",
+        id: "E00000042",
         name: "",
         place: [
             {
-                id: "es.madrid.bm-madrid-fuencarral-m-av.local-13-torno",
+                id: "es.city.site-a.local-13-gate",
                 topic_name: "places",
                 hook_name: "devices"
             }
@@ -20,7 +20,7 @@ describe("row_matches", () => {
     };
 
     it("finds a plain field", () => {
-        expect(row_matches(row, "e22003089")).toBe(true);
+        expect(row_matches(row, "e00000042")).toBe(true);
     });
 
     it("finds a number", () => {
@@ -28,7 +28,7 @@ describe("row_matches", () => {
     });
 
     it("finds a value INSIDE an fkey, which is the whole point", () => {
-        expect(row_matches(row, "local-13-torno")).toBe(true);
+        expect(row_matches(row, "local-13-gate")).toBe(true);
     });
 
     it("does NOT match the structural halves of an fkey", () => {
@@ -80,10 +80,10 @@ describe("row_matches, on a table loaded with hook_size", () => {
         const loaded = {
             id: "places-madrid",
             devices: [
-                {id: "E22003089", topic_name: "devices", hook_name: "places"}
+                {id: "E00000042", topic_name: "devices", hook_name: "places"}
             ]
         };
-        expect(row_matches(loaded, "e22003089")).toBe(true);
+        expect(row_matches(loaded, "e00000042")).toBe(true);
     });
 });
 

@@ -10,7 +10,7 @@
  *      is stored wired it again), so adding a row, editing a cell,
  *      deleting a row or editing a nested table marked nothing: since
  *      7.26.39 the close asks only for `edited`, and it closed without a
- *      question -- the edit lost. In estadodelaire that is the settings of
+ *      question -- the edit lost. In a consumer app that is the settings of
  *      every device without its alarm colours, whose alarms are tables.
  *
  *      And the column titles of those tables change language: they were

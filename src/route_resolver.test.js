@@ -13,11 +13,11 @@ import { resolve_route, normalize_route } from "./route_resolver.js";
 function make_index() {
     const view = (gclass) => ({ stage: "main", gclass: gclass });
     return {
-        "/":                 { item: null, target: view("C_WZ_VIEW") },
-        "/monitoring/realtime": { item: null, target: view("C_WZ_MONITORING") },
+        "/":                 { item: null, target: view("C_APP_VIEW") },
+        "/monitoring/realtime": { item: null, target: view("C_APP_MONITORING") },
         "/system":           { item: { submenu: { items: [] } }, target: null },
-        "/system/db/myapp": { item: null, target: view("C_WZ_TREEDB") },
-        "/user/preference":  { item: null, target: view("C_WZ_PREFERENCES") },
+        "/system/db/myapp": { item: null, target: view("C_APP_TREEDB") },
+        "/user/preference":  { item: null, target: view("C_APP_PREFERENCES") },
         "/user/logout":      { item: null, target: { kind: "action", event: "EV_LOGOUT" } },
     };
 }
@@ -29,21 +29,21 @@ describe("resolve_route", () => {
         const r = resolve_route(idx, "/monitoring/realtime");
         expect(r.matched_route).toBe("/monitoring/realtime");
         expect(r.subpath).toBe("");
-        expect(r.entry.target.gclass).toBe("C_WZ_MONITORING");
+        expect(r.entry.target.gclass).toBe("C_APP_MONITORING");
     });
 
     test("exact root '/' matches exactly (not via walk)", () => {
         const r = resolve_route(idx, "/");
         expect(r.matched_route).toBe("/");
         expect(r.subpath).toBe("");
-        expect(r.entry.target.gclass).toBe("C_WZ_VIEW");
+        expect(r.entry.target.gclass).toBe("C_APP_VIEW");
     });
 
     test("3rd level → nearest declared ancestor + subpath", () => {
         const r = resolve_route(idx, "/user/preference/language");
         expect(r.matched_route).toBe("/user/preference");
         expect(r.subpath).toBe("language");
-        expect(r.entry.target.gclass).toBe("C_WZ_PREFERENCES");
+        expect(r.entry.target.gclass).toBe("C_APP_PREFERENCES");
     });
 
     test("deeper dynamic tail is preserved whole", () => {

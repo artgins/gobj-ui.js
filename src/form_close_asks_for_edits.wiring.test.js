@@ -5,7 +5,7 @@
  *      the READER changed. A field the record lacks is filled with its
  *      default when the record is loaded: the form then differs from what
  *      is stored, and its save lights (`changes`) -- but the reader did
- *      nothing, and the close asked all the same. In estadodelaire that
+ *      nothing, and the close asked all the same. In a consumer app that
  *      was every device whose alarm colours a save had wiped (16 of 19),
  *      on every close of its settings. What the reader does -- types,
  *      clears, pastes -- is `edited`, and that is what the close asks
@@ -41,7 +41,7 @@ const {register_c_yui_form} = await import("./c_yui_form.js");
 const logged = [];
 let yuno = null;
 
-/*  The settings template of an estadodelaire device type, cut down: a
+/*  The settings template of an app's device type, cut down: a
  *  field with a default beside a sub-form of three.  */
 const TEMPLATE = {
     template_version: {

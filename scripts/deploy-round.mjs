@@ -11,8 +11,8 @@
  *          number, in the same edit of each package.json: a new range is
  *          a new bundle, and an app whose "About" shows one number for
  *          five different bundles cannot tell anybody which one is in
- *          front of them (yunovatios stayed at one version through four
- *          rounds). A package.json whose range was already raised is not
+ *          front of them (one application stayed at one version through
+ *          four rounds). A package.json whose range was already raised is not
  *          touched again, so running the round twice bumps once. Run by
  *          hand it has been skipped twice in the same place -- the DEMO,
  *          which is the only surface that does NOT wait for the registry
@@ -27,7 +27,7 @@
  *          AN APP IS TESTED BEFORE IT IS DEPLOYED: after its build, its
  *          `npm test` (or the command its manifest entry names in
  *          `test`), and a red test leaves it undeployed. The round used to
- *          build and deploy only, and yunomusica went out six times with
+ *          build and deploy only, and one application went out six times with
  *          its catalogue check red. And EVERY STEP SHOWS WHAT IT SAYS: the
  *          output of install, build, test and deploy goes to the console
  *          as it comes -- a warning of a step that exits 0 (a backup that
@@ -197,6 +197,8 @@ if(PKG.name !== PKG_NAME) {
  *  The DEMO. In the repo, so it is described here and not in the
  *  manifest: it runs the working tree (`file:..`), which is why it needs
  *  no range and no registry -- and why it is the one that gets skipped.
+ *  Its deploy.sh takes the node that serves it from DEMO_SSH_HOST, so
+ *  the round needs that variable in its environment.
  *  And why it goes out only from a clean tree at origin/main, this
  *  repo's and the sibling gobj-js's (demo_problem()): up to gobj-ui
  *  7.26.54 any copy of the repo, on any commit, with any change,
@@ -986,7 +988,7 @@ function do_round(c)
         run_step(build[0], build.slice(1), c.path);
 
         /*  After the build: a suite may test what the build produced
-         *  (yunomusica's runs against dist/).  */
+         *  (one application's runs against dist/).  */
         const test = test_command(c);
         if(test) {
             console.log(`    test   ${test.join(" ")}`);

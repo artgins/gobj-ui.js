@@ -189,7 +189,7 @@
  *
  *  A box to type in, never a box to TICK: a checkbox or a radio given the
  *  whole cell is drawn as a square the size of the cell -- the tickCross
- *  editor of a boolean (estadodelaire's "validated") opened as a huge empty
+ *  editor of a boolean (an app's "validated") opened as a huge empty
  *  box on a phone, which read as broken. Those keep their own size.
  * ==================================================================== */
 .tabulator-row .tabulator-cell.tabulator-editing input:not([type=checkbox]):not([type=radio]),

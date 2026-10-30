@@ -11,7 +11,7 @@ import { build_nav_map } from "./route_map_model.js";
 
 const view = (gclass) => ({ stage: "main", gclass: gclass });
 
-/*  A config + index shaped like a small wattyzer-style app:
+/*  A config + index shaped like a small application:
  *  toolbar (brand + account dropdown), a primary menu with a submenu,
  *  a second menu, and a route table with URL-only routes. */
 function make_input(extra)

@@ -840,7 +840,7 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    /*  The theme is <html data-theme> (the Bulma/wz_theme convention) and
+    /*  The theme is <html data-theme> (the Bulma theme convention) and
      *  the DOM mutation IS the notification: translate it into EV_THEME so
      *  ac_theme does the work inside the machine.  Without this priv.theme
      *  stays "light" and the grid-line uses the light colour (#EEEEEE) →

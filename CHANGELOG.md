@@ -11,7 +11,7 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 - **`yi-file-excel`** (FontAwesome Free 7.3.1, solid): a table exported as
   a spreadsheet workbook, beside `yi-file-csv` and `yi-file-code` -- the
-  three exports of yunovatios' summary of devices, one icon per format.
+  three exports of app B's summary of devices, one icon per format.
 
 ## 7.28.2
 
@@ -46,7 +46,7 @@ release takes it). Every app takes the licenses plugin with it.
   the Font Awesome icons of `yui_icons.css`, which no minifier kept (Vite 8
   drops even `/*!` comments), reaches every app. Exported as
   `@yuneta/gobj-ui/vite-plugin-yuneta-licenses.js` and shipped in the
-  tarball. Tried on wattyzer's build: 63 packages listed.
+  tarball. Tried on app A's build: 63 packages listed.
 - **`LICENSE`, `THIRD-PARTY-NOTICES` and `CONTRIBUTING.md`.** The package
   was published with no license (`npm view @yuneta/gobj-ui license`
   answered nothing): `package.json` says MIT and `LICENSE` carries it
@@ -184,8 +184,8 @@ release takes it). Every app takes the licenses plugin with it.
   `ST_OFF` with the shell's `EV_ROUTE_CHANGED` and told the content on screen
   (`EV_VIEW_SHOWN {route}`), and then the shell sent its own `EV_VIEW_SHOWN` to
   the root, which handed it down to the same content. A view that asks for its
-  data when shown took the second one as an action in progress (yunovatios
-  `C_YV_ACCOUNTS`: "action in progress, wait" during the whole load).
+  data when shown took the second one as an action in progress (app B's
+  accounts view: "action in progress, wait" during the whole load).
   `C_YUI_NODE` no longer declares `EV_VIEW_SHOWN`, so the shell skips it, and
   the node's own route change is the one delivery: the tip's content, a
   content deeper down, and a `C_YUI_SERVICE_VIEW` content (which hands it on)
@@ -342,7 +342,7 @@ itself out by the width of the screen.
   C_NODE: most of them) and that runs reads `● running`, green, instead of
   `‖ running (paused)`, amber -- which painted almost every card of a
   backend yuno the colour of something to look at (15 of the 18 gclasses
-  of a db_history_ce). The descriptor carries `play_methods`: read from
+  of a db_history). The descriptor carries `play_methods`: read from
   the gclass in a local tree, and from the new `play_methods` field of the
   C SDK's `gobj2json()` in a remote one. A backend built before that field
   does not answer it, and its gobjs keep reading paused.
@@ -458,7 +458,7 @@ one tile fails (`C_YUI_MAP` waits on `load`). The test-app emits
 
 ## 7.27.21
 
-**`EV_VIEW_SHOWN`: a view shown again after being hidden is told so.** The yunovatios map lost its camera every time the app went to another option and back, because every view of the app was `lazy_destroy`. `keep_alive` keeps the view, but also the data it read when it was created, and the views that read their data only then (and get no events from the backend) would show the first visit's until a Reload. Now:
+**`EV_VIEW_SHOWN`: a view shown again after being hidden is told so.** The app B map lost its camera every time the app went to another option and back, because every view of the app was `lazy_destroy`. `keep_alive` keeps the view, but also the data it read when it was created, and the views that read their data only then (and get no events from the backend) would show the first visit's until a Reload. Now:
 
 - **`C_YUI_SHELL`** sends `EV_VIEW_SHOWN {route, base, subpath}` to a view it shows again (`keep_alive` / `eager`), after `EV_ROUTE_CHANGED`, and only if the view declares it. A subpath move is not a new showing.
 - **`C_YUI_SERVICE_VIEW`** hands it on to the view it hosts.
@@ -468,16 +468,16 @@ A view that does not declare the event sees no change. SHELL.md §4 has the cont
 
 ## 7.27.20
 
-The topic table came back EMPTY on the yunovatios central after 7.27.19, at a deep scroll position. Two causes, one per layer:
+The topic table came back EMPTY on app B's central node after 7.27.19, at a deep scroll position. Two causes, one per layer:
 
 - **`C_YUI_NODE` no longer takes a child that is on screen out of the document.** Every route change below a node re-activated it, and `render_child()` emptied its body and hung the child again: the subtree left the document and came back, and a browser drops the scroll of every element that does. A tab change of a treedb view is a route change, so the table's scroll went to 0 with its virtual rows still drawn for the bottom of the page, under 7896px of padding. The chrome (navs, path) is still rebuilt; the body is left alone when the active child already hangs in it.
 - **`C_YUI_TREEDB_TOPIC_WITH_FORM` gives the scroll back when it is seen again**, before its redraw: a host that does take the table out of the document while it is hidden no longer brings it back blank. The position is kept from Tabulator's own `scrollVertical` / `scrollHorizontal`.
 
-Verified against the real central (`npm run qa -- --local --check tabreturn`, new in yunovatios), with `admin`, `topics`, `section`, `landing`, `navmode`, `schemaback`, `hooks` and `sitemap` still green.
+Verified against the real central (`npm run qa -- --local --check tabreturn`, new in app B), with `admin`, `topics`, `section`, `landing`, `navmode`, `schemaback`, `hooks` and `sitemap` still green.
 
 ## 7.27.19
 
-`C_YUI_TREEDB_TOPIC_WITH_FORM`, three faults of the topic table found on the yunovatios central:
+`C_YUI_TREEDB_TOPIC_WITH_FORM`, three faults of the topic table found on app B's central node:
 
 - **A table under a hidden tab keeps its place.** `C_YUI_TREEDB_TOPICS` hides the other topics with `display:none`, and Tabulator's `autoResize` took that 0x0 for a resize: it redrew a table with no layout, where every row reads `offsetTop` 0, so each visit to another tab and back moved the reader about a dozen rows up the page (and a column could be measured at its header's width). The table now watches its own size (`EV_TABLE_RESIZED`): a hidden table is left alone and is redrawn when it is seen again, with its scroll kept, or when its size really changes. `autoResize` is forced off.
 - **A click on an fkey to several parents opens the record.** `place` and `device_type` are `array` fkeys: the row click asked the column's REAL type, found `array` among the cells with a viewer of their own, and gave way to a click the cell does not have. It asks the field type only, the one the cell's own click is chosen by.
@@ -504,7 +504,7 @@ Icon review of the library, icons only:
 - **Icon `yi-circle-check`** (FontAwesome Free 7.3.1): success, the check in a circle of every success notice (Bulma, Bootstrap, Material's `check_circle`). The success dialog of `shell_modals` wears it, beside its circle-info and circle-exclamation; the checked square says selected.
 - **The site map window wears the site map** (`shell_route_map`), as every app's user menu opens it: it wore the hamburger, which is the menu.
 - **Raw JSON is the code**, as in `C_YUI_TREEDB_TOPICS` since 7.27.10: the raw json button and window of `C_YUI_TREEDB_TOPIC_WITH_FORM` and of `C_YUI_TREEDB_GRAPH` wore the eye (show / hide), and a JSON cell wore the eye and its window the JavaScript logo.
-- **Exporting the table is the CSV file** (`C_YUI_TREEDB_TOPIC_WITH_FORM`), as in gui_treedb and yunovatios; **the schema editor exports a code file** (`yi-file-code`, C or JSON) and **checks with the check** (the checked square says selected).
+- **Exporting the table is the CSV file** (`C_YUI_TREEDB_TOPIC_WITH_FORM`), as in gui_treedb and app B; **the schema editor exports a code file** (`yi-file-code`, C or JSON) and **checks with the check** (the checked square says selected).
 - One glyph, one name: the form's clear is `yi-broom` (`yi-broom-wide` is an alias of it), and `lib_icons.js` names `yi-floppy-disk` (`yi-save` is its alias).
 - **test-app (not published):** the "confirm ok" demo button wears the circle check.
 
@@ -515,11 +515,11 @@ Icon review of the library, icons only:
 
 ## 7.27.13
 
-- **Icon `yi-user-shield`** (FontAwesome Free 7.3.1): the roles and permissions of the users -- a treedb of authorizations -- as the shield of Microsoft Entra's "Roles and administrators" and Google Admin's admin roles. The yunovatios GUIs wore the padlock, which says locked.
+- **Icon `yi-user-shield`** (FontAwesome Free 7.3.1): the roles and permissions of the users -- a treedb of authorizations -- as the shield of Microsoft Entra's "Roles and administrators" and Google Admin's admin roles. The app B GUIs wore the padlock, which says locked.
 
 ## 7.27.12
 
-- **Icon `yi-folder-tree`** (FontAwesome Free 7.3.1): a hierarchy of groups to file things in -- the zones of a map, the group a device is filed in -- as the tree of folders of Windows Explorer, VS Code or Drive. The yunovatios map wore the site map for its zones, in the same app whose user menu now opens the site map with it.
+- **Icon `yi-folder-tree`** (FontAwesome Free 7.3.1): a hierarchy of groups to file things in -- the zones of a map, the group a device is filed in -- as the tree of folders of Windows Explorer, VS Code or Drive. The app B map wore the site map for its zones, in the same app whose user menu now opens the site map with it.
 
 ## 7.27.11
 
@@ -531,44 +531,44 @@ Icon review of the library, icons only:
 - **Icons `yi-bug`, `yi-display`, `yi-cube`, `yi-heart-pulse`, `yi-route`, `yi-code-compare` and `yi-align-left`** (FontAwesome Free 7.3.1): debugging (VS Code, IntelliJ, Xcode), the console screen of a yuno's TTY (vSphere and OpenStack's "Console"), a yuno as a deployable unit (the container or pod of Docker, Portainer and Kubernetes), a live feed, a breadcrumb, the differences between two versions (GitHub's compare) and plain text.
 - **The developer window wears the bug.** Its `>_` was also the agent console's command line and the TTY of a yuno, three things with one shape in `gui_agent`; debugging is the bug in every IDE.
 - **`C_YUI_TREEDB_TOPICS`: the backend is the server and the raw json is the code.** The url of the backend wore `yi-cloudversify`, a brand's logo that says nothing; a backend is a server, as a node is in the rest of the apps. The raw json button and its window wore the eye, which `gui_treedb` also gives the rows of a topic in the same row of buttons; a JSON document is the code, as the schema json already was.
-- **test-app (not published):** the developer window takes the bug. Table is the list and Section index the site map: Cards' grid and Table's grid were two equal icons in the menu at its size (the yunovatios map view settled the same clash the same way). The JSON graph takes the boxes joined by lines, so the menu does not show three equal graphs in a row.
+- **test-app (not published):** the developer window takes the bug. Table is the list and Section index the site map: Cards' grid and Table's grid were two equal icons in the menu at its size (the app B map view settled the same clash the same way). The JSON graph takes the boxes joined by lines, so the menu does not show three equal graphs in a row.
 
 ## 7.27.9
 
 - **Icons `yi-robot`, `yi-user-clock`, `yi-clipboard-list`, `yi-inbox`, `yi-user-plus`, `yi-headset`, `yi-wand-magic-sparkles`, `yi-layer-group`, `yi-window-maximize`, `yi-clock-rotate-left` and `yi-folder`** (FontAwesome Free 7.3.1): automations (Home Assistant's robot), shifts, a shift handover, an in-app inbox (the envelope is e-mail), add a user, the operations desk, a wizard, a stack of pages, ONE window (two overlapping frames say copy), history (the arrow turning back alone is undo) and a tab (Material's `tab`).
-- **test-app (demo.yuneta.io, niyamaka.com): every icon says what its entry is**, with the icons the yunovatios GUIs settled on: the alerts are the bell, preferences the sliders, the map the folded map, TreeDB the database, the chart a chart, the cards a grid, the windows one window, the JSON graph a tree and the JSON tree the code; a hall is a place and a tank a droplet. The eye, the cog, the copy, the plain square and the checked box had been standing in for entries that are none of those.
+- **test-app (demo.yuneta.io, niyamaka.com): every icon says what its entry is**, with the icons the app B GUIs settled on: the alerts are the bell, preferences the sliders, the map the folded map, TreeDB the database, the chart a chart, the cards a grid, the windows one window, the JSON graph a tree and the JSON tree the code; a hall is a place and a tank a droplet. The eye, the cog, the copy, the plain square and the checked box had been standing in for entries that are none of those.
 
 ## 7.27.8
 
-- **Icons `yi-microchip` and `yi-server`** (FontAwesome Free 7.3.1), for the devices section of the yunovatios GUIs: the chip of "devices" in the IoT platforms (AWS IoT, Azure IoT Hub), and the server of a controller, a box in the field.
+- **Icons `yi-microchip` and `yi-server`** (FontAwesome Free 7.3.1), for the devices section of the app B GUIs: the chip of "devices" in the IoT platforms (AWS IoT, Azure IoT Hub), and the server of a controller, a box in the field.
 
 ## 7.27.7
 
-- **Icons `yi-house`, `yi-gauge-high`, `yi-gears`, `yi-sliders`, `yi-user-check`, `yi-user-slash` and `yi-key`** (FontAwesome Free 7.3.1), for the home, dashboards and administration of the yunovatios GUIs: the house of "home", the speedometer of a dashboard (AdminLTE, CoreUI), two gears for system internals (one gear is the admin section), the sliders of personal preferences (Material's `tune`), a person checked or crossed out to enable or disable an account (the eye is show / hide), and the key of granting access.
+- **Icons `yi-house`, `yi-gauge-high`, `yi-gears`, `yi-sliders`, `yi-user-check`, `yi-user-slash` and `yi-key`** (FontAwesome Free 7.3.1), for the home, dashboards and administration of the app B GUIs: the house of "home", the speedometer of a dashboard (AdminLTE, CoreUI), two gears for system internals (one gear is the admin section), the sliders of personal preferences (Material's `tune`), a person checked or crossed out to enable or disable an account (the eye is show / hide), and the key of granting access.
 
 ## 7.27.6
 
-- **Icons `yi-chart-simple`, `yi-chart-line` and `yi-chart-column`** (FontAwesome Free 7.3.1), for the reports of the yunovatios GUIs: the bars of a reports section (Google Analytics, Shopify), the lines of a history of measures over time (Home Assistant's History) and the columns of a consumption compared year by year. They replace a table, which several other entries of those menus wear, and a calendar, which is the button of `C_YUI_PERIOD`.
+- **Icons `yi-chart-simple`, `yi-chart-line` and `yi-chart-column`** (FontAwesome Free 7.3.1), for the reports of the app B GUIs: the bars of a reports section (Google Analytics, Shopify), the lines of a history of measures over time (Home Assistant's History) and the columns of a consumption compared year by year. They replace a table, which several other entries of those menus wear, and a calendar, which is the button of `C_YUI_PERIOD`.
 
 ## 7.27.5
 
-- **Icons `yi-bell` and `yi-filter`** (FontAwesome Free 7.3.1), for the alarms of the yunovatios GUIs: the bell is the icon of an alarms section and of its counter in Grafana, Prometheus Alertmanager, AWS CloudWatch and the SCADA HMIs, where the triangle is the STATE "warning" -- and the triangle is the icon of a warning dialog of this library (`shell_modals.js`). The funnel is the filter "only active".
+- **Icons `yi-bell` and `yi-filter`** (FontAwesome Free 7.3.1), for the alarms of the app B GUIs: the bell is the icon of an alarms section and of its counter in Grafana, Prometheus Alertmanager, AWS CloudWatch and the SCADA HMIs, where the triangle is the STATE "warning" -- and the triangle is the icon of a warning dialog of this library (`shell_modals.js`). The funnel is the filter "only active".
 
 ## 7.27.4
 
-- **Icon `yi-list-check`** (FontAwesome Free 7.3.1), for "go to the chosen ones" in the zone picker of the yunovatios map: a list with its marks, the drawing of "show the selected" in a picker of checkboxes. The crosshairs it used mean "my location" in those apps (the map's geolocate button).
+- **Icon `yi-list-check`** (FontAwesome Free 7.3.1), for "go to the chosen ones" in the zone picker of the app B map: a list with its marks, the drawing of "show the selected" in a picker of checkboxes. The crosshairs it used mean "my location" in those apps (the map's geolocate button).
 
 ## 7.27.3
 
-- **Icon `yi-arrow-up-right-from-square`** (FontAwesome Free 7.3.1), for "open in a window" in the yunovatios GUIs: a box with an arrow leaving it, the "open in a new window" of Material (`open_in_new`), Gmail, Teams and Slack. Two overlapping frames, which the apps used, say COPY in the market.
+- **Icon `yi-arrow-up-right-from-square`** (FontAwesome Free 7.3.1), for "open in a window" in the app B GUIs: a box with an arrow leaving it, the "open in a new window" of Material (`open_in_new`), Gmail, Teams and Slack. Two overlapping frames, which the apps used, say COPY in the market.
 
 ## 7.27.2
 
-- **Icons `yi-map`, `yi-list`, `yi-table-cells-large`, `yi-file-csv` and `yi-file-code`** (FontAwesome Free 7.3.1), for the toolbar of the yunovatios map view: a view switch of map / list / grid, the trio of the market (a folded map for the map view, as Airbnb, Zillow and Idealista; lines and squares for list and grid, as Google Drive), and an export per FORMAT -- two download buttons side by side were two equal icons the moment the label hid on a phone.
+- **Icons `yi-map`, `yi-list`, `yi-table-cells-large`, `yi-file-csv` and `yi-file-code`** (FontAwesome Free 7.3.1), for the toolbar of the app B map view: a view switch of map / list / grid, the trio of the market (a folded map for the map view, as Airbnb, Zillow and Idealista; lines and squares for list and grid, as Google Drive), and an export per FORMAT -- two download buttons side by side were two equal icons the moment the label hid on a phone.
 
 ## 7.27.1
 
-- **Icons `yi-draw-polygon` and `yi-up-down-left-right`** (FontAwesome Free 7.3.1), for the map controls of the yunovatios GUIs: draw a perimeter and move a marker. They are the drawings the map-editing libraries give those tools (Mapbox GL Draw, Leaflet-Geoman, Leaflet.draw), so a reader who has used one of them knows the button.
+- **Icons `yi-draw-polygon` and `yi-up-down-left-right`** (FontAwesome Free 7.3.1), for the map controls of the app B GUIs: draw a perimeter and move a marker. They are the drawings the map-editing libraries give those tools (Mapbox GL Draw, Leaflet-Geoman, Leaflet.draw), so a reader who has used one of them knows the button.
 
 ## 7.27.0
 
@@ -612,7 +612,7 @@ of the library's code over 7.26.59:
 
 - **deps: peer floors raised to i18next `^26.4.5` and maplibre-gl `^6.14.0`; vite `^8.3.4` for the build.** What they bring, read against this library and its apps:
     - **i18next 26.4.4 is a security release**: an interpolated value holding an unclosed `$t(` made the nesting regexp backtrack exponentially (a ~25-character value hung `t()` for minutes), and a `$t(...)` arriving inside a variable was resolved by the outer nesting. Both are reachable here (the views interpolate names that come from devices and users). The second fix changes behaviour only for a `$t(` nested inside a variable, which no locale of the library or of the apps writes. 26.4.3/26.4.5: performance and a `hasLoadedNamespace()` fix for react-i18next, not used here.
-    - **maplibre-gl 6.13/6.14**: bug fixes (`load`/`idle` that never fired when the last tile failed with a status other than 404, a crash removing feature state, `setStyle` with a lost WebGL context, camera fixes on terrain and globe); since 6.13.0 the worker is self-contained and `maplibre-gl-shared.mjs` is an empty file. The worker copy of the apps keeps working (estadodelaire already served 6.14.0, console clean).
+    - **maplibre-gl 6.13/6.14**: bug fixes (`load`/`idle` that never fired when the last tile failed with a status other than 404, a crash removing feature state, `setStyle` with a lost WebGL context, camera fixes on terrain and globe); since 6.13.0 the worker is self-contained and `maplibre-gl-shared.mjs` is an empty file. The worker copy of the apps keeps working (app C already served 6.14.0, console clean).
     - **vite 8.3.4**: build and dev-server fixes (the preload helper waits for in-flight stylesheets; chunk preloads with a non-root base), no API change.
   No code change. Tests, build, `qa-history` and `qa-cell-editor` pass on the new versions.
 
@@ -633,7 +633,7 @@ of the library's code over 7.26.59:
 
 ## 7.26.53
 
-- **fix: 7.26.52 broke the build of every app that shows a time** (`validate-locales` in its `prebuild`: 27 keys "used in the source but defined in NO locale", the names of the period picker). The time text helper lived in `yui_time.js`, which publishes the period picker's keys (`YUI_TIME_I18N_KEYS`); the four views that show a time imported it, and the validator follows the modules an app mounts, so every app that mounts one owed those keys. `safe_locale()` and `fmt_date_time()` live now in `yui_date_text.js`, which carries no key; `yui_time.js` re-exports both, so no import changes for a consumer. 7.26.52 reached no app: the deploy round refused them all at the build (only the demo, which carries every key, went out). Checked with the `validate-locales` of wattyzer and estadodelaire against these modules.
+- **fix: 7.26.52 broke the build of every app that shows a time** (`validate-locales` in its `prebuild`: 27 keys "used in the source but defined in NO locale", the names of the period picker). The time text helper lived in `yui_time.js`, which publishes the period picker's keys (`YUI_TIME_I18N_KEYS`); the four views that show a time imported it, and the validator follows the modules an app mounts, so every app that mounts one owed those keys. `safe_locale()` and `fmt_date_time()` live now in `yui_date_text.js`, which carries no key; `yui_time.js` re-exports both, so no import changes for a consumer. 7.26.52 reached no app: the deploy round refused them all at the build (only the demo, which carries every key, went out). Checked with the `validate-locales` of app A and app C against these modules.
 
 ## 7.26.52
 
@@ -661,14 +661,14 @@ of the library's code over 7.26.59:
 - test: `shell_history_debt.wiring.test.js` models documents (`sameDocument`, a cross-document replace that keeps the key) and `currententrychange`, and queues a landing's hashchange before its popstate runs, as both browsers do; new cases red with 7.26.50 (the walk into the earlier document, the Back onto dead entries under the reader's, a Back onto a walked key, the dead `/prefs` entry). qa-history: case (m) a page replaced by another and back (red with 7.26.50: 3 loads, both browsers) and (n) a move in the login page (red: 4 Backs to leave, 2 dead, both browsers); all 14 cases green in Chromium and Firefox. `form_time_field.wiring.test.js`: the repeated hour with the browser's `:00`, a record loaded over another with the same wall time, a clear.
 - **fix(`validate-locales`): a locale could still turn a failing run into exit code 0** (in every version; 7.26.49 closed only a timer's `process.exit(0)` and `process.exitCode = 0`). `process.on("exit", () => { process.exitCode = 0 })` with a key missing said *"1 violation(s)"* and exited 0; so did an exit handler calling `process.reallyExit(0)`, and `process.removeAllListeners("exit"); process.exit(0)`; a `process.reallyExit(0)` at the top of a locale exited 0 before anything was checked, saying nothing; and a passing run whose locale throws in an exit handler exited 0 too. (A `prependListener` alone did not: the run's own handler ran after it.) The locales are now imported in a PROCESS OF THEIR OWN, which reports what each one exports (its keys and its endonym, as JSON) and ends with `process.reallyExit(0)`: no exit handler of a locale runs, and no timer of one due after the report. The run executes no code of the app, so it ends with its own verdict. A locale that ends its process before the report -- `process.exit()` or `process.reallyExit()` at its top or in a timer of 0, a signal, a top-level await that never settles -- fails the run and says so; one that holds it more than 60 s fails it too. A promise rejected or an exception thrown with nothing to catch it, in a locale, fails the run with its stack (an exception in a locale's timer used to crash the run). The cost is a node started per run: +15 to +65 ms (median) on runs of 0.25-0.7 s on the nine apps, measured alternated against 7.26.50; they read exactly the same locales, keys and endonyms, and give the same output.
 - **fix(`validate-locales`): a locale's timer that ended the process cut a long list written to a pipe, and the verdict with it** (exit code 1, the list cut: 515 of 3000 lines reached a reader that read late). Nothing a locale does runs in the run any more.
-- **fix(`validate-locales`): reads of an array that read nothing, in silence.** A `let` given a `?:` of array literals (at its declaration or later, `null` on a branch, a const array), a `let` whose length is set (`L.length = 1`) or given literals by `Object.assign(L, {1: "k"})`, `const [b] = X.slice(1)`, `X.slice(1)[0]`, `for(const k of X.slice(1))`, `X.slice(1).map(...)`, a rest (`const [a, ...r] = X; t(r[0])`), `X[0].at(1)`, `X.at(0).at(1)`, `X.at()`, `X.at(-1, 0)`, `X.at(...i)`, an element of an element of a `let`, and an element destructured as an array in a `for...of` or a callback (`for(const [id, key] of ROWS)`, `ROWS.map(([id, key]) => ...)`) asked for no key. Each reads its element now, or every element where the index is not known or the array may hold others by then (a `.slice()` of an array written into). An array literal written inside another one, or as the value of a property, is read by its index, as a property of an object is (7.26.47 to 7.26.50 read every element of it). On the nine apps the reads found 16 keys more in wattyzer (its `MEASURES` and `COLS` tables, `MEASURES.map(([key, label]) => ...)`, `COLS.map(([, label]) => ...)`) and 6 in each yunovatios GUI (the home tiles, the census images), all of them defined; nothing else changes.
+- **fix(`validate-locales`): reads of an array that read nothing, in silence.** A `let` given a `?:` of array literals (at its declaration or later, `null` on a branch, a const array), a `let` whose length is set (`L.length = 1`) or given literals by `Object.assign(L, {1: "k"})`, `const [b] = X.slice(1)`, `X.slice(1)[0]`, `for(const k of X.slice(1))`, `X.slice(1).map(...)`, a rest (`const [a, ...r] = X; t(r[0])`), `X[0].at(1)`, `X.at(0).at(1)`, `X.at()`, `X.at(-1, 0)`, `X.at(...i)`, an element of an element of a `let`, and an element destructured as an array in a `for...of` or a callback (`for(const [id, key] of ROWS)`, `ROWS.map(([id, key]) => ...)`) asked for no key. Each reads its element now, or every element where the index is not known or the array may hold others by then (a `.slice()` of an array written into). An array literal written inside another one, or as the value of a property, is read by its index, as a property of an object is (7.26.47 to 7.26.50 read every element of it). On the nine apps the reads found 16 keys more in app A (its `MEASURES` and `COLS` tables, `MEASURES.map(([key, label]) => ...)`, `COLS.map(([, label]) => ...)`) and 6 in each app B GUI (the home tiles, the census images), all of them defined; nothing else changes.
 - **fix(`validate-locales`): the default of a destructuring was asked for wherever it was written** (since 7.26.32): `const [a = "d0", b = "d1"] = ["x0", "x1"]; t(b)` asked for "d1", and `const {n = "d"} = {n: null}` for "d", which no run of the code reaches. The default is a value only where what it reads can be undefined (past the end, a hole, a property not written, `undefined`, a value the reader cannot know); and a default in a `for...of` or a callback destructuring (`for(const {k = "d"} of ROWS)`), never read up to 7.26.50, is read the same way.
 - **fix(`deploy-round`): the states kept between rounds were kept per commit, not per package** (7.26.49). A round of `@yuneta/gobj-js` after one of `@yuneta/gobj-ui` on the same HEAD read the library's states for a package.json born with both new ranges in a move git does not see: an app whose number had gone out with the runtime's old range said "already" and would have gone out again under that number, and one born with both new ranges was raised for nothing by the second round, in either order. They are kept per package in a file with a format number (`{format: 2, entries}`): a file kept by 7.26.49 or 7.26.50 is not read, and is written again. The 64 entries used last are kept (the file was never pruned; a key holds every state of the package the history had: 0.2 to 20 KB in the repositories of the tree).
 - test: red with 7.26.50 -- every way above a locale had to turn the exit code, a locale's timer ending the process under a list on its way to a pipe, the reads of an array that read nothing, the default never reached, the round of the runtime after the library's (both orders, both cases), a file of the old format, and the pruning.
 
 ## 7.26.50
 
-- **fix(`C_YUI_SHELL` CSS): the badge of a menu item is a pill again, with no ring, so its tone can be read.** 7.26.30 drew it as a dot of 0.86rem with a ring of the page's colour around it (`box-shadow`), meant to keep a badge apart from the glyph it overlaps. After a label there is no glyph under it, and on the colour of an active item, in the dark theme, the ring read as a dark circle that ate half of the dot: a red badge and a yellow one were hard to tell apart (estadodelaire's alarms count, whose tone is the worst state). A badge after a label is now the pill gobj-ui v1 drew (a Bulma tag: 2em high, 0.75em of padding, regular weight) and has no ring. A badge pinned on the corner of an icon (`.yui-nav-badge-pinned`, the toolbar's) keeps the small dot and its ring, where it overlaps the glyph. Checked on the deployed estadodelaire in both themes, with the three tones.
+- **fix(`C_YUI_SHELL` CSS): the badge of a menu item is a pill again, with no ring, so its tone can be read.** 7.26.30 drew it as a dot of 0.86rem with a ring of the page's colour around it (`box-shadow`), meant to keep a badge apart from the glyph it overlaps. After a label there is no glyph under it, and on the colour of an active item, in the dark theme, the ring read as a dark circle that ate half of the dot: a red badge and a yellow one were hard to tell apart (app C's alarms count, whose tone is the worst state). A badge after a label is now the pill gobj-ui v1 drew (a Bulma tag: 2em high, 0.75em of padding, regular weight) and has no ring. A badge pinned on the corner of an icon (`.yui-nav-badge-pinned`, the toolbar's) keeps the small dot and its ring, where it overlaps the glyph. Checked on the deployed app C in both themes, with the three tones.
 
 ## 7.26.49
 
@@ -764,7 +764,7 @@ of the library's code over 7.26.59:
   answers -1, which read as "selectable", so a click on a row logged *"Attribute
   value of the wrong type"* and called `toggleSelect()` on a table that selects
   no rows (*"Cannot read properties of undefined (reading 'add')"*, found by
-  the console check of estadodelaire's device settings after the 7.26.22
+  the console check of app C's device settings after the 7.26.22
   round). A click now selects a row only when the form is `selectable` AND its
   table selects rows (`selectableRows` true or a number in
   `tabulator_settings`, off by default): with the defaults, nothing is
@@ -784,7 +784,7 @@ of the library's code over 7.26.59:
   the record -- and into the host's own object -- and `ac_undo_record()`
   loaded that record again and cleared `changes` and `edited`: the tables kept
   the edit, the close did not ask, and a later save sent what the reader
-  believed undone (estadodelaire's device settings: alarms and their
+  believed undone (app C's device settings: alarms and their
   triggers). Each table now gets its own copy of the rows, and what a save
   publishes is a copy too (`table_values()`): it was the table's own row
   objects, so an edit after the save wrote into what the host had been given.
@@ -1096,7 +1096,7 @@ of the library's code over 7.26.59:
   answer.** Since 7.26.38 any promise from `before_close` was a veto, so an
   `async () => true` left a modal nobody could close. `true` closes the modal
   now, as a `true` answered at once does. Anything else is the veto it was:
-  `undefined` (what the library's guard and estadodelaire's settle with: their
+  `undefined` (what the library's guard and app C's settle with: their
   "yes" closes the modal itself, through an event), `false`, or a rejection
   (now logged). A Back that asked gets its entry back when the promise settles.
   Test: `src/modal_guard_back.wiring.test.js` (red before).
@@ -1148,7 +1148,7 @@ of the library's code over 7.26.59:
   adding a row, editing a cell, deleting a row or editing a nested table marked
   nothing -- and since 7.26.39 the close asks only for `edited`: the window, or
   the sheet with its ← and the browser's Back, closed without a question and
-  the edit was lost. In estadodelaire that is the settings of every device
+  the edit was lost. In app C that is the settings of every device
   without its alarm colours, whose alarms and triggers are tables (and the
   same after a refused save, which loads what is stored). Each table is wired
   ONCE now, when it is built -- a nested one too, which its row builds whenever
@@ -1164,7 +1164,7 @@ of the library's code over 7.26.59:
   the title's holder, never emptying it, and runs the formatter again on every
   `setLocale()` -- which `yui_tabulator_relocalize()` calls: each change of
   language added one more copy (*"Id dispositivoId dispositivo"*, the alarms
-  and the history of estadodelaire since its 2.0.1). The formatter empties the
+  and the history of app C since its 2.0.1). The formatter empties the
   holder first. A title formatter of an app's own that returns a Node must do
   the same; the README says how. Test: `src/yui_text.test.js` (red before).
 - **feat(`yui_tabulator_relocalize`): the column titles change language too.**
@@ -1179,7 +1179,7 @@ of the library's code over 7.26.59:
 - **fix(`deploy-round`): an app is tested before it is deployed, and every step
   shows what it says.** After its build, the app's `npm test` (or the command
   its manifest entry names in `test`, with `test_env`) runs, and a red test
-  leaves it undeployed: yunomusica went out six times with its catalogue check
+  leaves it undeployed: app E went out six times with its catalogue check
   red. The output of install, build, test and deploy goes to the console as it
   comes: a warning of a step that exits 0 was swallowed, and of a failing step
   only its last three lines were shown. A range the round cannot raise safely
@@ -1187,7 +1187,7 @@ of the library's code over 7.26.59:
   that a v2 would rewrite) -- and an app version that is not x.y.z refuse the
   app, which used to be deployed unraised. And a TEMPLATE is a target: its
   `range_files` are raised without a version, nothing is installed, its
-  `build` is the check that generates an app from it (wattyzer's
+  `build` is the check that generates an app from it (app A's
   `templates/js_gui/generate.sh --check`), and it has no host to read back.
   V24.6.1, V24.6.2 and V24.6.4.
 
@@ -1198,11 +1198,11 @@ of the library's code over 7.26.59:
   whether it is given or not, with its own black -- and the chart inked only
   the axes the host handed it: by default ONE, the X. Every chart of the
   library had a Y axis black on near-black in the dark (a user's report, the
-  cards of estadodelaire; wattyzer and gui_agent alike). The ink of the axes
+  cards of app C; app A and gui_agent alike). The ink of the axes
   and the palette move to a module of their own, `src/yui_uplot_ink.js`:
   `yui_uplot_axes(axes)` pads the axes to the X and the Y and gives each the
   ink of the theme, read when uPlot draws, keeping what the host gave -- so an
-  app that builds a uPlot of its own gets the same axes (estadodelaire's
+  app that builds a uPlot of its own gets the same axes (app C's
   history chart). Test: `src/uplot_ink.test.js` (the chart's half red before
   the fix).
 
@@ -1212,7 +1212,7 @@ of the library's code over 7.26.59:
   record that lacks a field with a default opens CHANGED -- the default fills
   the field, and the save lights to store it -- and the close of its window or
   sheet asked *"all changes will be lost"* every time, about nothing the reader
-  would lose: in estadodelaire, 16 of 19 devices (a save before 7.26.33 had
+  would lose: in app C, 16 of 19 devices (a save before 7.26.33 had
   wiped their alarm colours), on every close of their settings. A new attr,
   `edited`, says the READER changed the form since it was loaded, saved or
   undone, and it is what `EV_WINDOW_TO_CLOSE` asks about; `changes` keeps
@@ -1234,7 +1234,7 @@ of the library's code over 7.26.59:
   over (or not at all, when the answer closed it). Same contract as the
   `asking` close of `C_YUI_WINDOW`. `C_YUI_TREEDB_TOPIC_WITH_FORM`'s record
   form, the library's own sheet with an unsaved-changes guard, answers its
-  confirm's promise. Found making estadodelaire's device views sheets on a
+  confirm's promise. Found making app C's device views sheets on a
   phone. Test: `src/modal_guard_back.wiring.test.js` (red before the fix).
 
 ## 7.26.37
@@ -1244,7 +1244,7 @@ of the library's code over 7.26.59:
   `height` 100%, so a text box does not shrink when the cell enters edit
   mode) reached EVERY `input` of the cell -- the checkbox of Tabulator's
   `tickCross` editor too, drawn as a square the size of the cell: on a phone,
-  validating an alarm in estadodelaire opened a huge empty box. Checkboxes and
+  validating an alarm in app C opened a huge empty box. Checkboxes and
   radios keep their own size now, and on a touch screen (`pointer: coarse`)
   take 1.5rem, a size a finger can hit. Header filters, the same. Test:
   `src/tabulator_css.test.js`.
@@ -1259,19 +1259,19 @@ of the library's code over 7.26.59:
   of 7.26.35, which changed; the tooltip did not). The dock now hears the
   `EV_LANGUAGE_CHANGED` of the shell that holds it -- following the shells
   across a logout, as it follows them for its place -- and composes them
-  again. Found by estadodelaire's QA, which switches the language and reads
+  again. Found by app C's QA, which switches the language and reads
   every name again. Test: `src/window_layer.wiring.test.js`.
 
 ## 7.26.35
 
-Twenty-third check of the review (yunovatios `REV-CLOUD.md` §V23): the
+Twenty-third check of the review (`REV-CLOUD.md` §V23): the
 library half, the validator, and the deploy round.
 
 - **fix(`C_YUI_WINDOW`, `C_YUI_SHELL`): a window outlives a logout again, and
   the next shell takes it in.** 7.26.31 put a window whose host names no
   `$parent` in the shell's overlay layer -- and the layer goes with the shell.
   A window that is not the shell's child (the developer window of gui_agent,
-  gui_treedb and wattyzer, parented to the app) stayed alive with its DOM
+  gui_treedb and app A, parented to the app) stayed alive with its DOM
   detached, the shell of the next login never placed it again, and the first
   click on *Developer* closed the invisible one. A shell now tells, when it is
   built and when it is destroyed, every gobj that asked
@@ -1283,7 +1283,7 @@ library half, the validator, and the deploy round.
   the shell that held it. The inline dock moves to the next shell's zone the
   same way. A window parented to the app therefore stays on screen over the
   login after a logout, as before 7.26.31: an app that does not want it
-  destroys its session windows at logout (yunovatios and estadodelaire do).
+  destroys its session windows at logout (app B and app C do).
   Test: `src/window_layer.wiring.test.js`.
 - **fix(`C_YUI_SHELL`, `C_YUI_WINDOW`, `C_YUI_WINDOW_MANAGER`): every window
   of the library lives in a WINDOW layer under the drawer, in ONE z-order**
@@ -1369,15 +1369,15 @@ library half, the validator, and the deploy round.
   `copy compacted`, `duplicate`, `extract`, `remove`, `convert to`, `insert`,
   `structure`, `object`, `array`, `value`, `insert before`, `insert after`,
   `table cell`, `table row`, `edit row`, `duplicate row`, `remove row`,
-  `more options` (yunomusica, which mounts no form: only the first).
+  `more options` (app E, which mounts no form: only the first).
 - **`scripts/deploy-round.mjs`: raising the range raises the app's version
   too**, its third number, in the same edit of each package.json (V23.6.1): a
   new range is a new bundle, and an "About" that showed one number for five
-  bundles (yunovatios, through four rounds) named none of them. A
+  bundles (app B, through four rounds) named none of them. A
   package.json whose range was already raised is not touched again, so a
   round run twice bumps once; a version that is not x.y.z is left, and said.
 - Docs: the package description, `SHELL.md` and `TODO.md` said the v1 line
-  serves estadodelaire too (only hidraulia now); "six apps" are seven.
+  serves app C too (only app D now); "six apps" are seven.
 - **`validate-locales`: what the reader still did not see (REV-CLOUD V23.5.1).**
   - **A translator handed as a CALLBACK.** `keys.map(t)`, `.forEach(t)` (and
     the other iteration methods), `Array.from(keys, t)` hand each element to
@@ -1436,15 +1436,15 @@ library half, the validator, and the deploy round.
   function a `let` still fails the rule per call. It is not the reader's
   general following, which reads a member of a table as ANY value of it:
   that would have asked gui_agent's terminal key bar for its control
-  sequences (`let name = pair[2] || pair[0]`) and wattyzer for "—". The
-  consumers ask for 37 keys more, all defined: gui_agent 14, wattyzer 9,
-  yunomusica 8, gui_treedb 4, test-app 2. Tests: `REV-CLOUD V23.5: an
+  sequences (`let name = pair[2] || pair[0]`) and app A for "—". The
+  consumers ask for 37 keys more, all defined: gui_agent 14, app A 9,
+  app E 8, gui_treedb 4, test-app 2. Tests: `REV-CLOUD V23.5: an
   UNMARKED let that only ever holds literals is followed` (and its unit
   twin).
 - None of the other new forms is used by any consumer: apart from those 37
   keys, the keys every consumer's run asks for are unchanged (gui_agent,
-  gui_treedb, wattyzer, gui-central, gui-controlador, yunomusica,
-  estadodelaire, test-app), and so is the time (gui_agent, median of 20
+  gui_treedb, app A, app B's two GUIs, app E,
+  app C, test-app), and so is the time (gui_agent, median of 20
   alternated runs: 0.68 s without the `let` rule, 0.69 s with it).
 - Docs: the 7.26.32 entry below said gui_agent's monitor named its list in
   "three calls": it publishes two lists, named in five calls.
@@ -1455,7 +1455,7 @@ library half, the validator, and the deploy round.
   Tabulator's `validate()` answers `true`, or the LIST of the cells that
   failed, and `validate_form()` asked `!validate()` -- which a list never
   is: a cell left empty in a `required` column of a table field (an
-  estadodelaire alarm without its id, a trigger without its measure) was
+  app C alarm without its id, a trigger without its measure) was
   saved as it was. It asks `validate() !== true` now, for every table and
   every table nested in its rows; Tabulator marks each bad cell, and the
   first one is brought into view. Test:
@@ -1465,7 +1465,7 @@ library half, the validator, and the deploy round.
   table's template with `validator` (a validator's name, a function of
   `(cell, value, parameters)`, or a list of them) has its column run them
   besides `required`. A template that comes as json carries none; the host
-  adds them to its copy before handing it on -- estadodelaire refuses a
+  adds them to its copy before handing it on -- app C refuses a
   trigger whose value its measure can never match (a text for a number).
   Same test.
 - **fix(`C_YUI_FORM`): filling a form with colour fields no longer warns on
@@ -1474,7 +1474,7 @@ library half, the validator, and the deploy round.
   refuses the `""` that `null` is written as: the browser keeps its black,
   and Chrome logs *"The specified value "" does not conform to the required
   format"*, one line per colour field each time the form is filled (three
-  per opening of an estadodelaire device's settings). A colour input is
+  per opening of an app C device's settings). A colour input is
   cleared to `#000000` now -- what it showed anyway -- and the readout
   beside its swatch is told, so a Clear no longer leaves the old value
   written next to a black swatch. The test double reflects an element's
@@ -1490,7 +1490,7 @@ library half, the validator, and the deploy round.
   7.26.8 sent that node through the json conversion like a field somebody
   typed, which handed its `null` on; `kw_set_dict_value()` then refused to
   write the fields below a `null` (*"segment 'alarm_colors' is not a dict or
-  a list"*), and the save stored the node as `null`. Seen in estadodelaire:
+  a list"*), and the save stored the node as `null`. Seen in app C:
   every save of a device's settings wiped its alarm colours. The node is now
   written as `{}` before its fields, as before 7.26.7, and skips the
   conversion. 'edit' mode (a jsoneditor, the treedb topic form) was not
@@ -1498,7 +1498,7 @@ library half, the validator, and the deploy round.
 
 ## 7.26.32
 
-Twenty-second check of the review (yunovatios `REV-CLOUD.md` §V22), on the
+Twenty-second check of the review (`REV-CLOUD.md` §V22), on the
 i18n key validator.
 
 - **fix(`validate-locales`): a recursive helper no longer hangs the build.**
@@ -1569,9 +1569,9 @@ i18n key validator.
   names, when that module is one it reads (a file of the app, a module of the
   library), re-exports included; and a destructuring of a const
   (`const {title} = OPTS`). The consumers ask for keys they handed to `t()` and
-  nobody read: yunovatios' `NAV_MODES` (gui-common, imported by
-  `yv_dialogs.js`: "stacked strips", "back to parent", "breadcrumb") and
-  `VALID_THEMES` (gui-common and wattyzer: "light", "dark"). All were defined;
+  nobody read: app B's `NAV_MODES` (gui-common, imported by
+  its dialogs module: "stacked strips", "back to parent", "breadcrumb") and
+  `VALID_THEMES` (gui-common and app A: "light", "dark"). All were defined;
   no other key set of any consumer changed.
 - **A `data` marker hides no key.** It failed on a literal, a const or a call
   of the module returning literals; it now also fails on a call of an
@@ -1620,7 +1620,7 @@ i18n key validator.
 
 ## 7.26.31
 
-From the migration of estadodelaire to v2, QA'd on the deployed page.
+From the migration of app C to v2, QA'd on the deployed page.
 
 - **fix(`C_YUI_WINDOW`): a window lives in the shell's overlay layer.** With
   no `$parent`, a window mounted on `document.body`, and `.yui-shell` is
@@ -1651,7 +1651,7 @@ From the migration of estadodelaire to v2, QA'd on the deployed page.
   text) with exactly the rules of the toolbar badge: `0` / `""` / `null` show
   none, over 99 reads `99+`, a `role="status"` live region that a write of
   the same value does not touch. The item contract had listed `badge` for a
-  long time while nothing rendered it; estadodelaire's "alarms" entry, coming
+  long time while nothing rendered it; app C's "alarms" entry, coming
   from v1, needs it.
   ```json
   { "id": "alarms", "name": "alarms", "icon": "yi-triangle-exclamation", "route": "/alarms",
@@ -1682,7 +1682,7 @@ From the migration of estadodelaire to v2, QA'd on the deployed page.
   `"danger"` (the default look), `"warning"`, `"info"`, `"success"`,
   `"primary"`, `"link"`, drawn as Bulma's `is-<tone>` on the badge (the raw
   token as a fill, its `-invert` as the ink, in both themes). It says how bad
-  the count is: estadodelaire's v1 badge was coloured by the worst state of
+  the count is: app C's v1 badge was coloured by the worst state of
   the alarms. An unknown tone is logged (`log_error`, never silent) and drawn
   with the default look. Each call states the whole badge, so a call with
   three arguments draws the default look, as it always did, and the tone is
@@ -1706,7 +1706,7 @@ From the migration of estadodelaire to v2, QA'd on the deployed page.
 
 ## 7.26.29
 
-Twenty-first check of the review (yunovatios `REV-CLOUD.md` §V21.4).
+Twenty-first check of the review (`REV-CLOUD.md` §V21.4).
 
 - **Every function that forwards a key is in `I18N_KEY_FUNCTIONS`, and a
   test finds them.** The table said a function that hands a parameter to
@@ -1748,7 +1748,7 @@ Twenty-first check of the review (yunovatios `REV-CLOUD.md` §V21.4).
   `text_node()`, `document.createElement()`, a const or a `let` only ever
   given one -- known by where it comes from, never by a variable's name.
   Four consumers had violations to fix (gui_agent 13, gui_treedb 4,
-  wattyzer 4, gui-common 3); yunomusica and the js_gui scaffold had none.
+  app A 4, gui-common 3); app E and the js_gui scaffold had none.
 - **The reader reads more**: a key written as a member (`attrs.i18n = k`,
   `attrs["data-i18n-title"] = k`); `String(x)` and a template that is only
   `${x}`, as `x`; the default of a parameter; what a destructuring reads
@@ -1773,7 +1773,7 @@ Twenty-first check of the review (yunovatios `REV-CLOUD.md` §V21.4).
 
 ## 7.26.28
 
-Twentieth check of the review (yunovatios `REV-CLOUD.md` §V20.5).
+Twentieth check of the review (`REV-CLOUD.md` §V20.5).
 
 - **A key handed to a FUNCTION is read where it is handed.**
   `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`, exported) names every
@@ -1840,12 +1840,12 @@ Twentieth check of the review (yunovatios `REV-CLOUD.md` §V20.5).
 
 ## 7.26.27
 
-Nineteenth check of the review (yunovatios `REV-CLOUD.md` §V19.4).
+Nineteenth check of the review (`REV-CLOUD.md` §V19.4).
 
 - **A module publishes the keys it hands to `t()` as data**: an exported
   `<NAME>_I18N_KEYS` array, which `validate-locales` reads in every module the
   app mounts. `yui_dev.js` publishes `YUI_DEV_I18N_KEYS` (the 51 keys of the
-  Developer window: a comment to copy until now, and yunomusica lacked 35);
+  Developer window: a comment to copy until now, and app E lacked 35);
   `c_g6_nodes_tree.js` publishes `G6_NODES_TREE_I18N_KEYS` (shapes, popover
   labels, the confirm button), checked against its shape tables by a test.
 - **The 11 controls of the property popovers have a name**: the control
@@ -1868,16 +1868,16 @@ Nineteenth check of the review (yunovatios `REV-CLOUD.md` §V19.4).
 
 ## 7.26.26
 
-Eighteenth check of the review (yunovatios `REV-CLOUD.md` §V18.4).
+Eighteenth check of the review (`REV-CLOUD.md` §V18.4).
 
 - **`validate-locales` knows plurals, endonyms, and the app's own names**:
   - a plural (`songs_one`, `songs_few`, ...) is compared by its base, each
     locale with the categories of ITS language (`Intl.PluralRules`); the key
-    with no suffix serves `other` and `many`. It is what let yunomusica, with
+    with no suffix serves `other` and `many`. It is what let app E, with
     10 languages, run it at all (88 plural asymmetries before);
   - a value of the shell declaration that is not lower-case ASCII (an
     endonym in a language menu) is a literal, not a key;
-  - the orchestrator attributes of yunovatios (`app_title`, ...,
+  - the orchestrator attributes of app B (`app_title`, ...,
     `welcome_features`) were written in the published script; an app declares
     them now in its `package.json` (`"validate-locales": {"attr_keys": [...],
     "array_keys": [...]}`);
@@ -1900,21 +1900,21 @@ Eighteenth check of the review (yunovatios `REV-CLOUD.md` §V18.4).
 
 ## 7.26.25
 
-Seventeenth check of the review (yunovatios `REV-CLOUD.md` §V17.3.4-5).
+Seventeenth check of the review (`REV-CLOUD.md` §V17.3.4-5).
 
 - **`scripts/validate-locales.mjs` is published here, and every app runs this
   one** (`node node_modules/@yuneta/gobj-ui/scripts/validate-locales.mjs`
   from its `prebuild`). Each app carried its own copy, and they had drifted
   into three families with different rules: only yunos-js read the codes of
   the schema editor (`code:`, `add("error", ...)`) and `data-i18n-placeholder`;
-  only wattyzer and yunovatios resolved the barrel imports, skipped the keys
+  only app A and app B resolved the barrel imports, skipped the keys
   built by concatenation and the interpolated ones. This one is their union,
   and it scans the library it ships in. `--src` / `--locales` / `--config`
   for code and catalogs shared by several apps. The concatenation guard of two
   of them looked at the RESULT of `t()`: `t('topic') + ':'`
   (`c_g6_nodes_tree.js`) was skipped as a built key, and the treedb node
-  graph's (`C_G6_NODES_TREE`) *"topic:"* went untranslated in wattyzer and
-  yunovatios. Test
+  graph's (`C_G6_NODES_TREE`) *"topic:"* went untranslated in app A and
+  app B. Test
   `scripts/validate-locales.test.js`.
 - **an import conflict of a hook map names the hook column it is written
   in**: `` a/b.x`y `` was said, but not that it came from `p.kids`. The conflict
@@ -1925,7 +1925,7 @@ Seventeenth check of the review (yunovatios `REV-CLOUD.md` §V17.3.4-5).
 
 ## 7.26.24
 
-Sixteenth check of the review (yunovatios `REV-CLOUD.md` §V16.5).
+Sixteenth check of the review (`REV-CLOUD.md` §V16.5).
 
 - **an import conflict names the bad name**: the child topic or the fkey a
   hook map names (it recorded the hook column), and the import panel prints
@@ -1935,7 +1935,7 @@ Sixteenth check of the review (yunovatios `REV-CLOUD.md` §V16.5).
 
 ## 7.26.23
 
-Fifteenth check of the review (yunovatios `REV-CLOUD.md` §V15.4).
+Fifteenth check of the review (`REV-CLOUD.md` §V15.4).
 
 - **`plan_import()` reads the hook map**: a hook that names a child topic or
   an fkey column the treedb refuses (`a/b`, ``x`y``) is a conflict even when
@@ -1955,7 +1955,7 @@ Fifteenth check of the review (yunovatios `REV-CLOUD.md` §V15.4).
 
 ## 7.26.22
 
-Fourteenth check of the review (yunovatios `REV-CLOUD.md` §V14.2).
+Fourteenth check of the review (`REV-CLOUD.md` §V14.2).
 
 - **TWO name rules, as the treedb of SDK 7.26.9 applies them**: a TOPIC name
   is a directory (not empty, not `.` or `..`, no `/`, no `` ` ``), a COLUMN
@@ -1982,18 +1982,17 @@ Fourteenth check of the review (yunovatios `REV-CLOUD.md` §V14.2).
   7.26.9): `.`, `..`, or a name holding `/` or the path delimiter `` ` ``.
   Said at once, before the backend answers a generic refusal. New consumer
   i18n key ``a name cannot be . or .., nor hold / or ` `` (copy it into each
-  app's locales). yunovatios
-  `REV-CLOUD.md` §V13.1.
+  app's locales). `REV-CLOUD.md` §V13.1.
 
 ## 7.26.20
 
 - **the long press of the G6 graphs is measured on `performance.now()`**, a
   monotonic clock: a wall clock that stepped mid-press decided it wrong (the
-  same class as the window of 7.26.19). yunovatios `REV-CLOUD.md` §V11.4.
+  same class as the window of 7.26.19). `REV-CLOUD.md` §V11.4.
 
 ## 7.26.19
 
-Tenth check of the review (yunovatios `REV-CLOUD.md` §V10).
+Tenth check of the review (`REV-CLOUD.md` §V10).
 
 - **checker: a blank before the match hid the replacement's markup**:
   `(' a' + name).replace('ab', '<b>')` starts with `<b>` once
@@ -2007,7 +2006,7 @@ Tenth check of the review (yunovatios `REV-CLOUD.md` §V10).
 
 ## 7.26.18
 
-Ninth check of the review (yunovatios `REV-CLOUD.md` §V9).
+Ninth check of the review (`REV-CLOUD.md` §V9).
 
 - **checker: a regex `replace()` on a receiver that carries data was not seen**
   (regression of 7.26.17): alternatives and lookaheads can make the data match
@@ -2030,7 +2029,7 @@ Ninth check of the review (yunovatios `REV-CLOUD.md` §V9).
 
 ## 7.26.17
 
-Eighth check of the review (yunovatios `REV-CLOUD.md` §V8).
+Eighth check of the review (`REV-CLOUD.md` §V8).
 
 - **checker: a false positive of 7.26.16 that could fail a consumer's
   `prebuild`.** It took the head of a `replace()` replacement as the head of
@@ -2054,7 +2053,7 @@ Eighth check of the review (yunovatios `REV-CLOUD.md` §V8).
 
 ## 7.26.16
 
-Seventh check of the review (yunovatios `REV-CLOUD.md` §V7).
+Seventh check of the review (`REV-CLOUD.md` §V7).
 
 - **fix: the stamp under a marker was written and never compared.** 7.26.15
   stamped the entry under an overlay's marker but closed the top overlay on
@@ -2084,7 +2083,7 @@ Seventh check of the review (yunovatios `REV-CLOUD.md` §V7).
 
 ## 7.26.15
 
-Sixth check of the review (yunovatios `REV-CLOUD.md` §V6), in a real browser.
+Sixth check of the review (`REV-CLOUD.md` §V6), in a real browser.
 
 - **fix: a link was taken for a Back** (regression of 7.26.13, worse in
   7.26.14). A fragment push -- a link, `location.hash = ...` -- fires
@@ -2130,7 +2129,7 @@ Sixth check of the review (yunovatios `REV-CLOUD.md` §V6), in a real browser.
 
 ## 7.26.14
 
-Closing what the review of 2026-10-10 left open (yunovatios `REV-CLOUD.md`
+Closing what the review of 2026-10-10 left open (`REV-CLOUD.md`
 R6), and the first check of the shell's history in a REAL browser.
 
 - **BREAKING: the window manager refuses a window gobj in the kw.**
@@ -2138,8 +2137,8 @@ R6), and the first check of the shell's history in a REAL browser.
   `EV_FOCUS_WINDOW` take `{window: gobj_full_name(window)}`, sent BY the window
   (it is the event's `src`). The gobj in the kw, accepted with a warning since
   7.26.10, is now an error and the event does nothing. Nobody outside the
-  library sends these events (checked in yunos-js, yunovatios, wattyzer and
-  yunomusica); a sender must now pass the name and be the window.
+  library sends these events (checked in yunos-js, app B, app A and
+  app E); a sender must now pass the name and be the window.
 - **fix: Back closed the panel but lost the view's position.** With a panel
   open (no dock, `keep_on_navigate`) and the view under it writing its
   position with a replace navigation, Back closed the panel (7.26.13) and then
@@ -2175,7 +2174,7 @@ R6), and the first check of the shell's history in a REAL browser.
 
 ## 7.26.13
 
-The fifth check of the review (yunovatios `REV-CLOUD.md` §V5). All in the
+The fifth check of the review (`REV-CLOUD.md` §V5). All in the
 shell's Back/overlay bookkeeping, plus two false readings of the markup check.
 
 - **fix: after a replace navigation, Back no longer closed a panel.** A
@@ -2217,7 +2216,7 @@ shell's Back/overlay bookkeeping, plus two false readings of the markup check.
 
 ## 7.26.12
 
-Fourth check of the review (yunovatios `REV-CLOUD.md` §V4).
+Fourth check of the review (`REV-CLOUD.md` §V4).
 
 - **fix (regression of 7.26.11): a dropped `back()` and a traversal to
   another hash closed the overlay that was waiting for its marker.** On the
@@ -2253,10 +2252,10 @@ Fourth check of the review (yunovatios `REV-CLOUD.md` §V4).
 
 ## 7.26.11
 
-The third check of the review (yunovatios `REV-CLOUD.md` §V3).
+The third check of the review (`REV-CLOUD.md` §V3).
 
 - **security: the data sinks the 7.26.9 sweep missed** (outside the strict
-  mode, which estadodelaire, hidraulia and wattyzer do not turn on):
+  mode, which app C, app D and app A do not turn on):
   - `icon_formatter` of the treedb topic table: a value of an icon column that
     is not a defined `yi-*` name was put in as content -- a stored XSS. It is
     text now.
@@ -2331,12 +2330,12 @@ The third check of the review (yunovatios `REV-CLOUD.md` §V3).
   whose lockfile holds gobj-js < 7.26.3 gets an `ERESOLVE` when it takes this
   gobj-ui, and with `--legacy-peer-deps` a build error (`html_markup` is not
   exported): loud, not silent. Raise `@yuneta/gobj-js` to `^7.26.3` in the
-  same change that raises gobj-ui (wattyzer is on `^7.22.2`). Marked here by
+  same change that raises gobj-ui (app A is on `^7.22.2`). Marked here by
   the 7.26.11 review; the numbering follows the SDK, so no major can say it.
 
 ## 7.26.9
 
-The second check of the review (yunovatios `REV-CLOUD.md` §V2).
+The second check of the review (`REV-CLOUD.md` §V2).
 
 - **security: the data sinks 7.26.8 missed.** 7.26.8 said "anywhere in the
   library", and it was not. These now pass their data through `text_node()`:
@@ -2391,7 +2390,7 @@ The second check of the review (yunovatios `REV-CLOUD.md` §V2).
 
 ## 7.26.8
 
-The review of 7.26.7 (yunovatios `REV-CLOUD.md` §V): two regressions of that
+The review of 7.26.7 (`REV-CLOUD.md` §V): two regressions of that
 release, and what it left half done.
 
 - **fix: a form with a table, destroyed right after a save or an undo, threw
@@ -2456,7 +2455,7 @@ release, and what it left half done.
 ## 7.26.7
 
 Fixes from the read-only audit of gobj-js, gobj-ui and their use in the
-yunovatios SPAs (2026-10-10).
+app B SPAs (2026-10-10).
 
 - **security: data no longer goes to `createElement2()` as a bare string**,
   which it parses as HTML when it starts with `<`. A window's `title_prefix`
@@ -2617,7 +2616,7 @@ yunovatios SPAs (2026-10-10).
   `route` nor below it, or `""` when the page never left it. The other half of
   `yui_shell_last_route_under()`, from the same memory of visited routes. It
   is what a view's "back" button means -- the view the reader came from, as
-  browser Back does: a yunovatios device page whose button named the summary
+  browser Back does: a app B device page whose button named the summary
   sent back to the summary a reader who had come from the map. Skipping the
   whole subtree keeps going from one record to the next out of "back".
   Documented in ROUTING.md §7 and unit-tested
@@ -2756,7 +2755,7 @@ moved).
   the transport answers nothing in flight on a close (`C_IEVENT_CLI`), and
   on a plain reconnect the same view and viewer stay, so the stub stayed on
   "loading" and every click on it was ignored after the reconnect too.
-  gui_treedb, wattyzer and yunovatios were hit; gui_agent was not, its
+  gui_treedb, app A and app B were hit; gui_agent was not, its
   `C_AGENT_TREEDB_LINK` answers every routed request on the close. Each
   host now keeps the drilled paths in flight; on the disconnect edge
   (`EV_TRANSPORT_STATE` for both hosts, the shell's `EV_CONNECTION_STATE`
@@ -3287,7 +3286,7 @@ Fixes.
   `host_drafts.js`) and swapped whole on each `EV_DRAFTS`; what the session
   wrote stays marked. A host sends the COMPLETE set every time, `{}` included.
 - **A form's Save in flight when the backend drops is answered in every host.** `C_YUI_TREEDB_TOPICS` only learnt the drop from a host-forwarded
-  `EV_TRANSPORT_STATE`, which wattyzer and yunovatios never sent: Save and
+  `EV_TRANSPORT_STATE`, which app A and app B never sent: Save and
   Cancel stayed busy for ever. `yui_shell_set_connection_state()` -- which
   those apps already call for the toolbar dot -- now publishes
   `EV_CONNECTION_STATE {connected}` on each EDGE, and the view subscribes to
@@ -3364,7 +3363,7 @@ Fixes.
   bridge (`─`), not a junction (`┼`).** A junction said that the two links
   met, and they do not: only the lines of ONE hook (a hook filling two
   topics, two hooks filling one fkey) join, and those still draw `┬` / `┴`.
-  Found on the yunovatios schema, where `users {}` looked joined to the
+  Found on the app B schema, where `users {}` looked joined to the
   `devices {}` link it only crosses.
 
 ## 7.25.0
@@ -3565,8 +3564,8 @@ Fixes of the treedb views.
   view is drawing in the same C_YUI_JSON host the raw tranger json uses —
   which is what a person writing a schema literal, or chasing a flag that did
   not take, actually needs to read. New consumer i18n key `schema json`
-  (added to the en/es locales of gui_treedb, gui_agent, wattyzer and the
-  yunovatios GUIs). The viewer needs no fetch and no drill-down: the schema
+  (added to the en/es locales of gui_treedb, gui_agent, app A and the
+  app B GUIs). The viewer needs no fetch and no drill-down: the schema
   is in memory and it is small.
 - **A link is drawn in the colour of the two ports it joins.** Both ends of a
   link wear the CHILD topic's colour — the parent's hook port is painted with
@@ -4060,7 +4059,7 @@ Three fixes of the treedb views.
   `media-src 'self' data: blob:`.
   - It reaches an app when the app is rebuilt, and only an app whose config
     has `csp_connect_src`, because that is when the plugin writes a policy at
-    all: today yunovatios central and controlador, and gui_agent.
+    all: today app B's central and controller GUIs, and gui_agent.
 
 ## 7.23.165
 
@@ -4097,7 +4096,7 @@ Three fixes of the treedb views.
   table loads of `C_YUI_TREEDB_TOPICS` (the first load, a page, a refresh)
   read with `hook_size`, so a hook comes back as `[{"size": N}]`. The cell only
   ever showed the number, and since 7.23.162 its click opens the child topic
-  filtered, so the ids were downloaded for nothing: in yunovatios, every
+  filtered, so the ids were downloaded for nothing: in app B, every
   device id once per device type, on every load of `device_types`.
   - Only the loads change. The writes keep their options, and the node events
     still carry whole hooks (`c_node` publishes them with `list_dict`); the
@@ -4198,7 +4197,7 @@ Three fixes of the treedb views.
   holds one is marked, and the form and the popup revoke them when they go
   away.
 - New consumer i18n keys: `show file`, `open in a new tab`, and
-  `asset not available` (used before only by yunovatios).
+  `asset not available` (used before only by app B).
 
 ## 7.23.158
 
@@ -4659,7 +4658,7 @@ Three fixes of the treedb views.
   change; a host with none gets no button. A real hash link, like the card's
   icons. The toolbar now holds up to three buttons, labels kept on mobile (the
   source url gives way). It uses the `graph` key the card's icon already used
-  -- which yunovatios and the demo did not have, so that icon's tooltip said
+  -- which app B and the demo did not have, so that icon's tooltip said
   `graph` there.
 
 ## 7.23.137
@@ -4919,7 +4918,7 @@ Three fixes of the treedb views.
 - It runs from `yui_tabulator_relocalize()` as well, so a language change
   renames them. Four views in the ecosystem use header filters and call it
   at `tableBuilt`: the treedb topic table here, the tranger view, and
-  yunovatios' alarms and map.
+  app B's alarms and map.
 
 ## 7.23.118
 
@@ -4955,7 +4954,7 @@ Three fixes of the treedb views.
   **id**, which no control of this form sets: they carry `name`. So the
   association reads right and does not exist in the document, and every
   field of every form built by the library (the treedb record editor,
-  wattyzer's, yunovatios') was unlabelled for anything that is not an
+  app A's, app B's) was unlabelled for anything that is not an
   eye. This is the same defect as the schema editor's sibling label,
   wearing the disguise of a correct one.
 - The name goes on the control as `aria-label`, from the label's own key,
@@ -5063,7 +5062,7 @@ Three fixes of the treedb views.
   so the fade was cut and what was left was a 100ms blink — worse than no
   notice, since the reader sees something black and never learns what is
   being asked. It is held by the clock for 2s: on and off at once, still
-  in between. The recipe is yunovatios' (`yv_map_base.js`), which had
+  in between. The recipe is app B's (its map base module), which had
   solved it in the app; it belongs here.
 - New consumer keys: `drag to rotate the map, click to reset north`,
   `find my location`, `location not available`, `toggle attribution`,
@@ -6471,7 +6470,7 @@ the thing you read, the glyph is an affordance).
 - **A link is not always `topic^id^hook`, and reading only that shape saw
   none.** `yui_asset_id`/`yui_asset_ids` read the STORED form of an fkey and
   nothing else, so against a backend that reads its nodes with `fkey_only_id`
-  -- which collapses a link to the bare id, and is how yunovatios reads every
+  -- which collapses a link to the bare id, and is how app B reads every
   device -- every linked image looked like no link at all. Silent, twice over:
   no image, and no marker either, because "nothing named" is the normal state
   of a point nobody photographed.
@@ -8108,7 +8107,7 @@ touch context rather than by reading the CSS.
     and never change. Exactly the invisible failure the validator exists to
     catch, introduced in the same release that added the keys.
 
-    Both literals are spelled out now. Found by wattyzer's validator on the
+    Both literals are spelled out now. Found by app A's validator on the
     range bump — the first consumer that had not been handed the keys already.
 
 ## 7.20.0
@@ -8718,7 +8717,7 @@ touch context rather than by reading the CSS.
   read `device.settings.coordinates` while its own comment says `settings` may
   be null — a TypeError that would unwind out of `devices2geojson`.
 
-Both ship on the frozen v1 line as `1.0.3`, where estadodelaire hit them.
+Both ship on the frozen v1 line as `1.0.3`, where app C hit them.
 
 ## 7.10.4
 
@@ -8742,7 +8741,7 @@ Both ship on the frozen v1 line as `1.0.3`, where estadodelaire hit them.
   silently dropped and the devices stopped moving until the tiles settled.
 
   Nothing is lost by skipping — `load_devices()` reads the same `devices` attr
-  when it runs. Found on estadodelaire, which consumes the v1 line; the same
+  when it runs. Found on app C, which consumes the v1 line; the same
   fix ships there as `1.0.2`.
 
 ## 7.10.3
@@ -9429,7 +9428,7 @@ exports changed shape. The peer floor for `@yuneta/gobj-js` goes to
   label.** The SDK re-keyed the `topics` and `cols` topics of
   `treedb_system_schema`: they used to carry a rowid, they now carry the
   qualified name — the id of the parent, a dot, and the record's own name
-  (`treedb_yunovatioscodb.yunos.yuno_role`). Three places had to learn the
+  (`treedb_appdb.yunos.yuno_role`). Three places had to learn the
   word, and each was wrong in a different way without it:
 
   - `treedb_node_label.js` labelled by the secondary key when the pkey was
@@ -9891,8 +9890,8 @@ exports changed shape. The peer floor for `@yuneta/gobj-js` goes to
   static JSON and cannot carry the live transport pointer.
 
   Both halves had been written **four separate times in three repos**
-  (`c_treedb_view.js`, `c_wz_treedb.js`, `c_yv_treedb.js`,
-  `c_yv_service_view.js`), each header explaining the same thing. Two shapes,
+  (`c_treedb_view.js` and three views of app A and
+  app B), each header explaining the same thing. Two shapes,
   because the callers are not alike: `yui_mount_service_view(host, spec)` for a
   wrapper that keeps its own extras on top (bridging url segments into the
   hosted view, rebinding it when a connection drops — app/route logic that does
@@ -9964,7 +9963,7 @@ exports changed shape. The peer floor for `@yuneta/gobj-js` goes to
   is built with `back_route = my_route` — but nothing said the rule, and the
   README's own example showed the shape that breaks it: the pair
   `tabs@>=tablet` + `backbar@<tablet` on the root, and a child with only an
-  `index`. Copied as-is (yunovatios' `/admin` did), a subtree ends up with a
+  `index`. Copied as-is (app B's `/admin` did), a subtree ends up with a
   single ← that belongs to the root and reads "← root" at every depth, instead
   of one ← per level going up one level. The rule is now a bullet in the
   README, the example declares the chrome on its child too, and SHELL.md's
@@ -10207,7 +10206,7 @@ exports changed shape. The peer floor for `@yuneta/gobj-js` goes to
       (`tree_version` + `yui_node_tree_version()`) and a rename migrates
       through `aliases` — the former id still resolves and the URL is
       rewritten (replace) to the canonical spelling, like an HTTP 301.
-  `submenu.index` (what wattyzer `/reports` runs today) is untouched and keeps
+  `submenu.index` (what app A `/reports` runs today) is untouched and keeps
   its own demo at `/sectionindex`: while the model settles, the two coexist —
   there is no converter and no migration of the five consumers.
 - **feat(shell): `config.shell.tree` — the ROOT can be a node, and then the
@@ -10309,11 +10308,11 @@ exports changed shape. The peer floor for `@yuneta/gobj-js` goes to
   system theme with a dark OS got black-on-dark — and now mirrors the dark
   ones.
 
-- **docs: wattyzer now consumes this line from the npm registry**, not as a
+- **docs: app A now consumes this line from the npm registry**, not as a
   `file:` dep on the yunetas submodule (`@yuneta/gobj-ui@^5.0.0`). The v2 line
   therefore has two consumption modes: the in-repo yunos (`gui_agent`,
   `gui_treedb`) still resolve the checkout, so library work reaches them
-  immediately, while wattyzer only sees it after a publish. Practical
+  immediately, while app A only sees it after a publish. Practical
   consequence recorded in `README.md` / `CLAUDE.md`: the **published tarball**
   is on a consumer's critical path now, so `files:` must keep shipping `src/`,
   `index.js` and `vite-plugin-yuneta-html.js` — a change that only works from
@@ -10372,7 +10371,7 @@ this release (still marked a prototype — its shape may move).
   `yui_shell_show_modal`'s new `before_close` veto, `setup_frontend_view`, and
   the `attach_clear()` / `refresh_clear()` clear-(✕) norm were documented only in
   this changelog. The npm `description` still advertised the legacy GClass stack
-  that `3.0.0` **removed**, and the consumer table listed only wattyzer for v2
+  that `3.0.0` **removed**, and the consumer table listed only app A for v2
   (the in-repo `gui_agent` / `gui_treedb` consume it the same way).
 
 - **fix(shell, nav): private state stops being a public attribute.**
@@ -10670,7 +10669,7 @@ this release (still marked a prototype — its shape may move).
   (both close, dismissing the buried one does not teleport), Back absorbing
   inert entries, and both action-route flavours (`back` and `stay`).
 
-  Two follow-ups to that pass, each a user-visible break in wattyzer (the
+  Two follow-ups to that pass, each a user-visible break in app A (the
   only consumer with action routes — gui_agent/gui_treedb declare none, which
   is why neither the unit suite nor the test-app caught them):
 
@@ -10679,7 +10678,7 @@ this release (still marked a prototype — its shape may move).
     flavour that parks the URL *off* it (`current_route` stays on the view
     underneath, ROUTING.md §7.1) — so every Back over a `stay` modal's marker
     was misread as a route traversal and ignored, leaving the modal
-    unclosable by Back (wattyzer's `/about`, `/user/preference`,
+    unclosable by Back (app A's `/about`, `/user/preference`,
     `/connection`). The marker now records the hash it was pushed on and that
     is what the guard compares: stepping off a marker always lands on the
     marker's hash, whatever the resting route is.
@@ -10698,7 +10697,7 @@ this release (still marked a prototype — its shape may move).
   register its synthetic entry on the ACTION hash; the restore then rewrote
   that entry, stranding the action's own route entry below it — closing the
   overlay `history.back()`ed onto that entry and **re-fired the action**:
-  wattyzer's site-map window closed and instantly reopened ("the X does
+  app A's site-map window closed and instantly reopened ("the X does
   nothing"). With the restore first (`back` = full re-mount of the previous
   resting view, `none` = `replaceState`), the overlay's entry lands on the
   restored hash and every close path (X / Escape / Back / toggle) is
@@ -10720,7 +10719,7 @@ this release (still marked a prototype — its shape may move).
   it started); a subpath/action jump keeps the map open as a navigation
   panel; clicking the current route closes it. The test-app account menu now
   ships a "Site map" entry wired as a `/sitemap` action route
-  (`redirect:"back"`, the wattyzer idiom) — the offline QA surface for this
+  (`redirect:"back"`, the app A idiom) — the offline QA surface for this
   whole flow (`_qa_sitemap.mjs`).
 
 - **fix(site map): config comments are not routes; "you are here" is
@@ -10728,7 +10727,7 @@ this release (still marked a prototype — its shape may move).
   reviewing it:
   - JSON has no comments, so these configs annotate `shell.routes` with
     sibling `_name_comment` **string** keys (the established idiom, used by
-    the test-app and wattyzer). The shell indexed **every** key of the table,
+    the test-app and app A). The shell indexed **every** key of the table,
     building a route entry whose target was the comment TEXT — harmless while
     nothing enumerated the index, but the map's new "other routes" group
     rendered it as a clickable row that redirects to the default, and
@@ -10772,7 +10771,7 @@ this release (still marked a prototype — its shape may move).
 - **feat(index): export the site-map API from the barrel.**
   `yui_shell_show_route_map` and `yui_shell_register_event_handler` were only
   reachable via deep `./src/…` imports, so a consumer of the `index.js` barrel
-  (wattyzer) could not mount the site map at all. Both are part of the public
+  (app A) could not mount the site map at all. Both are part of the public
   surface now.
 
 - **fix(treedb-topics): readable toolbar on mobile.** The toolbar never holds
@@ -10791,7 +10790,7 @@ this release (still marked a prototype — its shape may move).
   any call that is a redirect / normalization / F5-restore — anything CODE
   decided rather than the user — must add `{replace:true}`, otherwise it leaves
   a spurious Back entry. Calls that are genuine user moves need no change and
-  gain working Back/Forward. In-tree consumers (gui_treedb, gui_agent, wattyzer)
+  gain working Back/Forward. In-tree consumers (gui_treedb, gui_agent, app A)
   are migrated. Rationale and the per-caller inventory: `ROUTING.md` §7/§9.1.
 
 - **feat(shell): event → handler-gclass registry for the site map.** New
@@ -10867,7 +10866,7 @@ this release (still marked a prototype — its shape may move).
   gains an optional `back_route` attr; when set (host-supplied), the toolbar
   shows a real hash-link "← topics" button back to the topics grid — symmetric
   with the topics view's own back button, for a graph reached from a topic
-  card's graph icon. Empty ⇒ no button (e.g. wattyzer).
+  card's graph icon. Empty ⇒ no button (e.g. app A).
 
 - **feat(treedb): graph focuses a topic; info panel shows topic metadata.**
   The topic card's **graph** icon now deep-links to `#/graphs/db/<sel>/<topic>`:
@@ -11342,7 +11341,7 @@ this release (still marked a prototype — its shape may move).
 
 **BREAKING: the legacy GClass GUI stack is removed from this line**
 (TODO §1.4; every in-org consumer had already migrated — the frozen v1
-npm line, dist-tag `legacy`, still ships it for estadodelaire/hidraulia).
+npm line, dist-tag `legacy`, still ships it for app C and app D).
 
 - **Removed**: `c_yui_main.js`/`.css` (C_YUI_MAIN + the `display_*` /
   `get_yes*` volatil helpers), `c_yui_routing.js`/`.css`,
@@ -11542,7 +11541,7 @@ npm line, dist-tag `legacy`, still ships it for estadodelaire/hidraulia).
 
 - **fix(form): `register_c_yui_form()` is idempotent.** Since the treedb
   host auto-registers `C_YUI_FORM`, an app that ALSO registers it
-  explicitly (wattyzer does) logged a red `GClass ALREADY created:
+  explicitly (app A does) logged a red `GClass ALREADY created:
   C_YUI_FORM` on load; the register now returns early if the gclass
   already exists (order-independent).
 
@@ -11814,14 +11813,14 @@ Requires gobj-js **7.7.0** (`set_log_callback`, `gobj_set_trace_machine_format`,
   controls; CSS shows the right one per breakpoint and both call `close()`, so the
   app's `on_close` still owns navigation (typically `history.back()`) — gobj-ui
   stays routing-agnostic. Styles live in `c_yui_shell.css` (`.yui-dialog*`).
-  Consumers: gui_agent About, wattyzer About + Connection.
+  Consumers: gui_agent About, app A About + Connection.
 
 ## 2.1.11
 
 - **fix(dev): "attr undefined: manager" when opening the Developer window without
   a window manager.** `setup_dev` created the `C_YUI_WINDOW` with
   `manager: gobj_find_service("__window_manager__", false)`, which is `undefined`
-  in apps that don't register a manager (e.g. wattyzer) — and an `undefined` attr
+  in apps that don't register a manager (e.g. app A) — and an `undefined` attr
   value logs `attr undefined: manager` in gobj-js. Coerce to `null` (`|| null`) so
   it reads as "no dock". Harmless before (the window still worked), just noisy;
   gui_agent was unaffected because it registers `__window_manager__`.
@@ -12002,6 +12001,6 @@ Requires gobj-js **7.7.0** (`set_log_callback`, `gobj_set_trace_machine_format`,
 - Initial **v2** line: the declarative shell stack
   (`C_YUI_SHELL` / `C_YUI_NAV` / `C_YUI_PAGER` / `C_YUI_WIZARD`) on top of the
   legacy GObject-JS runtime. Consumed locally (via a `file:` dependency) by
-  wattyzer and the in-repo `gui_agent`/`gui_treedb` yunos. The frozen v1 stack
+  app A and the in-repo `gui_agent`/`gui_treedb` yunos. The frozen v1 stack
   (`C_YUI_MAIN` / `WINDOW` / `TABS` / `ROUTING` + TreeDB editors + charts/maps)
   remains available as `@yuneta/gobj-ui@^1.x` on the npm registry.

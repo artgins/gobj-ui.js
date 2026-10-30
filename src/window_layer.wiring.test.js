@@ -12,7 +12,7 @@
  *      parented to the app outlives a logout that destroys the shell.
  *      From 7.26.31 to 7.26.34 it stayed in the destroyed shell's layer,
  *      alive and detached, and the next shell never placed it again: the
- *      developer window of gui_agent, gui_treedb and wattyzer vanished
+ *      developer window of gui_agent, gui_treedb and an app vanished
  *      after a logout and a login. The dock, the same.
  *
  *      The gclass viewer opened from such a window follows it:

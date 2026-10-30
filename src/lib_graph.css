@@ -474,7 +474,7 @@
 /*  The DOM toolbar's `pressed_state` lives in `yui_toolbar.css` now, and
  *  not here: a pressed toggle is a TOOLBAR thing, and while the rule sat
  *  in this file it reached an app only if the app mounted a graph -- the
- *  stylesheet rides the JS import. yunovatios copied the rule into its
+ *  stylesheet rides the JS import. One app copied the rule into its
  *  own `app.css` under a third name for exactly that reason. The G6
  *  plugin toolbar's own item keeps its rule above, where the plugin is.  */
 

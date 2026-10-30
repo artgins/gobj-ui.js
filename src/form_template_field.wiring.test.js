@@ -7,7 +7,7 @@
  *      json conversion, which handed its null on: the fields below found
  *      no dict to write into (kw_set_dict_value() refuses a null segment)
  *      and the save stored the node as null -- the alarm colours of a
- *      device in estadodelaire, wiped by every save of its settings.
+ *      device in a consumer app, wiped by every save of its settings.
  *      Driven through the real gclass on a document double, with the
  *      template of those settings.
  *
@@ -42,7 +42,7 @@ const saved = [];
 const logged = [];
 let yuno = null;
 
-/*  The settings template of an estadodelaire device type, cut down to
+/*  The settings template of an app's device type, cut down to
  *  the sub-form and one field beside it.  */
 const TEMPLATE = {
     template_version: {

@@ -38,12 +38,12 @@ describe("entry_shown_lines", () => {
     it("copies a closed branch as its one-line summary", () => {
         const $e = painted({
             result: 0,
-            comment: "db_history_ce^1620: 524 nodos",
+            comment: "db_history^1620: 524 nodos",
             data: {places: [1, 2, 3], families: [4], devices: [5, 6]},
         });
         expect(entry_shown_lines($e)).toEqual([
             "    • result: 0",
-            "    • comment: db_history_ce^1620: 524 nodos",
+            "    • comment: db_history^1620: 524 nodos",
             "    ▸ data {places:[…],families:[…],devices:[…]}",
         ]);
     });

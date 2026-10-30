@@ -4,7 +4,7 @@
  *          Build config for the gobj-ui declarative-shell demo.
  *
  *          Resolution mirrors the in-repo consumers (gui_agent /
- *          gui_treedb / wattyzer):
+ *          gui_treedb / the consumer apps):
  *            - @yuneta/gobj-js -> the sibling submodule SOURCE
  *              (src/index.js), not its built dist/, so the demo always
  *              tracks the current kernel source.
@@ -101,7 +101,7 @@ const pkg_versions = [
  *  versions -- 6.7.0 turned glyph ids from numbers into graphemes, and a cached
  *  6.4.1 worker made the new GlyphManager answer `t.codePointAt is not a
  *  function` once per tile, with the map drawing no labels (paid for in
- *  yunovatios, 2026-09-04). A versioned name makes it impossible: a bump gets a
+ *  an application, 2026-09-04). A versioned name makes it impossible: a bump gets a
  *  fresh URL.
  *
  *  Since 6.13.0 the worker is self-contained: it imports nothing, and
@@ -189,7 +189,7 @@ export default defineConfig({
          *  future demo view that imports one of them would otherwise bind a
          *  second, uninitialised copy (a module-level singleton like
          *  i18next's `t()` then renders blank). Dedupe the full set up front —
-         *  mirror wattyzer/gui/vite.config.js — so adding such a view "just
+         *  mirror the project template's gui/vite.config.js — so adding such a view "just
          *  works". Harmless for libs not yet installed.
          */
         dedupe: [

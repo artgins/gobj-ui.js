@@ -40,8 +40,8 @@ When you reach for a feature, climb this ladder in order:
   c. Touching app DOM/CSS directly is a last resort and signals a
      gap in (a) or (b) that should be filed back upstream.
 
-The reverse migration is the litmus test: every time wattyzer or
-another consumer can delete an `install_*()` patch or a CSS selector
+The reverse migration is the litmus test: every time a consumer
+application can delete an `install_*()` patch or a CSS selector
 keyed on `data-toolbar-item-id`, the shell got better at its job.
 
 ---
@@ -1207,7 +1207,7 @@ What this example demonstrates that the generic §2 picture only states:
   **route** whose target is `kind:"action"`: the first is a command with
   no URL, the second gives the action its own deep-linkable route and
   fires the event from there. `kind:"action"` is part of the engine (it
-  is no longer the vendored wattyzer extension this note used to call it);
+  is no longer the vendored application extension this note used to call it);
   both idioms, and the `redirect` values that decide what the URL does
   afterwards, are documented in [`ROUTING.md`](ROUTING.md) §7.1.
 - **`menu.quick` route reuse**: the drawer items carry only a `route`
@@ -1224,7 +1224,7 @@ As of `3.0.0` the migration is complete and `c_yui_main.js`/`.css`,
 `c_yui_routing.js`/`.css`, `c_yui_tabs.js`, `themes.js` and
 `ytable.js`/`.css` are **removed from this line**.  The frozen **v1
 npm line** (`@yuneta/gobj-ui@^1.x`, dist-tag `legacy`) still ships
-them for hidraulia (estadodelaire left it on 2026-10-13).
+them, though no application uses it since 2026-10-15.
 
 What replaced each piece on `main`:
 

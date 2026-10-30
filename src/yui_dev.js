@@ -77,7 +77,7 @@ const TRAFFIC_TS_FIELDS = {
  *  them. They are published HERE, as data: a consumer's `validate-locales`
  *  (gobj-ui 7.26.27+) reads an exported `*_I18N_KEYS` array of every module
  *  the app mounts and asks the locales for each key -- it used to be a
- *  comment each consumer copied by hand, and yunomusica lacked 35 of them.
+ *  comment each consumer copied by hand, and one app lacked 35 of them.
  *  A key added to the window goes in this list.  */
 export const YUI_DEV_I18N_KEYS = [
     "automata", "both", "browser console only", "clear",

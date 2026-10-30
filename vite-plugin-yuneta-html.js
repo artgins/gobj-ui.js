@@ -101,7 +101,7 @@ export function yunetaHtmlPlugin(options = {}) {
                  *  with `<script src="/<name>.js">`.  Same-origin URL
                  *  satisfies 'self'; an inline block does not.
                  *
-                 *  See `wattyzer/gui/public/anti-fouc.js` for the
+                 *  See an application's `gui/public/anti-fouc.js` for the
                  *  canonical pre-paint pattern (theme bootstrap from
                  *  localStorage + matchMedia fallback).
                  *

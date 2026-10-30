@@ -26,7 +26,7 @@
     "scripts/check-markup-strings.mjs",
     "scripts/validate-locales.mjs"
   ],
-  "description": "Yuneta UI Library — the active line: declarative shell (C_YUI_SHELL+NAV+PAGER+WIZARD) + windows, TreeDB views, forms, charts and maps.  Consumed from the npm registry by the Yuneta SPAs (gui_agent, gui_treedb, wattyzer, yunovatios, yunomusica, estadodelaire).  The frozen legacy GClass GUI stack (C_YUI_MAIN/TABS/ROUTING) lives on the v1 branch, npm dist-tag 'legacy' (consumed by hidraulia).",
+  "description": "Yuneta UI Library — the active line: declarative shell (C_YUI_SHELL+NAV+PAGER+WIZARD) + windows, TreeDB views, forms, charts and maps.  Consumed from the npm registry by the Yuneta SPAs (gui_agent, gui_treedb and the applications built on it).  The frozen legacy GClass GUI stack (C_YUI_MAIN/TABS/ROUTING) lives on the v1 branch, npm dist-tag 'legacy'.",
   "scripts": {
     "build": "vite build",
     "test": "vitest run",

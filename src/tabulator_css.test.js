@@ -4,7 +4,7 @@
  *      The stylesheet of the tables: an editor fills its cell only when
  *      it is a box to TYPE in. A checkbox or a radio given width and
  *      height 100% is drawn as a square the size of the cell (the
- *      tickCross editor of estadodelaire's "validated" opened as a huge
+ *      tickCross editor of an app's "validated" opened as a huge
  *      empty box on a phone, gobj-ui 7.26.36).
  *
  *      Read as text, as the window layer's invariants are: jsdom applies

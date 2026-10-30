@@ -1,7 +1,7 @@
 # Routing & Navigation — the contract for the declarative shell
 
 This is the **single source of truth** for how navigation works in a
-`C_YUI_SHELL` Single-Page Application (gui_treedb, gui_agent, wattyzer, …), and
+`C_YUI_SHELL` Single-Page Application (gui_treedb, gui_agent, …), and
 the rules every new visual element MUST follow. A SPA has to *simulate* a
 Multi-Page Application: every point in the app is reachable by a URL, the path
 the user walked is recorded so Back/Forward work, and reloading or sharing a URL
@@ -332,8 +332,8 @@ no view is mounted and `current_route` stays on the underlying resting view.
 | Use it for | a pure command with nothing to link to (toggle theme, toggle language) | an action a user may want to *reach by URL* (About, Preferences, a dev panel) |
 
 Both are supported. **Pick one idiom per app and keep the menu consistent** —
-gui_agent and gui_treedb wire their account menus with `type:"event"`; wattyzer
-routes everything (`/about`, `/devtools`, `/sitemap`). A menu that mixes them
+gui_agent and gui_treedb wire their account menus with `type:"event"`; another
+application routes everything (`/about`, `/devtools`, `/sitemap`). A menu that mixes them
 reads as an accident.
 
 **`redirect` — what the URL does after the event fires:**
@@ -390,7 +390,7 @@ Browser **Back still closes a `stay` overlay** (§6): the shell matches the
 overlay marker's own hash, so the URL sitting off the resting route — the
 whole point of `stay` — does not blind it. The test-app's `/prefs` entry is
 the reference wiring (`redirect:"stay"` + an `on_close` that calls
-`yui_shell_unpark_route("/prefs")`; wattyzer's `open_route_modal` adds the
+`yui_shell_unpark_route("/prefs")`; an application's `open_route_modal` adds the
 same hash guard before its deferred back); `_qa_prefs.mjs` drives
 open / Back / X / Escape / deep-link against it.
 
@@ -442,7 +442,7 @@ nav-click → `location.hash` push path) implements this contract.
    - **gui_agent** — audited: it has no programmatic user moves at all (its
      moves are nav clicks, which push through the shell). All three sites are
      redirects and carry `{replace:true}`.
-   - **wattyzer** — user moves (device/monitoring card → history, history ←
+   - **an application** — user moves (device/monitoring card → history, history ←
      realtime, treedb topic/mode select) push; `nav_back_or_default()`'s
      root fallback is `{replace:true}`.
 

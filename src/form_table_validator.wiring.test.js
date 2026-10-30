@@ -6,7 +6,7 @@
  *      - A template item may carry Tabulator validators of its own
  *        (`validator`: a name or a function), which its column runs
  *        besides `required`: what a host knows and a schema cannot say
- *        (estadodelaire refuses a trigger value that its measure can
+ *        (a consumer app refuses a trigger value that its measure can
  *        never match).
  *      - A table that does not validate refuses the save. Tabulator's
  *        validate() answers `true` or the LIST of the bad cells, and
@@ -117,7 +117,7 @@ beforeEach(() => {
 
 let seq = 0;
 
-/*  The alarms of an estadodelaire device, cut down: a table whose
+/*  The alarms of an app's device, cut down: a table whose
  *  `value` column carries a validator the host added.  */
 function build(validator)
 {

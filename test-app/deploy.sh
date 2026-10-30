@@ -3,8 +3,10 @@
 #   Deploy the gobj-ui test-app (the nav-layouts demo).
 #
 #   Default target is demo.yuneta.io, the public demo linked from
-#   doc.yuneta.io. The nginx on the wattyzer node (37.187.89.46) serves it
-#   from /yuneta/gui/demo.yuneta.io, with its own Let's Encrypt certificate.
+#   doc.yuneta.io. The node that serves it is named by the environment
+#   variable DEMO_SSH_HOST (required, no default): its nginx serves the
+#   demo from /yuneta/gui/demo.yuneta.io, with its own Let's Encrypt
+#   certificate, and the bundle goes there as yuneta@$DEMO_SSH_HOST.
 #
 #   niyamaka.com is the second target, kept for mobile testing. It is the
 #   same bundle on the same box, under /yuneta/gui/niyamaka.com.
@@ -13,14 +15,23 @@
 #   static bundle is all that is needed.
 #
 #   Usage:
+#       export DEMO_SSH_HOST=<node that serves the demo>
 #       ./deploy.sh                     # build, then deploy to demo.yuneta.io
 #       ./deploy.sh --no-build          # deploy the existing ./dist/
 #       ./deploy.sh niyamaka.com        # deploy to the mobile-test host
 #       ./deploy.sh niyamaka.com --no-build
 #
+#   or for one call: DEMO_SSH_HOST=<node> ./deploy.sh --no-build
+#   (`npm run deploy-round` hands its environment down, so export it there
+#   too).
+#
 set -e
 
-SSH_HOST="app.wattyzer.com"
+if [ -z "$DEMO_SSH_HOST" ]; then
+    echo "DEMO_SSH_HOST is not set: export DEMO_SSH_HOST=<node that serves the demo>" >&2
+    exit 2
+fi
+SSH_HOST="$DEMO_SSH_HOST"
 TARGET="demo.yuneta.io"
 BUILD=1
 

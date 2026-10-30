@@ -7,7 +7,7 @@
  *      C_YUI_UPLOT inked only the axes it was handed: by default one,
  *      the X. In the dark scheme the values of every Y axis of the
  *      library were black on near-black (a user's report, the cards of
- *      estadodelaire).
+ *      a consumer app).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

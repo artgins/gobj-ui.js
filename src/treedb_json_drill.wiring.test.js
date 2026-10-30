@@ -370,7 +370,7 @@ for(const gclass of ["C_YUI_TREEDB_TOPICS", "C_YUI_TREEDB_GRAPH"]) {
 }
 
 /*
- *  wattyzer and yunovatios hear the edge from the SHELL
+ *  Two consumer apps hear the edge from the SHELL
  *  (EV_CONNECTION_STATE), not from a host that forwards the transport.
  */
 describe("C_YUI_TREEDB_TOPICS: the shell's 'down' answers a drill in flight", () => {

@@ -639,7 +639,7 @@ const es_translation = {
     "Section index — Gamma": "Índice de sección — Gamma",
     "Section index — Delta": "Índice de sección — Delta",
     "The SHELL synthesized this landing from submenu.index: one card per submenu item, capped at two levels (primary nav + submenu). Compare with the Cards chapter, where the same look comes from a recursive tree of node gobjs.": "El SHELL sintetizó esta página a partir de submenu.index: una tarjeta por elemento del submenú, con un tope de dos niveles (nav primario + submenú). Compárala con el capítulo Tarjetas, donde el mismo aspecto sale de un árbol recursivo de nodos gobj.",
-    "submenu.index is the shipped mechanism wattyzer uses for /reports. It stays here because it is what five apps run in production today.": "submenu.index es el mecanismo que wattyzer usa hoy en /reports. Se queda aquí porque es lo que cinco aplicaciones ejecutan en producción.",
+    "submenu.index is the shipped mechanism an application uses for /reports. It stays here because it is what five apps run in production today.": "submenu.index es el mecanismo que una aplicación usa hoy en /reports. Se queda aquí porque es lo que cinco aplicaciones ejecutan en producción.",
     "Two levels is all this mechanism has: a submenu item cannot declare a submenu of its own.": "Dos niveles es todo lo que da este mecanismo: un elemento de submenú no puede declarar un submenú propio.",
     "For arbitrary depth, see the Cards chapter (C_YUI_NODE).": "Para profundidad arbitraria, mira el capítulo Tarjetas (C_YUI_NODE).",
     "Beta": "Beta",

@@ -137,7 +137,7 @@ beforeAll(() => {
         {}, 0, [SDATA_END()], {}, 0, 0, 0, 0
     );
     /*  An app that subscribes to EVERY event of its shell and declares
-     *  none of the new ones: wattyzer's and yunovatios' shape.  */
+     *  none of the new ones: the shape of two consumer apps.  */
     gclass_create("C_TEST_APP", [], [["ST_IDLE", []]], {}, 0, [SDATA_END()], {}, 0, 0, 0, 0);
     /*  An app that DOES declare it: it must still be told.  */
     gclass_create(
