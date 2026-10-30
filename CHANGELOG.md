@@ -7,6 +7,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.3
+
 - **No figure and no word taken from an application.** The folded-graph
   pill reads `▸ devices 200` / `▾ devices 24/200`, like the site with two
   hundred devices it illustrates, and the landing-page note no longer gives a
