@@ -17,7 +17,7 @@
  *          the reader's level (`fold_level`, `expand_depth` until they
  *          step it), one page (`fold_page_size`) of children per hook. Each
  *          card carries a pill per hook that has children -- `▸ devices
- *          142` -- which opens or folds that hook; an open hook with more
+ *          200` -- which opens or folds that hook; an open hook with more
  *          children than its page ends in a `+N` chip that opens the next
  *          page. The arithmetic lives in treedb_fold_model.js; this file
  *          reconciles the G6 data with what that model says is visible
@@ -571,7 +571,7 @@ const _layouts = {
      *  -- the roots, the first parent that reaches a node, the hooks
      *  in schema order, the records in their order -- so opening a
      *  hook moves nothing that is not under or beside it. Down and not
-     *  right, because down is where a tree has room: a hall with a
+     *  right, because down is where a tree has room: a building with a
      *  hundred devices is a wide row, not a column beside a card --
      *  and read right it was `dagre` with the siblings held still,
      *  which nobody could tell apart. The default for a treedb nobody
@@ -4101,9 +4101,9 @@ function graph_focus_topic(gobj, topic, reveal_all)
      *  topic, however deep it is folded away. The graph's per-topic
      *  ROUTE lands here on every load (`.../graph/devices` is a focus
      *  on `devices`) and gets ONE PAGE, the same cap the find has:
-     *  revealing a whole topic on landing opened 563 groups of a
-     *  6400-record treedb -- the pile, back, before anybody touched
-     *  anything.  */
+     *  revealing a whole topic on landing opened hundreds of groups
+     *  of a treedb of several thousand records -- the pile, back,
+     *  before anybody touched anything.  */
     let keys = [];
     if(!empty_string(topic)) {
         for(let node of model.nodes.values()) {
@@ -10179,8 +10179,8 @@ function pill_colors(color, theme)
 }
 
 /************************************************************
- *  One pill: `▸ devices 142` folded, `▾ devices 24/142` open on a
- *  page, `▾ devices 142` open whole. A glyph and numbers on
+ *  One pill: `▸ devices 200` folded, `▾ devices 24/200` open on a
+ *  page, `▾ devices 200` open whole. A glyph and numbers on
  *  purpose: the card is an innerHTML string where a WORD could
  *  carry no i18n key, and the hook name is a schema identifier,
  *  like the topic subtitle above it.

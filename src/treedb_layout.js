@@ -5,7 +5,7 @@
  *
  *      What a treedb graph IS, once it is folded (treedb_fold_model.js):
  *      a forest read top to bottom. A main topic is a tree (places:
- *      country, region, site, hall), the other topics hang from its
+ *      country, region, site, building), the other topics hang from its
  *      nodes through hooks (devices, users, controllers), a record may
  *      hang from two parents (a device from its place AND its
  *      controller), and every visible node was reached from a root.
@@ -44,7 +44,7 @@
  *      between them. O(n), and opening a hook moves NOTHING that is
  *      not below or beside it -- the cards keep their order, the eye
  *      keeps its place. It reads DOWN because that is the direction a
- *      tree with many children has room in: a hall with a hundred
+ *      tree with many children has room in: a building with a hundred
  *      devices is a wide row, not a tall column beside a card. (The
  *      left-to-right reading is `direction: "LR"`, kept for a host
  *      that wants it; `dagre` reads that way in the graph.)
@@ -296,7 +296,7 @@ function extent_at(n, a)
  *  subtree gets an angular SECTOR proportional to its leaves, a node
  *  sits in the middle of its sector, and the radius of each ring is
  *  the larger of "one step further out than the ring before" and
- *  "long enough for its nodes to sit side by side" -- so a hall
+ *  "long enough for its nodes to sit side by side" -- so a building
  *  with a hundred devices is a wide, sparse fan, and nothing
  *  overlaps by construction. Several roots share the circle around
  *  a virtual centre.

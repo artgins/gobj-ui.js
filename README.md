@@ -2100,7 +2100,7 @@ a level or two, with a count on every cut.
   (`right-top`), **`confirm_delete_node`** and **`confirm_unlink_edge`**. The
   defaults repeat the engine's, so a host that says nothing gets what it got
   before.
-- **A pill per hook on the card** — `▸ devices 142` folded, `▾ devices 24/142`
+- **A pill per hook on the card** — `▸ devices 200` folded, `▾ devices 24/200`
   open on a page — in the colour of the child topic, the same colour its hook
   port wears. Tapping it opens or folds that hook, and the card stays where it
   was on screen while the layout moves everything else (`yui_graph_place_at`).
@@ -2144,8 +2144,8 @@ a level or two, with a count on every cut.
   `EV_SET_FOCUS_TOPIC`) — *show me these* means all of them — while the graph's
   per-topic **route** (`.../graph/devices` is a focus on `devices`) gets one
   page, because it lands on every load, and revealing a whole topic there
-  opened 563 groups of a 6400-record treedb before anybody had touched
-  anything.
+  opened hundreds of groups of a treedb of several thousand records before
+  anybody had touched anything.
 - **Edition and the saved geometry are untouched by folding.** Only the cards
   on screen are read when the graph is saved; a folded card keeps the entry it
   had in `__graphs__`. A card on its default size grows by the pill row when it
@@ -2158,7 +2158,7 @@ One consumer key came with it: `show more`, the chip's tooltip.
 ### Layouts: what G6 offers, and the two made for a treedb
 
 What a treedb graph IS, once folded: a **forest read top to bottom**. A main
-topic is a tree (places: country, region, site, hall), the other topics hang
+topic is a tree (places: country, region, site, building), the other topics hang
 from its nodes through hooks, a record may hang from two parents (a device
 from its place AND its controller), and every visible node was reached from a
 root. Tens to a few hundred cards on screen, never the store.
@@ -2169,7 +2169,7 @@ G6 5.1 registers these layouts, and this is how each meets that shape:
 |---|---|---|
 | `dagre` / `antv-dagre` | layered DAG: longest-path ranks, crossing minimisation, one direction | the right reading (LR); but the crossing heuristic **reorders the siblings on every run** — open one hook and the column next to it shuffles — and it is the one thing that takes time on a big expansion |
 | `compact-box`, `indented`, `dendrogram`, `mindmap` | @antv/hierarchy tree layouts | the shape wanted, but G6 runs them on a tree it **builds from the edges** (`createTreeStructure`): a node with two parents lands under whichever parent the builder met first, unstably |
-| `radial` | MDS on graph distances from a focus node, a ring per depth, overlaps pushed apart afterwards | the right idea — a hall with a hundred devices is a **fan**, not a column — but the ring radius is one it is TOLD: twenty cards of 172px on a ring of radius 200 have 52px each and pile up. Tried, and replaced by our own (below) |
+| `radial` | MDS on graph distances from a focus node, a ring per depth, overlaps pushed apart afterwards | the right idea — a building with a hundred devices is a **fan**, not a column — but the ring radius is one it is TOLD: twenty cards of 172px on a ring of radius 200 have 52px each and pile up. Tried, and replaced by our own (below) |
 | `force`, `d3-force`, `force-atlas2`, `fruchterman` | physics | scatter a tree: the pile with springs. `d3-force` and `force-atlas2` stay in the picker for the rare flat treedb |
 | `circular`, `concentric`, `grid`, `mds`, `random` | rings, rings by degree, a grid, projection, noise | none knows a parent from a child |
 | `combo-combined`, `fishbone` | combos / cause-effect | not this data |
@@ -2181,7 +2181,7 @@ layouts by two thin adapters in `c_g6_nodes_tree.js`:
   depth as tall as its tallest card, a node centred over the block of its
   children, siblings side by side with `nodesep`. **The default** for a
   treedb nobody has arranged (was `dagre`). It reads down because down is
-  where a tree has room: a hall with a hundred devices is a wide row, not a
+  where a tree has room: a building with a hundred devices is a wide row, not a
   column beside a card — and read right (as it did until `7.23.74`) it was
   `dagre` with the siblings held still, which nobody could tell apart. The
   algorithm is written once, left to right; the top-down tree is the same
@@ -4451,7 +4451,7 @@ export default { plugins: [ yunetaHtmlPlugin({ defaultTitle: "My App" }) ] };
     "metadata": {"description": "What the app does"},
     "csp_connect_src": [
         "_comment: the backend this SPA talks to",
-        "wss://my.host:1620",
+        "wss://my.host:4620",
         "https://auth.my.host"
     ]
 }

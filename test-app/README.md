@@ -64,7 +64,7 @@ the prototype of the model where *the gobj tree IS the navigation tree*.
   — including back to `"stack"`, which restores exactly what each branch
   declared, because a mode filters the renders instead of rewriting them.
   Try it at a leaf: `#/cards/energy/north/m1` shows three strips in `stack`,
-  one `← North hall` in `back`, and four crumbs in `path`.
+  one `← North building` in `back`, and four crumbs in `path`.
 - **Two chapters, so the two shapes can be seen side by side.** **Cards**
   (`/cards`) is the default `stack`; **Breadcrumb** (`/crumbs`) carries the
   *same tree at the same depths* and declares by hand what `nav_mode: "path"`

@@ -466,7 +466,7 @@
                                 "gclass": "C_DEMO_NODE_LAB",
                                 "kw": {
                                     "title": "Cards",
-                                    "lead": "The cards below are child NODES, each a gobj. Walk in: Energy → North hall → Meter 1 is four levels deep. This chapter shows the way in as STACKED TABS — one strip per ancestor. The buttons reshape the live tree; the last one cycles the whole tree through the three navigation modes: stacked strips, a single back to the parent, and a breadcrumb."
+                                    "lead": "The cards below are child NODES, each a gobj. Walk in: Energy → North building → Meter 1 is four levels deep. This chapter shows the way in as STACKED TABS — one strip per ancestor. The buttons reshape the live tree; the last one cycles the whole tree through the three navigation modes: stacked strips, a single back to the parent, and a breadcrumb."
                                 }
                             },
                             "children": [
@@ -571,7 +571,7 @@
                                     "children": [
                                         {
                                             "id": "north",
-                                            "label": "North hall",
+                                            "label": "North building",
                                             "icon": "yi-location-dot",
                                             "projection": {
                                                 "index": {
@@ -623,7 +623,7 @@
                                         },
                                         {
                                             "id": "south",
-                                            "label": "South hall",
+                                            "label": "South building",
                                             "icon": "yi-location-dot",
                                             "projection": {
                                                 "index": {
@@ -846,7 +846,7 @@
                                     "children": [
                                         {
                                             "id": "north",
-                                            "label": "North hall",
+                                            "label": "North building",
                                             "icon": "yi-location-dot",
                                             "projection": {
                                                 "index": {
@@ -898,7 +898,7 @@
                                         },
                                         {
                                             "id": "south",
-                                            "label": "South hall",
+                                            "label": "South building",
                                             "icon": "yi-location-dot",
                                             "projection": {
                                                 "index": {

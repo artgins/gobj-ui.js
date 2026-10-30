@@ -36,8 +36,8 @@ describe("yui_tab_split_subpath", () => {
     test("a composite id survives the url it travelled in", () => {
         /*  0x1F joins the two halves of these ids and reaches the url
          *  percent-encoded.  */
-        expect(yui_tab_split_subpath("node-a%1F1630/treedb_authzs/__graphs__"))
-            .toEqual({id: "node-a" + US + "1630",
+        expect(yui_tab_split_subpath("node-a%1F4630/treedb_authzs/__graphs__"))
+            .toEqual({id: "node-a" + US + "4630",
                       tail: "treedb_authzs/__graphs__"});
     });
 

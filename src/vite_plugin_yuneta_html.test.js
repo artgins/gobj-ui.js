@@ -45,9 +45,9 @@ describe("vite-plugin-yuneta-html", () => {
     test("a declared csp_connect_src goes into connect-src, comments left out", () => {
         const html = transform({
             title: "App",
-            csp_connect_src: ["wss://host:1620", "_comment: why", "https://tiles.example"]
+            csp_connect_src: ["wss://host:4620", "_comment: why", "https://tiles.example"]
         });
-        expect(connect_src(html)).toEqual(["'self'", "wss://host:1620", "https://tiles.example"]);
+        expect(connect_src(html)).toEqual(["'self'", "wss://host:4620", "https://tiles.example"]);
         expect(html).toContain("<title>App</title>");
     });
 
@@ -73,10 +73,10 @@ describe("vite-plugin-yuneta-html", () => {
             title: "App",
             csp_connect_src: [
                 "wss://a:1; base-uri *", "wss://b, wss://c", "wss://d wss://e",
-                "wss://ok:1620"
+                "wss://ok:4620"
             ]
         });
-        expect(connect_src(html)).toEqual(["'self'", "wss://ok:1620"]);
+        expect(connect_src(html)).toEqual(["'self'", "wss://ok:4620"]);
         expect(html).not.toContain("base-uri");
         expect(err).toHaveBeenCalledTimes(3);
         err.mockRestore();

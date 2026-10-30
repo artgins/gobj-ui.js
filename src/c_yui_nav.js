@@ -16,7 +16,7 @@
  *                         mounted as a stage view by C_YUI_SHELL when a
  *                         primary item declares submenu.index)
  *          "breadcrumb" — the PATH as one line ("Cards › Energy › South
- *                         hall › Meter 3"), each crumb a link to that
+ *                         building › Meter 3"), each crumb a link to that
  *                         level.  Unlike every other layout its items
  *                         are not a node's children but the trail down
  *                         to where the user is: the second way to show

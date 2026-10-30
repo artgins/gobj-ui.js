@@ -492,8 +492,6 @@ function devices2geojson(gobj, devices)
         }
         let coords = get_coordinates(gobj, device);
 
-        // device.image = "http://localhost:8029/static/app/images/devices/enchufe.png";
-
         let feature = {
             "type": "Feature",
             "id": device.id,

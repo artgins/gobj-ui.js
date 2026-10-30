@@ -997,7 +997,7 @@ function render_path(gobj, $where)
     }
 
     /*  From the TREE ROOT down to the tip, not from here: a trail that
-     *  starts halfway ("South hall › Meter 3") answers the question it
+     *  starts halfway ("South building › Meter 3") answers the question it
      *  was drawn to answer only by half.  The declaring node decides
      *  HOW its corner shows the way in; it does not decide where the
      *  way in starts. */

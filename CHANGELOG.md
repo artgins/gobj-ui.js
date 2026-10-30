@@ -7,6 +7,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **No figure and no word taken from an application.** The folded-graph
+  pill reads `▸ devices 200` / `▾ devices 24/200`, like the site with two
+  hundred devices it illustrates, and the landing-page note no longer gives a
+  record count; a place under a site is a `building` everywhere (it was a
+  `hall`), and the test-app tree says *North building* / *South building* and
+  *Meter N* in English and *Edificio norte* / *Edificio sur* and *Medidor N* in
+  Spanish; the yuno ids and ports of the tests and examples are `4630` and
+  `4620`; and a dead commented-out device image in `c_yui_map.js` is gone. No
+  library code change; the test-app labels change.
+
 ## 7.29.2
 
 - **No review citation in words, and no example taken from an application.**
@@ -561,7 +571,7 @@ Icon review of the library, icons only:
 ## 7.27.9
 
 - **Icons `yi-robot`, `yi-user-clock`, `yi-clipboard-list`, `yi-inbox`, `yi-user-plus`, `yi-headset`, `yi-wand-magic-sparkles`, `yi-layer-group`, `yi-window-maximize`, `yi-clock-rotate-left` and `yi-folder`** (FontAwesome Free 7.3.1): automations (Home Assistant's robot), shifts, a shift handover, an in-app inbox (the envelope is e-mail), add a user, the operations desk, a wizard, a stack of pages, ONE window (two overlapping frames say copy), history (the arrow turning back alone is undo) and a tab (Material's `tab`).
-- **test-app (demo.yuneta.io, niyamaka.com): every icon says what its entry is**, with the icons the app B GUIs settled on: the alerts are the bell, preferences the sliders, the map the folded map, TreeDB the database, the chart a chart, the cards a grid, the windows one window, the JSON graph a tree and the JSON tree the code; a hall is a place and a tank a droplet. The eye, the cog, the copy, the plain square and the checked box had been standing in for entries that are none of those.
+- **test-app (demo.yuneta.io, niyamaka.com): every icon says what its entry is**, with the icons the app B GUIs settled on: the alerts are the bell, preferences the sliders, the map the folded map, TreeDB the database, the chart a chart, the cards a grid, the windows one window, the JSON graph a tree and the JSON tree the code; a building is a place and a tank a droplet. The eye, the cog, the copy, the plain square and the checked box had been standing in for entries that are none of those.
 
 ## 7.27.8
 
@@ -2433,7 +2443,7 @@ Two regressions of 7.26.7, and what it left half done.
   ALWAYS emitted** by `vite-plugin-yuneta-html.js`, with `connect-src 'self'`
   alone when `config.json` has no `csp_connect_src` -- and now also when there
   is no `config.json` at all. **Check your `config.json`**: an app that talks
-  to a websocket on another port (`wss://host:1620` is another origin), loads
+  to a websocket on another port (`wss://host:4620` is another origin), loads
   map tiles or external fonts, and declared none of them, loses them with only
   a build warning. The origins are escaped now. Tested
   (`vite_plugin_yuneta_html.test.js`).
@@ -4236,9 +4246,9 @@ Three fixes of the treedb views.
 
 - **treedb graph: the `radial` layout is compact too.** Every leaf sat on its
   depth's ring, and a ring has to be long enough for all of its cards side by
-  side: one hall with many devices blew the whole ring up. Now a run of three
-  or more consecutive LEAF children is a STACK, as in the compact tree: it asks
-  its ring for one row of about the square root of its cards, not for every
+  side: one building with many devices blew the whole ring up. Now a run of
+  three or more consecutive LEAF children is a STACK, as in the compact tree: it
+  asks its ring for one row of about the square root of its cards, not for every
   leaf, and lays them in rows going OUTWARD, each row as full as the room it
   has at that radius -- its own sector, less what its neighbours on the ring
   take up. A stack alone on its ring has the whole circle, and its rows are
@@ -4248,9 +4258,9 @@ Three fixes of the treedb views.
   | fold state | radial | compact now |
   |---|---|---|
   | regions only | 1927px | 63% |
-  | one region open, a hall of 24 devices | 4196px | 55% |
+  | one region open, a building of 24 devices | 4196px | 55% |
   | every region open (level 3) | 9104px | 58% |
-  | every region open + the hall | 10878px | 53% |
+  | every region open + the building | 10878px | 53% |
 
 - No card overlaps another, and that took two fixes worth knowing. A stack is
   measured over the whole ARC it covers, not at its middle angle: round a
@@ -4298,9 +4308,9 @@ Three fixes of the treedb views.
   gained nothing where a treedb is usually looked at -- a whole level opened
   with the stepper -- because there every parent still needed the whole row
   of its children beside it: it drew exactly like `tree`. Now a run of three
-  or more consecutive LEAF children (a hall's devices, a region's places when
-  none is open) is STACKED: two columns under the parent, a corridor between
-  them, row after row. The first row lines up with the depth's row; the
+  or more consecutive LEAF children (a building's devices, a region's places
+  when none is open) is STACKED: two columns under the parent, a corridor
+  between them, row after row. The first row lines up with the depth's row; the
   columns line up against the corridor; the children keep their order (runs,
   not all the leaves of a parent); a child that has children stays in the
   row. The tree grows taller instead of wider. On a treedb shaped like a
@@ -4309,9 +4319,9 @@ Three fixes of the treedb views.
   | fold state | `tree` | compact before | compact now |
   |---|---|---|---|
   | regions only | 4732px | 100% | 10% |
-  | one region open, a hall of 24 devices | 8518px | 70% | 21% |
+  | one region open, a building of 24 devices | 8518px | 70% | 21% |
   | every region open (level 3) | 24112px | 100% | 41% |
-  | every region open + the hall | 27138px | 91% | 39% |
+  | every region open + the building | 27138px | 91% | 39% |
 
 - **Elbow edges into a stack run down its corridor -- a COMB.** A card in a
   lower row cannot be reached from the channel: the card above it stands in
@@ -4455,13 +4465,13 @@ Three fixes of the treedb views.
 
 - **treedb graph: a `compact tree` layout** (`compact-tree`, beside `tree` in
   the picker). The tidy tree gives every subtree its whole BLOCK, so opening a
-  hall with twenty-four devices pushes the siblings of its ancestors apart at
-  depths where nothing of theirs touches. The compact tree keeps each
+  building with twenty-four devices pushes the siblings of its ancestors apart
+  at depths where nothing of theirs touches. The compact tree keeps each
   subtree's CONTOUR and slides every sibling against the outline of the ones
   before it: a closed branch sits beside an open one at the depth they share.
   Same spanning tree, same rows, same order as `tree`, so switching between
   the two moves cards sideways and never reorders them. On a treedb shaped
-  like a real one (one root, 25 regions), one region open with a hall of 24
+  like a real one (one root, 25 regions), one region open with a building of 24
   devices is 70% of the tidy tree's width; a uniform tree is the same width.
 - The contour arithmetic is Moen's ("Drawing dynamic trees", 1990) in the
   form mxGraph gave it in mxCompactTreeLayout (Copyright (c) 2006-2015 JGraph
@@ -5846,11 +5856,11 @@ the thing you read, the glyph is an affordance).
   Ctrl/Meta wheel, and `zoom-canvas` with `trigger: ['Control']`.
 - **The treedb tree reads DOWN.** `treedb-tree` was a tidy tree read left to
   right, and read that way it was `dagre` with the siblings held still --
-  nobody could tell the two apart. Down is where a tree has room: a hall with
-  a hundred devices is a wide row, not a column beside a card. The algorithm
-  is written once (LR) and the top-down tree is the same tree fed transposed
-  cards and read back transposed; `direction: "LR"` keeps the other reading.
-  Ports on the top and bottom edges again, `cubic` edges.
+  nobody could tell the two apart. Down is where a tree has room: a building
+  with a hundred devices is a wide row, not a column beside a card. The
+  algorithm is written once (LR) and the top-down tree is the same tree fed
+  transposed cards and read back transposed; `direction: "LR"` keeps the other
+  reading. Ports on the top and bottom edges again, `cubic` edges.
 - **`treedb-outline` is gone.** A list that indents is a JSON viewer, and the
   library has one. Removed from the layout table, the adapters, the pure
   module and its tests; consumers drop the `treedb-outline` i18n key.
@@ -5968,7 +5978,7 @@ the thing you read, the glyph is an affordance).
   promise on a node with two parents. `treedb-tree` is the default for a
   treedb nobody has arranged; `dagre` (LR) and `antv-dagre` (TB) stay.
   `radial` — the root in the middle, a ring per depth, a sector per subtree,
-  each ring as long as its cards need — is the one where a hall with a
+  each ring as long as its cards need — is the one where a building with a
   hundred devices is a fan, not a column; G6's own `radial` was tried first
   and piled the cards on a ring of a fixed radius. Pure module
   `treedb_layout.js`, tested; the G6 classes are three thin adapters. New
@@ -6024,7 +6034,7 @@ the thing you read, the glyph is an affordance).
   roots, `expand_depth` levels under them (default 2), one page
   (`fold_page_size`, default 24) of children per hook, and a `+N` chip after
   each page. Each card carries a pill per hook that has children — `▸ devices
-  142`, `▾ devices 24/142` — in the child topic's colour; tapping it opens or
+  200`, `▾ devices 24/200` — in the child topic's colour; tapping it opens or
   folds that hook, and the card holds still on screen while the layout moves
   the rest. The arithmetic is a pure module, `treedb_fold_model.js` (a device
   with two parents is drawn once, under whichever opened first; folding one
@@ -6034,7 +6044,7 @@ the thing you read, the glyph is an affordance).
   collapse all); the find and the topic focus search the records and open
   the path to what they find, at most one page of hidden matches each — the
   graph's per-topic route is a focus that lands on every load, and revealing
-  a whole topic there opened 563 groups before anybody touched anything.
+  a whole topic there opened hundreds of groups before anybody touched anything.
   `dagre` reads LEFT TO RIGHT now, with the ports turned to the sides and
   horizontal beziers; `antv-dagre` keeps the top-down reading. New attrs on
   `C_YUI_TREEDB_GRAPH` / `C_G6_NODES_TREE`: `expand_depth`, `fold_page_size`.
