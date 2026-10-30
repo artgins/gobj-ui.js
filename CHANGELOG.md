@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.0
+
+- **No private name in the package.** The README, the package description,
+  the source comments, the tests, the docs (`ROUTING.md`, `SHELL.md`) and the
+  demo name the applications built on the library by their role, not by
+  name. `test-app/deploy.sh` takes its host from `DEMO_SSH_HOST` (it exits 2
+  without it); the demo's i18n key that named an application changed in
+  every locale. No code change. The number follows the SDK's minor (7.29).
+- Development install on `@yuneta/gobj-js` 7.29.0 and i18next 26.5.11 (the
+  ranges are unchanged).
+
 ## 7.28.3
 
 - **`yi-file-excel`** (FontAwesome Free 7.3.1, solid): a table exported as
