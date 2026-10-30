@@ -617,9 +617,9 @@
                                                 }
                                             ],
                                             "aliases": [
-                                                "hall1"
+                                                "building1"
                                             ],
-                                            "_aliases_comment": "This node used to be called 'hall1'. The tree's paths are a CONTRACT, so the id was not rewritten in place: #/cards/energy/hall1/m1 still resolves and is rewritten to the canonical spelling."
+                                            "_aliases_comment": "This node used to be called 'building1'. The tree's paths are a CONTRACT, so the id was not rewritten in place: #/cards/energy/building1/m1 still resolves and is rewritten to the canonical spelling."
                                         },
                                         {
                                             "id": "south",
@@ -892,9 +892,9 @@
                                                 }
                                             ],
                                             "aliases": [
-                                                "hall1"
+                                                "building1"
                                             ],
-                                            "_aliases_comment": "This node used to be called 'hall1'. The tree's paths are a CONTRACT, so the id was not rewritten in place: #/crumbs/energy/hall1/m1 still resolves and is rewritten to the canonical spelling."
+                                            "_aliases_comment": "This node used to be called 'building1'. The tree's paths are a CONTRACT, so the id was not rewritten in place: #/crumbs/energy/building1/m1 still resolves and is rewritten to the canonical spelling."
                                         },
                                         {
                                             "id": "south",

@@ -10569,8 +10569,8 @@ this release (still marked a prototype — its shape may move).
   "<what> · <kind>" (`raw_tracks · keys`), and every caller composed that into
   one string: `` `${topic} · ${t("keys")}` ``. The result is not an i18n key, so
   i18next answers it with itself and the title stays in the language it was
-  built in for the life of the window — the exact trap
-  `feedback_i18n_must_be_retranslatable` describes. `title_prefix` (data, never
+  built in for the life of the window — a string must carry its key to
+  change language, and a composed one carries none. `title_prefix` (data, never
   translated) now carries the "what", `title` stays the KEY for the "kind", and
   the two render as separate text nodes (`WINDOW_TITLE_PREFIX` +
   `WINDOW_TITLE_KIND`, `MODAL_TITLE_PREFIX` + `MODAL_TITLE_KIND`) so a

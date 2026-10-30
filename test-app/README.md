@@ -82,8 +82,8 @@ the prototype of the model where *the gobj tree IS the navigation tree*.
   three levels of tree and two of data. Back walks out of the data space
   position by position before it walks up the tree.
 - **The tree is a contract.** There is no reparent API on purpose: a published
-  path is a url. `north` carries `aliases: ["hall1"]`, so
-  `#/cards/energy/hall1/m1` still resolves and is rewritten to the canonical
+  path is a url. `north` carries `aliases: ["building1"]`, so
+  `#/cards/energy/building1/m1` still resolves and is rewritten to the canonical
   spelling; the root carries `tree_version`.
 - **Declarative == dynamic.** The panel at `/cards` adds, removes and
   re-projects nodes on the LIVE tree through the same runtime API

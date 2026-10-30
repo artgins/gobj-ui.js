@@ -222,9 +222,9 @@ test("normalize_spec accepts its own output (every level re-normalizes)", () => 
  ***************************************************************/
 test("aliases carry the former ids of a node", () => {
     let errors = [];
-    let spec = normalize_spec({id: "north", aliases: ["hall1", "h1"]}, errors, "/");
+    let spec = normalize_spec({id: "north", aliases: ["building1", "b1"]}, errors, "/");
     expect(errors).toEqual([]);
-    expect(spec.aliases).toEqual(["hall1", "h1"]);
+    expect(spec.aliases).toEqual(["building1", "b1"]);
     expect(normalize_spec({id: "x"}, errors, "/").aliases).toEqual([]);
 });
 
@@ -234,7 +234,7 @@ test("an alias is one url segment, like an id", () => {
     expect(errors[0]).toMatch(/is not a valid id/);
 
     errors = [];
-    expect(normalize_spec({id: "x", aliases: "hall1"}, errors, "/")).toBe(null);
+    expect(normalize_spec({id: "x", aliases: "building1"}, errors, "/")).toBe(null);
     expect(errors[0]).toMatch(/'aliases' must be an array/);
 });
 
