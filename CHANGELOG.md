@@ -7,12 +7,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.6
+
 - **The treedb examples are a sites / buildings / devices inventory.** The
   fold-model tests, the README and the comments of `treedb_fold_model.js` and
   `treedb_layout.js` use `sites` (a self-referent tree), `buildings` hanging
   from a site, `devices` hanging from a site AND a building, and the lookups
   `models` and `groups`; the window-title example is `raw_events · keys`;
-  the comment of `yi-server` says what the icon stands for. No code change.
+  the comment of `yi-server` says what the icon stands for, and the
+  comment of the treedb graph's first layout gives no figure. No code
+  change.
 
 ## 7.29.5
 
@@ -9042,8 +9046,8 @@ Both ship on the frozen v1 line as `1.0.3`, where app C hit them.
 - **feat: a treedb nobody has arranged opens laid out, not piled up.**
   `manual` means "leave every node where it was put", and where none was put
   it means a cascade — `get_default_ne_xy()` walks x and y together, so a
-  treedb opened for the first time was a diagonal pile of cards (126 of them
-  on a real one) and the only way out was knowing to pick a layout by hand.
+  treedb opened for the first time was a diagonal pile of cards (a hundred
+  of them on a large one) and the only way out was knowing to pick a layout by hand.
   `manual` is the right default only once there ARE saved positions to leave
   alone.
 

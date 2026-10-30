@@ -7997,7 +7997,7 @@ function geometry_has_position(g)
  *  `manual` means "leave every node where it was put", and where none
  *  was put it means a cascade: get_default_ne_xy() walks x and y
  *  together, so a treedb opened for the first time was a diagonal pile
- *  of cards — 126 of them on a real one — and the only way out was to
+ *  of cards — a hundred of them on a large one — and the only way out was to
  *  know to pick a layout by hand. It is the right default only once
  *  there ARE saved positions to leave alone.
  *
