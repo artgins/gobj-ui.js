@@ -7,6 +7,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.4
+
+- **No citation of a notes store, and no word taken from an application.**
+  The CHANGELOG says the rule a line cited by name; the demo calls its
+  buildings `building1`/`b1`. No library code change.
+
 ## 7.29.3
 
 - **No figure and no word taken from an application.** The folded-graph
