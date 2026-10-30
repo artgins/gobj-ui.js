@@ -7,6 +7,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.8
+
 - **Tests: four rules of the treedb fold model are tested, each with a
   mutant that the tests of 7.29.7 let pass and these fail.**
   - **A record whose only parent is an `extended` topic is a root:** the
