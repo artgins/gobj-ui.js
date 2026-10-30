@@ -1278,7 +1278,7 @@ it used to call `tabulator.setFilter` straight from the DOM handler, where the
 A hook cell shows how many children the row has (`[5675]`). A click on it
 opens the **child topic's table, filtered** to the rows whose fkey names this
 row (since `7.23.162`). Above the table, a chip says which filter is on,
-"filtered by models model_a", and its ✕ brings the whole topic back.
+"filtered by sites north", and its ✕ brings the whole topic back.
 
 The child table already pages, searches, opens a record and exports. Until
 `7.23.162` the click opened a popup that listed every child id instead:

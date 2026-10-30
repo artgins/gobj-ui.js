@@ -7,6 +7,31 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **Tests: four rules of the treedb fold model are tested, each with a
+  mutant that the tests of 7.29.7 let pass and these fail.**
+  - **A record whose only parent is an `extended` topic is a root:** the
+    test record named a `group` that `devices` had no fkey column for, so
+    the ref was never read. `devices` now has the column, and a model that
+    takes the `extended` parent fails the case.
+  - **A tie between hierarchical topics goes to the first in schema
+    order**, and **of two topics marked `main_topic`, the first wins**.
+  - **A multivalued fkey names a parent in every element**, not only in
+    the first.
+  - A hook that holds the children of two topics gets a case of its own.
+    A fkey column answers to one hook of one topic (the treedb refuses a
+    second), so a record that can hang from two topics has a column for
+    each; the comment of `parents_of()` says so.
+  - "Hiding a topic in the middle" hides `devices`, between `sites` and
+    `notes`: a note on a device alone becomes loose, a note on a device and
+    a site stays under the site. The cases that hide `owners` and `sites`
+    are a test of their own.
+- **README:** the parent-filter chip of the example reads "filtered by
+  sites north". The dev-panel copy test uses `sites`, `owners` and
+  `devices`. The 7.29.7 section says that the layout tests keep short ids of
+  their own.
+- Published files: the comment of `parents_of()` in
+  `src/treedb_fold_model.js` and the README; no code change.
+
 ## 7.29.7
 
 - **The treedb example is an inventory on two axes.** `sites` (where a
@@ -16,8 +41,9 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   tests keep every case they had: the two-parent record, the second
   hierarchical topic, loose records and the records that follow them, the
   shallowest level of a record reached twice, the hook order of the pills.
-  The README, the comments of `treedb_fold_model.js` and `treedb_layout.js`
-  and the layout tests use the same names. No code change.
+  The README and the comments of `treedb_fold_model.js` and
+  `treedb_layout.js` use the same names; the layout tests keep short ids of
+  their own. No code change.
 - **README: the hierarchical topics of the SDK's treedbs** are `roles`,
   `realms` and `client_groups` (the MQTT broker's); the controlcenter's
   treedb has none.

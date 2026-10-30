@@ -39,12 +39,12 @@ describe("entry_shown_lines", () => {
         const $e = painted({
             result: 0,
             comment: "db_history^7301: 500 nodes",
-            data: {sites: [1, 2, 3], buildings: [4], devices: [5, 6]},
+            data: {sites: [1, 2, 3], owners: [4], devices: [5, 6]},
         });
         expect(entry_shown_lines($e)).toEqual([
             "    • result: 0",
             "    • comment: db_history^7301: 500 nodes",
-            "    ▸ data {sites:[…],buildings:[…],devices:[…]}",
+            "    ▸ data {sites:[…],owners:[…],devices:[…]}",
         ]);
     });
 

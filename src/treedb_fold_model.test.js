@@ -8,6 +8,12 @@
  *      owns it), devices hanging from a site AND an owner, notes
  *      hanging from a site or a device, and a topic with hooks and no
  *      fkeys (extended) whose children must be roots.
+ *
+ *      A note has two fkey columns, one for each topic it can hang from:
+ *      a fkey column answers to ONE hook of ONE topic (the treedb refuses
+ *      a second, "Only can be one fkey"). What CAN name several topics is
+ *      a hook: one hook holding children of two topics has a case of its
+ *      own below.
  ***********************************************************************/
 import { describe, test, expect } from "vitest";
 import {
@@ -53,6 +59,7 @@ const devices_desc = {
         {id: "id", flag: []},
         {id: "site", flag: ["fkey"], fkey: {sites: "devices"}},
         {id: "owner", flag: ["fkey"], fkey: {owners: "devices"}},
+        {id: "group", flag: ["fkey"], fkey: {groups: "members"}},
         {id: "photo", flag: ["fkey", "file"], fkey: {__assets__: "photos"}},
         {id: "notes", flag: ["hook"], hook: {notes: "device"}},
     ],
@@ -162,6 +169,8 @@ describe("the model", () => {
         let recs = make_records(1);
         recs.devices[0] = {id: "d0", group: "groups^g1^members"};
         let m = fold_build_model(descs, recs);
+        /*  devices_desc has the fkey column `group`: the ref is read, and refused  */
+        expect(m.nodes.get(K("devices", "d0")).parents).toEqual([]);
         expect(m.nodes.get(K("groups", "g1")).hooks).toEqual({});
         /*  devices hang from sites (the main topic), so a device with
          *  no parent is LOOSE, not a root -- see the "main topic" block  */
@@ -173,6 +182,53 @@ describe("the model", () => {
         let m3 = fold_build_model({devices: devices_desc, groups: groups_desc}, recs);
         expect(m3.main_topic).toBe("");
         expect(m3.groups.get(fold_root_group_key("devices"))).toEqual([K("devices", "d0")]);
+    });
+
+    test("a multivalued fkey names a parent in every element, not only the first", () => {
+        let recs = make_records(1);
+        recs.owners.push({id: "o2", parent: ""}, {id: "o3", parent: ""});
+        recs.devices[0].owner = ["owners^o1^devices", "owners^o2^devices", "owners^o3^devices"];
+        let m = fold_build_model(descs, recs);
+        expect(m.nodes.get(K("devices", "d0")).parents.map((p) => p.node_key))
+            .toEqual([K("sites", "site1"), K("owners", "o1"), K("owners", "o2"), K("owners", "o3")]);
+        for(let o of ["o1", "o2", "o3"]) {
+            expect(m.groups.get(fold_group_key(K("owners", o), "devices"))).toEqual([K("devices", "d0")]);
+        }
+    });
+
+    test("a hook can hold the children of two topics: one group, in topic order", () => {
+        /*  sites.items holds devices AND notes; each child's own fkey
+         *  column names that one hook  */
+        let sites_items = {topic_name: "sites", node_treedb_type: "entity", cols: [
+            {id: "id", flag: []},
+            {id: "site", flag: ["fkey"], fkey: {sites: "sites"}},
+            {id: "sites", flag: ["hook"], hook: {sites: "site"}},
+            {id: "items", flag: ["hook"], hook: {devices: "place", notes: "place"}},
+        ]};
+        let devices_items = {topic_name: "devices", node_treedb_type: "child", cols: [
+            {id: "id", flag: []},
+            {id: "place", flag: ["fkey"], fkey: {sites: "items"}},
+        ]};
+        let notes_items = {topic_name: "notes", node_treedb_type: "child", cols: [
+            {id: "id", flag: []},
+            {id: "place", flag: ["fkey"], fkey: {sites: "items"}},
+        ]};
+        let d = {sites: sites_items, devices: devices_items, notes: notes_items};
+        let recs = {
+            sites: [{id: "site1", site: ""}],
+            devices: [{id: "d0", place: "sites^site1^items"}],
+            notes: [{id: "n1", place: "sites^site1^items"}, {id: "n2"}],
+        };
+        let m = fold_build_model(d, recs);
+        expect(m.main_topic).toBe("sites");
+        expect([...m.linked].sort()).toEqual(["devices", "notes", "sites"]);
+        expect(m.groups.get(fold_group_key(K("sites", "site1"), "items")))
+            .toEqual([K("devices", "d0"), K("notes", "n1")]);
+        expect(m.loose.notes).toEqual([K("notes", "n2")]);
+        let st = fold_new_state(24);
+        fold_expand_all(m, st);
+        expect([...fold_visible_set(m, st)].sort())
+            .toEqual([K("devices", "d0"), K("notes", "n1"), K("sites", "site1")]);
     });
 
     test("a cycle with no way in gets one root, not a row of them", () => {
@@ -222,6 +278,25 @@ describe("main topic, hidden topics, loose records", () => {
         expect(fold_main_topic({c: c, x: x})).toBe("");
         /*  a tree of sites alone, reaching no other topic, is still a trunk  */
         expect(fold_main_topic({sites: sites_desc})).toBe("sites");
+    });
+
+    test("a tie is broken by schema order: the first of the tied topics", () => {
+        /*  without notes, sites and owners both reach devices alone  */
+        let tied = {sites: sites_desc, owners: owners_desc, devices: devices_desc};
+        expect(fold_main_topic(tied)).toBe("sites");
+        let tied_back = {owners: owners_desc, sites: sites_desc, devices: devices_desc};
+        expect(fold_main_topic(tied_back)).toBe("owners");
+        expect(fold_build_model(tied_back, {}).main_topic).toBe("owners");
+    });
+
+    test("two topics marked: the first in schema order wins", () => {
+        let sites_marked = Object.assign({}, sites_desc, {main_topic: true});
+        let owners_marked = Object.assign({}, owners_desc, {main_topic: true});
+        /*  owners first: the deduction would pick sites, the marks owners  */
+        expect(fold_main_topic({owners: owners_marked, sites: sites_marked,
+                                devices: devices_desc, notes: notes_desc})).toBe("owners");
+        expect(fold_main_topic({sites: sites_marked, owners: owners_marked,
+                                devices: devices_desc, notes: notes_desc})).toBe("sites");
     });
 
     test("the schema's mark wins over the deduction, among hierarchical topics", () => {
@@ -295,6 +370,32 @@ describe("main topic, hidden topics, loose records", () => {
     });
 
     test("hiding a topic in the middle: what hung from it alone becomes loose", () => {
+        /*  devices sit between sites and notes: n_dev hangs from d0
+         *  alone, n_both from d0 AND site1  */
+        let recs = make_records(2);
+        recs.notes.push({id: "n_dev", device: "devices^d0^notes"});
+        recs.notes.push({id: "n_both", site: "sites^site1^notes", device: "devices^d0^notes"});
+        let shown = fold_build_model(descs, recs);
+        expect(shown.loose.notes).toEqual([]);
+        expect(shown.nodes.get(K("notes", "n_dev")).parents.map((p) => p.node_key))
+            .toEqual([K("devices", "d0")]);
+        let m = fold_build_model(descs, recs, {hidden_topics: ["devices"]});
+        expect(m.main_topic).toBe("sites");
+        expect(m.nodes.get(K("notes", "n_dev")).parents).toEqual([]);
+        expect(m.loose.notes).toEqual([K("notes", "n_dev")]);
+        expect(m.groups.get(fold_root_group_key("notes"))).toBeUndefined();
+        expect(m.nodes.get(K("notes", "n_both")).parents.map((p) => p.node_key))
+            .toEqual([K("sites", "site1")]);
+        expect(m.groups.get(fold_group_key(K("sites", "site1"), "notes")))
+            .toEqual([K("notes", "n1"), K("notes", "n_both")]);
+        let st = fold_new_state(24);
+        fold_expand_all(m, st);
+        expect(fold_visible_set(m, st).has(K("notes", "n_dev"))).toBe(false);
+        let m2 = fold_build_model(descs, recs, {hidden_topics: ["devices"], loose_topics: ["notes"]});
+        expect(m2.groups.get(fold_root_group_key("notes"))).toEqual([K("notes", "n_dev")]);
+    });
+
+    test("hiding a side tree, or the main topic itself", () => {
         let m = fold_build_model(descs, make_records(12), {hidden_topics: ["owners"]});
         /*  d0..d9 hang from site1 AND o1: still under site1  */
         expect(m.nodes.get(K("devices", "d0")).parents.length).toBe(1);

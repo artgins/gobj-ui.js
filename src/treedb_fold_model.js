@@ -78,7 +78,12 @@ export function fold_split_group_key(group_key)
 }
 
 /************************************************************
- *  Every parent a record names, decoded, in column order.
+ *  Every parent a record names, decoded, in column order, and
+ *  in every element of a multivalued fkey. A fkey column
+ *  answers to one hook of one topic (the treedb refuses a
+ *  second), so a record that can hang from two topics has a
+ *  column for each; it is a hook that can hold the children
+ *  of several topics.
  *
  *  Only the parents that will be DRAWN: a topic missing from
  *  `descs` (a system topic such as `__assets__`, never fetched)
