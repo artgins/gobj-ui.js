@@ -2086,7 +2086,7 @@ a level or two, with a count on every cut.
   are the records with no drawable parent, a node's children are the records
   whose fkey names it through a hook, and a node is visible when a visible
   parent shows it or it is a shown root — the **union**, so a device that hangs
-  from its site AND its building is drawn once, under whichever opened
+  from its site AND its owner is drawn once, under whichever opened
   first, and folding one of the two leaves it where the other shows it.
 - **`expand_depth`** (default `1` since `7.23.142`, `2` before) is how much
   opens on load until the reader steps: the roots alone. **`fold_page_size`** (default `24`) is how many children of
@@ -2109,14 +2109,14 @@ a level or two, with a count on every cut.
   JSON graph's fold handles are — G6 never reads the DOM `click`, it builds its
   own from the pointer pair.
 - **The toolbar's fold STEPPER** (since `7.23.141`; it replaced the *expand
-  all* / *collapse all* pair): `▸` · **`sites level 2/4`** · `▾`. It walks the
+  all* / *collapse all* pair): `▸` · **`sites level 2/5`** · `▾`. It walks the
   **main tree** one level at a time, the way the frontend view opens one level
   per press: level 1 is the main topic's roots (and the loose records the
   reader asked to see), each `▾` opens the next level through every topic that
   is not hidden, each `▸` folds the deepest one. The readout says what the two
   buttons act on — the main topic's swatch and name (data, never translated;
   gone on a phone, the numbers stay) and `level N/M` — the WORD as well as the
-  numbers, because the legend chip under it says `sites 2/4` too and there it
+  numbers, because the legend chip under it says `sites 2/5` too and there it
   means records on screen — and a button is disabled at either end. **A level is a floor, not a picture**: stepping down
   opens only what is folded above the new level and keeps the pages and pills
   already open; stepping up folds from the new level down and touches nothing
@@ -2159,9 +2159,9 @@ One consumer key came with it: `show more`, the chip's tooltip.
 
 What a treedb graph IS, once folded: a **forest read top to bottom**. A main
 topic is a tree (sites: country, region, campus), the other topics hang
-from its nodes through hooks, a record may hang from two parents (a device
-from its site AND its building), and every visible node was reached from a
-root. Tens to a few hundred cards on screen, never the store.
+from its nodes through hooks, a record may hang from two parents of two
+topics (a device from its site AND its owner), and every visible node was
+reached from a root. Tens to a few hundred cards on screen, never the store.
 
 G6 5.1 registers these layouts, and this is how each meets that shape:
 
@@ -2169,7 +2169,7 @@ G6 5.1 registers these layouts, and this is how each meets that shape:
 |---|---|---|
 | `dagre` / `antv-dagre` | layered DAG: longest-path ranks, crossing minimisation, one direction | the right reading (LR); but the crossing heuristic **reorders the siblings on every run** — open one hook and the column next to it shuffles — and it is the one thing that takes time on a big expansion |
 | `compact-box`, `indented`, `dendrogram`, `mindmap` | @antv/hierarchy tree layouts | the shape wanted, but G6 runs them on a tree it **builds from the edges** (`createTreeStructure`): a node with two parents lands under whichever parent the builder met first, unstably |
-| `radial` | MDS on graph distances from a focus node, a ring per depth, overlaps pushed apart afterwards | the right idea — a building with a hundred devices is a **fan**, not a column — but the ring radius is one it is TOLD: twenty cards of 172px on a ring of radius 200 have 52px each and pile up. Tried, and replaced by our own (below) |
+| `radial` | MDS on graph distances from a focus node, a ring per depth, overlaps pushed apart afterwards | the right idea — a site with a hundred devices is a **fan**, not a column — but the ring radius is one it is TOLD: twenty cards of 172px on a ring of radius 200 have 52px each and pile up. Tried, and replaced by our own (below) |
 | `force`, `d3-force`, `force-atlas2`, `fruchterman` | physics | scatter a tree: the pile with springs. `d3-force` and `force-atlas2` stay in the picker for the rare flat treedb |
 | `circular`, `concentric`, `grid`, `mds`, `random` | rings, rings by degree, a grid, projection, noise | none knows a parent from a child |
 | `combo-combined`, `fishbone` | combos / cause-effect | not this data |
@@ -2181,7 +2181,7 @@ layouts by two thin adapters in `c_g6_nodes_tree.js`:
   depth as tall as its tallest card, a node centred over the block of its
   children, siblings side by side with `nodesep`. **The default** for a
   treedb nobody has arranged (was `dagre`). It reads down because down is
-  where a tree has room: a building with a hundred devices is a wide row, not a
+  where a tree has room: a site with a hundred devices is a wide row, not a
   column beside a card — and read right (as it did until `7.23.74`) it was
   `dagre` with the siblings held still, which nobody could tell apart. The
   algorithm is written once, left to right; the top-down tree is the same
@@ -2242,8 +2242,8 @@ module defaults with every config it is given.
 
 Both take the **same spanning tree**, chosen deterministically: roots are the
 nodes with no incoming edge, in node order; a node belongs to the **first
-parent that reaches it** in a breadth-first walk (the site, not the
-building, because the site's column came first) and its other links are
+parent that reaches it** in a breadth-first walk (a device under its site
+or under its owner, whichever the walk meets first) and its other links are
 drawn as edges across the tree; the children of a node are ordered by the
 **hook they hang from** (the parent's port order — the schema's column order)
 and then by node order (record order, the pages' order); a cycle nothing
@@ -2524,9 +2524,10 @@ others*) drew the agent's treedb from `yunos` instead of `realms`. In order:
 3. the hierarchical topic that reaches the most other topics, schema order
    breaking a tie.
 
-In the treedbs of the SDK there is exactly one hierarchical topic each
-(`roles` in the authorization treedb, `realms` in the agent's), so the mark
-only has something to decide once a schema grows a second one. A treedb with
+A treedb of the SDK has one hierarchical topic at most (`roles` in the
+authorization treedb, `realms` in the agent's, `client_groups` in the MQTT
+broker's; the controlcenter's has none), so the mark only has something to
+decide once a schema grows a second one. A treedb with
 no topic hooked to itself has no trunk, and every topic is a tree of its own.
 
 (Not the engine's card tier: a topic with hooks AND fkeys is an `entity` card
@@ -2541,9 +2542,9 @@ What the main topic governs, in `treedb_fold_model.js`:
 - a topic the schema does not tie to the main one is its own tree, with its
   own roots, as before.
 
-So *sites with their users and nothing else* is hiding `devices`,
-`buildings` and `models`; *sites with their devices* is hiding
-`users` and `buildings`. Each combination is a user preference **per
+So *sites with their devices and nothing else* is hiding `notes` and
+`owners`; *devices by owner* is hiding `sites` and `notes`, and the owners
+tree is drawn on its own. Each combination is a user preference **per
 treedb**: `hidden_topics`, `main_topic` and `loose_topics` are `SDF_PERSIST`
 attrs of `C_YUI_TREEDB_GRAPH`, saved under the view's name, and both hosts
 name the view after the treedb.
@@ -4865,7 +4866,7 @@ names a shell declaration other than `src/app_config.json`.
 
 What is particular to an app goes in ITS `package.json`, not in the script:
 properties whose value is a key, and properties whose value is a list of keys
-(an application hands its orchestrator `app_title: "central"` and
+(an application hands its orchestrator `app_title: "dashboard"` and
 `welcome_features: [...]`):
 
 ```json

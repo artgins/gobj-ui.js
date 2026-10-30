@@ -301,7 +301,7 @@
  *              }
  *
  *          `attr_keys` names properties whose string value is an i18n key
- *          (`app_title: "central"`), `array_keys` properties whose value is
+ *          (`app_title: "dashboard"`), `array_keys` properties whose value is
  *          an array of keys. A key the app hands over that way reaches no
  *          t() the scan can read. A name declared that no source uses is a
  *          violation (a typo would turn its check off).

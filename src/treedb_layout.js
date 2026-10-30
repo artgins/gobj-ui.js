@@ -6,9 +6,9 @@
  *      What a treedb graph IS, once it is folded (treedb_fold_model.js):
  *      a forest read top to bottom. A main topic is a tree (sites:
  *      country, region, campus), the other topics hang from its nodes
- *      through hooks (buildings, devices, users), a record may hang
- *      from two parents (a device from its site AND its building), and
- *      every visible node was reached from a root.
+ *      through hooks (devices, notes), a record may hang from two
+ *      parents of two topics (a device from its site AND its owner),
+ *      and every visible node was reached from a root.
  *      Tens to a few hundred cards on screen, never the whole store.
  *
  *      G6's own layouts either do not know that or pay for not knowing:
@@ -30,8 +30,8 @@
  *
  *      - roots are the nodes with no incoming edge, in node order;
  *      - a node belongs to the FIRST parent that reaches it in a
- *        breadth-first walk from the roots -- the site, not the
- *        building, because the site's column came first -- and the
+ *        breadth-first walk from the roots -- a device under its site
+ *        or under its owner, whichever the walk meets first -- and the
  *        other links are drawn as edges across the tree;
  *      - the children of a node are ordered by the HOOK they hang from
  *        (the parent's port order, which is the schema's column order)
@@ -44,7 +44,7 @@
  *      between them. O(n), and opening a hook moves NOTHING that is
  *      not below or beside it -- the cards keep their order, the eye
  *      keeps its place. It reads DOWN because that is the direction a
- *      tree with many children has room in: a building with a hundred
+ *      tree with many children has room in: a site with a hundred
  *      devices is a wide row, not a tall column beside a card. (The
  *      left-to-right reading is `direction: "LR"`, kept for a host
  *      that wants it; `dagre` reads that way in the graph.)
@@ -296,7 +296,7 @@ function extent_at(n, a)
  *  subtree gets an angular SECTOR proportional to its leaves, a node
  *  sits in the middle of its sector, and the radius of each ring is
  *  the larger of "one step further out than the ring before" and
- *  "long enough for its nodes to sit side by side" -- so a building
+ *  "long enough for its nodes to sit side by side" -- so a site
  *  with a hundred devices is a wide, sparse fan, and nothing
  *  overlaps by construction. Several roots share the circle around
  *  a virtual centre.

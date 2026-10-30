@@ -28,7 +28,7 @@
  *
  *      - A node is visible when SOME visible parent shows it, or it is
  *        a shown root. A record with two parents (a device hangs from
- *        its site AND its building) is drawn ONCE, under whichever
+ *        its site AND its owner) is drawn ONCE, under whichever
  *        opened first, and folding one of the two leaves it where the
  *        other one shows it. The union, never the intersection.
  *
@@ -229,7 +229,7 @@ export function fold_build_model(descs, records, opts)
     /*  Roots: no drawable parent -- with one distinction when there is
      *  a MAIN topic. A record of a topic the schema hangs from the main
      *  one (`linked`) that has no parent is LOOSE: a device with no
-     *  place. It should hang and does not, so it is not a root of the
+     *  site. It should hang and does not, so it is not a root of the
      *  tree; it is counted per topic and shown only on request
      *  (`loose_topics`). A topic the schema does not tie to the main
      *  one at all is a tree of its own, and its parentless records are

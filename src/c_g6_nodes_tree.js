@@ -571,7 +571,7 @@ const _layouts = {
      *  -- the roots, the first parent that reaches a node, the hooks
      *  in schema order, the records in their order -- so opening a
      *  hook moves nothing that is not under or beside it. Down and not
-     *  right, because down is where a tree has room: a building with a
+     *  right, because down is where a tree has room: a site with a
      *  hundred devices is a wide row, not a column beside a card --
      *  and read right it was `dagre` with the siblings held still,
      *  which nobody could tell apart. The default for a treedb nobody
@@ -7997,8 +7997,8 @@ function geometry_has_position(g)
  *  `manual` means "leave every node where it was put", and where none
  *  was put it means a cascade: get_default_ne_xy() walks x and y
  *  together, so a treedb opened for the first time was a diagonal pile
- *  of cards — a hundred of them on a large one — and the only way out was to
- *  know to pick a layout by hand. It is the right default only once
+ *  of cards, and the only way out was to know to pick a layout by
+ *  hand. It is the right default only once
  *  there ARE saved positions to leave alone.
  *
  *  So: nothing saved and no preference of the user's ⇒ dagre. The pick

@@ -9,20 +9,20 @@ import { describe, test, expect } from "vitest";
 import { spanning_tree, layout_tree, layout_radial } from "./treedb_layout.js";
 
 /*  region -> (north, south); north -> site; site -> d0, d1 (hook rank 1) and
- *  c1 (hook rank 2); c1 -> d0 as well (second parent).  */
+ *  x1 (hook rank 2); x1 -> d0 as well (second parent).  */
 const N = (id, w, h) => ({id, w, h});
 const nodes = [
     N("region", 172, 96), N("north", 172, 96), N("south", 172, 96), N("site", 172, 120),
-    N("d0", 116, 40), N("d1", 116, 40), N("c1", 172, 96),
+    N("d0", 116, 40), N("d1", 116, 40), N("x1", 172, 96),
 ];
 const edges = [
     {source: "region", target: "north", rank: 0},
     {source: "region", target: "south", rank: 0},
     {source: "north", target: "site", rank: 0},
-    {source: "site", target: "c1", rank: 2},
+    {source: "site", target: "x1", rank: 2},
     {source: "site", target: "d0", rank: 1},
     {source: "site", target: "d1", rank: 1},
-    {source: "c1", target: "d0", rank: 0},
+    {source: "x1", target: "d0", rank: 0},
 ];
 
 describe("the spanning tree", () => {
@@ -35,13 +35,13 @@ describe("the spanning tree", () => {
 
     test("children are ordered by hook rank, then by node order", () => {
         let t = spanning_tree(nodes, edges);
-        expect(t.children.get("site")).toEqual(["d0", "d1", "c1"]);
+        expect(t.children.get("site")).toEqual(["d0", "d1", "x1"]);
         expect(t.children.get("region")).toEqual(["north", "south"]);
     });
 
     test("a node with two parents belongs to the first that reaches it", () => {
         let t = spanning_tree(nodes, edges);
-        expect(t.children.get("c1")).toEqual([]);        /*  d0 is site's  */
+        expect(t.children.get("x1")).toEqual([]);        /*  d0 is site's  */
         expect(t.depth.get("d0")).toBe(3);
     });
 
@@ -71,20 +71,20 @@ describe("the tidy tree, read down (the default)", () => {
         expect(pos.get("south").y).toBe(pos.get("north").y);
         /*  depth 2 holds site (120 tall): the row is 120 tall  */
         expect(pos.get("site").y).toBe(2 * (96 + 100) + 60);
-        /*  depth 3 holds chips (40) and c1 (96): row is 96 tall, the
+        /*  depth 3 holds chips (40) and x1 (96): row is 96 tall, the
          *  chips are centred in it  */
         let row3 = 2 * (96 + 100) + 120 + 100;
-        expect(pos.get("c1").y).toBe(row3 + 48);
+        expect(pos.get("x1").y).toBe(row3 + 48);
         expect(pos.get("d0").y).toBe(row3 + 48);
     });
 
     test("siblings sit side by side; a parent is centred over its children", () => {
         let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
-        /*  site's children: d0 (116), d1 (116), c1 (172) = 424 wide  */
+        /*  site's children: d0 (116), d1 (116), x1 (172) = 424 wide  */
         expect(pos.get("d1").x - pos.get("d0").x).toBe(126);
-        expect(pos.get("c1").x - pos.get("d1").x).toBe(58 + 10 + 86);
+        expect(pos.get("x1").x - pos.get("d1").x).toBe(58 + 10 + 86);
         let first = pos.get("d0").x - 58;
-        let last = pos.get("c1").x + 86;
+        let last = pos.get("x1").x + 86;
         expect(pos.get("site").x).toBe((first + last) / 2);
     });
 
@@ -103,20 +103,20 @@ describe("the tidy tree, read right", () => {
         expect(pos.get("region").x).toBe(86);                       /*  172/2  */
         expect(pos.get("north").x).toBe(172 + 100 + 86);
         expect(pos.get("south").x).toBe(pos.get("north").x);
-        /*  depth 3 holds chips (116) and c1 (172): column is 172 wide,
+        /*  depth 3 holds chips (116) and x1 (172): column is 172 wide,
          *  the chips are centred in it  */
         let col3 = 3 * (172 + 100);
-        expect(pos.get("c1").x).toBe(col3 + 86);
+        expect(pos.get("x1").x).toBe(col3 + 86);
         expect(pos.get("d0").x).toBe(col3 + 86);
     });
 
     test("siblings stack with the gap; a parent is centred on its children", () => {
         let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100, direction: "LR"});
-        /*  site's children: d0 (40), d1 (40), c1 (96) = 196 tall  */
+        /*  site's children: d0 (40), d1 (40), x1 (96) = 196 tall  */
         expect(pos.get("d1").y - pos.get("d0").y).toBe(50);
-        expect(pos.get("c1").y - pos.get("d1").y).toBe(20 + 10 + 48);
+        expect(pos.get("x1").y - pos.get("d1").y).toBe(20 + 10 + 48);
         let first = pos.get("d0").y - 20;
-        let last = pos.get("c1").y + 48;
+        let last = pos.get("x1").y + 48;
         expect(pos.get("site").y).toBe((first + last) / 2);
     });
 
@@ -146,7 +146,7 @@ describe("the tidy tree, read right", () => {
         expect(pos.get("d0").y).toBe(base.get("d0").y);     /*  above the new one  */
         expect(pos.get("d1").y).toBe(base.get("d1").y);
         expect(pos.get("d2").y).toBe(base.get("d1").y + 50);
-        expect(pos.get("c1").y).toBe(base.get("c1").y + 50); /*  pushed down, in order  */
+        expect(pos.get("x1").y).toBe(base.get("x1").y + 50); /*  pushed down, in order  */
     });
 });
 

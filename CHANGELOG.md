@@ -7,16 +7,33 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **The treedb example is an inventory on two axes.** `sites` (where a
+  thing is) and `owners` (who owns it) are two self-referent trees, and a
+  device hangs from its site AND its owner; `notes` hang from a site or a
+  device, and `groups` is a lookup with hooks and no fkeys. The fold-model
+  tests keep every case they had: the two-parent record, the second
+  hierarchical topic, loose records and the records that follow them, the
+  shallowest level of a record reached twice, the hook order of the pills.
+  The README, the comments of `treedb_fold_model.js` and `treedb_layout.js`
+  and the layout tests use the same names. No code change.
+- **README: the hierarchical topics of the SDK's treedbs** are `roles`,
+  `realms` and `client_groups` (the MQTT broker's); the controlcenter's
+  treedb has none.
+- **Comments and examples without figures or app vocabulary.** The comment of
+  the treedb graph's first layout gives no figure; `yi-bolt` and
+  `yi-droplet` are for electricity and water; the `validate-locales`
+  example key is `app_title: "dashboard"`.
+- **CHANGELOG:** the sections of earlier versions describe their examples
+  without ids those versions did not carry.
+
 ## 7.29.6
 
-- **The treedb examples are a sites / buildings / devices inventory.** The
+- **The treedb examples are an inventory of sites and devices.** The
   fold-model tests, the README and the comments of `treedb_fold_model.js` and
-  `treedb_layout.js` use `sites` (a self-referent tree), `buildings` hanging
-  from a site, `devices` hanging from a site AND a building, and the lookups
-  `models` and `groups`; the window-title example is `raw_events · keys`;
-  the comment of `yi-server` says what the icon stands for, and the
-  comment of the treedb graph's first layout gives no figure. No code
-  change.
+  `treedb_layout.js` use generic topic names, with `sites` as the
+  self-referent tree and `models` and `groups` as lookups; the window-title
+  example names a generic topic; the comment of `yi-server` says what the
+  icon stands for. No code change.
 
 ## 7.29.5
 
@@ -33,8 +50,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 - **Example wording.** The folded-graph pill reads `▸ devices 200` /
   `▾ devices 24/200`, like the site with two hundred devices it illustrates,
-  and the landing-page note gives no record count; a place under a site is a
-  `building` everywhere (it was a `hall`), and the test-app tree says *North
+  and the landing-page note gives no record count; the level under a site is
+  a `building` everywhere, and the test-app tree says *North
   building* / *South building* and *Meter N* in English and *Edificio norte* /
   *Edificio sur* and *Medidor N* in Spanish; the tests and examples use
   generic yuno ids and ports; and a dead commented-out device image in
@@ -373,7 +390,7 @@ itself out by the width of the screen.
   showing 20 entries and a *show all N* button (a search shows every
   match). C_YUNO's methods and trace levels were 7000px down.
 - **Smaller, in the same viewer:** the methods are chips in the head; the
-  state lit in the machine says whose it is (`tranger_events: ST_IDLE`);
+  state lit in the machine says whose it is (`<instance>: ST_IDLE`);
   `1 instance` / `4 instances`; the machine's count says `1 state · 2
   events` instead of `1 · 2`; the legend draws the mark of an action the
   backend does not name, and the hatch only when an empty cell is drawn;
@@ -537,7 +554,7 @@ Verified against that real node (`npm run qa -- --local --check tabreturn`, new 
 `C_YUI_TREEDB_TOPIC_WITH_FORM`, three faults of the topic table found on a node of app B:
 
 - **A table under a hidden tab keeps its place.** `C_YUI_TREEDB_TOPICS` hides the other topics with `display:none`, and Tabulator's `autoResize` took that 0x0 for a resize: it redrew a table with no layout, where every row reads `offsetTop` 0, so each visit to another tab and back moved the reader about a dozen rows up the page (and a column could be measured at its header's width). The table now watches its own size (`EV_TABLE_RESIZED`): a hidden table is left alone and is redrawn when it is seen again, with its scroll kept, or when its size really changes. `autoResize` is forced off.
-- **A click on an fkey to several parents opens the record.** `site` and `model` are `array` fkeys: the row click asked the column's REAL type, found `array` among the cells with a viewer of their own, and gave way to a click the cell does not have. It asks the field type only, the one the cell's own click is chosen by.
+- **A click on an fkey to several parents opens the record.** Such an fkey is an `array`: the row click asked the column's REAL type, found `array` among the cells with a viewer of their own, and gave way to a click the cell does not have. It asks the field type only, the one the cell's own click is chosen by.
 - **Edition mode: rows keep their height, and leaving it clears the selection.** The Op column's buttons were Bulma's `2.5em`, so every row drawn while it was shown was 55px beside rows of 41px; they are a line of text tall now (`ROW_OP`). And a row left ticked stayed painted after edition, with no checkbox on screen to untick it.
 
 ## 7.27.18
@@ -593,7 +610,7 @@ Icon review of the library, icons only:
 ## 7.27.9
 
 - **Icons `yi-robot`, `yi-user-clock`, `yi-clipboard-list`, `yi-inbox`, `yi-user-plus`, `yi-headset`, `yi-wand-magic-sparkles`, `yi-layer-group`, `yi-window-maximize`, `yi-clock-rotate-left` and `yi-folder`** (FontAwesome Free 7.3.1): automations (Home Assistant's robot), shifts, a shift handover, an in-app inbox (the envelope is e-mail), add a user, the operations desk, a wizard, a stack of pages, ONE window (two overlapping frames say copy), history (the arrow turning back alone is undo) and a tab (Material's `tab`).
-- **test-app (demo.yuneta.io, niyamaka.com): every icon says what its entry is**, with the icons the app B GUIs settled on: the alerts are the bell, preferences the sliders, the map the folded map, TreeDB the database, the chart a chart, the cards a grid, the windows one window, the JSON graph a tree and the JSON tree the code; a building is a place and a tank a droplet. The eye, the cog, the copy, the plain square and the checked box had been standing in for entries that are none of those.
+- **test-app (demo.yuneta.io, niyamaka.com): every icon says what its entry is**, with the icons the app B GUIs settled on: the alerts are the bell, preferences the sliders, the map the folded map, TreeDB the database, the chart a chart, the cards a grid, the windows one window, the JSON graph a tree and the JSON tree the code; the nodes of the demo tree take a place and a droplet. The eye, the cog, the copy, the plain square and the checked box had been standing in for entries that are none of those.
 
 ## 7.27.8
 
@@ -2465,7 +2482,8 @@ Two regressions of 7.26.7, and what it left half done.
   ALWAYS emitted** by `vite-plugin-yuneta-html.js`, with `connect-src 'self'`
   alone when `config.json` has no `csp_connect_src` -- and now also when there
   is no `config.json` at all. **Check your `config.json`**: an app that talks
-  to a websocket on another port (`wss://host:7301` is another origin), loads
+  to a websocket on another port (a `wss://` URL on another port is another
+  origin), loads
   map tiles or external fonts, and declared none of them, loses them with only
   a build warning. The origins are escaped now. Tested
   (`vite_plugin_yuneta_html.test.js`).
@@ -2620,8 +2638,8 @@ app B SPAs (2026-10-10).
 
 - **treedb topics: the `←` of an open topic goes back to where the reader
   WAS**, the same place browser Back goes. It went to the landing whatever came
-  before, so "linked records" from `models` opened `devices`, and the
-  arrow then showed the topic cards while Back returned to `models`: two
+  before, so "linked records" from one topic opened another, and the
+  arrow then showed the topic cards while Back returned to the first: two
   controls that say "back" and land in different places. It now asks the shell
   for the last route outside the topic on screen
   (`yui_shell_last_route_outside()`) -- the previous topic, the landing, or the
@@ -2652,7 +2670,7 @@ Two fixes in the Developer window (`yui_dev.js`), plus the `maplibre-gl` and
   so one `list-map` answer put 1.4 MB of laid-out JSON on the clipboard while
   the window showed four folded lines -- too big to paste anywhere. Now, in
   the Collapsed view, each entry is copied as it is painted: one line per row,
-  a closed branch as its one-line summary (`▸ data {sites:[…],devices:[…]}`)
+  a closed branch as its one-line summary (`▸ data {a:[…],b:[…]}`)
   and only an OPENED branch with its content, four characters further in
   (`entry_shown_lines()`, read from the DOM, because whether a branch is open
   lives only there). The Expanded view still copies the whole payload, which
@@ -4114,8 +4132,8 @@ Three fixes of the treedb views.
   table loads of `C_YUI_TREEDB_TOPICS` (the first load, a page, a refresh)
   read with `hook_size`, so a hook comes back as `[{"size": N}]`. The cell only
   ever showed the number, and since 7.23.162 its click opens the child topic
-  filtered, so the ids were downloaded for nothing: every device id once
-  per model, on every load of `models`.
+  filtered, so the ids were downloaded for nothing: every child id once
+  per parent, on every load of the parent topic.
   - Only the loads change. The writes keep their options, and the node events
     still carry whole hooks (`c_node` publishes them with `list_dict`); the
     cell and the delete question count either shape.
@@ -4266,7 +4284,7 @@ Three fixes of the treedb views.
 
 - **treedb graph: the `radial` layout is compact too.** Every leaf sat on its
   depth's ring, and a ring has to be long enough for all of its cards side by
-  side: one building with many devices blew the whole ring up. Now a run of
+  side: one node with many leaf children blew the whole ring up. Now a run of
   three or more consecutive LEAF children is a STACK, as in the compact tree: it
   asks its ring for one row of about the square root of its cards, not for every
   leaf, and lays them in rows going OUTWARD, each row as full as the room it
@@ -4278,9 +4296,9 @@ Three fixes of the treedb views.
   | fold state | radial | compact now |
   |---|---|---|
   | regions only | 1927px | 63% |
-  | one region open, a building of 24 devices | 4196px | 55% |
+  | one region open, a node of 24 leaves | 4196px | 55% |
   | every region open (level 3) | 9104px | 58% |
-  | every region open + the building | 10878px | 53% |
+  | every region open + that node | 10878px | 53% |
 
 - No card overlaps another, and that took two fixes worth knowing. A stack is
   measured over the whole ARC it covers, not at its middle angle: round a
@@ -4328,8 +4346,8 @@ Three fixes of the treedb views.
   gained nothing where a treedb is usually looked at -- a whole level opened
   with the stepper -- because there every parent still needed the whole row
   of its children beside it: it drew exactly like `tree`. Now a run of three
-  or more consecutive LEAF children (a building's devices, a region's sites
-  when none is open) is STACKED: two columns under the parent, a corridor
+  or more consecutive LEAF children (the children of a node when none of
+  them is open) is STACKED: two columns under the parent, a corridor
   between them, row after row. The first row lines up with the depth's row; the
   columns line up against the corridor; the children keep their order (runs,
   not all the leaves of a parent); a child that has children stays in the
@@ -4339,9 +4357,9 @@ Three fixes of the treedb views.
   | fold state | `tree` | compact before | compact now |
   |---|---|---|---|
   | regions only | 4732px | 100% | 10% |
-  | one region open, a building of 24 devices | 8518px | 70% | 21% |
+  | one region open, a node of 24 leaves | 8518px | 70% | 21% |
   | every region open (level 3) | 24112px | 100% | 41% |
-  | every region open + the building | 27138px | 91% | 39% |
+  | every region open + that node | 27138px | 91% | 39% |
 
 - **Elbow edges into a stack run down its corridor -- a COMB.** A card in a
   lower row cannot be reached from the channel: the card above it stands in
@@ -4485,13 +4503,13 @@ Three fixes of the treedb views.
 
 - **treedb graph: a `compact tree` layout** (`compact-tree`, beside `tree` in
   the picker). The tidy tree gives every subtree its whole BLOCK, so opening a
-  building with twenty-four devices pushes the siblings of its ancestors apart
+  node with twenty-four leaf children pushes the siblings of its ancestors apart
   at depths where nothing of theirs touches. The compact tree keeps each
   subtree's CONTOUR and slides every sibling against the outline of the ones
   before it: a closed branch sits beside an open one at the depth they share.
   Same spanning tree, same rows, same order as `tree`, so switching between
   the two moves cards sideways and never reorders them. On a test treedb
-  (one root, 25 regions), one region open with a building of 24 devices is
+  (one root, 25 regions), one region open with a node of 24 leaves is
   70% of the tidy tree's width; a uniform tree is the same width.
 - The contour arithmetic is Moen's ("Drawing dynamic trees", 1990) in the
   form mxGraph gave it in mxCompactTreeLayout (Copyright (c) 2006-2015 JGraph
@@ -4584,7 +4602,8 @@ Three fixes of the treedb views.
 ## 7.23.142
 
 - **treedb graph: only a HIERARCHICAL topic can be the main one** -- a topic
-  hooked to itself (sites inside sites, roles inside roles). The trunk was
+  hooked to itself (its records hang from records of the same topic). The
+  trunk was
   "the topic whose hooks reach the most others", which drew the agent's treedb
   from `yunos` instead of `realms`. Now: the reader's pick, if it is
   hierarchical; else the topic the schema MARKS (`main_topic: true`, sent in
@@ -5876,8 +5895,8 @@ the thing you read, the glyph is an affordance).
   Ctrl/Meta wheel, and `zoom-canvas` with `trigger: ['Control']`.
 - **The treedb tree reads DOWN.** `treedb-tree` was a tidy tree read left to
   right, and read that way it was `dagre` with the siblings held still --
-  nobody could tell the two apart. Down is where a tree has room: a building
-  with a hundred devices is a wide row, not a column beside a card. The
+  nobody could tell the two apart. Down is where a tree has room: a node
+  with a hundred children is a wide row, not a column beside a card. The
   algorithm is written once (LR) and the top-down tree is the same tree fed
   transposed cards and read back transposed; `direction: "LR"` keeps the other
   reading. Ports on the top and bottom edges again, `cubic` edges.
@@ -5990,16 +6009,16 @@ the thing you read, the glyph is an affordance).
   block of its children, siblings stacked in record order) and
   `treedb-outline` is one node per row indented by depth — a JSON viewer's
   shape. Both take the same spanning tree of what is on screen: the roots,
-  the FIRST parent that reaches a node (a device under its site, not its
-  building), the hooks in schema order, the records in theirs. So opening
+  the FIRST parent that reaches a node (a record with two parents goes
+  under the one the walk meets first), the hooks in schema order, the records in theirs. So opening
   a hook moves nothing that is not under or beside it, and the layout is
   O(n) with no crossing heuristic to reshuffle the siblings — which is what
   `dagre` did on every expansion, and what G6's own tree layouts cannot
   promise on a node with two parents. `treedb-tree` is the default for a
   treedb nobody has arranged; `dagre` (LR) and `antv-dagre` (TB) stay.
   `radial` — the root in the middle, a ring per depth, a sector per subtree,
-  each ring as long as its cards need — is the one where a building with a
-  hundred devices is a fan, not a column; G6's own `radial` was tried first
+  each ring as long as its cards need — is the one where a node with a
+  hundred children is a fan, not a column; G6's own `radial` was tried first
   and piled the cards on a ring of a fixed radius. Pure module
   `treedb_layout.js`, tested; the G6 classes are three thin adapters. New
   consumer i18n keys: `treedb-tree`, `treedb-outline`, `radial`.
@@ -6025,10 +6044,10 @@ the thing you read, the glyph is an affordance).
   whose hooks reach the most others, a self-referent hook breaking a tie,
   never an `extended` one — it is the trunk: its parentless records are the
   roots, and a parentless record of a topic the schema hangs from it is
-  LOOSE (a device with no site), counted on its chip and drawn only on
+  LOOSE (a record with no parent), counted on its chip and drawn only on
   request instead of being a column of roots. A topic the schema does not
   tie to the main one is a tree of its own. The main topic cannot be hidden.
-  *Places with their users and nothing else* is now two clicks.
+  *The trunk with one other topic and nothing else* is now two clicks.
 - The find searches hidden topics too and counts them apart (`+N in hidden
   topics`); a route that lands on a hidden topic shows it first. The engine
   publishes `EV_LEGEND_STATE` after every reconcile and the view paints the
@@ -6284,8 +6303,8 @@ the thing you read, the glyph is an affordance).
   built read-only, correctly, and the three controls that cannot be read-only
   said nothing about it. It went unseen while non-writable cols were dropped
   from the form altogether (7.23.54 put them back); the record opened to be
-  READ made it plain -- a `devices` row opened by a row click offered its
-  site, its model, its building, its photo and its checkboxes to change.
+  READ made it plain -- a record opened by a row click offered its fkeys,
+  its file column and its checkboxes to change.
 
   `disabled` is safe here: the record is collected by reading each marked
   control's value, never by submitting the form, so a disabled control is
@@ -6331,9 +6350,9 @@ the thing you read, the glyph is an affordance).
 
 ## 7.23.53
 
-- **A col flagged `icon` draws the icon.** `models.icon` held `yi-bolt`
-  and the only thing on the list that came close was `image`, which is a
-  different case: the table built an `<img src="yi-bolt">` and drew the
+- **A col flagged `icon` draws the icon.** For a col holding an icon name
+  (`yi-bolt`) the only thing on the list that came close was `image`, which is
+  a different case: the table built an `<img src="yi-bolt">` and drew the
   browser's broken-image glyph. `icon` is now a treedb field type of its own
   -- the name of an icon of the app's set, not a file -- and the table draws
   it. In a form it is edited as the text it is.
@@ -10253,8 +10272,8 @@ exports changed shape. The peer floor for `@yuneta/gobj-js` goes to
   child it is about to show — got an unmarked strip. It is applied at the end
   of `build_ui()` now (and dropped from `rebuild()`, which calls `build_ui`).
 - **feat(icons): `yi-bolt` and `yi-droplet`.** Two more mask rules in
-  `yui_icons.css`. Energy and water are two of the meter families the AMR
-  apps read, and an undefined `yi-*` renders as a solid black square.
+  `yui_icons.css`, for electricity and water, and an undefined `yi-*`
+  renders as a solid black square.
 
 
 ## 5.2.1
@@ -10584,7 +10603,7 @@ this release (still marked a prototype — its shape may move).
   `__yui_main__.theme` is unaffected.
 - **feat(window, modal): `title_prefix` — the data half of a title, so titles
   can change language.** Window and dialog titles are nearly always
-  "<what> · <kind>" (`raw_events · keys`), and every caller composed that into
+  "<what> · <kind>" (`<topic> · keys`), and every caller composed that into
   one string: `` `${topic} · ${t("keys")}` ``. The result is not an i18n key, so
   i18next answers it with itself and the title stays in the language it was
   built in for the life of the window — a string must carry its key to
@@ -10945,10 +10964,10 @@ this release (still marked a prototype — its shape may move).
   `dict/array/blob`→jsoneditor) is identical in both modes. The load/save
   conversions (`treedb_value_2_form_value` / `form_value_2_treedb_value`) are
   mode-aware so the raw JSON round-trips. `C_YUI_TREEDB_TOPIC_WITH_FORM` now
-  hosts the form with `render_mode:"edit"` — editing a topic record (e.g.
-  `models`) again shows its `template` column as a JSON editor instead of
-  interpreting the stored schema into live widgets. This also sidesteps the
-  malformed-`enum_list` crash below for `models`: that `enum` only existed
+  hosts the form with `render_mode:"edit"` — editing a topic record again
+  shows its `template` column as a JSON editor instead of interpreting the
+  stored schema into live widgets. This also sidesteps the
+  malformed-`enum_list` crash below for such a topic: that `enum` only existed
   as an interpreted sub-field of the template, which "edit" mode no longer
   expands.
 
@@ -10956,7 +10975,7 @@ this release (still marked a prototype — its shape may move).
   `C_YUI_FORM`'s `select` / `select2` branches assumed `options` was always an
   array; an `enum` column whose `enum_list` was missing or non-array threw
   `options.map is not a function` and aborted building the entire record dialog
-  (seen editing a `models` row). They now render an empty select and
+  (seen editing a record with a `template` column). They now render an empty select and
   `log_error` the offending field (topic/type/real_type) instead of crashing.
   Pre-existing since the v2 src move; unrelated to the clear-button/modal work
   below.
