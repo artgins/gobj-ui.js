@@ -2,7 +2,7 @@
  *          table_editor_name.wiring.test.js
  *
  *      The box Tabulator draws in a cell while it is edited had no
- *      name: no label, no aria-label, no title (REV-CLOUD V23.5.6, seen
+ *      name: no label, no aria-label, no title (seen
  *      in the alarms of an estadodelaire device). Both tables of the
  *      library that edit in place -- a table field of C_YUI_FORM and
  *      the inline editing of C_YUI_TREEDB_TOPIC_WITH_FORM -- now name

@@ -8,7 +8,7 @@
  *      keydown inside the container is forwarded to the graph's
  *      `keydown` listeners (G6's forwardContainerEvents).
  *
- *      What it holds (REV-CLOUD V20.5, second pass):
+ *      What it holds:
  *
  *      - **The keyboard is not lost when a focused button goes.** A
  *        floating button reached with Tab, or the ✕ of the detail

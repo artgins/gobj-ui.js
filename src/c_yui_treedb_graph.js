@@ -1117,7 +1117,7 @@ function make_toolbar(gobj)
 
 /************************************************************
  *  "← back": shown only when the host supplies `back_route`. Absent
- *  (e.g. wattyzer) ⇒ no button.
+ *  (e.g. an app with its own nav) ⇒ no button.
  *
  *  It goes where browser Back goes (EV_BACK_TO_TOPICS): the route the
  *  reader was on before, and `back_route` only when there is none. It

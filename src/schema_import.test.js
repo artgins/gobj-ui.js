@@ -255,7 +255,7 @@ describe("the empty collections the store answers with", () => {
 });
 
 
-describe("names the treedb refuses stop the plan before any write (REV-CLOUD V14.2)", () => {
+describe("names the treedb refuses stop the plan before any write", () => {
     test("a topic a/b, a topic .., a column x`y: conflicts, no writes", () => {
         let plan = plan_import(null, {
             id: "db", schema_version: "1",
@@ -284,7 +284,7 @@ describe("names the treedb refuses stop the plan before any write (REV-CLOUD V14
 });
 
 
-describe("the import reads the hook map and the treedb id (REV-CLOUD V15.4)", () => {
+describe("the import reads the hook map and the treedb id", () => {
     test("a hook to an fkey x`y or to a topic a/b that no column declares: conflicts", () => {
         let plan = plan_import(null, {
             id: "db", schema_version: "1",
@@ -312,7 +312,7 @@ describe("the import reads the hook map and the treedb id (REV-CLOUD V15.4)", ()
 });
 
 
-describe("a conflict names the bad name (REV-CLOUD V16.5)", () => {
+describe("a conflict names the bad name", () => {
     test("the child topic and the fkey of a hook map, and a dict column's inner id", () => {
         let plan = plan_import(null, {
             id: "db", schema_version: "1",

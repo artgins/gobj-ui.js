@@ -387,7 +387,7 @@ describe("validate-locales", () => {
         expect(r.out).not.toMatch(/never run/);
     });
 
-    test("REV-CLOUD V22: a published list is an export const, and one that is MUTATED fails", () => {
+    test("a published list is an export const, and one that is MUTATED fails", () => {
         let r = run({...BOTH({"let key": "L", "var key": "V", "in it": "I"}), "src/main.js": [
             `export let D_I18N_KEYS = ["let key"];`,
             `export var E_I18N_KEYS = ["var key"];`,
@@ -532,7 +532,7 @@ describe("validate-locales", () => {
         expect(r.out).toMatch(/src\/main\.js:11: `only` is a let \(line 10\) that only ever holds literals \("one", "two"\): make it a const/);
     });
 
-    test("REV-CLOUD V20 (js3_v lists #1): a member or an element of a marked let table is read too", () => {
+    test("a member or an element of a marked let table is read too", () => {
         let r = run({...BOTH({"listed": "Listed", "in a table": "x", "pushed": "x"}), "src/main.js": [
             `export const MY_VIEW_I18N_KEYS = ["listed"];`,
             `let LABELS = {a: "listed", b: "in a table"};`,
@@ -547,7 +547,7 @@ describe("validate-locales", () => {
         expect(r.out).toMatch(/src\/main\.js:6: "pushed" is marked as a key of MY_VIEW_I18N_KEYS, and is not in it/);
     });
 
-    test("REV-CLOUD V20 (js2_va #1): a literal branch added to a key the library reads is asked for", () => {
+    test("a literal branch added to a key the library reads is asked for", () => {
         let decl = `    const title = (mode === "create")? "new" : ((mode === "view")? "view" : "edit");`;
         let mutated = library_copy((src) => {
             let path = join(src, "c_yui_treedb_topic_with_form.js");
@@ -603,7 +603,7 @@ describe("validate-locales", () => {
         }
     });
 
-    test("REV-CLOUD V20.5: a const key a mounted module hands to its helper is asked for", () => {
+    test("a const key a mounted module hands to its helper is asked for", () => {
         let call = `"TREEDB_CARD_TABLE", "yi-table", "table", fill(routes.table)`;
         let mutated = library_copy((src) => {
             let path = join(src, "c_yui_treedb_topics.js");
@@ -622,7 +622,7 @@ describe("validate-locales", () => {
         expect(run(app).out).not.toContain(`"a brand new card key"`);
     });
 
-    test("REV-CLOUD V21.4.3: the rule per call holds the app's own code, with the file and the line", () => {
+    test("the rule per call holds the app's own code, with the file and the line", () => {
         let r = run({...BOTH({"install this app": "x", "k": "x", "t": "x", "saved": "x"}), "src/main.js": [
             `import {yui_shell_show_error, yui_shell_show_modal} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `import {yui_install_ask_once} from "@yuneta/gobj-ui/src/yui_install.js";`,
@@ -649,7 +649,7 @@ describe("validate-locales", () => {
             `a TRANSLATED text where a KEY goes`);
     });
 
-    test("REV-CLOUD V21.4.3: DOM at a key position is no key -- known by where it comes from, not by a name", () => {
+    test("DOM at a key position is no key -- known by where it comes from, not by a name", () => {
         let ok = run({...BOTH({"title key": "x"}), "src/main.js": [
             `import {yui_shell_show_modal, yui_shell_show_error} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `import {createElement2, html_markup} from "@yuneta/gobj-js";`,
@@ -684,7 +684,7 @@ describe("validate-locales", () => {
         expect(not_dom.out).toMatch(/main\.js:7: yui_shell_show_error\(\) \[1\] is given \$mixed/);
     });
 
-    test("REV-CLOUD V21.4.2: a data marker on what the reader follows to keys FAILS", () => {
+    test("a data marker on what the reader follows to keys FAILS", () => {
         let r = run({...BOTH({"accepted": "x", "x": "x", "k": "x", "fallback": "x"}), "src/main.js": [
             `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `function pick() { return ok? "accepted" : "x"; }`,
@@ -714,7 +714,7 @@ describe("validate-locales", () => {
         expect(read.out).not.toMatch(/cannot follow/);
     });
 
-    test("REV-CLOUD V21.4.6: a published list may spread an array of its own module", () => {
+    test("a published list may spread an array of its own module", () => {
         let r = run({...BOTH({}), "src/lists.js": [
             `const COMMON = ["common key"];`,
             `export const A_I18N_KEYS = [...COMMON, "a key"];`,
@@ -769,7 +769,7 @@ describe("validate-locales", () => {
         expect(r.out).toMatch(/no .*app_config\.json: no shell keys checked/);
     });
 
-    test("REV-CLOUD V22.1: a recursive helper does not hang the build, and its data is data", () => {
+    test("a recursive helper does not hang the build, and its data is data", () => {
         let label_of = (branches) => [
             `function label_of(n) {`,
             `    if(n.alias) { return label_of(n.alias); }`,
@@ -1146,7 +1146,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         }
     });
 
-    test("REV-CLOUD V22.3: an import is followed into the module it names -- the data marker on it too", () => {
+    test("an import is followed into the module it names -- the data marker on it too", () => {
         let r = run({...BOTH({"accepted": "x", "an imported const": "x", "renamed": "x"}),
             "src/labels.js": [
                 `export function pick() { return "accepted"; }`,
@@ -1178,7 +1178,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(read.out).not.toMatch(/cannot follow/);
     });
 
-    test("REV-CLOUD V22.3: a data marker hides no key -- a mixed call, an array of strings -- and attaches through ( )", () => {
+    test("a data marker hides no key -- a mixed call, an array of strings -- and attaches through ( )", () => {
         let r = run({...BOTH({"a mixed key": "x", "a fallback": "x"}), "src/main.js": [
             `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `function label(kw) { return kw.ok? "a mixed key" : kw.comment; }`,
@@ -1193,7 +1193,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect_lines_clean(r.out, [5, 6]);
     });
 
-    test("REV-CLOUD V22.4: a translated text fails at a key position, marked too, whatever the translator is called", () => {
+    test("a translated text fails at a key position, marked too, whatever the translator is called", () => {
         let r = run({...BOTH({"saved": "x"}), "src/main.js": [
             `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `import {t as tt} from "i18next";`,
@@ -1214,7 +1214,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(r.out).not.toMatch(/cannot follow/);       // a translated text is no value "it cannot follow"
     });
 
-    test("REV-CLOUD V22.2/4: what is read now -- a key function however it is called, the new places, the new forms", () => {
+    test("what is read now -- a key function however it is called, the new places, the new forms", () => {
         let r = run({...BOTH({}),
             "src/say.js": `export {yui_shell_show_info as say} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             "src/api.js": [`import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
@@ -1256,7 +1256,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(rule.out).toContain(`src/main.js:4: yui_shell_show_info() [1] is given k, which the reader cannot follow`);
     });
 
-    test("REV-CLOUD V22.6: a list marker over a template: the list is asked for, and must hold a key of its shape", () => {
+    test("a list marker over a template: the list is asked for, and must hold a key of its shape", () => {
         let files = (list) => ({...BOTH({"monitor start": "x", "monitor stop": "x", "other": "x"}), "src/main.js": [
             `import {yui_shell_confirm_yesno} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `export const MONITOR_I18N_KEYS = ${JSON.stringify(list)};`,
@@ -1277,7 +1277,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(missing.out).toContain(`defined in NO locale: "monitor gone"`);     // every key of the list is asked for
     });
 
-    test("REV-CLOUD V23.5.1: a translator handed as a callback, a destructured one, setAttributeNS", () => {
+    test("a translator handed as a callback, a destructured one, setAttributeNS", () => {
         let r = run({...BOTH({}),
             "src/lists.js": `export const LISTED_I18N_KEYS = ["a listed key"];`,
             "src/main.js": [
@@ -1313,7 +1313,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
             "as a key no source writes: mark the call");
     });
 
-    test("REV-CLOUD V23.5.1: a data marker over a TRANSLATED text built from t() fails: hand the key", () => {
+    test("a data marker over a TRANSLATED text built from t() fails: hand the key", () => {
         let r = run({...BOTH({"saved": "x"}), "src/main.js": [
             `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `import {createElement2} from "@yuneta/gobj-js";`,
@@ -1341,7 +1341,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(r.out).not.toMatch(/cannot follow/);
     });
 
-    test("REV-CLOUD V23.5.2: a published list mutated through an alias or a namespace import FAILS", () => {
+    test("a published list mutated through an alias or a namespace import FAILS", () => {
         let r = run({...BOTH({"in it": "x"}), "src/main.js": [
             `export const X_I18N_KEYS = ["in it"];`,
             `const alias = X_I18N_KEYS;`,
@@ -1374,7 +1374,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(r.out).toContain("src/other.js:5: the published list M.X_I18N_KEYS (through its alias `n`) is MUTATED");
     });
 
-    test("REV-CLOUD V23.5: an UNMARKED let that only ever holds literals is followed; one given anything else is not", () => {
+    test("an UNMARKED let that only ever holds literals is followed; one given anything else is not", () => {
         let keys = ["let key one", "let key two", "a const key", "an attr let key", "another attr let key",
                     "an i18n let key", "an or-assigned key", "a dataset let key"];
         let files = (dict) => ({...BOTH(dict), "src/main.js": [
@@ -1429,7 +1429,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(ok.status).toBe(0);
     });
 
-    test("REV-CLOUD V23.5.3: a marker naming the list of a NARROWER template fails at both templates", () => {
+    test("a marker naming the list of a NARROWER template fails at both templates", () => {
         let files = (wide, narrow, lists) => ({
             ...BOTH({"monitor start": "x", "monitor stop": "x", "monitor confirm start": "x",
                      "monitor confirm stop": "x", "other": "x"}),
@@ -1467,7 +1467,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(one.out).not.toMatch(/main\.js/);
     });
 
-    test("REV-CLOUD V24.5.1: every write to an unmarked let counts -- the review's probe asks for no sentinel", () => {
+    test("every write to an unmarked let counts -- the review's probe asks for no sentinel", () => {
         let r = run({...BOTH({"save": "x"}), "src/main.js": [
             `export function rows_a(el, rows) {`,
             `    let key = "-";`,
@@ -1533,7 +1533,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(flow.out).toContain(`key used in the source but defined in NO locale: "-"`);
     });
 
-    test("REV-CLOUD V24.5.2: a TRANSLATED text where a key is read fails, marked or not, with the file and the line", () => {
+    test("a TRANSLATED text where a key is read fails, marked or not, with the file and the line", () => {
         let r = run({...BOTH({"saved": "x", "fallback": "x"}), "src/main.js": [
             `import {createElement2} from "@yuneta/gobj-js";`,
             `x = {i18n: t("saved")};`,                                       // 2
@@ -1563,7 +1563,7 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect_lines_clean(r.out, [11, 12, 13]);
     });
 
-    test("REV-CLOUD V24.5 Info: findIndex, findLastIndex, .call() / .apply(), Array.fromAsync(); a bound t's arguments are no keys", () => {
+    test("findIndex, findLastIndex, .call() / .apply(), Array.fromAsync(); a bound t's arguments are no keys", () => {
         let r = run({...BOTH({}), "src/main.js": [
             `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `const K = ["a findindex key"];`,

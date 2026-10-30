@@ -3,8 +3,8 @@
  *          qa-history.mjs
  *
  *      The browser history of a navigation PANEL over a view that writes
- *      its position in the URL, in a REAL browser (yunovatios
- *      REV-CLOUD.md V5.1). The unit tests of the shell drive a model of
+ *      its position in the URL, in a REAL browser. The unit
+ *      tests of the shell drive a model of
  *      the history; this drives Chromium and Firefox, where the
  *      traversals are asynchronous and a hashchange is queued behind its
  *      popstate.
@@ -27,7 +27,7 @@
  *            goes to the chapter.
  *        (d) panel open, a link away and a link BACK to the hash it was
  *            opened on: a link is a push, not a Back -- the panel stays
- *            and the chapter is the view on screen (REV-CLOUD V6.1, p10).
+ *            and the chapter is the view on screen.
  *        (e) the same after a position was written: the URL and the view
  *            on screen agree (V6.1, p11).
  *        (f) from the position, a link to the chapter's own hash: a push;

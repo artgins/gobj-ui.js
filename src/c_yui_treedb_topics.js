@@ -207,7 +207,7 @@ function mt_start(gobj)
     /*  The app's backend connection, as the app tells its shell
      *  (yui_shell_set_connection_state). A write in flight when it drops
      *  is never answered, and its form waited for ever in every host
-     *  that did not forward EV_TRANSPORT_STATE -- wattyzer and yunovatios
+     *  that did not forward EV_TRANSPORT_STATE -- two apps
      *  among them. The transport itself is
      *  not subscribed to: see ac_transport_state().  */
     let shell = yui_shell_of(gobj);

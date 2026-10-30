@@ -86,7 +86,7 @@ describe("badge_node", () => {
     test("the host's classes, its tone and its text as text; no live region of its own", () => {
         /*  It said "3" with no context, missed the first count while
          *  hidden, and was not in the tree inside a <button>: the shell
-         *  says the change now (REV-CLOUD V23.5.5).  */
+         *  says the change now.  */
         let $b = createElement2(badge_node(3, "warning", "X_BADGE yui-badge", "who"));
         expect($b.tagName).toBe("SPAN");
         expect($b.getAttribute("role")).toBe(null);

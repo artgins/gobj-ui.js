@@ -3757,7 +3757,7 @@ function ac_trace_info(gobj, event, kw, src)
  *
  *  A host that echoes `set_id` says so itself: null for a read
  *  that is no set's, which is a read asked BEFORE the set when
- *  it arrives after it (REV-CLOUD V40.2: the card's own read,
+ *  it arrives after it (the card's own read,
  *  answered after a tick, unlocked the block and showed the
  *  levels before the set, enabled, for one round trip). A host
  *  that leaves it out (before 7.27.33) cannot say: any answer

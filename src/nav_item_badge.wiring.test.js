@@ -626,7 +626,7 @@ describe("the toolbar badge takes a tone too", () => {
 });
 
 /*
- *  REV-CLOUD V23.5.5: what a READER gets. Up to 7.26.34 the badge was its
+ *  What a READER gets. Up to 7.26.34 the badge was its
  *  own live region: the count was never part of the item's name, the
  *  region said a bare number, it was hidden while empty (so 0 -> 1 was
  *  most likely never said), and inside a <button> (the toolbar, an
@@ -769,7 +769,7 @@ describe("a reader gets the count with the name of what it counts", () => {
     });
 });
 
-describe("REV-CLOUD V24.5.3: every change is said, as it reads", () => {
+describe("every change is said, as it reads", () => {
     async function english(extra)
     {
         const i18next = (await import("i18next")).default;

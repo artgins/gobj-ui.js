@@ -3,7 +3,7 @@
  *
  *      The header of C_YUI_GCLASS shows what a REMOTE description says:
  *      the gclass name and the instance's current state are data, so
- *      they are text, never markup (REV-CLOUD V4.2).
+ *      they are text, never markup.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.

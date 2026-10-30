@@ -3,7 +3,7 @@
  *
  *      C_DEMO_HISTORY — the browser-history case of a navigation PANEL
  *      over a view that writes its position in the URL, offline, for
- *      scripts/qa-history.mjs (yunovatios REV-CLOUD.md V5.1).
+ *      scripts/qa-history.mjs.
  *
  *      - "open panel" opens a C_YUI_WINDOW with NO window manager and
  *        `keep_on_navigate`: a floating overlay that the browser Back

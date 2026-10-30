@@ -373,7 +373,7 @@ menu label.
       "aria_label": "Open menu",
       "action": { "type": "drawer", "op": "toggle", "menu_id": "quick" } },
     { "id": "brand",  "type": "brand",
-      "logo": "/wattyzer-mark.svg", "wordmark": "Wattyzer",
+      "logo": "/myapp-mark.svg", "wordmark": "MyApp",
       "action": { "type": "navigate", "route": "/welcome" } },
     { "id": "home",   "icon": "icon-home",  "name": "Home",
       "action": { "type": "navigate", "route": "/dash/ov" } },

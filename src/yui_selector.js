@@ -14,7 +14,7 @@
  *        - `%` `^` `"` `\` and the rest make it INVALID: querySelector
  *          THROWS a SyntaxError, out of whatever action was running.
  *
- *      REV-CLOUD V40.3.1: the gobj tree found its canvas with
+ *      The gobj tree found its canvas with
  *      `querySelector("#" + id)`, and gui_agent named the window
  *      `node~key` -- every open logged "no canvas mount" and the
  *      canvas never resized; a `^` in the key (`%5E`) threw out of

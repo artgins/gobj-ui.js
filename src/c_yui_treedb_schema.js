@@ -146,7 +146,7 @@ function mt_create(gobj)
 {
     /*  The two touch fixes of the other graphs: a pan that follows a
      *  finger, and pinch to zoom. Both, or as the FIRST graph of a page
-     *  the schema kept G6's own drag-canvas (REV-CLOUD V40.2).  */
+     *  the schema kept G6's own drag-canvas.  */
     ensure_drag_canvas_patch();
     ensure_pinch_zoom_patch();
 

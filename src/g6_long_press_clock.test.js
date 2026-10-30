@@ -1,8 +1,8 @@
 /***********************************************************************
  *          g6_long_press_clock.test.js
  *
- *      The long press of the G6 graphs is measured on a MONOTONIC clock
- *      (yunovatios REV-CLOUD.md V11.4 / V12.4). press_arbiter.test.js
+ *      The long press of the G6 graphs is measured on a MONOTONIC clock.
+ *      press_arbiter.test.js
  *      injects the time into classify_press(), so it passes whatever
  *      clock the handler reads; this drives the handler itself, with the
  *      wall clock set back an hour in the middle of the press -- an NTP

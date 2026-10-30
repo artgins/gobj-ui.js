@@ -8,15 +8,15 @@
  *      shell (a stacking context of its own) and the dialog of its own
  *      close opened under it.
  *
- *      And that the place FOLLOWS the shell (REV-CLOUD V23.3): a window
+ *      And that the place FOLLOWS the shell: a window
  *      parented to the app outlives a logout that destroys the shell.
  *      From 7.26.31 to 7.26.34 it stayed in the destroyed shell's layer,
  *      alive and detached, and the next shell never placed it again: the
  *      developer window of gui_agent, gui_treedb and wattyzer vanished
  *      after a logout and a login. The dock, the same.
  *
- *      The gclass viewer opened from such a window follows it
- *      (REV-CLOUD V24.5.6): up to 7.26.41 it was told the element its
+ *      The gclass viewer opened from such a window follows it:
+ *      up to 7.26.41 it was told the element its
  *      opener hung from as its `$parent` -- the body, between a logout and
  *      the next login -- and stayed there after the login, above the new
  *      shell's dialogs. And with two shells alive, destroying the last one
@@ -390,7 +390,7 @@ describe("the stacking of the windows", () => {
     });
 });
 
-describe("the title of a dock chip changes language (REV-CLOUD V23, QA of estadodelaire)", () => {
+describe("the title of a dock chip changes language", () => {
     /*  A window with a DATA half (a device id) and a KIND half (a key):
      *  the toggle's title and aria-label are COMPOSED, so no key carries
      *  them. Up to 7.26.35 they stayed in the language the window was
@@ -430,7 +430,7 @@ describe("the title of a dock chip changes language (REV-CLOUD V23, QA of estado
     });
 });
 
-describe("REV-CLOUD V24.5.6: a gclass viewer opened from a window goes where its opener goes", () => {
+describe("a gclass viewer opened from a window goes where its opener goes", () => {
     /*  A view inside a window parented to the app: the frontend view in
      *  the developer window, whose `gclass` button opens the viewer.  */
     function window_with_a_view(name, kw)

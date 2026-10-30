@@ -1,7 +1,7 @@
 /***********************************************************************
  *          named_controls.wiring.test.js
  *
- *      Controls the library drew without a name (REV-CLOUD V23.5.6):
+ *      Controls the library drew without a name:
  *      each carries a `title` AND an `aria-label` now, through t() and
  *      with its key where the key is the library's, as every control.
  *
@@ -20,8 +20,8 @@
  *        - the ✕ of an option of a Tom Select ("Remove", in English,
  *          title only, out of the keyboard's reach);
  *        - an item of C_YUI_NAV without a `name`, in every layout: its
- *          raw id was its aria-label, with no key and no title
- *          (REV-CLOUD V24.5.4). Its id is its KEY now, or its
+ *          raw id was its aria-label, with no key and no title.
+ *          Its id is its KEY now, or its
  *          `aria_label` when it declares one.
  *
  *      The real gclasses on a document double; G6 and Tom Select as
@@ -350,7 +350,7 @@ describe("a link of the site map", () => {
         expect($link.getAttribute("aria-current")).toBe(null);
     });
 
-    /*  One rule names an item everywhere (REV-CLOUD V24.5.4): up to
+    /*  One rule names an item everywhere: up to
      *  7.26.41 a row was labelled `name || wordmark || id || route`, so an
      *  entry that declares only an `aria_label` read its id in the map, the
      *  language button "ES/EN", a menu's id and a route were asked of the
@@ -439,13 +439,13 @@ describe("the links of a nav", () => {
             {id: "i", icon: "yi-eye", route: "/i"}
         ]);
         expect_named($c.querySelector('a[data-item-id="b"]'), "devices");
-        /*  Its id, AS A KEY (REV-CLOUD V24.5.4): up to 7.26.41 the raw
+        /*  Its id, AS A KEY: up to 7.26.41 the raw
          *  id was its aria-label, with no key and no title.  */
         expect_named($c.querySelector('a[data-item-id="i"]'), "i");
     });
 
-    /*  The same in every layout that draws an item (REV-CLOUD V24.5.4:
-     *  c_yui_nav.js item_li, item_iconbar, the tabs, and the cards of
+    /*  The same in every layout that draws an item
+     *  (c_yui_nav.js item_li, item_iconbar, the tabs, and the cards of
      *  nav_cards_helpers.js).  */
     for(const layout of ["vertical", "icon-bar", "tabs", "cards", "breadcrumb"]) {
         test(`an item without a \`name\` (${layout}): named by its id as a key, or by its \`aria_label\``, () => {
@@ -531,7 +531,7 @@ describe("the links of a nav", () => {
     });
 });
 
-describe("the items of the toolbar: what the nav got (REV-CLOUD V24.5.4)", () => {
+describe("the items of the toolbar: what the nav got", () => {
     /*  A shell whose toolbar is `items`, on the page.  */
     function toolbar_shell(items)
     {

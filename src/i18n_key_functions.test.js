@@ -9,14 +9,14 @@
  *      of its key positions, or an exported `<NAME>_I18N_KEYS` list of the
  *      module. Anything else -- a key in a `let`, a table, a computed name
  *      -- renders raw and never changes language, with the build green.
- *      That shipped (REV-CLOUD V20.5.1: "expand loaded", "click to load",
+ *      That shipped ("expand loaded", "click to load",
  *      "please select some row", ...).
  *
  *      So, read as syntax trees with the validator's own reader:
  *
  *        - the table names functions that exist where it says, with
  *          positions it can follow;
- *        - the table is COMPLETE (REV-CLOUD V21.4.1): every function that
+ *        - the table is COMPLETE: every function that
  *          hands one of its parameters -- or what it reads from one -- to a
  *          place a key is read is in it, when something calls it by name;
  *          one nothing calls by name (an FSM action, a callback) marks what
@@ -73,7 +73,7 @@
  *          marker: no list is an orphan;
  *        - every key of every list is PINNED: dropping it from the list
  *          fails COVERAGE or the marker check, or the module reads it
- *          anyway (REV-CLOUD V20: 17 keys were pinned by nothing).
+ *          anyway (17 keys were pinned by nothing).
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -642,7 +642,7 @@ function with_key_dropped(lists, name, key)
  *  callers give there is a key the validator reads ONLY when the
  *  function is in I18N_KEY_FUNCTIONS: up to 7.26.28 39 were not (the
  *  review named 17 of them), 6 entries lacked positions, and a literal
- *  handed to one would have gone unasked (REV-CLOUD V21.4.1).
+ *  handed to one would have gone unasked.
  *
  *    - A forwarder called by NAME -- in its module, or exported -- goes
  *      in the table, with that position.
@@ -1123,12 +1123,12 @@ describe("I18N_KEY_FUNCTIONS: the table", () => {
     });
 });
 
-describe("REV-CLOUD V21.4.1: every forwarder is in the table", () => {
+describe("every forwarder is in the table", () => {
     test("every function that hands a parameter to a place a key is read, in every module", () => {
         expect(forwarders_report(find_forwarders())).toEqual([]);
     }, SLOW_SCAN_MS);
 
-    test("REV-CLOUD V22: the table is CORRECT -- every entry is a hand-off the library shows", () => {
+    test("the table is CORRECT -- every entry is a hand-off the library shows", () => {
         expect(table_errors(find_forwarders(MODULES, ast_of, []).found)).toEqual([]);
     }, SLOW_SCAN_MS);
 
@@ -1436,7 +1436,7 @@ describe("the reader the rule and the validator share", () => {
         expect(r.keys.has("a parameter of another function")).toBe(false);
     });
 
-    test("REV-CLOUD V20 (js3_v lists #1): a marker on a member or an element of a let follows the let", () => {
+    test("a marker on a member or an element of a let follows the let", () => {
         let scan = (lines) => scan_ast(parse_source([`export const X_I18N_KEYS = ["in it"];`, ...lines].join("\n")),
             {lib_module: "x.js"});
         let whys = (r) => r.marker_errors.map((e) => `${e.line}: ${e.why}`);
@@ -1523,7 +1523,7 @@ describe("the reader the rule and the validator share", () => {
     });
 });
 
-describe("REV-CLOUD V21.4.2-3: the data marker is a claim; DOM is no key; a translated text is no key", () => {
+describe("the data marker is a claim; DOM is no key; a translated text is no key", () => {
     let module = "x.js";
     let head = [
         `import {yui_shell_show_info, yui_shell_show_modal} from "./shell_modals.js";`,
@@ -1587,7 +1587,7 @@ describe("REV-CLOUD V21.4.2-3: the data marker is a claim; DOM is no key; a tran
     });
 });
 
-describe("REV-CLOUD V20.5 repro, on the real module", () => {
+describe("a review's repro, on the real module", () => {
     let original = readFileSync(join(SRC, "c_yui_treedb_topics.js"), "utf8");
     let call = `actions.push(card_action_anchor(\n            "TREEDB_CARD_TABLE", "yi-table", "table", fill(routes.table)));`;
 
@@ -1623,7 +1623,7 @@ describe("REV-CLOUD V20.5 repro, on the real module", () => {
     });
 });
 
-describe("REV-CLOUD V20 (js2_va #1): a marker on a let does not let it pass unread", () => {
+describe("a marker on a let does not let it pass unread", () => {
     let original = readFileSync(join(SRC, "c_yui_treedb_topic_with_form.js"), "utf8");
     let decl = `    const title = (mode === "create")? "new" : ((mode === "view")? "view" : "edit");`;
     let use = `        title:         title,`;
@@ -1776,7 +1776,7 @@ describe("the published *_I18N_KEYS lists", () => {
         expect(unpinned_keys(all_lists(), COVERAGE)).toEqual([]);
     });
 
-    test("the pin check fails when it should (REV-CLOUD V20, js2_va #2)", () => {
+    test("the pin check fails when it should", () => {
         let lists = all_lists();
 
         /*  Without the coverage this round added, the keys the review found
@@ -1866,7 +1866,7 @@ describe("the published *_I18N_KEYS lists", () => {
     });
 });
 
-describe("REV-CLOUD V20 (js3_v lists #2): a COVERAGE source is read the way the validator reads", () => {
+describe("a COVERAGE source is read the way the validator reads", () => {
     let lists = all_lists();
     let form = COVERAGE.find((e) => e.list === "C_YUI_FORM_I18N_KEYS");
     let route_map = COVERAGE.find((e) => e.list === "SHELL_ROUTE_MAP_I18N_KEYS");
@@ -1940,7 +1940,7 @@ describe("REV-CLOUD V20 (js3_v lists #2): a COVERAGE source is read the way the 
     });
 });
 
-describe("REV-CLOUD V22.1: a recursive helper is read once, and never hangs the reader", () => {
+describe("a recursive helper is read once, and never hangs the reader", () => {
     let module = "x.js";
     let head = [`import {yui_shell_show_info} from "./shell_modals.js";`];
     let rule = (lines) => rule_report(parse_as([...head, ...lines].join("\n"), module), module);
@@ -2002,7 +2002,7 @@ describe("REV-CLOUD V22.1: a recursive helper is read once, and never hangs the 
     });
 });
 
-describe("REV-CLOUD V22.2: what the search for forwarders sees, and what fails it", () => {
+describe("what the search for forwarders sees, and what fails it", () => {
     let module = "x.js";
     let found_in = (lines) => {
         let ast = parse_as(lines.join("\n"), module);
@@ -2088,7 +2088,7 @@ describe("REV-CLOUD V22.2: what the search for forwarders sees, and what fails i
     }, SLOW_SCAN_MS);
 });
 
-describe("REV-CLOUD V22.3-4: the data marker hides no key; one notion of a translator", () => {
+describe("the data marker hides no key; one notion of a translator", () => {
     let module = "x.js";
     let head = [`import {yui_shell_show_info} from "./shell_modals.js";`,
                 `import {t as tt} from "i18next";`];
@@ -2166,7 +2166,7 @@ describe("REV-CLOUD V22.3-4: the data marker hides no key; one notion of a trans
             .toEqual([`${module}:5 yui_shell_show_info() [1]: k`]);
     });
 
-    test("REV-CLOUD V22.5: no published list of the library is a let, and none is mutated", () => {
+    test("no published list of the library is a let, and none is mutated", () => {
         let wrong = [];
         for(let module of MODULES) {
             let ast = ast_of(module);
@@ -2183,7 +2183,7 @@ describe("REV-CLOUD V22.3-4: the data marker hides no key; one notion of a trans
     });
 });
 
-describe("REV-CLOUD V23.5: a translator as a callback, by destructuring; setAttributeNS; t() compositions; aliases", () => {
+describe("a translator as a callback, by destructuring; setAttributeNS; t() compositions; aliases", () => {
     let module = "x.js";
     let head = [`import {yui_shell_show_info} from "./shell_modals.js";`,
                 `import i18next from "i18next";`];
@@ -2304,7 +2304,7 @@ describe("REV-CLOUD V23.5: a translator as a callback, by destructuring; setAttr
     });
 });
 
-describe("REV-CLOUD V24.5: every write counts; a translated text fails unmarked too; the callbacks, exactly; .bind()", () => {
+describe("every write counts; a translated text fails unmarked too; the callbacks, exactly; .bind()", () => {
     let module = "x.js";
     let head = [`import {yui_shell_show_info} from "./shell_modals.js";`,
                 `import i18next from "i18next";`];

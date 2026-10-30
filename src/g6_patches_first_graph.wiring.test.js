@@ -2,7 +2,7 @@
  *          g6_patches_first_graph.wiring.test.js
  *
  *      Every G6 view of the library is fixed for touch on its OWN, when
- *      it is the first graph of the page (REV-CLOUD V40.2 note 1).
+ *      it is the first graph of the page.
  *
  *      gobj-ui replaces two built-ins of G6 -- `drag-canvas` (a pan
  *      that reads the pointer, not `movementX`, which a touch screen

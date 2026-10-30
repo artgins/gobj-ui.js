@@ -576,7 +576,7 @@ describe("C_YUI_GOBJ_TREE_JS, source local", () => {
     });
 });
 
-/*  REV-CLOUD V40.2: a read asked BEFORE a set, answered after it, is
+/*  A read asked BEFORE a set, answered after it, is
  *  not the set's answer. A host that says which set an answer follows
  *  (`set_id`, echoed from EV_SET_TRACE_LEVEL; null for a plain read)
  *  is taken at its word; one that says nothing is matched by gclass,
@@ -690,7 +690,7 @@ describe("C_YUI_GOBJ_TREE_JS, source remote: a host that says which set it answe
         expect(problems()).toEqual([]);
     });
 
-    /*  REV-CLOUD V41.2.1: the host REPLACES the pending read of a gclass
+    /*  The host REPLACES the pending read of a gclass
      *  with the one of a newer set of that gclass, so the read the
      *  viewer waits for (the yuno's, of an older set) never comes.  */
     test("a newer set of the gclass the viewer waits for: it waits for the newer one", async () => {

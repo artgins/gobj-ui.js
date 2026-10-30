@@ -3,8 +3,7 @@
  *
  *      Values that come from a backend, a schema or a record are
  *      DATA: they are shown as text, never parsed as markup. One case
- *      per sink fixed in the review of 2026-10-10 (yunovatios
- *      REV-CLOUD.md V3.1 #1, #2, #4, #5 and V4.2): each one is fed a
+ *      per sink fixed in the review of 2026-10-10: each one is fed a
  *      markup string and must show it, with no element created.
  *
  *          Copyright (c) 2026, ArtGins.

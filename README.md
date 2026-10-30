@@ -968,7 +968,7 @@ The tab that hosts the view is labelled with the **treedb** name, and a treedb
 name is not unique across backends: two tabs reading `treedb_yuneta_agent` are
 two different machines, and a wrong assumption there is a write on the wrong
 node. The url is what tells them apart, and it does not fit in a tab label —
-a tab wide enough for `wss://artgins.yunetacontrol.com:1996` is a tab bar with
+a tab wide enough for `wss://console.example.com:1996` is a tab bar with
 room for one tab. So the view carries it, where there is a whole row for it.
 
 The buttons of that toolbar never shrink. When the row runs out of room, the
@@ -5312,8 +5312,8 @@ item with neither a `name` nor an `aria_label`), `keep_canvas_tab_order` /
 
 **Every function that forwards a key is in the table, and a test finds them**
 (since `7.26.29`: up to `7.26.28` the table lacked 39 of them, and 6 entries
-lacked positions, so a literal handed to one went unasked -- REV-CLOUD
-V21.4.1). `src/i18n_key_functions.test.js` reads every module and finds each
+lacked positions, so a literal handed to one went
+unasked). `src/i18n_key_functions.test.js` reads every module and finds each
 function that hands one of its PARAMETERS on to a place a key is read -- a
 translator (any of the forms above), an `i18n`, `code` or `data-i18n*` value
 (`el.dataset.i18nTitle` included), a key position of a function of the table
@@ -5540,7 +5540,7 @@ Since `7.26.32` the claim is checked further:
 
 **A marked `let` (or `var`) is held to its marker.** A marker that names a list
 used to let a `let` pass unread, whatever it held: a new literal branch on it
-was neither asked for nor checked (REV-CLOUD V20). Now, when what a marker
+was neither asked for nor checked. Now, when what a marker
 marks is a plain `let` / `var`, the reader collects everything the variable is
 GIVEN, in the scope that declares it -- its initializer and every `=` (`||=`,
 `??=`, `&&=` too) -- and reads each value like any other. Each literal it finds
@@ -5679,13 +5679,13 @@ In an app, what a wrapper of its own hands on is marked where it hands it:
 `/* i18n: data */` when it is data (a backend's comment, a key built from a
 name, the DOM its callers built). When its callers give it the module's own
 literal keys, the module PUBLISHES them and the marker names the list --
-wattyzer's `open_route_modal()` hands on the titles of `C_WZ_APP_I18N_KEYS`:
+an app's `open_route_modal()` hands on the titles of `C_MY_APP_I18N_KEYS`:
 
 ```js
-export const C_WZ_APP_I18N_KEYS = ["backend connection", "about wattyzer", "preferences"];
+export const C_MY_APP_I18N_KEYS = ["backend connection", "about myapp", "preferences"];
 ...
 let handle = yui_shell_show_modal(priv.shell, /* i18n: data */ $content,
-    /* i18n: C_WZ_APP_I18N_KEYS */ modal_opts);
+    /* i18n: C_MY_APP_I18N_KEYS */ modal_opts);
 ```
 
 Publishing a list does not exempt a module: the rule is per call, not per
@@ -5732,7 +5732,7 @@ fails no check"*:
   entry is redundant, and dropping it loses no key for a consumer.
 
 The test proves itself: with the `COVERAGE` entries that pin them taken
-away, it reports each of the keys REV-CLOUD V20 found pinned by nothing.
+away, it reports each of the keys a review found pinned by nothing.
 
 A list is also named by a marker or by `COVERAGE`: one that is neither is an
 ORPHAN, and fails. Two lists have a test of their own instead, and the pin

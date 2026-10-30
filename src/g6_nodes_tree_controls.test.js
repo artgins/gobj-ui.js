@@ -5,7 +5,7 @@
  *      icons beside a selection (node and edge gear and trash, link,
  *      port gear), the ✕ of the detail popover and the items of its two
  *      G6 toolbars -- are buttons for the keyboard and for a language
- *      switch too (REV-CLOUD V20.5.5). They had a translated title and
+ *      switch too. They had a translated title and
  *      aria-label and nothing else: no role, no tabindex, no key, so
  *      they could not be reached without a pointer and kept the
  *      language they were drawn in.

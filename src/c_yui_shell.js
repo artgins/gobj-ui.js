@@ -268,7 +268,7 @@ let PRIVATE_DATA = {
     popstate_handler: null,
     /*  Avatar item support — every toolbar item with type:"avatar"
      *  registers its <span> here so refresh_avatars() can repaint
-     *  the initials when the host (wattyzer, hidraulia, …) calls
+     *  the initials when the host (the app) calls
      *  yui_shell_set_avatar_provider() / yui_shell_refresh_avatars().
      *  The provider is a () => string callback owned by the host. */
     avatar_provider: null,
@@ -5064,7 +5064,7 @@ function resting_route_of(gobj)
  *  Avatar provider — toolbar items with type:"avatar" call the
  *  registered provider whenever the shell paints initials.  The
  *  provider is a free-form () => string callback owned by the
- *  host (wattyzer/hidraulia/estadodelaire), so gobj-ui never
+ *  host (the app), so gobj-ui never
  *  reaches into localStorage or app-specific attrs.  Setting the
  *  provider repaints existing avatars in-place; calling
  *  yui_shell_refresh_avatars() repaints without changing the

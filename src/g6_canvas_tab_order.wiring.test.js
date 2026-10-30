@@ -3,7 +3,7 @@
  *
  *      Every view that draws a G6 graph puts its canvases in the page's
  *      Tab order the same way (g6_canvas_tab_order.js): the main canvas
- *      0, the other layers -1 (REV-CLOUD V20.5 #2, and the four views
+ *      0, the other layers -1 (and the four views
  *      the second pass left out).
  *
  *      G6 stacks four canvases and gives each `tabIndex = 1`; a
@@ -11,8 +11,8 @@
  *      from a graph went through its other canvases and the whole page
  *      before it reached the graph's own buttons.
  *
- *      And the main canvas, a control in the Tab order, is NAMED
- *      (REV-CLOUD V24.5.4): a `title` and an `aria-label` through t(),
+ *      And the main canvas, a control in the Tab order, is NAMED:
+ *      a `title` and an `aria-label` through t(),
  *      each with its key, saying which graph it is -- and changing
  *      language with the page. From 7.26.28 to 7.26.41 Tab landed on it
  *      and a reader announced nothing.
@@ -264,7 +264,7 @@ describe("every G6 view: the main canvas in the Tab order, the other layers out"
     }
 });
 
-describe("REV-CLOUD V24.5.4: the main canvas is named, says which graph it is, and changes language", () => {
+describe("the main canvas is named, says which graph it is, and changes language", () => {
     for(const [gclass_name, attrs] of Object.entries(VIEWS)) {
         test(`${gclass_name}: "${NAMES[gclass_name].key}", after its first render and a renderer change`, async () => {
             const i18next = (await import("i18next")).default;

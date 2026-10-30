@@ -25,19 +25,19 @@ const US = String.fromCharCode(31);   /*  the composite-id separator  */
 
 describe("yui_tab_split_subpath", () => {
     test("a bare tab tail is all id", () => {
-        expect(yui_tab_split_subpath("wattyzer")).toEqual({id: "wattyzer", tail: ""});
+        expect(yui_tab_split_subpath("node1")).toEqual({id: "node1", tail: ""});
     });
 
     test("a deep tail keeps the id and hands the rest back", () => {
-        expect(yui_tab_split_subpath("wattyzer/treedb_authzs/__graphs__"))
-            .toEqual({id: "wattyzer", tail: "treedb_authzs/__graphs__"});
+        expect(yui_tab_split_subpath("node1/treedb_authzs/__graphs__"))
+            .toEqual({id: "node1", tail: "treedb_authzs/__graphs__"});
     });
 
     test("a composite id survives the url it travelled in", () => {
         /*  0x1F joins the two halves of these ids and reaches the url
          *  percent-encoded.  */
-        expect(yui_tab_split_subpath("yunovatios-controlador%1F1630/treedb_authzs/__graphs__"))
-            .toEqual({id: "yunovatios-controlador" + US + "1630",
+        expect(yui_tab_split_subpath("node-a%1F1630/treedb_authzs/__graphs__"))
+            .toEqual({id: "node-a" + US + "1630",
                       tail: "treedb_authzs/__graphs__"});
     });
 

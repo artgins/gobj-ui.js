@@ -5275,7 +5275,7 @@ function touch_control_css()
  *  label carries its key (`text` is one) and the control built next is
  *  NAMED by it: a `<label>` beside a control names nothing, so the control
  *  gets the label's `for`, and its own `title` and `aria-label`, with their
- *  keys (REV-CLOUD V19.4.1: 11 controls without a name).
+ *  keys (11 controls without a name).
  */
 let form_control_seq = 0;
 

@@ -332,8 +332,8 @@
  *          itself and reuses collect_used_keys() for everything else.
  *
  *          Up to gobj-ui 7.26.24 every app carried its own copy, and the
- *          copies drifted into three families with different rules
- *          (REV-CLOUD V17.3.4). This one is their union, and an app keeps
+ *          copies drifted into three families with different rules.
+ *          This one is their union, and an app keeps
  *          no copy.
  *
  *          Copyright (c) 2025-2026, ArtGins.
@@ -3048,7 +3048,7 @@ function local_call_values(call, ctx, via, depth = 0)
  *  follow a recursion. So a recursive helper costs one read, not one
  *  per path through it: 7.26.29 read a function again at every call
  *  of it, `label_of(n)` calling itself in two branches took more
- *  than two minutes, and in three it never ended (REV-CLOUD V22).
+ *  than two minutes, and in three it never ended.
  *  A function that is not a plain one (async, a generator) is not
  *  followed. A call is a step of the read that makes it, and the
  *  returns are read one step further (kept_values(): the steps they

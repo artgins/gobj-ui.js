@@ -7,7 +7,7 @@
  *      (`Map.Title`, a region a keyboard focuses) and of a default
  *      marker (`Marker.Title`). Up to 7.26.34 they stayed in the
  *      language the map was built in -- "Mapa" in an English app after
- *      a switch (REV-CLOUD V23.5.6). A name an app gave a marker is its
+ *      a switch. A name an app gave a marker is its
  *      own, and is left alone.
  *
  *          Copyright (c) 2026, ArtGins.

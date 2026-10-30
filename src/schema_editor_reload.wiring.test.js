@@ -1056,7 +1056,7 @@ describe("the import plan", () => {
     });
 });
 
-describe("the import panel says what each conflict is about (REV-CLOUD V17.3.5)", () => {
+describe("the import panel says what each conflict is about", () => {
 
     test("the bad name of a hook map is printed, and the hook column it is written in", () => {
         const {editor, host} = build("i3", "db");
@@ -1752,7 +1752,7 @@ describe("the reason a load failed", () => {
 
 
 /*
- *  The two name rules (REV-CLOUD V14.2): a name the treedb refuses is
+ *  The two name rules: a name the treedb refuses is
  *  said at once, with its key, and nothing is written; a '/' in a column
  *  is not refused (a column is a key, not a directory).
  */
@@ -1784,8 +1784,8 @@ describe("names the treedb refuses", () => {
 
 
 /*
- *  The name field says whether the LAST save refused its name (REV-CLOUD
- *  V15.4): set by every refusal of the name, cleared by a save that gets
+ *  The name field says whether the LAST save refused its name:
+ *  set by every refusal of the name, cleared by a save that gets
  *  past them. It was set by the rule only, and never cleared.
  */
 describe("aria-invalid of the name field", () => {

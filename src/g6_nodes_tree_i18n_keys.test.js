@@ -8,7 +8,7 @@
  *      only sees `t('<literal>')` and the `data-i18n*` / `i18n:` forms.
  *      So the view publishes them in G6_NODES_TREE_I18N_KEYS, and a key
  *      missing from that list renders raw in every language with the
- *      validator green (REV-CLOUD V20.5.1: "some records were gone
+ *      validator green ("some records were gone
  *      before the delete").
  *
  *      The module is read as a syntax tree, so every CALL is checked,
@@ -264,7 +264,7 @@ describe("c_g6_nodes_tree publishes the keys it hands to t() as data", () => {
         expect(bad).toEqual([]);
     });
 
-    test("the published list holds the keys REV-CLOUD V20.5.1 found missing", () => {
+    test("the published list holds the keys a review found missing", () => {
         const published = new Set(array_of("G6_NODES_TREE_I18N_KEYS"));
         for(const key of ["some records were gone before the delete",
                           "node properties", "delete node", "edge properties",

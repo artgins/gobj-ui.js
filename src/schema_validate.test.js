@@ -289,7 +289,7 @@ describe("only one hook may name a fkey column", () => {
 });
 
 
-describe("the two name rules (REV-CLOUD V14.2)", () => {
+describe("the two name rules", () => {
     test("a column with the delimiter is an error; a '/' in a column is fine", () => {
         let bad = validate_schema(schema({extra_col:
             {id: "db.users.x`y", value: "x`y", order: 3, type: "string",

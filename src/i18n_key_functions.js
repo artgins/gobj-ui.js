@@ -9,7 +9,7 @@
  *          "EV_COPY_ALL", "copy json")` -- reaches t() inside the function,
  *          by a parameter, where no scan of `t("...")` can see it. Up to
  *          gobj-ui 7.26.27 such a key was invisible to validate-locales,
- *          and several shipped untranslated (REV-CLOUD V20.5.1). This table
+ *          and several shipped untranslated. This table
  *          names every such function: validate-locales reads the string
  *          literals given at these positions as keys the source asks for,
  *          in the app's own source and in the gobj-ui modules it mounts.
@@ -93,8 +93,8 @@
  *          validate-locales an app's own code. Publishing a list exempts
  *          no module.
  *
- *          The table is COMPLETE and CORRECT, and the same test proves both
- *          (REV-CLOUD V21.4.1, V22): it finds every function of the library
+ *          The table is COMPLETE and CORRECT, and the same test proves both:
+ *          it finds every function of the library
  *          that hands one of its parameters -- or what it reads from one:
  *          `opts.title`, `opts?.title`, a destructured `{label}` (in the
  *          parameter or in the body), each `items[].name`, `arguments[1]`,

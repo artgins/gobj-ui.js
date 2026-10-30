@@ -2,7 +2,7 @@
  *          yui_dev_controls.test.js
  *
  *          Every control of the Developer window is NAMED, and every
- *          name changes language (REV-CLOUD V20.5.5: nine buttons had a
+ *          name changes language (nine buttons had a
  *          `title` and no `aria-label` -- simple mach, the three of
  *          Output, the three of Expand, copy and clear).
  *
@@ -105,7 +105,7 @@ describe("the Developer window's controls", () => {
         expect(wrong).toEqual([]);
     });
 
-    it("names the nine buttons REV-CLOUD V20.5.5 found without one", () => {
+    it("names the nine buttons a review found without one", () => {
         const sel = [
             '[data-toggle="automata-simple"]',
             '[data-output="window"]', '[data-output="console"]', '[data-output="both"]',

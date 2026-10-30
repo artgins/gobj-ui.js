@@ -317,7 +317,7 @@ for(const gclass of ["C_YUI_TREEDB_TOPICS", "C_YUI_TREEDB_GRAPH"]) {
         test("a failure with no word from the backend draws the fallback KEY, translated", async () => {
             /*  "print-tranger failed" travelled as `error`, which the
              *  viewer draws as it came: the raw key, in English, in every
-             *  language (REV-CLOUD V23.5.4). As `i18n` it is drawn with
+             *  language. As `i18n` it is drawn with
              *  t() and carries data-i18n, so it changes language too.  */
             const i18next = (await import("i18next")).default;
             i18next.addResourceBundle("en", "translation",

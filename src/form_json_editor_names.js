@@ -8,7 +8,7 @@
  *      The editor draws them itself, in English, with a `title` and
  *      nothing else: "Format JSON: add proper indentation and new lines
  *      (Ctrl+I)", "Undo (Ctrl+Z)", and three mode buttons whose text is
- *      "text", "tree" and "table" (REV-CLOUD V23.5.6). Two hooks reach
+ *      "text", "tree" and "table". Two hooks reach
  *      them, and both are needed:
  *
  *        - json_editor_menu_items(), the editor's `onRenderMenu`: the

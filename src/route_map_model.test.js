@@ -280,7 +280,7 @@ test("'you are here' lands on the owner, never on a reference", () => {
 
 
 /***************************************************************
- *      one rule names an item everywhere (REV-CLOUD V24.5.4)
+ *      one rule names an item everywhere
  *
  *  A row of the map is labelled as its CONTROL is named: a menu
  *  entry as the nav names it (c_yui_nav.js: `name`, else

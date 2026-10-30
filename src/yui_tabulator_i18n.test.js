@@ -122,7 +122,7 @@ describe("yui_tabulator_name_row_selects", () => {
 describe("yui_tabulator_name_editor", () => {
     /*  Tabulator calls a FUNCTION editorParams with the cell when it starts
      *  editing it, and every built-in editor writes the elementAttributes
-     *  it answers onto the box it draws (REV-CLOUD V23.5.6: the editable
+     *  it answers onto the box it draws (the editable
      *  cells had no name).  */
     it("names the editor after the column, asked at the moment of editing", () => {
         let lang = "en";

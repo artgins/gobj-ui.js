@@ -2,7 +2,7 @@
 /***********************************************************************
  *          selector_from_data.wiring.test.js
  *
- *      A NAME IS DATA, NOT A SELECTOR (REV-CLOUD V40.3.1).
+ *      A NAME IS DATA, NOT A SELECTOR.
  *
  *      The G6 views gave their canvas mount the id
  *      `<prefix><gobj name>` and found it again with

@@ -2,7 +2,7 @@
  *          form_json_editor_names.wiring.test.js
  *
  *      The menu vanilla-jsoneditor draws in a json field of C_YUI_FORM
- *      was English, named by a `title` alone (REV-CLOUD V23.5.6). Now:
+ *      was English, named by a `title` alone. Now:
  *
  *        - its items go through json_editor_menu_items(), the editor's
  *          onRenderMenu: titles translated (the shortcut kept), the mode

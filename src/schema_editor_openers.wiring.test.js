@@ -1,8 +1,7 @@
 /***********************************************************************
  *          schema_editor_openers.wiring.test.js
  *
- *      What opens something in C_YUI_SCHEMA_EDITOR is a NAMED control
- *      (REV-CLOUD V24.5.4):
+ *      What opens something in C_YUI_SCHEMA_EDITOR is a NAMED control:
  *
  *        - a card of the treedbs screen (a treedb, the leftovers of a
  *          deletion) is a role=button with a title and an aria-label,

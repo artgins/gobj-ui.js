@@ -16,7 +16,7 @@ function make_index() {
         "/":                 { item: null, target: view("C_WZ_VIEW") },
         "/monitoring/realtime": { item: null, target: view("C_WZ_MONITORING") },
         "/system":           { item: { submenu: { items: [] } }, target: null },
-        "/system/db/wattyzer": { item: null, target: view("C_WZ_TREEDB") },
+        "/system/db/myapp": { item: null, target: view("C_WZ_TREEDB") },
         "/user/preference":  { item: null, target: view("C_WZ_PREFERENCES") },
         "/user/logout":      { item: null, target: { kind: "action", event: "EV_LOGOUT" } },
     };
@@ -47,8 +47,8 @@ describe("resolve_route", () => {
     });
 
     test("deeper dynamic tail is preserved whole", () => {
-        const r = resolve_route(idx, "/system/db/wattyzer/topic/42");
-        expect(r.matched_route).toBe("/system/db/wattyzer");
+        const r = resolve_route(idx, "/system/db/myapp/topic/42");
+        expect(r.matched_route).toBe("/system/db/myapp");
         expect(r.subpath).toBe("topic/42");
     });
 

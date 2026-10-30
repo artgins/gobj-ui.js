@@ -59,7 +59,7 @@ test("classify: null/undefined are 'action'", () => {
 test("validate brand: ok with logo + wordmark", () => {
     let r = validate_toolbar_item({
         id: "brand", type: "brand",
-        logo: "/wm.svg", wordmark: "Wattyzer",
+        logo: "/wm.svg", wordmark: "MyApp",
         action: { type: "navigate", route: "/welcome" }
     });
     expect(r.ok).toBe(true);

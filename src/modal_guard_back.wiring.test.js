@@ -11,8 +11,8 @@
  *      promise, and the modal takes its entry back once the question
  *      is over.
  *
- *      And what the promise SETTLES with is the answer (REV-CLOUD V24.5,
- *      Info): `true` closes the modal; anything else -- what a question
+ *      And what the promise SETTLES with is the answer:
+ *      `true` closes the modal; anything else -- what a question
  *      that closed the modal itself on "yes" settles with, `false`, a
  *      rejection -- is the veto it was. Up to 7.26.41 any promise was a
  *      veto, so an `async () => true` left a modal nobody could close.

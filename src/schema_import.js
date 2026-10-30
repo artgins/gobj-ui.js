@@ -254,7 +254,7 @@ function plan_import(treedb, incoming, options)
             if(hook && typeof hook === "object" && !Array.isArray(hook)) {
                 /*  The parent's hook column the bad name comes from: a
                  *  conflict that said only `child.fkey` did not say where
-                 *  to fix it (REV-CLOUD V17.3.5).  */
+                 *  to fix it.  */
                 let from_hook = `${name || ""}.${in_col.name}`;
                 for(let [child_topic, fkey_col] of Object.entries(hook)) {
                     /*  The conflict names the BAD name (the child topic, its
