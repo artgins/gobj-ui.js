@@ -7,6 +7,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.7
+
 - **The treedb example is an inventory on two axes.** `sites` (where a
   thing is) and `owners` (who owns it) are two self-referent trees, and a
   device hangs from its site AND its owner; `notes` hang from a site or a
