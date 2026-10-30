@@ -7,6 +7,12 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.5
+
+- **Neutral example ids.** The README, the comments and the tests use
+  `db_history^7301`/`7302` and `gate_probe^7701`, and say "main database"
+  where an example named a kind of node of an application. No code change.
+
 ## 7.29.4
 
 - **No citation of a notes store, and no word taken from an application.**
