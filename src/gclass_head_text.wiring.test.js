@@ -61,7 +61,7 @@ describe("C_YUI_GCLASS header", () => {
         expect($c.querySelector("img")).toBe(null);
     });
 
-    test("the method chips are text (V3.1 #4)", () => {
+    test("the method chips are text", () => {
         const view = gobj_create("gclass_methods_text", "C_YUI_GCLASS", {
             description: {id: "C_X", gcflag: [], attrs: [], commands: [],
                           gclass_methods: [EVIL], internal_methods: [EVIL],
@@ -77,7 +77,7 @@ describe("C_YUI_GCLASS header", () => {
         expect($c.querySelector("img")).toBe(null);
     });
 
-    test("the error of the raw dump is text (V3.1 #4)", () => {
+    test("the error of the raw dump is text", () => {
         const description = {
             id: "C_X", gcflag: [], attrs: [], commands: [],
             gclass_methods: [], internal_methods: [],

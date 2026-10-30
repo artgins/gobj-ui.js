@@ -22,7 +22,7 @@
  *          one nothing calls by name (an FSM action, a callback) marks what
  *          it hands on. The search runs to a fixpoint, and fails naming the
  *          entry to add;
- *        - the table is CORRECT (V22): the same search started from no
+ *        - the table is CORRECT: the same search started from no
  *          table finds every entry, at every position, with the same
  *          `exported` -- an entry nothing forwards to fails;
  *        - a position the table declares the FALLBACK of others
@@ -33,8 +33,8 @@
  *          (CODE_KEY_MODULES), and those are the modules that write one;
  *        - the reader gives up on no value of the library (a chain too
  *          deep, a const that leads back to itself, too many values);
- *        - a parameter handed on through what no position can name (V22:
- *          `k.toLowerCase()`, a concatenation, `Object.entries(opts)`, a
+ *        - a parameter handed on through what no position can name
+ *          (`k.toLowerCase()`, a concatenation, `Object.entries(opts)`, a
  *          rest parameter walked, `arguments[i]`, an array pattern) fails,
  *          unless it is marked where it is handed;
  *        - THE RULE, per call, in every module: each value a key position
@@ -46,11 +46,11 @@
  *          Anything else fails, naming the file and the line; so does a
  *          translated text -- t("..."), tr(), an alias of t, a string built
  *          from one (`t("k") + ":"`) -- marked or not. A translator handed
- *          as a callback (V23.5: `keys.map(t)`, `promise.then(t)`) is held
+ *          as a callback (`keys.map(t)`, `promise.then(t)`) is held
  *          the same way, each element it walks a key position;
  *        - no module hands a TRANSLATED text to any other place a key is
  *          read -- t(), an i18n / code / data-i18n* value, a data-i18n*
- *          attribute --, marked or not (V24.5.2: up to 7.26.41 only a
+ *          attribute --, marked or not (up to 7.26.41 only a
  *          marked one failed);
  *        - every marker is one and stands where a key is read; the lists
  *          it names are published by its module or one it imports; the
@@ -58,8 +58,8 @@
  *          included (or a member or an element read from one), whose
  *          every literal is read, and which fails when it holds nothing
  *          but literals (a const not written as one); a `data` marker on
- *          what the reader follows to keys fails (V21.4.2), and so does
- *          one that would hide a key (V22: a call mixing keys and data, an
+ *          what the reader follows to keys fails, and so does
+ *          one that would hide a key (a call mixing keys and data, an
  *          array of string literals);
  *        - every published list is readable (an `export const` array of
  *          literals), never mutated, lower-case ASCII, has no duplicate
@@ -653,7 +653,7 @@ function with_key_dropped(lists, name, key)
  *    - What a gobj keeps in its `priv` is its own state: a caller hands
  *      the gobj, never what its priv holds. A path through the priv of
  *      a parameter is no position of the function.
- *    - A parameter handed on through what NO position can name (V22) --
+ *    - A parameter handed on through what NO position can name --
  *      a key transformed (`k.toLowerCase()`, a concatenation, a template),
  *      an iteration of `Object.entries(opts)`, a rest parameter walked or
  *      read by a computed index, `arguments` --, unmarked, is OPAQUE: the
@@ -1800,13 +1800,13 @@ describe("the published *_I18N_KEYS lists", () => {
         /*  ...and with it, the review's repro -- a key dropped from its
          *  list -- fails the coverage of that list  */
         /*  "app" (the route map's root when the app names no brand) is pinned
-         *  twice since V21.4.1: the marker moved to the call of render_node()
+         *  twice since 7.26.29: the marker moved to the call of render_node()
          *  follows the `let root` it marks, and the list must hold its label  */
         expect(reported("SHELL_ROUTE_MAP_I18N_KEYS", "app")).toBe(false);
         let route_map_refs = scan_of("shell_route_map.js").marker_refs
             .filter((ref) => ref.lists.includes("SHELL_ROUTE_MAP_I18N_KEYS"));
         expect(route_map_refs.flatMap((ref) => ref.keys)).toContain("app");
-        /*  ...and "this field is required" since V22: field_validation_key()
+        /*  ...and "this field is required" since 7.26.32: field_validation_key()
          *  returns it OR the json field's own error, and the list marker on
          *  the `let key` that holds the call holds that key to its lists  */
         expect(reported("C_YUI_FORM_I18N_KEYS", "this field is required")).toBe(false);
@@ -2082,7 +2082,7 @@ describe("what the search for forwarders sees, and what fails it", () => {
             "shell_modals.js yui_shell_show_warning: `exported: false`, and the module exports it",
             expect.stringMatching(/^c_yui_nav\.js no_such_forwarder \[0\]: no hand-off the search finds/)
         ]));
-        /*  ...as the real table was, before V22: an action label that went
+        /*  ...as the real table was, before 7.26.32: an action label that went
          *  through a DOM property, a flag that hid an export  */
         expect(table_errors(found)).toEqual([]);
     }, SLOW_SCAN_MS);

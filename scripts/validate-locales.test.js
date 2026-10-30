@@ -110,7 +110,7 @@ describe("validate-locales", () => {
 
     test("the keys of the source, in every form it asks for one", () => {
         let r = run({...BOTH({}), "src/main.js": [
-            `t('label') + ':';`,                    // the RESULT concatenated: a key (V17)
+            `t('label') + ':';`,                    // the RESULT concatenated: a key
             `t("kind_" + kind);`,                   // built by concatenation: not
             `tr("tr key", "Default");`,
             `x = {i18n: "i18n key"};`,

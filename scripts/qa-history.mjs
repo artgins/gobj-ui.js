@@ -29,16 +29,16 @@
  *            opened on: a link is a push, not a Back -- the panel stays
  *            and the chapter is the view on screen.
  *        (e) the same after a position was written: the URL and the view
- *            on screen agree (V6.1, p11).
+ *            on screen agree (p11).
  *        (f) from the position, a link to the chapter's own hash: a push;
  *            Back returns to the position with the panel up, the next
  *            Back closes it keeping the position, and the next leaves
- *            the chapter (V6.1, p8).
+ *            the chapter (p8).
  *        (g) as (c), by the other road: the panel closes and a menu
- *            click (EV_NAV_CLICKED) navigates in the same turn (V6.2, p9).
+ *            click (EV_NAV_CLICKED) navigates in the same turn (p9).
  *        (h) a reload (F5) on the panel's marker, the panel opened again:
  *            Back closes it -- the marker of the earlier load is not the
- *            new panel's own entry (V7.3, e1) -- and the NEXT Back leaves
+ *            new panel's own entry (e1) -- and the NEXT Back leaves
  *            the chapter: the new load takes the earlier load's marker
  *            off (up to gobj-ui 7.26.48 it stayed, one dead Back).
  *        (i) a question up, then a logout and a new login in one turn,

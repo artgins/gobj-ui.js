@@ -738,7 +738,7 @@ const es_translation = {
     "the connection dropped": "La conexión se cayó antes de llegar la respuesta",
     /*  Asked by the library and by the tree demo's shell declaration, seen
      *  since gobj-ui 7.26.28: the key functions, the consts and the
-     *  published lists the shared validator reads (V20.5).  */
+     *  published lists the shared validator reads.  */
     "Admin": "Administración",
     "Alarms": "Alarmas",
     "The root is a node": "La raíz es un nodo",

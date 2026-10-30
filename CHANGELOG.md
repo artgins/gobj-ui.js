@@ -93,14 +93,14 @@ release takes it). Every app takes the licenses plugin with it.
   waiting for the yuno's read of a set of the yuno's scope, a gobj set on
   the root's card before that read took its place, and the viewer stayed
   disabled until reopened. A newer set of the gclass the viewer waits for
-  now moves its wait to the newer number. (Review V41.2.1)
+  now moves its wait to the newer number.
 - README: a code block of the remote tree section was closed on the line of
   the next paragraph, so CommonMark read three paragraphs and the
-  `open_gobj_tree_view()` entry as code. (Review V41.2.2)
+  `open_gobj_tree_view()` entry as code.
 
 ## 7.27.33
 
-**Review V40 fixes.**
+**Fixes of a review.**
 
 - **A gobj tree named with a `~`, a `%` or a `.` finds its canvas again.**
   `C_YUI_GOBJ_TREE_JS` named its canvas mount after the gobj and found it
@@ -1011,15 +1011,15 @@ of the library's code over 7.26.59:
   `let` is given in its scope is asked for, also one an `if` keeps from the
   read, so a sentinel that is no key fails -- the README says so, with the way
   out: write the sentinel `null`, or give the key its own `const`. Found by the
-  twenty-fourth review (V24.5.1). Tests: `REV-CLOUD V24.5.1: every write to an
-  unmarked let counts` and its unit twins (red on 7.26.41).
+  twenty-fourth review. Tests: `every write to an unmarked let counts` and
+  its unit twins (red on 7.26.41).
 - **fix(`validate-locales`): a TRANSLATED text where a key is read fails,
   marked or not.** A text given to `t()` (`t(t("k") + "!")`), to an `i18n` /
   `code` / `data-i18n*` value (`{i18n: t("k")}`, `el.dataset.i18nTitle =
   t("k")`) or to a `data-i18n*` attribute, and one held in a `const`: up to
   7.26.41 only a marked one failed there. No consumer had one, and no module
   of the library has (a test scans the 99 and proves itself on a mutated
-  one). `scan_ast()` reports them in a new `translated_errors` (V24.5.2).
+  one). `scan_ast()` reports them in a new `translated_errors`.
 - **fix(`validate-locales`): the callbacks it reads, exactly, and `.bind()`.**
   Read like `keys.map(t)` now: `.findIndex()`, `.findLastIndex()`, the
   `.call()` / `.apply()` of an iteration method (`Array.prototype.map.call(keys,
@@ -1059,7 +1059,7 @@ of the library's code over 7.26.59:
   the first change (`gobj_post_event()`: a deferral through the machine, not a
   time); no output event is added, so no host declares anything. And the
   message is TEXT: i18next escapes an interpolated value for HTML by default,
-  so *"Événements d'alarme"* was read *"d&#39;alarme"* (V24.5.3). Test:
+  so *"Événements d'alarme"* was read *"d&#39;alarme"*. Test:
   `src/nav_item_badge.wiring.test.js` (red before).
 - **fix(`g6_canvas_tab_order`): the canvas of a graph is named.** Since 7.26.28
   the main canvas of every G6 graph is in the Tab order, and a reader landing
@@ -1070,13 +1070,13 @@ of the library's code over 7.26.59:
   `treedb graph`, `fsm graph`, `schema graph`; `keep_canvas_tab_order(gobj,
   graph, name_key)` takes the key. **New consumer keys: `json graph`, `gobj
   tree graph`, `treedb graph`, `fsm graph`** (an app that mounts a graph fails
-  its prebuild without them) (V24.5.4). Test:
+  its prebuild without them). Test:
   `src/g6_canvas_tab_order.wiring.test.js` (red before).
 - **fix(`C_YUI_NAV`): an item without a `name` is named by a key.** Its raw id
   was its `aria-label`, with no key and no title; an accordion head without one
   was a button with no name at all; and a declared `aria_label` went only to the
   tooltip. The name is now its `name`, else its `aria_label`, else its id, a KEY
-  in every layout, with a title (V24.5.4). Test:
+  in every layout, with a title. Test:
   `src/named_controls.wiring.test.js`.
 - **fix(`C_YUI_SCHEMA_EDITOR`): what opens a treedb or a topic is a named
   control, and the topics table is a table.** A card had no `title` nor
@@ -1087,7 +1087,7 @@ of the library's code over 7.26.59:
   `<button>`, while the pointer still opens the topic from anywhere in the row.
   Two topics of one name are told apart by the id that describes each opener.
   The row's own keydown went too: it also took an Enter pressed on the row's
-  edit or delete button, and opened the topic instead (V24.5.4). Test:
+  edit or delete button, and opened the topic instead. Test:
   `src/schema_editor_openers.wiring.test.js` (red before).
 - **fix(`yui_gclass_view`): a gclass viewer goes where the window it was opened
   from goes.** It was given the element its opener hung from as a `$parent`
@@ -1095,7 +1095,7 @@ of the library's code over 7.26.59:
   host's choice, which no shell moves: after the login it stayed in the body,
   above the new shell's dialogs, while its opener moved into the shell. Opened
   from a window in the place the shell gives every window, it takes that place
-  with no `$parent` now, and follows the shell with it (V24.5.6). Test:
+  with no `$parent` now, and follows the shell with it. Test:
   `src/window_layer.wiring.test.js` (red before).
 - **fix(`C_YUI_SHELL`): with two shells alive, destroying the last one gives its
   windows to the other.** `yui_shell_of()` fell back to the last shell CREATED,
@@ -1144,9 +1144,9 @@ of the library's code over 7.26.59:
   a menu entry's dropdown action and of every nameless row under a toolbar item
   that is not the brand, at every level. No consumer has such a node or row: the
   nine trees ask for the same keys.
-- **test-app / docs:** a demo window takes its number as `title_prefix` and its
-  kind as the key `demo window`, so its bar and its dock chip change language
-  (V24.5.7). `C_YUI_WINDOW_MANAGER` no longer says the site map and the json
+- **test-app / docs:** a demo window takes its number as `title_prefix` and
+  its kind as the key `demo window`, so its bar and its dock chip change
+  language. `C_YUI_WINDOW_MANAGER` no longer says the site map and the json
   windows live in the popup layer.
 
 ## 7.26.41
@@ -1166,7 +1166,7 @@ of the library's code over 7.26.59:
   the row is drawn -- and never switched off; the rows the form loads itself
   are muted where Tabulator says it, inside `addRow()`, so a table built after
   the load returned (`tableBuilt`) does not count either. No timer is left.
-  Found by the twenty-fourth review (V24.2). Test:
+  Found by the twenty-fourth review. Test:
   `src/form_table_edits_ask.wiring.test.js` (its six cases of the defect red
   before the fix; the three that are not, a form with a complete record among
   them, pass on both).
@@ -1184,7 +1184,7 @@ of the library's code over 7.26.59:
   again and no column is rebuilt (`updateDefinition()` re-renders every row,
   and a row formatter that builds a nested table builds it again, empty).
   `C_YUI_FORM` uses it: the titles of its tables were drawn at build and never
-  again, so its labels changed language and its table headers did not (V24.5.5).
+  again, so its labels changed language and its table headers did not.
   Tests: `src/yui_tabulator_i18n.test.js`, and the form's in
   `src/form_table_edits_ask.wiring.test.js` (red before).
 - **fix(`deploy-round`): an app is tested before it is deployed, and every step
@@ -1200,7 +1200,6 @@ of the library's code over 7.26.59:
   `range_files` are raised without a version, nothing is installed, its
   `build` is the check that generates an app from it (app A's
   `templates/js_gui/generate.sh --check`), and it has no host to read back.
-  V24.6.1, V24.6.2 and V24.6.4.
 
 ## 7.26.40
 
@@ -1275,7 +1274,7 @@ of the library's code over 7.26.59:
 
 ## 7.26.35
 
-Twenty-third check of the review (`REV-CLOUD.md` §V23): the
+Twenty-third check of the review: the
 library half, the validator, and the deploy round.
 
 - **fix(`C_YUI_WINDOW`, `C_YUI_SHELL`): a window outlives a logout again, and
@@ -1382,14 +1381,14 @@ library half, the validator, and the deploy round.
   `table cell`, `table row`, `edit row`, `duplicate row`, `remove row`,
   `more options` (app E, which mounts no form: only the first).
 - **`scripts/deploy-round.mjs`: raising the range raises the app's version
-  too**, its third number, in the same edit of each package.json (V23.6.1): a
+  too**, its third number, in the same edit of each package.json: a
   new range is a new bundle, and an "About" that showed one number for five
   bundles (app B, through four rounds) named none of them. A
   package.json whose range was already raised is not touched again, so a
   round run twice bumps once; a version that is not x.y.z is left, and said.
 - Docs: the package description, `SHELL.md` and `TODO.md` said the v1 line
   serves app C too (only app D now); "six apps" are seven.
-- **`validate-locales`: what the reader still did not see (REV-CLOUD V23.5.1).**
+- **`validate-locales`: what the reader still did not see.**
   - **A translator handed as a CALLBACK.** `keys.map(t)`, `.forEach(t)` (and
     the other iteration methods), `Array.from(keys, t)` hand each element to
     t() as a key: the elements are read like any other key -- a const array,
@@ -1417,23 +1416,21 @@ library half, the validator, and the deploy round.
     `Reflect.apply`, `Function.prototype.call.call`), a key bound with it
     (`t.bind(null, k)`), a parameter a closure returns (`const inner = () =>
     key; t(inner())`), and a translated text held in a marked `let`.
-  Tests: `REV-CLOUD V23.5.1` in `validate-locales.test.js`, `REV-CLOUD V23.5`
-  in `i18n_key_functions.test.js`.
-- **A published list mutated through an ALIAS or a NAMESPACE fails**
-  (V23.5.2): `const a = X_I18N_KEYS; a.push(k)` (and a `let` given nothing
-  but the list), `import * as M from "./m.js"; M.X_I18N_KEYS.push(k)`. A
-  mutation through a function the list is handed to, or by
-  `Array.prototype.push.call(X, k)`, stays a documented limit. Test:
-  `REV-CLOUD V23.5.2`.
-- **A list marker over a template is checked against NARROWER templates**
-  (V23.5.3). The shape test let `` /* i18n: <the questions' list> */ `monitor
-  ${control}` `` pass, because "monitor confirm start" matches `^monitor .*$`:
-  swapping gui_agent's two monitor lists was caught at two of its sites. A
-  key of the template's shape that a narrower marked template builds (one
-  whose shape lies inside it, `monitor confirm ${control}`) is that
-  template's now, so a template whose every key of its shape is a narrower
-  one's fails, naming it -- a swap is caught at every site. Test:
-  `REV-CLOUD V23.5.3`.
+  Tests: `validate-locales.test.js` and `i18n_key_functions.test.js`.
+- **A published list mutated through an ALIAS or a NAMESPACE fails**:
+  `const a = X_I18N_KEYS; a.push(k)` (and a `let` given nothing but the
+  list), `import * as M from "./m.js"; M.X_I18N_KEYS.push(k)`. A mutation
+  through a function the list is handed to, or by
+  `Array.prototype.push.call(X, k)`, stays a documented limit. Test in
+  `validate-locales.test.js`.
+- **A list marker over a template is checked against NARROWER templates**. The
+  shape test let `` /* i18n: <the questions' list> */ `monitor ${control}` ``
+  pass, because "monitor confirm start" matches `^monitor .*$`: swapping
+  gui_agent's two monitor lists was caught at two of its sites. A key of the
+  template's shape that a narrower marked template builds (one whose shape
+  lies inside it, `monitor confirm ${control}`) is that template's now, so a
+  template whose every key of its shape is a narrower one's fails, naming it
+  -- a swap is caught at every site. Test in `validate-locales.test.js`.
 - **An UNMARKED `let` that is only ever given literals is followed** where
   `t()`, an `i18n` / `code` value or a `data-i18n*` attribute reads a key.
   When every value a plain `let` / `var` is given in its scope -- its
@@ -1449,9 +1446,8 @@ library half, the validator, and the deploy round.
   that would have asked gui_agent's terminal key bar for its control
   sequences (`let name = pair[2] || pair[0]`) and app A for "—". The
   consumers ask for 37 keys more, all defined: gui_agent 14, app A 9,
-  app E 8, gui_treedb 4, test-app 2. Tests: `REV-CLOUD V23.5: an
-  UNMARKED let that only ever holds literals is followed` (and its unit
-  twin).
+  app E 8, gui_treedb 4, test-app 2. Tests: `an UNMARKED let that
+  only ever holds literals is followed` (and its unit twin).
 - None of the other new forms is used by any consumer: apart from those 37
   keys, the keys every consumer's run asks for are unchanged (gui_agent,
   gui_treedb, app A, app B's two GUIs, app E,
@@ -1509,7 +1505,7 @@ library half, the validator, and the deploy round.
 
 ## 7.26.32
 
-Twenty-second check of the review (`REV-CLOUD.md` §V22), on the
+Twenty-second check of the review, on the
 i18n key validator.
 
 - **fix(`validate-locales`): a recursive helper no longer hangs the build.**
@@ -1523,7 +1519,7 @@ i18n key validator.
   value the reader cannot follow -- so `n.name` stays data, "cannot follow"
   unmarked at a key position and legal marked `/* i18n: data */`. The review's
   case runs in ~40 ms (whole script), three branches in ~0.1 s, a chain of 200
-  helpers in 14 ms. Tests: `REV-CLOUD V22.1` (both test files).
+  helpers in 14 ms. Tests in both test files.
 - **The search for forwarders sees how a function hands a parameter on, and
   FAILS on what no position can name** (`src/i18n_key_functions.test.js`).
   It followed `opts.title` and a destructured parameter; it now also follows
@@ -1553,7 +1549,7 @@ i18n key validator.
   helper (new entry `yui_table_select.js paint_label [1]`), with the same
   behaviour. The rounds of the search are recomputed from the table of the
   round before, so a `tr` of the library is not read as a translator once it
-  is in the table. Test: `REV-CLOUD V22: the table is CORRECT`.
+  is in the table. Test: `the table is CORRECT`.
 - **One notion of a TRANSLATOR, used everywhere.** Up to 7.26.31 a translator
   was a call NAMED `t` or `tr`. It is now also i18next's `t` imported under any
   name (`import {t as tt}`), a const alias (`const translate = t`), a
@@ -1564,7 +1560,7 @@ i18n key validator.
   key position fails whatever the translator is called, MARKED too, with
   *"hand the key, not t(key)"*: a marked `tr("save")` passed, and an unmarked
   one failed with *"cannot follow"*, whose advice -- the marker -- then let it
-  pass. Tests: `REV-CLOUD V22.3-4`, and V22.4 in `validate-locales.test.js`.
+  pass. Tests in `i18n_key_functions.test.js` and `validate-locales.test.js`.
 - **A key function is read however a call reaches it**: an import under any
   name, a re-export from a file of the app (`export {yui_shell_show_info as
   say} from ...`), a const alias, a map in a const (local or imported:
@@ -1585,14 +1581,14 @@ i18n key validator.
   `VALID_THEMES` (gui-common and app A: "light", "dark"). All were defined;
   no other key set of any consumer changed.
 - **A `data` marker hides no key.** It failed on a literal, a const or a call
-  of the module returning literals; it now also fails on a call of an
-  IMPORTED function (or an imported const) that is one -- the V21 hole moved
-  to another module --, on a call whose returns MIX keys with data (the reader
-  does not read such a call, so the marker hid the key: *"split the
-  branches"*), and on an array of string literals (no `createElement2` spec:
-  its second slot is the attrs; it counted as DOM). The library had the mixed
-  case twice: `refusal_text()` of `C_YUI_TREEDB_GRAPH` and
-  `C_YUI_TREEDB_TOPICS` returned the backend's words or "print-tranger
+  of the module returning literals; it now also fails on a call of an IMPORTED
+  function (or an imported const) that is one -- the hole of the twenty-first
+  review moved to another module --, on a call whose returns MIX keys with
+  data (the reader does not read such a call, so the marker hid the key:
+  *"split the branches"*), and on an array of string literals (no
+  `createElement2` spec: its second slot is the attrs; it counted as DOM). The
+  library had the mixed case twice: `refusal_text()` of `C_YUI_TREEDB_GRAPH`
+  and `C_YUI_TREEDB_TOPICS` returned the backend's words or "print-tranger
   failed"; it returns the words only, and the call writes the fallback. Under
   a list marker such a call is checked instead: its keys are asked for and
   must be in the lists (it pins "this field is required" of
@@ -1602,22 +1598,22 @@ i18n key validator.
   read), and one that attaches nowhere says what it stands before and why
   that is no place: *"the value a variable is DECLARED with"*, *"a value
   ASSIGNED"*, *"RETURNED"*, *"inside a concatenation"*.
-- **A list marker on a template checks its shape**:
-  `` /* i18n: X_I18N_KEYS */ `monitor ${control}` `` (directly, or through
-  the `let` it marks) needs a key of `X_I18N_KEYS` that matches
-  `^monitor .*$`, or it fails. gui_agent marked as data the keys its monitor
-  BUILDS, `monitor ${control}` and `monitor confirm ${control}`; it publishes
-  them now, six in each of two lists (`C_AGENT_MONITOR_I18N_KEYS`,
-  `C_AGENT_MONITOR_CONFIRM_I18N_KEYS`), and its five calls name those lists,
-  so every one of the twelve is asked for (none was). Test: `REV-CLOUD V22.6`.
+- **A list marker on a template checks its shape**: `` /* i18n: X_I18N_KEYS */
+  `monitor ${control}` `` (directly, or through the `let` it marks) needs a
+  key of `X_I18N_KEYS` that matches `^monitor .*$`, or it fails. gui_agent
+  marked as data the keys its monitor BUILDS, `monitor ${control}` and
+  `monitor confirm ${control}`; it publishes them now, six in each of two
+  lists (`C_AGENT_MONITOR_I18N_KEYS`, `C_AGENT_MONITOR_CONFIRM_I18N_KEYS`),
+  and its five calls name those lists, so every one of the twelve is asked for
+  (none was). Test in `validate-locales.test.js`.
 - **A published list is an `export const`, and is never mutated.** A list
   declared with `let` or `var` fails (it was read, and a `.push()` on it hid
   keys: the 7.26.29 entry said a spread of a `let` failed, which was true only
   of an unpublished one), and so does a mutation of a published list --
   `.push()`, `.splice()`, `.unshift()`, `.fill()`, `X[i] = k`, `X.length = n`,
   `Object.assign(X, ...)`, `delete X[i]` -- in its module and wherever it is
-  imported (new export: `list_mutations()`). Tests: `REV-CLOUD V22: a
-  published list is an export const, and one that is MUTATED fails`, `V22.5`.
+  imported (new export: `list_mutations()`). Tests: `a
+  published list is an export const, and one that is MUTATED fails`.
 - Speed: the reader resolves every callee by what binds it (to find the
   aliases, the imports, the re-exports), and that costs: gui_agent, the
   largest consumer, runs in ~0.60 s (7.26.31: ~0.43 s). A file is parsed once,
@@ -1717,7 +1713,7 @@ From the migration of app C to v2, QA'd on the deployed page.
 
 ## 7.26.29
 
-Twenty-first check of the review (`REV-CLOUD.md` §V21.4).
+Twenty-first check of the review.
 
 - **Every function that forwards a key is in `I18N_KEY_FUNCTIONS`, and a
   test finds them.** The table said a function that hands a parameter to
@@ -1784,7 +1780,7 @@ Twenty-first check of the review (`REV-CLOUD.md` §V21.4).
 
 ## 7.26.28
 
-Twentieth check of the review (`REV-CLOUD.md` §V20.5).
+Twentieth check of the review.
 
 - **A key handed to a FUNCTION is read where it is handed.**
   `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`, exported) names every
@@ -1851,7 +1847,7 @@ Twentieth check of the review (`REV-CLOUD.md` §V20.5).
 
 ## 7.26.27
 
-Nineteenth check of the review (`REV-CLOUD.md` §V19.4).
+Nineteenth check of the review.
 
 - **A module publishes the keys it hands to `t()` as data**: an exported
   `<NAME>_I18N_KEYS` array, which `validate-locales` reads in every module the
@@ -1879,7 +1875,7 @@ Nineteenth check of the review (`REV-CLOUD.md` §V19.4).
 
 ## 7.26.26
 
-Eighteenth check of the review (`REV-CLOUD.md` §V18.4).
+Eighteenth check of the review.
 
 - **`validate-locales` knows plurals, endonyms, and the app's own names**:
   - a plural (`songs_one`, `songs_few`, ...) is compared by its base, each
@@ -1911,7 +1907,7 @@ Eighteenth check of the review (`REV-CLOUD.md` §V18.4).
 
 ## 7.26.25
 
-Seventeenth check of the review (`REV-CLOUD.md` §V17.3.4-5).
+Seventeenth check of the review.
 
 - **`scripts/validate-locales.mjs` is published here, and every app runs this
   one** (`node node_modules/@yuneta/gobj-ui/scripts/validate-locales.mjs`
@@ -1936,7 +1932,7 @@ Seventeenth check of the review (`REV-CLOUD.md` §V17.3.4-5).
 
 ## 7.26.24
 
-Sixteenth check of the review (`REV-CLOUD.md` §V16.5).
+Sixteenth check of the review.
 
 - **an import conflict names the bad name**: the child topic or the fkey a
   hook map names (it recorded the hook column), and the import panel prints
@@ -1946,7 +1942,7 @@ Sixteenth check of the review (`REV-CLOUD.md` §V16.5).
 
 ## 7.26.23
 
-Fifteenth check of the review (`REV-CLOUD.md` §V15.4).
+Fifteenth check of the review.
 
 - **`plan_import()` reads the hook map**: a hook that names a child topic or
   an fkey column the treedb refuses (`a/b`, ``x`y``) is a conflict even when
@@ -1966,7 +1962,7 @@ Fifteenth check of the review (`REV-CLOUD.md` §V15.4).
 
 ## 7.26.22
 
-Fourteenth check of the review (`REV-CLOUD.md` §V14.2).
+Fourteenth check of the review.
 
 - **TWO name rules, as the treedb of SDK 7.26.9 applies them**: a TOPIC name
   is a directory (not empty, not `.` or `..`, no `/`, no `` ` ``), a COLUMN
@@ -1993,17 +1989,17 @@ Fourteenth check of the review (`REV-CLOUD.md` §V14.2).
   7.26.9): `.`, `..`, or a name holding `/` or the path delimiter `` ` ``.
   Said at once, before the backend answers a generic refusal. New consumer
   i18n key ``a name cannot be . or .., nor hold / or ` `` (copy it into each
-  app's locales). `REV-CLOUD.md` §V13.1.
+  app's locales).
 
 ## 7.26.20
 
 - **the long press of the G6 graphs is measured on `performance.now()`**, a
   monotonic clock: a wall clock that stepped mid-press decided it wrong (the
-  same class as the window of 7.26.19). `REV-CLOUD.md` §V11.4.
+  same class as the window of 7.26.19).
 
 ## 7.26.19
 
-Tenth check of the review (`REV-CLOUD.md` §V10).
+Tenth check of the review.
 
 - **checker: a blank before the match hid the replacement's markup**:
   `(' a' + name).replace('ab', '<b>')` starts with `<b>` once
@@ -2017,7 +2013,7 @@ Tenth check of the review (`REV-CLOUD.md` §V10).
 
 ## 7.26.18
 
-Ninth check of the review (`REV-CLOUD.md` §V9).
+Ninth check of the review.
 
 - **checker: a regex `replace()` on a receiver that carries data was not seen**
   (regression of 7.26.17): alternatives and lookaheads can make the data match
@@ -2040,7 +2036,7 @@ Ninth check of the review (`REV-CLOUD.md` §V9).
 
 ## 7.26.17
 
-Eighth check of the review (`REV-CLOUD.md` §V8).
+Eighth check of the review.
 
 - **checker: a false positive of 7.26.16 that could fail a consumer's
   `prebuild`.** It took the head of a `replace()` replacement as the head of
@@ -2064,7 +2060,7 @@ Eighth check of the review (`REV-CLOUD.md` §V8).
 
 ## 7.26.16
 
-Seventh check of the review (`REV-CLOUD.md` §V7).
+Seventh check of the review.
 
 - **fix: the stamp under a marker was written and never compared.** 7.26.15
   stamped the entry under an overlay's marker but closed the top overlay on
@@ -2094,7 +2090,7 @@ Seventh check of the review (`REV-CLOUD.md` §V7).
 
 ## 7.26.15
 
-Sixth check of the review (`REV-CLOUD.md` §V6), in a real browser.
+Sixth check of the review, in a real browser.
 
 - **fix: a link was taken for a Back** (regression of 7.26.13, worse in
   7.26.14). A fragment push -- a link, `location.hash = ...` -- fires
@@ -2124,15 +2120,15 @@ Sixth check of the review (`REV-CLOUD.md` §V6), in a real browser.
   went through one (`('<b>' + name + '</b>').replaceAll(...)`,
   `'<b>NAME</b>'.replace('NAME', name)`). A static receiver with static
   arguments is now computed; anything else keeps its head.
-- **qa: `qa-history` has the gestures of V6** -- a link away and back to the
-  panel's hash (d), the same after a position (e), a link from the position
-  to the chapter's own hash and three Backs (f), and a close plus a menu
-  click in one turn (g, a new "close and click the menu" action in the
+- **qa: `qa-history` has the gestures of the sixth check** -- a link away and
+  back to the panel's hash (d), the same after a position (e), a link from the
+  position to the chapter's own hash and three Backs (f), and a close plus a
+  menu click in one turn (g, a new "close and click the menu" action in the
   test-app's `/history` chapter) -- and **fails on a warning of the shell**
   (`C_YUI_SHELL: ...`): the false "did not land ... dropped" of 7.26.13 was
-  one, and nothing failed on it. 14 of 14 in Chromium and Firefox; against
-  the shell of 7.26.14, 8 of 14 fail. The history model of the unit tests
-  gets the same cases, each failing on 7.26.14.
+  one, and nothing failed on it. 14 of 14 in Chromium and Firefox; against the
+  shell of 7.26.14, 8 of 14 fail. The history model of the unit tests gets the
+  same cases, each failing on 7.26.14.
 - **tests:** the G6 toolbar case reads what a browser would show (tags out,
   entities decoded) and each attribute's value, instead of an `innerHTML`
   that the DOM double never parsed; it fails when the read-out's text is not
@@ -2140,8 +2136,8 @@ Sixth check of the review (`REV-CLOUD.md` §V6), in a real browser.
 
 ## 7.26.14
 
-Closing what the review of 2026-10-10 left open (`REV-CLOUD.md`
-R6), and the first check of the shell's history in a REAL browser.
+Closing what the review of 2026-10-10 left open, and the first check of the
+shell's history in a REAL browser.
 
 - **BREAKING: the window manager refuses a window gobj in the kw.**
   `EV_REGISTER_WINDOW`, `EV_UNREGISTER_WINDOW`, `EV_MINIMIZE_WINDOW` and
@@ -2185,7 +2181,7 @@ R6), and the first check of the shell's history in a REAL browser.
 
 ## 7.26.13
 
-The fifth check of the review (`REV-CLOUD.md` §V5). All in the
+The fifth check of the review. All in the
 shell's Back/overlay bookkeeping, plus two false readings of the markup check.
 
 - **fix: after a replace navigation, Back no longer closed a panel.** A
@@ -2227,7 +2223,7 @@ shell's Back/overlay bookkeeping, plus two false readings of the markup check.
 
 ## 7.26.12
 
-Fourth check of the review (`REV-CLOUD.md` §V4).
+Fourth check of the review.
 
 - **fix (regression of 7.26.11): a dropped `back()` and a traversal to
   another hash closed the overlay that was waiting for its marker.** On the
@@ -2263,7 +2259,7 @@ Fourth check of the review (`REV-CLOUD.md` §V4).
 
 ## 7.26.11
 
-The third check of the review (`REV-CLOUD.md` §V3).
+The third check of the review.
 
 - **security: the data sinks the 7.26.9 sweep missed** (outside the strict
   mode, which app C, app D and app A do not turn on):
@@ -2346,7 +2342,7 @@ The third check of the review (`REV-CLOUD.md` §V3).
 
 ## 7.26.9
 
-The second check of the review (`REV-CLOUD.md` §V2).
+The second check of the review.
 
 - **security: the data sinks 7.26.8 missed.** 7.26.8 said "anywhere in the
   library", and it was not. These now pass their data through `text_node()`:
@@ -2401,7 +2397,7 @@ The second check of the review (`REV-CLOUD.md` §V2).
 
 ## 7.26.8
 
-The review of 7.26.7 (`REV-CLOUD.md` §V): two regressions of that
+The review of 7.26.7: two regressions of that
 release, and what it left half done.
 
 - **fix: a form with a table, destroyed right after a save or an undo, threw

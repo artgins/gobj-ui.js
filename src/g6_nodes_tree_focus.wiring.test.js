@@ -26,7 +26,7 @@
  *      - **The detail popover's ✕ is the named, keyed button** of
  *        create_detail_close, and "no fields" carries its key.
  *
- *      And from the third pass (V20.5 #4 and #5):
+ *      And from the third pass:
  *
  *      - **Every other button of the view is an event too**: the
  *        edit toolbar's create, the cancel / apply / confirm rows of
@@ -847,7 +847,7 @@ describe("the popover button rows are EVENTS (third pass)", () => {
  *  popover open, and is the identity in the kw the selection? A row
  *  only checked through its own buttons never asks either -- the
  *  button exists only while its popover does -- so each is asked here
- *  with the event sent by hand (V20, a fourth pass: dropping the check
+ *  with the event sent by hand (a fourth pass: dropping the check
  *  from the edge apply or the port cancel left every test green).  */
 describe("a popover's apply and cancel act only on the popover open (fourth pass)", () => {
     /*  The selection each popover belongs to, made with the popover

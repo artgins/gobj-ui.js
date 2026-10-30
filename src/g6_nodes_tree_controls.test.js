@@ -13,16 +13,16 @@
  *      Enter and Space must do exactly what the click does: they CLICK
  *      the element, and the key stops there, because the graph's
  *      container forwards every keydown to G6. And the click does one
- *      thing (V20.5 #7): it SENDS an input event of the gclass, with
+ *      thing: it SENDS an input event of the gclass, with
  *      the plain identity of what the button belongs to; the action
  *      does the work, where the `machine` trace sees it.
  *
  *      A POINTER press does not take the focus (preventDefault on
  *      pointerdown): a button that took it and was then removed left
- *      the focus on <body> in Firefox, and the graph deaf (V20.5 #1).
+ *      the focus on <body> in Firefox, and the graph deaf.
  *
  *      A DISABLED item says so to the keyboard and to a reader too
- *      (V20.5 #5, third pass): `aria-disabled` and out of the Tab
+ *      (third pass): `aria-disabled` and out of the Tab
  *      order, from its first render and through every
  *      disableElements / enableElements; a TOGGLE says its state in
  *      `aria-pressed`; and a rebuild gives the focus back to the same

@@ -55,7 +55,7 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, ('<b>' + name).toUpperCase()]);`)).toEqual(["built"]);
     });
 
-    test("V6.4: replace on markup that carries data, or puts data in, is still built", () => {
+    test("replace on markup that carries data, or puts data in, is still built", () => {
         expect(rules_of(`x(['span', {}, ('<b>' + name + '</b>').replaceAll('a', 'b')]);`)).toEqual(["built"]);
         expect(rules_of(`x(['span', {}, '<b>NAME</b>'.replace('NAME', name)]);`)).toEqual(["built"]);
         expect(rules_of(`x(['span', {}, \`<b>\${name}</b>\`.replace(/x/g, '')]);`)).toEqual(["built"]);
@@ -64,7 +64,7 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, name.replace(/a/g, '')]);`)).toEqual([]);   // not visible
     });
 
-    test("V7.4: markup brought by the replacement, with data somewhere", () => {
+    test("markup brought by the replacement, with data somewhere", () => {
         expect(rules_of(`x(['span', {}, 'abc'.replace('abc', '<i>' + y)]);`)).toEqual(["built"]);
         expect(rules_of("x(['span', {}, 'x'.replace('x', `<b>${y}</b>`)]);")).toEqual(["built"]);
         expect(rules_of(`x(['span', {}, ('a' + name).replace('a', '<b>')]);`)).toEqual(["built"]);
@@ -72,7 +72,7 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, ('a' + name).replace('a', 'b')]);`)).toEqual([]);
     });
 
-    test("V8.3: the replacement is the head only where the pattern can match at 0", () => {
+    test("the replacement is the head only where the pattern can match at 0", () => {
         expect(rules_of(`x(['span', {}, ('z' + name).replace('a', '<b>')]);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, 'abc'.replace('x', '<i>' + y)]);`)).toEqual([]);
         expect(rules_of(`x(['span', {}, 'zabc'.replace('abc', '<i>' + y)]);`)).toEqual([]);
@@ -81,7 +81,7 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, '<b>x</b>'.replace(/x/, y)]);`)).toEqual(["built"]);
     });
 
-    test("V9.1: a regex on a receiver with data, the special patterns, a straddle", () => {
+    test("a regex on a receiver with data, the special patterns, a straddle", () => {
         expect(rules_of(`x(['span', {}, ('a' + name).replace(/ab/, '<b>' + y)]);`)).toEqual(["built"]);
         expect(rules_of(`x(['span', {}, ('ab' + name).replace(/abc|b/, '<i>')]);`)).toEqual(["built"]);
         expect(rules_of(`x(['span', {}, ('a' + name).replace(/a(?=z)|$/, '<b>' + y)]);`)).toEqual(["built"]);
@@ -92,7 +92,7 @@ describe("check-markup-strings", () => {
         expect(rules_of(`x(['span', {}, 'abc'.replace('abc', '$&<i>' + y)]);`)).toEqual([]);   // $& is 'abc': no markup head
     });
 
-    test("V10.3: only blank before the match: the replacement heads the content", () => {
+    test("only blank before the match: the replacement heads the content", () => {
         expect(rules_of(`x(['span', {}, (' a' + name).replace('ab', '<b>')]);`)).toEqual(["built"]);
         expect(rules_of(`x(['span', {}, (' z' + name).replace('ab', '<b>')]);`)).toEqual([]);
     });

@@ -74,13 +74,13 @@ function expect_text($el, text)
 }
 
 describe("data is text, not markup", () => {
-    test("V3.1 #1: an icon cell with a name that fails the check", async () => {
+    test("an icon cell with a name that fails the check", async () => {
         const {icon_formatter} = await import("./c_yui_treedb_topic_with_form.js");
         const $cell = icon_formatter({getValue: () => EVIL});
         expect_text($cell, EVIL);
     });
 
-    test("V3.1 #2: the schema editor's select options and textarea value", async () => {
+    test("the schema editor's select options and textarea value", async () => {
         const {select_input, textarea_input} = await import("./c_yui_schema_editor.js");
         const $select = createElement2(select_input("topic", "x", [EVIL, "ok"]));
         expect_text($select, EVIL);
@@ -89,7 +89,7 @@ describe("data is text, not markup", () => {
         expect_text($area, EVIL);
     });
 
-    test("V3.1 #4: the error of a subtree the JSON viewer could not load", async () => {
+    test("the error of a subtree the JSON viewer could not load", async () => {
         const {register_c_yui_json} = await import("./c_yui_json.js");
         register_c_yui_json();
         const host = gobj_create("json_text_host", "C_TEST_TEXT_JSON_HOST", {}, yuno);
@@ -105,7 +105,7 @@ describe("data is text, not markup", () => {
         expect_text($err, EVIL);
     });
 
-    test("V3.1 #5: the shell's toolbar label and dropdown label", async () => {
+    test("the shell's toolbar label and dropdown label", async () => {
         const {register_c_yui_shell} = await import("./c_yui_shell.js");
         register_c_yui_shell();
         const config = {
@@ -146,7 +146,7 @@ describe("data is text, not markup", () => {
         expect_text($sub, EVIL);
     });
 
-    test("V4.2: a topic name in the treedb graph legend", async () => {
+    test("a topic name in the treedb graph legend", async () => {
         const {legend_name_item} = await import("./c_yui_treedb_graph.js");
         for(const [is_main, hidden] of [[false, false], [true, false], [false, true]]) {
             const $name = createElement2(legend_name_item(EVIL, is_main, hidden));
@@ -155,7 +155,7 @@ describe("data is text, not markup", () => {
         }
     });
 
-    test("V4.2: the G6 toolbar escapes what it puts in its markup", async () => {
+    test("the G6 toolbar escapes what it puts in its markup", async () => {
         const {toolbar_item_html} = await import("./c_g6_nodes_tree.js");
         const items = [
             {readout: true, text: EVIL, title: EVIL, className: EVIL},

@@ -515,7 +515,7 @@ describe("an overlay registered while a back() of ours is in flight", () => {
     });
 });
 
-describe("a routed shell, a realistic history (V5)", () => {
+describe("a routed shell, a realistic history", () => {
     test("Back closes a keep_on_navigate panel after a replace navigation", async () => {
         const app = gobj_create("vapp1", "C_TEST_MARKER_APP", {}, yuno);
         gobj_start(app);
@@ -659,9 +659,6 @@ describe("a routed shell, a realistic history (V5)", () => {
     });
 });
 
-/*
- *  Sixth check of the review (V6).
- */
 /*  The test app declares no route event: what the shell says is what
  *  these tests read.  */
 function shell_warnings()
@@ -669,7 +666,7 @@ function shell_warnings()
     return errors().filter((m) => m.includes("C_YUI_SHELL"));
 }
 
-describe("a link is not a Back (V6.1)", () => {
+describe("a link is not a Back", () => {
     test("a link back to the hash a kept panel was opened on keeps it open", async () => {
         const app = gobj_create("v6app1", "C_TEST_MARKER_APP", {}, yuno);
         gobj_start(app);
@@ -748,7 +745,7 @@ describe("a link is not a Back (V6.1)", () => {
     });
 });
 
-describe("a route waiting for a back() of ours (V6.2)", () => {
+describe("a route waiting for a back() of ours", () => {
     test("a newer route replaces the waiting one, and says so", async () => {
         const app = gobj_create("v6app4", "C_TEST_MARKER_APP", {}, yuno);
         gobj_start(app);
@@ -848,10 +845,7 @@ describe("a route waiting for a back() of ours (V6.2)", () => {
     });
 });
 
-/*
- *  Seventh check of the review (V7).
- */
-describe("only the entry stamped for the top overlay is its floor (V7.1, V7.3)", () => {
+describe("only the entry stamped for the top overlay is its floor", () => {
     test("Forward onto an entry stamped for another overlay does not close the panel", async () => {
         const app = gobj_create("v7app1", "C_TEST_MARKER_APP", {}, yuno);
         gobj_start(app);
@@ -935,7 +929,7 @@ describe("only the entry stamped for the top overlay is its floor (V7.1, V7.3)",
     });
 });
 
-describe("a back() given up on that lands after all (V7.2)", () => {
+describe("a back() given up on that lands after all", () => {
     test("its late landing is said out loud", async () => {
         const app = gobj_create("v7app4", "C_TEST_MARKER_APP", {}, yuno);
         gobj_start(app);
@@ -964,7 +958,7 @@ describe("a back() given up on that lands after all (V7.2)", () => {
     });
 });
 
-describe("V8: the edges of the stamp and of the late landing", () => {
+describe("the edges of the stamp and of the late landing", () => {
     test("a late back() lands on the marker of an overlay opened during the wait: said too", async () => {
         const app = gobj_create("v8app1", "C_TEST_MARKER_APP", {}, yuno);
         gobj_start(app);
@@ -1006,13 +1000,13 @@ describe("V8: the edges of the stamp and of the late landing", () => {
         const entry = yui_shell_register_overlay(shell, () => {});
         expect(session.entries[0].state).toBe(app_state);
         expect(shell_warnings().filter(m => m.includes("not a plain object")).length).toBe(1);
-        /*  V9.3: no marker, so no Back of the reader's is spent on it.  */
+        /*  No marker, so no Back of the reader's is spent on it.  */
         expect(entry.no_marker).toBe(true);
         expect(session.entries.length).toBe(1);
     });
 });
 
-describe("V9: the warning of a late back() has a window", () => {
+describe("the warning of a late back() has a window", () => {
     test("a landing on the dead marker long after giving up is the reader's Back: no warning", async () => {
         const app = gobj_create("v9app1", "C_TEST_MARKER_APP", {}, yuno);
         gobj_start(app);

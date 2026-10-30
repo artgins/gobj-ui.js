@@ -5383,7 +5383,7 @@ const BTN_STYLE_CANCEL =
 /************************************************************
  *  The buttons of a popover: each one SENDS an input event of
  *  this gclass to `gobj`, and the action does the work, where
- *  the `machine` trace sees it (V20.5 #4). A button is
+ *  the `machine` trace sees it. A button is
  *      {i18n, style, event, kw, form}
  *  `kw` is the plain identity of what the popover is about
  *  (copied per click); `form` names the controls whose `value`
