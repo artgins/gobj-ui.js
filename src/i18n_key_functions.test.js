@@ -641,7 +641,7 @@ function with_key_dropped(lists, name, key)
  *  `{...opts}`), directly or through a `let` it is given to. What their
  *  callers give there is a key the validator reads ONLY when the
  *  function is in I18N_KEY_FUNCTIONS: up to 7.26.28 39 were not (the
- *  review named 17 of them), 6 entries lacked positions, and a literal
+ *  17 of them are named below), 6 entries lacked positions, and a literal
  *  handed to one would have gone unasked.
  *
  *    - A forwarder called by NAME -- in its module, or exported -- goes
@@ -1206,7 +1206,7 @@ describe("every forwarder is in the table", () => {
         expect(find_forwarders(["x.js"], () => ast, table).missing).toEqual([]);
     });
 
-    test("the functions the review named are found, with the table as it was", () => {
+    test("the 17 functions that were missing are found, with the table as it was", () => {
         let names = ["name_form_control", "create_form_field", "item_li", "item_iconbar",
                      "build_toolbar_action_item", "build_toolbar_brand_item", "build_toolbar_avatar_item",
                      "build_toolbar_connection_item", "open_toolbar_dropdown", "build_dropdown_row",
@@ -1442,7 +1442,7 @@ describe("the reader the rule and the validator share", () => {
         let whys = (r) => r.marker_errors.map((e) => `${e.line}: ${e.why}`);
         let marked = (r, line) => r.marker_refs.find((ref) => ref.line === line).keys.sort();
 
-        /*  The review's repro: a let table, a let array walked, a let read from one  */
+        /*  The repro: a let table, a let array walked, a let read from one  */
         let r = scan([
             `let LABELS = {a: "in it", b: "a brand new let-table key"};`,
             `function f(k) { return t(/* i18n: X_I18N_KEYS */ LABELS[k]); }`,
@@ -1532,7 +1532,7 @@ describe("the data marker is a claim; DOM is no key; a translated text is no key
     let scan = (lines) => scan_ast(parse_as([...head, ...lines].join("\n"), module), {lib_module: module});
     let rule = (lines) => rule_report(parse_as([...head, ...lines].join("\n"), module), module);
 
-    test("the review's repro: a data marker on a call that returns a literal FAILS", () => {
+    test("the repro: a data marker on a call that returns a literal FAILS", () => {
         let r = scan([
             `function pick() { return "a literal behind a call"; }`,
             `yui_shell_show_info(shell, /* i18n: data */ pick());`
@@ -1587,7 +1587,7 @@ describe("the data marker is a claim; DOM is no key; a translated text is no key
     });
 });
 
-describe("a review's repro, on the real module", () => {
+describe("a repro, on the real module", () => {
     let original = readFileSync(join(SRC, "c_yui_treedb_topics.js"), "utf8");
     let call = `actions.push(card_action_anchor(\n            "TREEDB_CARD_TABLE", "yi-table", "table", fill(routes.table)));`;
 
@@ -1635,8 +1635,8 @@ describe("a marker on a let does not let it pass unread", () => {
         expect(original).toContain(use);
     });
 
-    test("the review's repro: a new literal branch on the marked let FAILS", () => {
-        /*  The let and its marker, as they were, plus the review's branch  */
+    test("the repro: a new literal branch on the marked let FAILS", () => {
+        /*  The let and its marker, as they were, plus a new branch  */
         let mutated = original
             .replace(decl, `    let title = (mode === "clone")? "a brand new clone title" :\n` +
                            `        (mode === "create")? "new" : ((mode === "view")? "view" : "edit");`)
@@ -1779,8 +1779,8 @@ describe("the published *_I18N_KEYS lists", () => {
     test("the pin check fails when it should", () => {
         let lists = all_lists();
 
-        /*  Without the coverage this round added, the keys the review found
-         *  pinned by nothing are reported, each one  */
+        /*  Without the coverage entries, the keys they pin are reported as
+         *  pinned by nothing, each one  */
         let added = ["C_YUI_FORM_I18N_KEYS", "FORM_JSON_FIELD_I18N_KEYS", "SHELL_ROUTE_MAP_I18N_KEYS",
                      "WIZARD_HELPERS_I18N_KEYS", "C_YUI_SCHEMA_EDITOR_I18N_KEYS"];
         let report = unpinned_keys(lists, COVERAGE.filter((e) => !added.includes(e.list)));
@@ -1797,7 +1797,7 @@ describe("the published *_I18N_KEYS lists", () => {
             expect(reported(name, key), `${name} ${key}`).toBe(true);
         }
 
-        /*  ...and with it, the review's repro -- a key dropped from its
+        /*  ...and with it, the repro -- a key dropped from its
          *  list -- fails the coverage of that list  */
         /*  "app" (the route map's root when the app names no brand) is pinned
          *  twice since 7.26.29: the marker moved to the call of render_node()
@@ -1828,7 +1828,7 @@ describe("the published *_I18N_KEYS lists", () => {
             ]);
         }
 
-        /*  The rest of the review's 17 keys have no list any more: the
+        /*  The rest of the 17 keys have no list any more: the
          *  module reads them where it writes them  */
         let reads = (module, key) => scan_of(module).read_keys.has(key);
         for(let [module, key] of [
@@ -1882,7 +1882,7 @@ describe("a COVERAGE source is read the way the validator reads", () => {
     let decl = `function field_validation_key($input)`;
     let other_routes = `    if(Array.isArray(map.other) && map.other.length) {`;
 
-    test("the review's repro: a const the function returns, a const label it pushes -- each FAILS", () => {
+    test("the repro: a const the function returns, a const label it pushes -- each FAILS", () => {
         let ast = mutated(form.module, [
             [missing, `    if(v && v.typeMismatch) {\n        return TYPE_MISMATCH_KEY;\n    }\n${missing}`],
             [decl, `const TYPE_MISMATCH_KEY = "a brand new type mismatch key";\n${decl}`]
@@ -1946,7 +1946,7 @@ describe("a recursive helper is read once, and never hangs the reader", () => {
     let rule = (lines) => rule_report(parse_as([...head, ...lines].join("\n"), module), module);
     let scan = (lines) => scan_ast(parse_as([...head, ...lines].join("\n"), module), {lib_module: module});
 
-    /*  The review's case, verbatim: 7.26.28 read it in 12 ms, 7.26.29 in
+    /*  The case that hung, verbatim: 7.26.28 read it in 12 ms, 7.26.29 in
      *  more than two minutes (x3 per level of MAX_DEPTH), and with three
      *  recursive ifs it never ended  */
     let label_of = (branches) => [
@@ -1958,7 +1958,7 @@ describe("a recursive helper is read once, and never hangs the reader", () => {
         `}`
     ];
 
-    test("the review's case (two and three recursive branches): fast, and `n.name` is data", () => {
+    test("the case that hung (two and three recursive branches): fast, and `n.name` is data", () => {
         for(let branches of [2, 3]) {
             let t0 = Date.now();
             let lines = [...label_of(branches),
@@ -2316,7 +2316,7 @@ describe("every write counts; a translated text fails unmarked too; the callback
         /*  Each body gives `key` the sentinel "-" and then a value the reader
          *  does not read: up to 7.26.41 the eight first asked for "-"  */
         let writes = [
-            `for([key, label] of rows) { el.setAttribute("data-i18n", key); }`,      // the review's probe
+            `for([key, label] of rows) { el.setAttribute("data-i18n", key); }`,      // the probe
             `for({key} of rows) { t(key); }`,
             `for({k: key = "d"} of rows) { t(key); }`,
             `for([key] in obj) { t(key); }`,

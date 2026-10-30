@@ -30,7 +30,7 @@ function painted(kw)
 {
     return render_detailed({
         kind: "traffic", dir: "in", event: "EV_MT_COMMAND_ANSWER",
-        title: "central_yuno", ts: "09:04:11.914", size: 1473431, kw: kw,
+        title: "hub_yuno", ts: "09:04:11.914", size: 1473431, kw: kw,
     });
 }
 
@@ -38,12 +38,12 @@ describe("entry_shown_lines", () => {
     it("copies a closed branch as its one-line summary", () => {
         const $e = painted({
             result: 0,
-            comment: "db_history^1620: 524 nodos",
+            comment: "db_history^4620: 500 nodes",
             data: {places: [1, 2, 3], families: [4], devices: [5, 6]},
         });
         expect(entry_shown_lines($e)).toEqual([
             "    • result: 0",
-            "    • comment: db_history^1620: 524 nodos",
+            "    • comment: db_history^4620: 500 nodes",
             "    ▸ data {places:[…],families:[…],devices:[…]}",
         ]);
     });
@@ -66,7 +66,7 @@ describe("render_name (the line view)", () => {
         const $e = render_name({
             kind: "traffic", dir: "in", event: "EV_YUNO_STATS", command: "",
             title: "gui_agent_yuno <== wss://cc:1996", ts: "09:19:03.421", size: 1024,
-            kw: {result: 0, data: {yuno_id: "2046", kind: "cpu"}},
+            kw: {result: 0, data: {yuno_id: "4046", kind: "cpu"}},
         });
         expect($e.classList.contains("TRAFFIC_NAME")).toBe(true);
         expect($e.querySelector(".TRAFFIC_EVENT").textContent).toBe("EV_YUNO_STATS");

@@ -2074,9 +2074,9 @@ Consumer i18n keys: `matches` (counted), `not shown`, `hidden topics`,
 
 ### The graph opens FOLDED, like a JSON viewer
 
-A treedb drawn whole is a pile. A nave with a hundred and forty devices was a
-**row of a hundred and forty cards** under one parent, the edges to them a band
-of parallel lines, and a 6400-record treedb took every one of those records
+A treedb drawn whole is a pile. A site with two hundred devices was a **row of
+two hundred cards** under one parent, the edges to them a band of parallel
+lines, and a treedb of several thousand records took every one of them
 through a DOM card before the first pixel appeared. So the graph now reads the
 treedb the way a JSON viewer reads a document: **a tree by its hooks**, opened
 a level or two, with a count on every cut.
@@ -3400,10 +3400,10 @@ import {open_gobj_tree_view, close_gobj_tree_view}
     from "@yuneta/gobj-ui/src/yui_gobj_tree_view.js";
 
 priv.view = open_gobj_tree_view(gobj, {
-    name:         "controller-2046",     /*  names the window, the tree and its saved arrangement  */
+    name:         "gate_energy-4046",    /*  names the window, the tree and its saved arrangement  */
     source:       "remote",
-    yuno_name:    "gate_energia^2046",   /*  before the gclass in the gclass window's title  */
-    title_prefix: "gate_energia^2046",
+    yuno_name:    "gate_energy^4046",    /*  before the gclass in the gclass window's title  */
+    title_prefix: "gate_energy^4046",
     title:        "gobj tree",           /*  an i18n KEY  */
     $header:      priv.$status,
     on_close:     () => gobj_send_event(gobj, "EV_VIEW_CLOSED", {}, gobj),
@@ -4860,7 +4860,7 @@ i18next**, so every key it asks for must be defined by the app. The library it
 scans is the one it ships in, the package the app builds with. The app's own
 source is read recursively. Code and catalogs shared by several apps are named
 with `--src <dir>` (repeatable) and `--locales <dir>` (for instance:
-`--src ../gui-common/src --locales ../gui-common/src/locales`); `--config`
+`--src ../shared-gui/src --locales ../shared-gui/src/locales`); `--config`
 names a shell declaration other than `src/app_config.json`.
 
 What is particular to an app goes in ITS `package.json`, not in the script:
@@ -5564,7 +5564,7 @@ violation of its own: since `7.26.35` its literals are asked for, above --
 every one of them, so a literal that is no key fails as a missing key. The
 marker is what makes it a claim to check.)
 
-**A `let` that holds a TABLE is held the same way** (since the same round:
+**A `let` that holds a TABLE is held the same way** (since `7.26.35`:
 up to then a marked member of one passed unread). When what is marked is read
 FROM a `let` -- a property of it (`LABELS[k]`, `opts.title` at a key
 position), the element of a `.map()` / `.forEach()` / `for...of` over it, or
@@ -5732,7 +5732,7 @@ fails no check"*:
   entry is redundant, and dropping it loses no key for a consumer.
 
 The test proves itself: with the `COVERAGE` entries that pin them taken
-away, it reports each of the keys a review found pinned by nothing.
+away, it reports each of the keys they pin as pinned by nothing.
 
 A list is also named by a marker or by `COVERAGE`: one that is neither is an
 ORPHAN, and fails. Two lists have a test of their own instead, and the pin

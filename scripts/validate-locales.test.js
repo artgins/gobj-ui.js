@@ -689,7 +689,7 @@ describe("validate-locales", () => {
             `import {yui_shell_show_info} from "@yuneta/gobj-ui/src/shell_modals.js";`,
             `function pick() { return ok? "accepted" : "x"; }`,
             `const K = "k";`,
-            `yui_shell_show_info(shell, /* i18n: data */ pick());`,                 // 4: the review's repro
+            `yui_shell_show_info(shell, /* i18n: data */ pick());`,                 // 4: the repro
             `yui_shell_show_info(shell, /* i18n: data */ "x");`,                    // 5: a literal
             `yui_shell_show_info(shell, /* i18n: data */ K);`,                      // 6: a const
             `yui_shell_show_info(shell, ok? /* i18n: data */ "x" : comment);`,      // 7: a branch that is one
@@ -1467,11 +1467,11 @@ Buffer.prototype.utf8Write = function(s, ...a) {
         expect(one.out).not.toMatch(/main\.js/);
     });
 
-    test("every write to an unmarked let counts -- the review's probe asks for no sentinel", () => {
+    test("every write to an unmarked let counts -- the probe asks for no sentinel", () => {
         let r = run({...BOTH({"save": "x"}), "src/main.js": [
             `export function rows_a(el, rows) {`,
             `    let key = "-";`,
-            `    for([key, label] of rows) {`,                  // the review's probe
+            `    for([key, label] of rows) {`,                  // the probe
             `        el.setAttribute("data-i18n", key);`,
             `    }`,
             `}`,

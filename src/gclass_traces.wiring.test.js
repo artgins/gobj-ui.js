@@ -4,9 +4,9 @@
  *      C_YUI_GCLASS, the gclass viewer, as the gobj tree opens it for a
  *      BACKEND gclass: its trace levels can be set for every gobj of
  *      the gclass (`set-gclass-trace`), one box per level, the yuno's
- *      own scope shown locked; and the layout that came out of the
- *      review of 7.27.27 -- the short zones first, a long table capped,
- *      the instance named beside its state, the methods in the head.
+ *      own scope shown locked; and the layout of 7.27.27 -- the short
+ *      zones first, a long table capped, the instance named beside its
+ *      state, the methods in the head.
  *
  *      The real gclass, hosted by a test gclass that declares what the
  *      viewer publishes.

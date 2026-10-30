@@ -52,7 +52,7 @@ const devices_desc = {
         {id: "id", flag: []},
         {id: "place", flag: ["fkey"], fkey: {places: "devices"}},
         {id: "controller", flag: ["fkey"], fkey: {controllers: "devices"}},
-        {id: "foto", flag: ["fkey", "file"], fkey: {__assets__: "fotos"}},
+        {id: "photo", flag: ["fkey", "file"], fkey: {__assets__: "photos"}},
     ],
 };
 const controllers_desc = {
@@ -88,13 +88,13 @@ const descs = {
     device_groups: groups_desc,
 };
 
-/*  es > (norte, sur); norte > nave1; nave1 has 30 devices and one
+/*  region > (north, south); north > site1; site1 has 30 devices and one
  *  controller c1 that also reaches devices d0..d9.  */
 function make_records(n_devices)
 {
     let devices = [];
     for(let i = 0; i < n_devices; i++) {
-        let rec = {id: `d${i}`, place: "places^nave1^devices", foto: "x^y^fotos"};
+        let rec = {id: `d${i}`, place: "places^site1^devices", photo: "x^y^photos"};
         if(i < 10) {
             rec.controller = ["controllers^c1^devices"];
         }
@@ -102,13 +102,13 @@ function make_records(n_devices)
     }
     return {
         places: [
-            {id: "es", place: ""},
-            {id: "norte", place: "places^es^places"},
-            {id: "sur", place: "places^es^places"},
-            {id: "nave1", place: "places^norte^places"},
+            {id: "region", place: ""},
+            {id: "north", place: "places^region^places"},
+            {id: "south", place: "places^region^places"},
+            {id: "site1", place: "places^north^places"},
         ],
         devices: devices,
-        controllers: [{id: "c1", place: "places^nave1^controllers"}],
+        controllers: [{id: "c1", place: "places^site1^controllers"}],
         device_groups: [{id: "g1"}],
     };
 }
@@ -124,9 +124,9 @@ describe("the model", () => {
 
     test("children hang from the hook the fkey names, in record order", () => {
         let m = fold_build_model(descs, make_records(3));
-        expect(m.groups.get(fold_group_key(K("places", "es"), "places")))
-            .toEqual([K("places", "norte"), K("places", "sur")]);
-        expect(m.groups.get(fold_group_key(K("places", "nave1"), "devices")))
+        expect(m.groups.get(fold_group_key(K("places", "region"), "places")))
+            .toEqual([K("places", "north"), K("places", "south")]);
+        expect(m.groups.get(fold_group_key(K("places", "site1"), "devices")))
             .toEqual([K("devices", "d0"), K("devices", "d1"), K("devices", "d2")]);
         expect(m.groups.get(fold_group_key(K("controllers", "c1"), "devices")))
             .toEqual([K("devices", "d0"), K("devices", "d1"), K("devices", "d2")]);
@@ -136,14 +136,14 @@ describe("the model", () => {
         let m = fold_build_model(descs, make_records(3));
         let d0 = m.nodes.get(K("devices", "d0"));
         expect(d0.parents.map((p) => p.node_key).sort())
-            .toEqual([K("controllers", "c1"), K("places", "nave1")]);
+            .toEqual([K("controllers", "c1"), K("places", "site1")]);
     });
 
     test("roots: no drawable parent -- and a fkey into a topic nobody fetched is not a parent", () => {
         let m = fold_build_model(descs, make_records(3));
-        expect(m.groups.get(fold_root_group_key("places"))).toEqual([K("places", "es")]);
+        expect(m.groups.get(fold_root_group_key("places"))).toEqual([K("places", "region")]);
         expect(m.groups.get(fold_root_group_key("devices"))).toBeUndefined();
-        /*  `foto` names __assets__, which has no desc: ignored  */
+        /*  `photo` names __assets__, which has no desc: ignored  */
         expect(m.nodes.get(K("devices", "d0")).parents.length).toBe(2);
         expect(m.groups.get(fold_root_group_key("device_groups"))).toEqual([K("device_groups", "g1")]);
     });
@@ -181,8 +181,8 @@ describe("the model", () => {
     });
 
     test("group keys split back", () => {
-        expect(fold_split_group_key("places^nave1|devices"))
-            .toEqual({node_key: "places^nave1", hook: "devices"});
+        expect(fold_split_group_key("places^site1|devices"))
+            .toEqual({node_key: "places^site1", hook: "devices"});
         expect(fold_split_group_key("|devices")).toEqual({node_key: "", hook: "devices"});
         expect(fold_split_group_key("nope")).toBeNull();
     });
@@ -238,7 +238,7 @@ describe("main topic, hidden topics, loose records", () => {
         expect(m.main_topic).toBe("controllers");
         expect([...m.linked].sort()).toEqual(["controllers", "devices"]);
         /*  places is not linked to controllers, so its roots are roots  */
-        expect(m.groups.get(fold_root_group_key("places"))).toEqual([K("places", "es")]);
+        expect(m.groups.get(fold_root_group_key("places"))).toEqual([K("places", "region")]);
         /*  a pick the rule refuses is ignored, and the trunk is deduced  */
         let m2 = fold_build_model(descs, make_records(3), {main_topic: "controllers"});
         expect(m2.main_topic).toBe("places");
@@ -275,15 +275,15 @@ describe("main topic, hidden topics, loose records", () => {
         let m = fold_build_model(descs, make_records(30), {hidden_topics: ["devices"]});
         expect(m.topics).toEqual(["places", "controllers", "device_groups"]);
         expect(m.totals.devices).toBe(30);
-        expect(m.nodes.get(K("places", "nave1")).hooks.devices).toBeUndefined();
-        expect(fold_pills_of(m, fold_new_state(24), K("places", "nave1")).map((p) => p.hook))
+        expect(m.nodes.get(K("places", "site1")).hooks.devices).toBeUndefined();
+        expect(fold_pills_of(m, fold_new_state(24), K("places", "site1")).map((p) => p.hook))
             .toEqual(["controllers"]);
         expect(m.hidden.has("devices")).toBe(true);
     });
 
     test("hiding a topic in the middle: what hung from it alone becomes loose", () => {
         let m = fold_build_model(descs, make_records(12), {hidden_topics: ["controllers"]});
-        /*  d0..d9 hang from nave1 AND c1: still under nave1  */
+        /*  d0..d9 hang from site1 AND c1: still under site1  */
         expect(m.nodes.get(K("devices", "d0")).parents.length).toBe(1);
         expect(m.loose.devices).toEqual([]);
         /*  places hidden = the main topic gone: nothing governs, and
@@ -313,7 +313,7 @@ describe("main topic, hidden topics, loose records", () => {
         let st = fold_new_state(24);
         let m = fold_build_model(descs, recs);
         fold_expand_to_depth(m, st, 4);
-        let g = fold_group_key(K("places", "nave1"), "devices");
+        let g = fold_group_key(K("places", "site1"), "devices");
         expect(fold_group_shown(m, st, g)).toBe(24);
         let m_hidden = fold_build_model(descs, recs, {hidden_topics: ["devices"]});
         expect(fold_group_shown(m_hidden, st, g)).toBe(0);      /*  no group: nothing shown  */
@@ -328,7 +328,7 @@ describe("depth", () => {
         let st = fold_new_state(24);
         fold_expand_to_depth(m, st, 1);
         expect([...fold_visible_set(m, st)].sort())
-            .toEqual([K("device_groups", "g1"), K("places", "es")]);
+            .toEqual([K("device_groups", "g1"), K("places", "region")]);
     });
 
     test("depth 2 opens the roots' hooks on their first page", () => {
@@ -336,9 +336,9 @@ describe("depth", () => {
         let st = fold_new_state(24);
         fold_expand_to_depth(m, st, 2);
         let v = fold_visible_set(m, st);
-        expect(v.has(K("places", "norte"))).toBe(true);
-        expect(v.has(K("places", "sur"))).toBe(true);
-        expect(v.has(K("places", "nave1"))).toBe(false);
+        expect(v.has(K("places", "north"))).toBe(true);
+        expect(v.has(K("places", "south"))).toBe(true);
+        expect(v.has(K("places", "site1"))).toBe(false);
         expect(v.has(K("devices", "d0"))).toBe(false);
     });
 
@@ -366,11 +366,11 @@ describe("depth", () => {
 describe("levels of the main tree (the toolbar's stepper)", () => {
     test("levels count from the main topic's roots, down every hook", () => {
         let m = fold_build_model(descs, make_records(30));
-        /*  es 1, norte/sur 2, nave1 3, its devices and c1 4  */
+        /*  region 1, north/south 2, site1 3, its devices and c1 4  */
         expect(m.levels).toBe(4);
-        expect(m.level_of.get(K("places", "es"))).toBe(1);
-        expect(m.level_of.get(K("places", "nave1"))).toBe(3);
-        /*  d0 hangs from nave1 (3) and c1 (4): the shallowest wins  */
+        expect(m.level_of.get(K("places", "region"))).toBe(1);
+        expect(m.level_of.get(K("places", "site1"))).toBe(3);
+        /*  d0 hangs from site1 (3) and c1 (4): the shallowest wins  */
         expect(m.level_of.get(K("devices", "d0"))).toBe(4);
         /*  device_groups is not tied to places: a tree of its own, no level  */
         expect(m.level_of.has(K("device_groups", "g1"))).toBe(false);
@@ -397,13 +397,13 @@ describe("levels of the main tree (the toolbar's stepper)", () => {
         let st = fold_new_state(24);
         fold_expand_to_level(m, st, 1);
         expect([...fold_visible_set(m, st)].sort())
-            .toEqual([K("device_groups", "g1"), K("places", "es")]);
+            .toEqual([K("device_groups", "g1"), K("places", "region")]);
         fold_open_levels(m, st, 2);
         let v = fold_visible_set(m, st);
-        expect(v.has(K("places", "norte"))).toBe(true);
-        expect(v.has(K("places", "nave1"))).toBe(false);
+        expect(v.has(K("places", "north"))).toBe(true);
+        expect(v.has(K("places", "site1"))).toBe(false);
         fold_open_levels(m, st, 3);
-        expect(fold_visible_set(m, st).has(K("places", "nave1"))).toBe(true);
+        expect(fold_visible_set(m, st).has(K("places", "site1"))).toBe(true);
         expect(fold_visible_set(m, st).has(K("devices", "d0"))).toBe(false);
         fold_open_levels(m, st, 4);
         v = fold_visible_set(m, st);
@@ -416,25 +416,25 @@ describe("levels of the main tree (the toolbar's stepper)", () => {
         let m = fold_build_model(descs, make_records(30));
         let st = fold_new_state(24);
         fold_expand_to_level(m, st, 4);
-        let g = fold_group_key(K("places", "nave1"), "devices");
+        let g = fold_group_key(K("places", "site1"), "devices");
         fold_show_more(m, st, g);                           /*  30  */
         fold_open_levels(m, st, 4);
         expect(fold_group_shown(m, st, g)).toBe(30);
         fold_close_levels(m, st, 3);
         let v = fold_visible_set(m, st);
-        expect(v.has(K("places", "nave1"))).toBe(true);     /*  level 3 stays  */
+        expect(v.has(K("places", "site1"))).toBe(true);     /*  level 3 stays  */
         expect(v.has(K("devices", "d0"))).toBe(false);      /*  its hooks folded  */
         expect(v.has(K("controllers", "c1"))).toBe(false);
-        expect(fold_is_open(st, fold_group_key(K("places", "norte"), "places"))).toBe(true);
+        expect(fold_is_open(st, fold_group_key(K("places", "north"), "places"))).toBe(true);
     });
 
     test("closing does not reopen what the reader folded above the level", () => {
         let m = fold_build_model(descs, make_records(3));
         let st = fold_new_state(24);
         fold_expand_to_level(m, st, 4);
-        fold_toggle(m, st, fold_group_key(K("places", "es"), "places"));   /*  fold es  */
+        fold_toggle(m, st, fold_group_key(K("places", "region"), "places"));   /*  fold region  */
         fold_close_levels(m, st, 3);
-        expect(fold_is_open(st, fold_group_key(K("places", "es"), "places"))).toBe(false);
+        expect(fold_is_open(st, fold_group_key(K("places", "region"), "places"))).toBe(false);
     });
 });
 
@@ -443,7 +443,7 @@ describe("toggle and pages", () => {
         let m = fold_build_model(descs, make_records(30));
         let st = fold_new_state(24);
         fold_expand_to_depth(m, st, 3);
-        let g = fold_group_key(K("places", "nave1"), "devices");
+        let g = fold_group_key(K("places", "site1"), "devices");
         expect(fold_toggle(m, st, g)).toBe(true);
         expect(fold_visible_set(m, st).has(K("devices", "d5"))).toBe(true);
         expect(fold_toggle(m, st, g)).toBe(false);
@@ -453,7 +453,7 @@ describe("toggle and pages", () => {
     test("show more adds a page and stops at the total", () => {
         let m = fold_build_model(descs, make_records(30));
         let st = fold_new_state(24);
-        let g = fold_group_key(K("places", "nave1"), "devices");
+        let g = fold_group_key(K("places", "site1"), "devices");
         expect(fold_show_more(m, st, g)).toBe(24);
         expect(fold_show_more(m, st, g)).toBe(30);
         expect(fold_show_more(m, st, g)).toBe(30);
@@ -463,11 +463,11 @@ describe("toggle and pages", () => {
         let m = fold_build_model(descs, make_records(30));
         let st = fold_new_state(24);
         fold_expand_to_depth(m, st, 4);
-        fold_toggle(m, st, fold_group_key(K("places", "es"), "places"));   /* close */
+        fold_toggle(m, st, fold_group_key(K("places", "region"), "places"));   /* close */
         let v = fold_visible_set(m, st);
         expect(v.has(K("devices", "d0"))).toBe(false);
         expect(v.size).toBe(2);
-        fold_toggle(m, st, fold_group_key(K("places", "es"), "places"));   /* reopen */
+        fold_toggle(m, st, fold_group_key(K("places", "region"), "places"));   /* reopen */
         expect(fold_visible_set(m, st).has(K("devices", "d0"))).toBe(true);
     });
 
@@ -475,13 +475,13 @@ describe("toggle and pages", () => {
         let m = fold_build_model(descs, make_records(30));
         let st = fold_new_state(24);
         fold_expand_to_depth(m, st, 4);
-        let g_place = fold_group_key(K("places", "nave1"), "devices");
+        let g_place = fold_group_key(K("places", "site1"), "devices");
         let g_ctrl = fold_group_key(K("controllers", "c1"), "devices");
         fold_toggle(m, st, g_ctrl);                       /* c1's devices open too */
-        fold_toggle(m, st, g_place);                      /* nave1's devices folded */
+        fold_toggle(m, st, g_place);                      /* site1's devices folded */
         let v = fold_visible_set(m, st);
         expect(v.has(K("devices", "d3"))).toBe(true);     /* via c1 */
-        expect(v.has(K("devices", "d15"))).toBe(false);   /* only via nave1 */
+        expect(v.has(K("devices", "d15"))).toBe(false);   /* only via site1 */
     });
 
     test("pending groups: what the +N chips are for", () => {
@@ -492,8 +492,8 @@ describe("toggle and pages", () => {
         let pending = fold_pending_groups(m, st, v);
         expect(pending.length).toBe(1);
         expect(pending[0]).toMatchObject({
-            group_key: fold_group_key(K("places", "nave1"), "devices"),
-            node_key: K("places", "nave1"), hook: "devices",
+            group_key: fold_group_key(K("places", "site1"), "devices"),
+            node_key: K("places", "site1"), hook: "devices",
             shown: 24, total: 30, rest: 6,
         });
     });
@@ -502,11 +502,11 @@ describe("toggle and pages", () => {
         let m = fold_build_model(descs, make_records(30));
         let st = fold_new_state(24);
         fold_expand_to_depth(m, st, 4);
-        let pills = fold_pills_of(m, st, K("places", "nave1"));
+        let pills = fold_pills_of(m, st, K("places", "site1"));
         expect(pills.map((p) => p.hook)).toEqual(["devices", "controllers"]);
         expect(pills[0]).toMatchObject({total: 30, shown: 24, open: true, child_topic: "devices"});
         expect(pills[1]).toMatchObject({total: 1, shown: 1, open: true, child_topic: "controllers"});
-        expect(fold_pills_of(m, st, K("places", "sur"))).toEqual([]);
+        expect(fold_pills_of(m, st, K("places", "south"))).toEqual([]);
     });
 });
 
@@ -521,14 +521,14 @@ describe("reveal", () => {
         /*  d40 is the 41st: two pages, not three, and not all  */
         expect(v.has(K("devices", "d47"))).toBe(true);
         expect(v.has(K("devices", "d48"))).toBe(false);
-        expect(v.has(K("places", "sur"))).toBe(true);    /* es|places opened whole page */
+        expect(v.has(K("places", "south"))).toBe(true);    /* region|places opened whole page */
     });
 
     test("does not close what was open", () => {
         let m = fold_build_model(descs, make_records(60));
         let st = fold_new_state(24);
         fold_expand_to_depth(m, st, 4);
-        fold_show_more(m, st, fold_group_key(K("places", "nave1"), "devices"));   /* 48 */
+        fold_show_more(m, st, fold_group_key(K("places", "site1"), "devices"));   /* 48 */
         fold_reveal(m, st, K("devices", "d3"));
         expect(fold_visible_set(m, st).has(K("devices", "d47"))).toBe(true);
     });

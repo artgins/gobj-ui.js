@@ -5,7 +5,7 @@
  *          every page load.
  *
  *          gobj-ui replaces two built-ins on purpose (`drag-canvas` and
- *          `zoom-canvas`, the touch round of 7.23.9), so that every graph
+ *          `zoom-canvas`, the touch support of 7.23.9), so that every graph
  *          gets the fix without touching its behaviors list. G6's
  *          `register()` warns whenever a type is registered again --
  *          "The extension drag-canvas of behavior has been registered

@@ -5,8 +5,8 @@
  *
  *      A treedb is a graph: a record hangs from every parent one of its
  *      fkeys names, and a parent reaches its children through a hook.
- *      Drawn whole it is a pile -- a nave with a hundred and forty
- *      devices is a row of a hundred and forty cards -- so the graph
+ *      Drawn whole it is a pile -- a site with two hundred devices is
+ *      a row of two hundred cards -- so the graph
  *      opens FOLDED, the way a JSON viewer opens: the roots, a level or
  *      two under them, and a count on every cut saying what went with it.
  *

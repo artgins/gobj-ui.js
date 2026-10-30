@@ -8,40 +8,40 @@
 import { describe, test, expect } from "vitest";
 import { spanning_tree, layout_tree, layout_radial } from "./treedb_layout.js";
 
-/*  es -> (norte, sur); norte -> nave; nave -> d0, d1 (hook rank 1) and
+/*  region -> (north, south); north -> site; site -> d0, d1 (hook rank 1) and
  *  c1 (hook rank 2); c1 -> d0 as well (second parent).  */
 const N = (id, w, h) => ({id, w, h});
 const nodes = [
-    N("es", 172, 96), N("norte", 172, 96), N("sur", 172, 96), N("nave", 172, 120),
+    N("region", 172, 96), N("north", 172, 96), N("south", 172, 96), N("site", 172, 120),
     N("d0", 116, 40), N("d1", 116, 40), N("c1", 172, 96),
 ];
 const edges = [
-    {source: "es", target: "norte", rank: 0},
-    {source: "es", target: "sur", rank: 0},
-    {source: "norte", target: "nave", rank: 0},
-    {source: "nave", target: "c1", rank: 2},
-    {source: "nave", target: "d0", rank: 1},
-    {source: "nave", target: "d1", rank: 1},
+    {source: "region", target: "north", rank: 0},
+    {source: "region", target: "south", rank: 0},
+    {source: "north", target: "site", rank: 0},
+    {source: "site", target: "c1", rank: 2},
+    {source: "site", target: "d0", rank: 1},
+    {source: "site", target: "d1", rank: 1},
     {source: "c1", target: "d0", rank: 0},
 ];
 
 describe("the spanning tree", () => {
     test("roots are the nodes with no incoming edge, in node order", () => {
         let t = spanning_tree(nodes, edges);
-        expect(t.roots).toEqual(["es"]);
-        expect(t.depth.get("nave")).toBe(2);
+        expect(t.roots).toEqual(["region"]);
+        expect(t.depth.get("site")).toBe(2);
         expect(t.depth.get("d0")).toBe(3);
     });
 
     test("children are ordered by hook rank, then by node order", () => {
         let t = spanning_tree(nodes, edges);
-        expect(t.children.get("nave")).toEqual(["d0", "d1", "c1"]);
-        expect(t.children.get("es")).toEqual(["norte", "sur"]);
+        expect(t.children.get("site")).toEqual(["d0", "d1", "c1"]);
+        expect(t.children.get("region")).toEqual(["north", "south"]);
     });
 
     test("a node with two parents belongs to the first that reaches it", () => {
         let t = spanning_tree(nodes, edges);
-        expect(t.children.get("c1")).toEqual([]);        /*  d0 is nave's  */
+        expect(t.children.get("c1")).toEqual([]);        /*  d0 is site's  */
         expect(t.depth.get("d0")).toBe(3);
     });
 
@@ -66,11 +66,11 @@ describe("the spanning tree", () => {
 describe("the tidy tree, read down (the default)", () => {
     test("depths are rows; a row is as tall as its tallest card", () => {
         let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
-        expect(pos.get("es").y).toBe(48);                       /*  96/2  */
-        expect(pos.get("norte").y).toBe(96 + 100 + 48);
-        expect(pos.get("sur").y).toBe(pos.get("norte").y);
-        /*  depth 2 holds nave (120 tall): the row is 120 tall  */
-        expect(pos.get("nave").y).toBe(2 * (96 + 100) + 60);
+        expect(pos.get("region").y).toBe(48);                       /*  96/2  */
+        expect(pos.get("north").y).toBe(96 + 100 + 48);
+        expect(pos.get("south").y).toBe(pos.get("north").y);
+        /*  depth 2 holds site (120 tall): the row is 120 tall  */
+        expect(pos.get("site").y).toBe(2 * (96 + 100) + 60);
         /*  depth 3 holds chips (40) and c1 (96): row is 96 tall, the
          *  chips are centred in it  */
         let row3 = 2 * (96 + 100) + 120 + 100;
@@ -80,12 +80,12 @@ describe("the tidy tree, read down (the default)", () => {
 
     test("siblings sit side by side; a parent is centred over its children", () => {
         let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100});
-        /*  nave's children: d0 (116), d1 (116), c1 (172) = 424 wide  */
+        /*  site's children: d0 (116), d1 (116), c1 (172) = 424 wide  */
         expect(pos.get("d1").x - pos.get("d0").x).toBe(126);
         expect(pos.get("c1").x - pos.get("d1").x).toBe(58 + 10 + 86);
         let first = pos.get("d0").x - 58;
         let last = pos.get("c1").x + 86;
-        expect(pos.get("nave").x).toBe((first + last) / 2);
+        expect(pos.get("site").x).toBe((first + last) / 2);
     });
 
     test("two trees sit side by side, not overlapped", () => {
@@ -100,9 +100,9 @@ describe("the tidy tree, read down (the default)", () => {
 describe("the tidy tree, read right", () => {
     test("depths are columns; a column is as wide as its widest card", () => {
         let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100, direction: "LR"});
-        expect(pos.get("es").x).toBe(86);                       /*  172/2  */
-        expect(pos.get("norte").x).toBe(172 + 100 + 86);
-        expect(pos.get("sur").x).toBe(pos.get("norte").x);
+        expect(pos.get("region").x).toBe(86);                       /*  172/2  */
+        expect(pos.get("north").x).toBe(172 + 100 + 86);
+        expect(pos.get("south").x).toBe(pos.get("north").x);
         /*  depth 3 holds chips (116) and c1 (172): column is 172 wide,
          *  the chips are centred in it  */
         let col3 = 3 * (172 + 100);
@@ -112,12 +112,12 @@ describe("the tidy tree, read right", () => {
 
     test("siblings stack with the gap; a parent is centred on its children", () => {
         let pos = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100, direction: "LR"});
-        /*  nave's children: d0 (40), d1 (40), c1 (96) = 196 tall  */
+        /*  site's children: d0 (40), d1 (40), c1 (96) = 196 tall  */
         expect(pos.get("d1").y - pos.get("d0").y).toBe(50);
         expect(pos.get("c1").y - pos.get("d1").y).toBe(20 + 10 + 48);
         let first = pos.get("d0").y - 20;
         let last = pos.get("c1").y + 48;
-        expect(pos.get("nave").y).toBe((first + last) / 2);
+        expect(pos.get("site").y).toBe((first + last) / 2);
     });
 
     test("a parent taller than its children keeps its own height", () => {
@@ -140,9 +140,9 @@ describe("the tidy tree, read right", () => {
     test("opening a hook does not move what is not under or beside it", () => {
         let base = layout_tree(nodes, edges, {nodesep: 10, ranksep: 100, direction: "LR"});
         let more = nodes.concat([N("d2", 116, 40)]);
-        let more_edges = edges.concat([{source: "nave", target: "d2", rank: 1}]);
+        let more_edges = edges.concat([{source: "site", target: "d2", rank: 1}]);
         let pos = layout_tree(more, more_edges, {nodesep: 10, ranksep: 100, direction: "LR"});
-        expect(pos.get("es").x).toBe(base.get("es").x);
+        expect(pos.get("region").x).toBe(base.get("region").x);
         expect(pos.get("d0").y).toBe(base.get("d0").y);     /*  above the new one  */
         expect(pos.get("d1").y).toBe(base.get("d1").y);
         expect(pos.get("d2").y).toBe(base.get("d1").y + 50);
@@ -153,17 +153,17 @@ describe("the tidy tree, read right", () => {
 describe("the radial tree", () => {
     test("one root sits at the centre, its children on a ring around it", () => {
         let pos = layout_radial(nodes, edges, {nodesep: 10, ranksep: 100});
-        expect(pos.get("es")).toEqual({x: 0, y: 0});
-        let r = Math.hypot(pos.get("norte").x, pos.get("norte").y);
+        expect(pos.get("region")).toEqual({x: 0, y: 0});
+        let r = Math.hypot(pos.get("north").x, pos.get("north").y);
         expect(r).toBeGreaterThanOrEqual(100);
-        expect(Math.hypot(pos.get("sur").x, pos.get("sur").y)).toBeCloseTo(r, 6);
-        /*  norte carries 3 of es's 4 leaves: three quarters of the
+        expect(Math.hypot(pos.get("south").x, pos.get("south").y)).toBeCloseTo(r, 6);
+        /*  north carries 3 of region's 4 leaves: three quarters of the
          *  circle, from the top (-90°) clockwise, so its middle is at
-         *  +45°; sur gets the last quarter, from 180° to 270°, centred
+         *  +45°; south gets the last quarter, from 180° to 270°, centred
          *  at 225° (-135°)  */
         let ang = (id) => Math.atan2(pos.get(id).y, pos.get(id).x);
-        expect(ang("norte")).toBeCloseTo(Math.PI / 4, 6);
-        expect(ang("sur")).toBeCloseTo(-3 * Math.PI / 4, 6);
+        expect(ang("north")).toBeCloseTo(Math.PI / 4, 6);
+        expect(ang("south")).toBeCloseTo(-3 * Math.PI / 4, 6);
     });
 
     test("a ring is long enough for its nodes: no two neighbours closer than a card", () => {

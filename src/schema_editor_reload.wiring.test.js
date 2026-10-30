@@ -1596,7 +1596,7 @@ describe("the body while a write is in flight", () => {
      *  and Delete or Enter there sent an action ST_SAVING does not
      *  declare. `inert` takes the body out of the keyboard's reach too.  */
     test("is inert, and answers again when the write ends", () => {
-        const {editor, remote, host} = build("r16k1", "db/users");
+        const {editor, remote, host} = build("inert1", "db/users");
         const $body = $in(editor, ".SCHEMA_BODY");
         expect($body.hasAttribute("inert")).toBe(false);
 
@@ -1610,7 +1610,7 @@ describe("the body while a write is in flight", () => {
     });
 
     test("a drop that ends the write gives the body back too", () => {
-        const {editor, remote, host} = build("r16k2", "db/users");
+        const {editor, remote, host} = build("inert2", "db/users");
         start_a_write(editor, host, "name");
         drop(editor, remote, host);
         expect($in(editor, ".SCHEMA_BODY").hasAttribute("inert")).toBe(false);
@@ -1671,7 +1671,7 @@ describe("the writes of an import mark the topic they write", () => {
     }
 
     test("from another topic's screen: the topic it wrote, not the one on screen", () => {
-        const {editor, remote, host} = build("r16m1", "db/users");
+        const {editor, remote, host} = build("wrote1", "db/users");
         run_the_import(editor, host);
         answer_every_write(editor, remote);
         expect(gobj_current_state(editor)).toBe("ST_COLUMNS");
@@ -1680,7 +1680,7 @@ describe("the writes of an import mark the topic they write", () => {
     });
 
     test("from the topics screen, where no topic is on screen", () => {
-        const {editor, remote, host} = build("r16m2", "db");
+        const {editor, remote, host} = build("wrote2", "db");
         run_the_import(editor, host);
         answer_every_write(editor, remote);
         expect(gobj_current_state(editor)).toBe("ST_TOPICS");
@@ -1689,7 +1689,7 @@ describe("the writes of an import mark the topic they write", () => {
     });
 
     test("a column answered with no record: the record it queued says the topic", () => {
-        const {editor, remote, host} = build("r16m3", "db/users");
+        const {editor, remote, host} = build("wrote3", "db/users");
         run_the_import(editor, host);
         const [topic] = take("update-node");
         expect(topic.kw.topic_name).toBe("topics");
@@ -1704,10 +1704,10 @@ describe("the writes of an import mark the topic they write", () => {
 describe("the reason a load failed", () => {
 
     test("is a key the notice translates, not a string frozen in one language", () => {
-        const remote = gobj_create_service("r16e1_remote", "C_TEST_REMOTE", {}, yuno);
+        const remote = gobj_create_service("lfail1_remote", "C_TEST_REMOTE", {}, yuno);
         gobj_change_state(remote, "ST_SESSION");
-        const host = gobj_create("r16e1_host", "C_TEST_EDITOR_HOST", {}, yuno);
-        const editor = gobj_create("r16e1_editor", "C_YUI_SCHEMA_EDITOR", {
+        const host = gobj_create("lfail1_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("lfail1_editor", "C_YUI_SCHEMA_EDITOR", {
             gobj_remote_yuno: remote, treedb_name: "treedb_system_schema"
         }, host);
         gobj_start(editor);
@@ -1721,10 +1721,10 @@ describe("the reason a load failed", () => {
     });
 
     test("the backend's own words travel as its key", () => {
-        const remote = gobj_create_service("r16e2_remote", "C_TEST_REMOTE", {}, yuno);
+        const remote = gobj_create_service("lfail2_remote", "C_TEST_REMOTE", {}, yuno);
         gobj_change_state(remote, "ST_SESSION");
-        const host = gobj_create("r16e2_host", "C_TEST_EDITOR_HOST", {}, yuno);
-        const editor = gobj_create("r16e2_editor", "C_YUI_SCHEMA_EDITOR", {
+        const host = gobj_create("lfail2_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("lfail2_editor", "C_YUI_SCHEMA_EDITOR", {
             gobj_remote_yuno: remote, treedb_name: "treedb_system_schema"
         }, host);
         gobj_start(editor);
@@ -1736,9 +1736,9 @@ describe("the reason a load failed", () => {
     });
 
     test("a load that cannot leave keeps its key", () => {
-        const remote = gobj_create_service("r16e3_remote", "C_TEST_REMOTE", {}, yuno);
-        const host = gobj_create("r16e3_host", "C_TEST_EDITOR_HOST", {}, yuno);
-        const editor = gobj_create("r16e3_editor", "C_YUI_SCHEMA_EDITOR", {
+        const remote = gobj_create_service("lfail3_remote", "C_TEST_REMOTE", {}, yuno);
+        const host = gobj_create("lfail3_host", "C_TEST_EDITOR_HOST", {}, yuno);
+        const editor = gobj_create("lfail3_editor", "C_YUI_SCHEMA_EDITOR", {
             gobj_remote_yuno: remote, treedb_name: "treedb_system_schema"
         }, host);
         gobj_start(editor);

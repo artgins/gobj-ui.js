@@ -105,7 +105,7 @@ describe("the Developer window's controls", () => {
         expect(wrong).toEqual([]);
     });
 
-    it("names the nine buttons a review found without one", () => {
+    it("names the nine buttons that had no name", () => {
         const sel = [
             '[data-toggle="automata-simple"]',
             '[data-output="window"]', '[data-output="console"]', '[data-output="both"]',

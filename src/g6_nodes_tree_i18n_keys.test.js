@@ -264,7 +264,7 @@ describe("c_g6_nodes_tree publishes the keys it hands to t() as data", () => {
         expect(bad).toEqual([]);
     });
 
-    test("the published list holds the keys a review found missing", () => {
+    test("the published list holds the keys that were missing", () => {
         const published = new Set(array_of("G6_NODES_TREE_I18N_KEYS"));
         for(const key of ["some records were gone before the delete",
                           "node properties", "delete node", "edge properties",

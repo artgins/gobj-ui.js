@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **No review citation in words, and no example taken from an application.**
+  The CHANGELOG, the README, the comments and the tests say what each version
+  changed, not which check of which review it was; the example yuno of
+  `open_gobj_tree_view()` is `gate_energy^4046`, the shared package of the
+  `validate-locales` example is `../shared-gui`, the folded-graph example is a
+  site with two hundred devices, and the trees and figures of the tests are
+  neutral (`region -> north/south -> site`). No code change.
+
 ## 7.29.1
 
 - **No review citation in the package.** Source comments, tests and the
@@ -105,8 +113,6 @@ release takes it). Every app takes the licenses plugin with it.
 
 ## 7.27.33
 
-**Fixes of a review.**
-
 - **A gobj tree named with a `~`, a `%` or a `.` finds its canvas again.**
   `C_YUI_GOBJ_TREE_JS` named its canvas mount after the gobj and found it
   with `querySelector("#" + id)`. gui_agent 0.29.106 names its tree window
@@ -155,7 +161,7 @@ release takes it). Every app takes the licenses plugin with it.
 
 - **No more "has been registered before" warnings in the console.** gobj-ui
   replaces G6's built-in `drag-canvas` and `zoom-canvas` on purpose (the
-  touch round of 7.23.9), and G6's `register()` warns whenever a type is
+  touch support of 7.23.9), and G6's `register()` warns whenever a type is
   registered again -- twice on every page load, in every app that draws a
   graph, and the gui_agent QA failed on them every run. The replacement is
   now written into the live registry G6 hands out (`getExtensions()`), and
@@ -165,7 +171,7 @@ release takes it). Every app takes the licenses plugin with it.
 
 ## 7.27.31
 
-**Review fixes of 7.27.30.**
+**Fixes of 7.27.30.**
 
 - **A gclass viewer reopened while a set of its gclass is in flight opens
   locked again.** 7.27.30 cleared the viewer's lock when a viewer was
@@ -191,7 +197,7 @@ release takes it). Every app takes the licenses plugin with it.
 
 ## 7.27.30
 
-**Review fixes of the 7.27.21-7.27.29 round.**
+**Fixes of 7.27.21-7.27.29.**
 
 - **Development dependency:** `@rollup/plugin-terser` `^1.0.2`.
 
@@ -303,7 +309,7 @@ release takes it). Every app takes the licenses plugin with it.
 
 ## 7.27.27
 
-**Traces, and the gclass viewer, reviewed.** The remote gobj tree mixed the
+**Traces, and the gclass viewer.** The remote gobj tree mixed the
 two families of trace levels with the three scopes, and the gclass viewer laid
 itself out by the width of the screen.
 
@@ -780,11 +786,10 @@ of the library's code over 7.26.59:
   answers -1, which read as "selectable", so a click on a row logged *"Attribute
   value of the wrong type"* and called `toggleSelect()` on a table that selects
   no rows (*"Cannot read properties of undefined (reading 'add')"*, found by
-  the console check of app C's device settings after the 7.26.22
-  round). A click now selects a row only when the form is `selectable` AND its
-  table selects rows (`selectableRows` true or a number in
-  `tabulator_settings`, off by default): with the defaults, nothing is
-  selected, as before. Test `form_table_rows.wiring.test.js` ("a click on a
+  the console check of app C's device settings after 7.26.22). A click now
+  selects a row only when the form is `selectable` AND its table selects
+  rows (`selectableRows` true or a number in `tabulator_settings`, off by
+  default): with the defaults, nothing is selected, as before. Test `form_table_rows.wiring.test.js` ("a click on a
   row", red with gobj-js 7.26.22). (It did the opposite -- Tabulator toggles the row on
   its own click as well; fixed in 7.26.45.)
 - **test:** the suite runs against gobj-js `^7.26.22` (its devDependency was
@@ -1015,8 +1020,8 @@ of the library's code over 7.26.59:
   its place). The rule stays flow-INSENSITIVE, by design: every literal the
   `let` is given in its scope is asked for, also one an `if` keeps from the
   read, so a sentinel that is no key fails -- the README says so, with the way
-  out: write the sentinel `null`, or give the key its own `const`. Found by the
-  twenty-fourth review. Tests: `every write to an unmarked let counts` and
+  out: write the sentinel `null`, or give the key its own `const`. Tests:
+  `every write to an unmarked let counts` and
   its unit twins (red on 7.26.41).
 - **fix(`validate-locales`): a TRANSLATED text where a key is read fails,
   marked or not.** A text given to `t()` (`t(t("k") + "!")`), to an `i18n` /
@@ -1171,7 +1176,7 @@ of the library's code over 7.26.59:
   the row is drawn -- and never switched off; the rows the form loads itself
   are muted where Tabulator says it, inside `addRow()`, so a table built after
   the load returned (`tableBuilt`) does not count either. No timer is left.
-  Found by the twenty-fourth review. Test:
+  Test:
   `src/form_table_edits_ask.wiring.test.js` (its six cases of the defect red
   before the fix; the three that are not, a form with a complete record among
   them, pass on both).
@@ -1279,8 +1284,7 @@ of the library's code over 7.26.59:
 
 ## 7.26.35
 
-Twenty-third check of the review: the
-library half, the validator, and the deploy round.
+The library half, the validator, and the deploy round.
 
 - **fix(`C_YUI_WINDOW`, `C_YUI_SHELL`): a window outlives a logout again, and
   the next shell takes it in.** 7.26.31 put a window whose host names no
@@ -1510,8 +1514,7 @@ library half, the validator, and the deploy round.
 
 ## 7.26.32
 
-Twenty-second check of the review, on the
-i18n key validator.
+On the i18n key validator.
 
 - **fix(`validate-locales`): a recursive helper no longer hangs the build.**
   7.26.29's reader of a call (`t(pick())` reads what `pick` returns) read the
@@ -1522,9 +1525,9 @@ i18n key validator.
   returns is now read ONCE and cached, its values kept unique (a value is its
   node), and a recursion is not followed: a call of a function being read is a
   value the reader cannot follow -- so `n.name` stays data, "cannot follow"
-  unmarked at a key position and legal marked `/* i18n: data */`. The review's
-  case runs in ~40 ms (whole script), three branches in ~0.1 s, a chain of 200
-  helpers in 14 ms. Tests in both test files.
+  unmarked at a key position and legal marked `/* i18n: data */`. The case
+  that hung runs in ~40 ms (whole script), three branches in ~0.1 s, a chain
+  of 200 helpers in 14 ms. Tests in both test files.
 - **The search for forwarders sees how a function hands a parameter on, and
   FAILS on what no position can name** (`src/i18n_key_functions.test.js`).
   It followed `opts.title` and a destructured parameter; it now also follows
@@ -1581,14 +1584,14 @@ i18n key validator.
   names, when that module is one it reads (a file of the app, a module of the
   library), re-exports included; and a destructuring of a const
   (`const {title} = OPTS`). The consumers ask for keys they handed to `t()` and
-  nobody read: app B's `NAV_MODES` (gui-common, imported by
+  nobody read: app B's `NAV_MODES` (its shared GUI package, imported by
   its dialogs module: "stacked strips", "back to parent", "breadcrumb") and
-  `VALID_THEMES` (gui-common and app A: "light", "dark"). All were defined;
+  `VALID_THEMES` (that package and app A: "light", "dark"). All were defined;
   no other key set of any consumer changed.
 - **A `data` marker hides no key.** It failed on a literal, a const or a call
   of the module returning literals; it now also fails on a call of an IMPORTED
-  function (or an imported const) that is one -- the hole of the twenty-first
-  review moved to another module --, on a call whose returns MIX keys with
+  function (or an imported const) that is one -- the hole of 7.26.29 moved to
+  another module --, on a call whose returns MIX keys with
   data (the reader does not read such a call, so the marker hid the key:
   *"split the branches"*), and on an array of string literals (no
   `createElement2` spec: its second slot is the attrs; it counted as DOM). The
@@ -1718,12 +1721,10 @@ From the migration of app C to v2, QA'd on the deployed page.
 
 ## 7.26.29
 
-Twenty-first check of the review.
-
 - **Every function that forwards a key is in `I18N_KEY_FUNCTIONS`, and a
   test finds them.** The table said a function that hands a parameter to
   `t()`, `i18n` or `data-i18n*` belongs in it, and nothing held it to that:
-  the review named 17 missing (`name_form_control`, `create_form_field`,
+  17 were missing (`name_form_control`, `create_form_field`,
   `item_li`, the four `build_toolbar_*_item`, `col_title_formatter`,
   `add_topic_card`, `card_descriptor`, `render_node`...), so a literal handed
   to one would have gone unasked. `src/i18n_key_functions.test.js` now finds,
@@ -1760,7 +1761,8 @@ Twenty-first check of the review.
   `text_node()`, `document.createElement()`, a const or a `let` only ever
   given one -- known by where it comes from, never by a variable's name.
   Four consumers had violations to fix (gui_agent 13, gui_treedb 4,
-  app A 4, gui-common 3); app E and the js_gui scaffold had none.
+  app A 4, app B's shared GUI package 3); app E and the js_gui scaffold had
+  none.
 - **The reader reads more**: a key written as a member (`attrs.i18n = k`,
   `attrs["data-i18n-title"] = k`); `String(x)` and a template that is only
   `${x}`, as `x`; the default of a parameter; what a destructuring reads
@@ -1784,8 +1786,6 @@ Twenty-first check of the review.
   const array (the same tags) instead of a `let` pushed into.
 
 ## 7.26.28
-
-Twentieth check of the review.
 
 - **A key handed to a FUNCTION is read where it is handed.**
   `I18N_KEY_FUNCTIONS` (`src/i18n_key_functions.js`, exported) names every
@@ -1852,8 +1852,6 @@ Twentieth check of the review.
 
 ## 7.26.27
 
-Nineteenth check of the review.
-
 - **A module publishes the keys it hands to `t()` as data**: an exported
   `<NAME>_I18N_KEYS` array, which `validate-locales` reads in every module the
   app mounts. `yui_dev.js` publishes `YUI_DEV_I18N_KEYS` (the 51 keys of the
@@ -1879,8 +1877,6 @@ Nineteenth check of the review.
     and skipped; `pt-br.js` exporting `ptBR` is found.
 
 ## 7.26.26
-
-Eighteenth check of the review.
 
 - **`validate-locales` knows plurals, endonyms, and the app's own names**:
   - a plural (`songs_one`, `songs_few`, ...) is compared by its base, each
@@ -1912,8 +1908,6 @@ Eighteenth check of the review.
 
 ## 7.26.25
 
-Seventeenth check of the review.
-
 - **`scripts/validate-locales.mjs` is published here, and every app runs this
   one** (`node node_modules/@yuneta/gobj-ui/scripts/validate-locales.mjs`
   from its `prebuild`). Each app carried its own copy, and they had drifted
@@ -1937,8 +1931,6 @@ Seventeenth check of the review.
 
 ## 7.26.24
 
-Sixteenth check of the review.
-
 - **an import conflict names the bad name**: the child topic or the fkey a
   hook map names (it recorded the hook column), and the import panel prints
   it next to the code -- two bad entries of one hook map were two identical
@@ -1946,8 +1938,6 @@ Sixteenth check of the review.
   is a conflict too (it was imported under the key).
 
 ## 7.26.23
-
-Fifteenth check of the review.
 
 - **`plan_import()` reads the hook map**: a hook that names a child topic or
   an fkey column the treedb refuses (`a/b`, ``x`y``) is a conflict even when
@@ -1963,11 +1953,9 @@ Fifteenth check of the review.
   name`. The codes of `validate_schema()` and `plan_import()` are i18n keys
   rendered through `t(code)`: a consumer's `validate-locales` sees them when
   it scans `add("error", "…")` and `code: "…"` (gui_agent's does, from
-  yunos-js of this round).
+  the yunos-js released with it).
 
 ## 7.26.22
-
-Fourteenth check of the review.
 
 - **TWO name rules, as the treedb of SDK 7.26.9 applies them**: a TOPIC name
   is a directory (not empty, not `.` or `..`, no `/`, no `` ` ``), a COLUMN
@@ -2004,8 +1992,6 @@ Fourteenth check of the review.
 
 ## 7.26.19
 
-Tenth check of the review.
-
 - **checker: a blank before the match hid the replacement's markup**:
   `(' a' + name).replace('ab', '<b>')` starts with `<b>` once
   `createElement2()` trims, and is `built` now. The doc above the
@@ -2017,8 +2003,6 @@ Tenth check of the review.
   that the dead entries of an earlier load each absorb one Back.
 
 ## 7.26.18
-
-Ninth check of the review.
 
 - **checker: a regex `replace()` on a receiver that carries data was not seen**
   (regression of 7.26.17): alternatives and lookaheads can make the data match
@@ -2041,8 +2025,6 @@ Ninth check of the review.
 
 ## 7.26.17
 
-Eighth check of the review.
-
 - **checker: a false positive of 7.26.16 that could fail a consumer's
   `prebuild`.** It took the head of a `replace()` replacement as the head of
   the result wherever the pattern matched: `('z' + name).replace('a', '<b>')`
@@ -2064,8 +2046,6 @@ Eighth check of the review.
   not only that no marker is left.
 
 ## 7.26.16
-
-Seventh check of the review.
 
 - **fix: the stamp under a marker was written and never compared.** 7.26.15
   stamped the entry under an overlay's marker but closed the top overlay on
@@ -2095,7 +2075,7 @@ Seventh check of the review.
 
 ## 7.26.15
 
-Sixth check of the review, in a real browser.
+Checked in a real browser.
 
 - **fix: a link was taken for a Back** (regression of 7.26.13, worse in
   7.26.14). A fragment push -- a link, `location.hash = ...` -- fires
@@ -2141,8 +2121,8 @@ Sixth check of the review, in a real browser.
 
 ## 7.26.14
 
-Closing what the review of 2026-10-10 left open, and the first check of the
-shell's history in a REAL browser.
+Closing what earlier versions left open, and the shell's history checked in
+a REAL browser.
 
 - **BREAKING: the window manager refuses a window gobj in the kw.**
   `EV_REGISTER_WINDOW`, `EV_UNREGISTER_WINDOW`, `EV_MINIMIZE_WINDOW` and
@@ -2186,8 +2166,8 @@ shell's history in a REAL browser.
 
 ## 7.26.13
 
-The fifth check of the review. All in the
-shell's Back/overlay bookkeeping, plus two false readings of the markup check.
+All in the shell's Back/overlay bookkeeping, plus two false readings of the
+markup check.
 
 - **fix: after a replace navigation, Back no longer closed a panel.** A
   replace navigation (the view writing its position into the URL) moves the
@@ -2228,8 +2208,6 @@ shell's Back/overlay bookkeeping, plus two false readings of the markup check.
 
 ## 7.26.12
 
-Fourth check of the review.
-
 - **fix (regression of 7.26.11): a dropped `back()` and a traversal to
   another hash closed the overlay that was waiting for its marker.** On the
   popstate path `drop_expected_pops()` pushed the waiting markers BEFORE the
@@ -2263,8 +2241,6 @@ Fourth check of the review.
   header fail on 7.26.11; the checker's new cases fail on its 7.26.11 script.
 
 ## 7.26.11
-
-The third check of the review.
 
 - **security: the data sinks the 7.26.9 sweep missed** (outside the strict
   mode, which app C, app D and app A do not turn on):
@@ -2343,11 +2319,9 @@ The third check of the review.
   gobj-ui, and with `--legacy-peer-deps` a build error (`html_markup` is not
   exported): loud, not silent. Raise `@yuneta/gobj-js` to `^7.26.3` in the
   same change that raises gobj-ui (app A is on `^7.22.2`). Marked here by
-  the 7.26.11 review; the numbering follows the SDK, so no major can say it.
+  7.26.11; the numbering follows the SDK, so no major can say it.
 
 ## 7.26.9
-
-The second check of the review.
 
 - **security: the data sinks 7.26.8 missed.** 7.26.8 said "anywhere in the
   library", and it was not. These now pass their data through `text_node()`:
@@ -2402,8 +2376,7 @@ The second check of the review.
 
 ## 7.26.8
 
-The review of 7.26.7: two regressions of that
-release, and what it left half done.
+Two regressions of 7.26.7, and what it left half done.
 
 - **fix: a form with a table, destroyed right after a save or an undo, threw
   an uncaught TypeError** (regression of 7.26.7). `set_changed_stated(false)`
@@ -6041,9 +6014,9 @@ the thing you read, the glyph is an affordance).
 ## 7.23.66
 
 - **The treedb graph opens FOLDED, like a JSON viewer.** A treedb drawn whole
-  was a pile: a nave with a hundred and forty devices was a row of a hundred
-  and forty cards, the edges to them a band of parallel lines, and a
-  6400-record treedb built a DOM card for every record before the first pixel.
+  was a pile: a site with two hundred devices was a row of two hundred
+  cards, the edges to them a band of parallel lines, and a treedb of
+  several thousand records built a DOM card for every record before the first pixel.
   Now every record is fetched but only the visible ones become G6 nodes: the
   roots, `expand_depth` levels under them (default 2), one page
   (`fold_page_size`, default 24) of children per hook, and a `+N` chip after
@@ -10406,7 +10379,7 @@ this release (still marked a prototype — its shape may move).
   events, local methods and stats; private state is none of those).
 - **fix(shell): the `stay` contract could re-fire its own action route — new
   `yui_shell_unpark_route(route)` + restore-then-event on deep-link.** Two
-  review findings on the same contract. (1) The reference `stay` wiring (an
+  defects of the same contract. (1) The reference `stay` wiring (an
   unconditional `history.back()` in the modal's `on_close`) broke when the
   shell's overlay DRAIN closed the modal during a navigation: the URL had
   already moved, so the back() landed on the stranded action entries and
@@ -10736,7 +10709,7 @@ this release (still marked a prototype — its shape may move).
 
 - **fix(site map): config comments are not routes; "you are here" is
   singular; the brand can hold it.** Three defects in the new map, all found
-  reviewing it:
+  checking it:
   - JSON has no comments, so these configs annotate `shell.routes` with
     sibling `_name_comment` **string** keys (the established idiom, used by
     the test-app and app A). The shell indexed **every** key of the table,

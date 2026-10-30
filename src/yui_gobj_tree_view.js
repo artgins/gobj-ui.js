@@ -12,10 +12,10 @@
  *          is only its frame.
  *
  *              let handle = open_gobj_tree_view(gobj, {
- *                  name:         "gate_energia-2046",
+ *                  name:         "gate_energy-4046",
  *                  source:       "remote",
- *                  yuno_name:    "gate_energia^2046",
- *                  title_prefix: "gate_energia^2046",
+ *                  yuno_name:    "gate_energy^4046",
+ *                  title_prefix: "gate_energy^4046",
  *                  title:        "gobj tree",            // an i18n KEY
  *                  $header:      $status,                // optional
  *                  on_close:     () => gobj_send_event(gobj, "EV_VIEW_CLOSED", {}, gobj),

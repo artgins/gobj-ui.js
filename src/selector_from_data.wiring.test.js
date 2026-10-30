@@ -115,7 +115,7 @@ let yuno = null;
 let host = null;
 let seq = 0;
 
-/*  The names of the review, and the old one with a dot.  */
+/*  Names that broke the selector, and the old one with a dot.  */
 const NAMES = [
     "local~gate",               /*  gui_agent 0.29.106: node~key  */
     "n~x%5Ey",                  /*  a `^` in the key, encoded  */
