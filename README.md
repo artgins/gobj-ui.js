@@ -3400,10 +3400,10 @@ import {open_gobj_tree_view, close_gobj_tree_view}
     from "@yuneta/gobj-ui/src/yui_gobj_tree_view.js";
 
 priv.view = open_gobj_tree_view(gobj, {
-    name:         "gate_energy-4046",    /*  names the window, the tree and its saved arrangement  */
+    name:         "gate_probe-7701",     /*  names the window, the tree and its saved arrangement  */
     source:       "remote",
-    yuno_name:    "gate_energy^4046",    /*  before the gclass in the gclass window's title  */
-    title_prefix: "gate_energy^4046",
+    yuno_name:    "gate_probe^7701",     /*  before the gclass in the gclass window's title  */
+    title_prefix: "gate_probe^7701",
     title:        "gobj tree",           /*  an i18n KEY  */
     $header:      priv.$status,
     on_close:     () => gobj_send_event(gobj, "EV_VIEW_CLOSED", {}, gobj),
@@ -4451,7 +4451,7 @@ export default { plugins: [ yunetaHtmlPlugin({ defaultTitle: "My App" }) ] };
     "metadata": {"description": "What the app does"},
     "csp_connect_src": [
         "_comment: the backend this SPA talks to",
-        "wss://my.host:4620",
+        "wss://my.host:7301",
         "https://auth.my.host"
     ]
 }

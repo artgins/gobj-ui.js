@@ -605,7 +605,7 @@ function walk_path(node, path)
  *  its zone navs are appended into shell zones, outside this
  *  node's own $container.  Neither pass reaches them, so without
  *  this every strip renders its raw i18n key: `treedb`,
- *  `central database`, `data` in lower-case English next to a
+ *  `main database`, `data` in lower-case English next to a
  *  translated menu — which reads as a MISSING key and sent more
  *  than one person looking for the wrong bug.
  *

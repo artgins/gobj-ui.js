@@ -21,8 +21,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   record count; a place under a site is a `building` everywhere (it was a
   `hall`), and the test-app tree says *North building* / *South building* and
   *Meter N* in English and *Edificio norte* / *Edificio sur* and *Medidor N* in
-  Spanish; the yuno ids and ports of the tests and examples are `4630` and
-  `4620`; and a dead commented-out device image in `c_yui_map.js` is gone. No
+  Spanish; the yuno ids and ports of the tests and examples are `7302` and
+  `7301`; and a dead commented-out device image in `c_yui_map.js` is gone. No
   library code change; the test-app labels change.
 
 ## 7.29.2
@@ -30,7 +30,7 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 - **No review citation in words, and no example taken from an application.**
   The CHANGELOG, the README, the comments and the tests say what each version
   changed, not which check of which review it was; the example yuno of
-  `open_gobj_tree_view()` is `gate_energy^4046`, the shared package of the
+  `open_gobj_tree_view()` is `gate_probe^7701`, the shared package of the
   `validate-locales` example is `../shared-gui`, the folded-graph example is a
   site with two hundred devices, and the trees and figures of the tests are
   neutral (`region -> north/south -> site`). No code change.
@@ -511,16 +511,16 @@ A view that does not declare the event sees no change. SHELL.md §4 has the cont
 
 ## 7.27.20
 
-The topic table came back EMPTY on app B's central node after 7.27.19, at a deep scroll position. Two causes, one per layer:
+The topic table came back EMPTY on a node of app B after 7.27.19, at a deep scroll position. Two causes, one per layer:
 
 - **`C_YUI_NODE` no longer takes a child that is on screen out of the document.** Every route change below a node re-activated it, and `render_child()` emptied its body and hung the child again: the subtree left the document and came back, and a browser drops the scroll of every element that does. A tab change of a treedb view is a route change, so the table's scroll went to 0 with its virtual rows still drawn for the bottom of the page, under 7896px of padding. The chrome (navs, path) is still rebuilt; the body is left alone when the active child already hangs in it.
 - **`C_YUI_TREEDB_TOPIC_WITH_FORM` gives the scroll back when it is seen again**, before its redraw: a host that does take the table out of the document while it is hidden no longer brings it back blank. The position is kept from Tabulator's own `scrollVertical` / `scrollHorizontal`.
 
-Verified against the real central (`npm run qa -- --local --check tabreturn`, new in app B), with `admin`, `topics`, `section`, `landing`, `navmode`, `schemaback`, `hooks` and `sitemap` still green.
+Verified against that real node (`npm run qa -- --local --check tabreturn`, new in app B), with `admin`, `topics`, `section`, `landing`, `navmode`, `schemaback`, `hooks` and `sitemap` still green.
 
 ## 7.27.19
 
-`C_YUI_TREEDB_TOPIC_WITH_FORM`, three faults of the topic table found on app B's central node:
+`C_YUI_TREEDB_TOPIC_WITH_FORM`, three faults of the topic table found on a node of app B:
 
 - **A table under a hidden tab keeps its place.** `C_YUI_TREEDB_TOPICS` hides the other topics with `display:none`, and Tabulator's `autoResize` took that 0x0 for a resize: it redrew a table with no layout, where every row reads `offsetTop` 0, so each visit to another tab and back moved the reader about a dozen rows up the page (and a column could be measured at its header's width). The table now watches its own size (`EV_TABLE_RESIZED`): a hidden table is left alone and is redrawn when it is seen again, with its scroll kept, or when its size really changes. `autoResize` is forced off.
 - **A click on an fkey to several parents opens the record.** `place` and `device_type` are `array` fkeys: the row click asked the column's REAL type, found `array` among the cells with a viewer of their own, and gave way to a click the cell does not have. It asks the field type only, the one the cell's own click is chosen by.
@@ -2451,7 +2451,7 @@ Two regressions of 7.26.7, and what it left half done.
   ALWAYS emitted** by `vite-plugin-yuneta-html.js`, with `connect-src 'self'`
   alone when `config.json` has no `csp_connect_src` -- and now also when there
   is no `config.json` at all. **Check your `config.json`**: an app that talks
-  to a websocket on another port (`wss://host:4620` is another origin), loads
+  to a websocket on another port (`wss://host:7301` is another origin), loads
   map tiles or external fonts, and declared none of them, loses them with only
   a build warning. The origins are escaped now. Tested
   (`vite_plugin_yuneta_html.test.js`).
@@ -4065,7 +4065,7 @@ Three fixes of the treedb views.
   `media-src 'self' data: blob:`.
   - It reaches an app when the app is rebuilt, and only an app whose config
     has `csp_connect_src`, because that is when the plugin writes a policy at
-    all: today app B's central and controller GUIs, and gui_agent.
+    all: today the two GUIs of app B, and gui_agent.
 
 ## 7.23.165
 
@@ -9916,7 +9916,7 @@ exports changed shape. The peer floor for `@yuneta/gobj-js` goes to
   one-shot `refresh_language()` over the shell tree — and its zone navs are
   appended into shell zones, outside the node's own `$container`. Neither pass
   reached them, so every strip showed its raw i18n key: `treedb`,
-  `central database`, `data` in lower-case English next to a fully translated
+  `main database`, `data` in lower-case English next to a fully translated
   menu. That is indistinguishable from a MISSING key, so it reads as an
   untranslated app rather than as an unapplied translation, and it sent more
   than one person looking for the wrong bug. The strips already carried their
