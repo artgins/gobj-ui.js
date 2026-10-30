@@ -7,6 +7,8 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.29.2
+
 - **No review citation in words, and no example taken from an application.**
   The CHANGELOG, the README, the comments and the tests say what each version
   changed, not which check of which review it was; the example yuno of
@@ -14,6 +16,7 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   `validate-locales` example is `../shared-gui`, the folded-graph example is a
   site with two hundred devices, and the trees and figures of the tests are
   neutral (`region -> north/south -> site`). No code change.
+- Development install on `@yuneta/gobj-js` 7.29.1 (the range is unchanged).
 
 ## 7.29.1
 
