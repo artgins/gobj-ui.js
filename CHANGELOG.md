@@ -7,6 +7,10 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.30.0 (2026-10-31)
+
+The number of SDK 7.30: no change of code over 7.29.8. `fast-uri` raised in the lockfile.
+
 ## 7.29.8
 
 - **Tests: four rules of the treedb fold model are tested, each with a
