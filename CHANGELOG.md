@@ -7,6 +7,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **The lockfile and the test-app on `maplibre-gl` 6.17.0.** No release: the
+  peer floor stays `^6.14.0`. 6.17.0 lists no breaking change for this
+  library: the camera internals it removes (`_moving`, `_easeId`, a writable
+  `map.transform`) are not used here, and `map._locale` (read by
+  `relocalize_maplibre`) is still there. It fixes camera movements started
+  inside other movements, a layer added with `addLayer` that drew nothing
+  beyond its source's `maxzoom`, and symbol text on iOS 15. The worker is
+  started as before on an https page with `setWorkerUrl`; only a page with an
+  opaque origin (`file://`, a sandboxed iframe) now starts it from a `data:`
+  URL. The test-app emits `maplibre-gl-worker-6.17.0.js` alone (520 KB).
+  1979 tests pass.
+
 ## 7.30.0 (2026-10-31)
 
 The number of SDK 7.30: no change of code over 7.29.8. `fast-uri` raised in the lockfile.
