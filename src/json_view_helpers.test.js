@@ -284,8 +284,8 @@ test("container_label: an array is not a record", () => {
 });
 
 test("container_label: cut at max_chars, and said with an ellipsis", () => {
-    let uuid = "ff14fc16-2cb2-472c-9c0a-89fa43837130";
-    expect(container_label({id: uuid}, 8)).toBe("ff14fc16…");
+    let uuid = "5a6b7c8d-1e2f-4a3b-9c4d-5e6f70819230";
+    expect(container_label({id: uuid}, 8)).toBe("5a6b7c8d…");
     expect(container_label({id: uuid}, 0)).toBe(uuid);
     expect(container_label({id: uuid}, undefined)).toBe(uuid);
 });
