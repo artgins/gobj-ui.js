@@ -7,6 +7,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **The lockfile and the test-app on `maplibre-gl` 6.18.0.** No release: the
+  peer floor stays `^6.14.0`. 6.18.0 lists no breaking change: it adds
+  layer-blend properties, changes the rotation inertia to match
+  maplibre-native, and fixes a map that jumped when dragged or zoomed past
+  the identity projection, `setMaxBounds` not firing move/zoom events, and an
+  icon fitted to its text that grew its padding. `map._locale` is still the
+  map's table (`relocalize_maplibre`); the cooperative-gesture handler now
+  keeps the table the map was BUILT with, which changes nothing here: it
+  writes its notice once, at construction, and `relocalize_maplibre`
+  rewrites that DOM itself. The worker loading and the file names in
+  `dist/` are unchanged. The test-app emits `maplibre-gl-worker-6.18.0.js`
+  alone (519 KB). 1979 tests pass.
+
 - **The lockfile and the test-app on `maplibre-gl` 6.17.0.** No release: the
   peer floor stays `^6.14.0`. 6.17.0 lists no breaking change for this
   library: the camera internals it removes (`_moving`, `_easeId`, a writable
