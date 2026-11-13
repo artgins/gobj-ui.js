@@ -13,11 +13,15 @@ Published as `@yuneta/gobj-ui`. Built on top of [`@yuneta/gobj-js`](https://gith
 > routing contract (URL = source of truth, push/replace history, the
 > position/preference/transient litmus).
 >
-> **Peer floors today** (`package.json`): `@yuneta/gobj-js` `^7.26.3`,
-> `@antv/g6` `^5.1.0`, `bulma` `^1.0.4`, `i18next` `^26.3.6`, `maplibre-gl`
-> `^6.11.2`, `tabulator-tables` `^6.5.3`, `tom-select` `^2.6.2`, `uplot`
-> `^1.6.32`, `vanilla-jsoneditor` `^3.13.0`. The notices below say when and why
+> **Peer floors today** (`package.json`): `@yuneta/gobj-js` `^7.30.0`,
+> `@antv/g6` `^5.1.1`, `bulma` `^1.0.4`, `i18next` `^27.1.1`, `maplibre-gl`
+> `^6.18.0`, `tabulator-tables` `^6.7.1`, `tom-select` `^2.7.0`, `uplot`
+> `^1.6.32`, `vanilla-jsoneditor` `^3.13.1`. The notices below say when and why
 > each floor moved; the list above is what a consumer must meet now.
+>
+> **BREAKING (7.31.0):** the peer floor of `i18next` rose to `^27.1.1` (and
+> `@yuneta/gobj-js` to `^7.30.0`). A consumer locked on i18next 26 gets
+> `ERESOLVE`: raise both in the same change. See the CHANGELOG entry.
 >
 > **BREAKING (7.26.10):** the peer floor of `@yuneta/gobj-js` rose to
 > `^7.26.3`. The library passes its markup through `html_markup()`, which first

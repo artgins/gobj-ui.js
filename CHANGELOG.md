@@ -7,6 +7,32 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.31.0 (2026-11-13)
+
+The number of SDK 7.31, and the peer floors raised to what is published today. No
+change of code in `src/`.
+
+- **BREAKING (a consumer on i18next 26): the peer floor of `i18next` rises to
+  `^27.1.1`.** i18next 27 changes defaults this library does not rely on:
+  `fallbackLng` is `false` instead of `['dev']` (nobody here had a `dev`
+  catalog, so a missing key still shows the key), an empty translation falls
+  back instead of rendering empty (no catalog of the library or of its apps
+  holds a `""`), codes without a region get canonical casing (`en`, `es`
+  already are), and a language code that looks like markup or a path is
+  refused unless it is listed. The library reads only `i18next.t`,
+  `i18next.language` and `i18next.options.debug`. `initImmediate`, which the
+  apps pass, was already ignored by i18next 26 (`initAsync` replaced it in 24);
+  with the catalogs in `resources` the init is synchronous on both. Raise
+  i18next to `^27.1.1` in the same change as this version, and keep it in the
+  `resolve.dedupe` list.
+- **The other peer floors**: `@yuneta/gobj-js` `^7.30.0`, `@antv/g6`
+  `^5.1.1`, `maplibre-gl` `^6.18.0`, `tabulator-tables` `^6.7.1`,
+  `tom-select` `^2.7.0`, `vanilla-jsoneditor` `^3.13.1` (its own dependencies
+  only; the lockfile takes `fast-uri` 3.1.9, out of its advisory).
+- Development tooling: vite ^8.3.8, vitest ^5.1.0, jsdom ^31.0.1;
+  `serialize-javascript` out of its low advisory. The test-app takes the same
+  ranges. 1979 tests pass.
+
 - **The lockfile and the test-app on `maplibre-gl` 6.18.0.** No release: the
   peer floor stays `^6.14.0`. 6.18.0 lists no breaking change: it adds
   layer-blend properties, changes the rotation inertia to match
