@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.31.1 (2026-11-15)
+
+- **A table's footer wraps when it does not fit** (`tabulator.css`). Tabulator
+  keeps its footer on one line (`white-space: nowrap`), so on a 412px phone the
+  paginator of a treedb topic (552px: page size, First, Prev, the pages, Next,
+  Last) ran off the screen and its buttons on the right could not be reached.
+  The row count and the paginator may now take two lines, and the paginator's
+  pieces wrap between them, each one whole. A wide screen still shows one line.
+
 ## 7.31.0 (2026-11-13)
 
 The number of SDK 7.31, and the peer floors raised to what is published today. No

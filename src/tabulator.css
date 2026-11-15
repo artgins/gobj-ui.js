@@ -14,6 +14,28 @@
  ***********************************************************************/
 
 /* ====================================================================
+ *  The footer WRAPS when it does not fit.
+ *  Tabulator puts `white-space: nowrap` on `.tabulator-footer`, so the
+ *  row count and the paginator (its label, the page size, First, Prev,
+ *  the pages, Next, Last) stayed on ONE line: 552px on a 412px phone,
+ *  and the buttons on the right were off the screen, out of reach.
+ *  The count and the paginator may now take two lines, and the pieces
+ *  of the paginator wrap between them, each one whole.  A wide screen
+ *  still shows one line: nothing wraps while it fits.
+ * ==================================================================== */
+.tabulator .tabulator-footer {
+    white-space: normal;
+}
+.tabulator .tabulator-footer .tabulator-footer-contents {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+}
+.tabulator .tabulator-footer .tabulator-paginator > *,
+.tabulator .tabulator-footer .tabulator-page {
+    white-space: nowrap;
+}
+
+/* ====================================================================
  *  Active / selected row highlight.
  *  Green wash + left accent, theme-aware, with enough specificity
  *  (three classes) to beat the striped-row !important backgrounds.
