@@ -758,6 +758,18 @@ centred above the target card's title. Ports on an html node need care: the
 HTML is a DOM layer over the canvas, so a port fully inside the box is painted
 under the card — they sit ON the border.
 
+**A click on an edge lights it** (`7.31.5`), as in the schema and treedb
+graphs: the line in amber, its two cards ringed with it, and the row of the
+parent's key the line leaves from washed. A second click on it, or a click on
+the canvas, puts it out; so does a fold that takes its child card away, and a
+new document. The cards are html, where G6 paints no state, so the lit edge is
+BAKED into the drawing like a find match (a rebuild that keeps the camera), and
+it is kept by the path of its child card, which survives a rebuild where the
+ids do not. An edge takes a click 7px either side of its line. The zoom goes
+down to 2% (`10%` before, where a document of a few hundred cards did not fit),
+and a **minimap** (bottom left, the library's `yui_graph_minimap.js`) appears
+from `minimap_min_nodes` cards on (default `10`).
+
 Cards are `JSON_CARD` and carry `data-json-path` (`GOBJ_CARD` /
 `data-gobj-name` in the gobj tree, `TREEDB_CARD` in the treedb graph): a gclass
 that builds DOM owes the Inspector a readable tree, and the anchor's mark needs

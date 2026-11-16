@@ -34,6 +34,7 @@ import {
     gobj_publish_event,
     gobj_save_persistent_attrs,
     gobj_read_bool_attr,
+    gobj_read_integer_attr,
     createElement2,
     is_string,
     is_array,
@@ -63,6 +64,8 @@ import {
     yui_graph_update_zoom,
 } from "./yui_graph_camera.js";
 
+import {yui_graph_minimap_options, yui_graph_minimap_block} from "./yui_graph_minimap.js";
+
 import {t} from "i18next";
 
 import {
@@ -70,6 +73,7 @@ import {
     ExtensionCategory,
     Graph,
     NodeEvent,
+    EdgeEvent,
     CanvasEvent,
     register,
 } from '@antv/g6';
@@ -97,6 +101,19 @@ const GCLASS_NAME = "C_YUI_JSON_GRAPH";
  *  because G6 assembles its own click from the pointer sequence.
  */
 const FOLD_SWALLOWED_EVENTS = ["pointerdown", "pointerup", "mousedown", "click"];
+
+/*
+ *  A lit edge and its two ends: the amber of the schema graph and the
+ *  treedb graph (C_YUI_TREEDB_SCHEMA, C_G6_NODES_TREE), one per scheme.
+ */
+const LIT_COLOR_DARK  = "#f0a020";
+const LIT_COLOR_LIGHT = "#b45309";
+const LIT_HALO_DARK   = "rgba(240,160,32,0.35)";
+const LIT_HALO_LIGHT  = "rgba(180,83,9,0.35)";
+
+/*  The width an edge takes a click on, in px: G6's default adds only
+ *  2 to the line's own.  */
+const EDGE_HIT_WIDTH = 14;
 
 /*
  *  Layouts, same shape the gobj tree's registry uses
@@ -183,6 +200,7 @@ SDATA(data_type_t.DTP_STRING,   "canvas_id",        0,  "",     "Canvas ID"),
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_STRING,   "wide",             0,  "40px", "Height of header. 40px and not 36: it is what an untouched Bulma control measures, so the find box stood 4px taller than every button beside it, and it is what the third graph of the family (C_YUI_TREEDB_GRAPH) uses"),
 SDATA(data_type_t.DTP_STRING,   "layout",           0,  "json-tree", "Layout key (see LAYOUTS)"),
+SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes", 0, 10,     "Show the minimap from this many cards on (0 = never), as the treedb graph does"),
 
 SDATA_END()
 ];
@@ -215,6 +233,12 @@ let PRIVATE_DATA = {
     last_zoom:      1,      // tells a wheel zoom from a drag in aftertransform
     center_posted:  false,  // one re-centring in flight, never a queue of them
     pending_keep:   null,   // {path,x,y}: a card to put back where it was
+
+    /*---------------- lit edge ----------------*/
+    lit_path:       "",     // path of the CHILD card of the lit edge: a rebuild finds it again
+    lit_parent_path: "",    // path of its PARENT card
+    lit_port:       "",     // the parent's port the edge leaves from: its row is washed
+    lit_found:      false,  // the last build drew it
 };
 
 let __gclass__ = null;
@@ -732,7 +756,10 @@ function build_graph(gobj)
         container: priv.canvas_id,
         animation: false,
         autoResize: false,
-        zoomRange: [0.1, 4],
+        /*  The floor was 0.1, and a document of a few hundred cards
+         *  did not fit at 10%: Fit stopped there with most of it off
+         *  screen.  */
+        zoomRange: [0.02, 4],
 
         node: {
             style: {
@@ -816,8 +843,12 @@ function build_graph(gobj)
         }
     });
 
-    graph.on(CanvasEvent.CLICK, (evt) => {
-        // Canvas click
+    graph.on(EdgeEvent.CLICK, (evt) => {
+        gobj_send_event(gobj, "EV_EDGE_CLICK", g6_event_kw(evt), gobj);
+    });
+
+    graph.on(CanvasEvent.CLICK, () => {
+        gobj_send_event(gobj, "EV_CANVAS_CLICK", {}, gobj);
     });
 
     /*
@@ -1269,11 +1300,39 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
     let border_width = card_matched? 2: 1;
 
     /*
+     *  The lit edge: this card is its CHILD end, or its PARENT end --
+     *  and then the row of the key the edge leaves from is washed, so
+     *  the line says which key it is.
+     */
+    let lit_color = dark? LIT_COLOR_DARK : LIT_COLOR_LIGHT;
+    let lit_child = !!parent_id && !empty_string(priv.lit_path) && path === priv.lit_path;
+    let lit_row = -1;
+    let lit_parent = !empty_string(priv.lit_path) && path === priv.lit_parent_path;
+    if(lit_parent) {
+        for(let pending of pending_complex) {
+            if(pending.port === priv.lit_port) {
+                lit_row = pending.row;
+                break;
+            }
+        }
+    }
+    let lit_card = lit_child || lit_parent;
+    if(lit_child) {
+        priv.lit_found = true;
+    }
+    if(lit_card) {
+        border_color = lit_color;
+        border_width = 3;
+    }
+
+    /*
      *  Build node HTML content
      */
-    let content_html = lines.map(line =>
-        `<div style="font-family:monospace; font-size:13px; padding:1px 6px; white-space:nowrap;">${line}</div>`
-    ).join("");
+    let content_html = lines.map((line, i) => {
+        let wash = (i === lit_row)?
+            ` background:color-mix(in srgb, ${lit_color} 28%, transparent);` : "";
+        return `<div style="font-family:monospace; font-size:13px; padding:1px 6px; white-space:nowrap;${wash}">${line}</div>`;
+    }).join("");
 
     let min_width = Math.max(180, label.length * 9);
     let card_height = CARD_HEADER_H + lines.length * CARD_ROW_H;
@@ -1295,8 +1354,9 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
 <div class="JSON_CARD" data-json-path="${escapeHtml(path)}" style="
     min-width: ${min_width}px;
     background: ${colors.bg};
-    border: ${border_width}px ${is_dict ? 'dashed' : 'solid'} ${border_color};
+    border: ${border_width}px ${(is_dict && !lit_card) ? 'dashed' : 'solid'} ${border_color};
     border-radius: ${is_dict ? '6px' : '0'};
+    ${lit_card? `box-shadow: 0 0 0 4px ${dark? LIT_HALO_DARK : LIT_HALO_LIGHT};` : ""}
     opacity: 0.9;
     overflow: hidden;
 ">
@@ -1402,7 +1462,10 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
             target: group_id,
             style: {
                 stroke: colors.border,
-                lineWidth: 1,
+                /*  1.6 and a click 7px either side of it: a 1px line
+                 *  was a 1px target.  */
+                lineWidth: 1.6,
+                increasedLineWidthForHitTesting: EDGE_HIT_WIDTH,
                 /*
                  *  Said on the EDGE and not left to the graph's element
                  *  default: a per-element `style` is what the reader of
@@ -1424,6 +1487,17 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
         };
         if(parent_port) {
             edge.style.sourcePort = parent_port;
+        }
+        if(lit_child) {
+            Object.assign(edge.style, {
+                stroke:         lit_color,
+                lineWidth:      3,
+                halo:           true,
+                haloStroke:     dark? LIT_HALO_DARK : LIT_HALO_LIGHT,
+                haloLineWidth:  8,
+                endArrowFill:   lit_color,
+                endArrowStroke: lit_color,
+            });
         }
         edges.push(edge);
     }
@@ -1453,6 +1527,75 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
 }
 
 /************************************************************
+ *  The minimap plugin of the graph, or null when it has none.
+ ************************************************************/
+function minimap_plugin(gobj)
+{
+    let graph = gobj.priv.graph;
+    let plugins = graph.getPlugins() || [];
+    if(!plugins.some((p) => typeof p === "object" && p.key === "minimap")) {
+        return null;
+    }
+    return graph.getPluginInstance("minimap") || null;
+}
+
+/************************************************************
+ *  Show or hide the minimap, deciding by the number of cards
+ *  about to be drawn (`n`), from `minimap_min_nodes` on -- the
+ *  rule of the gobj tree (C_YUI_GOBJ_TREE_JS), whose code this
+ *  is: called BEFORE the render, because the minimap builds its
+ *  canvas off the render events and one added after the last
+ *  render is never painted. Its blocks wear the border colour of
+ *  their card, read at each paint, so a theme switch repaints
+ *  them; the phantom a fold leaves is not drawn.
+ ************************************************************/
+function refresh_minimap(gobj, n)
+{
+    let graph = gobj.priv.graph;
+    let threshold = gobj_read_integer_attr(gobj, "minimap_min_nodes");
+    let plugin = minimap_plugin(gobj);
+
+    if(!threshold || n < threshold) {
+        if(plugin) {
+            graph.setPlugins((graph.getPlugins() || []).filter(
+                (p) => !(typeof p === "object" && p.key === "minimap")
+            ));
+            if(!plugin.destroyed && plugin.destroy) {
+                plugin.destroy();
+            }
+        }
+        return;
+    }
+    if(plugin) {
+        return;     /*  already up  */
+    }
+
+    let shape = (id, element_type, element) => {
+        if(element_type !== "node") {
+            return element;     /*  edges clone themselves fine  */
+        }
+        try {
+            let nd = graph.getNodeData(id);
+            let data = (nd && nd.data) || {};
+            if(data.phantom) {
+                return yui_graph_minimap_block(nd, "transparent");
+            }
+            let colors = json_card_style(
+                data.is_dict? GROUP_COLORS.dict : GROUP_COLORS.list, yui_is_dark()
+            );
+            return yui_graph_minimap_block(nd, colors.border);
+        } catch(e) {
+            log_error(`${gobj_short_name(gobj)}: minimap shape failed: ${e}`);
+            return element;
+        }
+    };
+    graph.setPlugins((plugins) => [
+        ...plugins,
+        {key: "minimap", type: "minimap", ...yui_graph_minimap_options(shape)}
+    ]);
+}
+
+/************************************************************
  *  Load JSON data into graph
  ************************************************************/
 function load_json(gobj)
@@ -1477,11 +1620,25 @@ function load_json(gobj)
 
     priv.node_counter = 0;
     priv.match_count = 0;
+    priv.lit_found = false;
 
     let nodes = [];
     let edges = [];
 
     build_json_nodes(gobj, path, json, nodes, edges, null);
+
+    if(!empty_string(priv.lit_path) && !priv.lit_found) {
+        /*  Its child card is gone (a fold above it): nothing is lit.  */
+        priv.lit_path = "";
+        priv.lit_parent_path = "";
+        priv.lit_port = "";
+    }
+
+    try {
+        refresh_minimap(gobj, nodes.length);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: refresh_minimap failed: ${e}`);
+    }
 
     let preserve_view = !!priv.pending_preserve_view;
     priv.pending_preserve_view = false;
@@ -1931,8 +2088,11 @@ function ac_load_data(gobj, event, kw, src)
     if(kw.data !== undefined) {
         gobj_write_attr(gobj, "json_data", kw.data);
         /*  A new document: the folds and the space they were holding
-         *  belonged to the old one.  */
+         *  belonged to the old one, and so did the lit edge.  */
         priv_reset_folds(gobj);
+        gobj.priv.lit_path = "";
+        gobj.priv.lit_parent_path = "";
+        gobj.priv.lit_port = "";
     }
 
     refresh_json(gobj);
@@ -2109,6 +2269,69 @@ function ac_collapse_all(gobj, event, kw, src)
     priv.reserved.clear();
     refresh_json(gobj);
     update_find_result(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  EV_EDGE_CLICK { id }
+ *
+ *  Light the edge and its two ends, or put it out when it is
+ *  the lit one. Baked into the drawing, like a find match: the
+ *  cards are html, where G6 paints no state, so the drawing is
+ *  rebuilt with the camera kept. The edge is kept by the PATH
+ *  of its child card, which a rebuild keeps and the ids do not.
+ ************************************************************/
+function ac_edge_click(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph || priv.anchor_state === "arming") {
+        return 0;   /*  picking a card for the anchor: an edge is no answer  */
+    }
+    let edge;
+    let source;
+    let target;
+    try {
+        edge = graph.getEdgeData(kw.id);
+        source = graph.getNodeData(edge.source);
+        target = graph.getNodeData(edge.target);
+    } catch(e) {
+        log_warning(`${gobj_short_name(gobj)}: EV_EDGE_CLICK of an edge not in the graph: ${kw.id}`);
+        return -1;
+    }
+    let tdata = (target && target.data) || {};
+    if(tdata.phantom || empty_string(tdata.path)) {
+        return 0;   /*  the invisible edge a fold leaves  */
+    }
+
+    if(priv.lit_path === tdata.path) {
+        priv.lit_path = "";
+        priv.lit_parent_path = "";
+        priv.lit_port = "";
+    } else {
+        priv.lit_path = tdata.path;
+        priv.lit_parent_path = (source && source.data && source.data.path) || "";
+        priv.lit_port = (edge.style && edge.style.sourcePort) || "";
+    }
+    refresh_json(gobj, {preserve_view: true});
+    return 0;
+}
+
+/************************************************************
+ *  EV_CANVAS_CLICK -- a click on nothing puts the lit edge out.
+ ************************************************************/
+function ac_canvas_click(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(empty_string(priv.lit_path)) {
+        return 0;
+    }
+    priv.lit_path = "";
+    priv.lit_parent_path = "";
+    priv.lit_port = "";
+    refresh_json(gobj, {preserve_view: true});
     return 0;
 }
 
@@ -2525,6 +2748,8 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_RESET",           ac_zoom_reset,          null],
             ["EV_CENTER",               ac_center,              null],
             ["EV_NODE_CLICK",           ac_node_click,          null],
+            ["EV_EDGE_CLICK",           ac_edge_click,          null],
+            ["EV_CANVAS_CLICK",         ac_canvas_click,        null],
             ["EV_TOGGLE_ANCHOR",        ac_toggle_anchor,       null],
             ["EV_CENTER_ANCHOR",        ac_center_anchor,       null],
             ["EV_RESIZE",               ac_resize,              null],
@@ -2550,6 +2775,8 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_RESET",           0],
         ["EV_CENTER",               0],
         ["EV_NODE_CLICK",           0],
+        ["EV_EDGE_CLICK",           0],
+        ["EV_CANVAS_CLICK",         0],
         ["EV_TOGGLE_ANCHOR",        0],
         ["EV_CENTER_ANCHOR",        0],
         ["EV_RESIZE",               0],

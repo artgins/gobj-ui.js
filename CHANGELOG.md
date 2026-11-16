@@ -12,6 +12,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   its own cannot be read back with the certificate checked, so it was left out
   of the round, and its SPA stayed behind unnoticed.
 
+## 7.31.5 (2026-11-16)
+
+- **The JSON graph (`C_YUI_JSON_GRAPH`) lights an edge on a click**, as the
+  schema and treedb graphs do: the line in amber with a halo, its two cards
+  ringed, and the row of the parent's key it leaves from washed. A second
+  click, a canvas click, a fold that takes its child card away or a new
+  document puts it out. Its edges are drawn 1.6px (1 before) and take a click
+  7px either side of the line.
+- **It has a minimap** from `minimap_min_nodes` cards on (new attribute,
+  default `10`), the library's, its blocks in each card's colour.
+- **It zooms out to 2%** (the floor was 10%): a document of a few hundred cards
+  did not fit, and *Fit* stopped with most of it off screen.
+
 ## 7.31.4 (2026-11-16)
 
 - **The treedb graph (`C_G6_NODES_TREE`) draws its edges as before 7.31.3**:
