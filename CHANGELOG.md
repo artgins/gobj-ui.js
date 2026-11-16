@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.31.3 (2026-11-16)
+
+- **An edge is easier to click**, in the schema graph (`C_YUI_TREEDB_SCHEMA`)
+  and in the treedb graph (`C_G6_NODES_TREE`). It answers a click some 7px
+  either side of its line (`increasedLineWidthForHitTesting: 14`; G6's default
+  adds 2px), and it is drawn wider: 2px in the schema graph (1.2 before), 2px
+  and 2.5px for a tree link in the treedb graph (1.6 and 2 before); a lit edge
+  4px (3 before). A width a user chose for an edge in the treedb graph is kept.
+
 ## 7.31.2 (2026-11-16)
 
 - **A click on an edge lights it, with its two ends**, in the schema graph

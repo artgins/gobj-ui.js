@@ -1372,6 +1372,11 @@ describe("a click on an edge lights it and its two ends (not in edition)", () =>
         return b;
     }
 
+    test("an edge answers a click well around its line", async () => {
+        const {graph} = await reading();
+        expect(graph.options.edge.style.increasedLineWidthForHitTesting).toBeGreaterThanOrEqual(10);
+    });
+
     test("the edge takes the lit state, its ends are painted, the host still hears the click", async () => {
         const {tree, states} = await reading();
         gobj_send_event(tree, "EV_EDGE_CLICK", {id: "e1"}, tree);

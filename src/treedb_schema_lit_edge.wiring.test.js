@@ -178,6 +178,9 @@ describe("C_YUI_TREEDB_SCHEMA: minimap and lit edge", () => {
         expect(minimap.type).toBe("minimap");
         expect(minimap.containerStyle).toMatchObject({top: "auto", bottom: "12px"});
         expect(graph.edge_options.state.lit).toBeTruthy();
+        /*  a 2px line is a 2px target: the click is taken well around it  */
+        expect(graph.edge_options.style.lineWidth).toBeGreaterThanOrEqual(2);
+        expect(graph.edge_options.style.increasedLineWidthForHitTesting).toBeGreaterThanOrEqual(10);
     });
 
     test("an edge click lights the edge, its two cards and the two rows", async () => {

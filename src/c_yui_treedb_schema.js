@@ -125,6 +125,10 @@ const LIT_COLOR_LIGHT = "#b45309";
 const LIT_HALO_DARK   = "rgba(240,160,32,0.35)";
 const LIT_HALO_LIGHT  = "rgba(180,83,9,0.35)";
 
+/*  The width an edge answers a click on, in px: a line drawn 2px
+ *  wide is a 2px target, and G6's default adds only 2 more.  */
+const EDGE_HIT_WIDTH = 14;
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -642,7 +646,8 @@ function edge_style(dark)
 {
     return {
         stroke:   dark ? "#7a8593" : "#9aa4b2",
-        lineWidth: 1.2,
+        lineWidth: 2,
+        increasedLineWidthForHitTesting: EDGE_HIT_WIDTH,
         startArrow: true,
         endArrow:   false,
     };
@@ -661,7 +666,7 @@ function edge_options(dark)
         state: {
             lit: {
                 stroke:        dark? LIT_COLOR_DARK : LIT_COLOR_LIGHT,
-                lineWidth:     3,
+                lineWidth:     4,
                 halo:          true,
                 haloStroke:    dark? LIT_HALO_DARK : LIT_HALO_LIGHT,
                 haloLineWidth: 8,

@@ -2624,7 +2624,9 @@ ringed with it and the two rows it joins -- the hook of the parent and the fkey
 of the child -- washed, so a line says which two fields it ties. A second click
 on the same edge, or a click on the canvas, puts it out. The treedb graph
 (`C_G6_NODES_TREE`) lights an edge and its two records the same way, except in
-`edition`, where a click selects the edge. And the drawing always carries a
+`edition`, where a click selects the edge. In both graphs an edge takes a
+click some 7px either side of its line (`increasedLineWidthForHitTesting: 14`,
+`7.31.3`; G6's default adds 2px to a line drawn 2px wide). And the drawing always carries a
 **minimap** (bottom left, the library's `yui_graph_minimap.js`), because a
 schema of more cards than the screen holds is the usual case.
 
