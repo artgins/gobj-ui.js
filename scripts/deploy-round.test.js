@@ -690,6 +690,25 @@ describe("deploy-round: the range and the version", () => {
     });
 });
 
+describe("deploy-round: the read-back", () => {
+    test("an insecure url is read back with curl -k, the others with the certificate checked", () => {
+        let root = mkdtempSync(join(tmpdir(), "dr-"));
+        let dir = consumer(root, "box", "1.0.0", {"@yuneta/gobj-ui": `^${VERSION}`});
+        mkdirSync(join(root, "bin"), {recursive: true});
+        let log = join(root, "curl.log");
+        writeFileSync(join(root, "bin", "curl"),
+            `#!/bin/sh\necho "$@" >> ${log}\necho '<script src="/assets/index-x.js"></script>'\n`);
+        chmodSync(join(root, "bin", "curl"), 0o755);
+        let r = round(root, {name: "box", path: dir, urls: ["https://a.invalid/"],
+                             insecure_urls: ["https://10.0.0.1/"]},
+                      ["--check"], {PATH: join(root, "bin") + delimiter + process.env.PATH});
+        let calls = readFileSync(log, "utf8").trim().split("\n");
+        expect(calls).toContain("-sS --max-time 20 https://a.invalid/");
+        expect(calls).toContain("-sS --max-time 20 -k https://10.0.0.1/");
+        expect(r.out).toContain("https://10.0.0.1/");
+    });
+});
+
 describe("deploy-round: the public demo", () => {
     /*  A copy of the repo: the script, a package.json, a test-app whose build is `true` and whose
      *  deploy.sh writes a line in `deployed`; an `origin` it was pushed to; curl that answers nothing  */

@@ -253,10 +253,15 @@ function run_step(cmd, cmd_args, cwd, extra_env)
     });
 }
 
+/*  The urls read back with no check of the certificate: a box served by
+ *  IP with a pair of its own (see `insecure_urls` in the manifest)  */
+const INSECURE_URLS = new Set();
+
 function curl(url)
 {
+    const opts = INSECURE_URLS.has(url)? ["-k"] : [];
     try {
-        return run("curl", ["-sS", "--max-time", "20", url]);
+        return run("curl", ["-sS", "--max-time", "20", ...opts, url]);
     } catch(e) {
         return "";
     }
@@ -291,7 +296,14 @@ function read_consumers()
         return [];
     }
     const jn = parse_json(readFileSync(MANIFEST, "utf8"));
-    return jn.consumers || [];
+    const consumers = jn.consumers || [];
+    for(const c of consumers) {
+        for(const url of (c.insecure_urls || [])) {
+            INSECURE_URLS.add(url);
+        }
+        c.urls = [...(c.urls || []), ...(c.insecure_urls || [])];
+    }
+    return consumers;
 }
 
 /************************************************************

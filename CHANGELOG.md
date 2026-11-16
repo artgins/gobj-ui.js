@@ -7,6 +7,11 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+- **`deploy-round`: `insecure_urls`** in a consumer of the manifest, read back
+  like `urls` but with `curl -k`: a box served by IP with a self-signed pair of
+  its own cannot be read back with the certificate checked, so it was left out
+  of the round, and its SPA stayed behind unnoticed.
+
 ## 7.31.3 (2026-11-16)
 
 - **An edge is easier to click**, in the schema graph (`C_YUI_TREEDB_SCHEMA`)
