@@ -1238,7 +1238,7 @@ function build_graph(gobj)
             style: {
                 startArrow: true,   // HACK target/source interchanged
                 endArrow: false,
-                /*  A line of 2px is a 2px target: answer a click
+                /*  A line of 1.6px is a 1.6px target: answer a click
                  *  some px around it (G6's default adds 2).  */
                 increasedLineWidthForHitTesting: 14,
             },
@@ -1248,7 +1248,7 @@ function build_graph(gobj)
             state: {
                 lit: () => ({
                     stroke:        highlight_color(priv.theme),
-                    lineWidth:     4,
+                    lineWidth:     3,
                     halo:          true,
                     haloStroke:    highlight_halo(priv.theme),
                     haloLineWidth: 8,
@@ -9391,7 +9391,7 @@ function edge_inherited_style_of(gobj, d)
 {
     let priv = gobj.priv;
     let style = {
-        lineWidth: d.is_tree ? 2.5 : 2,
+        lineWidth: d.is_tree ? 2 : 1.6,
         stroke: default_edge_stroke(gobj, d, priv.theme),
         themed_default: true,
     };

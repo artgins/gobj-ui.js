@@ -12,6 +12,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
   its own cannot be read back with the certificate checked, so it was left out
   of the round, and its SPA stayed behind unnoticed.
 
+## 7.31.4 (2026-11-16)
+
+- **The treedb graph (`C_G6_NODES_TREE`) draws its edges as before 7.31.3**:
+  1.6px, 2px for a tree link, 3px lit. Only its wider click area stays
+  (`increasedLineWidthForHitTesting: 14`, not drawn). Its lines had the right
+  width; the thin ones were the schema graph's, which keeps its 2px.
+
 ## 7.31.3 (2026-11-16)
 
 - **An edge is easier to click**, in the schema graph (`C_YUI_TREEDB_SCHEMA`)
