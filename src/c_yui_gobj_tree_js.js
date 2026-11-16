@@ -179,7 +179,7 @@ SDATA(data_type_t.DTP_STRING,   "yuno_name",        0,  "",     "remote: the nam
 SDATA(data_type_t.DTP_STRING,   "wide",             0,  "40px", "Height of header. 40px and not 36: it is what an untouched Bulma control measures, so the find box stood 4px taller than every button beside it, and it is what the third graph of the family (C_YUI_TREEDB_GRAPH) uses"),
 SDATA(data_type_t.DTP_STRING,   "layout",           0,  "vertical-compact", "Current layout key"),
 SDATA(data_type_t.DTP_INTEGER,  "collapse_threshold", 0, 10, "Auto-collapse a node whose direct children exceed this number. 0 disables auto-collapse."),
-SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes", 0, 20,    "Show the minimap from this many cards on (0 = never). Lower than the treedb graph's 30: this tree opens at actual size, not fitted, so the reader is past its edge sooner"),
+SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes", 0, 20,    "Show the minimap from this many cards on (0 = never). The treedb graph shows it from 10"),
 
 SDATA_END()
 ];

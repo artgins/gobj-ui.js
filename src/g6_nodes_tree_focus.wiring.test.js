@@ -1358,3 +1358,53 @@ describe("a rebuilt toolbar shows what its items were told (fourth pass)", () =>
         expect(shown(drawn, "toolbar-edit", "undo")).toEqual(DARK);
     });
 });
+
+describe("a click on an edge lights it and its two ends (not in edition)", () => {
+    async function reading()
+    {
+        const b = await build("reading");
+        b.states = [];
+        b.graph.updateData = (data) => {
+            for(const u of (data.edges || [])) {
+                b.states.push([u.id, u.states]);
+            }
+        };
+        return b;
+    }
+
+    test("the edge takes the lit state, its ends are painted, the host still hears the click", async () => {
+        const {tree, states} = await reading();
+        gobj_send_event(tree, "EV_EDGE_CLICK", {id: "e1"}, tree);
+        expect(tree.priv._lit_edge_id).toBe("e1");
+        expect(tree.priv._lit_ids).toEqual(["n1", "n1"]);
+        expect(states).toEqual([["e1", ["lit"]]]);
+        expect(published.map((p) => p.event)).toContain("EV_EDGE_CLICKED");
+    });
+
+    test("a second click on it, or a canvas click, puts it out", async () => {
+        const {tree, states} = await reading();
+        gobj_send_event(tree, "EV_EDGE_CLICK", {id: "e1"}, tree);
+        gobj_send_event(tree, "EV_EDGE_CLICK", {id: "e1"}, tree);
+        expect(tree.priv._lit_edge_id).toBe(null);
+        expect(tree.priv._lit_ids).toEqual([]);
+
+        gobj_send_event(tree, "EV_EDGE_CLICK", {id: "e1"}, tree);
+        gobj_send_event(tree, "EV_CANVAS_CLICK", {}, tree);
+        expect(tree.priv._lit_edge_id).toBe(null);
+        expect(states).toEqual([["e1", ["lit"]], ["e1", []], ["e1", ["lit"]], ["e1", []]]);
+    });
+
+    test("in edition the click SELECTS the edge and lights nothing", async () => {
+        const b = await build("edition");
+        gobj_send_event(b.tree, "EV_EDGE_CLICK", {id: "e1"}, b.tree);
+        expect(b.tree.priv._selected_edge_id).toBe("e1");
+        expect(b.tree.priv._lit_edge_id).toBe(null);
+    });
+
+    test("entering edition puts a lit edge out", async () => {
+        const {tree} = await reading();
+        gobj_send_event(tree, "EV_EDGE_CLICK", {id: "e1"}, tree);
+        gobj_send_event(tree, "EV_SET_OPERATION_MODE", {operation_mode: "edition"}, tree);
+        expect(tree.priv._lit_edge_id).toBe(null);
+    });
+});

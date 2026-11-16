@@ -7,6 +7,27 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.31.2 (2026-11-16)
+
+- **A click on an edge lights it, with its two ends**, in the schema graph
+  (`C_YUI_TREEDB_SCHEMA`) and in the treedb graph (`C_G6_NODES_TREE`). The line
+  takes a `lit` state in the amber of the find (one per scheme, `#f0a020` dark,
+  `#b45309` light) and its two cards are painted with it; in the schema graph
+  the hook row and the fkey row the line joins are washed too, so a line says
+  which two fields it ties. A second click on the same edge, or a click on the
+  canvas, puts it out; a theme switch keeps it lit. In the treedb graph a lit
+  edge and a find are kept apart (one does not erase the other), and in
+  `edition` a click still SELECTS the edge, with its own ring and buttons, and
+  lights nothing (entering edition puts a lit edge out). `EV_EDGE_CLICKED` is
+  still published to the host as before.
+- **The schema graph has a minimap**, always: a schema of more cards than the
+  screen holds is the usual case. The library's (`yui_graph_minimap.js`), its
+  blocks in each topic's colour.
+- **The treedb graph shows its minimap from 10 nodes** (`minimap_min_nodes`,
+  of `C_G6_NODES_TREE` and `C_YUI_TREEDB_GRAPH`), not 30: a row of 26 cards
+  already ran off both sides of the screen with no minimap to say where the
+  rest were. A host that set the attribute keeps its own number.
+
 ## 7.31.1 (2026-11-15)
 
 - **A table's footer wraps when it does not fit** (`tabulator.css`). Tabulator

@@ -658,7 +658,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include tre
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  true,   "Use gridline plugin"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_fullscreen",      0,  true,   "Use fullscreen plugin"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",         0,  true,   "Use toolbar plugin"),
-SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes",    0,  30,     "Show the minimap from this many nodes on (0 = never). A minimap of a graph that fits on screen is decoration; one of two hundred cards is the only way to know where you are"),
+SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes",    0,  10,     "Show the minimap from this many nodes on (0 = never). A minimap of a graph that fits on screen is decoration; one of two hundred cards is the only way to know where you are. 10, not 30: a row of 26 cards already runs off both sides of the screen"),
 SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "right-top",
     "Toolbar position: top-left, top-right, bottom-left, bottom-right, left-top, right-top"),
 SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
@@ -765,6 +765,8 @@ let PRIVATE_DATA = {
     _link_saved_styles: [],         // saved port styles to restore on cancel
     _focus_topic:       null,       // topic currently focused (EV_FOCUS_TOPIC)
     _focus_ids:         [],         // node ids carrying the focus 'active' state
+    _lit_edge_id:       null,       // the edge lit by a click (not in edition)
+    _lit_ids:           [],         // ...and its two ends, painted like a find match
     _on_pointerdown_focus: null,    // listener keeping the keyboard on the canvas
     _on_native_contextmenu: null,   // listener keeping the browser's menu out
     _uninstall_long_press: null,    // touch door to the context menu
@@ -1236,6 +1238,18 @@ function build_graph(gobj)
             style: {
                 startArrow: true,   // HACK target/source interchanged
                 endArrow: false,
+            },
+            /*  An edge lit by a click (light_edge): the amber of a find
+             *  match, its two ends painted with it. A callback, so a
+             *  theme switch repaints it in the other scheme's amber.  */
+            state: {
+                lit: () => ({
+                    stroke:        highlight_color(priv.theme),
+                    lineWidth:     3,
+                    halo:          true,
+                    haloStroke:    highlight_halo(priv.theme),
+                    haloLineWidth: 8,
+                }),
             },
         },
 
@@ -2081,6 +2095,7 @@ function configure_behaviour(gobj)
             break;
         case "edition":
             priv.edit_mode = true;
+            unlight_edge(gobj);     /* edition SELECTS an edge instead */
             behaviors = [
                 /*  Panning gives way while Shift is held: that is the
                  *  marquee's gesture, and G6 binds drag-canvas straight
@@ -8191,6 +8206,97 @@ function node_innerHTML_of(nd, theme, highlight, selected, anchored, pills_html)
 }
 
 /************************************************************
+ *  The cards painted with the highlight: a find or topic focus
+ *  (`_focus_ids`) and the two ends of a lit edge (`_lit_ids`).
+ *  Kept apart so that lighting an edge does not erase a find,
+ *  and a find does not put out an edge.
+ ************************************************************/
+function highlighted_ids(gobj)
+{
+    let priv = gobj.priv;
+    return new Set([...(priv._focus_ids || []), ...(priv._lit_ids || [])]);
+}
+
+/************************************************************
+ *  Light an edge: the edge itself and its two ends, so a click
+ *  on a line says which two records it joins. A second click on
+ *  the same edge, or a click on the canvas, puts it out.
+ *
+ *  Not in edition: there a click SELECTS the edge, with its own
+ *  ring and its affordances (select_edge).
+ ************************************************************/
+function light_edge(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph || !edge_id) {
+        return;
+    }
+    let same = (priv._lit_edge_id === edge_id);
+    unlight_edge(gobj);
+    if(same) {
+        return;
+    }
+
+    let ed;
+    try {
+        ed = graph.getEdgeData(edge_id);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot light the edge ${edge_id}: ${e}`);
+        return;
+    }
+    priv._lit_edge_id = edge_id;
+    priv._lit_ids = [ed.source, ed.target];
+
+    /*  The state as data, and ONE draw (repaint_cards'):
+     *  setElementState() draws on its own, and two draws race.  */
+    try {
+        graph.updateData({edges: [{id: edge_id, states: ['lit']}]});
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: edge state not set: ${e}`);
+    }
+    repaint_cards(gobj, new Set(priv._lit_ids));
+}
+
+function unlight_edge(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edge_id = priv._lit_edge_id;
+    let ids = priv._lit_ids || [];
+
+    priv._lit_edge_id = null;
+    priv._lit_ids = [];
+
+    if(!graph) {
+        return;
+    }
+    if(edge_id) {
+        let exists = false;
+        try {
+            exists = !!graph.getEdgeData(edge_id);
+        } catch(e) {
+            exists = false;     /* folded away since it was lit */
+        }
+        if(exists) {
+            try {
+                graph.updateData({edges: [{id: edge_id, states: []}]});
+            } catch(e) {
+                log_error(`${gobj_short_name(gobj)}: edge state not cleared: ${e}`);
+            }
+        }
+    }
+    if(ids.length) {
+        repaint_cards(gobj, new Set(ids));
+    } else if(edge_id) {
+        graph.draw().catch((e) => {
+            log_error(`${gobj_short_name(gobj)}: redraw failed: ${e}`);
+        });
+    }
+}
+
+/************************************************************
  *  Repaint these cards with the flags they carry RIGHT NOW.
  *
  *  One place, because the flags are independent and each used to
@@ -8208,7 +8314,7 @@ function repaint_cards(gobj, ids)
         return;
     }
 
-    let focus    = new Set(priv._focus_ids || []);
+    let focus    = highlighted_ids(gobj);
     let selected = new Set(priv._selected_paint_ids || []);
 
     let updates = [];
@@ -8285,7 +8391,7 @@ function refresh_html_nodes_theme(gobj, theme)
     /*  The highlight is part of the card's html, so a theme switch that
      *  rebuilt every card without it would silently CLEAR the focus or the
      *  find that is on screen. Carry it across. */
-    let highlighted = new Set(priv._focus_ids || []);
+    let highlighted = highlighted_ids(gobj);
     let selected = new Set(priv._selected_paint_ids || []);
     let updates = [];
     for(let i = 0; i < nodes.length; i++) {
@@ -10537,6 +10643,11 @@ async function reconcile_fold_apply(gobj, opts, visible)
             hide_node_detail(gobj);
         }
         priv._focus_ids = (priv._focus_ids || []).filter((id) => !gone.has(id));
+        if((priv._lit_ids || []).some((id) => gone.has(id))) {
+            /*  an edge whose end is gone is gone too  */
+            priv._lit_edge_id = null;
+            priv._lit_ids = (priv._lit_ids || []).filter((id) => !gone.has(id));
+        }
         priv._selected_paint_ids = (priv._selected_paint_ids || []).filter((id) => !gone.has(id));
         if(priv.anchor_state === "on" && gone.has(priv.anchor_id)) {
             priv.anchor_id = "";
@@ -12311,6 +12422,8 @@ function ac_edge_click(gobj, event, kw, src)
             if(priv.edit_mode) {
                 deselect_node(gobj);
                 select_edge(gobj, edge_id);
+            } else {
+                light_edge(gobj, edge_id);
             }
         }
     } catch(e) {
@@ -12858,6 +12971,7 @@ function ac_canvas_click(gobj, event, kw, src)
     let priv = gobj.priv;
 
     hide_node_detail(gobj);
+    unlight_edge(gobj);
 
     if(priv._linking_mode) {
         exit_linking_mode(gobj);

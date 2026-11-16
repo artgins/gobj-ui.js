@@ -122,7 +122,7 @@ SDATA(data_type_t.DTP_INTEGER,  "fold_page_size",   0,  24,     "Children of one
  *  creates the child, so an option it does not forward is an option that
  *  does not exist. The defaults repeat the child's -- a host that says
  *  nothing gets exactly what it got before.  */
-SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes", 0, 30,    "Show the minimap from this many nodes on (0 = never). Forwarded to the G6 child"),
+SDATA(data_type_t.DTP_INTEGER,  "minimap_min_nodes", 0, 10,    "Show the minimap from this many nodes on (0 = never). Forwarded to the G6 child"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",    0,  true,  "Draw the grid under the graph. Forwarded to the G6 child"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_fullscreen",  0,  true,  "Offer the full-screen button. Forwarded to the G6 child"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",     0,  true,  "Float the camera toolbar over the canvas. Forwarded to the G6 child"),

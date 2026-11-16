@@ -25,6 +25,14 @@
  *      via the host-supplied `node_route`). An alternate landing to the
  *      topic cards, in the spirit of "every treedb is a graph".
  *
+ *      A click on an EDGE lights it: the line in amber, its two cards
+ *      ringed and the hook row and the fkey row it joins washed, so a
+ *      line says which two fields it ties. A second click on it, or a
+ *      click on the canvas, puts it out. The amber is the node graph's
+ *      find (C_G6_NODES_TREE). And the drawing always carries a
+ *      MINIMAP (yui_graph_minimap.js): a schema of more cards than the
+ *      screen holds is the usual case.
+ *
  *      The CAMERA is the family's (yui_graph_camera.js): the same
  *      toolbar cluster -- zoom in/out, readout, fit, 1:1 -- and the
  *      same wheel: it SCROLLS, and Ctrl + wheel zooms, over the cards
@@ -58,7 +66,7 @@ import {
     refresh_language,
 } from "@yuneta/gobj-js";
 
-import {Graph, NodeEvent} from "@antv/g6";
+import {Graph, NodeEvent, EdgeEvent, CanvasEvent} from "@antv/g6";
 
 import {yui_toolbar} from "./yui_toolbar.js";
 import {
@@ -67,6 +75,7 @@ import {
     yui_graph_forward_wheel,
     yui_graph_update_zoom,
 } from "./yui_graph_camera.js";
+import {yui_graph_minimap_options, yui_graph_minimap_block} from "./yui_graph_minimap.js";
 import {ensure_drag_canvas_patch} from "./g6_drag_canvas_touch.js";
 import {ensure_pinch_zoom_patch} from "./g6_touch_gestures.js";
 import {keep_canvas_tab_order} from "./g6_canvas_tab_order.js";
@@ -108,6 +117,14 @@ const topic_colors = [
 ];
 const SYSTEM_TOPIC_COLOR = 'rgb(148, 163, 184)';
 
+/*  The mark of a lit edge and its two ends: the amber of the node
+ *  graph's find and topic focus (C_G6_NODES_TREE), one per scheme --
+ *  the dark one is 2.15:1 on white, the burnt one 5.02.  */
+const LIT_COLOR_DARK  = "#f0a020";
+const LIT_COLOR_LIGHT = "#b45309";
+const LIT_HALO_DARK   = "rgba(240,160,32,0.35)";
+const LIT_HALO_LIGHT  = "rgba(180,83,9,0.35)";
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -128,6 +145,7 @@ let PRIVATE_DATA = {
     graph:          null,
     theme_observer: null,   // MutationObserver on <html data-theme>
     unforward_wheel: null,  // removes the wheel forwarding of the cards
+    lit_edge_id:    null,   // the edge lit by a click, with its two ends
 };
 
 let __gclass__ = null;
@@ -368,7 +386,7 @@ function row_placement(index, height)
  *   The card itself. Header = topic name on its topic colour;
  *   body = one line per field, in schema order.
  ************************************************************/
-function build_card_innerHTML(topic, rows, color, dark)
+function build_card_innerHTML(topic, rows, color, dark, lit_rows)
 {
     let surface     = dark? "#1b2230" : "#ffffff";
     let bg          = dark
@@ -389,17 +407,34 @@ function build_card_innerHTML(topic, rows, color, dark)
     let shadow      = dark
         ? "0 1px 3px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.30)"
         : "0 1px 3px rgba(15,23,42,0.12), 0 1px 2px rgba(15,23,42,0.06)";
+    let border_w    = "1.5px";
+
+    /*  One end of a lit edge: the card in amber, and the row the edge
+     *  leaves or lands on washed with it.  */
+    let lit = lit_rows instanceof Set;
+    let lit_color = dark? LIT_COLOR_DARK : LIT_COLOR_LIGHT;
+    if(lit) {
+        border   = lit_color;
+        border_w = "3px";
+        shadow   = `0 0 0 4px ${dark? LIT_HALO_DARK : LIT_HALO_LIGHT}`;
+    }
 
     let rows_html = "";
     for(let row of rows) {
         let lead = row.is_pkey? "#" : (row.required? "*" : "");
         let name_weight = (row.is_pkey || row.is_pkey2)? "700" : (row.required? "600" : "400");
         let name_color = (row.is_hook || row.is_fkey)? title_color : text_color;
+        let row_bg = "transparent";
+        if(lit && lit_rows.has(row.name)) {
+            row_bg = `color-mix(in srgb, ${lit_color} ${dark? 35 : 22}%, transparent)`;
+            name_weight = "700";
+        }
         rows_html +=
 `    <div class="TREEDB_SCHEMA_FIELD" style="
         display: flex; align-items: center; gap: 6px;
         height: ${CARD_ROW_H}px; line-height: ${CARD_ROW_H}px;
         padding: 0 10px; border-top: 1px solid ${rule_color};
+        background: ${row_bg};
     ">
         <span style="
             width: 8px; flex: 0 0 8px; text-align: center;
@@ -424,7 +459,7 @@ function build_card_innerHTML(topic, rows, color, dark)
     width: 100%;
     height: 100%;
     background: ${bg};
-    border: 1.5px solid ${border};
+    border: ${border_w} solid ${border};
     border-radius: 8px;
     box-shadow: ${shadow};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -614,6 +649,176 @@ function edge_style(dark)
 }
 
 /************************************************************
+ *   The edge options: the style, and the `lit` state of an edge
+ *   a click lit (light_edge). Both together, because setEdge()
+ *   REPLACES the options: a theme switch that set only the style
+ *   would drop the state.
+ ************************************************************/
+function edge_options(dark)
+{
+    return {
+        style: edge_style(dark),
+        state: {
+            lit: {
+                stroke:        dark? LIT_COLOR_DARK : LIT_COLOR_LIGHT,
+                lineWidth:     3,
+                halo:          true,
+                haloStroke:    dark? LIT_HALO_DARK : LIT_HALO_LIGHT,
+                haloLineWidth: 8,
+            },
+        },
+    };
+}
+
+/************************************************************
+ *   The rows of `topic` the lit edge touches, as a Set (empty
+ *   rows still mark the card), or null when the card is not one
+ *   of its ends.
+ ************************************************************/
+function lit_rows_of(gobj, topic)
+{
+    let priv = gobj.priv;
+    if(!priv.graph || !priv.lit_edge_id) {
+        return null;
+    }
+    let ed;
+    try {
+        ed = priv.graph.getEdgeData(priv.lit_edge_id);
+    } catch(e) {
+        return null;
+    }
+    let style = ed.style || {};
+    let rows = null;
+    if(ed.source === topic) {
+        rows = rows || new Set();
+        rows.add(style.sourcePort);
+    }
+    if(ed.target === topic) {
+        rows = rows || new Set();
+        rows.add(style.targetPort);
+    }
+    return rows;
+}
+
+/************************************************************
+ *   Repaint the cards of these topics, lit or not as they are now.
+ ************************************************************/
+function repaint_cards(gobj, topics)
+{
+    let graph = gobj.priv.graph;
+    let dark = yui_is_dark();
+    let updates = [];
+    for(let topic of topics) {
+        let nd;
+        try {
+            nd = graph.getNodeData(topic);
+        } catch(e) {
+            continue;
+        }
+        let data = nd && nd.data;
+        if(!is_object(data) || !Array.isArray(data.rows)) {
+            continue;
+        }
+        updates.push({
+            id: topic,
+            style: {
+                innerHTML: build_card_innerHTML(
+                    data.topic_name, data.rows, data.color, dark,
+                    lit_rows_of(gobj, topic)
+                )
+            }
+        });
+    }
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+    }
+}
+
+/************************************************************
+ *   Light an edge: the line, its two cards and the two rows it
+ *   joins -- a click on a line says which hook it is and which
+ *   fkey it lands on. A second click on it, or a click on the
+ *   canvas, puts it out.
+ ************************************************************/
+function light_edge(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!graph) {
+        return;
+    }
+    let same = (priv.lit_edge_id === edge_id);
+    unlight_edge(gobj, false);
+    if(!same && edge_id) {
+        let ed;
+        try {
+            ed = graph.getEdgeData(edge_id);
+        } catch(e) {
+            log_error(`${gobj_short_name(gobj)}: cannot light the edge ${edge_id}: ${e}`);
+            ed = null;
+        }
+        if(ed) {
+            priv.lit_edge_id = edge_id;
+            graph.updateData({edges: [{id: edge_id, states: ["lit"]}]});
+            repaint_cards(gobj, new Set([ed.source, ed.target]));
+        }
+    }
+    graph.draw().catch((e) => {
+        log_error(`${gobj_short_name(gobj)}: schema graph redraw failed: ${e}`);
+    });
+}
+
+function unlight_edge(gobj, draw)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edge_id = priv.lit_edge_id;
+    if(!graph || !edge_id) {
+        priv.lit_edge_id = null;
+        return;
+    }
+    let ed = null;
+    try {
+        ed = graph.getEdgeData(edge_id);
+    } catch(e) {
+        ed = null;
+    }
+    priv.lit_edge_id = null;
+    if(!ed) {
+        return;
+    }
+    graph.updateData({edges: [{id: edge_id, states: []}]});
+    repaint_cards(gobj, new Set([ed.source, ed.target]));
+    if(draw) {
+        graph.draw().catch((e) => {
+            log_error(`${gobj_short_name(gobj)}: schema graph redraw failed: ${e}`);
+        });
+    }
+}
+
+/************************************************************
+ *   A card in the minimap: a block of its size in its topic's
+ *   colour, darkened on the light scheme so a yellow topic does
+ *   not vanish on the white panel. G6 clones a node's key shape,
+ *   and the key shape of an html card is a DOM element, which
+ *   clones into nothing (see yui_graph_minimap.js).
+ ************************************************************/
+function minimap_shape(gobj, id, element_type, element)
+{
+    if(element_type !== "node") {
+        return element;     /*  edges clone themselves fine  */
+    }
+    try {
+        let nd = gobj.priv.graph.getNodeData(id);
+        let color = (nd && nd.data && nd.data.color) || SYSTEM_TOPIC_COLOR;
+        return yui_graph_minimap_block(nd, yui_is_dark()? color : getStrokeColor(color));
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: minimap shape failed: ${e}`);
+        return element;
+    }
+}
+
+/************************************************************
  *   Build the G6 schema graph.
  ************************************************************/
 function build_graph(gobj)
@@ -644,9 +849,7 @@ function build_graph(gobj)
             autoResize: true,
             animation:  false,
             data:       data,
-            edge: {
-                style: edge_style(dark),
-            },
+            edge:       edge_options(dark),
             layout: {
                 type:    "antv-dagre",
                 rankdir: "LR",
@@ -655,6 +858,14 @@ function build_graph(gobj)
             },
             /*  The family's camera: the wheel scrolls, Ctrl + wheel zooms.  */
             behaviors: ["drag-canvas", ...yui_graph_camera_behaviors(), "drag-element"],
+            /*  Always: a schema whose cards run off the screen is the
+             *  common case, and it is the minimap that says where the
+             *  rest of them are.  */
+            plugins: [
+                {key: "minimap", type: "minimap", ...yui_graph_minimap_options(
+                    (id, element_type, element) => minimap_shape(gobj, id, element_type, element)
+                )},
+            ],
         });
     } catch(e) {
         log_error(`${gobj_short_name(gobj)}: schema graph create failed: ${e}`);
@@ -686,6 +897,15 @@ function build_graph(gobj)
         gobj_send_event(gobj, "EV_NODE_CLICK", {node_id: node_id}, gobj);
     });
 
+    graph.on(EdgeEvent.CLICK, (evt) => {
+        let edge_id = evt && evt.target && evt.target.id;
+        gobj_send_event(gobj, "EV_EDGE_CLICK", {edge_id: edge_id}, gobj);
+    });
+
+    graph.on(CanvasEvent.CLICK, () => {
+        gobj_send_event(gobj, "EV_CANVAS_CLICK", {}, gobj);
+    });
+
     /*  No fitView: the diagram is drawn at its own scale and stays there.
      *  Zooming it to the container the moment it appears rewrites the size
      *  the reader just saw, and does it differently for every treedb. */
@@ -702,6 +922,7 @@ function build_graph(gobj)
 function destroy_graph(gobj)
 {
     let priv = gobj.priv;
+    priv.lit_edge_id = null;
     if(priv.unforward_wheel) {
         priv.unforward_wheel();
         priv.unforward_wheel = null;
@@ -774,6 +995,28 @@ function ac_node_click(gobj, event, kw, src)
 }
 
 /************************************************************
+ *   An edge was clicked: light it, or put it out if it was lit.
+ ************************************************************/
+function ac_edge_click(gobj, event, kw, src)
+{
+    let edge_id = kw && kw.edge_id;
+    if(!edge_id) {
+        return 0;
+    }
+    light_edge(gobj, edge_id);
+    return 0;
+}
+
+/************************************************************
+ *   A click on the empty canvas puts the lit edge out.
+ ************************************************************/
+function ac_canvas_click(gobj, event, kw, src)
+{
+    unlight_edge(gobj, true);
+    return 0;
+}
+
+/************************************************************
  *   Shown by the host: match the canvas to the container now it
  *   is visible and sized (G6 renders at 0×0 while display:none).
  *   A resize only, never a fit: the camera stays where it was, so
@@ -814,7 +1057,7 @@ function ac_theme(gobj, event, kw, src)
     let dark = (kw && kw.theme) ? (kw.theme === "dark") : yui_is_dark();
     try {
         graph.setTheme(dark ? "dark" : "light");
-        graph.setEdge({style: edge_style(dark)});
+        graph.setEdge(edge_options(dark));
 
         /*  A card is HTML, so its colours live in its markup: repaint
          *  each one from the rows kept in its node data.  */
@@ -828,7 +1071,8 @@ function ac_theme(gobj, event, kw, src)
                 id: node.id,
                 style: {
                     innerHTML: build_card_innerHTML(
-                        data.topic_name, data.rows, data.color, dark
+                        data.topic_name, data.rows, data.color, dark,
+                        lit_rows_of(gobj, node.id)
                     )
                 }
             });
@@ -939,6 +1183,8 @@ function create_gclass(gclass_name)
     const states = [
         ["ST_IDLE", [
             ["EV_NODE_CLICK",   ac_node_click,  null],
+            ["EV_EDGE_CLICK",   ac_edge_click,  null],
+            ["EV_CANVAS_CLICK", ac_canvas_click, null],
             ["EV_SHOW",         ac_show,        null],
             ["EV_THEME",        ac_theme,       null],
             ["EV_REBUILD",      ac_rebuild,     null],
@@ -953,6 +1199,8 @@ function create_gclass(gclass_name)
         /*  Sent to itself by the graph, and published to the host when no
          *  `node_route` was given: optional there, so no warning.  */
         ["EV_NODE_CLICK",   event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_EDGE_CLICK",   0],
+        ["EV_CANVAS_CLICK", 0],
         ["EV_SHOW",         0],
         ["EV_THEME",        0],
         ["EV_REBUILD",      0],

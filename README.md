@@ -2099,7 +2099,7 @@ a level or two, with a count on every cut.
   forwarded to the engine — and since `7.23.93` so are the seven the engine
   had always had and no host could reach, because this view is what creates
   the engine and an option it does not forward is an option that does not
-  exist: **`minimap_min_nodes`** (default `30`), **`with_gridline`**,
+  exist: **`minimap_min_nodes`** (default `10` since `7.31.2`, `30` before), **`with_gridline`**,
   **`with_fullscreen`**, **`with_toolbar`**, **`toolbar_position`**
   (`right-top`), **`confirm_delete_node`** and **`confirm_unlink_edge`**. The
   defaults repeat the engine's, so a host that says nothing gets what it got
@@ -2618,6 +2618,15 @@ no data, no backend calls. It is the "every
 treedb is a graph" rule applied to the schema itself, and an alternate landing
 to the topic cards. A node click opens that topic's table through a real hash
 navigation, so the graph is a navigation surface rather than a picture.
+
+**A click on an edge lights it** (`7.31.2`): the line in amber, its two cards
+ringed with it and the two rows it joins -- the hook of the parent and the fkey
+of the child -- washed, so a line says which two fields it ties. A second click
+on the same edge, or a click on the canvas, puts it out. The treedb graph
+(`C_G6_NODES_TREE`) lights an edge and its two records the same way, except in
+`edition`, where a click selects the edge. And the drawing always carries a
+**minimap** (bottom left, the library's `yui_graph_minimap.js`), because a
+schema of more cards than the screen holds is the usual case.
 
 The marks are the notation of those `.c` literals, so the drawing and the
 source read the same:
