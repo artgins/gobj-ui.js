@@ -1207,11 +1207,13 @@ describe("every forwarder is in the table", () => {
     });
 
     test("the 17 functions that were missing are found, with the table as it was", () => {
+        /*  Three of the 17 are gone: add_tab, add_topic_card and
+         *  build_topic_info_panel stopped translating the topic name (7.31.6),
+         *  so they hand no key on any more.  */
         let names = ["name_form_control", "create_form_field", "item_li", "item_iconbar",
                      "build_toolbar_action_item", "build_toolbar_brand_item", "build_toolbar_avatar_item",
                      "build_toolbar_connection_item", "open_toolbar_dropdown", "build_dropdown_row",
-                     "col_title_formatter", "add_tab", "add_topic_card", "build_topic_info_panel",
-                     "card_descriptor", "render_node"];
+                     "col_title_formatter", "card_descriptor", "render_node"];
         let before = I18N_KEY_FUNCTIONS.filter((e) => !names.includes(e.name));
         let found = find_forwarders(MODULES, ast_of, before);
         let missing = new Set(found.missing.map((m) => m.name));

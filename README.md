@@ -973,6 +973,19 @@ It needs the descriptor to carry `pkey2s`, which `tranger2_topic_desc()` only
 clones from **SDK > 7.13.0**. Against an older node the desc has no `pkey2s`, the
 label falls back to the id, and nothing else changes.
 
+### A topic is shown by its own name, never translated
+
+The treedb views name each topic as the schema has it: its tab, its card, the
+title of its info panel, the buttons of the dialog that asks which linked
+topic to open, and the parent-filter chip. The name is an identifier, the one
+the relations of a card (`↑ parents places`), the graph, the commands and the
+backend use, so a translation of it in one place and the raw name in the next
+reads as two different topics. Up to 7.31.5 those five places passed the name
+through `t()`, and an app whose locale had a key `places: "sitios"` showed a
+tab `sitios` beside a topic actually called `sites`. A locale key that matches
+a topic name is now unused by the library (the validator does not complain
+about it); the app may keep it for its own screens.
+
 ### Which backend a view browses: `source_url`
 
 `C_YUI_TREEDB_TOPICS` takes an optional **`source_url`** string and prints it in

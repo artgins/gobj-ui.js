@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.31.6 (2026-11-17)
+
+- **The treedb views show a topic by its own name, untranslated**
+  (`C_YUI_TREEDB_TOPICS`: the tab, the card, the info panel's title;
+  `C_YUI_TREEDB_TOPIC_WITH_FORM`: the dialog that asks which linked topic to
+  open, and the parent-filter chip). Those five places passed the name through
+  `t()` while the card's relations, the window titles and the graph showed it
+  raw, so an app with `places: "sitios"` in its locale showed a tab `sitios`
+  next to a topic called `sites`, and a card `sitios` whose children were
+  listed as `places`. A topic name is the schema's identifier: an admin view
+  shows it as it is. The five functions leave `I18N_KEY_FUNCTIONS`.
 - **`deploy-round`: `insecure_urls`** in a consumer of the manifest, read back
   like `urls` but with `curl -k`: a box served by IP with a self-signed pair of
   its own cannot be read back with the certificate checked, so it was left out

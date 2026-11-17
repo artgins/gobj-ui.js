@@ -594,13 +594,12 @@ function add_tab(gobj, gobj2, id, text, icon)
     /*
      *  Create li a
      */
-    /*  A tab is a control: its title and its name, each with its key
-     *  (the topic's), as every control of the library carries.  */
+    /*  A tab is a control: it carries a title and a name.  Both are the
+     *  topic's own name, untranslated: it is the schema's identifier, the
+     *  one the relations, the graph and the backend speak.  */
     let $item = createElement2(
         ['li', {class: ''}, [ // is-active
-            ['a', {href: id,
-                   title: t(text), 'data-i18n-title': text,
-                   'aria-label': t(text), 'data-i18n-aria-label': text}]
+            ['a', {href: id, title: text, 'aria-label': text}]
         ]]
     );
     $tabs.appendChild($item);
@@ -628,18 +627,8 @@ function add_tab(gobj, gobj2, id, text, icon)
      *  TAB: Add text
      */
     $a.appendChild(
-        createElement2(['span', {i18n: text, class: ''}, text_node(text)])
+        createElement2(['span', {class: ''}, text_node(text)])
     );
-
-    /*
-     *  Translate the tab NOW.  The span carries data-i18n but its
-     *  initial text is the raw key (the topic_name).  Tabs are built
-     *  lazily when topic descriptions arrive from the backend —
-     *  AFTER the host's one-time refresh_language($container,t) —
-     *  so without this they stay as raw keys ("groups", …).
-     *  `t` is the i18next translator already imported here.
-     */
-    refresh_language($a, t);
 
     /*
      *  Self-contained tab navigation.  The `href` is kept only as a
@@ -827,11 +816,10 @@ function add_topic_card(gobj, id, text, icon, desc)
         let $card = createElement2(
             ['a', {class: 'yui-nav-item yui-nav-card TREEDB_TOPIC_CARD',
                    href: '#', 'data-topic-href': id,
-                   title: t(text), 'data-i18n-title': text,
-                   'aria-label': t(text), 'data-i18n-aria-label': text}, [
+                   title: text, 'aria-label': text}, [
                 ['span', {class: 'icon is-medium'}, [['i', {class: icon || 'yi-table',
                     'aria-hidden': 'true'}]]],
-                ['span', {class: 'yui-nav-label', i18n: text}, text_node(text)]
+                ['span', {class: 'yui-nav-label'}, text_node(text)]
             ]]
         );
         $card.addEventListener("click", function(ev) {
@@ -868,7 +856,7 @@ function add_topic_card(gobj, id, text, icon, desc)
 
     let $card = createElement2(
         ['div', {class: 'TREEDB_TOPIC_CARD', 'data-topic': topic}, [
-            ['span', {class: 'TREEDB_TOPIC_CARD_NAME', i18n: text}, text_node(text)],
+            ['span', {class: 'TREEDB_TOPIC_CARD_NAME'}, text_node(text)],
             ...topic_card_meta(desc),
             ['div', {class: 'TREEDB_TOPIC_CARD_ACTIONS'}, actions]
         ]]
@@ -1218,7 +1206,7 @@ function build_topic_info_panel(gobj, $info, topic, desc)
             ["h3", {class: "TREEDB_TOPIC_INFO_TITLE title is-5"}, [
                 ["span", {class: "icon-text"}, [
                     ["span", {class: "icon"}, [["i", {class: "yi-circle-info"}]]],
-                    ["span", {i18n: `${topic}`}, text_node(topic)]
+                    ["span", {}, text_node(topic)]
                 ]]
             ]],
             ["table", {class: "table is-narrow TREEDB_TOPIC_INFO_META mb-4"}, [
@@ -1374,9 +1362,8 @@ function process_treedb_descs(gobj)
         );
 
         // TODO get icon from remote config
-        /*  `key` is a topic of the backend's schema: data  */
-        add_tab(gobj, gobj_topic_form, id, /* i18n: data */ key, "yi-table");
-        add_topic_card(gobj, id, /* i18n: data */ key, "yi-table", desc);
+        add_tab(gobj, gobj_topic_form, id, key, "yi-table");
+        add_topic_card(gobj, id, key, "yi-table", desc);
 
         gobj_start(gobj_topic_form);
     }
@@ -1397,7 +1384,7 @@ function process_treedb_descs(gobj)
         if(gobj.priv._pending_info) {
             let ti = gobj.priv._pending_info;
             gobj.priv._pending_info = null;
-            show_topic_info(gobj, /* i18n: data */ ti);     // a topic name
+            show_topic_info(gobj, ti);
         } else if(href && href.indexOf("?") >= 0) {
             gobj_send_event(gobj, "EV_SHOW", {href: href}, gobj);
         } else {
@@ -2764,7 +2751,7 @@ function ac_show(gobj, event, kw, src)
  ************************************************************/
 function ac_show_topic_info(gobj, event, kw, src)
 {
-    show_topic_info(gobj, /* i18n: data */ kw && kw.topic);    // a topic name
+    show_topic_info(gobj, kw && kw.topic);
     return 0;
 }
 

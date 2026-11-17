@@ -3232,18 +3232,17 @@ function open_hook_choice_dialog(gobj, targets, parent_id, hook)
         log_error(`${gobj_short_name(gobj)}: no shell, cannot ask which topic to open`);
         return;
     }
-    /*  The topic names are KEYS, translated like the tabs that name them.  */
+    /*  The topic names are shown as the schema has them, untranslated,
+     *  like the tabs that name them.  */
     let $body = createElement2(
         ['div', {class: 'TREEDB_HOOK_CHOICE'}, targets.map((tg) => {
             return ['button', {
                 class: 'button HOOK_CHOICE_TOPIC',
                 type: 'button',
-                title: t(tg.topic_name),
-                'data-i18n-title': tg.topic_name,
-                'aria-label': t(tg.topic_name),
-                'data-i18n-aria-label': tg.topic_name
+                title: tg.topic_name,
+                'aria-label': tg.topic_name
             }, [
-                ['span', {i18n: tg.topic_name}, text_node(tg.topic_name)]
+                ['span', {}, text_node(tg.topic_name)]
             ], {
                 click: () => {
                     gobj_send_event(gobj, "EV_CHOOSE_LINKED", {
@@ -3372,8 +3371,7 @@ function render_parent_filter(gobj)
         return;
     }
     let $topic = $chip.querySelector(".PARENT_FILTER_TOPIC");
-    $topic.setAttribute("data-i18n", pf.parent_topic);
-    $topic.textContent = t(pf.parent_topic);
+    $topic.textContent = pf.parent_topic;
     $chip.querySelector(".PARENT_FILTER_ID").textContent = pf.parent_id;
     $chip.classList.remove("is-hidden");
 }
@@ -4716,7 +4714,7 @@ function ac_show_hook_data(gobj, event, kw, src)
                             String(kw.row_id), kw.col_id);
         return 0;
     }
-    open_hook_choice_dialog(gobj, /* i18n: data */ targets, String(kw.row_id), kw.col_id);    // the schema's topics
+    open_hook_choice_dialog(gobj, targets, String(kw.row_id), kw.col_id);
     return 0;
 }
 

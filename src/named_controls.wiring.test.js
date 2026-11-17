@@ -287,7 +287,7 @@ describe("the buttons of a file field", () => {
 });
 
 describe("a topic tab of the treedb view", () => {
-    test("carries a title and an aria-label, with the topic as key", () => {
+    test("carries a title and an aria-label: the topic's own name, never translated", () => {
         const remote = gobj_create_service(`tremote${++seq}`, "C_TEST_NAMED_REMOTE", {}, yuno);
         gobj_change_state(remote, "ST_SESSION");
         expect(gobj_current_state(remote)).toBe("ST_SESSION");
@@ -309,7 +309,13 @@ describe("a topic tab of the treedb view", () => {
         }, remote);
 
         const $tab = gobj_read_attr(topics, "$container").querySelector(`a[href="ttopics${seq}?users"]`);
-        expect_named($tab, "users");
+        expect(!!$tab, "the tab is drawn").toBe(true);
+        expect($tab.getAttribute("title")).toBe("users");
+        expect($tab.getAttribute("aria-label")).toBe("users");
+        expect($tab.hasAttribute("data-i18n-title")).toBe(false);
+        expect($tab.hasAttribute("data-i18n-aria-label")).toBe(false);
+        expect($tab.querySelector("[data-i18n]")).toBe(null);
+        expect($tab.textContent.trim()).toBe("users");
     });
 });
 
