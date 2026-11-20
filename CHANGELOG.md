@@ -7,6 +7,13 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.31.7 (2026-11-20)
+
+- **Icon `yi-qrcode`** (FontAwesome Free 7.3.1, solid `qrcode`): a QR code,
+  for a control that prints or reads one -- the label of a box, which carries
+  its identity for a reader to scan. An application had to define it in its
+  own stylesheet.
+
 ## 7.31.6 (2026-11-17)
 
 - **The treedb views show a topic by its own name, untranslated**
