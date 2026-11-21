@@ -7,6 +7,21 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.31.8 (2026-11-21)
+
+- **`fmt_date_time()` builds one formatter for each language and time zone**,
+  and keeps it. Up to 7.31.7 each call built a new `Intl.DateTimeFormat`. A
+  filter over a time column calls it once for each row on each key: over
+  10 000 rows a key took 350 ms, and takes 16 ms now (node 24). The text is the
+  same. A new language or a new time zone gets a new formatter at once.
+- **A click on an edge of the JSON graph (`C_YUI_JSON_GRAPH`) draws only that
+  edge and its two cards**, as the schema graph and the treedb graph do. The
+  edge gets the G6 state `lit`, and the two cards get new html. Up to 7.31.7
+  each click, and each click that put the edge out, built the whole drawing
+  again and ran the layout again. A fold, a find or a theme change still
+  builds it again, and the edge stays lit. A card edge now has an id of its
+  own (`je-<child card id>`).
+
 ## 7.31.7 (2026-11-20)
 
 - **Icon `yi-qrcode`** (FontAwesome Free 7.3.1, solid `qrcode`): a QR code,

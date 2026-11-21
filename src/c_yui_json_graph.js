@@ -239,6 +239,8 @@ let PRIVATE_DATA = {
     lit_parent_path: "",    // path of its PARENT card
     lit_port:       "",     // the parent's port the edge leaves from: its row is washed
     lit_found:      false,  // the last build drew it
+    lit_edge_id:    "",     // the id of the lit edge in the graph drawn now
+    cards:          null,   // Map path -> {id, kw, has_parent}: a card repainted alone
 };
 
 let __gclass__ = null;
@@ -774,6 +776,24 @@ function build_graph(gobj)
                 lineWidth: 1,
                 endArrow: true,
             },
+            /*  An edge lit by a click (light_edge): a state, so lighting
+             *  it redraws the line and its two cards, not the graph. A
+             *  callback, so a theme switch paints the other amber.  */
+            state: {
+                lit: () => {
+                    let dark = yui_is_dark();
+                    let lit_color = dark? LIT_COLOR_DARK : LIT_COLOR_LIGHT;
+                    return {
+                        stroke:         lit_color,
+                        lineWidth:      3,
+                        halo:           true,
+                        haloStroke:     dark? LIT_HALO_DARK : LIT_HALO_LIGHT,
+                        haloLineWidth:  8,
+                        endArrowFill:   lit_color,
+                        endArrowStroke: lit_color,
+                    };
+                },
+            },
         },
 
         layout: layout_cfg.g6_layout,
@@ -1173,29 +1193,25 @@ function get_group_label(path)
 }
 
 /************************************************************
- *  Recursively build nodes and edges from JSON
+ *  The rows of the card of `path`: one per key of `kw`, the
+ *  containers among them (`pending_complex`, each with the port
+ *  and the row it opens), and how many rows the find matched.
  ************************************************************/
-function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
+function card_rows_of(gobj, path, kw)
 {
-    let group_id = gen_node_id(gobj);
+    let priv = gobj.priv;
     let is_dict = is_object(kw);
-    let is_list = is_array(kw);
-
-    if(!is_dict && !is_list) {
-        return null;
-    }
 
     /*
-     *  Build HTML content for this group.
      *  The theme is read live as the card is drawn (like the gobj-tree's
      *  cards): ac_theme rebuilds on a switch, so this is always current.
      */
-    let priv = gobj.priv;
     let needle = priv.search || "";
     let dark = yui_is_dark();
     let lines = [];
     let pending_complex = [];
     let card_matched = false;
+    let matches = 0;
 
     let colors = json_card_style(
         is_dict ? GROUP_COLORS.dict : GROUP_COLORS.list, dark
@@ -1208,7 +1224,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
         let matched = cell_matches(key, value, type, needle);
         if(matched) {
             card_matched = true;
-            priv.match_count++;
+            matches++;
         }
 
         /*
@@ -1249,40 +1265,32 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
         lines.push(build_cell_html(key, value, type, dark, matched, fold));
     }
 
-    /*
-     *  A pure collection is not drawn: its row above names it and its
-     *  children hang from THIS card's parent. The root always gets a
-     *  card, or a document that is a plain list of records would have
-     *  nothing to hang anything from.
-     */
-    if(parent_id && is_pure_collection(kw)) {
-        if(priv.collapsed.has(path)) {
-            /*  Folded, and it draws nothing of its own -- so the space
-             *  its children were taking is left HERE, in their place
-             *  among the parent's other children.  */
-            push_fold_phantom(gobj, path, parent_id, parent_port, nodes, edges);
-            return parent_id;
-        }
-        for(let pending of pending_complex) {
-            /*
-             *  `parent_port` and not one of ours: this collection has no
-             *  card, so the port its row opened in the PARENT is the one
-             *  every one of these lines leaves from -- fourteen columns
-             *  out of the single `cols` port, which is what the document
-             *  says and what the reader traces back.
-             */
-            build_json_nodes(
-                gobj,
-                add_segment(path, pending.key),
-                pending.value,
-                nodes,
-                edges,
-                parent_id,
-                parent_port
-            );
-        }
-        return parent_id;
-    }
+    return {
+        is_dict: is_dict,
+        dark: dark,
+        colors: colors,
+        lines: lines,
+        pending_complex: pending_complex,
+        card_matched: card_matched,
+        matches: matches,
+    };
+}
+
+/************************************************************
+ *  The html of the card of `path`, from its rows (card_rows_of),
+ *  lit or not as priv.lit_* says now. The build draws every card
+ *  with it, and repaint_cards() one card alone: the same moment
+ *  reads the same either way.
+ ************************************************************/
+function card_html_of(gobj, path, rows, has_parent)
+{
+    let priv = gobj.priv;
+    let is_dict = rows.is_dict;
+    let dark = rows.dark;
+    let colors = rows.colors;
+    let lines = rows.lines;
+    let pending_complex = rows.pending_complex;
+    let card_matched = rows.card_matched;
 
     let label = get_group_label(path) || (is_dict ? "{}" : "[]");
 
@@ -1305,7 +1313,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
      *  the line says which key it is.
      */
     let lit_color = dark? LIT_COLOR_DARK : LIT_COLOR_LIGHT;
-    let lit_child = !!parent_id && !empty_string(priv.lit_path) && path === priv.lit_path;
+    let lit_child = has_parent && !empty_string(priv.lit_path) && path === priv.lit_path;
     let lit_row = -1;
     let lit_parent = !empty_string(priv.lit_path) && path === priv.lit_parent_path;
     if(lit_parent) {
@@ -1317,9 +1325,6 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
         }
     }
     let lit_card = lit_child || lit_parent;
-    if(lit_child) {
-        priv.lit_found = true;
-    }
     if(lit_card) {
         border_color = lit_color;
         border_width = 3;
@@ -1372,6 +1377,79 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
     ">${FOLD_SPACER}<span style="flex:1 1 auto; text-align:center;">${escapeHtml(label)}</span>${fold_toggle_html(path, foldable, folded, pending_complex.length, colors)}</div>
     ${content_html}
 </div>`;
+
+    return {
+        node_html: node_html,
+        min_width: min_width,
+        card_height: card_height,
+        folded: folded,
+        lit_child: lit_child,
+    };
+}
+
+/************************************************************
+ *  Recursively build nodes and edges from JSON
+ ************************************************************/
+function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
+{
+    let group_id = gen_node_id(gobj);
+    let is_dict = is_object(kw);
+    let is_list = is_array(kw);
+
+    if(!is_dict && !is_list) {
+        return null;
+    }
+
+    let priv = gobj.priv;
+    let rows = card_rows_of(gobj, path, kw);
+    let dark = rows.dark;
+    let colors = rows.colors;
+    let pending_complex = rows.pending_complex;
+    priv.match_count += rows.matches;
+
+    /*
+     *  A pure collection is not drawn: its row above names it and its
+     *  children hang from THIS card's parent. The root always gets a
+     *  card, or a document that is a plain list of records would have
+     *  nothing to hang anything from.
+     */
+    if(parent_id && is_pure_collection(kw)) {
+        if(priv.collapsed.has(path)) {
+            /*  Folded, and it draws nothing of its own -- so the space
+             *  its children were taking is left HERE, in their place
+             *  among the parent's other children.  */
+            push_fold_phantom(gobj, path, parent_id, parent_port, nodes, edges);
+            return parent_id;
+        }
+        for(let pending of pending_complex) {
+            /*
+             *  `parent_port` and not one of ours: this collection has no
+             *  card, so the port its row opened in the PARENT is the one
+             *  every one of these lines leaves from -- fourteen columns
+             *  out of the single `cols` port, which is what the document
+             *  says and what the reader traces back.
+             */
+            build_json_nodes(
+                gobj,
+                add_segment(path, pending.key),
+                pending.value,
+                nodes,
+                edges,
+                parent_id,
+                parent_port
+            );
+        }
+        return parent_id;
+    }
+
+    let card = card_html_of(gobj, path, rows, !!parent_id);
+    let folded = card.folded;
+    let lit_child = card.lit_child;
+    let min_width = card.min_width;
+    let card_height = card.card_height;
+    if(lit_child) {
+        priv.lit_found = true;
+    }
 
     /*
      *  ONE PORT PER CONTAINER KEY, ON THE LINE OF ITS OWN ROW.
@@ -1441,7 +1519,7 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
 
         },
         style: {
-            innerHTML: node_html,
+            innerHTML: card.node_html,
             size: [min_width, card_height],
             dx: -(min_width / 2),
             dy: -(card_height / 2),
@@ -1452,12 +1530,15 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
         },
     };
     nodes.push(node);
+    priv.cards.set(path, {id: group_id, kw: kw, has_parent: !!parent_id});
 
     /*
      *  Edge from parent to this group, out of the port its key opened.
+     *  Its id is its child card's: a card has one edge coming in.
      */
     if(parent_id) {
         let edge = {
+            id: "je-" + group_id,
             source: parent_id,
             target: group_id,
             style: {
@@ -1489,15 +1570,8 @@ function build_json_nodes(gobj, path, kw, nodes, edges, parent_id, parent_port)
             edge.style.sourcePort = parent_port;
         }
         if(lit_child) {
-            Object.assign(edge.style, {
-                stroke:         lit_color,
-                lineWidth:      3,
-                halo:           true,
-                haloStroke:     dark? LIT_HALO_DARK : LIT_HALO_LIGHT,
-                haloLineWidth:  8,
-                endArrowFill:   lit_color,
-                endArrowStroke: lit_color,
-            });
+            edge.states = ["lit"];
+            priv.lit_edge_id = edge.id;
         }
         edges.push(edge);
     }
@@ -1621,6 +1695,8 @@ function load_json(gobj)
     priv.node_counter = 0;
     priv.match_count = 0;
     priv.lit_found = false;
+    priv.lit_edge_id = "";
+    priv.cards = new Map();
 
     let nodes = [];
     let edges = [];
@@ -1896,6 +1972,101 @@ function refresh_json(gobj, opts)
 }
 
 /************************************************************
+ *  Repaint the cards of these paths alone, lit or not as
+ *  priv.lit_* says now, and draw once. A click on an edge
+ *  changes two cards: rebuilding the graph for them redrew
+ *  every card, the layout and the camera's frame.
+ ************************************************************/
+function repaint_cards(gobj, paths)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!graph || !priv.cards) {
+        return;
+    }
+    let updates = [];
+    for(let path of paths) {
+        let c = priv.cards.get(path);
+        if(!c) {
+            continue;   /*  a path with no card of its own: nothing to repaint  */
+        }
+        let rows = card_rows_of(gobj, path, c.kw);
+        let card = card_html_of(gobj, path, rows, c.has_parent);
+        updates.push({id: c.id, style: {innerHTML: card.node_html}});
+    }
+    try {
+        if(updates.length) {
+            graph.updateNodeData(updates);
+        }
+        Promise.resolve(graph.draw()).then(() => {
+            /*  A repainted card is new DOM: put the anchor's mark back.  */
+            paint_anchor_mark(gobj);
+        }).catch((e) => {
+            log_error(`${gobj_short_name(gobj)}: redraw failed: ${e}`);
+        });
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: cannot repaint the cards: ${e}`);
+    }
+}
+
+/************************************************************
+ *  Put the lit edge out: its state off, and the paths of its
+ *  two cards returned, to be repainted plain. Draws nothing:
+ *  the caller repaints once, and two draws race. [] when
+ *  nothing is lit.
+ ************************************************************/
+function put_out_edge(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(empty_string(priv.lit_path)) {
+        return [];
+    }
+    let paths = [priv.lit_path, priv.lit_parent_path];
+    let edge_id = priv.lit_edge_id;
+
+    priv.lit_path = "";
+    priv.lit_parent_path = "";
+    priv.lit_port = "";
+    priv.lit_edge_id = "";
+
+    if(graph && !empty_string(edge_id)) {
+        try {
+            graph.updateData({edges: [{id: edge_id, states: []}]});
+        } catch(e) {
+            log_error(`${gobj_short_name(gobj)}: edge state not cleared: ${e}`);
+        }
+    }
+    return paths;
+}
+
+/************************************************************
+ *  Light an edge: its `lit` state on, and the paths of its two
+ *  cards returned, to be repainted with the ring (the parent's
+ *  row of the key it leaves from washed). The cards are html,
+ *  where G6 paints no state, so their mark is in their html.
+ *  Draws nothing, as put_out_edge().
+ ************************************************************/
+function light_edge(gobj, edge_id, child_path, parent_path, port)
+{
+    let priv = gobj.priv;
+
+    priv.lit_path = child_path;
+    priv.lit_parent_path = parent_path;
+    priv.lit_port = port;
+    priv.lit_edge_id = edge_id;
+
+    try {
+        priv.graph.updateData({edges: [{id: edge_id, states: ["lit"]}]});
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: edge state not set: ${e}`);
+    }
+    return [child_path, parent_path];
+}
+
+/************************************************************
  *  Custom tree layout for JSON visualization
  ************************************************************/
 class JsonTreeLayout extends BaseLayout {
@@ -2093,6 +2264,7 @@ function ac_load_data(gobj, event, kw, src)
         gobj.priv.lit_path = "";
         gobj.priv.lit_parent_path = "";
         gobj.priv.lit_port = "";
+        gobj.priv.lit_edge_id = "";
     }
 
     refresh_json(gobj);
@@ -2276,10 +2448,10 @@ function ac_collapse_all(gobj, event, kw, src)
  *  EV_EDGE_CLICK { id }
  *
  *  Light the edge and its two ends, or put it out when it is
- *  the lit one. Baked into the drawing, like a find match: the
- *  cards are html, where G6 paints no state, so the drawing is
- *  rebuilt with the camera kept. The edge is kept by the PATH
- *  of its child card, which a rebuild keeps and the ids do not.
+ *  the lit one. Only the edge and its two cards are redrawn
+ *  (light_edge). The edge is kept by the PATH of its child
+ *  card, which a rebuild (a fold, a find) keeps and the ids do
+ *  not: the rebuild lights it again.
  ************************************************************/
 function ac_edge_click(gobj, event, kw, src)
 {
@@ -2305,16 +2477,18 @@ function ac_edge_click(gobj, event, kw, src)
         return 0;   /*  the invisible edge a fold leaves  */
     }
 
-    if(priv.lit_path === tdata.path) {
-        priv.lit_path = "";
-        priv.lit_parent_path = "";
-        priv.lit_port = "";
-    } else {
-        priv.lit_path = tdata.path;
-        priv.lit_parent_path = (source && source.data && source.data.path) || "";
-        priv.lit_port = (edge.style && edge.style.sourcePort) || "";
+    let same = (priv.lit_path === tdata.path);
+    let paths = put_out_edge(gobj);
+    if(!same) {
+        paths = paths.concat(light_edge(
+            gobj,
+            edge.id,
+            tdata.path,
+            (source && source.data && source.data.path) || "",
+            (edge.style && edge.style.sourcePort) || ""
+        ));
     }
-    refresh_json(gobj, {preserve_view: true});
+    repaint_cards(gobj, new Set(paths));
     return 0;
 }
 
@@ -2328,10 +2502,7 @@ function ac_canvas_click(gobj, event, kw, src)
     if(empty_string(priv.lit_path)) {
         return 0;
     }
-    priv.lit_path = "";
-    priv.lit_parent_path = "";
-    priv.lit_port = "";
-    refresh_json(gobj, {preserve_view: true});
+    repaint_cards(gobj, put_out_edge(gobj));
     return 0;
 }
 

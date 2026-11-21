@@ -761,11 +761,14 @@ under the card — they sit ON the border.
 **A click on an edge lights it** (`7.31.5`), as in the schema and treedb
 graphs: the line in amber, its two cards ringed with it, and the row of the
 parent's key the line leaves from washed. A second click on it, or a click on
-the canvas, puts it out; so does a fold that takes its child card away, and a
-new document. The cards are html, where G6 paints no state, so the lit edge is
-BAKED into the drawing like a find match (a rebuild that keeps the camera), and
-it is kept by the path of its child card, which survives a rebuild where the
-ids do not. An edge takes a click 7px either side of its line. The zoom goes
+the canvas, puts it out. A fold that takes its child card away puts it out
+too, and so does a new document. The edge gets the G6 state `lit`. The cards are html, and G6
+paints no state on html, so the two cards get new html (`updateNodeData`), and
+nothing else is drawn again. The schema graph and the treedb graph do the same.
+Up to `7.31.7` each click built the whole drawing again and ran the layout. A
+rebuild (a fold, a find, a theme change) lights the edge again: the edge is
+kept by the path of its child card, because a rebuild keeps the paths and
+changes the ids. An edge takes a click 7px either side of its line. The zoom goes
 down to 2% (`10%` before, where a document of a few hundred cards did not fit),
 and a **minimap** (bottom left, the library's `yui_graph_minimap.js`) appears
 from `minimap_min_nodes` cards on (default `10`).
@@ -6051,6 +6054,11 @@ Three facts the text does not show:
 
 - **The zone is the browser's**, and the text names no zone and no offset. Two
   readers in two zones see two different clocks for the same record.
+- **One formatter for each language and time zone** (`7.31.8`). The function
+  builds an `Intl.DateTimeFormat` the first time, and uses it again after that.
+  A new language or a new zone gets a new one. A filter over a time column of
+  10 000 rows takes 16 ms for each key, and took 350 ms when each call built
+  its own formatter.
 - **The hour that repeats in autumn reads the same in its two passes**: in
   Europe/Madrid, `1792888200` and `1792891800` both read
   `25 oct 2026, 02:30:00`.

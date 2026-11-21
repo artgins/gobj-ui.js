@@ -165,3 +165,58 @@ describe("the moments uPlot writes (yui_uplot_time.js)", () => {
         expect(fmt("{h}:{mm}{aa}")(AFTERNOON)).toBe("15:05");
     });
 });
+
+describe("one formatter per locale and time zone", () => {
+    const with_counted_intl = (fn) => {
+        const Real = Intl.DateTimeFormat;
+        let built = 0;
+        Intl.DateTimeFormat = function(...args) {
+            built++;
+            return new Real(...args);
+        };
+        try {
+            fn();
+        } finally {
+            Intl.DateTimeFormat = Real;
+        }
+        return built;
+    };
+
+    test("a filter over many rows builds the formatter once", () => {
+        const built = with_counted_intl(() => {
+            for(let i = 0; i < 1000; i++) {
+                fmt_date_time(new Date(D.getTime() + i * 1000), "fr");
+            }
+        });
+        expect(built).toBe(1);
+        expect(fmt_date_time(D, "fr")).toBe(new Intl.DateTimeFormat("fr", {
+            day: "numeric", month: "short", year: "numeric",
+            hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+        }).format(D));
+    });
+
+    test("a change of language writes in the new language at once", () => {
+        expect(fmt_date_time(D, "es")).toBe("14 oct 2026, 15:05:09");
+        expect(fmt_date_time(D, "en")).toBe("Oct 14, 2026, 15:05:09");
+        expect(fmt_date_time(D, "es")).toBe("14 oct 2026, 15:05:09");
+    });
+
+    test("a change of time zone writes in the new zone", () => {
+        const tz = process.env.TZ;
+        const instant = new Date(Date.UTC(2026, 0, 15, 12, 0, 0));
+        try {
+            process.env.TZ = "UTC";
+            expect(fmt_date_time(instant, "es")).toBe("15 ene 2026, 12:00:00");
+            process.env.TZ = "Asia/Tokyo";
+            expect(fmt_date_time(instant, "es")).toBe("15 ene 2026, 21:00:00");
+            process.env.TZ = "UTC";
+            expect(fmt_date_time(instant, "es")).toBe("15 ene 2026, 12:00:00");
+        } finally {
+            if(tz === undefined) {
+                delete process.env.TZ;
+            } else {
+                process.env.TZ = tz;
+            }
+        }
+    });
+});

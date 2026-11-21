@@ -69,6 +69,30 @@ const DATE_TIME_OPTIONS = {
     hourCycle: "h23"
 };
 
+/*  The formatters of fmt_date_time(), by locale and time zone. A
+ *  filter over a time column formats every row on every keystroke,
+ *  and building an Intl.DateTimeFormat costs some 20 times what one
+ *  format() costs. A formatter keeps the time zone it was built in,
+ *  so the key carries the zone's offsets in January and in July: a
+ *  zone that changes under the page (TZ in node, the system's in a
+ *  browser) gets a new one. Plain Dates, not Intl: nothing of Intl
+ *  is built at module top level (see safe_locale).  */
+const __date_time_formatters__ = new Map();
+const JANUARY = new Date(Date.UTC(2026, 0, 1));
+const JULY = new Date(Date.UTC(2026, 6, 1));
+
+function date_time_formatter(locale)
+{
+    let loc = safe_locale(locale);
+    let key = `${loc}|${JANUARY.getTimezoneOffset()}|${JULY.getTimezoneOffset()}`;
+    let f = __date_time_formatters__.get(key);
+    if(!f) {
+        f = date_time_format(loc, DATE_TIME_OPTIONS);
+        __date_time_formatters__.set(key, f);
+    }
+    return f;
+}
+
 /***************************************************************
  *  A moment as a VIEW shows it as text: the day, the month and the
  *  year, then the clock of 24 hours with its seconds, in the APP's
@@ -79,7 +103,8 @@ const DATE_TIME_OPTIONS = {
  *      fmt_date_time(d, "en")  ->  "Oct 14, 2026, 15:05:09"
  *
  *  "" for anything that is not a valid Date. A locale Intl refuses
- *  writes in the environment's (date_time_format).
+ *  writes in the environment's (date_time_format). The formatter is
+ *  built once per locale and time zone (date_time_formatter).
  *
  *  The time cells of C_YUI_FORM and C_YUI_TREEDB_TOPIC_WITH_FORM and
  *  the reading C_YUI_JSON writes beside a time field all come from
@@ -90,7 +115,7 @@ function fmt_date_time(date, locale)
     if(!(date instanceof Date) || isNaN(date.getTime())) {
         return "";
     }
-    return date_time_format(locale, DATE_TIME_OPTIONS).format(date);
+    return date_time_formatter(locale).format(date);
 }
 
 

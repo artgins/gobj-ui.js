@@ -8,7 +8,10 @@
  *      edge LIGHTS it: the line in amber, its two cards ringed, and
  *      the row of the parent's key the line leaves from washed. A
  *      second click on it, or a click on the canvas, puts it out; a
- *      fold that takes its child card away puts it out too.
+ *      fold that takes its child card away puts it out too. Lighting
+ *      and putting out redraw the edge (its `lit` state) and its two
+ *      cards, never the graph (gobj-ui 7.31.8; before, every click
+ *      rebuilt every card and ran the layout again).
  *
  *      Driven through the real gclass, in jsdom, with a G6 double that
  *      keeps the data it is given.
@@ -36,6 +39,7 @@ vi.mock("@antv/g6", async (importOriginal) => {
             this.handlers = {};
             this.plugins = (options.plugins || []).slice();
             this.data = {nodes: [], edges: []};
+            this.counts = {setData: 0, draw: 0, updated_nodes: []};
             graphs.push(this);
             return new Proxy(this, {
                 get: (t, k) => (k in t) ? t[k] : (() => undefined),
@@ -47,6 +51,22 @@ vi.mock("@antv/g6", async (importOriginal) => {
                 e.id = e.id || `e${i}`;
             });
             this.data = data;
+            this.counts.setData++;
+        }
+        updateNodeData(updates) {
+            for(const u of updates) {
+                const nd = this.getNodeData(u.id);
+                nd.style = {...nd.style, ...(u.style || {})};
+                this.counts.updated_nodes.push(u.id);
+            }
+        }
+        updateData(data) {
+            for(const u of (data.edges || [])) {
+                const ed = this.getEdgeData(u.id);
+                if(u.states !== undefined) {
+                    ed.states = u.states.slice();
+                }
+            }
         }
         clear() {
             this.data = {nodes: [], edges: []};
@@ -55,6 +75,7 @@ vi.mock("@antv/g6", async (importOriginal) => {
             return Promise.resolve();
         }
         draw() {
+            this.counts.draw++;
             return Promise.resolve();
         }
         on(name, fn) {
@@ -184,6 +205,7 @@ function card(graph, path)
     return graph.data.nodes.find((n) => n.data && n.data.path === path && !n.data.phantom).style.innerHTML;
 }
 const RING = /border: 3px solid/;
+const is_lit = (e) => (e.states || []).includes("lit");
 const WASH = /background:color-mix\(in srgb, #[0-9a-f]+ 28%, transparent\)/g;
 
 function problems()
@@ -222,8 +244,13 @@ describe("C_YUI_JSON_GRAPH: zoom floor, minimap, lit edge", () => {
         await settle();
 
         const lit = edge_to(graph, child);
-        expect(lit.style.lineWidth).toBe(3);
-        expect(lit.style.halo).toBe(true);
+        expect(is_lit(lit)).toBe(true);
+        expect(graph.data.edges.filter(is_lit).length).toBe(1);
+        /*  The look of the state: 3px, amber, a halo  */
+        const look = graph.options.edge.state.lit();
+        expect(look.lineWidth).toBe(3);
+        expect(look.halo).toBe(true);
+        expect(look.stroke).toMatch(/^#[0-9a-f]{6}$/);
         expect(card(graph, child)).toMatch(RING);
         expect(card(graph, root)).toMatch(RING);
         expect((card(graph, root).match(WASH) || []).length).toBe(1);
@@ -233,7 +260,7 @@ describe("C_YUI_JSON_GRAPH: zoom floor, minimap, lit edge", () => {
 
         graph.emit(EdgeEvent.CLICK, {target: {id: edge_to(graph, child).id}});
         await settle();
-        expect(edge_to(graph, child).style.lineWidth).not.toBe(3);
+        expect(is_lit(edge_to(graph, child))).toBe(false);
         expect(card(graph, root)).not.toMatch(RING);
         expect(problems()).toEqual([]);
     });
@@ -254,6 +281,65 @@ describe("C_YUI_JSON_GRAPH: zoom floor, minimap, lit edge", () => {
         await settle();
         gobj_send_event(view, "EV_LOAD_DATA", {data: DOC}, view);
         await settle();
+        expect(graph.data.nodes.some((n) => RING.test(n.style.innerHTML || ""))).toBe(false);
+        expect(problems()).toEqual([]);
+    });
+    test("lighting and putting out redraw the edge and its two cards, never the graph", async () => {
+        const {graph} = await mount(DOC);
+        const root = graph.data.nodes[0];
+        const child = graph.data.nodes.find((n) => n.data && n.data.path === "``b");
+        const builds = graph.counts.setData;
+        const draws = graph.counts.draw;
+
+        graph.emit(EdgeEvent.CLICK, {target: {id: edge_to(graph, "``b").id}});
+        await settle();
+        expect(graph.counts.setData).toBe(builds);
+        expect(graph.counts.draw).toBe(draws + 1);
+        expect([...graph.counts.updated_nodes].sort()).toEqual([root.id, child.id].sort());
+
+        graph.counts.updated_nodes.length = 0;
+        graph.emit(CanvasEvent.CLICK, {});
+        await settle();
+        expect(graph.counts.setData).toBe(builds);
+        expect(graph.counts.draw).toBe(draws + 2);
+        expect([...graph.counts.updated_nodes].sort()).toEqual([root.id, child.id].sort());
+        expect(graph.data.nodes.some((n) => RING.test(n.style.innerHTML || ""))).toBe(false);
+        expect(graph.data.edges.some(is_lit)).toBe(false);
+        expect(problems()).toEqual([]);
+    });
+
+    test("a click on another edge moves the light in ONE draw", async () => {
+        const {graph} = await mount(DOC);
+        graph.emit(EdgeEvent.CLICK, {target: {id: edge_to(graph, "``b").id}});
+        await settle();
+        const draws = graph.counts.draw;
+        graph.counts.updated_nodes.length = 0;
+
+        graph.emit(EdgeEvent.CLICK, {target: {id: edge_to(graph, "``b`y").id}});
+        await settle();
+        expect(graph.counts.draw).toBe(draws + 1);
+        /*  `b was the child and is now the parent: repainted once  */
+        expect(graph.counts.updated_nodes.length).toBe(3);
+        expect(is_lit(edge_to(graph, "``b"))).toBe(false);
+        expect(is_lit(edge_to(graph, "``b`y"))).toBe(true);
+        expect(card(graph, "``b`y")).toMatch(RING);
+        expect(card(graph, "``b")).toMatch(RING);
+        expect(card(graph, graph.data.nodes[0].data.path)).not.toMatch(RING);
+        expect(problems()).toEqual([]);
+    });
+
+    test("a rebuild (a find) keeps the edge lit, and a click on it then puts it out", async () => {
+        const {view, graph} = await mount(DOC);
+        graph.emit(EdgeEvent.CLICK, {target: {id: edge_to(graph, "``b").id}});
+        await settle();
+        gobj_send_event(view, "EV_FIND_NODES", {text: "z"}, view);
+        await settle();
+        expect(is_lit(edge_to(graph, "``b"))).toBe(true);
+        expect(card(graph, "``b")).toMatch(RING);
+
+        graph.emit(EdgeEvent.CLICK, {target: {id: edge_to(graph, "``b").id}});
+        await settle();
+        expect(graph.data.edges.some(is_lit)).toBe(false);
         expect(graph.data.nodes.some((n) => RING.test(n.style.innerHTML || ""))).toBe(false);
         expect(problems()).toEqual([]);
     });
