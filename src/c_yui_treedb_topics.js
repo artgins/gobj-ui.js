@@ -1270,6 +1270,19 @@ function topic_is_shown(topic_name)
 }
 
 /************************************************************
+ *  The topics in ALPHABETICAL order, for the cards, the tabs
+ *  and the site map: the backend's order is not the same from
+ *  one load to the next, and a reader finds a topic by its
+ *  place. The system topics (__*__) sort first.
+ ************************************************************/
+function sorted_topic_names(descs)
+{
+    return Object.keys(descs).sort((a, b) => {
+        return a.localeCompare(b);
+    });
+}
+
+/************************************************************
  *  The nodes of __icons__ are the user icons of the app: each
  *  load and each write of them goes to the icon registry
  *  (lib_icons.js), and the shell tells the views that decided
@@ -1322,7 +1335,8 @@ function process_treedb_descs(gobj)
     let system = gobj_read_bool_attr(gobj, "system");
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     let readonly = gobj_read_bool_attr(gobj, "readonly");
-    for(const [key, desc] of Object.entries(descs)) {
+    for(const key of sorted_topic_names(descs)) {
+        let desc = descs[key];
         if(!system && !topic_is_shown(key)) {
             continue;
         }
@@ -1454,7 +1468,7 @@ function register_sub_routes(gobj)
                     icon: "yi-compass-drafting", gclass: "C_YUI_TREEDB_SCHEMA"});
     }
     if(is_object(descs)) {
-        for(let topic of Object.keys(descs)) {
+        for(let topic of sorted_topic_names(descs)) {
             if(!system && !topic_is_shown(topic)) {
                 continue;
             }

@@ -2689,8 +2689,9 @@ like this:
 
 and its card draws the row `version (2)`. An empty `tkey` marks no field.
 
-The topic cards (`C_YUI_TREEDB_TOPICS`) and its topic-info panel say the same
-keys. A card of a topic with `pkey2s` has a `pkey2s` line under its version and
+The topic cards (`C_YUI_TREEDB_TOPICS`) are in alphabetical order, and so
+are its tabs (7.32.0+). The system topics (`__*__`) come first. The topic
+cards and the topic-info panel say the same keys. A card of a topic with `pkey2s` has a `pkey2s` line under its version and
 column count. The info panel always has a `tkey` row, which says *append time*
 when the topic has none, a `pkey2s` row when the topic has secondary keys, and
 `system` by the flag names (`sf_string_key`), not by the number. In its column

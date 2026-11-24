@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.0 (2026-11-24)
+
+- **`C_YUI_TREEDB_TOPICS` shows the topics in alphabetical order**: the
+  cards, the tabs and the routes it gives to the site map. Up to 7.31.8 it
+  used the order of the `descs` answer, and the backend does not send the
+  topics in the same order on each load. The system topics (`__*__`) come
+  first, because `_` sorts before the letters. The version number follows
+  the SDK, 7.32.
+
 ## 7.31.8 (2026-11-21)
 
 - **`fmt_date_time()` builds one formatter for each language and time zone**,

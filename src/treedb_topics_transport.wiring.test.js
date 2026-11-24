@@ -34,7 +34,7 @@ const {
     SDATA, SDATA_END, data_type_t, event_flag_t,
     gclass_create,
     gobj_start_up, gobj_create_yuno, gobj_create, gobj_create_service,
-    gobj_start, gobj_send_event,
+    gobj_start, gobj_send_event, gobj_write_attr,
     gobj_change_state, gobj_current_state,
     set_log_callback,
 } = gobj_js;
@@ -113,10 +113,16 @@ beforeAll(() => {
             ["EV_LOAD_NODES",    ac_form_load,   null],
             ["EV_LOAD_NODE_UPDATED", ac_form_update, null]
         ]]],
-        {},
+        {
+            /*  What the view mounts as the topic's tab.  */
+            mt_create: (gobj) => {
+                gobj_write_attr(gobj, "$container", document.createElement("div"));
+            }
+        },
         0,
         [
             SDATA(data_type_t.DTP_STRING, "topic_name", 0, "", "topic"),
+            SDATA(data_type_t.DTP_POINTER, "$container", 0, null, "the tab's content"),
             SDATA(data_type_t.DTP_BOOLEAN, "with_remote_paging", 0, false, "pulls its pages"),
             SDATA(data_type_t.DTP_POINTER, "tabulator", 0, null, "the table: only getRow() is read"),
             SDATA_END()
@@ -831,5 +837,52 @@ describe("a link told as EV_TREEDB_NODE_LINKED / UNLINKED", () => {
         expect(updated).toEqual([]);
         expect(errors()).toEqual([]);
         expect(shown).toEqual([]);
+    });
+});
+
+/*
+ *  The topics are shown in ALPHABETICAL order, whatever order the
+ *  backend's `descs` comes in: the backend's order is not the same from
+ *  one load to the next. The view loads its topics in the order it shows
+ *  them, so the `nodes` requests tell that order.
+ */
+describe("the topics in alphabetical order", () => {
+
+    function load_descs(name, system)
+    {
+        const host = gobj_create(`${name}_host`, "C_TEST_VIEW_HOST", {}, yuno);
+        const topics = gobj_create_service(`${name}_topics`, "C_YUI_TREEDB_TOPICS", {
+            treedb_name: "treedb_test",
+            gobj_remote_yuno: remote,
+            system: system
+        }, host);
+        gobj_start(topics);
+        commands.length = 0;
+        const descs = {};
+        for(const topic of ["users", "__snaps__", "places", "__icons__",
+                            "controllers", "__assets__", "device_types"]) {
+            descs[topic] = {topic_name: topic, cols: {}};
+        }
+        gobj_send_event(topics, "EV_MT_COMMAND_ANSWER", {
+            result: 0, comment: "", data: descs, __md_iev__: {
+                command_stack: [{command: "descs", kw: {}}]
+            }
+        }, remote);
+        return commands.filter((c) => c.command === "nodes")
+            .map((c) => c.kw.topic_name);
+    }
+
+    test("every topic, the system ones first, when system is true", () => {
+        build("to0");
+        expect(load_descs("to1", true)).toEqual([
+            "__assets__", "__icons__", "__snaps__",
+            "controllers", "device_types", "places", "users"
+        ]);
+    });
+
+    test("the user topics and __icons__, when system is false", () => {
+        expect(load_descs("to2", false)).toEqual([
+            "__icons__", "controllers", "device_types", "places", "users"
+        ]);
     });
 });
