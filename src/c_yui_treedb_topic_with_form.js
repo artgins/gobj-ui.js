@@ -102,7 +102,7 @@ import {row_matches} from "./yui_row_search.js";
 import i18next, {t} from "i18next";
 import {safe_locale} from "./yui_date_text.js";
 
-import {yui_toolbar_icon} from "./yui_toolbar.js";
+import {yui_toolbar, yui_toolbar_icon} from "./yui_toolbar.js";
 
 import {
     plan_treedb_writes, READONLY_FORM_TOOLBAR, col_goes_back_to_treedb,
@@ -960,8 +960,7 @@ function build_ui(gobj)
         ['div', {class: 'C_YUI_TREEDB_TOPIC_WITH_FORM',
                  style: 'height:100%; min-height:0; display:flex; flex-direction:column;'}, [
             ['div', {class: 'TREEDB_TABLE_TOOLBAR toolbar_tabulator_table m-1',
-                     style: 'flex:none; display:flex; justify-content:space-between; ' +
-                            'align-items:center; flex-wrap:wrap;'}],
+                     style: 'flex:none; min-width:0;'}],
             ['div',
                 {
                     id: `${table_id}`,
@@ -1012,13 +1011,18 @@ function build_ui(gobj)
     gobj.priv.$parent_filter = $parent_filter;
     $container.insertBefore($parent_filter, find_by_id($container, table_id));
 
+    /*  ONE row, the record actions on the left and the tools on the
+     *  right, scrolled sideways when it does not fit -- never wrapped
+     *  into two (see the css). The two groups are sections of the
+     *  toolbar: they do not shrink and do not wrap.  */
     let $toolbar_slot = $container.querySelector('.toolbar_tabulator_table');
-    if($table_toolbar instanceof Element) {
-        $toolbar_slot.appendChild($table_toolbar);
-    } else {
-        $toolbar_slot.appendChild(createElement2(['div', {}]));
-    }
-    $toolbar_slot.appendChild($view_toolbar);
+    let $actions = ($table_toolbar instanceof Element)?
+        $table_toolbar : createElement2(['div', {}]);
+    $actions.classList.add('yui-horizontal-toolbar-section');
+    $view_toolbar.classList.add('yui-horizontal-toolbar-section');
+    $toolbar_slot.appendChild(
+        yui_toolbar({class: 'TREEDB_TABLE_BAR'}, [$actions, $view_toolbar])
+    );
 
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
@@ -1801,9 +1805,13 @@ function create_tabulator(gobj)
         $table_el.classList.add("yui-no-row-hover");
     }
 
-    /*  Keep the footer in sync with the visible (active) row count,
-     *  and hide the pagination chrome while everything fits in one
-     *  page (it comes back as soon as a second page exists). */
+    /*  Keep the footer in sync with the visible (active) row count.
+     *  The paginator is NOT hidden when everything fits in one page:
+     *  a standard table shows it always (README, "Conventions" -> "A
+     *  table: a filter on every column, the paginator always, the
+     *  toolbar in one row"). Up to 7.32.0 it was hidden then, and the
+     *  footer of a small topic did not look like the footer of a big
+     *  one. */
     /*  `explicit_count` is for the ONE caller that cannot ask the table:
      *  `dataFiltered` is dispatched from INSIDE Tabulator's filter(), which
      *  only RETURNS the surviving rows to the pipeline afterwards — so
@@ -1839,64 +1847,6 @@ function create_tabulator(gobj)
         } else {
             $rc.textContent = `${n} ${t("rows")}`;
         }
-
-        let single_page = true;
-        try {
-            if(paged) {
-                /*  Tabulator knows the last page from the answer's
-                 *  `last_page`, and that is the only thing that says whether
-                 *  there is more. Deriving it from the row count instead —
-                 *  which is what the local path does — hid the paginator on
-                 *  every FULL page: 50 rows of a 50-row page reads as "it all
-                 *  fits" and it does not.  */
-                let max = tabulator.getPageMax();
-                single_page = (max === false) || max <= 1;
-            } else {
-                /*  Derived from the count and the page size rather than read
-                 *  from getPageMax(), which is stale in the filter path.
-                 *  `true` is Tabulator's "All" and it is the SIZE itself, so
-                 *  it has to be read as a word: compared as a number it is 1,
-                 *  and a table showing every one of its 300 rows in a single
-                 *  page answered that it needed 300 pages.  */
-                let size = tabulator.getPageSize();
-                single_page = (size === true) || !size || n <= size;
-            }
-        } catch(e) {
-            single_page = true;
-        }
-        /*  The page-size selector lives INSIDE the paginator, so hiding the
-         *  whole strip when everything fits took away the very control that
-         *  got the reader there: pick "All" on a topic of 300 rows and the
-         *  table becomes one page, the paginator goes, and 50 is
-         *  unreachable. The selector is noise only when no choice in it
-         *  would change anything -- when the topic is smaller than the
-         *  smallest size it offers. Measure that on the WHOLE topic, never
-         *  on the filtered count, or typing a filter that leaves 3 rows
-         *  takes the selector away too.  */
-        let total_rows;
-        if(paged) {
-            total_rows = total;
-        } else {
-            try {
-                total_rows = tabulator.getDataCount();
-            } catch(e) {
-                total_rows = n;
-            }
-        }
-        let min_size = 0;
-        let sizes = tabulator.options? tabulator.options.paginationSizeSelector : null;
-        if(Array.isArray(sizes)) {
-            sizes.forEach(function(size) {
-                if(typeof size === "number" && (!min_size || size < min_size)) {
-                    min_size = size;
-                }
-            });
-        }
-        let no_paginator = single_page &&
-            (!min_size || typeof total_rows !== "number" || total_rows <= min_size);
-
-        tabulator.element.classList.toggle("yui-single-page", single_page);
-        tabulator.element.classList.toggle("yui-no-paginator", no_paginator);
     }
 
     /*  `columnsLoaded` and not only `tableBuilt`: EVERY rebuild of the

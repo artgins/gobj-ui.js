@@ -1037,8 +1037,8 @@ instead of the host pushing the whole topic down. It needs the SDK's `nodes`
 with `from` / `limit` (see `YUNO_TREEDB.md` §5.3).
 
 **The page size is generous on purpose** (`page_size`, 200 when paging). A
-treedb that fits in one page behaves exactly as it did — paginator hidden,
-every filter seeing every row. Only a topic that does NOT fit pays for paging,
+treedb small enough for one page behaves exactly as it did: every filter
+sees every row. Only a topic that does NOT fit pays for paging,
 and for that one loading it whole was never an option.
 
 **Safe against a backend that cannot page:** it answers the whole list, which
@@ -4351,6 +4351,73 @@ The app must define the i18n key **`"clear"`**. Three decisions are baked in:
   they change. The walk is idempotent and gated by a single `querySelector`, so
   repeating it on every render costs nothing.
 
+### The standard table: `yui_table_standard.js`
+
+Three calls give a Tabulator table the table half of the table rule (see
+[the rule](#a-table-a-filter-on-every-column-the-paginator-always-the-toolbar-in-one-row)
+under "Conventions"). The toolbar half is `yui_toolbar()`.
+
+```js
+import {yui_tabulator_lang} from "@yuneta/gobj-ui/src/yui_tabulator_i18n.js";
+import {
+    yui_table_paging,
+    yui_table_filters,
+    yui_table_wire,
+} from "@yuneta/gobj-ui/src/yui_table_standard.js";
+
+let table = new Tabulator($div, {
+    ...yui_tabulator_lang(t),
+    ...yui_table_paging(),
+    data:    rows,                          /*  every row  */
+    columns: yui_table_filters([
+        {title: t("email"),   field: "username"},
+        {title: t("enabled"), field: "enabled", formatter: "tickCross"},
+        {title: t("actions"), field: "user_id", headerFilter: false,
+         formatter: actions_formatter},
+    ]),
+});
+yui_table_wire(table, t);
+```
+
+`yui_table_paging(opts)` gives the pagination settings: local pagination,
+25 rows to a page, and the sizes 25, 50, 100 and All. `opts.size` and
+`opts.sizes` change them. A size that the sizes do not hold goes first in
+the selector. The host gives the table every row. The footer shows the
+paginator and the row count. The count is the number of rows that the
+filters leave, on all pages together. The table locale gives its word, so
+the word changes language with `yui_tabulator_relocalize()`.
+
+`yui_table_filters(columns)` gives a copy of the columns, each with its
+header filter:
+
+- A column with a `field` and no `headerFilter` gets a text box. The box
+  finds a part of the value, in any case. The column also gets
+  `minWidth: 150`, which is the width of the placeholder in the longest
+  locale, unless it sets `width` or `minWidth` itself.
+- A column with `formatter: "tickCross"` gets a three-state tick: any, yes,
+  no.
+- A column with its own `headerFilter` keeps it. Give `headerFilter: false`
+  to a column whose cell is a control, for example a row of action buttons.
+- A column with no `field`, or with a control formatter (`rowSelection`),
+  gets no filter. Column groups are walked.
+
+`yui_table_wire(table, t)` names each filter box ("filter by column") and
+adds its ✕ (`yui_table_filter_clear()`). It does this when the table is
+built and again each time Tabulator builds the columns again. Call it right
+after `new Tabulator(...)`.
+
+The app must define the keys `"rows"`, `"filter by column"` and `"clear"`,
+and the paginator keys of `yui_tabulator_lang()`.
+
+Two things to look at when you apply it:
+
+- A text filter compares the value of the row, not what the formatter
+  shows. If a column shows a boolean as "Yes" or "No", give it a tick
+  (`headerFilter: "tickCross"`, `headerFilterParams: {tristate: true}`) or
+  a list.
+- A column with a fixed `width` under 150 px cuts the placeholder of its
+  filter. Give it 150.
+
 ### Searching a row that is not flat — `yui_row_search.js`
 
 `row_matches(row, term)` is what the treedb topic table's search box uses, and
@@ -4476,6 +4543,63 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
   let $canvas = find_by_id($container, priv.canvas_id);
   let $a = $c.querySelector(`a[data-route="${css_string(route)}"]`);
   ```
+
+### A table: a filter on every column, the paginator always, the toolbar in one row
+
+Every table of an admin view obeys this rule. The admin views are the
+treedb editor of each app (`C_YUI_TREEDB_TOPICS`), the accounts views, and
+the tables of `gui_treedb` and `gui_agent`. Other tables can obey it too.
+
+1. Each column that holds data has a header filter. A column whose cell is
+   a control has none, for example the action buttons or the selection
+   checkbox.
+2. The footer shows the paginator at all times, also when all the rows fit
+   in one page.
+3. The table holds all its rows in the browser and pages them there. This
+   is local pagination.
+4. Each toolbar above the table takes one row. When the row does not fit,
+   it scrolls sideways with its arrows (`yui_toolbar()`). It never wraps into
+   a second row.
+
+There is one exception. The records of a timeranger2 topic do not obey
+point 3, because a topic can hold millions of records. Those tables page
+from the backend (remote pagination). They obey points 1, 2 and 4.
+
+How to write it: the table with `yui_table_standard.js` (see
+[The standard table](#the-standard-table-yui_table_standardjs)), the
+toolbar with `yui_toolbar()`, each group of controls in a
+`yui-horizontal-toolbar-section`:
+
+```js
+import {yui_toolbar} from "@yuneta/gobj-ui/src/yui_toolbar.js";
+
+let $toolbar = yui_toolbar({class: "ACCOUNTS_TOOLBAR"}, [
+    ["div", {class: "ACCOUNTS_ACTIONS yui-horizontal-toolbar-section"}, [$new]],
+    ["div", {class: "ACCOUNTS_TOOLS yui-horizontal-toolbar-section"}, [$search, $refresh]],
+]);
+```
+
+`C_YUI_TREEDB_TOPIC_WITH_FORM` obeys the rule with no work from its host
+since 7.32.1. Up to 7.32.0 it hid the paginator when all the rows fit, and
+its toolbar wrapped into two rows on a phone.
+
+How to make sure that a table obeys it: open the DEPLOYED page at 390 px.
+Each control of the toolbar is on one line, the paginator
+(`.tabulator-paginator`) has a width with one page of rows, and each column
+of data has a filter box.
+
+Why each point:
+
+- The footer is where a reader looks for the row count and the page size.
+  A control that comes and goes with the number of rows is a control that
+  the reader must look for. The same footer in each table also tells the
+  reader that it is the same kind of table.
+- A filter and a sort work on the rows that the browser holds. With remote
+  pages, a filter searches one page, and "nothing found" can be false. A
+  treedb is a memory database, so the backend holds the whole topic anyway.
+- A toolbar that wraps takes a row from the table on a phone. It also puts
+  the same button in a different place on each screen width. A row that
+  scrolls keeps each button in its place.
 
 ### `index.html`: title, metadata and the Content-Security-Policy
 

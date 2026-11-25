@@ -7,6 +7,35 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.1 (2026-11-25)
+
+- **A rule for the tables of the admin views, and a module that applies it**
+  (README, "Conventions": *A table: a filter on every column, the paginator
+  always, the toolbar in one row*). Each column of data has a header filter.
+  The footer shows the paginator at all times. The table holds every row in
+  the browser. Each toolbar above it is one row that scrolls sideways. The
+  records of a timeranger2 topic are the one exception to "every row": they
+  page from the backend.
+- **New module `yui_table_standard.js`**: `yui_table_paging()` (local
+  pagination, 25 rows to a page, the sizes 25, 50, 100 and All, and the row
+  count in the footer), `yui_table_filters(columns)` (a text box or a
+  three-state tick on each column of data, `headerFilter: false` to leave a
+  column out) and `yui_table_wire(table, t)` (the name and the ✕ of each
+  filter box, on each build of the columns).
+- **The treedb topic table shows its paginator also when all the rows fit
+  in one page** (`C_YUI_TREEDB_TOPIC_WITH_FORM`). Up to 7.32.0 it hid the
+  page buttons when all the rows fit, and the whole paginator when the topic
+  was smaller than the smallest page size. The classes `yui-single-page` and
+  `yui-no-paginator` are gone.
+- **The toolbar of the treedb topic table is one row** that scrolls
+  sideways with arrows (`yui_toolbar()`). Up to 7.32.0 it wrapped into two
+  rows on a phone: the record buttons, then the search with the tools. The
+  search box now has a fixed width (12rem).
+- **The Tabulator locale of `yui_tabulator_lang()` carries
+  `pagination.counter.rows`**, from the key `"rows"`. An app that mounts
+  `yui_tabulator_i18n.js` must define the key. Every app that shows a treedb
+  table has it already.
+
 ## 7.32.0 (2026-11-24)
 
 - **`C_YUI_TREEDB_TOPICS` shows the topics in alphabetical order**: the

@@ -83,7 +83,13 @@ function tabulator_strings(t)
             prev_title:  tr("prev page", "Prev Page"),
             next:        tr("next", "Next"),
             next_title:  tr("next page", "Next Page"),
-            all:         tr("all", "All")
+            all:         tr("all", "All"),
+            /*  The word of the row count of a standard table
+             *  (yui_table_standard.js); the treedb topic table writes the
+             *  same key in its own footer.  */
+            counter: {
+                rows:    tr("rows", "rows")
+            }
         },
         headerFilters: {
             default: tr("filter column", "filter column...")

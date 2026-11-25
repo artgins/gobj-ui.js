@@ -23,62 +23,27 @@
     line-height: 1.5;
 }
 
-/*  All rows fit in one page: the First/Prev/1/Next/Last strip is pure
- *  noise (worst on mobile) — update_rowcount() toggles the class on every
- *  data change. The page-size SELECTOR stays: it is what made the table
- *  one page in the first place ("All" on a topic of 300 rows), so hiding
- *  it together with the buttons left the reader no way back to 50.  */
-.tabulator.yui-single-page .tabulator-footer .tabulator-paginator .tabulator-page,
-.tabulator.yui-single-page .tabulator-footer .tabulator-paginator .tabulator-pages {
-    display: none;
-}
-
-/*  No choice in the selector would change anything either — the topic is
- *  smaller than the smallest page size it offers — so the whole strip,
- *  label and select included, is noise.  */
-.tabulator.yui-no-paginator .tabulator-footer .tabulator-paginator {
-    display: none;
-}
-
-/*  Toolbar wrapping discipline (mobile): the record-buttons group
- *  must never split across lines — Bulma .buttons wraps internally,
- *  which stacked the toolbar into 3 rows on narrow phones. Keep the
- *  group on one line and scroll it horizontally if it overflows
- *  (same distribute-or-scroll pattern as the nav icon-bar); the
- *  search+refresh block then wraps as a whole, so the toolbar is
- *  1 row when it fits and exactly 2 when it doesn't.  */
+/*  The toolbar is ONE row: a `yui_toolbar()` that scrolls sideways when
+ *  it does not fit, with its arrows (README, "Conventions" -> "A table: a
+ *  filter on every column, the paginator always, the toolbar in one
+ *  row"). Up to 7.32.0 it wrapped: the record buttons on one row and the
+ *  search with the tools on a second one, which on a phone left one row
+ *  of the table less.
+ *
+ *  The two groups (record actions, tools) are sections of the toolbar
+ *  (`yui-horizontal-toolbar-section`: no shrink, no wrap). Bulma's
+ *  `.buttons` wraps its buttons by itself, so that is undone here.  */
 .toolbar_tabulator_table .buttons {
     flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: thin;
-}
-.toolbar_tabulator_table .control.has-icons-left {
-    min-width: 0;
 }
 
-/*  Search box width: a rule, not an inline style, so the mobile block
- *  below can widen it (an inline max-width would win over any class).  */
+/*  The search keeps a fixed width in the row: in a row that scrolls, a
+ *  box that stretches has nothing to stretch to.  */
+.TREEDB_TABLE_TOOLS .TREEDB_TABLE_SEARCH {
+    flex: none;
+}
 .TREEDB_TABLE_TOOLS .TREEDB_TABLE_SEARCH .input {
-    max-width: 200px;
-}
-
-/*  Mobile: the tools of the list (search + refresh) take a row of their
- *  own, with the search stretched across it and the refresh pinned at
- *  the end. Without this the group keeps its natural width and leaves
- *  dead space, while the search -- the most used control of the two --
- *  stays the narrowest thing on screen. The refresh label is already
- *  dropped by is-hidden-mobile, decided in the markup: measuring at
- *  runtime would change the shape of the bar on a language switch.  */
-@media screen and (max-width: 768px) {
-    .TREEDB_TABLE_TOOLS {
-        width: 100%;
-    }
-    .TREEDB_TABLE_TOOLS .TREEDB_TABLE_SEARCH {
-        flex: 1 1 auto;
-    }
-    .TREEDB_TABLE_TOOLS .TREEDB_TABLE_SEARCH .input {
-        max-width: none;
-    }
+    width: 12rem;
 }
 
 /*  The edit/create form runs in the shell's standardized adaptive dialog
