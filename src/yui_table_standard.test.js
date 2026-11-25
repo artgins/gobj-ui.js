@@ -17,6 +17,7 @@ import {
     YUI_TABLE_FILTER_MIN_WIDTH,
     yui_table_paging,
     yui_table_filters,
+    yui_tree_filter,
     yui_table_wire,
 } from "./yui_table_standard.js";
 
@@ -143,6 +144,53 @@ describe("the filters", () => {
 
     test("not a list: given back as it is", () => {
         expect(yui_table_filters(null)).toBe(null);
+    });
+});
+
+describe("the filter of a tree", () => {
+    const node = {
+        host: "artgins",
+        _children: [
+            {label: "yuneta_agent"},
+            {label: "controlcenter", _children: [{label: "auth_bff"}]},
+        ]
+    };
+    const f = yui_tree_filter((d) => d.label || d.host);
+
+    test("a row passes on its own text, in any case", () => {
+        expect(f("ArtG", null, node)).toBe(true);
+        expect(f("agent", null, node._children[0])).toBe(true);
+    });
+
+    test("a parent passes when a descendant matches, at any depth", () => {
+        expect(f("control", null, node)).toBe(true);
+        expect(f("bff", null, node)).toBe(true);
+    });
+
+    test("a row that does not match, with no descendant that does, fails", () => {
+        expect(f("mqtt", null, node)).toBe(false);
+        expect(f("control", null, node._children[0])).toBe(false);
+    });
+
+    test("an empty term passes everything", () => {
+        expect(f("", null, node)).toBe(true);
+        expect(f("   ", null, node)).toBe(true);
+        expect(f(null, null, node)).toBe(true);
+    });
+
+    test("another child field, and a text_of that throws", () => {
+        let g = yui_tree_filter((d) => d.name, "kids");
+        expect(g("b", null, {name: "a", kids: [{name: "b"}]})).toBe(true);
+        let bad = yui_tree_filter(() => {
+            throw new Error("x");
+        });
+        expect(bad("a", null, {})).toBe(false);
+    });
+
+    test("with yui_table_filters, the column gets its text box", () => {
+        let [c] = yui_table_filters([{field: "id", headerFilterFunc: f}]);
+        expect(c.headerFilter).toBe("input");
+        expect(c.headerFilterFunc).toBe(f);
     });
 });
 

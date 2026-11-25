@@ -4401,6 +4401,23 @@ header filter:
 - A column with no `field`, or with a control formatter (`rowSelection`),
   gets no filter. Column groups are walked.
 
+A tree table (`dataTree`) filters each column with
+`yui_tree_filter(text_of)`. Tabulator filters a tree from its roots, so a
+parent that fails is hidden with all its children: a filter on the name of
+a yuno hid every node. `text_of(data)` gives the text that a row shows in
+the column. A row passes when its own text holds the term, or when the text
+of one of its descendants does. Tabulator then filters the children with the
+same function, so only the children that match are shown:
+
+```js
+{title: t("name"), field: "id",
+ headerFilterFunc: yui_tree_filter((d) => d._type === "yuno" ? d.label : d.host)}
+```
+
+`yui_table_filters()` gives that column its text box. The second argument of
+`yui_tree_filter()` is the `dataTreeChildField` of the table, `"_children"`
+by default.
+
 `yui_table_wire(table, t)` names each filter box ("filter by column") and
 adds its ✕ (`yui_table_filter_clear()`). It does this when the table is
 built and again each time Tabulator builds the columns again. Call it right
@@ -4561,9 +4578,12 @@ the tables of `gui_treedb` and `gui_agent`. Other tables can obey it too.
    it scrolls sideways with its arrows (`yui_toolbar()`). It never wraps into
    a second row.
 
-There is one exception. The records of a timeranger2 topic do not obey
-point 3, because a topic can hold millions of records. Those tables page
-from the backend (remote pagination). They obey points 1, 2 and 4.
+There is one exception: the records of a timeranger2 topic. A topic can
+hold millions of records, so those tables do not obey point 3. They page
+from the backend (remote pagination). Their filters are the ones that the
+backend can apply, or they filter the page that is loaded, and the table
+says so. The live view of a topic holds a rolling buffer of the newest
+records, so it has no pages. These tables obey point 4.
 
 How to write it: the table with `yui_table_standard.js` (see
 [The standard table](#the-standard-table-yui_table_standardjs)), the

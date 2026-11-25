@@ -36,6 +36,10 @@
  *          timeranger2 topic), and it pages from the backend on
  *          purpose.
  *
+ *          A TREE table (`dataTree`) filters each column with
+ *          `yui_tree_filter()`: Tabulator filters a tree from its roots,
+ *          and a parent that fails hides the children that match.
+ *
  *          The row count needs the key "rows" in the app (every app
  *          that shows a treedb table has it already).
  *
@@ -181,6 +185,65 @@ function yui_table_filters(columns)
 }
 
 /***************************************************************
+ *  The header filter of a column of a TREE table (`dataTree`).
+ *
+ *  `text_of(data)` answers the text that a row shows in the column.
+ *  A row passes when its own text holds the term (in any case), or
+ *  when the text of one of its descendants does.
+ *
+ *  Why the descendants: Tabulator filters a tree from its roots, and
+ *  a parent that fails is hidden with all its children. A filter on
+ *  the name of a yuno would hide every node, and the yunos with
+ *  them. With this one the node stays, and Tabulator then filters
+ *  its children with the same function (`dataTreeFilter`, on by
+ *  default), so only the yunos that match are shown.
+ *
+ *  `child_field` is the table's `dataTreeChildField` ("_children").
+ *
+ *      {title: t("name"), field: "id",
+ *       headerFilterFunc: yui_tree_filter((d) => d.label || d.host)}
+ *
+ *  `yui_table_filters()` then gives the column its text box.
+ ***************************************************************/
+function yui_tree_filter(text_of, child_field)
+{
+    let field = child_field || "_children";
+
+    function matches(data, needle, depth)
+    {
+        if(!data || typeof data !== "object") {
+            return false;
+        }
+        let text = "";
+        try {
+            text = String(text_of(data) ?? "");
+        } catch(e) {
+            text = "";
+        }
+        if(text.toLowerCase().includes(needle)) {
+            return true;
+        }
+        /*  A guard against a cycle in data that is not a tree.  */
+        if(depth > 32) {
+            return false;
+        }
+        let children = data[field];
+        if(!Array.isArray(children)) {
+            return false;
+        }
+        return children.some((child) => matches(child, needle, depth + 1));
+    }
+
+    return function(term, value, data) {
+        let needle = String(term ?? "").trim().toLowerCase();
+        if(!needle) {
+            return true;
+        }
+        return matches(data, needle, 0);
+    };
+}
+
+/***************************************************************
  *  What the header filters need after the table is drawn.
  *
  *  Tabulator draws the filter boxes with no name, and draws them
@@ -210,5 +273,6 @@ export {
     YUI_TABLE_FILTER_MIN_WIDTH,
     yui_table_paging,
     yui_table_filters,
+    yui_tree_filter,
     yui_table_wire,
 };

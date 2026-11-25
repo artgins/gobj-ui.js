@@ -7,6 +7,18 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.2 (2026-11-25)
+
+- **`yui_tree_filter(text_of)`** (`yui_table_standard.js`): the header filter
+  of a column of a tree table (`dataTree`). A row passes when its own text
+  holds the term, or when the text of one of its descendants does. Tabulator
+  filters a tree from its roots, and with a plain filter a parent that fails
+  hides the children that match.
+- **The table rule says more about its exception** (README, "Conventions"):
+  the filters of the timeranger2 tables are the ones that the backend can
+  apply, or they filter the page that is loaded. The live view of a topic
+  has no pages.
+
 ## 7.32.1 (2026-11-25)
 
 - **A rule for the tables of the admin views, and a module that applies it**
