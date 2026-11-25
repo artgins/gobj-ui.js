@@ -13,6 +13,13 @@ import {install_dom_double} from "../test/dom_double.js";
 
 install_dom_double();
 
+import i18next from "i18next";
+
+await i18next.init({lng: "es", resources: {
+    es: {translation: {rows: "filas", rows_one: "fila"}},
+    en: {translation: {rows: "rows", rows_one: "row"}}
+}});
+
 import {
     YUI_TABLE_FILTER_MIN_WIDTH,
     yui_table_paging,
@@ -48,7 +55,7 @@ describe("the paging", () => {
 });
 
 describe("the row count", () => {
-    function page_module(word)
+    function page_module()
     {
         let bindings = [];
         return {
@@ -57,8 +64,8 @@ describe("the row count", () => {
                 modules: {
                     localize: {
                         langBind(path, cb) {
-                            bindings.push(path);
-                            cb(word);
+                            bindings.push({path, cb});
+                            cb("ignored");
                         }
                     }
                 }
@@ -66,39 +73,50 @@ describe("the row count", () => {
         };
     }
 
-    test("says every active row, all pages together, in the table's language", () => {
+    test("says every active row, all pages together, in the app's plural", () => {
         let counter = yui_table_paging().paginationCounter;
-        let page = page_module("filas");
+        let page = page_module();
         let $el = counter.call(page, 25, 26, 2, 113, 5);
         expect($el.textContent).toBe("113 filas");
-        expect(page.bindings).toEqual(["pagination|counter|rows"]);
+        expect(page.bindings.map((b) => b.path)).toEqual(["pagination|counter|rows"]);
+        expect(counter.call(page_module(), 25, 1, 1, 1, 1).textContent).toBe("1 fila");
+    });
+
+    test("a language change asks the word again", async () => {
+        let counter = yui_table_paging().paginationCounter;
+        let page = page_module();
+        let $el = counter.call(page, 25, 1, 1, 1, 1);
+        await i18next.changeLanguage("en");
+        page.bindings[0].cb("ignored");
+        expect($el.textContent).toBe("1 row");
+        await i18next.changeLanguage("es");
     });
 
     test("an empty table says 0", () => {
         let counter = yui_table_paging().paginationCounter;
-        let $el = counter.call(page_module("rows"), 25, 0, 1, 0, 0);
-        expect($el.textContent).toBe("0 rows");
+        let $el = counter.call(page_module(), 25, 0, 1, 0, 0);
+        expect($el.textContent).toBe("0 filas");
     });
 
     test("is a node, never a string Tabulator would put in as html", () => {
         let counter = yui_table_paging().paginationCounter;
-        let $el = counter.call(page_module("rows"), 25, 1, 1, 3, 1);
+        let $el = counter.call(page_module(), 25, 1, 1, 3, 1);
         expect(typeof $el).toBe("object");
         expect($el.className).toBe("YUI_TABLE_COUNT");
     });
 
     test("with a filter on, the rows it leaves of the rows the table holds", () => {
         let counter = yui_table_paging().paginationCounter;
-        let page = page_module("rows");
+        let page = page_module();
         page.table.getDataCount = () => 27;
-        expect(counter.call(page, 25, 1, 1, 12, 1).textContent).toBe("12 / 27 rows");
-        expect(counter.call(page, 25, 1, 1, 27, 2).textContent).toBe("27 rows");
+        expect(counter.call(page, 25, 1, 1, 12, 1).textContent).toBe("12 / 27 filas");
+        expect(counter.call(page, 25, 1, 1, 27, 2).textContent).toBe("27 filas");
     });
 
-    test("without a localize module it still counts, in English", () => {
+    test("without a localize module it still counts", () => {
         let counter = yui_table_paging().paginationCounter;
         let $el = counter.call({}, 25, 1, 1, 3, 1);
-        expect($el.textContent).toBe("3 rows");
+        expect($el.textContent).toBe("3 filas");
     });
 });
 

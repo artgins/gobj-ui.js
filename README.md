@@ -4436,8 +4436,11 @@ adds its ✕ (`yui_table_filter_clear()`). It does this when the table is
 built and again each time Tabulator builds the columns again. Call it right
 after `new Tabulator(...)`.
 
-The app must define the keys `"rows"`, `"filter by column"` and `"clear"`,
-and the paginator keys of `yui_tabulator_lang()`.
+The app must define the keys `"rows"`, `"rows_one"`, `"filter by column"`
+and `"clear"`, and the paginator keys of `yui_tabulator_lang()`. The count
+takes the plural of the number it goes with: `"rows_one"` for one row ("1
+fila"), `"rows"` for the others. Without `"rows_one"` i18next falls back to
+`"rows"`, and one row reads "1 filas".
 
 Two things to look at when you apply it:
 

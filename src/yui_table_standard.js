@@ -41,11 +41,14 @@
  *          and a parent that fails hides the children that match.
  *
  *          The row count needs the key "rows" in the app (every app
- *          that shows a treedb table has it already).
+ *          that shows a treedb table has it already), and "rows_one"
+ *          for one row ("1 row", "1 fila").
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+import i18next from "i18next";
+
 import {yui_tabulator_name_filters} from "./yui_tabulator_i18n.js";
 import {yui_table_filter_clear} from "./yui_table_filter_clear.js";
 
@@ -65,6 +68,14 @@ const CONTROL_FORMATTERS = ["rowSelection", "handle", "responsiveCollapse", "but
 
 
 /***************************************************************
+ *  The word of the row count, in the app's language and plural.
+ ***************************************************************/
+function rows_word(count)
+{
+    return i18next.t("rows", {count: count, defaultValue: count === 1 ? "row" : "rows"});
+}
+
+/***************************************************************
  *  The row count of the footer.
  *
  *  Called by Tabulator with `this` = its pagination module, on
@@ -72,10 +83,13 @@ const CONTROL_FORMATTERS = ["rowSelection", "handle", "responsiveCollapse", "but
  *  count: the rows the filters leave, all pages together. With a
  *  filter on, the count says both: "12 / 27 rows".
  *
- *  The number is data; the word comes from the table's locale
- *  (`pagination.counter.rows`, which `yui_tabulator_lang()` fills
- *  with the app's "rows"), and `langBind` changes it again when
- *  `yui_tabulator_relocalize()` installs a new language.
+ *  The number is data. The word is the app's plural of "rows"
+ *  (`rows_one` for one, `rows` for the others; i18next falls back to
+ *  `rows` when the form is missing), for the number it goes with: the
+ *  total when there are two. Up to 7.32.4 it was one word for every
+ *  number, "1 filas". `langBind` on the table's locale is only the
+ *  trigger: `yui_tabulator_relocalize()` installs a new language and
+ *  the word is asked again.
  *
  *  Returns a DOM node, never a string: Tabulator puts a string in
  *  with `innerHTML`.
@@ -103,11 +117,11 @@ function rows_counter(page_size, current_row, current_page, total_rows)
 
     let $word = document.createElement("span");
     $word.className = "YUI_TABLE_COUNT_WORD";
-    $word.textContent = "rows";
+    $word.textContent = rows_word(all);
     let localize = this && this.table && this.table.modules ? this.table.modules.localize : null;
     if(localize && typeof localize.langBind === "function") {
-        localize.langBind("pagination|counter|rows", (value) => {
-            $word.textContent = value;
+        localize.langBind("pagination|counter|rows", () => {
+            $word.textContent = rows_word(all);
         });
     }
 

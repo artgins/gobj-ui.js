@@ -1896,10 +1896,12 @@ function create_tabulator(gobj)
                 total = n;
             }
         }
+        /*  The word in the plural of the number it goes with: "1 fila",
+         *  "13 filas" (`rows_one` / `rows`). Up to 7.32.4, "1 filas".  */
         if(typeof total === "number" && total > n) {
-            $rc.textContent = `${n} / ${total} ${t("rows")}`;
+            $rc.textContent = `${n} / ${total} ${t("rows", {count: total})}`;
         } else {
-            $rc.textContent = `${n} ${t("rows")}`;
+            $rc.textContent = `${n} ${t("rows", {count: n})}`;
         }
     }
 

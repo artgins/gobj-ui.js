@@ -7,6 +7,16 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.5 (2026-11-25)
+
+- **The row count takes the plural of its number**: "1 fila", "13 filas",
+  "12 / 27 filas". The standard table (`yui_table_paging()`) and the treedb
+  topic table ask i18next for `"rows"` with the count. An app that defines
+  `"rows_one"` gets the singular. One that does not gets `"rows"` for every
+  number, as before. Up to 7.32.4 one row read "1 filas". Reported by the
+  session that moved the yunetadeploy GUI to the table rule: its own counter
+  had a plural.
+
 ## 7.32.4 (2026-11-25)
 
 - **The treedb topic table has a header filter on every column of data**
