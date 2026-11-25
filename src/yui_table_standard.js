@@ -69,7 +69,8 @@ const CONTROL_FORMATTERS = ["rowSelection", "handle", "responsiveCollapse", "but
  *
  *  Called by Tabulator with `this` = its pagination module, on
  *  every page, filter and data change. `total_rows` is the ACTIVE
- *  count: the rows the filters leave, all pages together.
+ *  count: the rows the filters leave, all pages together. With a
+ *  filter on, the count says both: "12 / 27 rows".
  *
  *  The number is data; the word comes from the table's locale
  *  (`pagination.counter.rows`, which `yui_tabulator_lang()` fills
@@ -84,9 +85,21 @@ function rows_counter(page_size, current_row, current_page, total_rows)
     let $count = document.createElement("span");
     $count.className = "YUI_TABLE_COUNT";
 
+    /*  With a filter on, both numbers: the rows it leaves of the rows
+     *  the table holds ("12 / 27"). The status lines the apps kept under
+     *  their tables said it that way, and this count replaces them.  */
+    let shown = total_rows || 0;
+    let all = shown;
+    try {
+        if(this && this.table && typeof this.table.getDataCount === "function") {
+            all = this.table.getDataCount();
+        }
+    } catch(e) {
+        all = shown;
+    }
     let $number = document.createElement("span");
     $number.className = "YUI_TABLE_COUNT_NUMBER";
-    $number.textContent = String(total_rows || 0);
+    $number.textContent = (all > shown) ? `${shown} / ${all}` : String(shown);
 
     let $word = document.createElement("span");
     $word.className = "YUI_TABLE_COUNT_WORD";

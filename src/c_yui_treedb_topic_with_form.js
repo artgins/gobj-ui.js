@@ -1360,9 +1360,53 @@ function create_tabulator(gobj)
         return text.toLowerCase().includes(String(term).toLowerCase());
     }
 
+    /*  A time is filtered by the date the cell SHOWS, in the app's
+     *  language: the value is an epoch (or an ISO text), and typing what
+     *  one reads found nothing.  */
+    function time_matches(real_type)
+    {
+        return function(term, value) {
+            let needle = String(term ?? "").trim().toLowerCase();
+            if(!needle) {
+                return true;
+            }
+            let text = time_value_to_text(value, real_type, safe_locale(i18next.language));
+            return String(text || "").toLowerCase().includes(needle);
+        };
+    }
+
     function apply_header_filter(colDef, field_desc)
     {
         switch(field_desc.type) {
+            /*  A document, a list of links, a file reference: the JSON
+             *  text is what is searched, the same reading as an fkey
+             *  (every column of data has a filter, gobj-ui README,
+             *  "Conventions" -> "A table: a filter on every column, the
+             *  paginator always, the toolbar in one row").  */
+            case "object":
+            case "dict":
+            case "template":
+            case "array":
+            case "list":
+            case "coordinates":
+            case "blob":
+            case "gbuffer":
+            case "hook":
+            case "file":
+                colDef.headerFilter = "input";
+                colDef.headerFilterFunc = fkey_matches;
+                break;
+            case "now":
+            case "time":
+                colDef.headerFilter = "input";
+                colDef.headerFilterFunc = time_matches(field_desc.real_type);
+                break;
+            /*  The name of an image, a colour, an icon: text.  */
+            case "image":
+            case "color":
+            case "icon":
+                colDef.headerFilter = "input";
+                break;
             case "boolean":
                 colDef.headerFilter = "tickCross";
                 colDef.headerFilterParams = {tristate: true};
@@ -1842,7 +1886,17 @@ function create_tabulator(gobj)
          *  with 114 would be a lie by omission. Say both. */
         let paged = gobj_read_bool_attr(gobj, "with_remote_paging");
         let total = gobj.priv._page_total;
-        if(paged && typeof total === "number" && total > n) {
+        if(!paged) {
+            /*  With a filter on, both: the rows it leaves of the rows the
+             *  table holds -- the same reading as the standard table
+             *  (yui_table_standard.js).  */
+            try {
+                total = tabulator.getDataCount();
+            } catch(e) {
+                total = n;
+            }
+        }
+        if(typeof total === "number" && total > n) {
             $rc.textContent = `${n} / ${total} ${t("rows")}`;
         } else {
             $rc.textContent = `${n} ${t("rows")}`;

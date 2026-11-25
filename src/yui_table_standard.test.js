@@ -87,6 +87,14 @@ describe("the row count", () => {
         expect($el.className).toBe("YUI_TABLE_COUNT");
     });
 
+    test("with a filter on, the rows it leaves of the rows the table holds", () => {
+        let counter = yui_table_paging().paginationCounter;
+        let page = page_module("rows");
+        page.table.getDataCount = () => 27;
+        expect(counter.call(page, 25, 1, 1, 12, 1).textContent).toBe("12 / 27 rows");
+        expect(counter.call(page, 25, 1, 1, 27, 2).textContent).toBe("27 rows");
+    });
+
     test("without a localize module it still counts, in English", () => {
         let counter = yui_table_paging().paginationCounter;
         let $el = counter.call({}, 25, 1, 1, 3, 1);

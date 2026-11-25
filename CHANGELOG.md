@@ -7,6 +7,21 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.4 (2026-11-25)
+
+- **The treedb topic table has a header filter on every column of data**
+  (`C_YUI_TREEDB_TOPIC_WITH_FORM`). Up to 7.32.3 a document (`dict`, `list`,
+  `blob`, `coordinates` and the other JSON types), a hook, a file reference
+  and a time had none. A document, a hook and a file are searched as their
+  JSON text. A time is searched as the date that the cell shows, in the
+  language of the app. An image, a color and an icon are searched as their
+  name. A drawn user icon (`svg`) still has no filter.
+- **With a filter on, the row count says both numbers**: the rows that the
+  filter leaves and the rows that the table holds ("12 / 27 rows"), in the
+  standard table (`yui_table_paging()`) and in the treedb topic table. The
+  apps kept a status line under some tables for that, and the count of the
+  table now replaces it.
+
 ## 7.32.3 (2026-11-25)
 
 - **`yui_text_filter(text_of)`** (`yui_table_standard.js`): the header filter

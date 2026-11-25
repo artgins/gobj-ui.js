@@ -4384,7 +4384,10 @@ yui_table_wire(table, t);
 `opts.sizes` change them. A size that the sizes do not hold goes first in
 the selector. The host gives the table every row. The footer shows the
 paginator and the row count. The count is the number of rows that the
-filters leave, on all pages together. The table locale gives its word, so
+filters leave, on all pages together. With a filter on, it says both
+numbers: the rows that the filter leaves and the rows that the table holds
+("12 / 27 rows"). A status line under the table that only counts its rows
+is then not necessary. The table locale gives its word, so
 the word changes language with `yui_tabulator_relocalize()`.
 
 `yui_table_filters(columns)` gives a copy of the columns, each with its
@@ -4610,8 +4613,9 @@ let $toolbar = yui_toolbar({class: "ACCOUNTS_TOOLBAR"}, [
 ```
 
 `C_YUI_TREEDB_TOPIC_WITH_FORM` obeys the rule with no work from its host
-since 7.32.1. Up to 7.32.0 it hid the paginator when all the rows fit, and
-its toolbar wrapped into two rows on a phone.
+since 7.32.4. Up to 7.32.0 it hid the paginator when all the rows fit, and
+its toolbar wrapped into two rows on a phone. Up to 7.32.3 the columns of a
+document, a hook, a file and a time had no filter.
 
 How to make sure that a table obeys it: open the DEPLOYED page at 390 px.
 Each control of the toolbar is on one line, the paginator
