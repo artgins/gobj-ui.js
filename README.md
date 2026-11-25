@@ -4401,6 +4401,16 @@ header filter:
 - A column with no `field`, or with a control formatter (`rowSelection`),
   gets no filter. Column groups are walked.
 
+A column whose cell shows something else than its value (a boolean drawn as
+"enabled", a time drawn as a date, a list drawn as names) filters with
+`yui_text_filter(text_of)`. `text_of(data)` gives the text that the row
+shows, and the row passes when that text holds the term:
+
+```js
+{title: t("status"), field: "disabled",
+ headerFilterFunc: yui_text_filter((d) => t(d.disabled ? "disabled" : "enabled"))}
+```
+
 A tree table (`dataTree`) filters each column with
 `yui_tree_filter(text_of)`. Tabulator filters a tree from its roots, so a
 parent that fails is hidden with all its children: a filter on the name of
@@ -4429,9 +4439,9 @@ and the paginator keys of `yui_tabulator_lang()`.
 Two things to look at when you apply it:
 
 - A text filter compares the value of the row, not what the formatter
-  shows. If a column shows a boolean as "Yes" or "No", give it a tick
-  (`headerFilter: "tickCross"`, `headerFilterParams: {tristate: true}`) or
-  a list.
+  shows. If a column shows a boolean as "Yes" or "No", give it
+  `yui_text_filter()`, a tick (`headerFilter: "tickCross"`,
+  `headerFilterParams: {tristate: true}`) or a list.
 - A column with a fixed `width` under 150 px cuts the placeholder of its
   filter. Give it 150.
 

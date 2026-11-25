@@ -7,6 +7,14 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.3 (2026-11-25)
+
+- **`yui_text_filter(text_of)`** (`yui_table_standard.js`): the header filter
+  of a column whose cell shows something else than its value, for example a
+  boolean drawn as "enabled" or a time drawn as a date. It compares the text
+  that the row shows. A plain text filter compares the value, so "enabled"
+  found nothing in a column of `false`.
+
 ## 7.32.2 (2026-11-25)
 
 - **`yui_tree_filter(text_of)`** (`yui_table_standard.js`): the header filter

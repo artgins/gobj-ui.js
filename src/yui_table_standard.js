@@ -185,6 +185,38 @@ function yui_table_filters(columns)
 }
 
 /***************************************************************
+ *  The header filter of a column whose cell SHOWS something else
+ *  than its value: a boolean drawn as "enabled", a time drawn as a
+ *  date, a list drawn as names.
+ *
+ *  `text_of(data)` answers the text that the row shows in the
+ *  column. The row passes when it holds the term, in any case. A
+ *  plain text filter compares the VALUE, so "enabled" finds nothing
+ *  in a column of `false`.
+ *
+ *      {title: t("status"), field: "disabled",
+ *       headerFilterFunc: yui_text_filter((d) => t(d.disabled ? "disabled" : "enabled"))}
+ *
+ *  `yui_table_filters()` then gives the column its text box.
+ ***************************************************************/
+function yui_text_filter(text_of)
+{
+    return function(term, value, data) {
+        let needle = String(term ?? "").trim().toLowerCase();
+        if(!needle) {
+            return true;
+        }
+        let text = "";
+        try {
+            text = String(text_of(data) ?? "");
+        } catch(e) {
+            text = "";
+        }
+        return text.toLowerCase().includes(needle);
+    };
+}
+
+/***************************************************************
  *  The header filter of a column of a TREE table (`dataTree`).
  *
  *  `text_of(data)` answers the text that a row shows in the column.
@@ -273,6 +305,7 @@ export {
     YUI_TABLE_FILTER_MIN_WIDTH,
     yui_table_paging,
     yui_table_filters,
+    yui_text_filter,
     yui_tree_filter,
     yui_table_wire,
 };

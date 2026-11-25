@@ -17,6 +17,7 @@ import {
     YUI_TABLE_FILTER_MIN_WIDTH,
     yui_table_paging,
     yui_table_filters,
+    yui_text_filter,
     yui_tree_filter,
     yui_table_wire,
 } from "./yui_table_standard.js";
@@ -144,6 +145,29 @@ describe("the filters", () => {
 
     test("not a list: given back as it is", () => {
         expect(yui_table_filters(null)).toBe(null);
+    });
+});
+
+describe("the filter of what a cell shows", () => {
+    const f = yui_text_filter((d) => d.disabled ? "Disabled" : "Enabled");
+
+    test("compares the text shown, not the value, in any case", () => {
+        expect(f("enab", false, {disabled: false})).toBe(true);
+        expect(f("enab", true, {disabled: true})).toBe(false);
+        expect(f("DIS", true, {disabled: true})).toBe(true);
+    });
+
+    test("an empty term passes everything", () => {
+        expect(f("", true, {disabled: true})).toBe(true);
+        expect(f(undefined, true, {disabled: true})).toBe(true);
+    });
+
+    test("a text_of that throws, or answers nothing, matches nothing", () => {
+        let bad = yui_text_filter(() => {
+            throw new Error("x");
+        });
+        expect(bad("a", null, {})).toBe(false);
+        expect(yui_text_filter(() => null)("a", null, {})).toBe(false);
     });
 });
 
