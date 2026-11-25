@@ -7,6 +7,29 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.6 (2026-11-25)
+
+- **The paginator takes one line on a phone** (`tabulator.css`). At the
+  mobile width of Bulma (768 px and less), First, Prev, Next and Last show
+  the icons of the period navigator (`|<  <  >  >|`), the label "Rows per
+  page" is hidden, and only the current page of the numbered pages shows.
+  Each button keeps its name as `title` and `aria-label`. Up to 7.32.5 the
+  words took three lines of the footer on a 390 px phone. Every table of an
+  app that imports `tabulator.css` gets it.
+- **Every icon is 1em tall** (`yui_icons.css`). A glyph that is wider than
+  tall gets a box as wide as it is: 1.125em for a viewBox of 576 x 512,
+  1.25em for 640 x 512. Up to 7.32.5 every box was a 1em square, and such a
+  glyph was drawn smaller to fit: `yi-code` at 80% of the height of the
+  others, `yi-file-csv` at 89%. A row of tool buttons showed icons of three
+  sizes. A Bulma `.icon` grows to hold the wider glyph, and a user icon
+  (`yi-u-*`) gets the box of its viewBox, up to 1.25em
+  (`svg_icon_width()`).
+- **The paginator's icons are the size of the toolbar's**:
+  `YUI_TOOLBAR_ICON_SIZE` (1.25rem), in a 2rem button. Their masks are
+  custom properties of `yui_icons.css` (`--yi-backward-step`,
+  `--yi-chevron-left`, `--yi-chevron-right`, `--yi-forward-step`), which
+  the classes of the same icons read too.
+
 ## 7.32.5 (2026-11-25)
 
 - **The row count takes the plural of its number**: "1 fila", "13 filas",

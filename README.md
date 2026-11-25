@@ -3249,6 +3249,10 @@ A row of that topic with `"icon": "yi-u-transformer"` shows that drawing.
 - **The drawing is a MASK**, like the library's: painted with `currentColor`,
   one colour, the shapes' alpha only. A multicolour svg comes out as a
   silhouette.
+- **It is 1em tall, like every icon.** A drawing that is wider than tall gets
+  a wider box, from its viewBox (`svg_icon_width()`), up to 1.25em
+  (`USER_ICON_MAX_WIDTH`, the widest icon of the library). A wider drawing
+  is drawn smaller, so that it does not push the controls of its row aside.
 - **The svg is rebuilt, never inserted.** `yui_svg_sanitize()` parses it and
   writes a new one from the shapes alone (`path`, `circle`, `rect`, `ellipse`,
   `line`, `polyline`, `polygon`, `g`) and their geometric and stroke
@@ -4495,6 +4499,23 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
 - **One icon shape per meaning** (chevron = open/close one thing, shafted
   arrow = step or back, tree box = one level, double chevron = all). Never
   reuse a glyph because it is there.
+- **Every icon is 1em tall** (`yui_icons.css`, 7.32.6+). The box of an icon
+  is 1em wide. A glyph that is wider than tall gets a wider box, its viewBox
+  width over its height: `yi-file-csv` (576 x 512) is 1.125em wide, and
+  `yi-code` (640 x 512) is 1.25em. A new icon that is wider than tall goes
+  into the list of its width, and `yui_icons.test.js` names an icon that is
+  missing from it:
+
+  ```css
+  .yi-file-csv::before,
+  .yi-sitemap::before {
+      width: 1.125em;
+  }
+  ```
+
+  A Bulma `.icon` grows to hold a wide glyph. Up to 7.32.5 every box was a
+  1em square, and a wide glyph was drawn smaller to fit: in one row of tool
+  buttons, `yi-code` was 80% of the height of the others.
 - **Bulma helpers carry `!important`** (`.is-hidden`, `.is-flex`): toggle
   `is-hidden`, or use `style.setProperty('display', 'none', 'important')`.
 - **Data goes into the DOM as text, never as a string.** `createElement2()`
@@ -4587,7 +4608,7 @@ the tables of `gui_treedb` and `gui_agent`. Other tables can obey it too.
    a control has none, for example the action buttons or the selection
    checkbox.
 2. The footer shows the paginator at all times, also when all the rows fit
-   in one page.
+   in one page. On a phone the paginator takes one line (see below).
 3. The table holds all its rows in the browser and pages them there. This
    is local pagination.
 4. Each toolbar above the table takes one row. When the row does not fit,
@@ -4620,10 +4641,31 @@ since 7.32.4. Up to 7.32.0 it hid the paginator when all the rows fit, and
 its toolbar wrapped into two rows on a phone. Up to 7.32.3 the columns of a
 document, a hook, a file and a time had no filter.
 
+The paginator on a phone takes one line, from `tabulator.css` (7.32.6+),
+for every table of an app that imports it. At the mobile width of Bulma
+(768 px and less):
+
+- First, Prev, Next and Last show the icons of the period navigator
+  (`C_YUI_PERIOD`): `yi-backward-step`, `yi-chevron-left`,
+  `yi-chevron-right` and `yi-forward-step`. Each button keeps its name in
+  the table's language: Tabulator writes "First Page" and the others as
+  `title` and `aria-label`.
+- The label "Rows per page" is hidden. The select keeps the same text as its
+  `title` and `aria-label`.
+- Of the numbered pages, only the current one shows. The steps and the ends
+  reach the others.
+- Each icon is `YUI_TOOLBAR_ICON_SIZE` (1.25rem), the size of the icons of
+  the toolbar above the table, in a 2rem button.
+
+Up to 7.32.5 the words took three lines of the footer on a 390 px phone.
+`tabulator.css` takes the masks from `yui_icons.css` as custom properties
+(`--yi-backward-step` and the others), so the app must import it. Every app
+of the ecosystem does.
+
 How to make sure that a table obeys it: open the DEPLOYED page at 390 px.
 Each control of the toolbar is on one line, the paginator
-(`.tabulator-paginator`) has a width with one page of rows, and each column
-of data has a filter box.
+(`.tabulator-paginator`) has a width with one page of rows and is one line,
+and each column of data has a filter box.
 
 Why each point:
 

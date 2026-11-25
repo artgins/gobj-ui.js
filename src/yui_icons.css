@@ -26,6 +26,78 @@
     vertical-align: -0.125em;
 }
 
+/*
+ *  The masks of the NAVIGATION icons, as custom properties: a widget
+ *  that draws its own DOM (Tabulator's paginator, tabulator.css) puts
+ *  them on an element it cannot give a class to. One copy of each path:
+ *  the classes below read the same property.
+ */
+:root {
+    --yi-backward-step: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M267.5 440.6c9.5 7.9 22.8 9.7 34.1 4.4s18.4-16.6 18.4-29l0-320c0-12.4-7.2-23.7-18.4-29s-24.5-3.6-34.1 4.4l-192 160L64 241l0-145c0-17.7-14.3-32-32-32S0 78.3 0 96L0 416c0 17.7 14.3 32 32 32s32-14.3 32-32l0-145 11.5 9.6 192 160z'/%3E%3C/svg%3E");
+    --yi-chevron-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 246.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z'/%3E%3C/svg%3E");
+    --yi-chevron-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z'/%3E%3C/svg%3E");
+    --yi-forward-step: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M52.5 440.6c-9.5 7.9-22.8 9.7-34.1 4.4S0 428.4 0 416L0 96C0 83.6 7.2 72.3 18.4 67s24.5-3.6 34.1 4.4l192 160L256 241l0-145c0-17.7 14.3-32 32-32s32 14.3 32 32l0 320c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-145-11.5 9.6-192 160z'/%3E%3C/svg%3E");
+}
+
+/*
+ *  THE BOX: every icon is 1em TALL.
+ *
+ *  The box is 1em wide, and wider for a glyph that is wider than it is
+ *  tall: its width is the width of its viewBox over its height (576 ->
+ *  1.125em, 640 -> 1.25em, the widest of Font Awesome). `mask-size:
+ *  contain` then fills the height of the box with every glyph.
+ *
+ *  Up to 7.32.5 every box was a 1em square, and `contain` drew a wide
+ *  glyph SMALLER to fit its width: `yi-code` at 80% of the height,
+ *  `yi-file-csv` at 89%, beside the full height of the square ones. A
+ *  row of tool buttons showed icons of three sizes.
+ *
+ *  A new icon whose viewBox is wider than tall goes in the list of its
+ *  width below (yui_icons.test.js says which one is missing).
+ */
+.yi-broom::before,
+.yi-language::before,
+.yi-location-crosshairs::before,
+.yi-sun::before,
+.yi-terminal::before,
+.yi-broom-wide::before,
+.yi-eye::before,
+.yi-eye-slash::before,
+.yi-sitemap::before,
+.yi-file-csv::before,
+.yi-file-pdf::before,
+.yi-user-slash::before,
+.yi-user-clock::before,
+.yi-wand-magic-sparkles::before,
+.yi-clock-rotate-left::before,
+.yi-bug::before,
+.yi-folder-tree::before,
+.yi-user-shield::before {
+    width: 1.125em;
+}
+
+.yi-arrows-to-eye::before,
+.yi-cloudversify::before,
+.yi-link::before,
+.yi-code::before,
+.yi-gears::before,
+.yi-user-check::before,
+.yi-robot::before,
+.yi-user-plus::before {
+    width: 1.25em;
+}
+
+/*
+ *  Bulma's `.icon` is a SQUARE of a fixed width (1.5rem, 1.5em in a
+ *  button): a wide glyph of the list above hung out of it on both sides,
+ *  into the control beside it (the code icon touched the back arrow in
+ *  the bar of the shell on a 360px phone). It grows to hold its glyph,
+ *  and stays the square for every other one.
+ */
+.icon:has(> [class^="yi-"], > [class*=" yi-"]) {
+    min-width: max-content;
+}
+
 /* --- Solid icons --- */
 .yi-arrows-rotate::before {
     -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M65.9 228.5c13.3-93 93.4-164.5 190.1-164.5 53 0 101 21.5 135.8 56.2 .2 .2 .4 .4 .6 .6l7.6 7.2-47.9 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l128 0c17.7 0 32-14.3 32-32l0-128c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 53.4-11.3-10.7C390.5 28.6 326.5 0 256 0 127 0 20.3 95.4 2.6 219.5 .1 237 12.2 253.2 29.7 255.7s33.7-9.7 36.2-27.1zm443.5 64c2.5-17.5-9.7-33.7-27.1-36.2s-33.7 9.7-36.2 27.1c-13.3 93-93.4 164.5-190.1 164.5-53 0-101-21.5-135.8-56.2-.2-.2-.4-.4-.6-.6l-7.6-7.2 47.9 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L32 320c-8.5 0-16.7 3.4-22.7 9.5S-.1 343.7 0 352.3l1 127c.1 17.7 14.6 31.9 32.3 31.7S65.2 496.4 65 478.7l-.4-51.5 10.7 10.1c46.3 46.1 110.2 74.7 180.7 74.7 129 0 235.7-95.4 253.4-219.5z'/%3E%3C/svg%3E");
@@ -317,13 +389,13 @@
 }
 
 .yi-chevron-left::before {
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 246.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l192 192c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 246.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-192 192z'/%3E%3C/svg%3E");
+    -webkit-mask-image: var(--yi-chevron-left);
+    mask-image: var(--yi-chevron-left);
 }
 
 .yi-chevron-right::before {
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M310.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L242.7 256 73.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192z'/%3E%3C/svg%3E");
+    -webkit-mask-image: var(--yi-chevron-right);
+    mask-image: var(--yi-chevron-right);
 }
 
 .yi-chevron-up::before {
@@ -332,8 +404,8 @@
 }
 
 .yi-forward-step::before {
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M52.5 440.6c-9.5 7.9-22.8 9.7-34.1 4.4S0 428.4 0 416L0 96C0 83.6 7.2 72.3 18.4 67s24.5-3.6 34.1 4.4l192 160L256 241l0-145c0-17.7 14.3-32 32-32s32 14.3 32 32l0 320c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-145-11.5 9.6-192 160z'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M52.5 440.6c-9.5 7.9-22.8 9.7-34.1 4.4S0 428.4 0 416L0 96C0 83.6 7.2 72.3 18.4 67s24.5-3.6 34.1 4.4l192 160L256 241l0-145c0-17.7 14.3-32 32-32s32 14.3 32 32l0 320c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-145-11.5 9.6-192 160z'/%3E%3C/svg%3E");
+    -webkit-mask-image: var(--yi-forward-step);
+    mask-image: var(--yi-forward-step);
 }
 
 .yi-calendar-days::before {
@@ -347,8 +419,8 @@
 }
 
 .yi-backward-step::before {
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M267.5 440.6c9.5 7.9 22.8 9.7 34.1 4.4s18.4-16.6 18.4-29l0-320c0-12.4-7.2-23.7-18.4-29s-24.5-3.6-34.1 4.4l-192 160L64 241l0-145c0-17.7-14.3-32-32-32S0 78.3 0 96L0 416c0 17.7 14.3 32 32 32s32-14.3 32-32l0-145 11.5 9.6 192 160z'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath d='M267.5 440.6c9.5 7.9 22.8 9.7 34.1 4.4s18.4-16.6 18.4-29l0-320c0-12.4-7.2-23.7-18.4-29s-24.5-3.6-34.1 4.4l-192 160L64 241l0-145c0-17.7-14.3-32-32-32S0 78.3 0 96L0 416c0 17.7 14.3 32 32 32s32-14.3 32-32l0-145 11.5 9.6 192 160z'/%3E%3C/svg%3E");
+    -webkit-mask-image: var(--yi-backward-step);
+    mask-image: var(--yi-backward-step);
 }
 
 /*  yi-bolt / yi-droplet: hand-drawn masks, for electricity and water:

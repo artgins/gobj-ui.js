@@ -403,8 +403,8 @@ export function rebuild_svg_from_shapes(root)
     }
 
     /*
-     *  The viewBox is what scales the drawing into the 1em box of an
-     *  icon. Without one, the width and height of the root say the size
+     *  The viewBox is what scales the drawing into the box of an
+     *  icon (svg_icon_width). Without one, the width and height of the root say the size
      *  it was drawn at, and that is the box.
      */
     let view_box = (root.getAttribute("viewBox") || "").trim();
@@ -465,6 +465,32 @@ export function svg_mask_url(svg)
 }
 
 /************************************************************
+ *  The width of the box of an icon, in em: 1, or more for a
+ *  drawing wider than tall, so that it is 1em TALL like every
+ *  icon (yui_icons.css, "THE BOX"). Its viewBox says the ratio.
+ *
+ *  Capped at 1.25em, the widest icon of Font Awesome: a wider
+ *  drawing is a logo or a banner, and a box any wider would
+ *  push the controls of its row aside. It is drawn smaller.
+ ************************************************************/
+export const USER_ICON_MAX_WIDTH = 1.25;
+
+export function svg_icon_width(svg)
+{
+    let m = /viewBox="([^"]*)"/.exec(String(svg || ""));
+    if(!m) {
+        return 1;
+    }
+    let parts = m[1].trim().split(/[\s,]+/).map(Number);
+    let w = parts[2];
+    let h = parts[3];
+    if(!(w > 0 && h > 0) || w <= h) {
+        return 1;
+    }
+    return Math.round(Math.min(w / h, USER_ICON_MAX_WIDTH) * 1000) / 1000;
+}
+
+/************************************************************
  *  An element that shows an svg as an icon, before it is
  *  registered (a form preview, a cell of __icons__ itself).
  *  Return {element} or {error}.
@@ -480,6 +506,10 @@ export function yui_svg_icon_element(svg_text)
     let mask = svg_mask_url(clean.svg);
     el.style.setProperty("-webkit-mask-image", mask);
     el.style.setProperty("mask-image", mask);
+    let width = svg_icon_width(clean.svg);
+    if(width > 1) {
+        el.style.setProperty("width", `${width}em`);
+    }
     return {element: el, dropped: clean.dropped};
 }
 
@@ -490,8 +520,9 @@ function rebuild_user_icons_stylesheet()
 {
     let css = "";
     for(const [id, icon] of __user_icons__) {
+        let width = (icon.width > 1) ? ` width: ${icon.width}em;` : "";
         css += `.${yui_user_icon_class(id)}::before {` +
-               `-webkit-mask-image: ${icon.mask}; mask-image: ${icon.mask};}\n`;
+               `-webkit-mask-image: ${icon.mask}; mask-image: ${icon.mask};${width}}\n`;
     }
 
     try {
@@ -530,7 +561,7 @@ function user_icon_entry(node)
         log_warning(`user icons: icon '${id}' not drawn: ${clean.error}`);
         return null;
     }
-    return {svg: clean.svg, mask: svg_mask_url(clean.svg)};
+    return {svg: clean.svg, mask: svg_mask_url(clean.svg), width: svg_icon_width(clean.svg)};
 }
 
 /************************************************************

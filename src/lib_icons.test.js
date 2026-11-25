@@ -28,6 +28,8 @@ const {
     yui_icons_put_user,
     yui_icons_remove_user,
     yui_icons_list,
+    svg_icon_width,
+    USER_ICON_MAX_WIDTH,
     USER_ICON_PREFIX,
     ICONS_TOPIC,
 } = await import("./lib_icons.js");
@@ -163,6 +165,7 @@ test("a user icon lives in its own namespace", () => {
 const TREES = {
     "bolt": BOLT,
     "box": el("svg", {viewBox: "0 0 2 2"}, [el("rect", {width: "2", height: "2"})]),
+    "wide": el("svg", {viewBox: "0 0 576 512"}, [el("rect", {width: "576", height: "512"})]),
     "empty": el("svg", {viewBox: "0 0 2 2"}, [])
 };
 
@@ -211,4 +214,24 @@ test("a write puts or takes away one icon", () => {
     yui_icons_remove_user("bolt");
     expect(user_css()).toBe("");
     expect(yui_icons_list().filter(icon => icon.user)).toEqual([]);
+});
+
+/*
+ *  Every icon is 1em TALL (yui_icons.css, "THE BOX"): a drawing wider
+ *  than tall gets a wider box, up to the widest of Font Awesome.
+ */
+test("the box of a user icon is as wide as its drawing, up to a cap", () => {
+    expect(svg_icon_width('<svg viewBox="0 0 24 24"></svg>')).toBe(1);
+    expect(svg_icon_width('<svg viewBox="0 0 384 512"></svg>')).toBe(1);
+    expect(svg_icon_width('<svg viewBox="0 0 576 512"></svg>')).toBe(1.125);
+    expect(svg_icon_width('<svg viewBox="0,0,640,512"></svg>')).toBe(1.25);
+    expect(svg_icon_width('<svg viewBox="0 0 1000 100"></svg>')).toBe(USER_ICON_MAX_WIDTH);
+    expect(svg_icon_width('<svg></svg>')).toBe(1);
+    expect(svg_icon_width('<svg viewBox="0 0 0 0"></svg>')).toBe(1);
+
+    yui_icons_set_user([{id: "box", svg: "box"}, {id: "wide", svg: "wide"}]);
+    let css = user_css();
+    expect(css).toMatch(/\.yi-u-wide::before \{[^}]*; width: 1\.125em;\}/);
+    expect(css).not.toMatch(/\.yi-u-box::before \{[^}]*; width: /);
+    yui_icons_set_user([]);
 });

@@ -36,6 +36,87 @@
 }
 
 /* ====================================================================
+ *  The paginator on a NARROW screen: icons, and one line.
+ *
+ *  On a phone the words of the paginator ("Rows per page", First, Prev,
+ *  the pages, Next, Last) took three lines of the footer. At the mobile
+ *  width of Bulma (768px, where `is-hidden-mobile` hides a label):
+ *
+ *  - First, Prev, Next, Last are the icons of the period navigator
+ *    (C_YUI_PERIOD): |<  <  >  >|. The word is hidden, and the name
+ *    stays: Tabulator writes "First Page", ... as `title` and
+ *    `aria-label`, in the table's language.
+ *  - "Rows per page" is hidden. The select keeps the same text as its
+ *    `title` and `aria-label`.
+ *  - Of the numbered pages only the current one shows: the steps and the
+ *    ends reach the others.
+ *
+ *  The paginator is the toolbar at the bottom of the table, and its
+ *  icons are the size of the icons of the toolbar above it: 1.25rem,
+ *  `YUI_TOOLBAR_ICON_SIZE` of yui_toolbar.js (tabulator_css.test.js
+ *  keeps the two equal). Every button of the paginator is the same
+ *  2rem box. The masks come from yui_icons.css (`--yi-backward-step`,
+ *  ...): a button that Tabulator draws takes no class, and the path of
+ *  each icon is written once.
+ * ==================================================================== */
+@media screen and (max-width: 768px) {
+    .tabulator .tabulator-footer .tabulator-paginator > label {
+        display: none;
+    }
+    .tabulator .tabulator-footer .tabulator-pages {
+        margin: 0 2px;
+    }
+    .tabulator .tabulator-footer .tabulator-pages .tabulator-page:not(.active) {
+        display: none;
+    }
+    .tabulator .tabulator-footer .tabulator-page {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2rem;
+        height: 2rem;
+        padding: 0 0.25rem;
+        vertical-align: middle;
+    }
+    /*  `data-page` names the four ends and steps, and the NUMBER of each
+     *  numbered page too: name them one by one.  */
+    .tabulator .tabulator-footer .tabulator-page:is([data-page=first], [data-page=prev],
+                                                    [data-page=next], [data-page=last]) {
+        font-size: 0;
+    }
+    .tabulator .tabulator-footer .tabulator-page:is([data-page=first], [data-page=prev],
+                                                    [data-page=next], [data-page=last])::before {
+        content: "";
+        display: inline-block;
+        width: 1.25rem;
+        height: 1.25rem;
+        background-color: currentColor;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+    }
+    .tabulator .tabulator-footer .tabulator-page[data-page=first]::before {
+        -webkit-mask-image: var(--yi-backward-step);
+        mask-image: var(--yi-backward-step);
+    }
+    .tabulator .tabulator-footer .tabulator-page[data-page=prev]::before {
+        -webkit-mask-image: var(--yi-chevron-left);
+        mask-image: var(--yi-chevron-left);
+    }
+    .tabulator .tabulator-footer .tabulator-page[data-page=next]::before {
+        -webkit-mask-image: var(--yi-chevron-right);
+        mask-image: var(--yi-chevron-right);
+    }
+    .tabulator .tabulator-footer .tabulator-page[data-page=last]::before {
+        -webkit-mask-image: var(--yi-forward-step);
+        mask-image: var(--yi-forward-step);
+    }
+}
+
+/* ====================================================================
  *  Active / selected row highlight.
  *  Green wash + left accent, theme-aware, with enough specificity
  *  (three classes) to beat the striped-row !important backgrounds.

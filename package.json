@@ -1,6 +1,6 @@
 {
   "name": "@yuneta/gobj-ui",
-  "version": "7.32.5",
+  "version": "7.32.6",
   "license": "MIT",
   "type": "module",
   "main": "dist/gobj-ui.cjs.js",
