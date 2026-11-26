@@ -2,12 +2,18 @@
  *          nav_icon_size.wiring.test.js
  *
  *      The glyph of a tab and of a menu entry of C_YUI_NAV is the size
- *      of the glyphs of a toolbar: YUI_TOOLBAR_ICON_SIZE (yui_toolbar.js).
+ *      of the glyphs of a toolbar: YUI_TOOLBAR_ICON_SIZE (yui_toolbar_icon.js).
  *      Up to 7.32.6 a tab and a menu entry took the 16px of their text,
  *      and right under a toolbar of 20px their icons read as smaller.
  *      The icon bar and the cards are other bands: they keep their own
  *      size. The close mark of a tab is no icon of the tab: it keeps
  *      its own size too.
+ *
+ *      The nav takes the size from yui_toolbar_icon.js, a module with
+ *      no key and no CSS, and never from yui_toolbar.js: validate-locales
+ *      reads every module an app imports, and in 7.32.7 the keys of the
+ *      toolbar's scroll arrows failed the build of each app that mounts
+ *      a nav and no toolbar.
  *
  *      Driven through the real gclass on a document double.
  *
@@ -15,6 +21,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {test, expect, beforeAll} from "vitest";
+import {readFileSync} from "fs";
 import {install_dom_double} from "../test/dom_double.js";
 
 install_dom_double();
@@ -91,4 +98,14 @@ test("the glyph is decoration: the control carries the name", () => {
     const $c = nav_container({layout: "tabs"});
     const $i = $c.querySelector("i.yi-table");
     expect($i.getAttribute("aria-hidden")).toBe("true");
+});
+
+test("the nav takes the size from a module with no key and no CSS", () => {
+    const nav_src = readFileSync(new URL("./c_yui_nav.js", import.meta.url), "utf8");
+    expect(nav_src).toContain('from "./yui_toolbar_icon.js"');
+    expect(nav_src).not.toContain('from "./yui_toolbar.js"');
+
+    const icon_src = readFileSync(new URL("./yui_toolbar_icon.js", import.meta.url), "utf8");
+    expect(icon_src).not.toMatch(/^\s*import\b/m);
+    expect(icon_src).not.toMatch(/\bt\(/);
 });

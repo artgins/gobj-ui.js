@@ -4519,13 +4519,20 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
   1em square, and a wide glyph was drawn smaller to fit: in one row of tool
   buttons, `yi-code` was 80% of the height of the others.
 - **The icons of a row of controls have one size**: `YUI_TOOLBAR_ICON_SIZE`
-  (1.25rem, `yui_toolbar.js`). A toolbar, a tab, a menu entry and the
-  paginator of a table on a phone take it (7.32.7+). Build the glyph with
-  `yui_toolbar_icon()` in a plain Bulma `.icon`:
+  (1.25rem). A toolbar, a tab, a menu entry and the paginator of a table on
+  a phone take it (7.32.7+). Build the glyph with `yui_toolbar_icon()` in a
+  plain Bulma `.icon`:
 
   ```js
+  import {yui_toolbar_icon} from "@yuneta/gobj-ui/src/yui_toolbar_icon.js";
   ['span', {class: 'icon'}, [yui_toolbar_icon('yi-table')]]
   ```
+
+  The two names live in `yui_toolbar_icon.js`, a module with no i18n key
+  and no CSS (7.32.8+). `yui_toolbar.js` exports them too. A view that
+  draws no toolbar imports them from `yui_toolbar_icon.js`: an app must
+  define the keys of every module that it imports, and `yui_toolbar.js`
+  carries the keys of the scroll arrows.
 
   The app bar, the icon bar and the cards are other bands, with their own
   bigger icons. The close mark of a tab is no icon of the tab and keeps the

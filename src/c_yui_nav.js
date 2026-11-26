@@ -111,7 +111,7 @@ import {
 import {text_node} from "./yui_text.js";
 import {css_string} from "./yui_selector.js";
 import {badge_node, badge_tone, paint_badge, name_control_with_badge} from "./yui_badge.js";
-import {yui_toolbar_icon} from "./yui_toolbar.js";
+import {yui_toolbar_icon} from "./yui_toolbar_icon.js";
 
 /***************************************************************
  *              Constants

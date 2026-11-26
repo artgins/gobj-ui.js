@@ -7,6 +7,17 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.8 (2026-11-26)
+
+- **`C_YUI_NAV` no longer imports the toolbar.** `yui_toolbar_icon()` and
+  `YUI_TOOLBAR_ICON_SIZE` live in `yui_toolbar_icon.js`, a module with no
+  i18n key and no CSS. `yui_toolbar.js` exports them too, so an existing
+  import keeps working. In 7.32.7 the nav imported them from
+  `yui_toolbar.js`. Then `validate-locales` asked every app that mounts a
+  nav for the keys of the toolbar's scroll arrows ("scroll left", "scroll
+  right"). The build of two apps and of the project template failed on
+  them.
+
 ## 7.32.7 (2026-11-26)
 
 - **The icons of the tabs and of the menu entries are the size of the
