@@ -4534,9 +4534,12 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
   define the keys of every module that it imports, and `yui_toolbar.js`
   carries the keys of the scroll arrows.
 
-  The app bar, the icon bar and the cards are other bands, with their own
-  bigger icons. The close mark of a tab is no icon of the tab and keeps the
-  size of its text. Up to 7.32.6 a tab and a menu entry took the size of
+  The title bar of a `C_YUI_WINDOW` takes it too: its icon, and the
+  minimize, maximize and close glyphs, drawn in a box of that size. So does
+  the header of a dialog of the shell (its back arrow and its close), which
+  is the phone's face of a window (7.32.9+). The app bar, the icon bar, the
+  cards and the dock of windows are other bands, with their own sizes. The
+  close mark of a tab is no icon of the tab and keeps the size of its text. Up to 7.32.6 a tab and a menu entry took the size of
   their text, 16px. Under a toolbar of 20px their icons looked smaller.
 - **Bulma helpers carry `!important`** (`.is-hidden`, `.is-flex`): toggle
   `is-hidden`, or use `style.setProperty('display', 'none', 'important')`.

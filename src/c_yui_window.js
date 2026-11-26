@@ -90,6 +90,7 @@ import {escape_is_taken} from "./escape_taken.js";
 
 import "./c_yui_window.css";
 import {text_node} from "./yui_text.js";
+import {yui_toolbar_icon, YUI_TOOLBAR_ICON_SIZE} from "./yui_toolbar_icon.js";
 
 /***************************************************************
  *              Constants
@@ -99,7 +100,13 @@ const GCLASS_NAME = "C_YUI_WINDOW";
 /*  Window-control glyphs as inline SVG (currentColor → theme-aware,
  *  pixel-consistent). There is no minimize/restore glyph in the
  *  yui_icons.css mask set, and chrome affordances read better as
- *  crisp SVG than as content icons. */
+ *  crisp SVG than as content icons.
+ *
+ *  Each one is drawn in a box of YUI_TOOLBAR_ICON_SIZE, the size of
+ *  the glyphs of the toolbar right under the title bar (7.32.9). Up to
+ *  7.32.8 the box was 15px, and the drawn marks were 7.5px (close),
+ *  8.8px (maximize) and 9.4px (minimize) next to toolbar icons of
+ *  20px. In a 20px box they are 10, 11.75 and 12.5px. */
 const WC_MIN = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="11" width="10" height="1.6" rx="0.8" fill="currentColor"/></svg>';
 const WC_MAX = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.3" y="3.3" width="9.4" height="9.4" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
 const WC_RESTORE = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.2" y="3" width="7.8" height="7.8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="3" y="5.2" width="7.8" height="7.8" rx="1.3" fill="var(--bulma-scheme-main)" stroke="currentColor" stroke-width="1.4"/></svg>';
@@ -420,7 +427,7 @@ function ensure_window_style()
 .yui-window-titlebar-controls { display: flex; align-items: center; gap: 2px; padding-left: 6px; }
 .yui-window-title { white-space: nowrap; }
 .yui-window-title .icon { flex: 0 0 auto; }
-.yui-window-title svg { width: 14px; height: 14px; display: block; }
+.yui-window-title svg { width: ${YUI_TOOLBAR_ICON_SIZE}; height: ${YUI_TOOLBAR_ICON_SIZE}; display: block; }
 /*  Separator between the data half and the translated kind half. CSS,
  *  not a text node: createElement2 trims text nodes and eats the spaces.
  *  Decorative ("/ ''"): the halves NAME the window, and a reader read
@@ -438,7 +445,7 @@ function ensure_window_style()
 }
 .yui-wc:hover { background: var(--bulma-scheme-main-ter); color: var(--bulma-text-strong); }
 .yui-wc.wc-close:hover { background: #e0364a; color: #fff; }
-.yui-wc svg { width: 15px; height: 15px; display: block; }
+.yui-wc svg { width: ${YUI_TOOLBAR_ICON_SIZE}; height: ${YUI_TOOLBAR_ICON_SIZE}; display: block; }
 .yui-window-resize { color: var(--bulma-text-weak); opacity: 0.55; }
 .yui-window-resize:hover { opacity: 1; color: var(--bulma-text); }
 /*  A modal window over its backdrop: the backdrop of a Bulma .modal,
@@ -453,7 +460,6 @@ function ensure_window_style()
     .C_YUI_WINDOW.is-mobile-sheet .yui-window-resize { display: none !important; }
     .yui-wc { width: 42px; height: 38px; }
     .yui-wc.wc-max { display: none !important; }
-    .yui-wc svg { width: 18px; height: 18px; }
 }
 `;
     let $style = document.createElement('style');
@@ -507,7 +513,9 @@ function build_title_node(gobj, id, hidden)
             /*  The `icon` attr is the app's own: inline svg is markup.  */
             items.push(['span', {class: 'icon'}, html_markup(icon)]);
         } else {
-            items.push(['span', {class: 'icon'}, [['i', {class: icon}]]]);
+            /*  The size of the glyphs of a row of controls, as a tab:
+             *  up to 7.32.8 it took the 16px of the title.  */
+            items.push(['span', {class: 'icon'}, [yui_toolbar_icon(icon)]]);
         }
     }
     if(!empty_string(prefix)) {

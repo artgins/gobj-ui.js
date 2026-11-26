@@ -7,6 +7,21 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.9 (2026-11-26)
+
+- **The icons of a window's title bar and of a dialog's header are the size of the
+  toolbar's icons**: `YUI_TOOLBAR_ICON_SIZE` (1.25rem). In `C_YUI_WINDOW` this is the
+  title icon, and the minimize, maximize and close glyphs, which are drawn in a box of
+  that size. In a dialog of the shell (`yui_shell_show_modal()` with `dialog: true`) this
+  is the back arrow and the close. A json cell of a treedb table opens in a window on a
+  desktop and in such a dialog on a phone, and the 20px toolbar of the json viewer sits
+  right under either header. Up to 7.32.8 the title icon and the dialog's glyphs took the
+  16px of the title. The window's glyphs were drawn in a 15px box: close 7.5px, maximize
+  8.8px, minimize 9.4px. Now they are 10, 11.7 and 12.5px. No header changes its height:
+  the title bar is still 35px and the dialog header 49px, measured in the demo against
+  7.32.8. On a phone the window glyphs were 18px, and they are now 20px like on a
+  desktop. The dock of windows keeps its compact chips.
+
 ## 7.32.8 (2026-11-26)
 
 - **`C_YUI_NAV` no longer imports the toolbar.** `yui_toolbar_icon()` and

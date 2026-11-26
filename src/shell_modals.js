@@ -48,6 +48,7 @@ import {
     yui_shell_overlay_dismissed,
 } from "./c_yui_shell.js";
 import {text_node} from "./yui_text.js";
+import {yui_toolbar_icon} from "./yui_toolbar_icon.js";
 
 
 /***************************************************************
@@ -330,14 +331,18 @@ export function yui_shell_show_modal(shell, content, opts)
     let with_close = !(opts && opts.with_close_button === false);
     let modal_children;
     if(dialog) {
+        /*  Its glyphs are the size of a toolbar's (yui_toolbar_icon):
+         *  a dialog is the phone's face of a window, whose bar draws
+         *  them so too (7.32.9). Up to 7.32.8 they took the 16px of
+         *  the title.  */
         let header = ["div", {class: "MODAL_HEADER yui-dialog-header"}, [
             ["button", {class: "MODAL_BACK yui-dialog-back", type: "button", title: t("back"), "data-i18n-title": "back",
                     "aria-label": t("back"), "data-i18n-aria-label": "back"},
-                [["i", {class: "yi-arrow-left"}]]],
+                [yui_toolbar_icon("yi-arrow-left")]],
             ["span", {class: "MODAL_TITLE yui-dialog-title"}, title_halves],
             ["button", {class: "MODAL_CLOSE yui-dialog-x", type: "button", title: t("close"), "data-i18n-title": "close",
                     "aria-label": t("close"), "data-i18n-aria-label": "close"},
-                [["i", {class: "yi-xmark"}]]],
+                [yui_toolbar_icon("yi-xmark")]],
         ]];
         let body = ["div", {class: "MODAL_BODY yui-dialog-body"}, inner ? [inner] : []];
         modal_children = [
