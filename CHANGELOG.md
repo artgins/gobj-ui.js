@@ -7,6 +7,27 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.11 (2026-11-26)
+
+- **A Preferences page for every app** (`C_YUI_PREFERENCES`, `yui_preferences.js`). It
+  shows three rows in one box headed "Appearance": Theme (light, dark), Language (the
+  app's languages, each in its own words, with its `lang`) and Navigation (stacked
+  strips, back to parent, breadcrumb). The app registers how it reads and changes its
+  theme and its language with `yui_preferences_setup()`, and mounts the page at
+  `/preferences`. An app with fields of its own draws the same rows with the parts
+  (`yui_pref_header`, `yui_pref_box`, `yui_pref_field`, `yui_pref_segment`,
+  `yui_pref_appearance_fields`, `yui_pref_apply`). It is the page of gui_agent, made
+  common: up to 7.32.10 each app had its own, with other rows or none.
+- **The navigation mode is the reader's, for the whole app**: `yui_shell_nav_mode()` and
+  `yui_shell_set_nav_mode()`, kept in this browser. The second publishes
+  `EV_NAV_MODE_CHANGED`, an optional event of the shell (delivered only to a subscriber
+  that declares it). A `C_YUI_NODE` root with no `nav_mode` of its own follows it, and
+  draws its path again when it changes. The default of the attr is now `""` (follow).
+  It was `"stack"`, which is also the default of the preference, so a tree that
+  declares nothing draws as before until the reader chooses. `yui_node_set_nav_mode(root,
+  "")` makes a root follow again, and `yui_node_nav_mode()` answers the mode the tree
+  draws in. Up to 7.32.10 each app kept its own mode and handed it to its trees.
+
 ## 7.32.10 (2026-11-26)
 
 - **The json viewer folds its tree one level at a time** (`C_YUI_JSON`). Two buttons

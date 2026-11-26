@@ -313,4 +313,10 @@ export const I18N_KEY_FUNCTIONS = Object.freeze([
     {module: "c_yui_shell.js", name: "announce_badge", exported: false, keys: ["1"]},
     /*  shell_route_map.js -- a node of the route map  */
     {module: "shell_route_map.js", name: "render_node", exported: false, keys: ["0.label"]},
+    /*  yui_preferences.js -- the parts of a Preferences page an app
+     *  uses for its own fields: the label of a field, the options of a
+     *  segment (an option with a `text` and no `key` is data: a
+     *  language named in its own words)  */
+    {module: "yui_preferences.js", name: "yui_pref_field", exported: true, keys: ["0"]},
+    {module: "yui_preferences.js", name: "yui_pref_segment", exported: true, keys: ["2[].key"]},
 ]);

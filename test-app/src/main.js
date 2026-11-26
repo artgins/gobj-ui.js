@@ -43,6 +43,7 @@ import {register_c_yui_map}          from "@yuneta/gobj-ui/src/c_yui_map.js";
 import {register_c_yui_window}       from "@yuneta/gobj-ui/src/c_yui_window.js";
 import {register_c_yui_window_manager}
                                      from "@yuneta/gobj-ui/src/c_yui_window_manager.js";
+import {register_c_yui_preferences}  from "@yuneta/gobj-ui/src/c_yui_preferences.js";
 import {register_c_yui_treedb_topic_with_form}
     from "@yuneta/gobj-ui/src/c_yui_treedb_topic_with_form.js";
 
@@ -121,6 +122,7 @@ function main()
     register_c_yui_map();
     register_c_yui_window();     // host for the developer window (account menu)
     register_c_yui_window_manager(); // dock/taskbar for windows (Windows chapter)
+    register_c_yui_preferences();   // the /preferences page
     register_c_yui_node();       // node tree: the Cards chapter is a tree of these
 
     register_c_demo();

@@ -63,8 +63,26 @@ export {
     yui_shell_register_overlay,
     yui_shell_overlay_dismissed,
     yui_shell_unpark_route,
+    yui_shell_nav_mode,
+    yui_shell_set_nav_mode,
 } from "./src/c_yui_shell.js";
 export { register_c_yui_nav } from "./src/c_yui_nav.js";
+/*
+ *  Preferences: the page every app shows at /preferences (theme,
+ *  language, navigation), whole or in parts.
+ */
+export { register_c_yui_preferences } from "./src/c_yui_preferences.js";
+export {
+    YUI_PREFERENCES_I18N_KEYS,
+    yui_preferences_setup,
+    yui_pref_header,
+    yui_pref_box,
+    yui_pref_field,
+    yui_pref_segment,
+    yui_pref_appearance_fields,
+    yui_pref_sections,
+    yui_pref_apply,
+} from "./src/yui_preferences.js";
 /*
  *  Site map: the whole navigation surface (toolbar + account menu +
  *  nav + dynamic tabs + view-contributed sub-routes) as a clickable,

@@ -370,6 +370,73 @@ validate and before publishing a release.
 
 ## Components
 
+### Preferences — `C_YUI_PREFERENCES` and `yui_preferences_setup`
+
+Every app has a Preferences page at `/preferences`, and it shows at least
+three rows in one box headed "Appearance" (7.32.11+):
+
+| row | options | kept by |
+|---|---|---|
+| Theme | light theme, dark theme | the app (`set_theme`) |
+| Language | the app's languages, each in its own words | the app (`set_language`) |
+| Navigation | stacked strips, back to parent, breadcrumb | the shell (`yui_shell_set_nav_mode`) |
+
+The app says once, at start up, how it reads and changes its theme and its
+language, and which boxes it adds under the three rows:
+
+```js
+import {yui_preferences_setup} from "@yuneta/gobj-ui/src/yui_preferences.js";
+
+yui_preferences_setup({
+    current_theme:    current_theme,             // () => "light" | "dark"
+    set_theme:        (v) => app_set_theme(v),
+    languages:        [{value: "en", text: "English"}, {value: "es", text: "Español"}],
+    current_language: current_locale,
+    set_language:     switch_locale,             // the app's i18next
+    sections:         (gobj) => [],              // optional: boxes of the app
+});
+```
+
+Then the page is a route of the app config, with no menu entry (the account
+menu navigates to it). It is a page and not a dialog, so it is linkable and
+survives an F5:
+
+```json
+"routes": {
+    "/preferences": {"stage": "main", "gclass": "C_YUI_PREFERENCES",
+                     "lifecycle": "lazy_destroy"}
+}
+```
+
+Register the gclass with the others (`register_c_yui_preferences()`). The
+navigation needs nothing from the app: every `C_YUI_NODE` tree with no mode
+of its own follows it, and an app with no tree keeps the choice for the day
+it has one.
+
+An app whose page has fields with actions of its own (a font size, a buffer)
+keeps its own view and draws the same rows with the parts:
+`yui_pref_header()`, `yui_pref_box(fields)`, `yui_pref_field(label_key,
+control)`, `yui_pref_segment(gobj, event, options, current)` and
+`yui_pref_appearance_fields(gobj)`. Its FSM declares `EV_SET_THEME`,
+`EV_SET_LANGUAGE` and `EV_SET_NAV_MODE` (`{value}`), and each action calls
+`yui_pref_apply(gobj, event, kw)` and draws the page again:
+
+```js
+function ac_set_preference(gobj, event, kw, src)
+{
+    let ret = yui_pref_apply(gobj, event, kw);
+    render(gobj);   // which option is marked is markup
+    return ret;
+}
+```
+
+A language is shown and named in its own words, with its `lang`: a reader
+finds their language in the language they read, and an app of ten languages
+needs no key per language name. The keys the page needs are `preferences`,
+`appearance`, `theme`, `language`, `navigation`, `light theme`, `dark theme`,
+`stacked strips`, `back to parent` and `breadcrumb`. `validate-locales` asks
+for them in every app that imports the page.
+
 ### Site map — `yui_shell_show_route_map`
 
 Every declarative-shell app can render its WHOLE navigation surface —
@@ -502,6 +569,14 @@ seen*:
   | `"stack"` (default) | one strip per ancestor | whatever each branch declares |
   | `"back"` | only the tip's parent, as a `← parent` | `chrome: {"layout":"backbar"}` everywhere + `chrome_depth: 1` |
   | `"path"` | the trail as ONE line | `path: {"layout":"breadcrumb"}` on the root + `chrome_depth: 0` |
+
+  **A root with no `nav_mode` of its own follows the reader's choice for the
+  whole app** (7.32.11+): `yui_shell_nav_mode(shell)`, the Navigation row of
+  the Preferences page, kept in this browser. When the reader changes it,
+  `yui_shell_set_nav_mode(shell, mode)` publishes `EV_NAV_MODE_CHANGED`, and
+  every root that follows it draws its path again. A root that declares
+  `"nav_mode"`, or is given one with `yui_node_set_nav_mode(root, "path")`,
+  keeps it. `yui_node_set_nav_mode(root, "")` makes it follow again.
 
   It belongs to the **root** (`yui_node_set_nav_mode(root, "path")`, or
   `"nav_mode"` in its declaration) and the whole tree reads it from there —

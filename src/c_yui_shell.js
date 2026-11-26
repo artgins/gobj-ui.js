@@ -49,7 +49,11 @@ import {
     gobj_short_name,
     gobj_is_destroying,
     gobj_post_event,
+    kw_get_local_storage_value,
+    kw_set_local_storage_value,
 } from "@yuneta/gobj-js";
+
+import {NAV_MODES, is_nav_mode} from "./node_tree_model.js";
 
 import {
     BULMA_BP_ORDER,
@@ -4359,7 +4363,7 @@ function yui_shell_set_submenu(shell_gobj, parent_item_id, items)
  *  EV_ICONS_CHANGED). So they reach only the subscribers that
  *  declare them. Every other event of the shell goes out as before.
  ***************************************************************/
-const OPTIONAL_EVENTS = new Set(["EV_CONNECTION_STATE", "EV_ICONS_CHANGED"]);
+const OPTIONAL_EVENTS = new Set(["EV_CONNECTION_STATE", "EV_ICONS_CHANGED", "EV_NAV_MODE_CHANGED"]);
 
 function mt_publication_pre_filter(gobj, subs, event, kw)
 {
@@ -4446,6 +4450,15 @@ function create_gclass(gclass_name)
          *  icon cell of a table -- has to decide again. Delivered only to
          *  the subscribers that declare it: see
          *  mt_publication_pre_filter().  */
+        /*  The reader chose another way in for the trees of nodes
+         *  (yui_shell_set_nav_mode, the Navigation row of Preferences).
+         *  Every C_YUI_NODE root that has no mode of its own follows it.
+         *  Delivered only to the subscribers that declare it: see
+         *  mt_publication_pre_filter().  */
+        ["EV_NAV_MODE_CHANGED",       event_flag_t.EVF_OUTPUT_EVENT
+                                     |event_flag_t.EVF_PUBLIC_EVENT
+                                     |event_flag_t.EVF_NO_WARN_SUBS],
+
         ["EV_ICONS_CHANGED",          event_flag_t.EVF_OUTPUT_EVENT
                                      |event_flag_t.EVF_PUBLIC_EVENT
                                      |event_flag_t.EVF_NO_WARN_SUBS],
@@ -5160,6 +5173,47 @@ function yui_shell_language_changed(shell_gobj)
 }
 
 /************************************************************
+ *  How the trees of nodes show the way in: the reader's choice
+ *  for the whole app, one of NAV_MODES (C_YUI_NODE):
+ *
+ *      "stack"   a strip of tabs per level, stacked (the default)
+ *      "back"    one "back to parent" link
+ *      "path"    a breadcrumb
+ *
+ *  Kept in this browser (localStorage), like the theme and the
+ *  language. Every C_YUI_NODE root that has no `nav_mode` of its
+ *  own reads it, and follows a change: yui_shell_set_nav_mode()
+ *  publishes EV_NAV_MODE_CHANGED. Up to gobj-ui 7.32.10 each app
+ *  kept its own (gui_agent one for the app, yunovatios one per
+ *  tree) and handed it to its trees.
+ ************************************************************/
+const NAV_MODE_KEY = "yui_nav_mode";
+
+function yui_shell_nav_mode(shell_gobj)
+{
+    let mode = kw_get_local_storage_value(NAV_MODE_KEY, NAV_MODES[0], false);
+    return is_nav_mode(mode) ? mode : NAV_MODES[0];
+}
+
+function yui_shell_set_nav_mode(shell_gobj, mode)
+{
+    if(!shell_gobj || !is_gobj(shell_gobj)) {
+        log_error(`yui_shell_set_nav_mode(): no shell`);
+        return -1;
+    }
+    if(!is_nav_mode(mode)) {
+        log_error(`yui_shell_set_nav_mode(): unknown nav_mode '${mode}' — ` +
+                  `expected one of ${NAV_MODES.join("|")}`);
+        return -1;
+    }
+    if(kw_set_local_storage_value(NAV_MODE_KEY, mode) < 0) {
+        return -1;  // Error already logged
+    }
+    gobj_publish_event(shell_gobj, "EV_NAV_MODE_CHANGED", {nav_mode: mode});
+    return 0;
+}
+
+/************************************************************
  *  The user icons changed (lib_icons.js: yui_icons_set_user,
  *  yui_icons_put_user, yui_icons_remove_user): PUBLISH it, so
  *  the views that decided at render time whether a name is an
@@ -5415,6 +5469,8 @@ export {
     yui_shell_set_translator,
     yui_shell_translate,
     yui_shell_language_changed,
+    yui_shell_nav_mode,
+    yui_shell_set_nav_mode,
     yui_shell_icons_changed,
     yui_shell_set_connection_state,
     yui_shell_set_toolbar_item_icon,

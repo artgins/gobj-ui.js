@@ -518,6 +518,15 @@ const es_translation = {
     "preferences": "Preferencias",
     "prefs hint": "Un modal enlazable: la URL se queda en /prefs (redirect:'stay').",
     "compact mode": "Modo compacto",
+    "linkable modal": "Modal enlazable",
+    "appearance": "Apariencia",
+    "theme": "Tema",
+    "language": "Idioma",
+    "light theme": "Tema claro",
+    "dark theme": "Tema oscuro",
+    "stacked strips": "Tiras apiladas",
+    "back to parent": "Volver al padre",
+    "breadcrumb": "Miga de pan",
     "Site map": "Mapa del sitio",
     "Frontend view": "Vista frontend",
     "site map": "Mapa del sitio",
@@ -933,6 +942,15 @@ const en_translation = {
     "preferences": "Preferences",
     "prefs hint": "A linkable modal: the URL stays on /prefs (redirect:'stay').",
     "compact mode": "Compact mode",
+    "linkable modal": "Linkable modal",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "language": "Language",
+    "light theme": "Light theme",
+    "dark theme": "Dark theme",
+    "stacked strips": "Stacked strips",
+    "back to parent": "Back to parent",
+    "breadcrumb": "Breadcrumb",
     "span": "All",
     "custom": "Custom",
     "hour": "Hour",
@@ -1322,6 +1340,12 @@ export function setup_locale(lng = "en")
 export function current_locale()
 {
     return i18next.language || "en";
+}
+
+export function set_locale(lng)
+{
+    i18next.changeLanguage(lng);
+    return current_locale();
 }
 
 export function toggle_locale()

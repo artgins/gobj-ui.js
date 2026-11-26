@@ -144,6 +144,7 @@ import {
     yui_shell_navigate,
     yui_shell_set_sub_routes,
     yui_shell_translate,
+    yui_shell_nav_mode,
 } from "./c_yui_shell.js";
 
 import "./c_yui_node.css";
@@ -180,7 +181,7 @@ SDATA(data_type_t.DTP_JSON,     "children",     0,  null,   "Declared child spec
 
 SDATA(data_type_t.DTP_STRING,   "base_route",   0,  "",     "ROOT only: the declared route the whole tree hangs from"),
 SDATA(data_type_t.DTP_STRING,   "tree_version", 0,  "",     "ROOT only: version of the tree CONTRACT (its paths are public urls)"),
-SDATA(data_type_t.DTP_STRING,   "nav_mode",     0,  "stack","ROOT only: how the way in is shown — stack|back|path"),
+SDATA(data_type_t.DTP_STRING,   "nav_mode",     0,  "",     "ROOT only: how the way in is shown — stack|back|path. Empty: the reader's choice for the app, the shell's navigation preference (yui_shell_nav_mode), followed when it changes"),
 SDATA(data_type_t.DTP_BOOLEAN,  "remember_position", 0, false, "A nav item points at WHERE THE OPERATOR LEFT that child, not at its bare route: the tail last active under each child is remembered and appended. For a tree whose children are workspaces with a position inside them (a treedb and its open topic); off for one whose children are pages, where the item IS the destination"),
 
 SDATA(data_type_t.DTP_POINTER,  "$container",   0,  null,   "Root HTMLElement (shell view contract)"),
@@ -297,6 +298,9 @@ function mt_start(gobj)
         return -1;
     }
     gobj_subscribe_event(shell, "EV_ROUTE_CHANGED", {}, gobj);
+    /*  The reader's navigation preference: followed while the tree has
+     *  no `nav_mode` of its own (ac_nav_mode_changed).  */
+    gobj_subscribe_event(shell, "EV_NAV_MODE_CHANGED", {}, gobj);
     publish_sub_routes(gobj);
 }
 
@@ -311,6 +315,7 @@ function mt_stop(gobj)
         let shell = yui_shell_of(gobj);
         if(shell) {
             gobj_unsubscribe_event(shell, "EV_ROUTE_CHANGED", {}, gobj);
+            gobj_unsubscribe_event(shell, "EV_NAV_MODE_CHANGED", {}, gobj);
             yui_shell_set_sub_routes(shell, gobj_read_attr(gobj, "base_route"), null);
         }
     }
@@ -420,7 +425,13 @@ function tree_root_of(gobj)
  ************************************************************/
 function nav_mode_of(gobj)
 {
-    let mode = gobj_read_attr(tree_root_of(gobj), "nav_mode") || "stack";
+    let root = tree_root_of(gobj);
+    let mode = gobj_read_attr(root, "nav_mode");
+    if(!mode) {
+        /*  No mode of its own: the reader's, for the whole app (7.32.11).  */
+        let shell = yui_shell_of(root);
+        mode = shell ? yui_shell_nav_mode(shell) : "stack";
+    }
 
     if(!is_nav_mode(mode)) {
         log_error(
@@ -1624,7 +1635,8 @@ function ac_set_nav_mode(gobj, event, kw, src)
     let priv = gobj.priv;
     let mode = kw.nav_mode || "";
 
-    if(!is_nav_mode(mode)) {
+    /*  "" is no mode of its own: follow the reader's (yui_shell_nav_mode).  */
+    if(mode !== "" && !is_nav_mode(mode)) {
         log_error(
             `${GCLASS_NAME} '${node_path_str(gobj)}': unknown nav_mode ` +
             `'${mode}' — expected one of ${NAV_MODES.join("|")}`
@@ -1639,17 +1651,38 @@ function ac_set_nav_mode(gobj, event, kw, src)
         return -1;
     }
     gobj_write_attr(gobj, "nav_mode", mode);
+    reapply_route(gobj);
+    return 0;
+}
 
-    /*  Same reason as EV_SET_CHROME_DEPTH: what changes is the shape
-     *  of the ACTIVE PATH, whose strips are painted by the ancestors,
-     *  so the tree is asked to re-apply the current route instead of
-     *  repainting one node. */
+/************************************************************
+ *  The reader chose another way in for the whole app (the shell's
+ *  EV_NAV_MODE_CHANGED, from Preferences). A root with a
+ *  `nav_mode` of its own keeps it: the host pinned it.
+ ************************************************************/
+function ac_nav_mode_changed(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(!priv.is_root || gobj_read_attr(gobj, "nav_mode")) {
+        return 0;
+    }
+    reapply_route(gobj);
+    return 0;
+}
+
+/************************************************************
+ *  Same reason as EV_SET_CHROME_DEPTH: what changes with the
+ *  mode is the shape of the ACTIVE PATH, whose strips are
+ *  painted by the ancestors, so the tree is asked to re-apply
+ *  the current route instead of repainting one node.
+ ************************************************************/
+function reapply_route(gobj)
+{
     let shell = yui_shell_of(gobj);
     if(shell) {
         yui_shell_navigate(shell, gobj_read_attr(shell, "current_route") ||
             route_of(gobj), {replace: true});
     }
-    return 0;
 }
 
 /************************************************************
@@ -1746,7 +1779,8 @@ function yui_node_set_nav_mode(node, mode)
 
 function yui_node_nav_mode(node)
 {
-    return gobj_read_attr(tree_root_of(node), "nav_mode") || "stack";
+    /*  The mode the tree draws in: its own, else the reader's.  */
+    return nav_mode_of(node);
 }
 
 /************************************************************
@@ -1838,6 +1872,7 @@ function create_gclass(gclass_name)
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
+            ["EV_NAV_MODE_CHANGED",     ac_nav_mode_changed,    null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
             ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
@@ -1854,6 +1889,7 @@ function create_gclass(gclass_name)
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
+            ["EV_NAV_MODE_CHANGED",     ac_nav_mode_changed,    null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
             ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
@@ -1870,6 +1906,7 @@ function create_gclass(gclass_name)
             ["EV_SET_PROJECTION",       ac_set_projection,      null],
             ["EV_SET_CHROME_DEPTH",     ac_set_chrome_depth,    null],
             ["EV_SET_NAV_MODE",         ac_set_nav_mode,        null],
+            ["EV_NAV_MODE_CHANGED",     ac_nav_mode_changed,    null],
             ["EV_SET_CONTENT",          ac_set_content,         null],
             ["EV_NODE_TREE_CHANGED",    ac_tree_changed,        null],
             ["EV_DESTROY_NAVS",         ac_destroy_navs,        null]
@@ -1891,6 +1928,7 @@ function create_gclass(gclass_name)
         ["EV_SET_PROJECTION",       0],
         ["EV_SET_CHROME_DEPTH",     0],
         ["EV_SET_NAV_MODE",         0],
+        ["EV_NAV_MODE_CHANGED",     0],
         ["EV_SET_CONTENT",          0],
         ["EV_NODE_TREE_CHANGED",    0],
         /*  internal: posted to itself, the navs a render left  */

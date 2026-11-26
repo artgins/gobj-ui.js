@@ -47,6 +47,12 @@
                 "kind": "action",
                 "event": "EV_OPEN_PREFS",
                 "redirect": "stay"
+            },
+            "_preferences_comment": "The Preferences page every app shows (C_YUI_PREFERENCES): theme, language, navigation. A first-level route with no menu entry, reached from the account menu; a page and not a dialog, so it is linkable and survives an F5. The theme and the language come from yui_preferences_setup() in c_demo.js.",
+            "/preferences": {
+                "stage": "main",
+                "gclass": "C_YUI_PREFERENCES",
+                "lifecycle": "lazy_destroy"
             }
         }
     },
@@ -225,9 +231,18 @@
                             }
                         },
                         {
-                            "id": "d-prefs",
-                            "name": "Preferences",
+                            "id": "d-preferences",
+                            "name": "preferences",
                             "icon": "yi-sliders",
+                            "action": {
+                                "type": "navigate",
+                                "route": "/preferences"
+                            }
+                        },
+                        {
+                            "id": "d-prefs",
+                            "name": "linkable modal",
+                            "icon": "yi-window-maximize",
                             "action": {
                                 "type": "navigate",
                                 "route": "/prefs"

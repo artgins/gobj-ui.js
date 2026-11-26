@@ -52,8 +52,10 @@ import {setup_dev, dev_window_was_open} from "@yuneta/gobj-ui/src/yui_dev.js";
 import {setup_frontend_view} from "@yuneta/gobj-ui/src/yui_frontend_view.js";
 import {setup_json_pad} from "@yuneta/gobj-ui/src/yui_json_pad.js";
 
+import {yui_preferences_setup} from "@yuneta/gobj-ui/src/yui_preferences.js";
+
 import {t} from "i18next";
-import {toggle_locale} from "./locales.js";
+import {toggle_locale, set_locale, current_locale} from "./locales.js";
 
 
 /***************************************************************
@@ -108,6 +110,19 @@ let __gclass__ = null;
 function mt_create(gobj)
 {
     create_shell(gobj);
+
+    /*  The Preferences page (C_YUI_PREFERENCES at /preferences): how this
+     *  demo reads and changes its theme and its language.  */
+    yui_preferences_setup({
+        current_theme:    current_theme,
+        set_theme:        function(theme) {
+            apply_theme(theme);
+            update_theme_icon(gobj);
+        },
+        languages:        [{value: "en", text: "English"}, {value: "es", text: "Español"}],
+        current_language: current_locale,
+        set_language:     set_locale,
+    });
 }
 
 /***************************************************************
