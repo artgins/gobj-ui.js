@@ -7,6 +7,21 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.7 (2026-11-26)
+
+- **The icons of the tabs and of the menu entries are the size of the
+  toolbar's icons**: `YUI_TOOLBAR_ICON_SIZE` (1.25rem). This applies to
+  the tabs, the menu entries and the back arrow of `C_YUI_NAV` (vertical,
+  drawer, submenu, accordion, tabs, backbar), and to the topic tabs of
+  `C_YUI_TREEDB_TOPICS`. Up to 7.32.6 they took the size of their text,
+  16px. Right under a toolbar of 20px, their icons looked smaller. No row
+  changes its height: a tab is still 42px and a menu entry 40px. The icon
+  bar and the cards keep their own sizes, and the close mark of a tab
+  keeps the size of its text. Reported on the treedb editor of
+  `gui_treedb`.
+- **`yui_toolbar_icon()` marks its glyph `aria-hidden`**. The glyph is
+  decoration, and the control around it carries the name.
+
 ## 7.32.6 (2026-11-25)
 
 - **The paginator takes one line on a phone** (`tabulator.css`). At the

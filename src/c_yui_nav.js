@@ -111,6 +111,7 @@ import {
 import {text_node} from "./yui_text.js";
 import {css_string} from "./yui_selector.js";
 import {badge_node, badge_tone, paint_badge, name_control_with_badge} from "./yui_badge.js";
+import {yui_toolbar_icon} from "./yui_toolbar.js";
 
 /***************************************************************
  *              Constants
@@ -444,7 +445,7 @@ function render_tabs(gobj, items)
         let pinned = !empty_string(it.icon) && !has_label;
         let badge_el = item_badge_node(gobj, it, pinned);
         if(!empty_string(it.icon)) {
-            children.push(icon_span(it.icon, "icon is-small", pinned ? badge_el : null));
+            children.push(icon_span(it.icon, "icon", pinned ? badge_el : null, true));
         }
         if(has_label) {
             children.push(["span", {i18n: it.name}, text_node(it.name)]);
@@ -598,8 +599,7 @@ function render_backbar(gobj)
     return createElement2(
         ["div", {},
             ["a", a_attrs, [
-                ["span", {class: "icon is-small"},
-                    ["i", {class: "yi-arrow-left", "aria-hidden": "true"}]],
+                icon_span("yi-arrow-left", "icon", null, true),
                 ["span", label_attrs, text_node(label)]
             ]]
         ]
@@ -772,7 +772,7 @@ function item_li(gobj, it, opts)
     let pinned = !empty_string(it.icon) && (is_stacked || !label_el);
     let badge_el = item_badge_node(gobj, it, pinned);
     let icon_el = !empty_string(it.icon)
-        ? icon_span(it.icon, "icon", pinned ? badge_el : null)
+        ? icon_span(it.icon, "icon", pinned ? badge_el : null, true)
         : null;
 
     let a_class = "yui-nav-item";
@@ -927,10 +927,16 @@ function item_badge_node(gobj, it, pinned)
 
 /************************************************************
  *  An item's icon, with its badge on the corner when given one.
+ *  `row_glyph`: the glyph of a tab or a menu entry, at the one
+ *  size of the toolbars (yui_toolbar_icon). Without it the
+ *  glyph takes the size the layout gives it (the icon bar, the
+ *  cards).
  ************************************************************/
-function icon_span(icon, classes, badge_el)
+function icon_span(icon, classes, badge_el, row_glyph)
 {
-    let glyph = ["i", {class: icon, "aria-hidden": "true"}];
+    let glyph = row_glyph ?
+        yui_toolbar_icon(icon) :
+        ["i", {class: icon, "aria-hidden": "true"}];
     if(!badge_el) {
         return ["span", {class: classes}, glyph];
     }

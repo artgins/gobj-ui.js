@@ -1481,7 +1481,9 @@ for a reason worth keeping: in `em` the same `1.5em` drew 24px inside a plain
 button, 18px inside an `is-small` chip of the legend, and a labelled button
 left its icon at the inherited 16px — three sizes in two strips that are read
 as one thing. It is the toolbar's size and not the graph's: the JSON viewer,
-the treedb topics row and the treedb table row take it too. The app BAR keeps
+the treedb topics row and the treedb table row take it too, and since
+`7.32.7` the tabs and the menu entries of `C_YUI_NAV` and the topic tabs of
+`C_YUI_TREEDB_TOPICS`. The app BAR keeps
 its own, bigger glyph (`.yui-toolbar-item .icon`, 1.35rem on 44px items) —
 that is a different band, not drift. The legend under the toolbar
 follows it: topic name at `1rem`, count at `.875rem` (the one deliberate step
@@ -4516,6 +4518,19 @@ text is in the yunetas `CLAUDE.md` ("JS GUI conventions"); in short:
   A Bulma `.icon` grows to hold a wide glyph. Up to 7.32.5 every box was a
   1em square, and a wide glyph was drawn smaller to fit: in one row of tool
   buttons, `yi-code` was 80% of the height of the others.
+- **The icons of a row of controls have one size**: `YUI_TOOLBAR_ICON_SIZE`
+  (1.25rem, `yui_toolbar.js`). A toolbar, a tab, a menu entry and the
+  paginator of a table on a phone take it (7.32.7+). Build the glyph with
+  `yui_toolbar_icon()` in a plain Bulma `.icon`:
+
+  ```js
+  ['span', {class: 'icon'}, [yui_toolbar_icon('yi-table')]]
+  ```
+
+  The app bar, the icon bar and the cards are other bands, with their own
+  bigger icons. The close mark of a tab is no icon of the tab and keeps the
+  size of its text. Up to 7.32.6 a tab and a menu entry took the size of
+  their text, 16px. Under a toolbar of 20px their icons looked smaller.
 - **Bulma helpers carry `!important`** (`.is-hidden`, `.is-flex`): toggle
   `is-hidden`, or use `style.setProperty('display', 'none', 'important')`.
 - **Data goes into the DOM as text, never as a string.** `createElement2()`

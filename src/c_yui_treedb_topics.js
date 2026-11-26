@@ -616,9 +616,7 @@ function add_tab(gobj, gobj2, id, text, icon)
     if(icon) {
         $a.appendChild(
             createElement2(
-                ['span', {class: 'icon is-small is-hidden-mobile'},
-                    ['i', {class: `${icon}`, 'aria-hidden': 'true'}]
-                ]
+                ['span', {class: 'icon is-hidden-mobile'}, [yui_toolbar_icon(icon)]]
             )
         );
     }
