@@ -919,8 +919,25 @@ Two layout facts the browser taught this component, both worth keeping:
   (`7.21.0` forwarded it and broke exactly that way); a host that wants node
   clicks mounts `C_YUI_JSON_GRAPH` itself.
 - Internal (DOM → FSM): `EV_TOGGLE_NODE`, `EV_EXPAND_COLLAPSED`, `EV_SEARCH`,
-  `EV_EXPAND_ALL`, `EV_COLLAPSE_ALL`, `EV_COPY_ALL`. Every kw carries only a
-  `path` string — never a DOM node or gobj.
+  `EV_EXPAND_ALL`, `EV_COLLAPSE_ALL`, `EV_EXPAND_LEVEL`, `EV_COLLAPSE_LEVEL`,
+  `EV_COPY_ALL`. Every kw carries only a `path` string — never a DOM node or
+  gobj.
+- The tree folds by level too (7.32.10+). Beside "expand loaded" and
+  "collapse all", a stepper of two buttons works on one level of the whole
+  tree, with the tree-box icons of the icon rule (`yi-square-minus`,
+  `yi-square-plus`). A level is the depth of a row: 0 for an entry of the
+  root.
+  - `EV_EXPAND_LEVEL` (`+`) opens every loaded container of the shallowest
+    level that still has one closed. From a closed document, one press shows
+    the fields of each entry, with their own containers closed.
+  - `EV_COLLAPSE_LEVEL` (`-`) closes every container at the deepest level
+    open in sight, and every container under it.
+  - A `__collapsed__` sentinel is not opened by `+`: it opens through the
+    backend, as with "expand loaded".
+
+  The keys are `expand one level` and `collapse one level`, the same as the
+  stepper of the treedb graph. An app that mounts the viewer defines them in
+  every locale. The stepper hides with the tree, like the search box.
 - i18n keys the switch needs: `tree view`, `text view`, `graph view`,
   `text truncated; collapse some branches`. All spelled out inside `t()` in
   `view_label()` — never `t(VIEWS[i].key)`, which no `validate-locales` can

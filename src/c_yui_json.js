@@ -355,6 +355,8 @@ function build_ui(gobj)
     priv.$search_ctl = $container.querySelector('.JSON_SEARCH_CONTROL');
     priv.$expand_btn = $container.querySelector('.EV_EXPAND_ALL');
     priv.$collapse_btn = $container.querySelector('.EV_COLLAPSE_ALL');
+    priv.$collapse_level_btn = $container.querySelector('.EV_COLLAPSE_LEVEL');
+    priv.$expand_level_btn = $container.querySelector('.EV_EXPAND_LEVEL');
     priv.$graph = $container.querySelector('.JSON_GRAPH');
     priv.$mode_btns = new Map();
     VIEWS.forEach(function(v) {
@@ -388,6 +390,8 @@ function destroy_ui(gobj)
     priv.$search_ctl = null;
     priv.$expand_btn = null;
     priv.$collapse_btn = null;
+    priv.$collapse_level_btn = null;
+    priv.$expand_level_btn = null;
     priv.$mode_btns = null;
 }
 
@@ -438,7 +442,13 @@ function make_toolbar(gobj)
      *  per-row toggles live in the rows.  */
     left_items.push(
         icon_button(gobj, "yi-angles-down", "EV_EXPAND_ALL",   "expand loaded"),
-        icon_button(gobj, "yi-angles-up",   "EV_COLLAPSE_ALL", "collapse all")
+        icon_button(gobj, "yi-angles-up",   "EV_COLLAPSE_ALL", "collapse all"),
+        /*  The level stepper, beside the pair that does it all at once:
+         *  `-` folds the deepest level open, `+` opens the next one. The
+         *  tree boxes of the icon rule (one LEVEL of the whole tree), in
+         *  the order of the treedb graph's stepper.  */
+        icon_button(gobj, "yi-square-minus", "EV_COLLAPSE_LEVEL", "collapse one level"),
+        icon_button(gobj, "yi-square-plus",  "EV_EXPAND_LEVEL",   "expand one level")
     );
 
     attach_clear($search_control, $search_input);
@@ -592,7 +602,8 @@ function apply_view_mode(gobj)
      *  worse than an absent one.  A <pre> is searched with the browser's
      *  own Ctrl+F, and the graph carries its own controls.
      */
-    [priv.$search_ctl, priv.$expand_btn, priv.$collapse_btn].forEach(function($el) {
+    [priv.$search_ctl, priv.$expand_btn, priv.$collapse_btn,
+     priv.$collapse_level_btn, priv.$expand_level_btn].forEach(function($el) {
         if($el) {
             $el.classList.toggle('is-hidden', mode !== "tree");
         }
@@ -1095,6 +1106,100 @@ function collect_loaded_paths(value, segments, out)
     }
 }
 
+/************************************************************
+ *   The entries of a container, as [key, value] pairs: the keys
+ *   of an object, the indexes of an array (as strings, the way
+ *   a path spells them). None for anything else.
+ ************************************************************/
+function entries_of(value)
+{
+    let type = json_type(value);
+    if(type === "object") {
+        return Object.entries(value);
+    }
+    if(type === "array") {
+        return value.map((v, i) => [String(i), v]);
+    }
+    return [];
+}
+
+/************************************************************
+ *   Is it a container the tree can open in place: an object or
+ *   an array that is loaded (not a `__collapsed__` sentinel,
+ *   which opens through the backend).
+ ************************************************************/
+function is_open_able(value)
+{
+    if(is_collapsed(value)) {
+        return false;
+    }
+    let type = json_type(value);
+    return type === "object" || type === "array";
+}
+
+/************************************************************
+ *   The shallowest level that has a loaded container still
+ *   closed, -1 when every loaded container is open. A level is
+ *   the depth of a row: 0 for an entry of the root.
+ ************************************************************/
+function first_closed_level(priv, value, segments)
+{
+    let level = -1;
+    for(let [k, v] of entries_of(value)) {
+        if(!is_open_able(v)) {
+            continue;
+        }
+        let child = segments.concat(k);
+        let found = priv.expanded.has(seg_join(child)) ?
+            first_closed_level(priv, v, child) :
+            child.length - 1;
+        if(found >= 0 && (level < 0 || found < level)) {
+            level = found;
+        }
+    }
+    return level;
+}
+
+/************************************************************
+ *   The deepest level with a container open in sight (all its
+ *   parents open too), -1 when none is. Only what the reader
+ *   sees counts: an open container under a closed one is not
+ *   on screen, and folding it would change nothing they see.
+ ************************************************************/
+function deepest_open_level(priv, value, segments)
+{
+    let level = -1;
+    for(let [k, v] of entries_of(value)) {
+        if(!is_open_able(v)) {
+            continue;
+        }
+        let child = segments.concat(k);
+        if(!priv.expanded.has(seg_join(child))) {
+            continue;
+        }
+        level = Math.max(level, child.length - 1, deepest_open_level(priv, v, child));
+    }
+    return level;
+}
+
+/************************************************************
+ *   Open every loaded container of the levels up to `level`.
+ ************************************************************/
+function open_levels_up_to(priv, value, segments, level)
+{
+    for(let [k, v] of entries_of(value)) {
+        if(!is_open_able(v)) {
+            continue;
+        }
+        let child = segments.concat(k);
+        if(child.length - 1 > level) {
+            continue;
+        }
+        priv.expanded.add(seg_join(child));
+        open_levels_up_to(priv, v, child, level);
+    }
+}
+
 
 
 
@@ -1270,6 +1375,52 @@ function ac_collapse_all(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     priv.expanded.clear();
+    render_view(gobj);
+    return 0;
+}
+
+/************************************************************
+ *   EV_EXPAND_LEVEL — open the next level: every loaded
+ *   container of the shallowest level that still has one closed.
+ *   The levels above it are all open already, so the tree shows
+ *   one level more. A `__collapsed__` sentinel is not opened: it
+ *   asks the backend, as with "expand loaded".
+ ************************************************************/
+function ac_expand_level(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.root === null || priv.root === undefined) {
+        return 0;
+    }
+    let level = first_closed_level(priv, priv.root, []);
+    if(level < 0) {
+        return 0;   /*  every loaded container is open: nothing to step  */
+    }
+    open_levels_up_to(priv, priv.root, [], level);
+    render_view(gobj);
+    return 0;
+}
+
+/************************************************************
+ *   EV_COLLAPSE_LEVEL — fold the deepest level open in sight:
+ *   every container open at that level or under it is closed,
+ *   so the tree shows one level less.
+ ************************************************************/
+function ac_collapse_level(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    if(priv.root === null || priv.root === undefined) {
+        return 0;
+    }
+    let level = deepest_open_level(priv, priv.root, []);
+    if(level < 0) {
+        return 0;   /*  nothing open: nothing to step  */
+    }
+    for(let path of Array.from(priv.expanded)) {
+        if(seg_split(path).length - 1 >= level) {
+            priv.expanded.delete(path);
+        }
+    }
     render_view(gobj);
     return 0;
 }
@@ -1468,6 +1619,8 @@ function create_gclass(gclass_name)
             ["EV_SEARCH",           ac_search,              null],
             ["EV_EXPAND_ALL",       ac_expand_all,          null],
             ["EV_COLLAPSE_ALL",     ac_collapse_all,        null],
+            ["EV_EXPAND_LEVEL",     ac_expand_level,        null],
+            ["EV_COLLAPSE_LEVEL",   ac_collapse_level,      null],
             ["EV_COPY_ALL",         ac_copy_all,            null],
             ["EV_SET_VIEW_MODE",    ac_set_view_mode,       null],
             ["EV_LANGUAGE_CHANGED", ac_language_changed,    null],
@@ -1489,6 +1642,8 @@ function create_gclass(gclass_name)
         ["EV_SEARCH",           0],
         ["EV_EXPAND_ALL",       0],
         ["EV_COLLAPSE_ALL",     0],
+        ["EV_EXPAND_LEVEL",     0],
+        ["EV_COLLAPSE_LEVEL",   0],
         ["EV_COPY_ALL",         0],
         ["EV_SET_VIEW_MODE",    0],
         ["EV_JSON_ITEM_CLICKED", 0],

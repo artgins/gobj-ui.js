@@ -7,6 +7,19 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.10 (2026-11-26)
+
+- **The json viewer folds its tree one level at a time** (`C_YUI_JSON`). Two buttons
+  stand beside "expand loaded" and "collapse all", with the tree-box icons of the icon
+  rule. `+` (`EV_EXPAND_LEVEL`, `yi-square-plus`) opens every loaded container of the
+  shallowest level that still has one closed. `-` (`EV_COLLAPSE_LEVEL`, `yi-square-minus`)
+  closes every container at the deepest level open in sight, and every container under
+  it. From a closed document, one press of `+` shows the fields of each entry, with their
+  own containers closed. Up to 7.32.9 the reader opened everything or one row at a
+  time. The keys are `expand one level` and `collapse one level`, the keys of the treedb
+  graph's stepper: every app of the deploy round defines them. Asked for on the json
+  popup of a treedb cell.
+
 ## 7.32.9 (2026-11-26)
 
 - **The icons of a window's title bar and of a dialog's header are the size of the
