@@ -171,3 +171,10 @@ story, are in `CHANGELOG.md`.
 - **A new behavior of a view that other apps host is opt-in** (the schema
   view's node click, `with_node_click`): published on by default, it reached
   hosts that never asked for it.
+- **A new import is a new set of keys for every app that mounts the
+  importer.** `validate-locales` reads each module an app imports, and asks
+  for every key it finds there. A helper that a widely mounted view needs
+  goes in a module with no key and no CSS (`yui_toolbar_icon.js`), never in
+  the widget beside it: in 7.32.7 `C_YUI_NAV` took the glyph size from
+  `yui_toolbar.js`, and two apps and the project template failed their build
+  on the toolbar's "scroll left" and "scroll right".
