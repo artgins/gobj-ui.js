@@ -11,9 +11,12 @@
  *          navigation (yui_preferences.js) -- and then the boxes the
  *          app adds in its yui_preferences_setup(). A press applies at
  *          once and is kept in this browser; the page is drawn again
- *          to mark the new choice, and when the language changes from
- *          elsewhere (the toolbar), because which option is marked is
- *          markup.
+ *          to mark the new choice, and when the language or the theme
+ *          changes from elsewhere (the toolbar), because which option
+ *          is marked is markup. The theme has no event of the shell:
+ *          the page watches data-theme (yui_watch_theme). Up to 7.32.11
+ *          a theme chosen on the toolbar left the Theme row marking the
+ *          old one until the page was drawn again.
  *
  *          An app whose page has fields with actions of its own keeps
  *          its own view and draws the same rows with the parts of
@@ -41,6 +44,7 @@ import {
 import {t} from "i18next";
 
 import {yui_shell_of} from "./c_yui_shell.js";
+import {yui_watch_theme} from "./yui_theme.js";
 import {
     yui_pref_header,
     yui_pref_box,
@@ -69,6 +73,7 @@ SDATA_END()
  */
 let PRIVATE_DATA = {
     shell: null,
+    theme_watch: null,      /*  data-theme, as an EV_THEME  */
 };
 
 let __gclass__ = null;
@@ -116,6 +121,7 @@ function mt_start(gobj)
     if(priv.shell) {
         gobj_subscribe_event(priv.shell, "EV_LANGUAGE_CHANGED", {}, gobj);
     }
+    priv.theme_watch = yui_watch_theme(gobj);
     render(gobj);
 }
 
@@ -129,6 +135,10 @@ function mt_stop(gobj)
     if(priv.shell) {
         gobj_unsubscribe_event(priv.shell, "EV_LANGUAGE_CHANGED", {}, gobj);
         priv.shell = null;
+    }
+    if(priv.theme_watch) {
+        priv.theme_watch.disconnect();
+        priv.theme_watch = null;
     }
 }
 
@@ -197,9 +207,10 @@ function ac_set_preference(gobj, event, kw, src)
 }
 
 /***************************************************************
- *  The language changed somewhere else (the toolbar).
+ *  The language (EV_LANGUAGE_CHANGED) or the theme (EV_THEME)
+ *  changed somewhere else: the toolbar.
  ***************************************************************/
-function ac_language_changed(gobj, event, kw, src)
+function ac_changed_elsewhere(gobj, event, kw, src)
 {
     render(gobj);
     return 0;
@@ -236,7 +247,8 @@ function create_gclass(gclass_name)
             ["EV_SET_THEME",            ac_set_preference,      null],
             ["EV_SET_LANGUAGE",         ac_set_preference,      null],
             ["EV_SET_NAV_MODE",         ac_set_preference,      null],
-            ["EV_LANGUAGE_CHANGED",     ac_language_changed,    null]
+            ["EV_LANGUAGE_CHANGED",     ac_changed_elsewhere,   null],
+            ["EV_THEME",                ac_changed_elsewhere,   null]
         ]]
     ];
 
@@ -247,7 +259,8 @@ function create_gclass(gclass_name)
         ["EV_SET_THEME",            0],
         ["EV_SET_LANGUAGE",         0],
         ["EV_SET_NAV_MODE",         0],
-        ["EV_LANGUAGE_CHANGED",     0]
+        ["EV_LANGUAGE_CHANGED",     0],
+        ["EV_THEME",                0]
     ];
 
     __gclass__ = gclass_create(

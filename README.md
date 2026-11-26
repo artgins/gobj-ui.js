@@ -413,6 +413,17 @@ navigation needs nothing from the app: every `C_YUI_NODE` tree with no mode
 of its own follows it, and an app with no tree keeps the choice for the day
 it has one.
 
+The page marks a choice made somewhere else too: a language changed on the
+toolbar (`EV_LANGUAGE_CHANGED` of the shell) and a theme changed on the
+toolbar (7.32.12+). The shell has no event for the theme, so the page
+watches `data-theme` with `yui_watch_theme()`, which sends it `EV_THEME`. An
+app that draws the rows in its own view does the same:
+
+```js
+priv.theme_watch = yui_watch_theme(gobj);    // mt_start; disconnect() in mt_stop
+// FSM: ["EV_THEME", ac_redraw, null]
+```
+
 An app whose page has fields with actions of its own (a font size, a buffer)
 keeps its own view and draws the same rows with the parts:
 `yui_pref_header()`, `yui_pref_box(fields)`, `yui_pref_field(label_key,

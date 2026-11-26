@@ -7,6 +7,15 @@ stack is maintenance-only and versioned separately (`1.x`, npm dist-tag
 
 ## Unreleased
 
+## 7.32.12 (2026-11-26)
+
+- **The Preferences page marks a theme chosen on the toolbar** (`C_YUI_PREFERENCES`).
+  With the page open, a theme changed on the toolbar left the Theme row marking the old
+  one until the page was drawn again: the page followed `EV_LANGUAGE_CHANGED` only, and
+  the shell has no event for the theme. It now watches `data-theme` with
+  `yui_watch_theme()` and draws itself again on `EV_THEME`. Reported by the session that
+  moved the yunetadeploy SPA to the page.
+
 ## 7.32.11 (2026-11-26)
 
 - **A Preferences page for every app** (`C_YUI_PREFERENCES`, `yui_preferences.js`). It

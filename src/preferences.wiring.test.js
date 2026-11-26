@@ -8,6 +8,8 @@
  *          current choice;
  *        - a press applies through what the app registered
  *          (yui_preferences_setup), and the page marks the new choice;
+ *        - a theme changed elsewhere (EV_THEME, from yui_watch_theme) is
+ *          marked too;
  *        - the navigation is the shell's (yui_shell_nav_mode): a
  *          C_YUI_NODE tree with no mode of its own follows it, one with
  *          its own keeps it;
@@ -126,6 +128,18 @@ test("a press applies through the app and the page marks it", () => {
     expect(marked($c, "PREF_LANGUAGE")).toBe("Español");
     state.theme = "light";
     state.language = "en";
+    expect(errors()).toEqual([]);
+});
+
+test("a theme chosen elsewhere (the toolbar) is marked: EV_THEME draws the page again", () => {
+    const {page, $c} = new_page();
+    expect(marked($c, "PREF_THEME")).toBe("light theme");
+    /*  The toolbar wrote data-theme; yui_watch_theme() sends EV_THEME.  */
+    state.theme = "dark";
+    gobj_send_event(page, "EV_THEME", {theme: "dark"}, page);
+    expect(marked($c, "PREF_THEME")).toBe("dark theme");
+    expect(applied).toEqual([]);
+    state.theme = "light";
     expect(errors()).toEqual([]);
 });
 
